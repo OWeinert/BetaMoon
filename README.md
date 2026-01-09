@@ -10,6 +10,8 @@ BUT the plan is to provide full backwards compatibility, so you can already star
 
 ## Requirements
 - Minecraft Beta 1.7.3 (Recommended to be installed via MultiMC or similar client)
+- [Java 8 (Adoptium is recommended since it's open source)](https://adoptium.net/de/temurin/releases?version=8&os=any&arch=any)
+  (Select JDK 8 on the website and then download either JDK or JRE for your OS. You'll probably only need JRE)
 - [Risugami's ModLoader](https://mcarchive.net/mods/modloader?gvsn=b1.7.3)
 - [MinecraftForge (1.0.6 is recommended)](https://mcarchive.net/mods/minecraftforge?gvsn=b1.7.3)
   - Note: 1.0.7 may crash when used with ModLoaderMP, so it is not recommended if you need ModloaderMP. 
@@ -21,8 +23,14 @@ BUT the plan is to provide full backwards compatibility, so you can already star
 Of course you can use other similar clients like [Prism](https://prismlauncher.org/), but the setup process might be different there.
 For Prism specifically, the setup may be the same since it's a direct fork of MultiMC.
 
+1) Download and install Java 8
+   - Download and install Java 8 using the link in ["Requirements"](#requirements).
+
 1) Create a new instance
    - Instance version: Minecraft Beta 1.7.3
+   - Right-click the instance -> Edit Instance -> Settings
+   - Click on "Java installation" and "Browse..."
+   - Select the javaw.exe from your Java 8 installation (for Adoptium it's defaulted to "C:/Program Files/Eclipse Adoptium/jre-W.X.YYY.Z-hotspot/bin/javaw.exe", where W/X/Y/Z are numbers for the version you downloaded)
 
 2) Install ModLoader and MinecraftForge
    - Download Risugami's ModLoader and MinecraftForge from the links in ["Requirements"](#requirements).
