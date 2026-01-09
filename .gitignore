@@ -35,3 +35,6 @@ tools/
 # VS Code
 .vscode/
 
+# Local MultiMC symlinked paths (Windows-style filenames)
+E:\\Program Files\\MultiMC\\instances\\b1.7.3_modding\\.minecraft\\mods/
+E:\\Program Files\\MultiMC\\instances\\b1.7.3_modding\\.minecraft\\luamods\\example_mod.lua
