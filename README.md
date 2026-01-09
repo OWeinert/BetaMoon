@@ -57,11 +57,6 @@ For Prism specifically, the setup may be the same since it's a direct fork of Mu
 
 4) Install BetaMoon mods or start modding yourself!
 
-## LuaJ placement
-LuaJ is required for BetaMoon to run Lua mods!
-- Place `luaj-jse-3.0.1.jar` in the same mods folder as BetaMoon.
-- In MultiMC, add it in the Mods list alongside the BetaMoon jar.
-
 ## Where to put Lua mods
 BetaMoon looks for scripts in:
 - `.minecraft/luamods/`
