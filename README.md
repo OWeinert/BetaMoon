@@ -11,35 +11,44 @@ BetaMoon adds Lua-based mod loading to Minecraft Beta 1.7.3. This README explain
 - [LuaJ (luaj-jse-3.0.1.jar)](https://central.sonatype.com/artifact/org.luaj/luaj-jse/3.0.1/versions)
 
 ## Recommended: MultiMC installation
-MultiMC is the easiest and safest way to install legacy mods because it keeps everything in one instance.
+[MultiMC](https://multimc.org/) is the easiest and safest way to install legacy mods because it keeps everything in one instance.
+Of course you can use other similar clients like [Prism](https://prismlauncher.org/), but the setup process might be different there.
+For Prism specifically, the setup may be the same since it's a direct fork of MultiMC.
 
 1) Create a new instance
    - Instance version: Minecraft Beta 1.7.3
 
 2) Install ModLoader and MinecraftForge
-   - Download ModLoader and MinecraftForge from the provided links in "Requirements".
+   - Download Risugami's ModLoader and MinecraftForge from the links in ["Requirements"](#requirements).
    - Right-click the instance -> Edit Instance -> Version tab
    - Click "Add to Minecraft.jar"
    - Add ModLoader first, then add MinecraftForge 1.0.6 second
    - Order matters: ModLoader must be applied before Forge
 
 3) Add BetaMoon and LuaJ
-   - In the same Edit Instance window, open the "Loader Mods" or "Mods" section
-   - Add the BetaMoon mod jar
-   - Add `luaj-jse-3.0.1.jar` (this is required at runtime)
+   - In the same Edit Instance window, open the "Loader mods" section
+   - Add `betamoon-X.Y.Z.jar` (X.Y.Z is the version, e.g. "0.1.0") and `luaj-jse-3.0.1.jar` using the "Add" button on the top right.
    - If MultiMC lists them, make sure both are enabled
 
 4) Run the instance
-   - Start the instance and verify no ModLoader/Forge errors appear on launch
+   - Start the instance and verify no ModLoader/MinecraftForge or BetaMoon errors appear on launch in the console.
+
+5) Install your BetaMoon mods or start modding yourself!
 
 ## Manual installation (not recommended, but possible)
-1) Download ModLoader and MinecraftForge from the provided links in "Requirements".
-2) Backup `minecraft.jar` (from your .minecraft/bin folder).
-3) Open `minecraft.jar` with a zip tool (7-Zip/WinRAR).
-4) Add ModLoader contents to `minecraft.jar` and delete `META-INF`.
-5) Add MinecraftForge 1.0.6 contents to the same `minecraft.jar` (do not remove ModLoader).
-6) Put `BetaMoon.jar` and `luaj-jse-3.0.1.jar` into `.minecraft/mods`.
-7) Launch Minecraft Beta 1.7.3.
+1) Prepare `minecraft.jar`
+   - Download Risugami's ModLoader and MinecraftForge from the links in ["Requirements"](#requirements).
+   - Backup `minecraft.jar` (from your `.minecraft/bin` folder).
+   - Open `minecraft.jar` with a zip tool (7-Zip/WinRAR).
+   - Add ModLoader contents and delete `META-INF`.
+   - Add MinecraftForge contents to the same jar (do not remove ModLoader).
+
+2) Install BetaMoon and LuaJ
+   - Put `betamoon-X.Y.Z.jar` (X.Y.Z is the version, e.g. "0.1.0") and `luaj-jse-3.0.1.jar` into `.minecraft/mods`.
+
+3) Run the game
+   - Launch Minecraft Beta 1.7.3.
+   - Install your BetaMoon mods or start modding yourself!
 
 ## LuaJ placement
 LuaJ is required for BetaMoon to run Lua mods!
