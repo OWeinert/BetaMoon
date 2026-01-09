@@ -4,7 +4,7 @@ BetaMoon adds Lua-based mod loading to Minecraft Beta 1.7.3. This README explain
 
 ## Requirements
 - Minecraft Beta 1.7.3 (Recommended to be installed via MultiMC or similar client)
-- [ModLoader](https://mcarchive.net/mods?search=modloader)
+- [Risugami's ModLoader](https://mcarchive.net/mods?search=modloader)
 - [MinecraftForge 1.0.6](https://mcarchive.net/mods?search=minecraftforge)
   - Note: 1.0.7 may crash when used with ModLoaderMP, so it is not recommended. (1.0.6 can be found when you click the "7 more" button below the 1.0.7 downloads on MCArchive)
 - [LuaJ (luaj-jse-3.0.1.jar)](https://luaj.org/luaj/3.0/luaj-jse-3.0.1.jar)
@@ -16,6 +16,7 @@ MultiMC is the easiest and safest way to install legacy mods because it keeps ev
    - Instance version: Minecraft Beta 1.7.3
 
 2) Install ModLoader and MinecraftForge
+   - Download ModLoader and MinecraftForge from the provided links in "Requirements".
    - Right-click the instance -> Edit Instance -> Version tab
    - Click "Add to Minecraft.jar"
    - Add ModLoader first, then add MinecraftForge 1.0.6 second
@@ -31,12 +32,13 @@ MultiMC is the easiest and safest way to install legacy mods because it keeps ev
    - Start the instance and verify no ModLoader/Forge errors appear on launch
 
 ## Manual installation (not recommended, but possible)
-1) Backup `minecraft.jar` (from your .minecraft/bin folder).
-2) Open `minecraft.jar` with a zip tool (7-Zip/WinRAR).
-3) Add ModLoader contents to `minecraft.jar` and delete `META-INF`.
-4) Add MinecraftForge 1.0.6 contents to the same `minecraft.jar` (do not remove ModLoader).
-5) Put `BetaMoon.jar` and `luaj-jse-3.0.1.jar` into `.minecraft/mods`.
-6) Launch Minecraft Beta 1.7.3.
+1) Download ModLoader and MinecraftForge from the provided links in "Requirements".
+2) Backup `minecraft.jar` (from your .minecraft/bin folder).
+3) Open `minecraft.jar` with a zip tool (7-Zip/WinRAR).
+4) Add ModLoader contents to `minecraft.jar` and delete `META-INF`.
+5) Add MinecraftForge 1.0.6 contents to the same `minecraft.jar` (do not remove ModLoader).
+6) Put `BetaMoon.jar` and `luaj-jse-3.0.1.jar` into `.minecraft/mods`.
+7) Launch Minecraft Beta 1.7.3.
 
 ## LuaJ placement
 LuaJ is required for BetaMoon to run Lua mods!
