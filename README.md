@@ -4,10 +4,11 @@ BetaMoon adds Lua-based mod loading to Minecraft Beta 1.7.3. This README explain
 
 ## Requirements
 - Minecraft Beta 1.7.3 (Recommended to be installed via MultiMC or similar client)
-- [Risugami's ModLoader](https://mcarchive.net/mods?search=modloader)
-- [MinecraftForge 1.0.6](https://mcarchive.net/mods?search=minecraftforge)
-  - Note: 1.0.7 may crash when used with ModLoaderMP, so it is not recommended. (1.0.6 can be found when you click the "7 more" button below the 1.0.7 downloads on MCArchive)
-- [LuaJ (luaj-jse-3.0.1.jar)](https://luaj.org/luaj/3.0/luaj-jse-3.0.1.jar)
+- [Risugami's ModLoader](https://mcarchive.net/mods/modloader?gvsn=b1.7.3)
+- [MinecraftForge (1.0.6 is recommended)](https://mcarchive.net/mods/minecraftforge?gvsn=b1.7.3)
+  - Note: 1.0.7 may crash when used with ModLoaderMP, so it is not recommended if you need ModloaderMP. 
+    (1.0.6 can be found when you click the "7 more" button below the 1.0.7 downloads on MCArchive)
+- [LuaJ (luaj-jse-3.0.1.jar)](https://central.sonatype.com/artifact/org.luaj/luaj-jse/3.0.1/versions)
 
 ## Recommended: MultiMC installation
 MultiMC is the easiest and safest way to install legacy mods because it keeps everything in one instance.
