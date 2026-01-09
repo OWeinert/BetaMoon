@@ -1,0 +1,37 @@
+.DS_Store
+Thumbs.db
+*.class
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+*.orig
+*.rej
+
+# Java / IDE
+.classpath
+.project
+.settings/
+.idea/
+*.iml
+out/
+bin/
+build/
+
+# MCP / RetroMCP / Forge
+runtime/
+jars/
+temp/
+reobf/
+logs/
+dist/
+resources/
+texturepacks/
+mods/
+lib/
+tools/
+
+# VS Code
+.vscode/
+
