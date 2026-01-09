@@ -84,7 +84,7 @@ Create that folder if it does not exist and place your `.lua` files there.
 You can also start Minecraft first and BetaMoon will create the folder automatically.
 
 Lua mods will only be loaded on game start!
-That means if you change anything in a lua script you need to restart your game.
+That means if you change anything in a Lua script or add/remove a Lua mod you need to restart your game.
 
 ## Lua Mod Developement
 How to create your own BetaMoon Lua Mod is fully documented in the Wiki.
