@@ -11,7 +11,7 @@ BetaMoon adds Lua-based mod loading to Minecraft Beta 1.7.3. This README explain
 - [LuaJ (luaj-jse-3.0.1.jar)](https://central.sonatype.com/artifact/org.luaj/luaj-jse/3.0.1/versions)
 
 ## Recommended: MultiMC installation
-[MultiMC](https://multimc.org/) is the easiest and safest way to install legacy mods because it keeps everything in one instance.
+[MultiMC](https://multimc.org/) is the easiest and safest way to install legacy mods because it keeps everything in one instance without the need to modify the minecraft.jar yourself.
 Of course you can use other similar clients like [Prism](https://prismlauncher.org/), but the setup process might be different there.
 For Prism specifically, the setup may be the same since it's a direct fork of MultiMC.
 
