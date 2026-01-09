@@ -26,7 +26,7 @@ For Prism specifically, the setup may be the same since it's a direct fork of Mu
 1) Download and install Java 8
    - Download and install Java 8 using the link in ["Requirements"](#requirements).
 
-1) Create a new instance
+1) Create a new instance in MultiMC
    - Instance version: Minecraft Beta 1.7.3
    - Right-click the instance -> Edit Instance -> Settings
    - Click on "Java installation" and "Browse..."
@@ -50,20 +50,30 @@ For Prism specifically, the setup may be the same since it's a direct fork of Mu
 5) Install BetaMoon mods or start modding yourself!
 
 ## Manual installation (not recommended, but possible)
-1) Prepare `minecraft.jar`
+
+1) Download and install Java 8
+   - Download and install Java 8 using the link in ["Requirements"](#requirements).
+   - Set Java 8 as the active version:
+     - Windows: set `JAVA_HOME` to your Java 8 install and add `%JAVA_HOME%\\bin` to `PATH`.
+     - macOS: `export JAVA_HOME=$(/usr/libexec/java_home -v 1.8)` and ensure `$JAVA_HOME/bin` is first in `PATH`.
+     - Linux: use `update-alternatives --config java` (or your distro's equivalent) to select Java 8.
+   (You probably have to change back your Java version to whatever you need for other Java applications everytime you don't play Minecraft, that's mainly why this installation method is not recommended!)
+
+2) Prepare `minecraft.jar`
+   - Download Minecraft b1.7.3 through official methods.
    - Download Risugami's ModLoader and MinecraftForge from the links in ["Requirements"](#requirements).
    - Backup `minecraft.jar` (from your `.minecraft/bin` folder).
    - Open `minecraft.jar` with a zip tool (7-Zip/WinRAR).
    - Add ModLoader contents and delete `META-INF`.
    - Add MinecraftForge contents to the same jar (do not remove ModLoader).
 
-2) Install BetaMoon and LuaJ
+3) Install BetaMoon and LuaJ
    - Put `betamoon-X.Y.Z.jar` (X.Y.Z is the version, e.g. "0.1.0") and `luaj-jse-3.0.1.jar` into `.minecraft/mods`.
 
-3) Run the game
+4) Run the game
    - Launch Minecraft Beta 1.7.3.
 
-4) Install BetaMoon mods or start modding yourself!
+5) Install BetaMoon mods or start modding yourself!
 
 ## Where to put Lua mods
 BetaMoon looks for scripts in:
