@@ -26,30 +26,41 @@ For Prism specifically, the setup may be the same since it's a direct fork of Mu
 1) Download and install Java 8
    - Download and install Java 8 using the link in ["Requirements"](#requirements).
 
-1) Create a new instance in MultiMC
+2) Create a new instance in MultiMC
    - Instance version: Minecraft Beta 1.7.3
    - Right-click the instance -> Edit Instance -> Settings
    - Click on "Java installation" and "Browse..."
    - Select the javaw.exe from your Java 8 installation (for Adoptium it's defaulted to "C:/Program Files/Eclipse Adoptium/jre-W.X.YYY.Z-hotspot/bin/javaw.exe", where W/X/Y/Z are numbers for the version you downloaded)
 
-2) Install ModLoader and MinecraftForge
+3) Install ModLoader and MinecraftForge
    - Download Risugami's ModLoader and MinecraftForge from the links in ["Requirements"](#requirements).
    - Right-click the instance -> Edit Instance -> Version tab
    - Click "Add to Minecraft.jar"
    - Add ModLoader first, then add MinecraftForge 1.0.6 second
    - Order matters: ModLoader must be applied before Forge
 
-3) Add BetaMoon and LuaJ
+4) Add BetaMoon and LuaJ
    - In the same Edit Instance window, open the "Loader mods" section
    - Add `betamoon-X.Y.Z.jar` (X.Y.Z is the version, e.g. "0.1.0") and `luaj-jse-3.0.1.jar` using the "Add" button on the top right.
    - If MultiMC lists them, make sure both are enabled
 
-4) Run the instance
+5) Run the instance
    - Start the instance and verify no ModLoader/MinecraftForge or BetaMoon errors appear on launch in the console.
 
-5) Install BetaMoon mods or start modding yourself!
+6) Install BetaMoon mods or start modding yourself!
 
 ## Manual installation (not recommended, but possible)
+
+1) Download and install Java 8
+   - Download and install Java 8 using the link in ["Requirements"](#requirements).
+   - Set Java 8 as the active version:
+     - Windows: set `JAVA_HOME` to your Java 8 install and add `%JAVA_HOME%\\bin` to `PATH`.
+     - macOS: `export JAVA_HOME=$(/usr/libexec/java_home -v 1.8)` and ensure `$JAVA_HOME/bin` is first in `PATH`.
+     - Linux: use `update-alternatives --config java` (or your distro's equivalent) to select Java 8.
+   (You probably have to change back your Java version to whatever you need for other Java applications everytime you don't play Minecraft, that's mainly why this installation method is not recommended!)
+
+2) Prepare `minecraft.jar`
+   - Download Minecraft b1.7.3 through official methods.
 
 1) Download and install Java 8
    - Download and install Java 8 using the link in ["Requirements"](#requirements).
@@ -68,11 +79,14 @@ For Prism specifically, the setup may be the same since it's a direct fork of Mu
    - Add MinecraftForge contents to the same jar (do not remove ModLoader).
 
 3) Install BetaMoon and LuaJ
+3) Install BetaMoon and LuaJ
    - Put `betamoon-X.Y.Z.jar` (X.Y.Z is the version, e.g. "0.1.0") and `luaj-jse-3.0.1.jar` into `.minecraft/mods`.
 
 4) Run the game
+4) Run the game
    - Launch Minecraft Beta 1.7.3.
 
+5) Install BetaMoon mods or start modding yourself!
 5) Install BetaMoon mods or start modding yourself!
 
 ## Where to put Lua mods
