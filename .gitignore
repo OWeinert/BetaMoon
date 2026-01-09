@@ -34,3 +34,6 @@ tools/
 
 # VS Code
 .vscode/
+
+# Local scripts
+scripts/
