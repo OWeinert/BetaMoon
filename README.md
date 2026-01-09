@@ -55,6 +55,7 @@ For Prism specifically, the setup may be the same since it's a direct fork of Mu
    - Download and install Java 8 using the link in ["Requirements"](#requirements).
    - Set Java 8 as the active version:
      - Windows: set `JAVA_HOME` to your Java 8 install and add `%JAVA_HOME%\\bin` to `PATH`.
+     (for Adoptium it's defaulted to "C:/Program Files/Eclipse Adoptium/jre-W.X.YYY.Z-hotspot/bin/javaw.exe", where W/X/Y/Z are numbers for the version you downloaded)
      - macOS: `export JAVA_HOME=$(/usr/libexec/java_home -v 1.8)` and ensure `$JAVA_HOME/bin` is first in `PATH`.
      - Linux: use `update-alternatives --config java` (or your distro's equivalent) to select Java 8.
    (You probably have to change back your Java version to whatever you need for other Java applications everytime you don't play Minecraft, that's mainly why this installation method is not recommended!)
