@@ -1,7 +1,12 @@
 # BetaMoon
 
-BetaMoon is a Mod for Minecraft Beta 1.7.3 that adds Lua-based mod loading.
-The Lua API is designed to be easy-to-use and is fully documented in the Wiki.
+BetaMoon is a Mod for Minecraft Beta 1.7.3 that adds Lua-based mod loading.<br>
+The Lua API is designed to be easy-to-use and is fully documented in the Wiki.<br>
+<br>
+
+### W.I.P Notice
+BetaMoon is very W.I.P. That means it doesn't have a lot of features currently!<br>
+BUT the plan is to provide full backwards compatibility, so you can already start to create your Lua Mods without the worry of redoing everything in the future!
 
 ## Requirements
 - Minecraft Beta 1.7.3 (Recommended to be installed via MultiMC or similar client)
