@@ -1,6 +1,7 @@
-# BetaMoon (Minecraft Beta 1.7.3)
+# BetaMoon
 
-BetaMoon adds Lua-based mod loading to Minecraft Beta 1.7.3. This README explains how to install the mod for play (recommended via MultiMC), including ModLoader, MinecraftForge 1.0.6, and the LuaJ runtime dependency.
+BetaMoon is a Mod for Minecraft Beta 1.7.3 that adds Lua-based mod loading.
+The Lua API is designed to be easy-to-use and is fully documented in the Wiki.
 
 ## Requirements
 - Minecraft Beta 1.7.3 (Recommended to be installed via MultiMC or similar client)
@@ -65,6 +66,9 @@ You can also start Minecraft first and BetaMoon will create the folder automatic
 
 Lua mods will only be loaded on game start!
 That means if you change anything in a lua script you need to restart your game.
+
+## Lua Mod Developement
+How to create your own BetaMoon Lua Mod is fully documented in the Wiki.
 
 ## Troubleshooting
 - If the game crashes on startup, verify the ModLoader -> Forge install order.
