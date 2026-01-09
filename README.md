@@ -33,7 +33,7 @@ For Prism specifically, the setup may be the same since it's a direct fork of Mu
 4) Run the instance
    - Start the instance and verify no ModLoader/MinecraftForge or BetaMoon errors appear on launch in the console.
 
-5) Install your BetaMoon mods or start modding yourself!
+5) Install BetaMoon mods or start modding yourself!
 
 ## Manual installation (not recommended, but possible)
 1) Prepare `minecraft.jar`
@@ -48,7 +48,8 @@ For Prism specifically, the setup may be the same since it's a direct fork of Mu
 
 3) Run the game
    - Launch Minecraft Beta 1.7.3.
-   - Install your BetaMoon mods or start modding yourself!
+
+4) Install BetaMoon mods or start modding yourself!
 
 ## LuaJ placement
 LuaJ is required for BetaMoon to run Lua mods!
