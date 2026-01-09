@@ -205,7 +205,6 @@ public final class LuaModLoader {
         }
         LuaValue modInit = globals.get("modInit");
         if (!modInit.isfunction()) {
-            errors.add("Lua mod missing modInit(): " + scriptFile.getName());
             return null;
         }
         return new ScriptMod(modName, deps, modInit);
