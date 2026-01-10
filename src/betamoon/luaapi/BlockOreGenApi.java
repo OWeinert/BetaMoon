@@ -121,9 +121,14 @@ final class BlockOreGenApi {
             }
             LuaTable table = value.checktable();
             int len = table.length();
+            if (len == 0) {
+                handle.biomeNames = null;
+                return handle;
+            }
             String[] names = new String[len];
             for (int i = 1; i <= len; i++) {
-                names[i - 1] = table.get(i).checkjstring();
+                String name = table.get(i).checkjstring();
+                names[i - 1] = name.trim().toLowerCase();
             }
             handle.biomeNames = names;
             return handle;
