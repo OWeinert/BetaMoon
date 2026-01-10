@@ -56,12 +56,14 @@ final class RecipeApi {
                 if (row.length() != rows) {
                     throw new LuaError("Shaped recipe row " + i + " must be " + rows + " characters.");
                 }
+                // Keep the pattern strings as-is for ModLoader's AddRecipe format.
                 if (width == -1) {
                     width = row.length();
                 } else if (width != row.length()) {
                     throw new LuaError("Shaped recipe rows must be the same length.");
                 }
                 recipe.add(row);
+                // Track each non-space key used in the pattern for later validation.
                 for (int j = 0; j < row.length(); j++) {
                     char keyChar = row.charAt(j);
                     if (keyChar != ' ') {
@@ -72,6 +74,7 @@ final class RecipeApi {
 
             Set providedKeys = new HashSet();
             LuaValue key = LuaValue.NIL;
+            // Iterate the Lua table with next() because ingredient tables are keyed by character.
             while (true) {
                 Varargs next = keyTable.next(key);
                 key = next.arg1();
@@ -87,11 +90,13 @@ final class RecipeApi {
                     throw new LuaError("Shaped recipe ingredient key must be a single character.");
                 }
                 Character keyChar = new Character(keyString.charAt(0));
+                // ModLoader expects alternating character and ingredient entries after the pattern rows.
                 recipe.add(keyChar);
                 providedKeys.add(keyChar);
                 recipe.add(readIngredient(value, "ingredient '" + keyString + "'"));
             }
 
+            // Verify that every key in the pattern has a definition in the ingredient table.
             if (!usedKeys.isEmpty()) {
                 for (java.util.Iterator it = usedKeys.iterator(); it.hasNext();) {
                     Character needed = (Character) it.next();
@@ -100,6 +105,7 @@ final class RecipeApi {
                     }
                 }
             }
+            
             ModLoader.AddRecipe(output, recipe.toArray(new Object[recipe.size()]));
             return LuaValue.NIL;
         }
@@ -141,10 +147,12 @@ final class RecipeApi {
 
     private static ItemStack readItemStack(LuaValue value, boolean allowCount, String context) {
         if (value.isnumber()) {
+            // Numeric ids are treated as a single item with zero damage.
             int id = value.checkint();
             return new ItemStack(id, 1, 0);
         }
         if (value.istable()) {
+            // Accept either named fields (id/count/damage) or positional (id, count, damage).
             LuaValue idValue = value.get("id");
             int id;
             if (!idValue.isnil()) {
@@ -166,6 +174,7 @@ final class RecipeApi {
             } else if (!value.get(3).isnil()) {
                 damage = value.get(3).checkint();
             }
+            // Ingredient stacks ignore count; outputs keep it when allowCount is true.
             if (!allowCount) {
                 count = 1;
             }
