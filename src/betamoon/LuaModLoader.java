@@ -114,7 +114,7 @@ public final class LuaModLoader {
             if (minecraftDir == null) {
                 return null;
             }
-            File luaModsDir = new File(minecraftDir, "luamods");
+            File luaModsDir = new File(minecraftDir, "lua_scripts");
             if (!luaModsDir.isDirectory()) {
                 luaModsDir.mkdirs();
             }

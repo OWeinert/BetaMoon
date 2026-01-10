@@ -80,7 +80,7 @@ For Prism specifically, the setup may be the same since it's a direct fork of Mu
 
 ## Where to put Lua mods
 BetaMoon looks for scripts in:
-- `.minecraft/luamods/`
+- `.minecraft/lua_scripts/`
 
 Create that folder if it does not exist and place your `.lua` files there. <br>
 You can also start Minecraft first and BetaMoon will create the folder automatically.<br>
