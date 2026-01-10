@@ -10,7 +10,7 @@ dependencies = {}
 function modInit()
 
   -- Create a block or item the same as before.  
-  betamoon.createBlock(200, "rock")
+  betamoon.createBlock(201, "rock")
     :setBlockName("example_block")
     
     -- This registers a custom texture for the block using the given relative path.

@@ -9,7 +9,7 @@ dependencies = {}
 -- Here you create and register any functionality or content your mod provides.
 function modInit()
   -- Create a block the same as before. 
-  betamoon.createBlock(201, "rock")
+  betamoon.createBlock(202, "rock")
     :setBlockName("example_block2")
     :setHardness(3.0)
     :setResistance(5.0)
