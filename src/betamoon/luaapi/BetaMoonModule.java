@@ -18,6 +18,7 @@ public final class BetaMoonModule extends TwoArgFunction {
         ItemApi.attach(module);
         ItemToolApi.attach(module);
         ToolMaterialApi.attach(module);
+        RecipeApi.attach(module);
         env.set("betamoon", module);
         LuaValue packageTable = env.get("package");
         if (packageTable.istable()) {
