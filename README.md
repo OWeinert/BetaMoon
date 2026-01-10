@@ -80,14 +80,14 @@ For Prism specifically, the setup may be the same since it's a direct fork of Mu
 BetaMoon looks for scripts in:
 - `.minecraft/luamods/`
 
-Create that folder if it does not exist and place your `.lua` files there.
-You can also start Minecraft first and BetaMoon will create the folder automatically.
-
-Lua mods will only be loaded on game start!
+Create that folder if it does not exist and place your `.lua` files there. <br>
+You can also start Minecraft first and BetaMoon will create the folder automatically.<br>
+<br>
+Lua mods will only be loaded on game start!<br>
 That means if you change anything in a Lua script or add/remove a Lua mod you need to restart your game.
 
 ## Lua Mod Developement
-How to create your own BetaMoon Lua Mod is fully documented in the Wiki.
+How to create your own BetaMoon Lua Mod is fully documented in the [Wiki](https://github.com/OWeinert/BetaMoon/wiki).
 
 ## Troubleshooting
 - If the game crashes on startup, verify the ModLoader -> Forge install order.
