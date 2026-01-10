@@ -13,7 +13,8 @@ function modInit()
     
     -- From here on it's the same process as configuring and registering any other item.
     :setIconCoord(11, 0)
-    :setMaxStackSize(1)
-    :setFull3D()
+
+    -- :setMaxStackSize(1) doesn't need to be called since :setFood(...) already sets the max stack size to 1.
+    
     :register("Example Food")
 end

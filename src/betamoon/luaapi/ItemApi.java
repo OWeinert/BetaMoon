@@ -166,6 +166,7 @@ final class ItemApi {
             handle.foodItem = true;
             handle.foodHeal = healAmount;
             handle.foodWolf = wolfFood;
+            handle.item.setMaxStackSize(1);
             return handle;
         }
     }
