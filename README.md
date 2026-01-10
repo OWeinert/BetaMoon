@@ -30,8 +30,10 @@ For Prism specifically, the setup may be the same since it's a direct fork of Mu
    - Instance version: Minecraft Beta 1.7.3
    - Right-click the instance -> Edit Instance -> Settings
    - Click on "Java installation" and "Browse..."
-   - Select the javaw.exe from your Java 8 installation (for Adoptium it's defaulted to "C:/Program Files/Eclipse Adoptium/jre-W.X.YYY.Z-hotspot/bin/javaw.exe", where W/X/Y/Z are numbers for the version you downloaded)
-
+   - Select the javaw.exe from your Java 8 installation (for Adoptium it's defaulted to "C:/Program Files/Eclipse Adoptium/jre-W.X.YYY.Z-hotspot/bin/javaw.exe" on Windows, where W/X/Y/Z are numbers for the version you downloaded) <br> 
+   For other OS' it will vary.<br>
+   <br>
+     
 3) Install ModLoader and MinecraftForge
    - Download Risugami's ModLoader and MinecraftForge from the links in [Requirements](#requirements).
    - Right-click the instance -> Edit Instance -> Version tab
