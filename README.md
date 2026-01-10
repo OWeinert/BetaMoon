@@ -24,7 +24,7 @@ Of course you can use other similar clients like [Prism](https://prismlauncher.o
 For Prism specifically, the setup may be the same since it's a direct fork of MultiMC.
 
 1) Download and install Java 8
-   - Download and install Java 8 using the link in ["Requirements"](#requirements).
+   - Download and install Java 8 using the link in [Requirements](#requirements).
 
 2) Create a new instance in MultiMC
    - Instance version: Minecraft Beta 1.7.3
@@ -33,7 +33,7 @@ For Prism specifically, the setup may be the same since it's a direct fork of Mu
    - Select the javaw.exe from your Java 8 installation (for Adoptium it's defaulted to "C:/Program Files/Eclipse Adoptium/jre-W.X.YYY.Z-hotspot/bin/javaw.exe", where W/X/Y/Z are numbers for the version you downloaded)
 
 3) Install ModLoader and MinecraftForge
-   - Download Risugami's ModLoader and MinecraftForge from the links in ["Requirements"](#requirements).
+   - Download Risugami's ModLoader and MinecraftForge from the links in [Requirements](#requirements).
    - Right-click the instance -> Edit Instance -> Version tab
    - Click "Add to Minecraft.jar"
    - Add ModLoader first, then add MinecraftForge 1.0.6 second
