@@ -29,7 +29,14 @@ final class ItemToolApi {
     private static final class CreateTool extends VarArgFunction {
         public Varargs invoke(Varargs args) {
             int base = (args.narg() >= 1 && args.arg(1).istable()) ? 2 : 1;
-            int id = args.checkint(base);
+            int shiftedId = args.checkint(base);
+            if (shiftedId < 256) {
+                throw new LuaError("Tool id must be a shifted id (>= 256): " + shiftedId);
+            }
+            if (shiftedId >= Item.itemsList.length) {
+                throw new LuaError("Tool id out of range: " + shiftedId);
+            }
+            int id = shiftedId - 256;
             LuaValue materialValue = args.arg(base + 1);
             EnumToolMaterial material = resolveToolMaterial(materialValue);
             return new PendingToolHandle(id, material);

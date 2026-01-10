@@ -330,11 +330,10 @@ final class BlockApi {
                 }
                 return id;
             }
-            int shifted = id + 256;
-            if (shifted >= Item.itemsList.length) {
-                throw new LuaError("Drop item id out of range (0-31743): " + id);
+            if (id >= Item.itemsList.length) {
+                throw new LuaError("Drop item id out of range: " + id);
             }
-            return shifted;
+            return id;
         }
         throw new LuaError("Drop item must be an id.");
     }

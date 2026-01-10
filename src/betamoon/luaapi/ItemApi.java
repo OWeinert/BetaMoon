@@ -24,7 +24,14 @@ final class ItemApi {
     private static final class CreateItem extends VarArgFunction {
         public Varargs invoke(Varargs args) {
             int base = (args.narg() >= 1 && args.arg(1).istable()) ? 2 : 1;
-            int id = args.checkint(base);
+            int shiftedId = args.checkint(base);
+            if (shiftedId < 256) {
+                throw new LuaError("Item id must be a shifted id (>= 256): " + shiftedId);
+            }
+            if (shiftedId >= Item.itemsList.length) {
+                throw new LuaError("Item id out of range: " + shiftedId);
+            }
+            int id = shiftedId - 256;
             try {
                 ItemWrapper item = new ItemWrapper(id);
                 item.setIconCoord(0, 0);
