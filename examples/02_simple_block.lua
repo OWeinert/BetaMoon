@@ -1,9 +1,7 @@
 name = "Custom Block Example"
 
--- List of lua mod names which this mod depends on to be loaded before.
 dependencies = {}
 
--- This is your mod entrypoint. Anything you want to create has to be executed in here.
 function modInit()
 
   -- Creates a BlockHandle which is used to configure your block.
