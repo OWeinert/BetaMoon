@@ -26,15 +26,16 @@ final class BlockApi {
 
     private static final class CreateBlock extends VarArgFunction {
         public Varargs invoke(Varargs args) {
-            int base = (args.narg() >= 2 && args.arg(1).istable()) ? 2 : 1;
+            int base = (args.narg() >= 3 && args.arg(1).istable()) ? 2 : 1;
             int id = args.checkint(base);
             if (id < 0 || id > 255) {
                 throw new LuaError("Block id outside allowed range (0-255): " + id);
             }
             String materialName = args.checkjstring(base + 1);
+            String name = args.checkjstring(base + 2);
             Material material = resolveMaterial(materialName);
             try {
-                BlockWrapper block = new BlockWrapper(id, 0, material);
+                BlockWrapper block = new BlockWrapper(id, 0, material, name);
                 return new BlockHandle(block);
             } catch (RuntimeException e) {
                 throw new LuaError(e);
@@ -47,7 +48,6 @@ final class BlockApi {
 
         private BlockHandle(BlockWrapper block) {
             this.block = block;
-            set("setBlockName", new SetBlockName(this));
             set("setHardness", new SetHardness(this));
             set("setResistance", new SetResistance(this));
             set("setLightValue", new SetLightValue(this));
@@ -61,20 +61,6 @@ final class BlockApi {
             set("addOreGen", BlockOreGenApi.createAddOreGen(this));
             set("register", new RegisterBlock(this));
             set("getId", new GetId(this));
-        }
-    }
-
-    private static final class SetBlockName extends VarArgFunction {
-        private final BlockHandle handle;
-
-        private SetBlockName(BlockHandle handle) {
-            this.handle = handle;
-        }
-
-        public Varargs invoke(Varargs args) {
-            String name = LuaApiUtils.getStringArg(args, 1);
-            handle.block.setBlockName(name);
-            return handle;
         }
     }
 

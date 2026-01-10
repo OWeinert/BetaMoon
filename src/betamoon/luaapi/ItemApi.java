@@ -23,7 +23,7 @@ final class ItemApi {
 
     private static final class CreateItem extends VarArgFunction {
         public Varargs invoke(Varargs args) {
-            int base = (args.narg() >= 1 && args.arg(1).istable()) ? 2 : 1;
+            int base = (args.narg() >= 2 && args.arg(1).istable()) ? 2 : 1;
             int shiftedId = args.checkint(base);
             if (shiftedId < 256) {
                 throw new LuaError("Item id must be a shifted id (>= 256): " + shiftedId);
@@ -31,9 +31,10 @@ final class ItemApi {
             if (shiftedId >= Item.itemsList.length) {
                 throw new LuaError("Item id out of range: " + shiftedId);
             }
+            String name = args.checkjstring(base + 1);
             int id = shiftedId - 256;
             try {
-                ItemWrapper item = new ItemWrapper(id);
+                ItemWrapper item = new ItemWrapper(id, name);
                 item.setIconCoord(0, 0);
                 return new ItemHandle(item);
             } catch (RuntimeException e) {
@@ -50,7 +51,6 @@ final class ItemApi {
 
         private ItemHandle(ItemWrapper item) {
             this.item = item;
-            set("setItemName", new SetItemName(this));
             set("setMaxStackSize", new SetMaxStackSize(this));
             set("setMaxDamage", new SetMaxDamage(this));
             set("setHasSubtypes", new SetHasSubtypes(this));
@@ -60,20 +60,6 @@ final class ItemApi {
             set("setFood", new SetFood(this));
             set("register", new RegisterItem(this));
             set("getId", new GetId(this));
-        }
-    }
-
-    private static final class SetItemName extends VarArgFunction {
-        private final ItemHandle handle;
-
-        private SetItemName(ItemHandle handle) {
-            this.handle = handle;
-        }
-
-        public Varargs invoke(Varargs args) {
-            String name = LuaApiUtils.getStringArg(args, 1);
-            handle.item.setItemName(name);
-            return handle;
         }
     }
 

@@ -5,12 +5,14 @@ import net.minecraft.src.Item;
 public class ItemWrapper extends Item {
 
     /**
-     * Creates an item wrapper for the provided item id.
+     * Creates an item wrapper for the provided item id and internal name.
      *
      * @param id numeric item id (unshifted)
+     * @param name internal item name (unlocalized)
      */
-    public ItemWrapper(int id) {
+    public ItemWrapper(int id, String name) {
         super(id);
+        this.setItemName(name);
     }
 
     /**

@@ -6,13 +6,17 @@ import net.minecraft.src.ItemPickaxe;
 public class ItemPickaxeWrapper extends ItemPickaxe {
 
     /**
-     * Creates a pickaxe wrapper with the provided item id and material.
+     * Creates a pickaxe wrapper with the provided item id, material, and internal name.
      *
      * @param id numeric item id (unshifted)
      * @param material tool material to use
+     * @param name internal item name (unlocalized)
      */
-    public ItemPickaxeWrapper(int id, EnumToolMaterial material) {
+    public ItemPickaxeWrapper(int id, EnumToolMaterial material, String name) {
         super(id, material);
+        setItemName(name);
+        setIconCoord(0, 0);
+        setFull3D();
     }
 
     /**

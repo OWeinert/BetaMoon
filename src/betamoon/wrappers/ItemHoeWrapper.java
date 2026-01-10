@@ -6,13 +6,17 @@ import net.minecraft.src.ItemHoe;
 public class ItemHoeWrapper extends ItemHoe {
 
     /**
-     * Creates a hoe wrapper with the provided item id and material.
+     * Creates a hoe wrapper with the provided item id, material, and internal name.
      *
      * @param id numeric item id (unshifted)
      * @param material tool material to use
+     * @param name internal item name (unlocalized)
      */
-    public ItemHoeWrapper(int id, EnumToolMaterial material) {
+    public ItemHoeWrapper(int id, EnumToolMaterial material, String name) {
         super(id, material);
+        setItemName(name);
+        setIconCoord(0, 0);
+        setFull3D();
     }
 
     /**

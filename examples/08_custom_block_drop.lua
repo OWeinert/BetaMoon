@@ -4,8 +4,7 @@ dependencies = {}
 
 function modInit()
   -- Create a block the same as before. 
-  betamoon.createBlock(202, "rock")
-    :setBlockName("example_block2")
+  betamoon.createBlock(202, "rock", "example_block2")
     :setHardness(3.0)
     :setResistance(5.0)
     :setTextureId(50)

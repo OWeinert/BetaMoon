@@ -28,7 +28,7 @@ final class ItemToolApi {
 
     private static final class CreateTool extends VarArgFunction {
         public Varargs invoke(Varargs args) {
-            int base = (args.narg() >= 1 && args.arg(1).istable()) ? 2 : 1;
+            int base = (args.narg() >= 2 && args.arg(1).istable()) ? 2 : 1;
             int shiftedId = args.checkint(base);
             if (shiftedId < 256) {
                 throw new LuaError("Tool id must be a shifted id (>= 256): " + shiftedId);
@@ -38,17 +38,20 @@ final class ItemToolApi {
             }
             int id = shiftedId - 256;
             LuaValue materialValue = args.arg(base + 1);
+            String name = args.checkjstring(base + 2);
             EnumToolMaterial material = resolveToolMaterial(materialValue);
-            return new PendingToolHandle(id, material);
+            return new PendingToolHandle(id, name, material);
         }
     }
 
     private static final class PendingToolHandle extends LuaTable {
         private final int id;
+        private final String name;
         private final EnumToolMaterial material;
 
-        private PendingToolHandle(int id, EnumToolMaterial material) {
+        private PendingToolHandle(int id, String name, EnumToolMaterial material) {
             this.id = id;
+            this.name = name;
             this.material = material;
             set("pickaxe", new AsPickaxe(this));
             set("axe", new AsAxe(this));
@@ -66,8 +69,7 @@ final class ItemToolApi {
         }
 
         public Varargs invoke(Varargs args) {
-            ItemPickaxeWrapper tool = new ItemPickaxeWrapper(handle.id, handle.material);
-            tool.setIconCoord(0, 0);
+            ItemPickaxeWrapper tool = new ItemPickaxeWrapper(handle.id, handle.material, handle.name);
             MinecraftForge.setToolClass(tool, "pickaxe", handle.material.getHarvestLevel());
             return new ToolHandle(tool);
         }
@@ -81,8 +83,7 @@ final class ItemToolApi {
         }
 
         public Varargs invoke(Varargs args) {
-            ItemAxeWrapper tool = new ItemAxeWrapper(handle.id, handle.material);
-            tool.setIconCoord(0, 0);
+            ItemAxeWrapper tool = new ItemAxeWrapper(handle.id, handle.material, handle.name);
             MinecraftForge.setToolClass(tool, "axe", handle.material.getHarvestLevel());
             return new ToolHandle(tool);
         }
@@ -96,8 +97,7 @@ final class ItemToolApi {
         }
 
         public Varargs invoke(Varargs args) {
-            ItemSpadeWrapper tool = new ItemSpadeWrapper(handle.id, handle.material);
-            tool.setIconCoord(0, 0);
+            ItemSpadeWrapper tool = new ItemSpadeWrapper(handle.id, handle.material, handle.name);
             MinecraftForge.setToolClass(tool, "shovel", handle.material.getHarvestLevel());
             return new ToolHandle(tool);
         }
@@ -111,8 +111,7 @@ final class ItemToolApi {
         }
 
         public Varargs invoke(Varargs args) {
-            ItemHoeWrapper tool = new ItemHoeWrapper(handle.id, handle.material);
-            tool.setIconCoord(0, 0);
+            ItemHoeWrapper tool = new ItemHoeWrapper(handle.id, handle.material, handle.name);
             MinecraftForge.setToolClass(tool, "hoe", handle.material.getHarvestLevel());
             return new ToolHandle(tool);
         }
@@ -127,8 +126,7 @@ final class ItemToolApi {
 
         public Varargs invoke(Varargs args) {
             int damage = (int) LuaApiUtils.getNumberArg(args, 1);
-            ItemSwordWrapper tool = new ItemSwordWrapper(handle.id, handle.material, damage);
-            tool.setIconCoord(0, 0);
+            ItemSwordWrapper tool = new ItemSwordWrapper(handle.id, handle.material, damage, handle.name);
             MinecraftForge.setToolClass(tool, "sword", handle.material.getHarvestLevel());
             return new ToolHandle(tool);
         }
@@ -139,45 +137,13 @@ final class ItemToolApi {
 
         private ToolHandle(Item item) {
             this.item = item;
-            set("setItemName", new SetItemName(this));
-            set("setMaxStackSize", new SetMaxStackSize(this));
             set("setMaxDamage", new SetMaxDamage(this));
-            set("setHasSubtypes", new SetHasSubtypes(this));
-            set("setFull3D", new SetFull3D(this));
             set("setIconCoord", new SetIconCoord(this));
             set("setEfficiency", new SetEfficiency(this));
             set("setDamageVsEntity", new SetDamageVsEntity(this));
             set("addTexture", new AddTexture(this));
             set("register", new RegisterTool(this));
             set("getId", new GetId(this));
-        }
-    }
-
-    private static final class SetItemName extends VarArgFunction {
-        private final ToolHandle handle;
-
-        private SetItemName(ToolHandle handle) {
-            this.handle = handle;
-        }
-
-        public Varargs invoke(Varargs args) {
-            String name = LuaApiUtils.getStringArg(args, 1);
-            handle.item.setItemName(name);
-            return handle;
-        }
-    }
-
-    private static final class SetMaxStackSize extends VarArgFunction {
-        private final ToolHandle handle;
-
-        private SetMaxStackSize(ToolHandle handle) {
-            this.handle = handle;
-        }
-
-        public Varargs invoke(Varargs args) {
-            int value = (int) LuaApiUtils.getNumberArg(args, 1);
-            handle.item.setMaxStackSize(value);
-            return handle;
         }
     }
 
@@ -203,45 +169,6 @@ final class ItemToolApi {
             } else {
                 throw new LuaError("Tool type does not support max damage.");
             }
-            return handle;
-        }
-    }
-
-    private static final class SetHasSubtypes extends VarArgFunction {
-        private final ToolHandle handle;
-
-        private SetHasSubtypes(ToolHandle handle) {
-            this.handle = handle;
-        }
-
-        public Varargs invoke(Varargs args) {
-            boolean value = args.arg(1).toboolean();
-            if (handle.item instanceof ItemPickaxeWrapper) {
-                ((ItemPickaxeWrapper) handle.item).setHasSubtypesValue(value);
-            } else if (handle.item instanceof ItemAxeWrapper) {
-                ((ItemAxeWrapper) handle.item).setHasSubtypesValue(value);
-            } else if (handle.item instanceof ItemSpadeWrapper) {
-                ((ItemSpadeWrapper) handle.item).setHasSubtypesValue(value);
-            } else if (handle.item instanceof ItemHoeWrapper) {
-                ((ItemHoeWrapper) handle.item).setHasSubtypesValue(value);
-            } else if (handle.item instanceof ItemSwordWrapper) {
-                ((ItemSwordWrapper) handle.item).setHasSubtypesValue(value);
-            } else {
-                throw new LuaError("Tool type does not support subtypes.");
-            }
-            return handle;
-        }
-    }
-
-    private static final class SetFull3D extends VarArgFunction {
-        private final ToolHandle handle;
-
-        private SetFull3D(ToolHandle handle) {
-            this.handle = handle;
-        }
-
-        public Varargs invoke(Varargs args) {
-            handle.item.setFull3D();
             return handle;
         }
     }

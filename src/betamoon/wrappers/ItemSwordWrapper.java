@@ -8,14 +8,18 @@ public class ItemSwordWrapper extends ItemSword {
     private static final Field WEAPON_DAMAGE_FIELD = resolveWeaponDamageField();
 
     /**
-     * Creates a sword wrapper with the provided item id, material, and damage value.
+     * Creates a sword wrapper with the provided item id, material, damage value, and internal name.
      *
      * @param id numeric item id (unshifted)
      * @param material tool material to use
      * @param damage custom damage value to apply
+     * @param name internal item name (unlocalized)
      */
-    public ItemSwordWrapper(int id, EnumToolMaterial material, int damage) {
+    public ItemSwordWrapper(int id, EnumToolMaterial material, int damage, String name) {
         super(id, material);
+        setItemName(name);
+        setIconCoord(0, 0);
+        setFull3D();
         setDamageValue(damage);
     }
 

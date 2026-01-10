@@ -37,14 +37,16 @@ public class BlockWrapper extends Block {
     }
 
     /**
-     * Creates a block wrapper with the provided block id, texture index, and material.
+     * Creates a block wrapper with the provided block id, texture index, material, and internal name.
      *
      * @param id numeric block id
      * @param textureId terrain texture index
      * @param material base material for the block
+     * @param name internal block name (unlocalized)
      */
-    public BlockWrapper(int id, int textureId, Material material) {
+    public BlockWrapper(int id, int textureId, Material material, String name) {
         super(id, textureId, material);
+        this.setBlockName(name);
     }
 
     /**

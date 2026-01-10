@@ -5,8 +5,7 @@ dependencies = {}
 function modInit()
 
   -- Create a block or item the same as before.  
-  betamoon.createBlock(201, "rock")
-    :setBlockName("example_block")
+  betamoon.createBlock(201, "rock", "example_block")
     
     -- This registers a custom texture for the block using the given relative path.
     -- The path is relative to your "./luamods" folder.
