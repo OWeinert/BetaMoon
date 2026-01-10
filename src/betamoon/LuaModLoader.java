@@ -10,13 +10,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Formatter;
-import java.util.logging.Filter;
-import java.util.logging.Handler;
-import java.util.logging.Level;
-import java.util.logging.LogRecord;
 import java.util.logging.Logger;
-import java.util.logging.StreamHandler;
 import net.minecraft.src.ModLoader;
 import betamoon.luaapi.BetaMoonModule;
 import org.luaj.vm2.Globals;
@@ -27,53 +21,6 @@ import org.luaj.vm2.lib.jse.JsePlatform;
 
 public final class LuaModLoader {
     private static final Logger LOGGER = Logger.getLogger("BetaMoon");
-    static {
-        configureLogger();
-    }
-
-    private static void configureLogger() {
-        LOGGER.setUseParentHandlers(false);
-        LOGGER.setLevel(Level.INFO);
-        for (Handler handler : LOGGER.getHandlers()) {
-            LOGGER.removeHandler(handler);
-        }
-        Formatter formatter = new Formatter() {
-            @Override
-            public String format(LogRecord record) {
-                String level = record.getLevel().getName();
-                return "[BetaMoon] " + level + ": " + record.getMessage()
-                    + System.lineSeparator();
-            }
-        };
-        Handler outHandler = new StreamHandler(System.out, formatter) {
-            @Override
-            public synchronized void publish(LogRecord record) {
-                super.publish(record);
-                flush();
-            }
-        };
-        outHandler.setLevel(Level.INFO);
-        outHandler.setFilter(new Filter() {
-            public boolean isLoggable(LogRecord record) {
-                return record.getLevel().intValue() < Level.WARNING.intValue();
-            }
-        });
-        Handler errHandler = new StreamHandler(System.err, formatter) {
-            @Override
-            public synchronized void publish(LogRecord record) {
-                super.publish(record);
-                flush();
-            }
-        };
-        errHandler.setLevel(Level.WARNING);
-        errHandler.setFilter(new Filter() {
-            public boolean isLoggable(LogRecord record) {
-                return record.getLevel().intValue() >= Level.WARNING.intValue();
-            }
-        });
-        LOGGER.addHandler(outHandler);
-        LOGGER.addHandler(errHandler);
-    }
 
     /**
      * Loads Lua mods, validates dependencies, and executes each modInit in order.
