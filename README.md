@@ -1,12 +1,12 @@
 # BetaMoon
 
-BetaMoon is a Mod for Minecraft Beta 1.7.3 that adds Lua-based mod loading.<br>
+BetaMoon is a Mod for Minecraft Beta 1.7.3 that adds Lua-based scripting.<br>
 The Lua API is designed to be easy-to-use and is fully documented in the Wiki.<br>
 <br>
 
 ### W.I.P Notice
 BetaMoon is very W.I.P. That means it doesn't have a lot of features currently!<br>
-BUT the plan is to provide full backwards compatibility, so you can already start to create your Lua Mods without the worry of redoing everything in the future!
+BUT the plan is to provide full backwards compatibility, so you can already start to create your Lua scripts without the worry of redoing everything in the future!
 
 ## Requirements
 - Minecraft Beta 1.7.3 (Recommended to be installed via MultiMC or similar client)
@@ -49,7 +49,7 @@ For Prism specifically, the setup may be the same since it's a direct fork of Mu
 5) Run the instance
    - Start the instance and verify no ModLoader/MinecraftForge or BetaMoon errors appear on launch in the console.
 
-6) Install BetaMoon mods or start modding yourself!
+6) Install BetaMoon scripts or start developing your own!
 
 ## Manual installation (not recommended, but possible)
 
@@ -76,7 +76,7 @@ For Prism specifically, the setup may be the same since it's a direct fork of Mu
 4) Run the game
    - Launch Minecraft Beta 1.7.3.
 
-5) Install BetaMoon mods or start modding yourself!
+5) Install BetaMoon scripts or start developing your own!
 
 ## Where to put Lua mods
 BetaMoon looks for scripts in:
@@ -94,5 +94,4 @@ How to create your own BetaMoon Lua Mod is fully documented in the [Wiki](https:
 ## Troubleshooting
 - If the game crashes on startup, verify the ModLoader -> Forge install order.
 - BetaMoon logs any Lua errors in the console. It is highly recommended to use MultiMC or similar clients that provide a console so you can debug your Lua mod.
-- If BetaMoon logs Lua errors, check the `.minecraft/luamods/` folder and script syntax.
 - Make sure that you have the correct LuaJ version because otherwise BetaMoon might crash.
