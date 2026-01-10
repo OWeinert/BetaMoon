@@ -38,7 +38,7 @@ For Prism specifically, the setup may be the same since it's a direct fork of Mu
    - Download Risugami's ModLoader and MinecraftForge from the links in [Requirements](#requirements).
    - Right-click the instance -> Edit Instance -> Version tab
    - Click "Add to Minecraft.jar"
-   - Add ModLoader first, then add MinecraftForge 1.0.6 second
+   - Add ModLoader first, then add MinecraftForge second
    - Order matters: ModLoader must be applied before Forge
 
 4) Add BetaMoon and LuaJ
