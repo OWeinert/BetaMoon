@@ -15,6 +15,7 @@ public final class BetaMoonModule extends TwoArgFunction {
     public LuaValue call(LuaValue modname, LuaValue env) {
         LuaTable module = new LuaTable();
         BlockApi.attach(module);
+        WorldGenApi.attach(module);
         ItemApi.attach(module);
         ItemToolApi.attach(module);
         ToolMaterialApi.attach(module);

@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.logging.Logger;
 import net.minecraft.src.ModLoader;
 import betamoon.luaapi.BetaMoonModule;
+import betamoon.worldgen.BiomeGenRegistry;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
@@ -39,6 +40,7 @@ public final class LuaModLoader {
         runModsInOrder(ordered, failedMods);
         reportFailedMods(failedMods);
         reportLoadSummary(ordered, failedMods);
+        BiomeGenRegistry.applyBiomeGenerators();
         List dropErrors = new ArrayList();
         betamoon.wrappers.BlockWrapper.validatePendingDrops(dropErrors);
         if (!dropErrors.isEmpty()) {

@@ -1,6 +1,6 @@
 package betamoon.luaapi;
 
-import betamoon.registry.WorldGenRegistry;
+import betamoon.worldgen.WorldGenRegistry;
 import net.minecraft.src.Block;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -12,15 +12,26 @@ final class BlockOreGenApi {
     private BlockOreGenApi() {
     }
 
+    /**
+     * @deprecated Use betamoon.startWorldGen():addOreGen(...) instead.
+     */
+    @Deprecated
     static VarArgFunction createAddOreGen(BlockApi.BlockHandle handle) {
-        return new AddOreGen(handle);
+        return new AddOreGenForBlock(handle.block.blockID, handle);
     }
 
-    private static final class AddOreGen extends VarArgFunction {
-        private final BlockApi.BlockHandle handle;
+    static VarArgFunction createWorldGenAddOreGen(WorldGenApi.WorldGenHandle handle) {
+        return new AddOreGenForWorldGen(handle);
+    }
 
-        private AddOreGen(BlockApi.BlockHandle handle) {
-            this.handle = handle;
+    @Deprecated
+    private static final class AddOreGenForBlock extends VarArgFunction {
+        private final int blockId;
+        private final LuaValue finishReturnValue;
+
+        private AddOreGenForBlock(int blockId, LuaValue finishReturnValue) {
+            this.blockId = blockId;
+            this.finishReturnValue = finishReturnValue;
         }
 
         public Varargs invoke(Varargs args) {
@@ -32,12 +43,35 @@ final class BlockOreGenApi {
             if (minY < 0 || maxY < 0 || minY > maxY) {
                 throw new LuaError("Invalid ore Y range: " + minY + " to " + maxY);
             }
-            return new OreGenHandle(handle, veinsPerChunk, veinSize, minY, maxY);
+            return new OreGenHandle(blockId, finishReturnValue, veinsPerChunk, veinSize, minY, maxY);
+        }
+    }
+
+    private static final class AddOreGenForWorldGen extends VarArgFunction {
+        private final WorldGenApi.WorldGenHandle handle;
+
+        private AddOreGenForWorldGen(WorldGenApi.WorldGenHandle handle) {
+            this.handle = handle;
+        }
+
+        public Varargs invoke(Varargs args) {
+            handle.ensureActive();
+            int base = (args.narg() >= 5 && args.arg(1).istable()) ? 2 : 1;
+            int blockId = resolveBlockId(args.arg(base));
+            int veinsPerChunk = args.checkint(base + 1);
+            int veinSize = args.checkint(base + 2);
+            int minY = args.checkint(base + 3);
+            int maxY = args.checkint(base + 4);
+            if (minY < 0 || maxY < 0 || minY > maxY) {
+                throw new LuaError("Invalid ore Y range: " + minY + " to " + maxY);
+            }
+            return new OreGenHandle(blockId, handle, veinsPerChunk, veinSize, minY, maxY);
         }
     }
 
     private static final class OreGenHandle extends LuaTable {
-        private final BlockApi.BlockHandle blockHandle;
+        private final int blockId;
+        private final LuaValue finishReturnValue;
         private final int veinsPerChunk;
         private final int veinSize;
         private final int minY;
@@ -47,8 +81,10 @@ final class BlockOreGenApi {
         private String[] biomeNames;
         private boolean finished;
 
-        private OreGenHandle(BlockApi.BlockHandle blockHandle, int veinsPerChunk, int veinSize, int minY, int maxY) {
-            this.blockHandle = blockHandle;
+        private OreGenHandle(int blockId, LuaValue finishReturnValue, int veinsPerChunk, int veinSize, int minY,
+            int maxY) {
+            this.blockId = blockId;
+            this.finishReturnValue = finishReturnValue;
             this.veinsPerChunk = veinsPerChunk;
             this.veinSize = veinSize;
             this.minY = minY;
@@ -149,10 +185,10 @@ final class BlockOreGenApi {
             if (targetBlockId < 0) {
                 targetBlockId = handle.nether ? Block.netherrack.blockID : Block.stone.blockID;
             }
-            WorldGenRegistry.addOreGen(handle.blockHandle.block.blockID, handle.veinsPerChunk, handle.veinSize,
+            WorldGenRegistry.addOreGen(handle.blockId, handle.veinsPerChunk, handle.veinSize,
                 handle.minY, handle.maxY, handle.nether, targetBlockId,
                 WorldGenRegistry.resolveBiomes(handle.biomeNames));
-            return handle.blockHandle;
+            return handle.finishReturnValue;
         }
     }
 
@@ -160,5 +196,26 @@ final class BlockOreGenApi {
         if (handle.finished) {
             throw new LuaError("Ore generation handle already finished.");
         }
+    }
+
+    private static int resolveBlockId(LuaValue value) {
+        if (value.isnumber()) {
+            int id = value.toint();
+            if (id < 0 || id >= Block.blocksList.length) {
+                throw new LuaError("Block id out of range: " + id);
+            }
+            return id;
+        }
+        if (value.istable()) {
+            LuaValue idValue = value.get("id");
+            if (!idValue.isnil()) {
+                return resolveBlockId(idValue);
+            }
+            LuaValue getter = value.get("getId");
+            if (!getter.isnil()) {
+                return resolveBlockId(getter.call(value));
+            }
+        }
+        throw new LuaError("Block must be a block id or block handle.");
     }
 }

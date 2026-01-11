@@ -1,4 +1,4 @@
-package betamoon.registry;
+package betamoon.worldgen;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -9,7 +9,7 @@ import net.minecraft.src.World;
 import net.minecraft.src.WorldGenerator;
 
 /**
- * Registry for custom ore-like world generation entries driven by Lua.
+ * Registry for custom world generation entries driven by Lua.
  */
 public final class WorldGenRegistry {
     private static final List<OreGenEntry> ORE_ENTRIES = new ArrayList<OreGenEntry>();
@@ -63,6 +63,7 @@ public final class WorldGenRegistry {
         ORE_ENTRIES.add(new OreGenEntry(blockId, veinsPerChunk, veinSize, minY, maxY, nether, targetBlockId,
             allowedBiomes));
     }
+
 
     /**
      * Runs overworld generation for registered entries.

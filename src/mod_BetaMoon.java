@@ -1,5 +1,5 @@
 import betamoon.LuaModLoader;
-import betamoon.registry.WorldGenRegistry;
+import betamoon.worldgen.WorldGenRegistry;
 import java.util.Random;
 import java.util.logging.Formatter;
 import java.util.logging.Filter;
