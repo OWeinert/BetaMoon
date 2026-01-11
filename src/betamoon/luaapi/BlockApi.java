@@ -324,7 +324,17 @@ final class BlockApi {
             }
             return id;
         }
-        throw new LuaError("Drop item must be an id.");
+        if (value.istable()) {
+            LuaValue idValue = value.get("id");
+            if (!idValue.isnil()) {
+                return resolveDropId(idValue);
+            }
+            LuaValue getter = value.get("getId");
+            if (!getter.isnil()) {
+                return resolveDropId(getter.call(value));
+            }
+        }
+        throw new LuaError("Drop item must be an id or item/block handle.");
     }
 
 }
