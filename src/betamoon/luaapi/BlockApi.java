@@ -316,6 +316,9 @@ final class BlockApi {
                 }
                 return id;
             }
+            if(Item.itemsList[id] == null) {
+                throw new LuaError("Drop item id is not registered" + id);
+            }
             if (id >= Item.itemsList.length) {
                 throw new LuaError("Drop item id out of range: " + id);
             }
