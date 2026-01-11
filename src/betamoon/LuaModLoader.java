@@ -38,6 +38,7 @@ public final class LuaModLoader {
         List failedMods = new ArrayList();
         runModsInOrder(ordered, failedMods);
         reportFailedMods(failedMods);
+        reportLoadSummary(ordered, failedMods);
         List dropErrors = new ArrayList();
         betamoon.wrappers.BlockWrapper.validatePendingDrops(dropErrors);
         if (!dropErrors.isEmpty()) {
@@ -386,6 +387,23 @@ public final class LuaModLoader {
         LOGGER.warning("Lua mods failed to load:");
         for (int i = 0; i < failedMods.size(); i++) {
             LOGGER.warning("- " + failedMods.get(i));
+        }
+    }
+
+    /**
+     * Logs a summary of mod load results.
+     *
+     * @param ordered list of mods that were scheduled to run
+     * @param failedMods list of failed mod names
+     */
+    void reportLoadSummary(List ordered, List failedMods) {
+        int total = ordered == null ? 0 : ordered.size();
+        int failed = failedMods == null ? 0 : failedMods.size();
+        int succeeded = total - failed;
+        if (failed > 0) {
+            LOGGER.warning("Lua mod load summary: " + succeeded + " succeeded, " + failed + " failed.");
+        } else {
+            LOGGER.info("Lua mod load summary: " + succeeded + " succeeded, " + failed + " failed.");
         }
     }
 }
