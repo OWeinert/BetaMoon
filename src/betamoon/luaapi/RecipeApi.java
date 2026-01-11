@@ -152,11 +152,13 @@ final class RecipeApi {
             return new ItemStack(id, 1, 0);
         }
         if (value.istable()) {
-            // Accept either named fields (id/count/damage) or positional (id, count, damage).
+            // Accept either named fields (id/count/damage), handles with getId(), or positional (id, count, damage).
             LuaValue idValue = value.get("id");
             int id;
             if (!idValue.isnil()) {
                 id = idValue.checkint();
+            } else if (!value.get("getId").isnil()) {
+                id = value.get("getId").call(value).checkint();
             } else {
                 id = value.get(1).checkint();
             }
@@ -191,6 +193,10 @@ final class RecipeApi {
             LuaValue idValue = value.get("id");
             if (!idValue.isnil()) {
                 return idValue.checkint();
+            }
+            LuaValue getter = value.get("getId");
+            if (!getter.isnil()) {
+                return getter.call(value).checkint();
             }
             return value.get(1).checkint();
         }
