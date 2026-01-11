@@ -156,11 +156,11 @@ final class RecipeApi {
             LuaValue idValue = value.get("id");
             int id;
             if (!idValue.isnil()) {
-                id = idValue.checkint();
+                id = resolveItemId(idValue);
             } else if (!value.get("getId").isnil()) {
-                id = value.get("getId").call(value).checkint();
+                id = resolveItemId(value.get("getId").call(value));
             } else {
-                id = value.get(1).checkint();
+                id = resolveItemId(value.get(1));
             }
             int count = 1;
             int damage = 0;
@@ -192,14 +192,27 @@ final class RecipeApi {
         if (value.istable()) {
             LuaValue idValue = value.get("id");
             if (!idValue.isnil()) {
-                return idValue.checkint();
+                return resolveItemId(idValue);
             }
             LuaValue getter = value.get("getId");
             if (!getter.isnil()) {
-                return getter.call(value).checkint();
+                return resolveItemId(getter.call(value));
             }
-            return value.get(1).checkint();
+            return resolveItemId(value.get(1));
         }
         throw new LuaError("Expected " + context + " to be a number or table.");
+    }
+
+    private static int resolveItemId(LuaValue value) {
+        if (value.isnumber()) {
+            return value.checkint();
+        }
+        if (value.istable()) {
+            LuaValue getter = value.get("getId");
+            if (!getter.isnil()) {
+                return resolveItemId(getter.call(value));
+            }
+        }
+        throw new LuaError("Expected item id or handle.");
     }
 }
