@@ -125,7 +125,7 @@ final class ItemToolApi {
         }
 
         public Varargs invoke(Varargs args) {
-            int damage = (int) LuaApiUtils.getNumberArg(args, 1);
+            int damage = handle.material.getDamageVsEntity();
             ItemSwordWrapper tool = new ItemSwordWrapper(handle.id, handle.material, damage, handle.name);
             MinecraftForge.setToolClass(tool, "sword", handle.material.getHarvestLevel());
             return new ToolHandle(tool);
