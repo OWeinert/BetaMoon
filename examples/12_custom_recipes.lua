@@ -6,11 +6,11 @@ function modInit()
 
   -- Create two custom items used by the recipes below.
   betamoon.createItem(5003, "example_gem")
-    :setIconCoord(1, 7)
+    :setIconCoord(7, 3)
     :register("Example Gem")
 
   betamoon.createItem(5004, "example_dust")
-    :setIconCoord(2, 7)
+    :setIconCoord(8, 3)
     :register("Example Dust")
 
   -- Shaped recipe: 2x2 iron ingots -> 4 Example Gems.
