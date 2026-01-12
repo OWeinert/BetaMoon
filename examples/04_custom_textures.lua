@@ -9,10 +9,10 @@ function modInit()
     
     -- This registers a custom texture for the block using the given relative path.
     -- The path is relative to your "./luamods" folder.
-    -- This function is the same for blocks, items and tools.
+    -- This function is the same for blocks, items, tools and armor.
     :addTexture("example_block.png")
 
-    -- From here on just configure and register your block/item as normal.
+    -- From here on just configure and register your block/item/etc as normal.
     :setHardness(1.5)
     :setResistance(10.0)
     :setBlockHarvestLevel("pickaxe", 0)

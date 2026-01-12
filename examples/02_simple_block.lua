@@ -5,10 +5,7 @@ dependencies = {}
 function modInit()
 
   -- Creates a BlockHandle which is used to configure your block.
-  betamoon.createBlock(200, "rock")
-
-    -- Sets the internal name for your block (This is needed from Minecraft).
-    :setBlockName("example_block") 
+  betamoon.createBlock(200, "rock", "example_block")
 
     -- Sets the block hardness, i.e. how long it takes to break the block. [Optional]
     :setHardness(1.5) 
