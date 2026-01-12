@@ -2,6 +2,7 @@ package betamoon.luaapi;
 
 import betamoon.wrappers.ItemFoodWrapper;
 import betamoon.wrappers.ItemWrapper;
+import java.util.logging.Logger;
 import net.minecraft.src.Item;
 import net.minecraft.src.ModLoader;
 import org.luaj.vm2.LuaError;
@@ -11,6 +12,7 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
 final class ItemApi {
+    private static final Logger LOGGER = Logger.getLogger("BetaMoon");
     /**
      * Utility class that installs item-related Lua bindings.
      */
@@ -48,6 +50,7 @@ final class ItemApi {
         private boolean foodItem;
         private int foodHeal;
         private boolean foodWolf;
+        private boolean registered;
 
         private ItemHandle(ItemWrapper item) {
             this.item = item;
@@ -61,6 +64,14 @@ final class ItemApi {
             set("register", new RegisterItem(this));
             set("getId", new GetId(this));
         }
+
+        private boolean canMutate(String action) {
+            if (!registered) {
+                return true;
+            }
+            LOGGER.warning("Ignored item mutation after register: id=" + item.shiftedIndex + " action=" + action);
+            return false;
+        }
     }
 
     private static final class SetMaxStackSize extends VarArgFunction {
@@ -71,6 +82,9 @@ final class ItemApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("setMaxStackSize")) {
+                return handle;
+            }
             int value = (int) LuaApiUtils.getNumberArg(args, 1);
             handle.item.setMaxStackSize(value);
             return handle;
@@ -85,6 +99,9 @@ final class ItemApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("setMaxDamage")) {
+                return handle;
+            }
             int value = (int) LuaApiUtils.getNumberArg(args, 1);
             handle.item.setMaxDamageValue(value);
             return handle;
@@ -99,6 +116,9 @@ final class ItemApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("setHasSubtypes")) {
+                return handle;
+            }
             boolean value = args.arg(1).toboolean();
             handle.item.setHasSubtypesValue(value);
             return handle;
@@ -113,6 +133,9 @@ final class ItemApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("setFull3D")) {
+                return handle;
+            }
             handle.item.setFull3D();
             return handle;
         }
@@ -126,6 +149,9 @@ final class ItemApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("setIconCoord")) {
+                return handle;
+            }
             int base = (args.narg() >= 2 && args.arg(1).istable()) ? 2 : 1;
             int iconX = args.checkint(base);
             int iconY = args.checkint(base + 1);
@@ -142,6 +168,9 @@ final class ItemApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("addTexture")) {
+                return handle;
+            }
             String relativePath = LuaApiUtils.getStringArg(args, 1);
             int textureIndex = LuaApiUtils.registerTexture(EnumTexAtlas.ITEMS, relativePath);
             handle.item.setIconIndex(textureIndex);
@@ -157,6 +186,9 @@ final class ItemApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("setFood")) {
+                return handle;
+            }
             int base = (args.narg() >= 1 && args.arg(1).istable()) ? 2 : 1;
             int healAmount = args.checkint(base);
             boolean wolfFood = false;
@@ -179,6 +211,10 @@ final class ItemApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (handle.registered) {
+                LOGGER.warning("Ignored duplicate item register: id=" + handle.item.shiftedIndex);
+                return handle;
+            }
             Item itemToRegister = handle.item;
             if (handle.foodItem) {
                 int id = handle.item.shiftedIndex - 256;
@@ -191,7 +227,8 @@ final class ItemApi {
                 String displayName = LuaApiUtils.getStringArg(args, 1);
                 ModLoader.AddName(itemToRegister, displayName);
             }
-            return LuaValue.NIL;
+            handle.registered = true;
+            return handle;
         }
     }
 

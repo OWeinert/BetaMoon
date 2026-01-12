@@ -1,6 +1,7 @@
 package betamoon.luaapi;
 
 import betamoon.wrappers.ItemArmorWrapper;
+import java.util.logging.Logger;
 import net.minecraft.src.Item;
 import net.minecraft.src.ModLoader;
 
@@ -11,6 +12,7 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
 final class ItemArmorApi {
+    private static final Logger LOGGER = Logger.getLogger("BetaMoon");
     /**
      * Utility class that installs armor-related Lua bindings.
      */
@@ -55,6 +57,7 @@ final class ItemArmorApi {
 
     private static final class ArmorHandle extends LuaTable {
         private final ItemArmorWrapper armor;
+        private boolean registered;
 
         private ArmorHandle(ItemArmorWrapper armor) {
             this.armor = armor;
@@ -66,6 +69,14 @@ final class ItemArmorApi {
             set("register", new RegisterArmor(this));
             set("getId", new GetId(this));
         }
+
+        private boolean canMutate(String action) {
+            if (!registered) {
+                return true;
+            }
+            LOGGER.warning("Ignored armor mutation after register: id=" + armor.shiftedIndex + " action=" + action);
+            return false;
+        }
     }
 
     private static final class SetFull3D extends VarArgFunction {
@@ -76,6 +87,9 @@ final class ItemArmorApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("setFull3D")) {
+                return handle;
+            }
             handle.armor.setFull3D();
             return handle;
         }
@@ -89,6 +103,9 @@ final class ItemArmorApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("setIconCoord")) {
+                return handle;
+            }
             int base = (args.narg() >= 2 && args.arg(1).istable()) ? 2 : 1;
             int iconX = args.checkint(base);
             int iconY = args.checkint(base + 1);
@@ -105,6 +122,9 @@ final class ItemArmorApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("addTexture")) {
+                return handle;
+            }
             String relativePath = LuaApiUtils.getStringArg(args, 1);
             int textureIndex = LuaApiUtils.registerTexture(EnumTexAtlas.ITEMS, relativePath);
             handle.armor.setIconIndex(textureIndex);
@@ -120,6 +140,9 @@ final class ItemArmorApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("setArmorTexture")) {
+                return handle;
+            }
             String texture = LuaApiUtils.getStringArg(args, 1);
             handle.armor.setArmorTexture(texture);
             return handle;
@@ -134,6 +157,9 @@ final class ItemArmorApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("setVanillaRenderIndex")) {
+                return handle;
+            }
             int index = resolveVanillaRenderIndex(args.arg(1));
             handle.armor.setRenderIndex(index);
             return handle;
@@ -148,11 +174,16 @@ final class ItemArmorApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (handle.registered) {
+                LOGGER.warning("Ignored duplicate armor register: id=" + handle.armor.shiftedIndex);
+                return handle;
+            }
             if (args.narg() >= 1 && !args.arg(1).isnil()) {
                 String displayName = LuaApiUtils.getStringArg(args, 1);
                 ModLoader.AddName(handle.armor, displayName);
             }
-            return LuaValue.NIL;
+            handle.registered = true;
+            return handle;
         }
     }
 

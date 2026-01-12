@@ -6,6 +6,7 @@ import betamoon.wrappers.ItemPickaxeWrapper;
 import betamoon.wrappers.ItemSpadeWrapper;
 import betamoon.wrappers.ItemSwordWrapper;
 import forge.MinecraftForge;
+import java.util.logging.Logger;
 import net.minecraft.src.EnumToolMaterial;
 import net.minecraft.src.Item;
 import net.minecraft.src.ModLoader;
@@ -16,6 +17,7 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
 final class ItemToolApi {
+    private static final Logger LOGGER = Logger.getLogger("BetaMoon");
     /**
      * Utility class that installs tool-related Lua bindings.
      */
@@ -134,6 +136,7 @@ final class ItemToolApi {
 
     private static final class ToolHandle extends LuaTable {
         private final Item item;
+        private boolean registered;
 
         private ToolHandle(Item item) {
             this.item = item;
@@ -145,6 +148,14 @@ final class ItemToolApi {
             set("register", new RegisterTool(this));
             set("getId", new GetId(this));
         }
+
+        private boolean canMutate(String action) {
+            if (!registered) {
+                return true;
+            }
+            LOGGER.warning("Ignored tool mutation after register: id=" + item.shiftedIndex + " action=" + action);
+            return false;
+        }
     }
 
     private static final class SetMaxDamage extends VarArgFunction {
@@ -155,6 +166,9 @@ final class ItemToolApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("setMaxDamage")) {
+                return handle;
+            }
             int value = (int) LuaApiUtils.getNumberArg(args, 1);
             if (handle.item instanceof ItemPickaxeWrapper) {
                 ((ItemPickaxeWrapper) handle.item).setMaxDamageValue(value);
@@ -181,6 +195,9 @@ final class ItemToolApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("setIconCoord")) {
+                return handle;
+            }
             int base = (args.narg() >= 2 && args.arg(1).istable()) ? 2 : 1;
             int iconX = args.checkint(base);
             int iconY = args.checkint(base + 1);
@@ -197,6 +214,9 @@ final class ItemToolApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("setEfficiency")) {
+                return handle;
+            }
             double value = LuaApiUtils.getNumberArg(args, 1);
             if (handle.item instanceof ItemPickaxeWrapper) {
                 ((ItemPickaxeWrapper) handle.item).setEfficiencyValue((float) value);
@@ -219,6 +239,9 @@ final class ItemToolApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("setDamageVsEntity")) {
+                return handle;
+            }
             int value = (int) LuaApiUtils.getNumberArg(args, 1);
             if (handle.item instanceof ItemPickaxeWrapper) {
                 ((ItemPickaxeWrapper) handle.item).setDamageValue(value);
@@ -243,6 +266,9 @@ final class ItemToolApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("addTexture")) {
+                return handle;
+            }
             String relativePath = LuaApiUtils.getStringArg(args, 1);
             int textureIndex = LuaApiUtils.registerTexture(EnumTexAtlas.ITEMS, relativePath);
             handle.item.setIconIndex(textureIndex);
@@ -258,11 +284,16 @@ final class ItemToolApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (handle.registered) {
+                LOGGER.warning("Ignored duplicate tool register: id=" + handle.item.shiftedIndex);
+                return handle;
+            }
             if (args.narg() >= 1 && !args.arg(1).isnil()) {
                 String displayName = LuaApiUtils.getStringArg(args, 1);
                 ModLoader.AddName(handle.item, displayName);
             }
-            return LuaValue.NIL;
+            handle.registered = true;
+            return handle;
         }
     }
 

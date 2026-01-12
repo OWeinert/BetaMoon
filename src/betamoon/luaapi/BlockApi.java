@@ -2,6 +2,7 @@ package betamoon.luaapi;
 
 import betamoon.wrappers.BlockWrapper;
 import forge.MinecraftForge;
+import java.util.logging.Logger;
 import net.minecraft.src.Block;
 import net.minecraft.src.Item;
 import net.minecraft.src.Material;
@@ -14,6 +15,7 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
 final class BlockApi {
+    private static final Logger LOGGER = Logger.getLogger("BetaMoon");
     /**
      * Utility class that installs block-related Lua bindings.
      */
@@ -45,6 +47,7 @@ final class BlockApi {
 
     static final class BlockHandle extends LuaTable {
         final BlockWrapper block;
+        private boolean registered;
 
         @SuppressWarnings("deprecation")
         private BlockHandle(BlockWrapper block) {
@@ -63,6 +66,14 @@ final class BlockApi {
             set("register", new RegisterBlock(this));
             set("getId", new GetId(this));
         }
+
+        private boolean canMutate(String action) {
+            if (!registered) {
+                return true;
+            }
+            LOGGER.warning("Ignored block mutation after register: id=" + block.blockID + " action=" + action);
+            return false;
+        }
     }
 
     private static final class SetHardness extends VarArgFunction {
@@ -73,6 +84,9 @@ final class BlockApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("setHardness")) {
+                return handle;
+            }
             double value = LuaApiUtils.getNumberArg(args, 1);
             handle.block.setHardness((float) value);
             return handle;
@@ -87,6 +101,9 @@ final class BlockApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("setResistance")) {
+                return handle;
+            }
             double value = LuaApiUtils.getNumberArg(args, 1);
             handle.block.setResistance((float) value);
             return handle;
@@ -101,6 +118,9 @@ final class BlockApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("setLightValue")) {
+                return handle;
+            }
             double value = LuaApiUtils.getNumberArg(args, 1);
             handle.block.setLightValue((int) value);
             return handle;
@@ -115,6 +135,9 @@ final class BlockApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("setLightOpacity")) {
+                return handle;
+            }
             int value = (int) LuaApiUtils.getNumberArg(args, 1);
             handle.block.setLightOpacity(value);
             return handle;
@@ -129,6 +152,9 @@ final class BlockApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("setStepSound")) {
+                return handle;
+            }
             String sound = LuaApiUtils.getStringArg(args, 1);
             handle.block.setStepSound(resolveStepSound(sound));
             return handle;
@@ -143,6 +169,9 @@ final class BlockApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("setUnbreakable")) {
+                return handle;
+            }
             handle.block.setBlockUnbreakable();
             return handle;
         }
@@ -156,6 +185,9 @@ final class BlockApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("setBlockHarvestLevel")) {
+                return handle;
+            }
             int base = (args.narg() >= 2 && args.arg(1).istable()) ? 2 : 1;
             String toolType = args.checkjstring(base);
             int harvestLevel = args.checkint(base + 1);
@@ -172,6 +204,9 @@ final class BlockApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("setTextureId")) {
+                return handle;
+            }
             int base = (args.narg() >= 1 && args.arg(1).istable()) ? 2 : 1;
             int textureId = args.checkint(base);
             handle.block.blockIndexInTexture = textureId;
@@ -187,6 +222,9 @@ final class BlockApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("addTexture")) {
+                return handle;
+            }
             String relativePath = LuaApiUtils.getStringArg(args, 1);
             int textureIndex = LuaApiUtils.registerTexture(EnumTexAtlas.BLOCKS, relativePath);
             handle.block.blockIndexInTexture = textureIndex;
@@ -202,6 +240,9 @@ final class BlockApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("addCustomDrop")) {
+                return handle;
+            }
             int base = (args.narg() >= 1 && args.arg(1).istable()) ? 2 : 1;
             int itemId = resolveDropId(args.arg(base));
             int minQuantity = 1;
@@ -229,12 +270,17 @@ final class BlockApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (handle.registered) {
+                LOGGER.warning("Ignored duplicate block register: id=" + handle.block.blockID);
+                return handle;
+            }
             ModLoader.RegisterBlock(handle.block);
             if (args.narg() >= 1 && !args.arg(1).isnil()) {
                 String displayName = LuaApiUtils.getStringArg(args, 1);
                 ModLoader.AddName(handle.block, displayName);
             }
-            return LuaValue.NIL;
+            handle.registered = true;
+            return handle;
         }
     }
 
