@@ -8,11 +8,12 @@ import java.util.logging.Level;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 import java.util.logging.StreamHandler;
+
 import net.minecraft.src.BaseMod;
 import net.minecraft.src.World;
 
 public class mod_BetaMoon extends BaseMod {
-    private static final String VERSION = "0.3.0";
+    private static final String VERSION = "0.3.1";
     private static final Logger LOGGER = Logger.getLogger("BetaMoon");
     static {
         configureLogger();
