@@ -293,7 +293,7 @@ final class BiomeGenApi {
 
         public Varargs invoke(Varargs args) {
             String type = LuaApiUtils.getStringArg(args, 1);
-            LuaValue entityValue = args.arg(2);
+            LuaValue entityValue = LuaApiUtils.getVarArg(args, 2);
             int weight = (int) LuaApiUtils.getNumberArg(args, 3);
             if (weight < 1) {
                 throw new LuaError("Spawn weight must be >= 1.");
@@ -376,6 +376,7 @@ final class BiomeGenApi {
         return args.arg(1);
     }
 
+
     /**
      * Resolves an entity class from a name, id, or table.
      *
@@ -422,7 +423,7 @@ final class BiomeGenApi {
      */
     private static Class getEntityClassFromName(String name) {
         // EntityList maps are private; use reflection to stay compatible with Beta.
-        Map map = getEntityMap("stringToClassMapping");
+        Map map = getEntityMap("stringToClassMapping", "a");
         if (map == null) {
             return null;
         }
@@ -436,7 +437,7 @@ final class BiomeGenApi {
      * @return entity class or null if not found
      */
     private static Class getEntityClassFromId(int id) {
-        Map map = getEntityMap("IDtoClassMapping");
+        Map map = getEntityMap("IDtoClassMapping", "c");
         if (map == null) {
             return null;
         }
@@ -449,15 +450,27 @@ final class BiomeGenApi {
      * @param fieldName private field name
      * @return map instance or null when reflection fails
      */
-    private static Map getEntityMap(String fieldName) {
+    private static Map getEntityMap(String fieldName, String obfFieldName) {
         try {
             // Resolve the private EntityList map for id/name lookup.
-            java.lang.reflect.Field field = EntityList.class.getDeclaredField(fieldName);
-            field.setAccessible(true);
+            java.lang.reflect.Field field = resolveField(EntityList.class, fieldName, obfFieldName);
             return (Map) field.get(null);
         } catch (Exception ignored) {
             return null;
         }
+    }
+
+    private static java.lang.reflect.Field resolveField(Class owner, String primary, String fallback)
+        throws Exception {
+        try {
+            java.lang.reflect.Field field = owner.getDeclaredField(primary);
+            field.setAccessible(true);
+            return field;
+        } catch (Exception ignored) {
+        }
+        java.lang.reflect.Field field = owner.getDeclaredField(fallback);
+        field.setAccessible(true);
+        return field;
     }
 
     /**

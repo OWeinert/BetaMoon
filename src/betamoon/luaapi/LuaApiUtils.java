@@ -7,6 +7,7 @@ import javax.imageio.ImageIO;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.ModTextureStatic;
 import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
 import betamoon.BetaMoonConstants;
@@ -26,10 +27,8 @@ final class LuaApiUtils {
      * @return the numeric value coerced to double
      */
     static double getNumberArg(Varargs args, int index) {
-        if (args.narg() >= 2 && args.arg(1).istable()) {
-            return args.arg(2).checkdouble();
-        }
-        return args.arg(index).checkdouble();
+        int offset = (args.narg() >= 1 && args.arg(1).istable()) ? 1 : 0;
+        return args.arg(index + offset).checkdouble();
     }
 
     /**
@@ -40,10 +39,20 @@ final class LuaApiUtils {
      * @return the string value
      */
     static String getStringArg(Varargs args, int index) {
-        if (args.narg() >= 2 && args.arg(1).istable()) {
-            return args.arg(2).checkjstring();
-        }
-        return args.arg(index).checkjstring();
+        int offset = (args.narg() >= 1 && args.arg(1).istable()) ? 1 : 0;
+        return args.arg(index + offset).checkjstring();
+    }
+
+    /**
+     * Reads a raw argument, skipping a leading table when called via ':'.
+     *
+     * @param args Lua varargs passed to the API function
+     * @param index positional index to read when no leading table is provided
+     * @return the raw Lua value at the resolved index
+     */
+    static LuaValue getVarArg(Varargs args, int index) {
+        int offset = (args.narg() >= 1 && args.arg(1).istable()) ? 1 : 0;
+        return args.arg(index + offset);
     }
 
     /**
