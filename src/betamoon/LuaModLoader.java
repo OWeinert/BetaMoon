@@ -304,7 +304,13 @@ public final class LuaModLoader {
         } finally {
             input.close();
         }
-        return buffer.toString(StandardCharsets.UTF_8.name());
+        String text = buffer.toString(StandardCharsets.UTF_8.name());
+        if (!text.isEmpty() && text.charAt(0) == '\uFEFF') {
+            text = text.substring(1);
+        }
+        // Normalize line endings so LuaJ line numbers match editors on all platforms.
+        text = text.replace("\r\n", "\n").replace("\r", "\n");
+        return text;
     }
 
     /**
