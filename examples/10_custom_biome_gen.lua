@@ -7,8 +7,6 @@ function modInit()
   betamoon.startWorldGen()
     -- Create a new biome from scratch.
     :addBiomeGen("Example Biome")
-      -- This sets the display name for the biome.
-      :setName("Example Biome")
 
       -- This sets the map/grass tint color.
       :setColor(0x55cc88)

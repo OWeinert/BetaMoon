@@ -54,12 +54,13 @@ final class BiomeGenApi {
 
         public Varargs invoke(Varargs args) {
             int base = (args.narg() >= 1 && args.arg(1).istable()) ? 2 : 1;
-            String name = args.checkjstring(base);
-            BiomeGenBase source = resolveBiome(name);
+            String vanillaName = args.checkjstring(base);
+            BiomeGenBase source = resolveBiome(vanillaName);
             if (source == null) {
-                throw new LuaError("Unknown biome: " + name);
+                throw new LuaError("Unknown biome: " + vanillaName);
             }
-            return new BiomeGeneratorHandle(handle, source);
+            String customName = args.checkjstring(base + 1);
+            return new BiomeGeneratorHandle(handle, source, customName);
         }
     }
 
@@ -79,16 +80,17 @@ final class BiomeGenApi {
             initBindings();
         }
 
-        private BiomeGeneratorHandle(WorldGenApi.WorldGenHandle worldGenHandle, BiomeGenBase source) {
+        private BiomeGeneratorHandle(WorldGenApi.WorldGenHandle worldGenHandle, BiomeGenBase source, String name) {
             this.worldGenHandle = worldGenHandle;
             this.biome = new BiomeGenWrapper(source.biomeName);
             // Copy vanilla settings so users can tweak a known baseline.
             this.biome.applyDefaultsFrom(source);
+            // Set custom name
+            this.biome.applyName(name);
             initBindings();
         }
 
         private void initBindings() {
-            set("setName", new SetName(this));
             set("setColor", new SetColor(this));
             set("setFoliageColor", new SetFoliageColor(this));
             set("setTopBlock", new SetTopBlock(this));
@@ -103,20 +105,6 @@ final class BiomeGenApi {
             set("enableRain", new SetEnableRain(this));
             set("disableRain", new SetDisableRain(this));
             set("finishBiomeGen", new FinishBiomeGen(this));
-        }
-    }
-
-    private static final class SetName extends VarArgFunction {
-        private final BiomeGeneratorHandle handle;
-
-        private SetName(BiomeGeneratorHandle handle) {
-            this.handle = handle;
-        }
-
-        public Varargs invoke(Varargs args) {
-            String name = LuaApiUtils.getStringArg(args, 1);
-            handle.biome.applyName(name);
-            return handle;
         }
     }
 
