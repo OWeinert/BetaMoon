@@ -4,16 +4,11 @@ dependencies = {}
 
 function modInit()
 
-  -- Create two custom items used by the recipes below.
-  betamoon.createItem(5003, "example_gem")
-    :setIconCoord(7, 3)
-    :register("Example Gem")
-
-  betamoon.createItem(5004, "example_dust")
+  betamoon.createItem(5003, "example_dust")
     :setIconCoord(8, 3)
     :register("Example Dust")
 
-  -- Shaped recipe: 2x2 iron ingots -> 4 Example Gems.
+  -- Shaped recipe: 2x2 iron ingots -> 4 Example Dust.
   betamoon.addShapedRecipe(
     { id = 5003, count = 4 },
     { "##", "##" },
@@ -22,10 +17,10 @@ function modInit()
 
   -- Shapeless recipe: diamond + coal -> 2 Example Dust.
   betamoon.addShapelessRecipe(
-    { id = 5004, count = 2 },
+    { id = 5003, count = 2 },
     { 264, 263 }
   )
 
-  -- Smelting recipe: dirt -> Example Gem.
+  -- Smelting recipe: dirt -> Example Dust.
   betamoon.addSmeltingRecipe(3, { id = 5003 })
 end
