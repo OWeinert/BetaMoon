@@ -9,7 +9,7 @@ function modInit()
 
       -- Calling setters here is optional because this starts with the
       -- vanilla Desert configuration; only override what you need.
-      -- See example "10_custom_biome_gen.lua" for a list of available functions.
+      -- See example "14_custom_biome_gen.lua" for a list of available functions.
 
       -- Setting top block to gravel to make biome easier to spot.
       :setTopBlock(13)
