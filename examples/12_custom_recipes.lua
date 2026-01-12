@@ -26,6 +26,6 @@ function modInit()
     { 264, 263 }
   )
 
-  -- Smelting recipe: cobblestone -> Example Gem.
-  betamoon.addSmeltingRecipe(4, { id = 5003 })
+  -- Smelting recipe: dirt -> Example Gem.
+  betamoon.addSmeltingRecipe(3, { id = 5003 })
 end
