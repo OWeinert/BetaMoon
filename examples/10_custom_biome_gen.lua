@@ -15,8 +15,8 @@ function modInit()
       :setFoliageColor(0x33aa77)
 
       -- These set the surface and filler blocks.
-      :setTopBlock(2)
-      :setFillerBlock(3)
+      :setTopBlock(3)
+      :setFillerBlock(13)
 
       -- These define the climate range for generation.
       :setTemperatureRange(0.6, 0.8)
