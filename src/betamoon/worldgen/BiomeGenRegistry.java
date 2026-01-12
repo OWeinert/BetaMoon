@@ -13,6 +13,7 @@ import net.minecraft.src.BiomeGenBase;
  * and we patch the lookup table after scripts load.</p>
  */
 public final class BiomeGenRegistry {
+    private static final String[] FIELD_BIOME_LOOKUP_TABLE = new String[] { "biomeLookupTable", "x" };
     private static final List ENTRIES = new ArrayList();
 
     /**
@@ -104,11 +105,27 @@ public final class BiomeGenRegistry {
         try {
             // Rebuild the vanilla lookup table before patching it.
             BiomeGenBase.generateBiomeLookup();
-            Field field = BiomeGenBase.class.getDeclaredField("biomeLookupTable");
-            field.setAccessible(true);
+            Field field = resolveField(BiomeGenBase.class, FIELD_BIOME_LOOKUP_TABLE);
             return (BiomeGenBase[]) field.get(null);
         } catch (Exception ignored) {
             return null;
         }
+    }
+
+    private static Field resolveField(Class owner, String[] fieldNames) throws Exception {
+        Exception last = null;
+        for (int i = 0; i < fieldNames.length; i++) {
+            try {
+                Field field = owner.getDeclaredField(fieldNames[i]);
+                field.setAccessible(true);
+                return field;
+            } catch (Exception e) {
+                last = e;
+            }
+        }
+        if (last != null) {
+            throw last;
+        }
+        throw new NoSuchFieldException("No matching field.");
     }
 }

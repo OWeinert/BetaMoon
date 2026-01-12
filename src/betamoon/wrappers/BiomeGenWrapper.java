@@ -16,11 +16,11 @@ import org.luaj.vm2.LuaError;
  * Custom biome implementation with extra tuning hooks used by Lua.
  */
 public final class BiomeGenWrapper extends BiomeGenBase {
-    private static final String FIELD_ENABLE_SNOW = "enableSnow";
-    private static final String FIELD_ENABLE_RAIN = "enableRain";
-    private static final String FIELD_SPAWN_MONSTER = "spawnableMonsterList";
-    private static final String FIELD_SPAWN_CREATURE = "spawnableCreatureList";
-    private static final String FIELD_SPAWN_WATER = "spawnableWaterCreatureList";
+    private static final String[] FIELD_ENABLE_SNOW = new String[] { "enableSnow", "v" };
+    private static final String[] FIELD_ENABLE_RAIN = new String[] { "enableRain", "w" };
+    private static final String[] FIELD_SPAWN_MONSTER = new String[] { "spawnableMonsterList", "s" };
+    private static final String[] FIELD_SPAWN_CREATURE = new String[] { "spawnableCreatureList", "t" };
+    private static final String[] FIELD_SPAWN_WATER = new String[] { "spawnableWaterCreatureList", "u" };
     private static final int TREE_MODE_DEFAULT = 0;
     private static final int TREE_MODE_BIG = 1;
     private static final int TREE_MODE_NORMAL = 2;
@@ -188,14 +188,14 @@ public final class BiomeGenWrapper extends BiomeGenBase {
      * @param fieldName private field to modify
      * @param value boolean to set
      */
-    private void setBiomeFlag(String fieldName, boolean value) {
+    private void setBiomeFlag(String[] fieldNames, boolean value) {
         try {
             // Vanilla flags are private, so reflection is required here.
-            java.lang.reflect.Field field = BiomeGenBase.class.getDeclaredField(fieldName);
+            java.lang.reflect.Field field = resolveField(BiomeGenBase.class, fieldNames);
             field.setAccessible(true);
             field.setBoolean(this, value);
         } catch (Exception e) {
-            throw new LuaError("Unable to set biome flag '" + fieldName + "': " + e.getMessage());
+            throw new LuaError("Unable to set biome flag '" + fieldNames[0] + "': " + e.getMessage());
         }
     }
 
@@ -206,14 +206,14 @@ public final class BiomeGenWrapper extends BiomeGenBase {
      * @param fieldName private field to access
      * @return flag value
      */
-    private boolean getBiomeFlag(BiomeGenBase source, String fieldName) {
+    private boolean getBiomeFlag(BiomeGenBase source, String[] fieldNames) {
         try {
             // Private flags require reflection for read access.
-            java.lang.reflect.Field field = BiomeGenBase.class.getDeclaredField(fieldName);
+            java.lang.reflect.Field field = resolveField(BiomeGenBase.class, fieldNames);
             field.setAccessible(true);
             return field.getBoolean(source);
         } catch (Exception e) {
-            throw new LuaError("Unable to read biome flag '" + fieldName + "': " + e.getMessage());
+            throw new LuaError("Unable to read biome flag '" + fieldNames[0] + "': " + e.getMessage());
         }
     }
 
@@ -224,9 +224,9 @@ public final class BiomeGenWrapper extends BiomeGenBase {
      * @param fieldName private list field name
      * @param target target list to populate
      */
-    private void copySpawnList(BiomeGenBase source, String fieldName, List target) {
+    private void copySpawnList(BiomeGenBase source, String[] fieldNames, List target) {
         // Clone entries so Lua scripts don't mutate vanilla lists.
-        List list = getSpawnListField(source, fieldName);
+        List list = getSpawnListField(source, fieldNames);
         target.clear();
         for (int i = 0; i < list.size(); i++) {
             SpawnListEntry entry = (SpawnListEntry) list.get(i);
@@ -241,10 +241,10 @@ public final class BiomeGenWrapper extends BiomeGenBase {
      * @param fieldName private list field name
      * @return list instance or empty list when missing
      */
-    private List getSpawnListField(BiomeGenBase source, String fieldName) {
+    private List getSpawnListField(BiomeGenBase source, String[] fieldNames) {
         try {
             // Spawn lists are protected; use reflection for consistent access.
-            java.lang.reflect.Field field = BiomeGenBase.class.getDeclaredField(fieldName);
+            java.lang.reflect.Field field = resolveField(BiomeGenBase.class, fieldNames);
             field.setAccessible(true);
             List list = (List) field.get(source);
             if (list == null) {
@@ -252,8 +252,25 @@ public final class BiomeGenWrapper extends BiomeGenBase {
             }
             return list;
         } catch (Exception e) {
-            throw new LuaError("Unable to read biome spawn list '" + fieldName + "': " + e.getMessage());
+            throw new LuaError("Unable to read biome spawn list '" + fieldNames[0] + "': " + e.getMessage());
         }
+    }
+
+    private static java.lang.reflect.Field resolveField(Class owner, String[] fieldNames) throws Exception {
+        Exception last = null;
+        for (int i = 0; i < fieldNames.length; i++) {
+            try {
+                java.lang.reflect.Field field = owner.getDeclaredField(fieldNames[i]);
+                field.setAccessible(true);
+                return field;
+            } catch (Exception e) {
+                last = e;
+            }
+        }
+        if (last != null) {
+            throw last;
+        }
+        throw new NoSuchFieldException("No matching field.");
     }
 
     /**
