@@ -11,6 +11,8 @@ function modInit()
       -- vanilla Desert configuration; only override what you need.
       -- See example "10_custom_biome_gen.lua" for a list of available functions.
 
+      -- Setting top block to gravel to make biome easier to spot.
+      :setTopBlock(13)
       
       -- The following settings cannot derived from the vanilla biome because of Minecraft restrictions and
       -- must be set explicitly for custom biome placement/behavior.

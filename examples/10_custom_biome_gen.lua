@@ -15,7 +15,9 @@ function modInit()
       :setFoliageColor(0x33aa77)
 
       -- These set the surface and filler blocks.
+      -- 3 = dirt
       :setTopBlock(3)
+      -- 13 = gravel
       :setFillerBlock(13)
 
       -- These define the climate range for generation.
