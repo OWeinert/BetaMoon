@@ -64,7 +64,9 @@ final class ItemArmorApi {
             set("setFull3D", new SetFull3D(this));
             set("setIconCoord", new SetIconCoord(this));
             set("addTexture", new AddTexture(this));
-            set("setArmorTexture", new SetArmorTexture(this));
+            // TEMPORARILY DISABLED: setArmorTexture is disabled while armor texture loading
+            // returns to the vanilla /armor/ lookup behavior.
+            // set("setArmorTexture", new SetArmorTexture(this));
             set("setVanillaRenderIndex", new SetVanillaRenderIndex(this));
             set("register", new RegisterArmor(this));
             set("getId", new GetId(this));
@@ -132,6 +134,9 @@ final class ItemArmorApi {
         }
     }
 
+/*
+    // TEMPORARILY DISABLED: setArmorTexture is disabled while armor textures
+    // use the vanilla /armor/ lookup behavior.
     private static final class SetArmorTexture extends VarArgFunction {
         private final ArmorHandle handle;
 
@@ -148,6 +153,7 @@ final class ItemArmorApi {
             return handle;
         }
     }
+*/
 
     private static final class SetVanillaRenderIndex extends VarArgFunction {
         private final ArmorHandle handle;
@@ -160,7 +166,11 @@ final class ItemArmorApi {
             if (!handle.canMutate("setVanillaRenderIndex")) {
                 return handle;
             }
-            int index = resolveVanillaRenderIndex(args.arg(1));
+            LuaValue value = args.arg(1);
+            if (value.istable()) {
+                value = args.arg(2);
+            }
+            int index = resolveVanillaRenderIndex(value);
             handle.armor.setRenderIndex(index);
             return handle;
         }

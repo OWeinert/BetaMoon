@@ -10,8 +10,7 @@ import net.minecraft.src.RenderPlayer;
 
 public class ItemArmorWrapper extends ItemArmor implements IArmorTextureProvider {
     private static final Logger LOGGER = Logger.getLogger("BetaMoon");
-    private String armorTexture;
-    private static final Field RENDER_INDEX_FIELD = resolveRenderIndexField();
+    private static Field RENDER_INDEX_FIELD = resolveRenderIndexField();
 
     /**
      * Creates an armor wrapper with the provided id, material, render index, slot type, and internal name.
@@ -29,23 +28,15 @@ public class ItemArmorWrapper extends ItemArmor implements IArmorTextureProvider
     }
 
     /**
-     * Sets the base armor texture name (without the layer suffix or extension).
-     *
-     * @param texture base texture name, e.g. "custom"
-     * @return this wrapper for chaining
-     */
-    public ItemArmorWrapper setArmorTexture(String texture) {
-        this.armorTexture = texture;
-        return this;
-    }
-
-    /**
      * Overrides the armor render index to use a vanilla armor texture prefix.
      *
      * @param renderIndex armor render index (0+)
      * @return this wrapper for chaining
      */
     public ItemArmorWrapper setRenderIndex(int renderIndex) {
+        if (RENDER_INDEX_FIELD == null) {
+            RENDER_INDEX_FIELD = resolveRenderIndexField();
+        }
         if (RENDER_INDEX_FIELD != null) {
             try {
                 RENDER_INDEX_FIELD.setInt(this, renderIndex);
@@ -56,14 +47,22 @@ public class ItemArmorWrapper extends ItemArmor implements IArmorTextureProvider
         return this;
     }
 
+    /**
+     * Returns the armor texture path used by the renderer.
+     *
+     * @return texture path including layer suffix
+     */
     public String getArmorTextureFile() {
-        String texture = armorTexture;
-        if (texture == null || texture.length() == 0) {
-            texture = resolveArmorTextureName(renderIndex);
-        }
-        return "/armor/" + texture + "_" + (armorType == 2 ? 2 : 1) + ".png";
+        String texture = "armor/" + resolveArmorTextureName(renderIndex);
+        return "/" + texture + "_" + (armorType == 2 ? 2 : 1) + ".png";
     }
 
+    /**
+     * Resolves the vanilla armor texture base name for a render index.
+     *
+     * @param index vanilla render index
+     * @return texture base name (e.g. "iron")
+     */
     private static String resolveArmorTextureName(int index) {
         String[] names = null;
         try {
@@ -85,16 +84,48 @@ public class ItemArmorWrapper extends ItemArmor implements IArmorTextureProvider
         return names[index];
     }
 
+    /**
+     * Attempts to resolve the render index field across mapped and obfuscated names.
+     *
+     * @return resolved field or null when unavailable
+     */
     private static Field resolveRenderIndexField() {
+        final String[] candidates = new String[] {
+            "renderIndex",
+            "field_77883_b",
+            "b",
+            "c",
+            "d"
+        };
+        for (int i = 0; i < candidates.length; i++) {
+            Field field = tryResolveRenderIndexField(candidates[i]);
+            if (field != null) {
+                return field;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Resolves and prepares a render index field by name.
+     *
+     * @param name candidate field name
+     * @return prepared field or null
+     */
+    private static Field tryResolveRenderIndexField(String name) {
         try {
-            Field field = ItemArmor.class.getDeclaredField("renderIndex");
+            Field field = ItemArmor.class.getDeclaredField(name);
+            if (field.getType() != Integer.TYPE) {
+                return null;
+            }
             field.setAccessible(true);
             Field modifiers = Field.class.getDeclaredField("modifiers");
             modifiers.setAccessible(true);
             modifiers.setInt(field, field.getModifiers() & ~Modifier.FINAL);
             return field;
-        } catch (Exception e) {
+        } catch (Exception ignored) {
             return null;
         }
     }
+
 }
