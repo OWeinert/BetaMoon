@@ -46,6 +46,7 @@ final class BlockApi {
     static final class BlockHandle extends LuaTable {
         final BlockWrapper block;
 
+        @SuppressWarnings("deprecation")
         private BlockHandle(BlockWrapper block) {
             this.block = block;
             set("setHardness", new SetHardness(this));
@@ -58,7 +59,7 @@ final class BlockApi {
             set("setTextureId", new SetTextureId(this));
             set("addTexture", new AddTexture(this));
             set("addCustomDrop", new AddCustomDrop(this));
-            set("addOreGen", BlockOreGenApi.createAddOreGen(this));
+            set("addOreGen", OreGenApi.createAddOreGen(this));
             set("register", new RegisterBlock(this));
             set("getId", new GetId(this));
         }

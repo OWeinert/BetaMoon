@@ -1,6 +1,7 @@
 package betamoon.luaapi;
 
 import betamoon.worldgen.WorldGenRegistry;
+import net.minecraft.src.BiomeGenBase;
 import net.minecraft.src.Block;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -8,8 +9,8 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-final class BlockOreGenApi {
-    private BlockOreGenApi() {
+final class OreGenApi {
+    private OreGenApi() {
     }
 
     /**
@@ -55,7 +56,6 @@ final class BlockOreGenApi {
         }
 
         public Varargs invoke(Varargs args) {
-            handle.ensureActive();
             int base = (args.narg() >= 5 && args.arg(1).istable()) ? 2 : 1;
             int blockId = resolveBlockId(args.arg(base));
             int veinsPerChunk = args.checkint(base + 1);
@@ -79,7 +79,6 @@ final class BlockOreGenApi {
         private boolean nether;
         private int targetBlockId = -1;
         private String[] biomeNames;
-        private boolean finished;
 
         private OreGenHandle(int blockId, LuaValue finishReturnValue, int veinsPerChunk, int veinSize, int minY,
             int maxY) {
@@ -104,12 +103,13 @@ final class BlockOreGenApi {
         }
 
         public Varargs invoke(Varargs args) {
-            ensureNotFinished(handle);
             String dim = LuaApiUtils.getStringArg(args, 1);
             if (dim.equalsIgnoreCase("nether") || dim.equalsIgnoreCase("hell")) {
                 handle.nether = true;
             } else if (dim.equalsIgnoreCase("overworld")) {
                 handle.nether = false;
+            } else if (dim.equalsIgnoreCase("both") || dim.equalsIgnoreCase("all")) {
+                handle.nether = true;           
             } else {
                 throw new LuaError("Unknown dimension: " + dim);
             }
@@ -125,7 +125,6 @@ final class BlockOreGenApi {
         }
 
         public Varargs invoke(Varargs args) {
-            ensureNotFinished(handle);
             int base = (args.narg() >= 1 && args.arg(1).istable()) ? 2 : 1;
             int blockId = args.checkint(base);
             if (blockId < 0 || blockId >= Block.blocksList.length || Block.blocksList[blockId] == null) {
@@ -149,7 +148,6 @@ final class BlockOreGenApi {
         }
 
         public Varargs invoke(Varargs args) {
-            ensureNotFinished(handle);
             int base = (args.narg() >= 1 && args.arg(1).istable()) ? 2 : 1;
             LuaValue value = args.arg(base);
             if (!value.istable()) {
@@ -179,22 +177,20 @@ final class BlockOreGenApi {
         }
 
         public Varargs invoke(Varargs args) {
-            ensureNotFinished(handle);
-            handle.finished = true;
             int targetBlockId = handle.targetBlockId;
             if (targetBlockId < 0) {
                 targetBlockId = handle.nether ? Block.netherrack.blockID : Block.stone.blockID;
             }
-            WorldGenRegistry.addOreGen(handle.blockId, handle.veinsPerChunk, handle.veinSize,
-                handle.minY, handle.maxY, handle.nether, targetBlockId,
-                WorldGenRegistry.resolveBiomes(handle.biomeNames));
+            BiomeGenBase[] allowedBiomes = WorldGenRegistry.resolveBiomes(handle.biomeNames);
+            if (handle.finishReturnValue instanceof WorldGenApi.WorldGenHandle) {
+                WorldGenApi.WorldGenHandle worldGenHandle = (WorldGenApi.WorldGenHandle) handle.finishReturnValue;
+                worldGenHandle.addOreGenEntry(handle.blockId, handle.veinsPerChunk, handle.veinSize,
+                    handle.minY, handle.maxY, handle.nether, targetBlockId, allowedBiomes);
+            } else {
+                WorldGenRegistry.addOreGen(handle.blockId, handle.veinsPerChunk, handle.veinSize,
+                    handle.minY, handle.maxY, handle.nether, targetBlockId, allowedBiomes);
+            }
             return handle.finishReturnValue;
-        }
-    }
-
-    private static void ensureNotFinished(OreGenHandle handle) {
-        if (handle.finished) {
-            throw new LuaError("Ore generation handle already finished.");
         }
     }
 
