@@ -22,8 +22,18 @@ function modInit()
       :setTemperatureRange(0.6, 0.8)
       :setHumidityRange(0.7, 0.9)
 
-      -- This sets tree generation behavior.
-      :setTreeGenerator("big")
+      -- This sets tree generation behavior. Those are both optional.
+      --
+      -- Following tree generator modes are available:
+      -- "default": default vanilla weighted big-tree generation.
+      -- "big": only big trees spawn.
+      -- "normal": only normal trees spawn.
+      -- "none": no trees spawn.
+      --
+      -- Defaults to "default"
+      :setTreeGenerator("default")
+      -- Sets the chance for big trees to spawn when tree generator "default" is selected.
+      -- Has no impact when any other tree generator is selected.  
       :setBigTreeChance(6)
 
       -- These configure mob spawns.
