@@ -11,6 +11,7 @@ import net.minecraft.src.RenderPlayer;
 public class ItemArmorWrapper extends ItemArmor implements IArmorTextureProvider {
     private static final Logger LOGGER = Logger.getLogger("BetaMoon");
     private static Field RENDER_INDEX_FIELD = resolveRenderIndexField();
+    private int armorRenderIndex;
 
     /**
      * Creates an armor wrapper with the provided id, material, render index, slot type, and internal name.
@@ -23,6 +24,7 @@ public class ItemArmorWrapper extends ItemArmor implements IArmorTextureProvider
      */
     public ItemArmorWrapper(int id, int material, int renderIndex, int armorType, String name) {
         super(id, material, renderIndex, armorType);
+        this.armorRenderIndex = renderIndex;
         setItemName(name);
         setIconCoord(0, 0);
     }
@@ -34,6 +36,7 @@ public class ItemArmorWrapper extends ItemArmor implements IArmorTextureProvider
      * @return this wrapper for chaining
      */
     public ItemArmorWrapper setRenderIndex(int renderIndex) {
+        this.armorRenderIndex = renderIndex;
         if (RENDER_INDEX_FIELD == null) {
             RENDER_INDEX_FIELD = resolveRenderIndexField();
         }
@@ -53,7 +56,7 @@ public class ItemArmorWrapper extends ItemArmor implements IArmorTextureProvider
      * @return texture path including layer suffix
      */
     public String getArmorTextureFile() {
-        String texture = "armor/" + resolveArmorTextureName(renderIndex);
+        String texture = "armor/" + resolveArmorTextureName(armorRenderIndex);
         return "/" + texture + "_" + (armorType == 2 ? 2 : 1) + ".png";
     }
 
