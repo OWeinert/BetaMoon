@@ -156,7 +156,7 @@ final class BiomeGenApi {
         }
 
         public Varargs invoke(Varargs args) {
-            int blockId = resolveBlockId(args.arg(1));
+            int blockId = resolveBlockId(getBlockArg(args));
             handle.biome.applyTopBlock(blockId);
             return handle;
         }
@@ -170,7 +170,7 @@ final class BiomeGenApi {
         }
 
         public Varargs invoke(Varargs args) {
-            int blockId = resolveBlockId(args.arg(1));
+            int blockId = resolveBlockId(getBlockArg(args));
             handle.biome.applyFillerBlock(blockId);
             return handle;
         }
@@ -373,6 +373,19 @@ final class BiomeGenApi {
             }
         }
         throw new LuaError("Block must be an id or block handle.");
+    }
+
+    /**
+     * Reads the block argument, skipping the leading table when called via ':'.
+     *
+     * @param args Lua varargs passed to the API function
+     * @return Lua value containing the block argument
+     */
+    private static LuaValue getBlockArg(Varargs args) {
+        if (args.narg() >= 2 && args.arg(1).istable()) {
+            return args.arg(2);
+        }
+        return args.arg(1);
     }
 
     /**
