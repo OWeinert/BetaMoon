@@ -64,7 +64,7 @@ public final class LuaModLoader {
             if (minecraftDir == null) {
                 return null;
             }
-            File luaModsDir = new File(minecraftDir, "lua_scripts");
+            File luaModsDir = new File(minecraftDir, BetaMoonConstants.LUA_SCRIPTS_DIR);
             if (!luaModsDir.isDirectory()) {
                 luaModsDir.mkdirs();
             }

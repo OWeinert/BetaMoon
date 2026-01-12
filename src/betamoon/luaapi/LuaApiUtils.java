@@ -9,6 +9,8 @@ import net.minecraft.src.ModTextureStatic;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.Varargs;
 
+import betamoon.BetaMoonConstants;
+
 final class LuaApiUtils {
     /**
      * Utility class for extracting typed arguments from Lua varargs.
@@ -95,7 +97,7 @@ final class LuaApiUtils {
             if (minecraftDir == null) {
                 return null;
             }
-            return new File(minecraftDir, "luamods");
+            return new File(minecraftDir, BetaMoonConstants.LUA_SCRIPTS_DIR);
         } catch (Exception e) {
             return null;
         }
