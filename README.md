@@ -3,6 +3,7 @@
 BetaMoon is a Mod for Minecraft Beta 1.7.3 that adds Lua-based scripting.<br>
 The Lua API is designed to be easy-to-use and is fully documented in the [Wiki](https://github.com/OWeinert/BetaMoon/wiki).<br>
 <br>
+You can find a list of awesome [BetaMoon Mods here](https://github.com/OWeinert/AwesomeBetaMoon) (It's probably very empty at the moment)
 
 ### W.I.P Notice
 BetaMoon is very W.I.P. That means it doesn't have a lot of features currently!<br>
