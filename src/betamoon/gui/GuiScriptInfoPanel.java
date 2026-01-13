@@ -1,6 +1,5 @@
 package betamoon.gui;
 
-import betamoon.gui.api.GuiText;
 import betamoon.scriptloader.LuaScriptRegistry;
 import betamoon.scriptloader.ScriptMod;
 import java.util.List;
@@ -14,7 +13,6 @@ public final class GuiScriptInfoPanel {
     private static final int SECTION_PADDING = 64;
     private static final int CONTENT_PADDING = 6;
     private static final int LINE_SPACING = 16;
-    private static final int DEPENDENCY_LINE_HEIGHT = 12;
     private final ScrollState scrollState = new ScrollState();
 
     private int detailLeft;
@@ -47,7 +45,6 @@ public final class GuiScriptInfoPanel {
         String title = selected.getDisplayName() + "  v" + selected.getVersion();
         GuiUtils.drawScaledString(font, title, detailLeft, headerY, 0xFFFFFF, headerScale);
 
-        // Resolve content flags and starting Y based on the current scroll offset.
         int y = detailTop - scrollState.getScrollOffset();
         String description = selected.getDescription();
         boolean hasDescription = description != null && !description.trim().isEmpty();
@@ -56,7 +53,6 @@ public final class GuiScriptInfoPanel {
         List dependencies = selected.getDependencies();
         boolean hasDependencies = dependencies != null && !dependencies.isEmpty();
 
-        // Measure full content height to drive scrolling limits.
         int contentHeight = calculateContentHeight(font, contentWidth, hasDescription ? description : null,
             hasErrors ? failure : null, hasDependencies ? dependencies : null);
         scrollState.setBounds(detailLeft, detailTop, detailRight, detailBottom);
@@ -64,7 +60,6 @@ public final class GuiScriptInfoPanel {
         y = detailTop - scrollState.getScrollOffset();
         int scissorTop = detailTop - 2;
         int scissorBottom = detailBottom + 2;
-        // Clip body text so it doesn't overlap the title row.
         GuiUtils.beginScissor(detailLeft, scissorTop, detailRight, scissorBottom, screenWidth, screenHeight, displayWidth, displayHeight);
 
         // Description is always shown, even when empty.
@@ -100,7 +95,7 @@ public final class GuiScriptInfoPanel {
             // Dependencies header with underline.
             GuiUtils.drawScaledStringUL(font, LABEL_DEPENDENCIES, detailLeft, y, 0xFFFFFF, dependencyScale);
             y += (int) (10 * dependencyScale) + CONTENT_PADDING;
-            y += drawDependenciesClipped(font, dependencies, selected.getMissingDependencies(), detailLeft, y, contentWidth, detailBottom)
+            y += drawDependenciesClipped(font, dependencies, detailLeft, y, contentWidth, detailBottom)
                 + CONTENT_PADDING;
         }
 
@@ -160,7 +155,7 @@ public final class GuiScriptInfoPanel {
         }
         if (dependencies != null && !dependencies.isEmpty()) {
             height += (int) (10 * sectionScale) + CONTENT_PADDING;
-            height += dependencies.size() * DEPENDENCY_LINE_HEIGHT + CONTENT_PADDING;
+            height += dependencies.size() * 8 + CONTENT_PADDING;
         }
         return height;
     }
@@ -170,7 +165,6 @@ public final class GuiScriptInfoPanel {
             return 0;
         }
         int startY = y;
-        // Manual line wrapping to keep control over clipping boundaries.
         String[] lines = text.split("\n");
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i];
@@ -199,13 +193,13 @@ public final class GuiScriptInfoPanel {
         return y - startY;
     }
 
-    private int drawDependenciesClipped(FontRenderer font, List dependencies, List missingDeps, int x, int y, int width, int bottom) {
+    private int drawDependenciesClipped(FontRenderer font, List dependencies, int x, int y, int width, int bottom) {
         if (dependencies == null || dependencies.isEmpty()) {
             return 0;
         }
         int startY = y;
         for (int i = 0; i < dependencies.size(); i++) {
-            if (y + DEPENDENCY_LINE_HEIGHT > bottom) {
+            if (y + 8 > bottom) {
                 return y - startY;
             }
             Object dep = dependencies.get(i);
@@ -213,18 +207,35 @@ public final class GuiScriptInfoPanel {
                 continue;
             }
             String name = dep.toString();
-            boolean isMissing = false;
-            if (missingDeps != null) {
-                isMissing = missingDeps.contains(name);
-            } else {
-                isMissing = !LuaScriptRegistry.hasScriptName(name);
-            }
-            int color = isMissing ? 0xFFCC6666 : 0xFFFFFF;
-            String displayName = isMissing ? "- " + name + " " + SUFFIX_DEPENDENCY_MISSING : "- " + name;
-            String display = GuiText.trimToWidth(font, displayName, width);
+            boolean exists = LuaScriptRegistry.hasScriptName(name);
+            int color = exists ? 0xFFFFFF : 0xFFCC6666;
+            String displayName = exists ? "- " + name : "- " + name + " " + SUFFIX_DEPENDENCY_MISSING;
+            String display = trimToWidth(font, displayName, width);
             font.drawStringWithShadow(display, x, y, color);
-            y += DEPENDENCY_LINE_HEIGHT;
+            y += 8;
         }
         return y - startY;
+    }
+
+    private String trimToWidth(FontRenderer font, String text, int maxWidth) {
+        if (text == null) {
+            return "";
+        }
+        if (maxWidth <= 0) {
+            return "";
+        }
+        if (font.getStringWidth(text) <= maxWidth) {
+            return text;
+        }
+        int ellipsisWidth = font.getStringWidth("...");
+        if (ellipsisWidth >= maxWidth) {
+            return "...";
+        }
+        int targetWidth = maxWidth - ellipsisWidth;
+        String trimmed = text;
+        while (!trimmed.isEmpty() && font.getStringWidth(trimmed) > targetWidth) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
+        }
+        return trimmed + "...";
     }
 }

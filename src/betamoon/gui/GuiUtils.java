@@ -1,16 +1,11 @@
 package betamoon.gui;
 
-import java.awt.Desktop;
-import java.io.File;
 import net.minecraft.src.FontRenderer;
 import org.lwjgl.opengl.GL11;
 
 public final class GuiUtils {
     public static final int COLOR_LIST_SEPERATOR = 0xAA3A3A3A;
 
-    /**
-     * Utility class for shared GUI rendering helpers.
-     */
     private GuiUtils() {
     }
 
@@ -210,7 +205,6 @@ public final class GuiUtils {
         int scissorY = (screenHeight - bottom) * displayHeight / screenHeight;
         int scissorW = (right - left) * displayWidth / screenWidth;
         int scissorH = (bottom - top) * displayHeight / screenHeight;
-        // Scissor uses display-space coordinates with origin at the bottom-left.
         if (scissorW < 0) {
             scissorW = 0;
         }
@@ -223,45 +217,5 @@ public final class GuiUtils {
 
     public static void endScissor() {
         GL11.glDisable(GL11.GL_SCISSOR_TEST);
-    }
-
-    /**
-     * Attempts to open a file or folder using the native file explorer.
-     *
-     * @param path file or directory to open
-     * @return true when the open command was dispatched
-     */
-    public static boolean openInFileExplorer(File path) {
-        if (path == null) {
-            return false;
-        }
-        try {
-            if (Desktop.isDesktopSupported()) {
-                Desktop desktop = Desktop.getDesktop();
-                if (desktop.isSupported(Desktop.Action.OPEN)) {
-                    desktop.open(path);
-                    return true;
-                }
-            }
-        } catch (Throwable t) {
-            // Fall through to shell-based open.
-        }
-        try {
-            String os = System.getProperty("os.name");
-            if (os != null) {
-                os = os.toLowerCase();
-            }
-            String resolved = path.getAbsolutePath();
-            if (os != null && os.indexOf("win") >= 0) {
-                Runtime.getRuntime().exec(new String[] { "explorer", resolved });
-            } else if (os != null && os.indexOf("mac") >= 0) {
-                Runtime.getRuntime().exec(new String[] { "open", resolved });
-            } else {
-                Runtime.getRuntime().exec(new String[] { "xdg-open", resolved });
-            }
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
     }
 }
