@@ -3,7 +3,7 @@ name = "Ore Gen Example"
 
 function modInit()
   -- Create a block the same as before. 
-  local oreBlock = betamoon.createBlock(205, "rock", "example_ore")
+  local oreBlock = betamoon.createBlock(206, "rock", "example_ore")
     :setHardness(3.0)
     :setResistance(5.0)
     :setTextureId(50)
