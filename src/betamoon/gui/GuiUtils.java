@@ -208,6 +208,7 @@ public final class GuiUtils {
         int scissorY = (screenHeight - bottom) * displayHeight / screenHeight;
         int scissorW = (right - left) * displayWidth / screenWidth;
         int scissorH = (bottom - top) * displayHeight / screenHeight;
+        // Scissor uses display-space coordinates with origin at the bottom-left.
         if (scissorW < 0) {
             scissorW = 0;
         }

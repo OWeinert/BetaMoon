@@ -69,8 +69,10 @@ public class GuiScriptsScreen extends GuiScreen {
         this.drawDefaultBackground();
         float headerScale = 1.35F;
         List entries = LuaScriptRegistry.getEntries();
+        // Sort only for display so the registry order stays intact.
         List sortedEntries = getSortedEntries(entries);
         int bottomSeparatorY = backButtonY - 8;
+        // Bottom separator also acts as a visual bound above the Back button.
         GuiUtils.drawHorizontalLine(10, this.width - 10, bottomSeparatorY, 0xFFFFFFFF);
         listPanel.draw(this.fontRenderer, this.width, this.height, this.mc.displayWidth, this.mc.displayHeight, bottomSeparatorY, headerScale, sortedEntries);
 

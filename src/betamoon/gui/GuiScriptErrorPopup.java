@@ -25,6 +25,7 @@ public class GuiScriptErrorPopup extends GuiScreen {
     public void initGui() {
         updatePanelGeometry();
         this.controlList.clear();
+        // Lay out buttons within the popup bounds.
         int buttonWidth = (panelWidth - 30) / 2;
         int buttonY = panelTop + panelHeight - 30;
         this.controlList.add(new GuiButton(0, panelLeft + 10, buttonY, buttonWidth, 20, "Ignore"));
@@ -53,6 +54,7 @@ public class GuiScriptErrorPopup extends GuiScreen {
     @Override
     public void drawScreen(int var1, int var2, float var3) {
         updatePanelGeometry();
+        // Render on top of the parent screen when available.
         if (this.parent != null) {
             this.parent.drawScreen(var1, var2, var3);
         } else {
@@ -69,6 +71,7 @@ public class GuiScriptErrorPopup extends GuiScreen {
         GuiUtils.drawScaledCenteredString(this.fontRenderer, "Lua Scripts Failed Loading!", this.width / 2, top + 8, 0xFFFFFF, 1.2F);
         GuiUtils.drawHorizontalLine(left + 10, right - 10, top + 24, 0xFFFFFFFF);
 
+        // Draw each error entry with separators between them.
         List entries = LuaScriptErrors.getEntries();
         int y = top + 36;
         int contentWidth = panelWidth - 40;

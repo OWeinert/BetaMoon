@@ -103,6 +103,7 @@ public final class GuiScriptListPanel {
 
         int contentHeight = 0;
         if (entries != null) {
+            // Precompute total height for scrolling.
             for (int i = 0; i < entries.size(); i++) {
                 ScriptMod entry = (ScriptMod) entries.get(i);
                 String displayName = trimToWidth(entry.getDisplayName(), listContentWidth);
@@ -120,6 +121,7 @@ public final class GuiScriptListPanel {
         int y = listTop - scrollState.getScrollOffset();
         int scissorTop = listTop - 2;
         int scissorBottom = listBottom + 8;
+        // Constrain list rendering to the visible panel.
         GuiUtils.beginScissor(listLeft, scissorTop, listContentRight, scissorBottom, screenWidth, screenHeight, displayWidth, displayHeight);
         if (entries != null) {
             for (int i = 0; i < entries.size(); i++) {
