@@ -23,7 +23,7 @@ function modInit()
     :setTextureMap({
       top = 0,
       bottom = 2,
-      side = "example_block.png"
+      sides = "example_block.png"
     })
     :setHardness(1.5)
     :setResistance(10.0)
@@ -37,7 +37,7 @@ function modInit()
       top = 1,
       bottom = 2,
       front = "example_block.png",
-      side = 3
+      sides = 3
     })
     :setHardness(1.5)
     :setResistance(10.0)

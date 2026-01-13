@@ -276,7 +276,10 @@ final class BlockApi {
                 int textureIndex = resolveTextureIndex(value);
                 handle.block.setAllSideTextures(textureIndex);
             }
-            value = tableValue.get("side");
+            value = tableValue.get("sides");
+            if (value.isnil()) {
+                value = tableValue.get("side");
+            }
             if (!value.isnil()) {
                 int textureIndex = resolveTextureIndex(value);
                 for (int side = 2; side <= 5; side++) {
