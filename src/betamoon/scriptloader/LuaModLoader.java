@@ -148,6 +148,12 @@ public final class LuaModLoader {
             return null;
         }
         String modName = nameValue.tojstring();
+        if (modName.trim().isEmpty()) {
+            errors.add("Lua mod has empty name: " + scriptFile.getName());
+            LuaScriptErrors.add(scriptFile.getName(), "Script has empty or whitespace-only name.");
+            LuaScriptRegistry.markFailedByFile(scriptFile.getName(), "Script has empty or whitespace-only name.");
+            return null;
+        }
         List deps = new ArrayList();
         LuaValue depsTable = globals.get("dependencies");
         if (depsTable.istable()) {
