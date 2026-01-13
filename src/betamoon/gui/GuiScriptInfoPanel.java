@@ -45,6 +45,7 @@ public final class GuiScriptInfoPanel {
         String title = selected.getDisplayName() + "  v" + selected.getVersion();
         GuiUtils.drawScaledString(font, title, detailLeft, headerY, 0xFFFFFF, headerScale);
 
+        // Resolve content flags and starting Y based on the current scroll offset.
         int y = detailTop - scrollState.getScrollOffset();
         String description = selected.getDescription();
         boolean hasDescription = description != null && !description.trim().isEmpty();
@@ -53,6 +54,7 @@ public final class GuiScriptInfoPanel {
         List dependencies = selected.getDependencies();
         boolean hasDependencies = dependencies != null && !dependencies.isEmpty();
 
+        // Measure full content height to drive scrolling limits.
         int contentHeight = calculateContentHeight(font, contentWidth, hasDescription ? description : null,
             hasErrors ? failure : null, hasDependencies ? dependencies : null);
         scrollState.setBounds(detailLeft, detailTop, detailRight, detailBottom);
@@ -60,6 +62,7 @@ public final class GuiScriptInfoPanel {
         y = detailTop - scrollState.getScrollOffset();
         int scissorTop = detailTop - 2;
         int scissorBottom = detailBottom + 2;
+        // Clip body text so it doesn't overlap the title row.
         GuiUtils.beginScissor(detailLeft, scissorTop, detailRight, scissorBottom, screenWidth, screenHeight, displayWidth, displayHeight);
 
         // Description is always shown, even when empty.
@@ -165,6 +168,7 @@ public final class GuiScriptInfoPanel {
             return 0;
         }
         int startY = y;
+        // Manual line wrapping to keep control over clipping boundaries.
         String[] lines = text.split("\n");
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i];
@@ -207,6 +211,7 @@ public final class GuiScriptInfoPanel {
                 continue;
             }
             String name = dep.toString();
+            // Flag missing dependencies to make them stand out in the list.
             boolean exists = LuaScriptRegistry.hasScriptName(name);
             int color = exists ? 0xFFFFFF : 0xFFCC6666;
             String displayName = exists ? "- " + name : "- " + name + " " + SUFFIX_DEPENDENCY_MISSING;
