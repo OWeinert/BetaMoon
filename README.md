@@ -6,7 +6,9 @@ The Lua API is designed to be easy-to-use and is fully documented in the [Wiki](
 
 ### W.I.P Notice
 BetaMoon is very W.I.P. That means it doesn't have a lot of features currently!<br>
-BUT the plan is to provide full backwards compatibility, so you can already start to create your Lua scripts without the worry of redoing everything in the future!
+BUT the plan is to provide full backwards compatibility, so you can already start to create your Lua scripts without the worry of redoing everything in the future!<br>
+Even though the main goal is to offer backwards compatibility, it sometimes isn't avoidable to do breaking changes.<br>
+So please read the changelogs when you update the mod to avoid your scripts breaking while the mod is in its W.I.P stage (Version <1.0.0)!
 
 ## Requirements
 - Minecraft Beta 1.7.3 (Recommended to be installed via MultiMC or similar client)
