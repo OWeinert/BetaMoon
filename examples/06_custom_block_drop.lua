@@ -3,7 +3,7 @@ name = "Custom Block Drop Example"
 
 function modInit()
   -- Create a block the same as before. 
-  betamoon.createBlock(202, "rock", "example_block2")
+  betamoon.createBlock(204, "rock", "example_block2")
     :setHardness(3.0)
     :setResistance(5.0)
     :setTextureId(50)

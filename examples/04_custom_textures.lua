@@ -17,4 +17,31 @@ function modInit()
     :setBlockHarvestLevel("pickaxe", 0)
     :setStepSound("stone")
     :register("Example Block")
+
+  -- Per-side textures (top/bottom vanilla, sides custom).
+  betamoon.createBlock(202, "rock", "example_block_sides")
+    :setTextureMap({
+      top = 0,
+      bottom = 2,
+      side = "example_block.png"
+    })
+    :setHardness(1.5)
+    :setResistance(10.0)
+    :setBlockHarvestLevel("pickaxe", 0)
+    :setStepSound("stone")
+    :register("Example Block (Sides)")
+
+  -- Per-side textures (front custom, top/bottom unique vanilla, remaining sides vanilla).
+  betamoon.createBlock(203, "rock", "example_block_front")
+    :setTextureMap({
+      top = 1,
+      bottom = 2,
+      front = "example_block.png",
+      side = 3
+    })
+    :setHardness(1.5)
+    :setResistance(10.0)
+    :setBlockHarvestLevel("pickaxe", 0)
+    :setStepSound("stone")
+    :register("Example Block (Front)")
 end
