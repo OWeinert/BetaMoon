@@ -12,10 +12,16 @@ public class GuiScriptErrorPopup extends GuiScreen {
     private int panelWidth;
     private int panelHeight;
 
+    /**
+     * Creates the popup for showing Lua script load errors.
+     *
+     * @param parent parent GUI to return to
+     */
     public GuiScriptErrorPopup(GuiScreen parent) {
         this.parent = parent;
     }
 
+    @Override
     public void initGui() {
         updatePanelGeometry();
         this.controlList.clear();
@@ -25,10 +31,12 @@ public class GuiScriptErrorPopup extends GuiScreen {
         this.controlList.add(new GuiButton(1, panelLeft + 20 + buttonWidth, buttonY, buttonWidth, 20, "Close Game"));
     }
 
+    @Override
     protected void keyTyped(char var1, int var2) {
         // Require explicit choice; ignore escape key.
     }
 
+    @Override
     protected void actionPerformed(GuiButton button) {
         if (!button.enabled) {
             return;
@@ -42,6 +50,7 @@ public class GuiScriptErrorPopup extends GuiScreen {
         }
     }
 
+    @Override
     public void drawScreen(int var1, int var2, float var3) {
         updatePanelGeometry();
         if (this.parent != null) {
@@ -79,6 +88,9 @@ public class GuiScriptErrorPopup extends GuiScreen {
         super.drawScreen(var1, var2, var3);
     }
 
+    /**
+     * Updates popup sizing and centers it within the screen.
+     */
     private void updatePanelGeometry() {
         panelWidth = Math.min(360, this.width - 40);
         panelHeight = Math.min(this.height - 80, 260);

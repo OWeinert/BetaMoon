@@ -16,6 +16,11 @@ public class GuiScriptsScreen extends GuiScreen {
     private final GuiScriptListPanel listPanel = new GuiScriptListPanel();
     private final GuiScriptInfoPanel infoPanel = new GuiScriptInfoPanel();
 
+    /**
+     * Creates the scripts screen with a parent GUI to return to.
+     *
+     * @param parent parent GUI screen
+     */
     public GuiScriptsScreen(GuiScreen parent) {
         this.parent = parent;
     }
@@ -80,6 +85,12 @@ public class GuiScriptsScreen extends GuiScreen {
         super.drawScreen(var1, var2, var3);
     }
 
+    /**
+     * Returns a GUI-only sorted list with failed scripts first and names sorted alphabetically.
+     *
+     * @param entries unsorted script entries
+     * @return sorted list for display
+     */
     private static List getSortedEntries(List entries) {
         if (entries == null || entries.isEmpty()) {
             return entries;
@@ -102,6 +113,12 @@ public class GuiScriptsScreen extends GuiScreen {
         return sorted;
     }
 
+    /**
+     * Normalizes a name for sorting, falling back to an empty string.
+     *
+     * @param name input name
+     * @return non-null name for sorting
+     */
     private static String safeName(String name) {
         return name == null ? "" : name;
     }
