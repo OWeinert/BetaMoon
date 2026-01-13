@@ -13,6 +13,8 @@ import net.minecraft.src.World;
 public class BlockWrapper extends Block {
     private static final List<PendingDrop> PENDING_DROPS = new ArrayList<PendingDrop>();
     private final List<CustomDrop> customDrops = new ArrayList<CustomDrop>();
+    private final int[] sideTextures = new int[6];
+    private final boolean[] sideTextureSet = new boolean[6];
 
     private static final class PendingDrop {
         private final int blockId;
@@ -47,6 +49,35 @@ public class BlockWrapper extends Block {
     public BlockWrapper(int id, int textureId, Material material, String name) {
         super(id, textureId, material);
         this.setBlockName(name);
+    }
+
+    /**
+     * Sets a specific texture index for a block face.
+     *
+     * @param side side index (0-5)
+     * @param textureIndex texture index in the terrain atlas
+     * @return this wrapper for chaining
+     */
+    public BlockWrapper setSideTextureIndex(int side, int textureIndex) {
+        if (side >= 0 && side < sideTextures.length) {
+            sideTextures[side] = textureIndex;
+            sideTextureSet[side] = true;
+        }
+        return this;
+    }
+
+    /**
+     * Sets the same texture index for all block faces.
+     *
+     * @param textureIndex texture index in the terrain atlas
+     * @return this wrapper for chaining
+     */
+    public BlockWrapper setAllSideTextures(int textureIndex) {
+        for (int i = 0; i < sideTextures.length; i++) {
+            sideTextures[i] = textureIndex;
+            sideTextureSet[i] = true;
+        }
+        return this;
     }
 
     /**
@@ -148,6 +179,13 @@ public class BlockWrapper extends Block {
             return;
         }
         super.dropBlockAsItemWithChance(world, x, y, z, metadata, chance);
+    }
+
+    public int getBlockTextureFromSide(int side) {
+        if (side >= 0 && side < sideTextures.length && sideTextureSet[side]) {
+            return sideTextures[side];
+        }
+        return this.blockIndexInTexture;
     }
 
     public static void validatePendingDrops(List errors) {

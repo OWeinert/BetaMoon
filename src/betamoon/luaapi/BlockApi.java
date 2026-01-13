@@ -61,6 +61,8 @@ final class BlockApi {
             set("setBlockHarvestLevel", new SetBlockHarvestLevel(this));
             set("setTextureId", new SetTextureId(this));
             set("addTexture", new AddTexture(this));
+            set("setSideTexture", new SetSideTexture(this));
+            set("setTextureMap", new SetTextureMap(this));
             set("addCustomDrop", new AddCustomDrop(this));
             set("addOreGen", OreGenApi.createAddOreGen(this));
             set("register", new RegisterBlock(this));
@@ -232,6 +234,68 @@ final class BlockApi {
         }
     }
 
+    private static final class SetSideTexture extends VarArgFunction {
+        private final BlockHandle handle;
+
+        private SetSideTexture(BlockHandle handle) {
+            this.handle = handle;
+        }
+
+        public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("setSideTexture")) {
+                return handle;
+            }
+            int base = (args.narg() >= 2 && args.arg(1).istable()) ? 2 : 1;
+            LuaValue sideValue = args.arg(base);
+            LuaValue textureValue = args.arg(base + 1);
+            int textureIndex = resolveTextureIndex(textureValue);
+            applySideTexture(handle.block, sideValue, textureIndex);
+            return handle;
+        }
+    }
+
+    private static final class SetTextureMap extends VarArgFunction {
+        private final BlockHandle handle;
+
+        private SetTextureMap(BlockHandle handle) {
+            this.handle = handle;
+        }
+
+        public Varargs invoke(Varargs args) {
+            if (!handle.canMutate("setTextureMap")) {
+                return handle;
+            }
+            int base = (args.narg() >= 1 && args.arg(1).istable()) ? 2 : 1;
+            LuaValue tableValue = args.arg(base);
+            if (!tableValue.istable()) {
+                throw new LuaError("Texture map must be a table.");
+            }
+            // Apply "all" first, then "side", then specific overrides.
+            LuaValue value = tableValue.get("all");
+            if (!value.isnil()) {
+                int textureIndex = resolveTextureIndex(value);
+                handle.block.setAllSideTextures(textureIndex);
+            }
+            value = tableValue.get("side");
+            if (!value.isnil()) {
+                int textureIndex = resolveTextureIndex(value);
+                for (int side = 2; side <= 5; side++) {
+                    handle.block.setSideTextureIndex(side, textureIndex);
+                }
+            }
+            applyTextureEntry(handle.block, tableValue, "top", 1);
+            applyTextureEntry(handle.block, tableValue, "bottom", 0);
+            applyTextureEntry(handle.block, tableValue, "north", 2);
+            applyTextureEntry(handle.block, tableValue, "south", 3);
+            applyTextureEntry(handle.block, tableValue, "west", 4);
+            applyTextureEntry(handle.block, tableValue, "east", 5);
+            // Convenience aliases for fixed-orientation blocks.
+            applyTextureEntry(handle.block, tableValue, "front", 3);
+            applyTextureEntry(handle.block, tableValue, "back", 2);
+            return handle;
+        }
+    }
+
     private static final class AddCustomDrop extends VarArgFunction {
         private final BlockHandle handle;
 
@@ -260,6 +324,63 @@ final class BlockApi {
             handle.block.addCustomDrop(itemId, minQuantity, maxQuantity);
             return handle;
         }
+    }
+
+    private static void applyTextureEntry(BlockWrapper block, LuaValue table, String key, int side) {
+        LuaValue value = table.get(key);
+        if (value.isnil()) {
+            return;
+        }
+        int textureIndex = resolveTextureIndex(value);
+        block.setSideTextureIndex(side, textureIndex);
+    }
+
+    private static void applySideTexture(BlockWrapper block, LuaValue sideValue, int textureIndex) {
+        if (sideValue.isnumber()) {
+            int side = sideValue.checkint();
+            if (side < 0 || side > 5) {
+                throw new LuaError("Side index must be between 0 and 5.");
+            }
+            block.setSideTextureIndex(side, textureIndex);
+            return;
+        }
+        if (!sideValue.isstring()) {
+            throw new LuaError("Side must be a number or string.");
+        }
+        String name = sideValue.checkjstring().toLowerCase();
+        if (name.equals("all")) {
+            block.setAllSideTextures(textureIndex);
+            return;
+        }
+        if (name.equals("side") || name.equals("sides")) {
+            for (int side = 2; side <= 5; side++) {
+                block.setSideTextureIndex(side, textureIndex);
+            }
+            return;
+        }
+        int side = resolveSideName(name);
+        block.setSideTextureIndex(side, textureIndex);
+    }
+
+    private static int resolveSideName(String name) {
+        if (name.equals("bottom") || name.equals("down")) return 0;
+        if (name.equals("top") || name.equals("up")) return 1;
+        if (name.equals("north") || name.equals("back")) return 2;
+        if (name.equals("south") || name.equals("front")) return 3;
+        if (name.equals("west")) return 4;
+        if (name.equals("east")) return 5;
+        throw new LuaError("Unknown side: " + name);
+    }
+
+    private static int resolveTextureIndex(LuaValue value) {
+        if (value.isnumber()) {
+            return value.checkint();
+        }
+        if (value.isstring()) {
+            String relativePath = value.checkjstring();
+            return LuaApiUtils.registerTexture(EnumTexAtlas.BLOCKS, relativePath);
+        }
+        throw new LuaError("Texture must be a number or string.");
     }
 
     private static final class RegisterBlock extends VarArgFunction {
