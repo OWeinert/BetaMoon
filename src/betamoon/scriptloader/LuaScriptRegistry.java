@@ -49,11 +49,9 @@ public final class LuaScriptRegistry {
      * @param modInit init function
      * @param description description string or null
      * @param version version string or null
-     * @param imagePath optional image path relative to the Lua mods directory
      * @return tracked script entry
      */
-    public static synchronized ScriptMod updateParsed(String fileName, String name, List dependencies, LuaValue modInit,
-        String description, String version, String imagePath) {
+    public static synchronized ScriptMod updateParsed(String fileName, String name, List dependencies, LuaValue modInit, String description, String version) {
         ScriptMod entry = (ScriptMod) byFile.get(fileName);
         if (entry == null) {
             entry = registerFile(fileName);
@@ -66,11 +64,6 @@ public final class LuaScriptRegistry {
             entry.version = "0.0.0";
         } else {
             entry.version = version;
-        }
-        if (imagePath != null && !imagePath.trim().isEmpty()) {
-            entry.imagePath = imagePath.trim();
-        } else {
-            entry.imagePath = null;
         }
         if (name != null && !byName.containsKey(name)) {
             byName.put(name, entry);

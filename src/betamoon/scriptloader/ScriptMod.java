@@ -10,11 +10,9 @@ public class ScriptMod {
     LuaValue modInit;
     String description;
     String version;
-    String imagePath;
     boolean loaded;
     boolean failed;
     String failureReason;
-    List missingDependencies;
 
     /**
      * Creates a script entry for a file that has not yet been parsed.
@@ -25,7 +23,6 @@ public class ScriptMod {
         this.sourceFileName = sourceFileName;
         this.description = "";
         this.version = "0.0.0";
-        this.imagePath = null;
     }
 
     /**
@@ -36,7 +33,7 @@ public class ScriptMod {
      * @param modInit Lua function to invoke during mod initialization
      * @param sourceFileName script file name on disk
      */
-    public ScriptMod(String name, List dependencies, LuaValue modInit, String sourceFileName, String description, String version, String imagePath) {
+    public ScriptMod(String name, List dependencies, LuaValue modInit, String sourceFileName, String description, String version) {
         this.sourceFileName = sourceFileName;
         this.name = name;
         this.dependencies = dependencies;
@@ -47,7 +44,6 @@ public class ScriptMod {
         } else {
             this.version = version;
         }
-        this.imagePath = imagePath;
     }
 
     /**
@@ -56,22 +52,7 @@ public class ScriptMod {
      * @return display name for the script
      */
     public String getDisplayName() {
-        if (name == null || name.trim().isEmpty()) {
-            return sourceFileName;
-        }
-        return name;
-    }
-
-    /**
-     * Returns a sort key that falls back to the file name when name is empty.
-     *
-     * @return sort key for UI lists
-     */
-    public String getSortName() {
-        if (name == null || name.trim().isEmpty()) {
-            return sourceFileName;
-        }
-        return name;
+        return name != null ? name : sourceFileName;
     }
 
     /**
@@ -111,15 +92,6 @@ public class ScriptMod {
     }
 
     /**
-     * Returns the optional image path for this script, when provided.
-     *
-     * @return image path string or null
-     */
-    public String getImagePath() {
-        return imagePath;
-    }
-
-    /**
      * Returns the most recent failure reason, if any.
      *
      * @return failure description or null
@@ -135,14 +107,5 @@ public class ScriptMod {
      */
     public List getDependencies() {
         return dependencies;
-    }
-
-    /**
-     * Returns a list of missing dependencies for this script, when known.
-     *
-     * @return list of missing dependency names or null
-     */
-    public List getMissingDependencies() {
-        return missingDependencies;
     }
 }
