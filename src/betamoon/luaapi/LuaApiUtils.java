@@ -65,7 +65,7 @@ final class LuaApiUtils {
     static int registerTexture(EnumTexAtlas atlas, String relativePath) {
         File luaModsDir = resolveLuaModsDir();
         if (luaModsDir == null) {
-            throw new LuaError("Lua mods directory not found.");
+            throw new LuaError("LuaApi: lua mods directory not found.");
         }
         String trimmed = relativePath;
         while (trimmed.startsWith("/") || trimmed.startsWith("\\")) {
@@ -73,16 +73,16 @@ final class LuaApiUtils {
         }
         File textureFile = new File(luaModsDir, trimmed);
         if (!textureFile.isFile()) {
-            throw new LuaError("Texture file not found: " + textureFile.getAbsolutePath());
+            throw new LuaError("LuaApi: texture file not found: " + textureFile.getAbsolutePath());
         }
         BufferedImage image;
         try {
             image = ImageIO.read(textureFile);
         } catch (IOException e) {
-            throw new LuaError("Failed to read texture: " + textureFile.getAbsolutePath());
+            throw new LuaError("LuaApi: failed to read texture: " + textureFile.getAbsolutePath());
         }
         if (image == null) {
-            throw new LuaError("Texture could not be decoded: " + textureFile.getAbsolutePath());
+            throw new LuaError("LuaApi: texture could not be decoded: " + textureFile.getAbsolutePath());
         }
         int index = ModLoader.getUniqueSpriteIndex(atlas.getAtlasPath());
         ModLoader.getMinecraftInstance().renderEngine.registerTextureFX(

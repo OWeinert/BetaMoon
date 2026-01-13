@@ -42,7 +42,7 @@ final class OreGenApi {
             int minY = args.checkint(base + 2);
             int maxY = args.checkint(base + 3);
             if (minY < 0 || maxY < 0 || minY > maxY) {
-                throw new LuaError("Invalid ore Y range: " + minY + " to " + maxY);
+                throw new LuaError("OreGen: invalid ore Y range: " + minY + " to " + maxY);
             }
             return new OreGenHandle(blockId, finishReturnValue, veinsPerChunk, veinSize, minY, maxY);
         }
@@ -63,7 +63,7 @@ final class OreGenApi {
             int minY = args.checkint(base + 3);
             int maxY = args.checkint(base + 4);
             if (minY < 0 || maxY < 0 || minY > maxY) {
-                throw new LuaError("Invalid ore Y range: " + minY + " to " + maxY);
+                throw new LuaError("OreGen: invalid ore Y range: " + minY + " to " + maxY);
             }
             return new OreGenHandle(blockId, handle, veinsPerChunk, veinSize, minY, maxY);
         }
@@ -111,7 +111,7 @@ final class OreGenApi {
             } else if (dim.equalsIgnoreCase("both") || dim.equalsIgnoreCase("all")) {
                 handle.nether = true;           
             } else {
-                throw new LuaError("Unknown dimension: " + dim);
+                throw new LuaError("OreGen: unknown dimension: " + dim);
             }
             return handle;
         }
@@ -128,7 +128,7 @@ final class OreGenApi {
             int base = (args.narg() >= 1 && args.arg(1).istable()) ? 2 : 1;
             int blockId = args.checkint(base);
             if (blockId < 0 || blockId >= Block.blocksList.length || Block.blocksList[blockId] == null) {
-                throw new LuaError("Unknown spawn block id: " + blockId);
+                throw new LuaError("OreGen: unknown spawn block id: " + blockId);
             }
             handle.targetBlockId = blockId;
             return handle;
@@ -151,7 +151,7 @@ final class OreGenApi {
             int base = (args.narg() >= 1 && args.arg(1).istable()) ? 2 : 1;
             LuaValue value = args.arg(base);
             if (!value.istable()) {
-                throw new LuaError("Biomes must be provided as a table of names.");
+                throw new LuaError("OreGen: biomes must be provided as a table of names.");
             }
             LuaTable table = value.checktable();
             int len = table.length();
@@ -198,7 +198,7 @@ final class OreGenApi {
         if (value.isnumber()) {
             int id = value.toint();
             if (id < 0 || id >= Block.blocksList.length) {
-                throw new LuaError("Block id out of range: " + id);
+                throw new LuaError("OreGen: block id out of range: " + id);
             }
             return id;
         }
@@ -212,6 +212,6 @@ final class OreGenApi {
                 return resolveBlockId(getter.call(value));
             }
         }
-        throw new LuaError("Block must be a block id or block handle.");
+        throw new LuaError("OreGen: block must be a block id or block handle.");
     }
 }

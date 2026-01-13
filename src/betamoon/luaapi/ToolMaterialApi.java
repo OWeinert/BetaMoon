@@ -78,7 +78,7 @@ final class ToolMaterialApi {
             setMaterialFields(result, harvestLevel, maxUses, efficiency, damage);
             return result;
         } catch (Exception e) {
-            throw new LuaError("Failed to create tool material: " + e.getMessage());
+            throw new LuaError("ToolMaterial: failed to create tool material: " + e.getMessage());
         }
     }
 
@@ -163,7 +163,7 @@ final class ToolMaterialApi {
             removeFinal(valuesField);
             valuesField.set(null, values);
         } catch (Exception e) {
-            throw new LuaError("Failed to set tool material values: " + e.getMessage());
+            throw new LuaError("ToolMaterial: failed to set tool material values: " + e.getMessage());
         }
     }
 

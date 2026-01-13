@@ -28,10 +28,10 @@ final class ItemApi {
             int base = (args.narg() >= 2 && args.arg(1).istable()) ? 2 : 1;
             int shiftedId = args.checkint(base);
             if (shiftedId < 256) {
-                throw new LuaError("Item id must be a shifted id (>= 256): " + shiftedId);
+                throw new LuaError("Item: id must be a shifted id (>= 256): " + shiftedId);
             }
             if (shiftedId >= Item.itemsList.length) {
-                throw new LuaError("Item id out of range: " + shiftedId);
+                throw new LuaError("Item: id out of range: " + shiftedId);
             }
             String name = args.checkjstring(base + 1);
             int id = shiftedId - 256;
@@ -40,7 +40,7 @@ final class ItemApi {
                 item.setIconCoord(0, 0);
                 return new ItemHandle(item);
             } catch (RuntimeException e) {
-                throw new LuaError(e);
+                throw new LuaError("Item: " + String.valueOf(e.getMessage()));
             }
         }
     }

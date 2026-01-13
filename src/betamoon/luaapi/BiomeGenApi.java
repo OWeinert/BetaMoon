@@ -57,7 +57,7 @@ final class BiomeGenApi {
             String vanillaName = args.checkjstring(base);
             BiomeGenBase source = resolveBiome(vanillaName);
             if (source == null) {
-                throw new LuaError("Unknown biome: " + vanillaName);
+                throw new LuaError("Biome: unknown biome: " + vanillaName);
             }
             String customName = args.checkjstring(base + 1);
             return new BiomeGeneratorHandle(handle, source, customName);
@@ -263,7 +263,7 @@ final class BiomeGenApi {
         public Varargs invoke(Varargs args) {
             int chance = (int) LuaApiUtils.getNumberArg(args, 1);
             if (chance < 1) {
-                throw new LuaError("Big tree chance must be >= 1.");
+                throw new LuaError("Biome: big tree chance must be >= 1.");
             }
             handle.biome.applyBigTreeChance(chance);
             return handle;
@@ -296,7 +296,7 @@ final class BiomeGenApi {
             LuaValue entityValue = LuaApiUtils.getVarArg(args, 2);
             int weight = (int) LuaApiUtils.getNumberArg(args, 3);
             if (weight < 1) {
-                throw new LuaError("Spawn weight must be >= 1.");
+                throw new LuaError("Biome: spawn weight must be >= 1.");
             }
             Class entityClass = resolveEntityClass(entityValue);
             handle.biome.addSpawn(type, entityClass, weight);
@@ -328,10 +328,10 @@ final class BiomeGenApi {
     private static void validateRange(String label, double min, double max) {
         // Clamp checks are explicit so Lua scripts get clear error messages.
         if (min < 0.0 || max < 0.0 || min > 1.0 || max > 1.0) {
-            throw new LuaError("Biome " + label + " range must be between 0 and 1.");
+            throw new LuaError("Biome: " + label + " range must be between 0 and 1.");
         }
         if (min > max) {
-            throw new LuaError("Biome " + label + " range min must be <= max.");
+            throw new LuaError("Biome: " + label + " range min must be <= max.");
         }
     }
 
@@ -346,7 +346,7 @@ final class BiomeGenApi {
         if (value.isnumber()) {
             int id = value.toint();
             if (id < 0 || id >= Block.blocksList.length || Block.blocksList[id] == null) {
-                throw new LuaError("Unknown block id: " + id);
+                throw new LuaError("Biome: unknown block id: " + id);
             }
             return id;
         }
@@ -360,7 +360,7 @@ final class BiomeGenApi {
                 return resolveBlockId(getter.call(value));
             }
         }
-        throw new LuaError("Block must be an id or block handle.");
+        throw new LuaError("Biome: block must be an id or block handle.");
     }
 
     /**
@@ -389,7 +389,7 @@ final class BiomeGenApi {
             String name = value.tojstring();
             Class clazz = getEntityClassFromName(name);
             if (clazz == null) {
-                throw new LuaError("Unknown entity name: " + name);
+                throw new LuaError("Biome: unknown entity name: " + name);
             }
             return clazz;
         }
@@ -397,7 +397,7 @@ final class BiomeGenApi {
             int id = value.toint();
             Class clazz = getEntityClassFromId(id);
             if (clazz == null) {
-                throw new LuaError("Unknown entity id: " + id);
+                throw new LuaError("Biome: unknown entity id: " + id);
             }
             return clazz;
         }
@@ -412,7 +412,7 @@ final class BiomeGenApi {
                 return resolveEntityClass(idValue);
             }
         }
-        throw new LuaError("Entity must be a name or id.");
+        throw new LuaError("Biome: entity must be a name or id.");
     }
 
     /**

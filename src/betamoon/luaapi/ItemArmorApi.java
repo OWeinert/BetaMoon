@@ -29,10 +29,10 @@ final class ItemArmorApi {
             int shiftedId = args.checkint(base);
             // Item ids from Lua are shifted (in-game id space).
             if (shiftedId < 256) {
-                throw new LuaError("Armor id must be a shifted id (>= 256): " + shiftedId);
+                throw new LuaError("Armor: id must be a shifted id (>= 256): " + shiftedId);
             }
             if (shiftedId >= Item.itemsList.length) {
-                throw new LuaError("Armor id out of range: " + shiftedId);
+                throw new LuaError("Armor: id out of range: " + shiftedId);
             }
             LuaValue materialValue = args.arg(base + 1);
             int material;
@@ -218,7 +218,7 @@ final class ItemArmorApi {
     private static int resolveArmorType(LuaValue value) {
         // Only string tokens are accepted for armor slots.
         if (!value.isstring()) {
-            throw new LuaError("Armor type must be a string.");
+            throw new LuaError("Armor: type must be a string.");
         }
         String name = value.checkjstring().toLowerCase();
         // Normalize common names to the slot indices used by ItemArmor.
@@ -226,7 +226,7 @@ final class ItemArmorApi {
         if (name.equals("chestplate") || name.equals("chest")) return 1;
         if (name.equals("leggings") || name.equals("legs")) return 2;
         if (name.equals("boots") || name.equals("feet")) return 3;
-        throw new LuaError("Unknown armor type: " + name);
+        throw new LuaError("Armor: unknown armor type: " + name);
     }
 
     /**
@@ -240,7 +240,7 @@ final class ItemArmorApi {
         if (value.isnumber()) {
             int index = value.checkint();
             if (index < 0 || index > 4) {
-                throw new LuaError("Vanilla render index must be between 0 and 4.");
+                throw new LuaError("Armor: vanilla render index must be between 0 and 4.");
             }
             return index;
         }
@@ -252,9 +252,9 @@ final class ItemArmorApi {
             if (name.equals("iron")) return 2;
             if (name.equals("diamond") || name.equals("emerald")) return 3;
             if (name.equals("gold") || name.equals("golden")) return 4;
-            throw new LuaError("Unknown vanilla armor material: " + name);
+            throw new LuaError("Armor: unknown vanilla armor material: " + name);
         }
-        throw new LuaError("Vanilla render index must be a number or string.");
+        throw new LuaError("Armor: vanilla render index must be a number or string.");
     }
 
     /**
@@ -268,7 +268,7 @@ final class ItemArmorApi {
         if (value.isnumber()) {
             int material = value.checkint();
             if (material < 0) {
-                throw new LuaError("Armor material id must be 0 or higher.");
+                throw new LuaError("Armor: material id must be 0 or higher.");
             }
             return material;
         }
@@ -280,8 +280,8 @@ final class ItemArmorApi {
             if (name.equals("iron")) return 2;
             if (name.equals("diamond") || name.equals("emerald")) return 3;
             if (name.equals("gold") || name.equals("golden")) return 4;
-            throw new LuaError("Unknown armor material: " + name);
+            throw new LuaError("Armor: unknown armor material: " + name);
         }
-        throw new LuaError("Armor material must be a number or string.");
+        throw new LuaError("Armor: material must be a number or string.");
     }
 }

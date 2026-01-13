@@ -33,10 +33,10 @@ final class ItemToolApi {
             int base = (args.narg() >= 2 && args.arg(1).istable()) ? 2 : 1;
             int shiftedId = args.checkint(base);
             if (shiftedId < 256) {
-                throw new LuaError("Tool id must be a shifted id (>= 256): " + shiftedId);
+                throw new LuaError("Tool: id must be a shifted id (>= 256): " + shiftedId);
             }
             if (shiftedId >= Item.itemsList.length) {
-                throw new LuaError("Tool id out of range: " + shiftedId);
+                throw new LuaError("Tool: id out of range: " + shiftedId);
             }
             int id = shiftedId - 256;
             LuaValue materialValue = args.arg(base + 1);
@@ -181,7 +181,7 @@ final class ItemToolApi {
             } else if (handle.item instanceof ItemSwordWrapper) {
                 ((ItemSwordWrapper) handle.item).setMaxDamageValue(value);
             } else {
-                throw new LuaError("Tool type does not support max damage.");
+                throw new LuaError("Tool: type does not support max damage.");
             }
             return handle;
         }
@@ -225,7 +225,7 @@ final class ItemToolApi {
             } else if (handle.item instanceof ItemSpadeWrapper) {
                 ((ItemSpadeWrapper) handle.item).setEfficiencyValue((float) value);
             } else {
-                throw new LuaError("Tool type does not support efficiency.");
+                throw new LuaError("Tool: type does not support efficiency.");
             }
             return handle;
         }
@@ -252,7 +252,7 @@ final class ItemToolApi {
             } else if (handle.item instanceof ItemSwordWrapper) {
                 ((ItemSwordWrapper) handle.item).setDamageValue(value);
             } else {
-                throw new LuaError("Tool type does not support damage.");
+                throw new LuaError("Tool: type does not support damage.");
             }
             return handle;
         }
@@ -324,10 +324,10 @@ final class ItemToolApi {
             try {
                 return EnumToolMaterial.valueOf(name.toUpperCase());
             } catch (IllegalArgumentException e) {
-                throw new LuaError("Unknown tool material: " + name);
+                throw new LuaError("Tool: unknown tool material: " + name);
             }
         }
-        throw new LuaError("Tool material must be a material userdata or a name string.");
+        throw new LuaError("Tool: material must be a material userdata or a name string.");
     }
 
 }

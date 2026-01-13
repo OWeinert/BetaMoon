@@ -112,7 +112,7 @@ public final class BiomeGenWrapper extends BiomeGenBase {
             treeMode = TREE_MODE_NONE;
             return;
         }
-        throw new LuaError("Unknown tree generator mode: " + mode);
+        throw new LuaError("Biome: unknown tree generator mode: " + mode);
     }
 
     public void applyBigTreeChance(int chance) {
@@ -160,7 +160,7 @@ public final class BiomeGenWrapper extends BiomeGenBase {
         if (key.equals("water") || key.equals("watercreature") || key.equals("watercreatures")) {
             return spawnableWaterCreatureList;
         }
-        throw new LuaError("Unknown spawn list type: " + type);
+        throw new LuaError("Biome: unknown spawn list type: " + type);
     }
 
     public WorldGenerator getRandomWorldGenForTrees(Random random) {
@@ -195,7 +195,7 @@ public final class BiomeGenWrapper extends BiomeGenBase {
             field.setAccessible(true);
             field.setBoolean(this, value);
         } catch (Exception e) {
-            throw new LuaError("Unable to set biome flag '" + fieldNames[0] + "': " + e.getMessage());
+            throw new LuaError("Biome: unable to set biome flag '" + fieldNames[0] + "': " + e.getMessage());
         }
     }
 
@@ -213,7 +213,7 @@ public final class BiomeGenWrapper extends BiomeGenBase {
             field.setAccessible(true);
             return field.getBoolean(source);
         } catch (Exception e) {
-            throw new LuaError("Unable to read biome flag '" + fieldNames[0] + "': " + e.getMessage());
+            throw new LuaError("Biome: unable to read biome flag '" + fieldNames[0] + "': " + e.getMessage());
         }
     }
 
@@ -252,7 +252,7 @@ public final class BiomeGenWrapper extends BiomeGenBase {
             }
             return list;
         } catch (Exception e) {
-            throw new LuaError("Unable to read biome spawn list '" + fieldNames[0] + "': " + e.getMessage());
+            throw new LuaError("Biome: unable to read biome spawn list '" + fieldNames[0] + "': " + e.getMessage());
         }
     }
 

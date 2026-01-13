@@ -35,7 +35,7 @@ final class ArmorMaterialApi {
             String name = LuaApiUtils.getStringArg(args, 1);
             int level = args.checkint(2);
             if (level < 0) {
-                throw new LuaError("Armor material level must be 0 or higher.");
+                throw new LuaError("ArmorMaterial: level must be 0 or higher.");
             }
             int renderIndex = ModLoader.AddArmor(name);
             return LuaValue.userdataOf(new ArmorMaterial(name, level, renderIndex));
