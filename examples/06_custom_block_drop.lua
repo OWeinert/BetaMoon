@@ -1,11 +1,9 @@
 name = "Custom Block Drop Example"
-version = "1.0.0"
-description = "Shows custom drops for a block."
 
 
 function modInit()
   -- Create a block the same as before. 
-  betamoon.createBlock(205, "rock", "example_block2")
+  betamoon.createBlock(204, "rock", "example_block2")
     :setHardness(3.0)
     :setResistance(5.0)
     :setTextureId(50)
