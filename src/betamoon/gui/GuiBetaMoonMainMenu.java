@@ -1,33 +1,23 @@
 package betamoon.gui;
 
-import betamoon.gui.api.component.GuiActionButton;
-import betamoon.gui.api.layout.GuiLayout;
-import betamoon.gui.api.screen.GuiMainMenuBase;
-import betamoon.gui.api.component.IGuiAction;
+import net.minecraft.src.GuiButton;
+import net.minecraft.src.GuiMainMenu;
 
-public class GuiBetaMoonMainMenu extends GuiMainMenuBase {
-    private final GuiActionButton scriptsButton;
+public class GuiBetaMoonMainMenu extends GuiMainMenu {
+    private static final int BUTTON_ID = 50;
+    private static final int BUTTON_PADDING = 8;
 
-    public GuiBetaMoonMainMenu() {
-        scriptsButton = new GuiActionButton("Scripts", new IGuiAction() {
-            public void onPress() {
-                GuiBetaMoonMainMenu.this.mc.displayGuiScreen(new GuiScriptsScreen(GuiBetaMoonMainMenu.this));
-            }
-        });
+    public void initGui() {
+        super.initGui();
+        int buttonY = this.height - 20 - BUTTON_PADDING;
+        this.controlList.add(new GuiButton(BUTTON_ID, BUTTON_PADDING, buttonY, 90, 20, "Scripts"));
     }
 
-    @Override
-    protected void buildGui() {
-        scriptsButton.setMinecraft(this.mc);
-        root.addChild(scriptsButton);
-    }
-
-    @Override
-    protected void layoutComponents() {
-        int buttonWidth = 90;
-        int buttonHeight = 20;
-        int buttonY = GuiLayout.alignBottom(this.height, buttonHeight, 20);
-        scriptsButton.setBounds(10, buttonY, 10 + buttonWidth, buttonY + buttonHeight);
-        super.layoutComponents();
+    protected void actionPerformed(GuiButton button) {
+        if (button.id == BUTTON_ID) {
+            this.mc.displayGuiScreen(new GuiScriptsScreen(this));
+            return;
+        }
+        super.actionPerformed(button);
     }
 }

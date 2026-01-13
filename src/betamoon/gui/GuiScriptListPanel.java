@@ -1,18 +1,16 @@
 package betamoon.gui;
 
-import betamoon.gui.api.component.EnumScrollMode;
-import betamoon.gui.api.util.GuiColors;
-import betamoon.gui.api.component.GuiScrollPanel;
-import betamoon.gui.api.util.GuiText;
-import betamoon.gui.api.util.GuiUtils;
 import betamoon.scriptloader.ScriptMod;
 import java.util.List;
 import net.minecraft.src.FontRenderer;
 
-public final class GuiScriptListPanel extends GuiScrollPanel {
+public final class GuiScriptListPanel {
     private static final int ENTRY_PADDING = 10;
     private static final int PADDING = 10;
 
+    private final ScrollState scrollState = new ScrollState();
+    private int listLeft;
+    private int listRight;
     private int listTop;
     private int listBottom;
     private int listContentWidth;
@@ -24,71 +22,90 @@ public final class GuiScriptListPanel extends GuiScrollPanel {
     private int hoverIndex = -1;
     private List entries;
     private FontRenderer font;
-    private float headerScale = 1.0F;
-    private int screenWidth;
-    private int screenHeight;
-    private int displayWidth;
-    private int displayHeight;
 
     /**
      * Resets scroll state and clears selection/hover state.
      */
-    public GuiScriptListPanel() {
-        super(EnumScrollMode.VERTICAL);
-    }
-
     public void reset() {
-        resetScroll();
+        scrollState.reset();
         selectedIndex = -1;
         hoverIndex = -1;
     }
 
-    public void setEntries(List entries) {
-        this.entries = entries;
+    /**
+     * Feeds mouse wheel and drag events into the scroll state.
+     *
+     * @param mouseX mouse x in GUI coordinates
+     * @param mouseY mouse y in GUI coordinates
+     * @param wheelDelta mouse wheel delta
+     * @param mouseDown true when left mouse button is down
+     */
+    public void handleMouseInput(int mouseX, int mouseY, int wheelDelta, boolean mouseDown) {
+        scrollState.handleMouseWheel(mouseX, mouseY, wheelDelta);
+        scrollState.handleMouseDrag(mouseY, mouseDown);
+        updateHoverIndex(mouseX, mouseY);
     }
 
-    public void setHeaderScale(float headerScale) {
-        this.headerScale = headerScale;
-    }
-
-    public void setDisplayMetrics(int screenWidth, int screenHeight, int displayWidth, int displayHeight) {
-        this.screenWidth = screenWidth;
-        this.screenHeight = screenHeight;
-        this.displayWidth = displayWidth;
-        this.displayHeight = displayHeight;
-    }
-
-    public void layout(int screenWidth, int screenHeight) {
-        headerTextY = top + 4;
-        headerLineY = top + 20;
-        listTop = headerLineY + 6;
-        listBottom = bottom;
-        if (listBottom - listTop < 80) {
-            listBottom = screenHeight - PADDING;
+    /**
+     * Handles mouse clicks for list selection and scrollbar dragging.
+     *
+     * @param mouseX mouse x in GUI coordinates
+     * @param mouseY mouse y in GUI coordinates
+     * @param button mouse button id
+     */
+    public void mouseClicked(int mouseX, int mouseY, int button) {
+        scrollState.mouseClicked(mouseX, mouseY, button);
+        if (button == 0) {
+            selectEntryAt(mouseX, mouseY);
         }
-        listContentRight = right - 6;
-        listContentWidth = listContentRight - left - 4;
-        separatorX = right + 6;
+    }
+
+    /**
+     * Releases any active scrollbar drag on mouse release.
+     *
+     * @param button mouse button id
+     */
+    public void mouseReleased(int button) {
+        scrollState.mouseReleased(button);
     }
 
     /**
      * Draws the scripts list panel and its scrollbar.
+     *
+     * @param font font renderer
+     * @param screenWidth screen width
+     * @param screenHeight screen height
+     * @param backButtonY y position of the back button
+     * @param headerScale scale factor for the header text
+     * @param entries list of ScriptMod entries
      */
-    public void draw(FontRenderer font, int mouseX, int mouseY, float partialTicks) {
+    public void draw(FontRenderer font, int screenWidth, int screenHeight, int displayWidth, int displayHeight, int backButtonY, float headerScale, List entries) {
         this.font = font;
-        updateHoverIndex(mouseX, mouseY);
+        this.entries = entries;
+        headerTextY = PADDING + 4;
+        headerLineY = PADDING + 20;
+        int listWidth = Math.min(200, Math.max(120, screenWidth / 4));
+        listLeft = PADDING;
+        listRight = listLeft + listWidth;
+        listTop = headerLineY + 6;
+        listBottom = backButtonY - PADDING;
+        if (listBottom - listTop < 80) {
+            listBottom = screenHeight - PADDING;
+        }
+        separatorX = listRight + 6;
+        listContentRight = listRight - 6;
+        listContentWidth = listContentRight - listLeft - 4;
 
         // Section headers and separators.
-        GuiUtils.drawScaledString(font, "Scripts", left, headerTextY, GuiColors.TEXT_PRIMARY, headerScale);
-        GuiUtils.drawHorizontalLine(PADDING, screenWidth - PADDING, headerLineY, GuiColors.LINE_WHITE);
-        GuiUtils.drawVerticalLine(listTop - 6, listBottom + 2, separatorX, GuiColors.LINE_WHITE);
+        GuiUtils.drawScaledString(font, "Scripts", listLeft, headerTextY, 0xFFFFFF, headerScale);
+        GuiUtils.drawHorizontalLine(PADDING, screenWidth - PADDING, headerLineY, 0xFFFFFFFF);
+        GuiUtils.drawVerticalLine(listTop - 6, listBottom + 10, separatorX, 0xFFFFFFFF);
 
         int contentHeight = 0;
         if (entries != null) {
-            // Precompute total height for scrolling.
             for (int i = 0; i < entries.size(); i++) {
                 ScriptMod entry = (ScriptMod) entries.get(i);
-                String displayName = GuiText.trimToWidth(font, entry.getDisplayName(), listContentWidth);
+                String displayName = trimToWidth(entry.getDisplayName(), listContentWidth);
                 int entryHeight = font.func_27277_a(displayName, listContentWidth);
                 contentHeight += entryHeight + ENTRY_PADDING;
             }
@@ -97,18 +114,18 @@ public final class GuiScriptListPanel extends GuiScrollPanel {
             contentHeight -= ENTRY_PADDING;
         }
         // Update scroll bounds based on total content height.
-        updateScrollContentSize(listContentWidth, contentHeight);
+        scrollState.setBounds(listLeft, listTop, listRight, listBottom);
+        scrollState.updateContentHeight(contentHeight);
 
-        int y = listTop - getScrollOffsetY();
+        int y = listTop - scrollState.getScrollOffset();
         int scissorTop = listTop - 2;
         int scissorBottom = listBottom + 8;
-        // Constrain list rendering to the visible panel.
-        GuiUtils.beginScissor(left, scissorTop, listContentRight, scissorBottom, screenWidth, screenHeight, displayWidth, displayHeight);
+        GuiUtils.beginScissor(listLeft, scissorTop, listContentRight, scissorBottom, screenWidth, screenHeight, displayWidth, displayHeight);
         if (entries != null) {
             for (int i = 0; i < entries.size(); i++) {
                 ScriptMod entry = (ScriptMod) entries.get(i);
-                int color = entry.isFailed() ? GuiColors.TEXT_ERROR : GuiColors.TEXT_PRIMARY;
-                String displayName = GuiText.trimToWidth(font, entry.getDisplayName(), listContentWidth);
+                int color = entry.isFailed() ? 0xFFCC6666 : 0xFFFFFF;
+                String displayName = trimToWidth(entry.getDisplayName(), listContentWidth);
                 int entryHeight = font.func_27277_a(displayName, listContentWidth);
                 int blockHeight = entryHeight + ENTRY_PADDING - 2;
                 if (y > listBottom) {
@@ -116,21 +133,21 @@ public final class GuiScriptListPanel extends GuiScrollPanel {
                 }
                 // Render highlight backgrounds for hover/selection.
                 if (i == selectedIndex) {
-                    GuiUtils.drawRect(left + 1, y - 1, listContentRight - 1, y + blockHeight - 1, GuiColors.LIST_SELECTED_BG);
+                    GuiUtils.drawRect(listLeft + 1, y - 1, listContentRight - 1, y + blockHeight - 1, 0xCC3B6DD1);
                 } else if (i == hoverIndex) {
-                    GuiUtils.drawRect(left + 1, y - 1, listContentRight - 1, y + blockHeight - 1, GuiColors.LIST_HOVER_BG);
+                    GuiUtils.drawRect(listLeft + 1, y - 1, listContentRight - 1, y + blockHeight - 1, 0x88444444);
                 }
                 // Draw text only when within the visible list bounds.
                 if (y + entryHeight >= listTop && y <= listBottom) {
                     int textY = y + (blockHeight - entryHeight) / 2;
-                    font.func_27278_a(displayName, left + 4, textY, listContentWidth, color);
+                    font.func_27278_a(displayName, listLeft + 4, textY, listContentWidth, color);
                 }
                 y += entryHeight + ENTRY_PADDING;
             }
         }
         GuiUtils.endScissor();
 
-        drawScrollbar(contentHeight);
+        scrollState.drawScrollbar(contentHeight);
     }
 
     /**
@@ -139,7 +156,7 @@ public final class GuiScriptListPanel extends GuiScrollPanel {
      * @param entries list of ScriptMod entries
      * @return selected entry or null when none exist
      */
-    public ScriptMod getSelectedEntry() {
+    public ScriptMod getSelectedEntry(List entries) {
         if (entries == null || entries.isEmpty()) {
             selectedIndex = -1;
             return null;
@@ -206,13 +223,13 @@ public final class GuiScriptListPanel extends GuiScrollPanel {
             selectedIndex = -1;
             return;
         }
-        if (mouseX < left || mouseX > listContentRight || mouseY < listTop || mouseY > listBottom + 6) {
+        if (mouseX < listLeft || mouseX > listContentRight || mouseY < listTop || mouseY > listBottom + 6) {
             return;
         }
-        int y = listTop - getScrollOffsetY();
+        int y = listTop - scrollState.getScrollOffset();
         for (int i = 0; i < entries.size(); i++) {
             ScriptMod entry = (ScriptMod) entries.get(i);
-            String displayName = GuiText.trimToWidth(this.font, entry.getDisplayName(), listContentWidth);
+            String displayName = trimToWidth(entry.getDisplayName(), listContentWidth);
             int entryHeight = font.func_27277_a(displayName, listContentWidth);
             int blockHeight = entryHeight + ENTRY_PADDING - 2;
             if (mouseY >= y && mouseY <= y + blockHeight) {
@@ -234,13 +251,13 @@ public final class GuiScriptListPanel extends GuiScrollPanel {
         if (entries == null || entries.isEmpty() || font == null) {
             return;
         }
-        if (mouseX < left || mouseX > listContentRight || mouseY < listTop || mouseY > listBottom + 6) {
+        if (mouseX < listLeft || mouseX > listContentRight || mouseY < listTop || mouseY > listBottom + 6) {
             return;
         }
-        int y = listTop - getScrollOffsetY();
+        int y = listTop - scrollState.getScrollOffset();
         for (int i = 0; i < entries.size(); i++) {
             ScriptMod entry = (ScriptMod) entries.get(i);
-            String displayName = GuiText.trimToWidth(this.font, entry.getDisplayName(), listContentWidth);
+            String displayName = trimToWidth(entry.getDisplayName(), listContentWidth);
             int entryHeight = font.func_27277_a(displayName, listContentWidth);
             int blockHeight = entryHeight + ENTRY_PADDING - 2;
             if (mouseY >= y && mouseY <= y + blockHeight) {
@@ -251,15 +268,32 @@ public final class GuiScriptListPanel extends GuiScrollPanel {
         }
     }
 
-    public boolean mouseClicked(int mouseX, int mouseY, int button) {
-        if (!isMouseOver(mouseX, mouseY)) {
-            return false;
+    /**
+     * Trims a label to fit inside the list width and appends ellipsis.
+     *
+     * @param text raw label
+     * @param maxWidth max pixel width
+     * @return trimmed label
+     */
+    private String trimToWidth(String text, int maxWidth) {
+        if (text == null) {
+            return "";
         }
-        super.mouseClicked(mouseX, mouseY, button);
-        if (button == 0) {
-            selectEntryAt(mouseX, mouseY);
-            return true;
+        if (maxWidth <= 0 || font == null) {
+            return "";
         }
-        return false;
+        if (font.getStringWidth(text) <= maxWidth) {
+            return text;
+        }
+        int ellipsisWidth = font.getStringWidth("...");
+        if (ellipsisWidth >= maxWidth) {
+            return "...";
+        }
+        int targetWidth = maxWidth - ellipsisWidth;
+        String trimmed = text;
+        while (!trimmed.isEmpty() && font.getStringWidth(trimmed) > targetWidth) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
+        }
+        return trimmed + "...";
     }
 }
