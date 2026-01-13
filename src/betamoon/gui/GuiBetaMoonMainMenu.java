@@ -10,6 +10,7 @@ public class GuiBetaMoonMainMenu extends GuiMainMenu {
     @Override
     public void initGui() {
         super.initGui();
+        // Place the Scripts button in the lower-left corner with padding.
         int buttonY = this.height - 20 - BUTTON_PADDING;
         this.controlList.add(new GuiButton(BUTTON_ID, BUTTON_PADDING, buttonY, 90, 20, "Scripts"));
     }
