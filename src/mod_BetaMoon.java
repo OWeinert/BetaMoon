@@ -1,4 +1,7 @@
-import betamoon.LuaModLoader;
+import betamoon.scriptloader.LuaModLoader;
+import betamoon.scriptloader.LuaScriptErrors;
+import betamoon.gui.GuiBetaMoonMainMenu;
+import betamoon.gui.GuiScriptErrorPopup;
 import betamoon.worldgen.WorldGenRegistry;
 import java.util.Random;
 import java.util.logging.Formatter;
@@ -10,10 +13,13 @@ import java.util.logging.Logger;
 import java.util.logging.StreamHandler;
 
 import net.minecraft.src.BaseMod;
+import net.minecraft.src.GuiMainMenu;
+import net.minecraft.src.GuiScreen;
+import net.minecraft.src.ModLoader;
 import net.minecraft.src.World;
 
 public class mod_BetaMoon extends BaseMod {
-    private static final String VERSION = "0.3.1";
+    private static final String VERSION = "0.4.0";
     private static final Logger LOGGER = Logger.getLogger("BetaMoon");
     static {
         configureLogger();
@@ -24,6 +30,22 @@ public class mod_BetaMoon extends BaseMod {
     @Override
     public void ModsLoaded() {
         luaModLoader.loadAndRun();
+        ModLoader.SetInGUIHook(this, true, false);
+    }
+
+    @Override
+    public boolean OnTickInGUI(net.minecraft.client.Minecraft mc, GuiScreen current) {
+        if (current instanceof GuiMainMenu) {
+            if (!(current instanceof GuiBetaMoonMainMenu)) {
+                mc.displayGuiScreen(new GuiBetaMoonMainMenu());
+                return true;
+            }
+            if (LuaScriptErrors.shouldShowPopup()) {
+                mc.displayGuiScreen(new GuiScriptErrorPopup(current));
+                return true;
+            }
+        }
+        return true;
     }
 
     @Override
