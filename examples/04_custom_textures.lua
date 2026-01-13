@@ -45,7 +45,7 @@ function modInit()
     :setStepSound("stone")
     :register("Example Block (Front)")
 
-  -- Per-side textures using setSideTexture() only (custom top, vanilla elsewhere).
+  -- Per-side textures using setSideTexture() only (custom top, vanilla elsewhere in this example) for blocks.
   betamoon.createBlock(204, "rock", "example_block_top_only")
     :setTextureId(4)
     :setSideTexture("top", "example_block.png")
