@@ -1,4 +1,6 @@
 name = "Custom Food Example"
+version = "1.0.0"
+description = "Shows a custom food item setup."
 
 
 function modInit()

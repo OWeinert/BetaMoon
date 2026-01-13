@@ -1,4 +1,6 @@
 name = "Custom Armor Example"
+version = "1.0.0"
+description = "Shows a custom armor set."
 
 
 function modInit()

@@ -1,4 +1,6 @@
 name = "Custom Biome From Default Example"
+version = "1.0.0"
+description = "Shows creating a biome from vanilla defaults."
 
 
 function modInit()

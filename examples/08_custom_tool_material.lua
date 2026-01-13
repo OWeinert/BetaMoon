@@ -1,4 +1,6 @@
 name = "Custom Tool Material Example"
+version = "1.0.0"
+description = "Defines a custom tool material."
 
 
 function modInit()

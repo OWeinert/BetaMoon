@@ -1,4 +1,6 @@
 name = "Custom Tool Example"
+version = "1.0.0"
+description = "Shows a custom tool item."
 
 
 function modInit()

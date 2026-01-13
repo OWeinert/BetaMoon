@@ -1,4 +1,6 @@
 name = "Custom Biome Gen Example"
+version = "1.0.0"
+description = "Shows custom biome generation."
 
 
 function modInit()

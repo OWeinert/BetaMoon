@@ -1,10 +1,6 @@
 -- The name of your script "mod"
 name = "Base Script"
-
--- Optional: a short version string for display.
-version = "0.0.1"
-
--- Optional: a brief description shown in the scripts screen.
+version = "1.0.0"
 description = "Base script template with optional metadata."
 
 -- Optional: omit or leave empty when not needed.

@@ -1,4 +1,6 @@
 name = "Custom Item Example"
+version = "1.0.0"
+description = "Shows a basic custom item setup."
 
 
 function modInit()

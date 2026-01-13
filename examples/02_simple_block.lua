@@ -1,4 +1,6 @@
 name = "Custom Block Example"
+version = "1.0.0"
+description = "Shows a basic custom block setup."
 
 
 function modInit()

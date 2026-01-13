@@ -1,4 +1,6 @@
 name = "Custom Recipe Examples"
+version = "1.0.0"
+description = "Shows custom crafting and smelting recipes."
 
 
 function modInit()

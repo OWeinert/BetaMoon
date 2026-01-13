@@ -1,4 +1,6 @@
 name = "Custom Block Drop Example"
+version = "1.0.0"
+description = "Shows custom drops for a block."
 
 
 function modInit()
