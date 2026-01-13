@@ -9,7 +9,6 @@ Thumbs.db
 *.orig
 *.rej
 .github/
-internal/
 
 # Java / IDE
 .classpath
@@ -28,7 +27,7 @@ temp/
 reobf/
 logs/
 dist/
-/resources/
+resources/
 texturepacks/
 mods/
 lib/
