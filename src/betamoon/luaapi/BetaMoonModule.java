@@ -1,15 +1,5 @@
 package betamoon.luaapi;
 
-import betamoon.luaapi.block.BlockApi;
-import betamoon.luaapi.item.ItemApi;
-import betamoon.luaapi.item.ItemArmorApi;
-import betamoon.luaapi.item.ItemToolApi;
-import betamoon.luaapi.material.ArmorMaterialApi;
-import betamoon.luaapi.material.ToolMaterialApi;
-import betamoon.luaapi.module.ModuleApi;
-import betamoon.luaapi.query.QueryApi;
-import betamoon.luaapi.recipe.RecipeApi;
-import betamoon.luaapi.worldgen.WorldGenApi;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.TwoArgFunction;
@@ -32,7 +22,6 @@ public final class BetaMoonModule extends TwoArgFunction {
         RecipeApi.attach(module);
         ItemArmorApi.attach(module);
         ArmorMaterialApi.attach(module);
-        QueryApi.attach(module);
         ModuleApi.attach(module, env);
         env.set("betamoon", module);
         LuaValue packageTable = env.get("package");
