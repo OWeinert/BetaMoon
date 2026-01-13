@@ -2,6 +2,9 @@ package betamoon.gui;
 
 import betamoon.scriptloader.LuaScriptRegistry;
 import betamoon.scriptloader.ScriptMod;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import net.minecraft.src.GuiButton;
 import net.minecraft.src.GuiScreen;
@@ -61,11 +64,12 @@ public class GuiScriptsScreen extends GuiScreen {
         this.drawDefaultBackground();
         float headerScale = 1.35F;
         List entries = LuaScriptRegistry.getEntries();
+        List sortedEntries = getSortedEntries(entries);
         int bottomSeparatorY = backButtonY - 8;
         GuiUtils.drawHorizontalLine(10, this.width - 10, bottomSeparatorY, 0xFFFFFFFF);
-        listPanel.draw(this.fontRenderer, this.width, this.height, this.mc.displayWidth, this.mc.displayHeight, bottomSeparatorY, headerScale, entries);
+        listPanel.draw(this.fontRenderer, this.width, this.height, this.mc.displayWidth, this.mc.displayHeight, bottomSeparatorY, headerScale, sortedEntries);
 
-        ScriptMod selected = listPanel.getSelectedEntry(entries);
+        ScriptMod selected = listPanel.getSelectedEntry(sortedEntries);
         int detailLeft = listPanel.getSeparatorX() + 8;
         int detailRight = this.width - listPanel.getPadding();
         int headerY = listPanel.getHeaderTextY();
@@ -74,5 +78,31 @@ public class GuiScriptsScreen extends GuiScreen {
         infoPanel.draw(this.fontRenderer, selected, detailLeft, detailRight, headerY, detailTop, detailBottom,
             this.width, this.height, this.mc.displayWidth, this.mc.displayHeight, headerScale);
         super.drawScreen(var1, var2, var3);
+    }
+
+    private static List getSortedEntries(List entries) {
+        if (entries == null || entries.isEmpty()) {
+            return entries;
+        }
+        List sorted = new ArrayList(entries);
+        Collections.sort(sorted, new Comparator() {
+            public int compare(Object left, Object right) {
+                ScriptMod a = (ScriptMod) left;
+                ScriptMod b = (ScriptMod) right;
+                boolean failedA = a != null && a.isFailed();
+                boolean failedB = b != null && b.isFailed();
+                if (failedA != failedB) {
+                    return failedA ? -1 : 1;
+                }
+                String nameA = a == null ? "" : safeName(a.getSortName());
+                String nameB = b == null ? "" : safeName(b.getSortName());
+                return nameA.compareToIgnoreCase(nameB);
+            }
+        });
+        return sorted;
+    }
+
+    private static String safeName(String name) {
+        return name == null ? "" : name;
     }
 }
