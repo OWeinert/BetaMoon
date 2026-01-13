@@ -6,6 +6,9 @@ import org.lwjgl.opengl.GL11;
 public final class GuiUtils {
     public static final int COLOR_LIST_SEPERATOR = 0xAA3A3A3A;
 
+    /**
+     * Utility class for shared GUI rendering helpers.
+     */
     private GuiUtils() {
     }
 
