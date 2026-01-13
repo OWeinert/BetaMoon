@@ -13,7 +13,6 @@ public class ScriptMod {
     boolean loaded;
     boolean failed;
     String failureReason;
-    List missingDependencies;
 
     /**
      * Creates a script entry for a file that has not yet been parsed.
@@ -53,22 +52,7 @@ public class ScriptMod {
      * @return display name for the script
      */
     public String getDisplayName() {
-        if (name == null || name.trim().isEmpty()) {
-            return sourceFileName;
-        }
-        return name;
-    }
-
-    /**
-     * Returns a sort key that falls back to the file name when name is empty.
-     *
-     * @return sort key for UI lists
-     */
-    public String getSortName() {
-        if (name == null || name.trim().isEmpty()) {
-            return sourceFileName;
-        }
-        return name;
+        return name != null ? name : sourceFileName;
     }
 
     /**
@@ -123,14 +107,5 @@ public class ScriptMod {
      */
     public List getDependencies() {
         return dependencies;
-    }
-
-    /**
-     * Returns a list of missing dependencies for this script, when known.
-     *
-     * @return list of missing dependency names or null
-     */
-    public List getMissingDependencies() {
-        return missingDependencies;
     }
 }

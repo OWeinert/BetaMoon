@@ -58,19 +58,6 @@ public final class LuaModLoader {
      * @return the luamods directory or null if it cannot be resolved
      */
     File getOrCreateLuaModsDir() {
-        return resolveLuaModsDir(true);
-    }
-
-    /**
-     * Resolves the .minecraft/luamods directory for UI access.
-     *
-     * @return the luamods directory or null if it cannot be resolved
-     */
-    public static File getLuaModsDir() {
-        return resolveLuaModsDir(true);
-    }
-
-    private static File resolveLuaModsDir(boolean create) {
         try {
             File modLocation = new File(LuaModLoader.class.getProtectionDomain().getCodeSource().getLocation().toURI());
             File modsDir = modLocation.getParentFile();
@@ -82,7 +69,7 @@ public final class LuaModLoader {
                 return null;
             }
             File luaModsDir = new File(minecraftDir, BetaMoonConstants.LUA_SCRIPTS_DIR);
-            if (create && !luaModsDir.isDirectory()) {
+            if (!luaModsDir.isDirectory()) {
                 luaModsDir.mkdirs();
             }
             return luaModsDir;
@@ -161,12 +148,6 @@ public final class LuaModLoader {
             return null;
         }
         String modName = nameValue.tojstring();
-        if (modName.trim().isEmpty()) {
-            errors.add("Lua mod has empty name: " + scriptFile.getName());
-            LuaScriptErrors.add(scriptFile.getName(), "Script has empty or whitespace-only name.");
-            LuaScriptRegistry.markFailedByFile(scriptFile.getName(), "Script has empty or whitespace-only name.");
-            return null;
-        }
         List deps = new ArrayList();
         LuaValue depsTable = globals.get("dependencies");
         if (depsTable.istable()) {
@@ -276,45 +257,25 @@ public final class LuaModLoader {
             stack.remove(stack.size() - 1);
             return false;
         }
-        List missingDeps = new ArrayList();
         for (int i = 0; i < mod.dependencies.size(); i++) {
             String dep = (String) mod.dependencies.get(i);
             if (!modsByName.containsKey(dep)) {
-                missingDeps.add(dep);
-                continue;
+                String message = "Missing dependency '" + dep + "' required by '" + name + "'";
+                errors.add(message);
+                LuaScriptErrors.add(name, message);
+                LuaScriptRegistry.markFailedByName(name, message);
+                stack.remove(stack.size() - 1);
+                return false;
             }
             if (!visitMod(dep, modsByName, state, ordered, stack, errors)) {
                 stack.remove(stack.size() - 1);
                 return false;
             }
         }
-        if (!missingDeps.isEmpty()) {
-            mod.missingDependencies = missingDeps;
-            String message = "Missing dependencies for '" + name + "': " + formatMissingDeps(missingDeps);
-            errors.add(message);
-            LuaScriptErrors.add(name, message);
-            LuaScriptRegistry.markFailedByName(name, message);
-            stack.remove(stack.size() - 1);
-            return false;
-        }
-        mod.missingDependencies = null;
         state.put(name, new Integer(2));
         ordered.add(mod);
         stack.remove(stack.size() - 1);
         return true;
-    }
-
-    private String formatMissingDeps(List missingDeps) {
-        StringBuffer buffer = new StringBuffer();
-        for (int i = 0; i < missingDeps.size(); i++) {
-            if (i > 0) {
-                buffer.append(", ");
-            }
-            buffer.append("'");
-            buffer.append(missingDeps.get(i));
-            buffer.append("'");
-        }
-        return buffer.toString();
     }
 
     /**
