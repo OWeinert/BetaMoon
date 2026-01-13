@@ -31,7 +31,7 @@ final class BlockApi {
             int base = (args.narg() >= 3 && args.arg(1).istable()) ? 2 : 1;
             int id = args.checkint(base);
             if (id < 0 || id > 255) {
-                throw new LuaError("Block: id outside allowed range (0-255): " + id);
+                throw new LuaError("Block id outside allowed range (0-255): " + id);
             }
             String materialName = args.checkjstring(base + 1);
             String name = args.checkjstring(base + 2);
@@ -40,7 +40,7 @@ final class BlockApi {
                 BlockWrapper block = new BlockWrapper(id, 0, material, name);
                 return new BlockHandle(block);
             } catch (RuntimeException e) {
-                throw new LuaError("Block: " + String.valueOf(e.getMessage()));
+                throw new LuaError(e);
             }
         }
     }
@@ -268,7 +268,7 @@ final class BlockApi {
             int base = (args.narg() >= 1 && args.arg(1).istable()) ? 2 : 1;
             LuaValue tableValue = args.arg(base);
             if (!tableValue.istable()) {
-                throw new LuaError("Block: texture map must be a table.");
+                throw new LuaError("Texture map must be a table.");
             }
             // Apply "all" first, then "side", then specific overrides.
             LuaValue value = tableValue.get("all");
@@ -276,10 +276,7 @@ final class BlockApi {
                 int textureIndex = resolveTextureIndex(value);
                 handle.block.setAllSideTextures(textureIndex);
             }
-            value = tableValue.get("sides");
-            if (value.isnil()) {
-                value = tableValue.get("side");
-            }
+            value = tableValue.get("side");
             if (!value.isnil()) {
                 int textureIndex = resolveTextureIndex(value);
                 for (int side = 2; side <= 5; side++) {
@@ -316,13 +313,13 @@ final class BlockApi {
             int maxQuantity = 1;
             if (args.narg() >= base + 1 && !args.arg(base + 1).isnil()) {
                 if (args.narg() < base + 2 || args.arg(base + 2).isnil()) {
-                    throw new LuaError("Block: maxQuantity is required when minQuantity is provided.");
+                    throw new LuaError("maxQuantity is required when minQuantity is provided.");
                 }
                 minQuantity = args.checkint(base + 1);
                 maxQuantity = args.checkint(base + 2);
             }
             if (minQuantity > maxQuantity) {
-                throw new LuaError("Block: minQuantity must be less or equal to maxQuantity.");
+                throw new LuaError("minQuantity must be less or equal to maxQuantity.");
             }
             handle.block.addCustomDrop(itemId, minQuantity, maxQuantity);
             return handle;
@@ -342,13 +339,13 @@ final class BlockApi {
         if (sideValue.isnumber()) {
             int side = sideValue.checkint();
             if (side < 0 || side > 5) {
-                throw new LuaError("Block: side index must be between 0 and 5.");
+                throw new LuaError("Side index must be between 0 and 5.");
             }
             block.setSideTextureIndex(side, textureIndex);
             return;
         }
         if (!sideValue.isstring()) {
-            throw new LuaError("Block: side must be a number or string.");
+            throw new LuaError("Side must be a number or string.");
         }
         String name = sideValue.checkjstring().toLowerCase();
         if (name.equals("all")) {
@@ -372,7 +369,7 @@ final class BlockApi {
         if (name.equals("south") || name.equals("front")) return 3;
         if (name.equals("west")) return 4;
         if (name.equals("east")) return 5;
-        throw new LuaError("Block: unknown side: " + name);
+        throw new LuaError("Unknown side: " + name);
     }
 
     private static int resolveTextureIndex(LuaValue value) {
@@ -383,7 +380,7 @@ final class BlockApi {
             String relativePath = value.checkjstring();
             return LuaApiUtils.registerTexture(EnumTexAtlas.BLOCKS, relativePath);
         }
-        throw new LuaError("Block: texture must be a number or string.");
+        throw new LuaError("Texture must be a number or string.");
     }
 
     private static final class RegisterBlock extends VarArgFunction {
@@ -453,7 +450,7 @@ final class BlockApi {
         if (key.equals("pumpkin")) return Material.pumpkin;
         if (key.equals("portal")) return Material.portal;
         if (key.equals("cake")) return Material.cakeMaterial;
-        throw new LuaError("Block: unknown material: " + name);
+        throw new LuaError("Unknown material: " + name);
     }
 
     /**
@@ -472,26 +469,26 @@ final class BlockApi {
         if (key.equals("glass")) return Block.soundGlassFootstep;
         if (key.equals("cloth")) return Block.soundClothFootstep;
         if (key.equals("sand")) return Block.soundSandFootstep;
-        throw new LuaError("Block: unknown step sound: " + name);
+        throw new LuaError("Unknown step sound: " + name);
     }
 
     private static int resolveDropId(LuaValue value) {
         if (value.isnumber()) {
             int id = value.toint();
             if (id < 0) {
-                throw new LuaError("Block: drop id has to be positive: " + id);
+                throw new LuaError("Drop id has to be positive: " + id);
             }
             if (id < Block.blocksList.length) {
                 if(Block.blocksList[id] == null) {
-                    throw new LuaError("Block: drop block id is not registered: " + id);
+                    throw new LuaError("Drop block id is not registered: " + id);
                 }
                 return id;
             }
             if(Item.itemsList[id] == null) {
-                throw new LuaError("Block: drop item id is not registered: " + id);
+                throw new LuaError("Drop item id is not registered" + id);
             }
             if (id >= Item.itemsList.length) {
-                throw new LuaError("Block: drop item id out of range: " + id);
+                throw new LuaError("Drop item id out of range: " + id);
             }
             return id;
         }
@@ -505,7 +502,7 @@ final class BlockApi {
                 return resolveDropId(getter.call(value));
             }
         }
-        throw new LuaError("Block: drop item must be an id or item/block handle.");
+        throw new LuaError("Drop item must be an id or item/block handle.");
     }
 
 }
