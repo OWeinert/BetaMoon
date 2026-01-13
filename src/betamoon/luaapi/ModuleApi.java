@@ -41,10 +41,10 @@ final class ModuleApi {
             } else if (moduleValue.istable()) {
                 moduleTable = (LuaTable) moduleValue;
             } else {
-                throw new LuaError("Module: exportModule expects a module table or nil.");
+                throw new LuaError("exportModule expects a module table or nil.");
             }
             if (packageLoaded.isnil()) {
-                throw new LuaError("Module: lua package.loaded table not available.");
+                throw new LuaError("Lua package.loaded table not available.");
             }
             packageLoaded.set(name, moduleTable);
             modules.put(name, moduleTable);
@@ -58,7 +58,7 @@ final class ModuleApi {
             String name = args.arg(1 + offset).checkjstring();
             LuaValue moduleTable = (LuaValue) modules.get(name);
             if (moduleTable == null) {
-                throw new LuaError("Module: not exported: " + name);
+                throw new LuaError("Module not exported: " + name);
             }
             return moduleTable;
         }
