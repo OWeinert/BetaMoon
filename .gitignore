@@ -37,3 +37,6 @@ tools/
 
 # Local scripts
 scripts/
+
+# Local dev files
+internal/
