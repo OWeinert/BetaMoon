@@ -1,4 +1,6 @@
 name = "Custom Textures Example"
+version = "1.0.0"
+description = "Demonstrates custom textures and per-side mapping."
 
 
 function modInit()
