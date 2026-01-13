@@ -18,7 +18,9 @@ function modInit()
     :setStepSound("stone")
     :register("Example Block")
 
-  -- Per-side textures (top/bottom vanilla, sides custom).
+  -- Per-side textures (top/bottom vanilla, sides custom in this example) for blocks.
+  -- Possible sides: "top", "bottom", "north", "south", "east", "west", "front", "back", "sides", "all".
+  -- Values can be vanilla texture indices or custom texture paths.
   betamoon.createBlock(202, "rock", "example_block_sides")
     :setTextureMap({
       top = 0,
@@ -31,7 +33,7 @@ function modInit()
     :setStepSound("stone")
     :register("Example Block (Sides)")
 
-  -- Per-side textures (front custom, top/bottom unique vanilla, remaining sides vanilla).
+  -- Per-side textures (front custom, top/bottom unique vanilla, remaining sides vanilla in this example).
   betamoon.createBlock(203, "rock", "example_block_front")
     :setTextureMap({
       top = 1,
