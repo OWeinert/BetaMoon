@@ -1,6 +1,5 @@
 name = "Custom Recipe Examples"
 
-dependencies = {}
 
 function modInit()
 

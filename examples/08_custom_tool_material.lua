@@ -1,6 +1,5 @@
 name = "Custom Tool Material Example"
 
-dependencies = {}
 
 function modInit()
   -- Creating a new tool material is very simple.

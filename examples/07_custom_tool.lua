@@ -1,6 +1,5 @@
 name = "Custom Tool Example"
 
-dependencies = {}
 
 function modInit()
 

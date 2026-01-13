@@ -1,6 +1,5 @@
 name = "Custom Textures Example"
 
-dependencies = {}
 
 function modInit()
 

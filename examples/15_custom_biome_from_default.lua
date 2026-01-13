@@ -1,6 +1,5 @@
 name = "Custom Biome From Default Example"
 
-dependencies = {}
 
 function modInit()
   betamoon.startWorldGen()

@@ -1,6 +1,5 @@
 name = "Custom Block Drop Example"
 
-dependencies = {}
 
 function modInit()
   -- Create a block the same as before. 

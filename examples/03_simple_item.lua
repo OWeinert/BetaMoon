@@ -1,6 +1,5 @@
 name = "Custom Item Example"
 
-dependencies = {}
 
 function modInit()
 

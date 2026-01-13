@@ -1,6 +1,5 @@
 name = "Custom Armor Material Example"
 
-dependencies = {}
 
 function modInit()
 

@@ -1,6 +1,5 @@
 name = "Custom Biome Gen Example"
 
-dependencies = {}
 
 function modInit()
   -- World gen registration uses a shared handle for batching entries.

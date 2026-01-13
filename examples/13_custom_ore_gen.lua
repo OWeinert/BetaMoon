@@ -1,6 +1,5 @@
 name = "Ore Gen Example"
 
-dependencies = {}
 
 function modInit()
   -- Create a block the same as before. 

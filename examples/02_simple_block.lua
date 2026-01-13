@@ -1,6 +1,5 @@
 name = "Custom Block Example"
 
-dependencies = {}
 
 function modInit()
 
