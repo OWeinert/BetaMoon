@@ -1,4 +1,4 @@
-package betamoon;
+package betamoon.scriptloader;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -11,9 +11,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
-import net.minecraft.src.ModLoader;
+import betamoon.BetaMoonConstants;
 import betamoon.luaapi.BetaMoonModule;
 import betamoon.worldgen.BiomeGenRegistry;
+import net.minecraft.src.ModLoader;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
@@ -22,11 +23,14 @@ import org.luaj.vm2.lib.jse.JsePlatform;
 
 public final class LuaModLoader {
     private static final Logger LOGGER = Logger.getLogger("BetaMoon");
+    private static final String SCRIPT_ERROR_PREFIX = "Lua mod failed to load: ";
 
     /**
      * Loads Lua mods, validates dependencies, and executes each modInit in order.
      */
     public void loadAndRun() {
+        LuaScriptRegistry.clear();
+        LuaScriptErrors.clear();
         List errors = new ArrayList();
         List mods = loadLuaMods(errors);
         reportLoadedMods(mods);
@@ -99,6 +103,7 @@ public final class LuaModLoader {
             if (!name.endsWith(".lua")) {
                 continue;
             }
+            LuaScriptRegistry.registerFile(name);
             try {
                 String scriptText = readFileToString(scriptFile);
                 ScriptMod mod = parseLuaMod(scriptFile, scriptText, errors);
@@ -107,6 +112,8 @@ public final class LuaModLoader {
                 }
             } catch (IOException e) {
                 errors.add("Failed to read Lua script: " + scriptFile.getName());
+                LuaScriptErrors.add(scriptFile.getName(), "Failed to read Lua script.");
+                LuaScriptRegistry.markFailedByFile(scriptFile.getName(), "Failed to read Lua script.");
             }
         }
         return mods;
@@ -129,11 +136,15 @@ public final class LuaModLoader {
             chunk.call();
         } catch (LuaError e) {
             errors.add("Error during Lua mod init: " + scriptFile.getName() + " (" + e.getMessage() + ")");
+            LuaScriptErrors.add(scriptFile.getName(), e.getMessage());
+            LuaScriptRegistry.markFailedByFile(scriptFile.getName(), e.getMessage());
             return null;
         }
         LuaValue nameValue = globals.get("name");
         if (!nameValue.isstring()) {
             errors.add("Lua mod missing name: " + scriptFile.getName());
+            LuaScriptErrors.add(scriptFile.getName(), "Missing required mod name.");
+            LuaScriptRegistry.markFailedByFile(scriptFile.getName(), "Missing required mod name.");
             return null;
         }
         String modName = nameValue.tojstring();
@@ -153,11 +164,22 @@ public final class LuaModLoader {
                 }
             }
         }
+        String description = null;
+        LuaValue descriptionValue = globals.get("description");
+        if (descriptionValue.isstring()) {
+            description = descriptionValue.tojstring();
+        }
+        String version = null;
+        LuaValue versionValue = globals.get("version");
+        if (versionValue.isstring()) {
+            version = versionValue.tojstring();
+        }
         LuaValue modInit = globals.get("modInit");
         if (!modInit.isfunction()) {
+            LuaScriptRegistry.markFailedByFile(scriptFile.getName(), "Missing modInit function.");
             return null;
         }
-        return new ScriptMod(modName, deps, modInit);
+        return LuaScriptRegistry.updateParsed(scriptFile.getName(), modName, deps, modInit, description, version);
     }
 
     /**
@@ -173,6 +195,8 @@ public final class LuaModLoader {
             ScriptMod mod = (ScriptMod) mods.get(i);
             if (modsByName.containsKey(mod.name)) {
                 errors.add("Duplicate Lua mod name: " + mod.name);
+                LuaScriptErrors.add(mod.name, "Duplicate Lua mod name.");
+                LuaScriptRegistry.markFailedByFile(mod.sourceFileName, "Duplicate Lua mod name.");
                 continue;
             }
             modsByName.put(mod.name, mod);
@@ -216,7 +240,10 @@ public final class LuaModLoader {
         Integer currentState = (Integer) state.get(name);
         if (currentState != null) {
             if (currentState.intValue() == 1) {
-                errors.add("Circular dependency detected: " + formatCycle(stack, name));
+                String message = "Circular dependency detected: " + formatCycle(stack, name);
+                errors.add(message);
+                LuaScriptErrors.add(name, message);
+                LuaScriptRegistry.markFailedByName(name, message);
                 return false;
             }
             if (currentState.intValue() == 2) {
@@ -233,7 +260,10 @@ public final class LuaModLoader {
         for (int i = 0; i < mod.dependencies.size(); i++) {
             String dep = (String) mod.dependencies.get(i);
             if (!modsByName.containsKey(dep)) {
-                errors.add("Missing dependency '" + dep + "' required by '" + name + "'");
+                String message = "Missing dependency '" + dep + "' required by '" + name + "'";
+                errors.add(message);
+                LuaScriptErrors.add(name, message);
+                LuaScriptRegistry.markFailedByName(name, message);
                 stack.remove(stack.size() - 1);
                 return false;
             }
@@ -268,16 +298,21 @@ public final class LuaModLoader {
             ScriptMod mod = (ScriptMod) ordered.get(i);
             try {
                 mod.modInit.call();
+                LuaScriptRegistry.markLoadedByFile(mod.sourceFileName);
             } catch (LuaError e) {
                 failedMods.add(mod.name);
-                reportError("Lua mod failed to load: " + mod.name + "\n"
+                LuaScriptErrors.add(mod.name, e.getMessage());
+                LuaScriptRegistry.markFailedByFile(mod.sourceFileName, e.getMessage());
+                reportError(SCRIPT_ERROR_PREFIX + mod.name + "\n"
                 + "-------------------------------------------------------------\n"
                 + e.getMessage() + "\n" 
                 + "-------------------------------------------------------------\n"
                 );
             } catch (Throwable t) {
                 failedMods.add(mod.name);
-                reportError("Lua mod failed to load: " + mod.name + "\n"
+                LuaScriptErrors.add(mod.name, t.toString());
+                LuaScriptRegistry.markFailedByFile(mod.sourceFileName, t.toString());
+                reportError(SCRIPT_ERROR_PREFIX + mod.name + "\n"
                 + "-------------------------------------------------------------\n"
                 + t.toString() + "\n" 
                 + "-------------------------------------------------------------\n");
