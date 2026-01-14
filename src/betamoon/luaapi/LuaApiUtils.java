@@ -6,6 +6,7 @@ import java.io.IOException;
 import javax.imageio.ImageIO;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.ModTextureStatic;
+import net.minecraft.src.ItemStack;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
@@ -53,6 +54,64 @@ final class LuaApiUtils {
     static LuaValue getVarArg(Varargs args, int index) {
         int offset = (args.narg() >= 1 && args.arg(1).istable()) ? 1 : 0;
         return args.arg(index + offset);
+    }
+
+    /**
+     * Reads an ItemStack from a Lua value, accepting numbers or tables.
+     *
+     * @param value Lua value representing the item stack
+     * @param allowCount true to accept count values, false to force count 1
+     * @param context error context label
+     * @return parsed item stack
+     */
+    static ItemStack readItemStack(LuaValue value, boolean allowCount, String context) {
+        if (value.isnumber()) {
+            int id = value.checkint();
+            return new ItemStack(id, 1, 0);
+        }
+        if (value.istable()) {
+            LuaValue idValue = value.get("id");
+            int id;
+            if (!idValue.isnil()) {
+                id = resolveItemId(idValue);
+            } else if (!value.get("getId").isnil()) {
+                id = resolveItemId(value.get("getId").call(value));
+            } else {
+                id = resolveItemId(value.get(1));
+            }
+            int count = 1;
+            int damage = 0;
+            LuaValue countValue = value.get("count");
+            if (!countValue.isnil()) {
+                count = countValue.checkint();
+            } else if (!value.get(2).isnil()) {
+                count = value.get(2).checkint();
+            }
+            LuaValue damageValue = value.get("damage");
+            if (!damageValue.isnil()) {
+                damage = damageValue.checkint();
+            } else if (!value.get(3).isnil()) {
+                damage = value.get(3).checkint();
+            }
+            if (!allowCount) {
+                count = 1;
+            }
+            return new ItemStack(id, count, damage);
+        }
+        throw new LuaError("LuaApi: expected " + context + " to be a number or table.");
+    }
+
+    static int resolveItemId(LuaValue value) {
+        if (value.isnumber()) {
+            return value.checkint();
+        }
+        if (value.istable()) {
+            LuaValue getter = value.get("getId");
+            if (!getter.isnil()) {
+                return resolveItemId(getter.call(value));
+            }
+        }
+        throw new LuaError("LuaApi: expected item id or handle.");
     }
 
     /**
