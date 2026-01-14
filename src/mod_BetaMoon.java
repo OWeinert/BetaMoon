@@ -27,19 +27,38 @@ public class mod_BetaMoon extends BaseMod {
     
     private final LuaModLoader luaModLoader = new LuaModLoader();
 
+    private boolean finishedLoading = false;
+    private boolean loadedScripts = false;
+
+    public mod_BetaMoon() {
+        ModLoader.SetInGUIHook(this, true, false);
+    }
+
     @Override
     public void ModsLoaded() {
-        luaModLoader.loadAndRun();
-        ModLoader.SetInGUIHook(this, true, false);
+        finishedLoading = true;
     }
 
     @Override
     public boolean OnTickInGUI(net.minecraft.client.Minecraft mc, GuiScreen current) {
         if (current instanceof GuiMainMenu) {
+            // OnTickInGUI is called after every other mod is loaded,
+            // So we only call loadAndRun() here to ensure BetaMoon loads and executes the scripts after every other mod.
+            // This ensures that any content from other mods that might be referenced by scripts is present.
+            if(finishedLoading && !loadedScripts) {
+                // create recipe map before loading scripts to ensure recipe creation/override is possible
+                RecipeModificationHandler.createRecipeMap();
+                // load and run scripts.
+                luaModLoader.loadAndRun();
+                loadedScripts = true;
+            }
+
+            // Render custom Menu
             if (!(current instanceof GuiBetaMoonMainMenu)) {
                 mc.displayGuiScreen(new GuiBetaMoonMainMenu());
                 return true;
             }
+            // Render script error Popup
             if (LuaScriptErrors.shouldShowPopup()) {
                 mc.displayGuiScreen(new GuiScriptErrorPopup(current));
                 return true;
