@@ -4,7 +4,6 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import javax.imageio.ImageIO;
-import betamoon.resources.EnumTexAtlas;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.ModTextureStatic;
 import net.minecraft.src.ItemStack;
@@ -12,9 +11,9 @@ import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonConstants;
 
-public final class LuaApiUtils {
+final class LuaApiUtils {
     /**
      * Utility class for extracting typed arguments from Lua varargs.
      */
@@ -28,7 +27,7 @@ public final class LuaApiUtils {
      * @param index positional index to read when no leading table is provided
      * @return the numeric value coerced to double
      */
-    public static double getNumberArg(Varargs args, int index) {
+    static double getNumberArg(Varargs args, int index) {
         int offset = (args.narg() >= 1 && args.arg(1).istable()) ? 1 : 0;
         return args.arg(index + offset).checkdouble();
     }
@@ -40,7 +39,7 @@ public final class LuaApiUtils {
      * @param index positional index to read when no leading table is provided
      * @return the string value
      */
-    public static String getStringArg(Varargs args, int index) {
+    static String getStringArg(Varargs args, int index) {
         int offset = (args.narg() >= 1 && args.arg(1).istable()) ? 1 : 0;
         return args.arg(index + offset).checkjstring();
     }
@@ -52,7 +51,7 @@ public final class LuaApiUtils {
      * @param index positional index to read when no leading table is provided
      * @return the raw Lua value at the resolved index
      */
-    public static LuaValue getVarArg(Varargs args, int index) {
+    static LuaValue getVarArg(Varargs args, int index) {
         int offset = (args.narg() >= 1 && args.arg(1).istable()) ? 1 : 0;
         return args.arg(index + offset);
     }
@@ -65,7 +64,7 @@ public final class LuaApiUtils {
      * @param context error context label
      * @return parsed item stack
      */
-    public static ItemStack readItemStack(LuaValue value, boolean allowCount, String context) {
+    static ItemStack readItemStack(LuaValue value, boolean allowCount, String context) {
         if (value.isnumber()) {
             int id = value.checkint();
             return new ItemStack(id, 1, 0);
@@ -102,7 +101,7 @@ public final class LuaApiUtils {
         throw new LuaError("LuaApi: expected " + context + " to be a number or table.");
     }
 
-    public static int resolveItemId(LuaValue value) {
+    static int resolveItemId(LuaValue value) {
         if (value.isnumber()) {
             return value.checkint();
         }
@@ -122,7 +121,7 @@ public final class LuaApiUtils {
      * @param relativePath path to the texture relative to the luamods directory
      * @return allocated texture index on the atlas
      */
-    public static int registerTexture(EnumTexAtlas atlas, String relativePath) {
+    static int registerTexture(EnumTexAtlas atlas, String relativePath) {
         File luaModsDir = resolveLuaModsDir();
         if (luaModsDir == null) {
             throw new LuaError("LuaApi: lua mods directory not found.");
@@ -166,7 +165,7 @@ public final class LuaApiUtils {
             if (minecraftDir == null) {
                 return null;
             }
-            return new File(minecraftDir, BetaMoonMain.LUA_SCRIPTS_DIR);
+            return new File(minecraftDir, BetaMoonConstants.LUA_SCRIPTS_DIR);
         } catch (Exception e) {
             return null;
         }
