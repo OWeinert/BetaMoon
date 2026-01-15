@@ -1,5 +1,6 @@
 package betamoon.gui;
 
+import betamoon.gui.api.GuiText;
 import betamoon.scriptloader.ScriptMod;
 import java.util.List;
 import net.minecraft.src.FontRenderer;
@@ -106,7 +107,7 @@ public final class GuiScriptListPanel {
             // Precompute total height for scrolling.
             for (int i = 0; i < entries.size(); i++) {
                 ScriptMod entry = (ScriptMod) entries.get(i);
-                String displayName = trimToWidth(entry.getDisplayName(), listContentWidth);
+                String displayName = GuiText.trimToWidth(font, entry.getDisplayName(), listContentWidth);
                 int entryHeight = font.func_27277_a(displayName, listContentWidth);
                 contentHeight += entryHeight + ENTRY_PADDING;
             }
@@ -127,7 +128,7 @@ public final class GuiScriptListPanel {
             for (int i = 0; i < entries.size(); i++) {
                 ScriptMod entry = (ScriptMod) entries.get(i);
                 int color = entry.isFailed() ? 0xFFCC6666 : 0xFFFFFF;
-                String displayName = trimToWidth(entry.getDisplayName(), listContentWidth);
+                String displayName = GuiText.trimToWidth(font, entry.getDisplayName(), listContentWidth);
                 int entryHeight = font.func_27277_a(displayName, listContentWidth);
                 int blockHeight = entryHeight + ENTRY_PADDING - 2;
                 if (y > listBottom) {
@@ -231,7 +232,7 @@ public final class GuiScriptListPanel {
         int y = listTop - scrollState.getScrollOffset();
         for (int i = 0; i < entries.size(); i++) {
             ScriptMod entry = (ScriptMod) entries.get(i);
-            String displayName = trimToWidth(entry.getDisplayName(), listContentWidth);
+            String displayName = GuiText.trimToWidth(this.font, entry.getDisplayName(), listContentWidth);
             int entryHeight = font.func_27277_a(displayName, listContentWidth);
             int blockHeight = entryHeight + ENTRY_PADDING - 2;
             if (mouseY >= y && mouseY <= y + blockHeight) {
@@ -259,7 +260,7 @@ public final class GuiScriptListPanel {
         int y = listTop - scrollState.getScrollOffset();
         for (int i = 0; i < entries.size(); i++) {
             ScriptMod entry = (ScriptMod) entries.get(i);
-            String displayName = trimToWidth(entry.getDisplayName(), listContentWidth);
+            String displayName = GuiText.trimToWidth(this.font, entry.getDisplayName(), listContentWidth);
             int entryHeight = font.func_27277_a(displayName, listContentWidth);
             int blockHeight = entryHeight + ENTRY_PADDING - 2;
             if (mouseY >= y && mouseY <= y + blockHeight) {
@@ -270,32 +271,4 @@ public final class GuiScriptListPanel {
         }
     }
 
-    /**
-     * Trims a label to fit inside the list width and appends ellipsis.
-     *
-     * @param text raw label
-     * @param maxWidth max pixel width
-     * @return trimmed label
-     */
-    private String trimToWidth(String text, int maxWidth) {
-        if (text == null) {
-            return "";
-        }
-        if (maxWidth <= 0 || font == null) {
-            return "";
-        }
-        if (font.getStringWidth(text) <= maxWidth) {
-            return text;
-        }
-        int ellipsisWidth = font.getStringWidth("...");
-        if (ellipsisWidth >= maxWidth) {
-            return "...";
-        }
-        int targetWidth = maxWidth - ellipsisWidth;
-        String trimmed = text;
-        while (!trimmed.isEmpty() && font.getStringWidth(trimmed) > targetWidth) {
-            trimmed = trimmed.substring(0, trimmed.length() - 1);
-        }
-        return trimmed + "...";
-    }
 }

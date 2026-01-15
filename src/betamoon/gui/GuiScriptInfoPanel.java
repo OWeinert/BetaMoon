@@ -1,5 +1,6 @@
 package betamoon.gui;
 
+import betamoon.gui.api.GuiText;
 import betamoon.scriptloader.LuaScriptRegistry;
 import betamoon.scriptloader.ScriptMod;
 import java.util.List;
@@ -215,32 +216,10 @@ public final class GuiScriptInfoPanel {
             boolean exists = LuaScriptRegistry.hasScriptName(name);
             int color = exists ? 0xFFFFFF : 0xFFCC6666;
             String displayName = exists ? "- " + name : "- " + name + " " + SUFFIX_DEPENDENCY_MISSING;
-            String display = trimToWidth(font, displayName, width);
+            String display = GuiText.trimToWidth(font, displayName, width);
             font.drawStringWithShadow(display, x, y, color);
             y += 8;
         }
         return y - startY;
-    }
-
-    private String trimToWidth(FontRenderer font, String text, int maxWidth) {
-        if (text == null) {
-            return "";
-        }
-        if (maxWidth <= 0) {
-            return "";
-        }
-        if (font.getStringWidth(text) <= maxWidth) {
-            return text;
-        }
-        int ellipsisWidth = font.getStringWidth("...");
-        if (ellipsisWidth >= maxWidth) {
-            return "...";
-        }
-        int targetWidth = maxWidth - ellipsisWidth;
-        String trimmed = text;
-        while (!trimmed.isEmpty() && font.getStringWidth(trimmed) > targetWidth) {
-            trimmed = trimmed.substring(0, trimmed.length() - 1);
-        }
-        return trimmed + "...";
     }
 }
