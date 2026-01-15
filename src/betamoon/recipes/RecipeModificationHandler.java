@@ -160,9 +160,9 @@ public final class RecipeModificationHandler {
     }
 
     /**
-     * Builds a map of all registered recipes keyed by output id and amount.
+     * Builds a map of all registered recipes keyed by type and output signature.
      *
-     * Keys are formatted as "itemName_amount" with an optional "_n" suffix when
+     * Keys are formatted as "{type}/{itemName_amount}" with an optional "_n" suffix when
      * multiple recipes share the same output id and amount.
      */
     private static Map mapRecipes() {
@@ -177,7 +177,10 @@ public final class RecipeModificationHandler {
             if (output == null) {
                 continue;
             }
-            String key = buildOutputKey(output, counts);
+            String type = recipe instanceof ShapedRecipes ? "shaped"
+                : recipe instanceof ShapelessRecipes ? "shapeless"
+                : "unknown";
+            String key = buildOutputKey(output, type, counts);
             mapped.put(key, recipe);
         }
 
@@ -189,7 +192,7 @@ public final class RecipeModificationHandler {
             if (output == null) {
                 continue;
             }
-            String key = buildOutputKey(output, counts);
+            String key = buildOutputKey(output, "smelting", counts);
             mapped.put(key, new SmeltingRecipe(smelting, entry));
         }
         return mapped;
@@ -233,7 +236,7 @@ public final class RecipeModificationHandler {
      * Builds a unique key from the output item name and amount, adding suffixes
      * when the same output appears multiple times.
      */
-    private static String buildOutputKey(ItemStack output, Map counts) {
+    private static String buildOutputKey(ItemStack output, String recipeType, Map counts) {
         Item item = Item.itemsList[output.itemID];
         String itemName = null;
         if (item != null) {
@@ -249,15 +252,16 @@ public final class RecipeModificationHandler {
         }
         int damage = output.getItemDamage();
         String baseKey = itemName + (damage > 0 ? ":" + damage : "") + "_" + output.stackSize;
-        Integer count = (Integer) counts.get(baseKey);
+        String typeKey = recipeType + "/" + baseKey;
+        Integer count = (Integer) counts.get(typeKey);
         if (count == null) {
-            counts.put(baseKey, new Integer(0));
-            return baseKey;
+            counts.put(typeKey, new Integer(0));
+            return typeKey;
         }
         // Append a suffix when multiple recipes share the same output signature.
         int next = count.intValue() + 1;
-        counts.put(baseKey, new Integer(next));
-        return baseKey + "_" + next;
+        counts.put(typeKey, new Integer(next));
+        return recipeType + "/" + baseKey + "_" + next;
     }
 
     /**
