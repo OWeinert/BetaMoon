@@ -58,6 +58,19 @@ public final class LuaModLoader {
      * @return the luamods directory or null if it cannot be resolved
      */
     File getOrCreateLuaModsDir() {
+        return resolveLuaModsDir(true);
+    }
+
+    /**
+     * Resolves the .minecraft/luamods directory for UI access.
+     *
+     * @return the luamods directory or null if it cannot be resolved
+     */
+    public static File getLuaModsDir() {
+        return resolveLuaModsDir(true);
+    }
+
+    private static File resolveLuaModsDir(boolean create) {
         try {
             File modLocation = new File(LuaModLoader.class.getProtectionDomain().getCodeSource().getLocation().toURI());
             File modsDir = modLocation.getParentFile();
@@ -69,7 +82,7 @@ public final class LuaModLoader {
                 return null;
             }
             File luaModsDir = new File(minecraftDir, BetaMoonConstants.LUA_SCRIPTS_DIR);
-            if (!luaModsDir.isDirectory()) {
+            if (create && !luaModsDir.isDirectory()) {
                 luaModsDir.mkdirs();
             }
             return luaModsDir;

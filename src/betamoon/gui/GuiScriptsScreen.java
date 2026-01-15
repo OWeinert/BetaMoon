@@ -1,7 +1,10 @@
 package betamoon.gui;
 
+import betamoon.gui.api.GuiLayout;
+import betamoon.scriptloader.LuaModLoader;
 import betamoon.scriptloader.LuaScriptRegistry;
 import betamoon.scriptloader.ScriptMod;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -11,10 +14,13 @@ import net.minecraft.src.GuiScreen;
 import org.lwjgl.input.Mouse;
 
 public class GuiScriptsScreen extends GuiScreen {
+    private static final int BUTTON_BACK = 0;
     private final GuiScreen parent;
     private int backButtonY;
     private final GuiScriptListPanel listPanel = new GuiScriptListPanel();
     private final GuiScriptInfoPanel infoPanel = new GuiScriptInfoPanel();
+    private static final int BUTTON_DEBUG = 1;
+    private static final int BUTTON_OPEN_SCRIPTS = 2;
 
     /**
      * Creates the scripts screen with a parent GUI to return to.
@@ -28,15 +34,26 @@ public class GuiScriptsScreen extends GuiScreen {
     @Override
     public void initGui() {
         this.controlList.clear();
-        backButtonY = this.height - 40;
+        backButtonY = GuiLayout.alignBottom(this.height, 20, 20);
         listPanel.reset();
-        this.controlList.add(new GuiButton(0, this.width / 2 - 100, backButtonY, "Back"));
+        int debugButtonWidth = 90;
+        int backButtonWidth = debugButtonWidth;
+        this.controlList.add(new GuiButton(BUTTON_BACK, 10, backButtonY, backButtonWidth, 20, "Back"));
+        int scriptsButtonWidth = 200;
+        int scriptsButtonX = GuiLayout.centerX(this.width, scriptsButtonWidth);
+        this.controlList.add(new GuiButton(BUTTON_OPEN_SCRIPTS, scriptsButtonX, backButtonY, scriptsButtonWidth, 20, "Scripts Folder"));
+        int debugButtonX = GuiLayout.alignRight(this.width, debugButtonWidth, 10);
+        this.controlList.add(new GuiButton(BUTTON_DEBUG, debugButtonX, backButtonY, debugButtonWidth, 20, "Debug"));
     }
 
     @Override
     protected void actionPerformed(GuiButton button) {
-        if (button.id == 0) {
+        if (button.id == BUTTON_BACK) {
             this.mc.displayGuiScreen(this.parent);
+        } else if (button.id == BUTTON_DEBUG) {
+            this.mc.displayGuiScreen(new GuiDebugMenuPopup(this));
+        } else if (button.id == BUTTON_OPEN_SCRIPTS) {
+            openScriptsDir();
         }
     }
 
@@ -123,5 +140,13 @@ public class GuiScriptsScreen extends GuiScreen {
      */
     private static String safeName(String name) {
         return name == null ? "" : name;
+    }
+
+    private void openScriptsDir() {
+        File scriptsDir = LuaModLoader.getLuaModsDir();
+        if (scriptsDir == null) {
+            return;
+        }
+        GuiUtils.openInFileExplorer(scriptsDir);
     }
 }

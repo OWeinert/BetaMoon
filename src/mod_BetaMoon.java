@@ -2,6 +2,7 @@ import betamoon.scriptloader.LuaModLoader;
 import betamoon.scriptloader.LuaScriptErrors;
 import betamoon.gui.GuiBetaMoonMainMenu;
 import betamoon.gui.GuiScriptErrorPopup;
+import betamoon.recipes.RecipeModificationHandler;
 import betamoon.worldgen.WorldGenRegistry;
 import java.util.Random;
 import java.util.logging.Formatter;
