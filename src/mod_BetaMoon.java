@@ -25,7 +25,7 @@ public class mod_BetaMoon extends BaseMod {
     static {
         configureLogger();
     }
-    
+
     private final LuaModLoader luaModLoader = new LuaModLoader();
 
     private boolean finishedLoading = false;
