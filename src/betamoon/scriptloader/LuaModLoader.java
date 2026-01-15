@@ -276,25 +276,45 @@ public final class LuaModLoader {
             stack.remove(stack.size() - 1);
             return false;
         }
+        List missingDeps = new ArrayList();
         for (int i = 0; i < mod.dependencies.size(); i++) {
             String dep = (String) mod.dependencies.get(i);
             if (!modsByName.containsKey(dep)) {
-                String message = "Missing dependency '" + dep + "' required by '" + name + "'";
-                errors.add(message);
-                LuaScriptErrors.add(name, message);
-                LuaScriptRegistry.markFailedByName(name, message);
-                stack.remove(stack.size() - 1);
-                return false;
+                missingDeps.add(dep);
+                continue;
             }
             if (!visitMod(dep, modsByName, state, ordered, stack, errors)) {
                 stack.remove(stack.size() - 1);
                 return false;
             }
         }
+        if (!missingDeps.isEmpty()) {
+            mod.missingDependencies = missingDeps;
+            String message = "Missing dependencies for '" + name + "': " + formatMissingDeps(missingDeps);
+            errors.add(message);
+            LuaScriptErrors.add(name, message);
+            LuaScriptRegistry.markFailedByName(name, message);
+            stack.remove(stack.size() - 1);
+            return false;
+        }
+        mod.missingDependencies = null;
         state.put(name, new Integer(2));
         ordered.add(mod);
         stack.remove(stack.size() - 1);
         return true;
+    }
+
+    private String formatMissingDeps(List missingDeps) {
+        StringBuffer buffer = new StringBuffer();
+        for (int i = 0; i < missingDeps.size(); i++) {
+            if (i > 0) {
+                buffer.append(", ");
+            }
+            buffer.append("'");
+            buffer.append(missingDeps.get(i));
+            buffer.append("'");
+        }
+        return buffer.toString();
     }
 
     /**
