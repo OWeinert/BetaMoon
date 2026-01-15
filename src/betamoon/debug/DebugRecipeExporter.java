@@ -1,6 +1,5 @@
 package betamoon.debug;
 
-import betamoon.BetaMoonMain;
 import betamoon.recipes.RecipeModificationHandler;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -8,12 +7,13 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Map;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Exports recipe data into the debug recipes file.
  */
 final class DebugRecipeExporter {
-    private static final java.util.logging.Logger LOGGER = BetaMoonMain.LOGGER;
+    private static final Logger LOGGER = Logger.getLogger("BetaMoon");
 
     private DebugRecipeExporter() {
     }

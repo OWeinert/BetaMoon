@@ -1,82 +1,39 @@
 package betamoon.gui;
 
 import betamoon.debug.DebugExports;
-import betamoon.gui.api.component.GuiActionButton;
-import betamoon.gui.api.screen.GuiPopupScreen;
-import betamoon.gui.api.component.IGuiAction;
+import betamoon.gui.api.GuiPopupScreen;
+import net.minecraft.src.GuiButton;
 import net.minecraft.src.GuiScreen;
+import org.lwjgl.input.Keyboard;
 
 public class GuiDebugMenuPopup extends GuiPopupScreen {
-    private final GuiActionButton exportAllButton;
-    private final GuiActionButton exportRecipesButton;
-    private final GuiActionButton exportBlocksButton;
-    private final GuiActionButton exportItemsButton;
-    private final GuiActionButton closeButton;
+    private static final int BUTTON_EXPORT_ALL = 0;
+    private static final int BUTTON_EXPORT_RECIPES = 1;
+    private static final int BUTTON_EXPORT_BLOCKS = 2;
+    private static final int BUTTON_EXPORT_ITEMS = 3;
+    private static final int BUTTON_CLOSE = 4;
 
     public GuiDebugMenuPopup(GuiScreen parent) {
         super(parent);
-        exportAllButton = new GuiActionButton("Export All", new IGuiAction() {
-            public void onPress() {
-                Exception error = DebugExports.exportAll();
-                GuiDebugMenuPopup.this.mc.displayGuiScreen(new GuiDebugExportPopup(GuiDebugMenuPopup.this, error));
-            }
-        });
-        exportRecipesButton = new GuiActionButton("Export Recipes", new IGuiAction() {
-            public void onPress() {
-                Exception error = DebugExports.exportRecipes();
-                GuiDebugMenuPopup.this.mc.displayGuiScreen(new GuiDebugExportPopup(GuiDebugMenuPopup.this, error));
-            }
-        });
-        exportBlocksButton = new GuiActionButton("Export Blocks", new IGuiAction() {
-            public void onPress() {
-                Exception error = DebugExports.exportBlocks();
-                GuiDebugMenuPopup.this.mc.displayGuiScreen(new GuiDebugExportPopup(GuiDebugMenuPopup.this, error));
-            }
-        });
-        exportItemsButton = new GuiActionButton("Export Items", new IGuiAction() {
-            public void onPress() {
-                Exception error = DebugExports.exportItems();
-                GuiDebugMenuPopup.this.mc.displayGuiScreen(new GuiDebugExportPopup(GuiDebugMenuPopup.this, error));
-            }
-        });
-        closeButton = new GuiActionButton("Close", new IGuiAction() {
-            public void onPress() {
-                GuiDebugMenuPopup.this.mc.displayGuiScreen(GuiDebugMenuPopup.this.parent);
-            }
-        });
     }
 
     @Override
     protected void initPopupGui() {
-        exportAllButton.setMinecraft(this.mc);
-        exportRecipesButton.setMinecraft(this.mc);
-        exportBlocksButton.setMinecraft(this.mc);
-        exportItemsButton.setMinecraft(this.mc);
-        closeButton.setMinecraft(this.mc);
-        popupRoot.addChild(exportAllButton);
-        popupRoot.addChild(exportRecipesButton);
-        popupRoot.addChild(exportBlocksButton);
-        popupRoot.addChild(exportItemsButton);
-        popupRoot.addChild(closeButton);
-    }
-
-    @Override
-    protected void layoutPopupComponents() {
         int buttonWidth = panelWidth - 40;
         int buttonX = panelLeft + 20;
         int buttonY = panelTop + 30;
         int buttonHeight = 20;
         int buttonGap = 6;
 
-        exportAllButton.setBounds(buttonX, buttonY, buttonX + buttonWidth, buttonY + buttonHeight);
+        this.controlList.add(new GuiButton(BUTTON_EXPORT_ALL, buttonX, buttonY, buttonWidth, buttonHeight, "Export All"));
         buttonY += buttonHeight + buttonGap;
-        exportRecipesButton.setBounds(buttonX, buttonY, buttonX + buttonWidth, buttonY + buttonHeight);
+        this.controlList.add(new GuiButton(BUTTON_EXPORT_RECIPES, buttonX, buttonY, buttonWidth, buttonHeight, "Export Recipes"));
         buttonY += buttonHeight + buttonGap;
-        exportBlocksButton.setBounds(buttonX, buttonY, buttonX + buttonWidth, buttonY + buttonHeight);
+        this.controlList.add(new GuiButton(BUTTON_EXPORT_BLOCKS, buttonX, buttonY, buttonWidth, buttonHeight, "Export Blocks"));
         buttonY += buttonHeight + buttonGap;
-        exportItemsButton.setBounds(buttonX, buttonY, buttonX + buttonWidth, buttonY + buttonHeight);
+        this.controlList.add(new GuiButton(BUTTON_EXPORT_ITEMS, buttonX, buttonY, buttonWidth, buttonHeight, "Export Items"));
         int closeY = panelTop + panelHeight - 30;
-        closeButton.setBounds(buttonX, closeY, buttonX + buttonWidth, closeY + buttonHeight);
+        this.controlList.add(new GuiButton(BUTTON_CLOSE, buttonX, closeY, buttonWidth, buttonHeight, "Close"));
     }
 
     @Override
@@ -99,4 +56,32 @@ public class GuiDebugMenuPopup extends GuiPopupScreen {
         return 60;
     }
 
+    @Override
+    protected void keyTyped(char typedChar, int keyCode) {
+        if (keyCode == Keyboard.KEY_ESCAPE && this.parent != null) {
+            this.mc.displayGuiScreen(this.parent);
+        }
+    }
+
+    @Override
+    protected void actionPerformed(GuiButton button) {
+        if (!button.enabled) {
+            return;
+        }
+        if (button.id == BUTTON_EXPORT_ALL) {
+            Exception error = DebugExports.exportAll();
+            this.mc.displayGuiScreen(new GuiDebugExportPopup(this, error));
+        } else if (button.id == BUTTON_EXPORT_RECIPES) {
+            Exception error = DebugExports.exportRecipes();
+            this.mc.displayGuiScreen(new GuiDebugExportPopup(this, error));
+        } else if (button.id == BUTTON_EXPORT_BLOCKS) {
+            Exception error = DebugExports.exportBlocks();
+            this.mc.displayGuiScreen(new GuiDebugExportPopup(this, error));
+        } else if (button.id == BUTTON_EXPORT_ITEMS) {
+            Exception error = DebugExports.exportItems();
+            this.mc.displayGuiScreen(new GuiDebugExportPopup(this, error));
+        } else if (button.id == BUTTON_CLOSE) {
+            this.mc.displayGuiScreen(this.parent);
+        }
+    }
 }

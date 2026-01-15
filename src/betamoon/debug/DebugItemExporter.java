@@ -5,7 +5,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.logging.Level;
-import betamoon.BetaMoonMain;
+import java.util.logging.Logger;
 import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
 
@@ -13,7 +13,7 @@ import net.minecraft.src.ItemStack;
  * Exports item ids and names into the debug items file.
  */
 final class DebugItemExporter {
-    private static final java.util.logging.Logger LOGGER = BetaMoonMain.LOGGER;
+    private static final Logger LOGGER = Logger.getLogger("BetaMoon");
 
     private DebugItemExporter() {
     }

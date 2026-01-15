@@ -26,7 +26,7 @@ final class DebugRecipeFormatter {
             ItemStack output = smelting.getRecipeOutput();
             String outputText = formatItemStack(output);
             String inputText = formatSmeltingInput(smelting.getInputId());
-            return name + " : " + outputText + " <- " + inputText;
+            return "smelting/" + name + " : " + outputText + " <- " + inputText;
         }
         if (recipe instanceof ShapedRecipes) {
             ShapedRecipes shaped = (ShapedRecipes) recipe;
@@ -39,7 +39,7 @@ final class DebugRecipeFormatter {
             }
             String shapeText = shapeData.shape;
             String inputsText = shapeData.inputs;
-            return name + " : " + outputText + " <-\n    " + shapeText + "\n" + inputsText;
+            return "shaped/" + name + " : " + outputText + " <-\n    " + shapeText + "\n" + inputsText;
         }
         if (recipe instanceof ShapelessRecipes) {
             ShapelessRecipes shapeless = (ShapelessRecipes) recipe;
@@ -47,12 +47,12 @@ final class DebugRecipeFormatter {
             String outputText = formatItemStack(output);
             // Expand each ingredient to its own indented line.
             String inputsText = formatInputList(getShapelessInputs(shapeless));
-            return name + " : " + outputText + " <-\n" + inputsText;
+            return "shapeless/" + name + " : " + outputText + " <-\n" + inputsText;
         }
         if (recipe instanceof IRecipe) {
             ItemStack output = ((IRecipe) recipe).getRecipeOutput();
             String outputText = formatItemStack(output);
-            return name + " : " + outputText;
+            return "unknown/" + name + " : " + outputText;
         }
         return null;
     }
