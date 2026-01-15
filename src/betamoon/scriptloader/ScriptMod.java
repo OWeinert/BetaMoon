@@ -13,6 +13,7 @@ public class ScriptMod {
     boolean loaded;
     boolean failed;
     String failureReason;
+    List missingDependencies;
 
     /**
      * Creates a script entry for a file that has not yet been parsed.
@@ -107,5 +108,14 @@ public class ScriptMod {
      */
     public List getDependencies() {
         return dependencies;
+    }
+
+    /**
+     * Returns a list of missing dependencies for this script, when known.
+     *
+     * @return list of missing dependency names or null
+     */
+    public List getMissingDependencies() {
+        return missingDependencies;
     }
 }
