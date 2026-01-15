@@ -20,7 +20,7 @@ import net.minecraft.src.ModLoader;
 import net.minecraft.src.World;
 
 public class mod_BetaMoon extends BaseMod {
-    private static final String VERSION = "0.4.2";
+    private static final String VERSION = "0.4.3";
     private static final Logger LOGGER = Logger.getLogger("BetaMoon");
     static {
         configureLogger();
