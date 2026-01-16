@@ -1,7 +1,7 @@
 package betamoon.gui.api;
 
 
-public final class ScrollState {
+public final class GuiScrollState {
     private int scrollOffset;
     private int maxScroll;
     private int listLeft;
