@@ -1,6 +1,6 @@
 package betamoon.gui.api;
 
-import betamoon.gui.GuiUtils;
+import betamoon.gui.api.GuiUtils;
 import net.minecraft.src.GuiScreen;
 
 /**

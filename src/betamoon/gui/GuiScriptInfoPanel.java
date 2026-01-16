@@ -1,6 +1,8 @@
 package betamoon.gui;
 
 import betamoon.gui.api.GuiText;
+import betamoon.gui.api.GuiUtils;
+import betamoon.gui.api.ScrollState;
 import betamoon.scriptloader.LuaScriptRegistry;
 import betamoon.scriptloader.ScriptMod;
 import java.util.List;

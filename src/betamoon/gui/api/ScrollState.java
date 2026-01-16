@@ -1,4 +1,5 @@
-package betamoon.gui;
+package betamoon.gui.api;
+
 
 public final class ScrollState {
     private int scrollOffset;

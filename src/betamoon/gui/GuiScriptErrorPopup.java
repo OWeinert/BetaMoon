@@ -1,6 +1,7 @@
 package betamoon.gui;
 
 import betamoon.gui.api.GuiPopupScreen;
+import betamoon.gui.api.GuiUtils;
 import betamoon.scriptloader.LuaScriptErrors;
 import java.util.List;
 

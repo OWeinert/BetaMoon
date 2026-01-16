@@ -1,6 +1,7 @@
 package betamoon.gui;
 
 import betamoon.gui.api.GuiLayout;
+import betamoon.gui.api.GuiUtils;
 import betamoon.scriptloader.LuaModLoader;
 import betamoon.scriptloader.LuaScriptRegistry;
 import betamoon.scriptloader.ScriptMod;
