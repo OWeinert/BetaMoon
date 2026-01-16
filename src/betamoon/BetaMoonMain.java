@@ -45,13 +45,13 @@ public final class BetaMoonMain {
         ModLoader.SetInGUIHook(baseMod, true, false);
     }
 
-    public void ModsLoaded() {
+    public void modsLoaded() {
         finishedLoading = true;
     }
 
-    public boolean OnTickInGUI(net.minecraft.client.Minecraft mc, GuiScreen current) {
+    public boolean onTickInGUI(net.minecraft.client.Minecraft mc, GuiScreen current) {
         if (current instanceof GuiMainMenu) {
-            // OnTickInGUI is called after every other mod is loaded,
+            // onTickInGUI is called after every other mod is loaded,
             // So we only call loadAndRun() here to ensure BetaMoon loads and executes the scripts after every other mod.
             // This ensures that any content from other mods that might be referenced by scripts is present.
             if(finishedLoading && !loadedScripts) {
@@ -76,15 +76,15 @@ public final class BetaMoonMain {
         return true;
     }
 
-    public void GenerateSurface(World world, Random random, int chunkX, int chunkZ) {
+    public void generateSurface(World world, Random random, int chunkX, int chunkZ) {
         WorldGenRegistry.generateSurface(world, random, chunkX, chunkZ);
     }
 
-    public void GenerateNether(World world, Random random, int chunkX, int chunkZ) {
+    public void generateNether(World world, Random random, int chunkX, int chunkZ) {
         WorldGenRegistry.generateNether(world, random, chunkX, chunkZ);
     }
 
-    public String Version() {
+    public String version() {
         return VERSION;
     }
 
