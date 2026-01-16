@@ -3,7 +3,7 @@ package betamoon.gui;
 import betamoon.gui.api.GuiColors;
 import betamoon.gui.api.GuiText;
 import betamoon.gui.api.GuiUtils;
-import betamoon.gui.api.ScrollState;
+import betamoon.gui.api.GuiScrollState;
 import betamoon.scriptloader.LuaScriptRegistry;
 import betamoon.scriptloader.ScriptMod;
 import java.util.List;
@@ -18,7 +18,7 @@ public final class GuiScriptInfoPanel {
     private static final int CONTENT_PADDING = 6;
     private static final int LINE_SPACING = 16;
     private static final int DEPENDENCY_LINE_HEIGHT = 12;
-    private final ScrollState scrollState = new ScrollState();
+    private final GuiScrollState scrollState = new GuiScrollState();
 
     private int detailLeft;
     private int detailRight;

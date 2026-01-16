@@ -3,7 +3,7 @@ package betamoon.gui;
 import betamoon.gui.api.GuiColors;
 import betamoon.gui.api.GuiText;
 import betamoon.gui.api.GuiUtils;
-import betamoon.gui.api.ScrollState;
+import betamoon.gui.api.GuiScrollState;
 import betamoon.scriptloader.ScriptMod;
 import java.util.List;
 import net.minecraft.src.FontRenderer;
@@ -12,7 +12,7 @@ public final class GuiScriptListPanel {
     private static final int ENTRY_PADDING = 10;
     private static final int PADDING = 10;
 
-    private final ScrollState scrollState = new ScrollState();
+    private final GuiScrollState scrollState = new GuiScrollState();
     private int listLeft;
     private int listRight;
     private int listTop;
