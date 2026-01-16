@@ -11,7 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
-import betamoon.BetaMoonConstants;
+import betamoon.BetaMoonMain;
 import betamoon.luaapi.BetaMoonModule;
 import betamoon.worldgen.BiomeGenRegistry;
 import net.minecraft.src.ModLoader;
@@ -81,7 +81,7 @@ public final class LuaModLoader {
             if (minecraftDir == null) {
                 return null;
             }
-            File luaModsDir = new File(minecraftDir, BetaMoonConstants.LUA_SCRIPTS_DIR);
+            File luaModsDir = new File(minecraftDir, BetaMoonMain.LUA_SCRIPTS_DIR);
             if (create && !luaModsDir.isDirectory()) {
                 luaModsDir.mkdirs();
             }

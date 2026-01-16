@@ -12,7 +12,7 @@ import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
-import betamoon.BetaMoonConstants;
+import betamoon.BetaMoonMain;
 
 final class LuaApiUtils {
     /**
@@ -166,7 +166,7 @@ final class LuaApiUtils {
             if (minecraftDir == null) {
                 return null;
             }
-            return new File(minecraftDir, BetaMoonConstants.LUA_SCRIPTS_DIR);
+            return new File(minecraftDir, BetaMoonMain.LUA_SCRIPTS_DIR);
         } catch (Exception e) {
             return null;
         }
