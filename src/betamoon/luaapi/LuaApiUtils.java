@@ -4,6 +4,7 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import javax.imageio.ImageIO;
+import betamoon.resources.EnumTexAtlas;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.ModTextureStatic;
 import net.minecraft.src.ItemStack;

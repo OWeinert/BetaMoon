@@ -1,14 +1,13 @@
-package betamoon.luaapi.item;
+package betamoon.luaapi;
 
-import betamoon.BetaMoonMain;
 import betamoon.resources.EnumTexAtlas;
-import betamoon.luaapi.LuaApiUtils;
 import betamoon.wrappers.ItemAxeWrapper;
 import betamoon.wrappers.ItemHoeWrapper;
 import betamoon.wrappers.ItemPickaxeWrapper;
 import betamoon.wrappers.ItemSpadeWrapper;
 import betamoon.wrappers.ItemSwordWrapper;
 import forge.MinecraftForge;
+import java.util.logging.Logger;
 import net.minecraft.src.EnumToolMaterial;
 import net.minecraft.src.Item;
 import net.minecraft.src.ModLoader;
@@ -18,15 +17,15 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-public final class ItemToolApi {
-    private static final java.util.logging.Logger LOGGER = BetaMoonMain.LOGGER;
+final class ItemToolApi {
+    private static final Logger LOGGER = Logger.getLogger("BetaMoon");
     /**
      * Utility class that installs tool-related Lua bindings.
      */
     private ItemToolApi() {
     }
 
-    public static void attach(LuaTable module) {
+    static void attach(LuaTable module) {
         module.set("createTool", new CreateTool());
     }
 
