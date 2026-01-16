@@ -15,8 +15,10 @@ import betamoon.recipes.RecipeModificationHandler;
 import betamoon.scriptloader.LuaModLoader;
 import betamoon.scriptloader.LuaScriptErrors;
 import betamoon.worldgen.WorldGenRegistry;
+import net.minecraft.src.BaseMod;
 import net.minecraft.src.GuiMainMenu;
 import net.minecraft.src.GuiScreen;
+import net.minecraft.src.ModLoader;
 import net.minecraft.src.World;
 
 public final class BetaMoonMain {
@@ -26,13 +28,19 @@ public final class BetaMoonMain {
         configureLogger();
     }
 
+    private final BaseMod betaMoonBaseMod;
     private final LuaModLoader luaModLoader = new LuaModLoader();
 
     private boolean finishedLoading = false;
     private boolean loadedScripts = false;
 
-    public BetaMoonMain() {
-        
+    public BetaMoonMain(BaseMod baseMod) {
+        this.betaMoonBaseMod = baseMod;
+        setInitHooks(this.betaMoonBaseMod);
+    }
+
+    public void setInitHooks(BaseMod baseMod) {
+        ModLoader.SetInGUIHook(baseMod, true, false);
     }
 
     public void ModsLoaded() {
