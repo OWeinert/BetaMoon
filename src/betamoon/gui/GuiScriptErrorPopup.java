@@ -1,5 +1,6 @@
 package betamoon.gui;
 
+import betamoon.gui.api.GuiColors;
 import betamoon.gui.api.GuiPopupScreen;
 import betamoon.gui.api.GuiUtils;
 import betamoon.scriptloader.LuaScriptErrors;
@@ -78,7 +79,7 @@ public class GuiScriptErrorPopup extends GuiPopupScreen {
         for (int i = 0; i < count; i++) {
             String entry = (String) entries.get(i);
             int entryY = y;
-            this.fontRenderer.func_27278_a(entry, left + 20, entryY, contentWidth, 0xE0E0E0);
+            this.fontRenderer.func_27278_a(entry, left + 20, entryY, contentWidth, GuiColors.TEXT_MUTED);
             int entryHeight = this.fontRenderer.func_27277_a(entry, contentWidth);
             y = entryY + entryHeight + 10;
             if (i < count - 1) {

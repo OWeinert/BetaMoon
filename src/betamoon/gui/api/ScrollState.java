@@ -149,8 +149,8 @@ public final class ScrollState {
         int thumbRange = trackHeight - thumbHeight;
         thumbY = scrollbarTop + (thumbRange > 0 ? (int) ((float) thumbRange * (float) scrollOffset / (float) maxScroll) : 0);
 
-        GuiUtils.drawRect(scrollbarX, scrollbarTop, scrollbarX + 4, scrollbarBottom, 0x55222222);
-        GuiUtils.drawRect(scrollbarX, thumbY, scrollbarX + 4, thumbY + thumbHeight, 0xCCAAAAAA);
+        GuiUtils.drawRect(scrollbarX, scrollbarTop, scrollbarX + 4, scrollbarBottom, GuiColors.SCROLLBAR_TRACK);
+        GuiUtils.drawRect(scrollbarX, thumbY, scrollbarX + 4, thumbY + thumbHeight, GuiColors.SCROLLBAR_THUMB);
     }
 
     private boolean isMouseOverList(int mouseX, int mouseY) {

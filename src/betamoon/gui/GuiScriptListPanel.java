@@ -1,5 +1,6 @@
 package betamoon.gui;
 
+import betamoon.gui.api.GuiColors;
 import betamoon.gui.api.GuiText;
 import betamoon.gui.api.GuiUtils;
 import betamoon.gui.api.ScrollState;
@@ -100,9 +101,9 @@ public final class GuiScriptListPanel {
         listContentWidth = listContentRight - listLeft - 4;
 
         // Section headers and separators.
-        GuiUtils.drawScaledString(font, "Scripts", listLeft, headerTextY, 0xFFFFFF, headerScale);
-        GuiUtils.drawHorizontalLine(PADDING, screenWidth - PADDING, headerLineY, 0xFFFFFFFF);
-        GuiUtils.drawVerticalLine(listTop - 6, listBottom + 10, separatorX, 0xFFFFFFFF);
+        GuiUtils.drawScaledString(font, "Scripts", listLeft, headerTextY, GuiColors.TEXT_PRIMARY, headerScale);
+        GuiUtils.drawHorizontalLine(PADDING, screenWidth - PADDING, headerLineY, GuiColors.LINE_WHITE);
+        GuiUtils.drawVerticalLine(listTop - 6, listBottom + 10, separatorX, GuiColors.LINE_WHITE);
 
         int contentHeight = 0;
         if (entries != null) {
@@ -129,7 +130,7 @@ public final class GuiScriptListPanel {
         if (entries != null) {
             for (int i = 0; i < entries.size(); i++) {
                 ScriptMod entry = (ScriptMod) entries.get(i);
-                int color = entry.isFailed() ? 0xFFCC6666 : 0xFFFFFF;
+                int color = entry.isFailed() ? GuiColors.TEXT_ERROR : GuiColors.TEXT_PRIMARY;
                 String displayName = GuiText.trimToWidth(font, entry.getDisplayName(), listContentWidth);
                 int entryHeight = font.func_27277_a(displayName, listContentWidth);
                 int blockHeight = entryHeight + ENTRY_PADDING - 2;
@@ -138,9 +139,9 @@ public final class GuiScriptListPanel {
                 }
                 // Render highlight backgrounds for hover/selection.
                 if (i == selectedIndex) {
-                    GuiUtils.drawRect(listLeft + 1, y - 1, listContentRight - 1, y + blockHeight - 1, 0xCC3B6DD1);
+                    GuiUtils.drawRect(listLeft + 1, y - 1, listContentRight - 1, y + blockHeight - 1, GuiColors.LIST_SELECTED_BG);
                 } else if (i == hoverIndex) {
-                    GuiUtils.drawRect(listLeft + 1, y - 1, listContentRight - 1, y + blockHeight - 1, 0x88444444);
+                    GuiUtils.drawRect(listLeft + 1, y - 1, listContentRight - 1, y + blockHeight - 1, GuiColors.LIST_HOVER_BG);
                 }
                 // Draw text only when within the visible list bounds.
                 if (y + entryHeight >= listTop && y <= listBottom) {

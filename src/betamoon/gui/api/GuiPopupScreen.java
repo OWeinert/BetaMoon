@@ -14,8 +14,8 @@ public abstract class GuiPopupScreen extends GuiScreen {
     protected static final int DEFAULT_FRAME_PADDING = 4;
     protected static final int DEFAULT_HEADER_TEXT_OFFSET = 8;
     protected static final int DEFAULT_HEADER_LINE_OFFSET = 24;
-    protected static final int DEFAULT_HEADER_LINE_COLOR = 0xFFFFFFFF;
-    protected static final int DEFAULT_TITLE_COLOR = 0xFFFFFF;
+    protected static final int DEFAULT_HEADER_LINE_COLOR = GuiColors.LINE_WHITE;
+    protected static final int DEFAULT_TITLE_COLOR = GuiColors.TEXT_PRIMARY;
     protected static final float DEFAULT_TITLE_SCALE = 1.2F;
     protected static final int DEFAULT_HEADER_LINE_INSET = 10;
     protected final GuiScreen parent;
@@ -182,8 +182,8 @@ public abstract class GuiPopupScreen extends GuiScreen {
         int bottom = panelTop + panelHeight;
         int padding = getFramePadding();
         // Render the popup panel and its shadowed border.
-        this.drawRect(left - padding, top - padding, right + padding, bottom + padding, 0xDD000000);
-        this.drawRect(left, top, right, bottom, 0xFA1A1A1A);
+        this.drawRect(left - padding, top - padding, right + padding, bottom + padding, GuiColors.POPUP_SHADOW);
+        this.drawRect(left, top, right, bottom, GuiColors.POPUP_PANEL);
         String title = getPopupTitle();
         if (title != null && !title.isEmpty()) {
             // Render the header title and underline for consistent popup styling.

@@ -6,7 +6,7 @@ import net.minecraft.src.FontRenderer;
 import org.lwjgl.opengl.GL11;
 
 public final class GuiUtils {
-    public static final int COLOR_LIST_SEPERATOR = 0xAA3A3A3A;
+    public static final int COLOR_LIST_SEPERATOR = GuiColors.LIST_SEPARATOR;
 
     /**
      * Utility class for shared GUI rendering helpers.
@@ -109,7 +109,7 @@ public final class GuiUtils {
         int underlineEnd = x + (int) (textWidth * scale);
         int underlineY = y + (int) (8 * scale) + 1;
         drawScaledString(font, text, x, y, textColor, scale);
-        int textColorArgb = textColor | 0xFF000000; // ensure alpha channel is 0xFF
+        int textColorArgb = textColor | GuiColors.ALPHA_OPAQUE_MASK; // ensure alpha channel is 0xFF
         drawRect(x, underlineY, underlineEnd, underlineY + 1, textColorArgb);
     }
 
