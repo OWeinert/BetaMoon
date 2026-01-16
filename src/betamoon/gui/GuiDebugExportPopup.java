@@ -3,6 +3,7 @@ package betamoon.gui;
 import betamoon.debug.DebugExports;
 import betamoon.gui.api.GuiPopupScreen;
 import betamoon.gui.api.GuiText;
+import betamoon.gui.api.GuiUtils;
 import java.io.File;
 
 import org.lwjgl.input.Keyboard;
