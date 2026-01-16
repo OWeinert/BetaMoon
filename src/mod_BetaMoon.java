@@ -17,27 +17,27 @@ public class mod_BetaMoon extends BaseMod {
 
     @Override
     public void ModsLoaded() {
-        this.betaMoon.ModsLoaded();
+        this.betaMoon.modsLoaded();
     }
 
     @Override
     public boolean OnTickInGUI(Minecraft mc, GuiScreen screen) {
-        return this.betaMoon.OnTickInGUI(mc, screen);
+        return this.betaMoon.onTickInGUI(mc, screen);
     }
 
     @Override
     public void GenerateSurface(World world, Random random, int chunkX, int chunkZ) {
-        this.betaMoon.GenerateSurface(world, random, chunkX, chunkZ);
+        this.betaMoon.generateSurface(world, random, chunkX, chunkZ);
     }
 
     @Override
     public void GenerateNether(World world, Random random, int chunkX, int chunkZ) {
-        this.betaMoon.GenerateNether(world, random, chunkX, chunkZ);
+        this.betaMoon.generateNether(world, random, chunkX, chunkZ);
     }
 
     @Override
     public String Version() {
-        return this.betaMoon.Version();
+        return this.betaMoon.version();
     }
 
 }
