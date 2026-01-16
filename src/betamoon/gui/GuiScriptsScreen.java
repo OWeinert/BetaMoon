@@ -1,5 +1,6 @@
 package betamoon.gui;
 
+import betamoon.gui.api.GuiColors;
 import betamoon.gui.api.GuiLayout;
 import betamoon.gui.api.GuiUtils;
 import betamoon.scriptloader.LuaModLoader;
@@ -91,7 +92,7 @@ public class GuiScriptsScreen extends GuiScreen {
         List sortedEntries = getSortedEntries(entries);
         int bottomSeparatorY = backButtonY - 8;
         // Bottom separator also acts as a visual bound above the Back button.
-        GuiUtils.drawHorizontalLine(10, this.width - 10, bottomSeparatorY, 0xFFFFFFFF);
+        GuiUtils.drawHorizontalLine(10, this.width - 10, bottomSeparatorY, GuiColors.LINE_WHITE);
         listPanel.draw(this.fontRenderer, this.width, this.height, this.mc.displayWidth, this.mc.displayHeight, bottomSeparatorY, headerScale, sortedEntries);
 
         ScriptMod selected = listPanel.getSelectedEntry(sortedEntries);

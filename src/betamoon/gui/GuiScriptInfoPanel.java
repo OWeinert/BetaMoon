@@ -1,5 +1,6 @@
 package betamoon.gui;
 
+import betamoon.gui.api.GuiColors;
 import betamoon.gui.api.GuiText;
 import betamoon.gui.api.GuiUtils;
 import betamoon.gui.api.ScrollState;
@@ -47,7 +48,7 @@ public final class GuiScriptInfoPanel {
         int contentWidth = detailRight - detailLeft;
         // Title row: script name and version.
         String title = selected.getDisplayName() + "  v" + selected.getVersion();
-        GuiUtils.drawScaledString(font, title, detailLeft, headerY, 0xFFFFFF, headerScale);
+        GuiUtils.drawScaledString(font, title, detailLeft, headerY, GuiColors.TEXT_PRIMARY, headerScale);
 
         // Resolve content flags and starting Y based on the current scroll offset.
         int y = detailTop - scrollState.getScrollOffset();
@@ -71,10 +72,10 @@ public final class GuiScriptInfoPanel {
 
         // Description is always shown, even when empty.
         float descriptionScale = 1.25F;
-        GuiUtils.drawScaledStringUL(font, LABEL_DESCRIPTION, detailLeft, y, 0xFFFFFF, descriptionScale);
+        GuiUtils.drawScaledStringUL(font, LABEL_DESCRIPTION, detailLeft, y, GuiColors.TEXT_PRIMARY, descriptionScale);
         y += (int) (10 * descriptionScale) + CONTENT_PADDING;
         if (hasDescription) {
-            y += drawWrappedClipped(font, description, detailLeft, y, contentWidth, 0xFFFFFF, detailBottom)
+            y += drawWrappedClipped(font, description, detailLeft, y, contentWidth, GuiColors.TEXT_PRIMARY, detailBottom)
                 + CONTENT_PADDING;
         }
         y += LINE_SPACING;
@@ -89,9 +90,9 @@ public final class GuiScriptInfoPanel {
         if (hasErrors) {
             float errorScale = 1.25F;
             // Errors header with underline.
-            GuiUtils.drawScaledStringUL(font, LABEL_ERRORS, detailLeft, y, 0xFFCC6666, errorScale);
+            GuiUtils.drawScaledStringUL(font, LABEL_ERRORS, detailLeft, y, GuiColors.TEXT_ERROR, errorScale);
             y += (int) (10 * errorScale) + CONTENT_PADDING;
-            y += drawWrappedClipped(font, failure, detailLeft, y, contentWidth, 0xFFCC6666, detailBottom)
+            y += drawWrappedClipped(font, failure, detailLeft, y, contentWidth, GuiColors.TEXT_ERROR, detailBottom)
                 + CONTENT_PADDING;
             y += LINE_SPACING;
         }
@@ -100,7 +101,7 @@ public final class GuiScriptInfoPanel {
         if (hasDependencies) {
             float dependencyScale = 1.25F;
             // Dependencies header with underline.
-            GuiUtils.drawScaledStringUL(font, LABEL_DEPENDENCIES, detailLeft, y, 0xFFFFFF, dependencyScale);
+            GuiUtils.drawScaledStringUL(font, LABEL_DEPENDENCIES, detailLeft, y, GuiColors.TEXT_PRIMARY, dependencyScale);
             y += (int) (10 * dependencyScale) + CONTENT_PADDING;
             y += drawDependenciesClipped(font, dependencies, selected.getMissingDependencies(), detailLeft, y, contentWidth, detailBottom)
                 + CONTENT_PADDING;
@@ -221,7 +222,7 @@ public final class GuiScriptInfoPanel {
             } else {
                 isMissing = !LuaScriptRegistry.hasScriptName(name);
             }
-            int color = isMissing ? 0xFFCC6666 : 0xFFFFFF;
+            int color = isMissing ? GuiColors.TEXT_ERROR : GuiColors.TEXT_PRIMARY;
             String displayName = isMissing ? "- " + name + " " + SUFFIX_DEPENDENCY_MISSING : "- " + name;
             String display = GuiText.trimToWidth(font, displayName, width);
             font.drawStringWithShadow(display, x, y, color);

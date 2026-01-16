@@ -66,11 +66,11 @@ public final class GuiText {
             y = screenHeight - boxHeight - 4;
         }
         // Draw background and 1px border.
-        GuiUtils.drawRect(x, y, x + boxWidth, y + boxHeight, 0xCC101010);
-        GuiUtils.drawRect(x, y, x + boxWidth, y + 1, 0xFF555555);
-        GuiUtils.drawRect(x, y + boxHeight - 1, x + boxWidth, y + boxHeight, 0xFF555555);
-        GuiUtils.drawRect(x, y, x + 1, y + boxHeight, 0xFF555555);
-        GuiUtils.drawRect(x + boxWidth - 1, y, x + boxWidth, y + boxHeight, 0xFF555555);
-        font.drawStringWithShadow(text, x + padding, y + padding, 0xFFFFFF);
+        GuiUtils.drawRect(x, y, x + boxWidth, y + boxHeight, GuiColors.TOOLTIP_BG);
+        GuiUtils.drawRect(x, y, x + boxWidth, y + 1, GuiColors.TOOLTIP_BORDER);
+        GuiUtils.drawRect(x, y + boxHeight - 1, x + boxWidth, y + boxHeight, GuiColors.TOOLTIP_BORDER);
+        GuiUtils.drawRect(x, y, x + 1, y + boxHeight, GuiColors.TOOLTIP_BORDER);
+        GuiUtils.drawRect(x + boxWidth - 1, y, x + boxWidth, y + boxHeight, GuiColors.TOOLTIP_BORDER);
+        font.drawStringWithShadow(text, x + padding, y + padding, GuiColors.TEXT_PRIMARY);
     }
 }

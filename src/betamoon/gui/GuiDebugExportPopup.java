@@ -1,6 +1,7 @@
 package betamoon.gui;
 
 import betamoon.debug.DebugExports;
+import betamoon.gui.api.GuiColors;
 import betamoon.gui.api.GuiPopupScreen;
 import betamoon.gui.api.GuiText;
 import betamoon.gui.api.GuiUtils;
@@ -14,8 +15,6 @@ import net.minecraft.src.GuiScreen;
 public class GuiDebugExportPopup extends GuiPopupScreen {
     private static final int BUTTON_CLOSE = 0;
     private static final String TOOLTIP_OPEN = "Open in File Explorer";
-    private static final int PATH_COLOR = 0x7FC9FF;
-    private static final int PATH_HOVER_COLOR = 0xBFE8FF;
 
     private final String title;
     private final String message;
@@ -90,7 +89,7 @@ public class GuiDebugExportPopup extends GuiPopupScreen {
         int contentTop = panelTop + 36;
         int contentWidth = panelWidth - 28;
         if (showPath) {
-            this.fontRenderer.drawStringWithShadow(message, contentLeft, contentTop, 0xE0E0E0);
+            this.fontRenderer.drawStringWithShadow(message, contentLeft, contentTop, GuiColors.TEXT_MUTED);
             int textY = contentTop + GuiText.getLineHeight(this.fontRenderer) + 4;
             String displayPath = GuiText.trimToWidth(this.fontRenderer, exportPath, contentWidth);
             pathX = contentLeft;
@@ -98,14 +97,14 @@ public class GuiDebugExportPopup extends GuiPopupScreen {
             pathWidth = this.fontRenderer.getStringWidth(displayPath);
             pathHeight = GuiText.getLineHeight(this.fontRenderer);
             boolean hovered = isPathHovered(mouseX, mouseY);
-            int pathColor = hovered ? PATH_HOVER_COLOR : PATH_COLOR;
+            int pathColor = hovered ? GuiColors.LINK_PATH_HOVER : GuiColors.LINK_PATH;
             this.fontRenderer.drawStringWithShadow(displayPath, pathX, pathY, pathColor);
             if (hovered) {
-                this.drawRect(pathX, pathY + pathHeight + 1, pathX + pathWidth, pathY + pathHeight + 2, 0xFFBFE8FF);
+                this.drawRect(pathX, pathY + pathHeight + 1, pathX + pathWidth, pathY + pathHeight + 2, GuiColors.LINK_PATH_HOVER_UNDERLINE);
                 GuiText.drawTooltip(this.fontRenderer, this.width, this.height, TOOLTIP_OPEN, mouseX, mouseY);
             }
         } else {
-            this.fontRenderer.func_27278_a(message, contentLeft, contentTop, contentWidth, 0xE0E0E0);
+            this.fontRenderer.func_27278_a(message, contentLeft, contentTop, contentWidth, GuiColors.TEXT_MUTED);
         }
     }
 
