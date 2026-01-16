@@ -30,13 +30,14 @@ public final class BetaMoonMain {
     }
 
     private final BaseMod betaMoonBaseMod;
-    private final LuaModLoader luaModLoader = new LuaModLoader();
+    private final LuaModLoader luaModLoader;
 
     private boolean finishedLoading = false;
     private boolean loadedScripts = false;
 
     public BetaMoonMain(BaseMod baseMod) {
         this.betaMoonBaseMod = baseMod;
+        this.luaModLoader  = new LuaModLoader();
         setInitHooks(this.betaMoonBaseMod);
     }
 
