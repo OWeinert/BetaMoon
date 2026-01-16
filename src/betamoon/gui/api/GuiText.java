@@ -1,6 +1,5 @@
 package betamoon.gui.api;
 
-import betamoon.gui.api.GuiUtils;
 import net.minecraft.src.FontRenderer;
 
 /**
