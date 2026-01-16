@@ -15,43 +15,33 @@ import betamoon.recipes.RecipeModificationHandler;
 import betamoon.scriptloader.LuaModLoader;
 import betamoon.scriptloader.LuaScriptErrors;
 import betamoon.worldgen.WorldGenRegistry;
-import net.minecraft.src.BaseMod;
 import net.minecraft.src.GuiMainMenu;
 import net.minecraft.src.GuiScreen;
-import net.minecraft.src.ModLoader;
 import net.minecraft.src.World;
 
 public final class BetaMoonMain {
-    private static final String VERSION = "0.5.1";
-    public static final String LUA_SCRIPTS_DIR = "lua_scripts";
-    public static final Logger LOGGER = Logger.getLogger("BetaMoon");
+    private static final String VERSION = "0.5.0";
+    private static final Logger LOGGER = Logger.getLogger("BetaMoon");
     static {
         configureLogger();
     }
 
-    private final BaseMod betaMoonBaseMod;
-    private final LuaModLoader luaModLoader;
+    private final LuaModLoader luaModLoader = new LuaModLoader();
 
     private boolean finishedLoading = false;
     private boolean loadedScripts = false;
 
-    public BetaMoonMain(BaseMod baseMod) {
-        this.betaMoonBaseMod = baseMod;
-        this.luaModLoader  = new LuaModLoader();
-        setInitHooks(this.betaMoonBaseMod);
+    public BetaMoonMain() {
+        
     }
 
-    public void setInitHooks(BaseMod baseMod) {
-        ModLoader.SetInGUIHook(baseMod, true, false);
-    }
-
-    public void modsLoaded() {
+    public void ModsLoaded() {
         finishedLoading = true;
     }
 
-    public boolean onTickInGUI(net.minecraft.client.Minecraft mc, GuiScreen current) {
+    public boolean OnTickInGUI(net.minecraft.client.Minecraft mc, GuiScreen current) {
         if (current instanceof GuiMainMenu) {
-            // onTickInGUI is called after every other mod is loaded,
+            // OnTickInGUI is called after every other mod is loaded,
             // So we only call loadAndRun() here to ensure BetaMoon loads and executes the scripts after every other mod.
             // This ensures that any content from other mods that might be referenced by scripts is present.
             if(finishedLoading && !loadedScripts) {
@@ -76,15 +66,15 @@ public final class BetaMoonMain {
         return true;
     }
 
-    public void generateSurface(World world, Random random, int chunkX, int chunkZ) {
+    public void GenerateSurface(World world, Random random, int chunkX, int chunkZ) {
         WorldGenRegistry.generateSurface(world, random, chunkX, chunkZ);
     }
 
-    public void generateNether(World world, Random random, int chunkX, int chunkZ) {
+    public void GenerateNether(World world, Random random, int chunkX, int chunkZ) {
         WorldGenRegistry.generateNether(world, random, chunkX, chunkZ);
     }
 
-    public String version() {
+    public String Version() {
         return VERSION;
     }
 
