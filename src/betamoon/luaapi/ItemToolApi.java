@@ -1,5 +1,6 @@
 package betamoon.luaapi;
 
+import betamoon.resources.EnumTexAtlas;
 import betamoon.wrappers.ItemAxeWrapper;
 import betamoon.wrappers.ItemHoeWrapper;
 import betamoon.wrappers.ItemPickaxeWrapper;

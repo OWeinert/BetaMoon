@@ -1,5 +1,6 @@
 package betamoon.luaapi;
 
+import betamoon.resources.EnumTexAtlas;
 import betamoon.wrappers.ItemArmorWrapper;
 import java.util.logging.Logger;
 import net.minecraft.src.Item;

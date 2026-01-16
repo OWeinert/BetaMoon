@@ -1,6 +1,7 @@
 package betamoon.luaapi;
 
 import betamoon.wrappers.ItemFoodWrapper;
+import betamoon.resources.EnumTexAtlas;
 import betamoon.wrappers.ItemWrapper;
 import java.util.logging.Logger;
 import net.minecraft.src.Item;

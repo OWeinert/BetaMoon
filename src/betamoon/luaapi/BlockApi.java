@@ -1,6 +1,7 @@
 package betamoon.luaapi;
 
 import betamoon.wrappers.BlockWrapper;
+import betamoon.resources.EnumTexAtlas;
 import forge.MinecraftForge;
 import java.util.logging.Logger;
 import net.minecraft.src.Block;
