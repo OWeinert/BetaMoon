@@ -42,7 +42,7 @@ public class GuiScriptsScreen extends GuiScreen {
         this.controlList.add(new GuiButton(BUTTON_BACK, 10, backButtonY, backButtonWidth, 20, "Back"));
         int scriptsButtonWidth = 200;
         int scriptsButtonX = GuiLayout.centerX(this.width, scriptsButtonWidth);
-        this.controlList.add(new GuiButton(BUTTON_OPEN_SCRIPTS, scriptsButtonX, backButtonY, scriptsButtonWidth, 20, "Scripts Folder"));
+        this.controlList.add(new GuiButton(BUTTON_OPEN_SCRIPTS, scriptsButtonX, backButtonY, scriptsButtonWidth, 20, "Open Scripts Folder"));
         int debugButtonX = GuiLayout.alignRight(this.width, debugButtonWidth, 10);
         this.controlList.add(new GuiButton(BUTTON_DEBUG, debugButtonX, backButtonY, debugButtonWidth, 20, "Debug"));
     }
