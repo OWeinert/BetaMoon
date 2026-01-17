@@ -2,6 +2,7 @@
 name = "Base Script"
 version = "1.0.0"
 description = "Base script template with optional metadata."
+image = "basic.png"
 
 -- Optional: a short version string for display.
 version = "0.0.1"
