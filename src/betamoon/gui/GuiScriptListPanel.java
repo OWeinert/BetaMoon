@@ -1,14 +1,15 @@
 package betamoon.gui;
 
-import betamoon.gui.api.GuiColors;
-import betamoon.gui.api.GuiScrollablePanel;
-import betamoon.gui.api.GuiText;
-import betamoon.gui.api.GuiUtils;
+import betamoon.gui.api.component.EnumScrollMode;
+import betamoon.gui.api.util.GuiColors;
+import betamoon.gui.api.component.GuiScrollPanel;
+import betamoon.gui.api.util.GuiText;
+import betamoon.gui.api.util.GuiUtils;
 import betamoon.scriptloader.ScriptMod;
 import java.util.List;
 import net.minecraft.src.FontRenderer;
 
-public final class GuiScriptListPanel extends GuiScrollablePanel {
+public final class GuiScriptListPanel extends GuiScrollPanel {
     private static final int ENTRY_PADDING = 10;
     private static final int PADDING = 10;
 
@@ -33,7 +34,7 @@ public final class GuiScriptListPanel extends GuiScrollablePanel {
      * Resets scroll state and clears selection/hover state.
      */
     public GuiScriptListPanel() {
-        super(false, true);
+        super(EnumScrollMode.VERTICAL);
     }
 
     public void reset() {
@@ -96,7 +97,6 @@ public final class GuiScriptListPanel extends GuiScrollablePanel {
             contentHeight -= ENTRY_PADDING;
         }
         // Update scroll bounds based on total content height.
-        setScrollBounds(left, listTop, right, listBottom);
         updateScrollContentSize(listContentWidth, contentHeight);
 
         int y = listTop - getScrollOffsetY();

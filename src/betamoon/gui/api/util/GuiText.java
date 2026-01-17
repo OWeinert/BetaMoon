@@ -1,7 +1,6 @@
 package betamoon.gui.api.util;
 
 import net.minecraft.src.FontRenderer;
-import org.lwjgl.opengl.GL11;
 
 /**
  * Shared text helpers for GUI rendering.
@@ -73,30 +72,5 @@ public final class GuiText {
         GuiUtils.drawRect(x, y, x + 1, y + boxHeight, GuiColors.TOOLTIP_BORDER);
         GuiUtils.drawRect(x + boxWidth - 1, y, x + boxWidth, y + boxHeight, GuiColors.TOOLTIP_BORDER);
         font.drawStringWithShadow(text, x + padding, y + padding, GuiColors.TEXT_PRIMARY);
-    }
-
-    /**
-     * Draws centered text inside a rectangle, applying a scale factor.
-     */
-    public static void drawCenteredScaledString(FontRenderer font, String text, int left, int top, int width, int height, int color,
-        float scale) {
-        if (font == null || text == null || text.isEmpty()) {
-            return;
-        }
-        if (scale <= 0.0F) {
-            scale = 1.0F;
-        }
-        int textWidth = font.getStringWidth(text);
-        int textHeight = getLineHeight(font);
-        if (textHeight <= 0) {
-            textHeight = 8;
-        }
-        GL11.glPushMatrix();
-        float centerX = left + width / 2.0F;
-        float centerY = top + height / 2.0F;
-        GL11.glTranslatef(centerX, centerY, 0.0F);
-        GL11.glScalef(scale, scale, 1.0F);
-        font.drawString(text, -textWidth / 2, -textHeight / 2, color);
-        GL11.glPopMatrix();
     }
 }

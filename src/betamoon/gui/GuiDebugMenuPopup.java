@@ -1,8 +1,9 @@
 package betamoon.gui;
 
 import betamoon.debug.DebugExports;
-import betamoon.gui.api.GuiActionButton;
-import betamoon.gui.api.GuiPopupScreen;
+import betamoon.gui.api.component.GuiActionButton;
+import betamoon.gui.api.screen.GuiPopupScreen;
+import betamoon.gui.api.component.IGuiAction;
 import net.minecraft.src.GuiScreen;
 
 public class GuiDebugMenuPopup extends GuiPopupScreen {
@@ -14,31 +15,31 @@ public class GuiDebugMenuPopup extends GuiPopupScreen {
 
     public GuiDebugMenuPopup(GuiScreen parent) {
         super(parent);
-        exportAllButton = new GuiActionButton("Export All", new GuiActionButton.Action() {
+        exportAllButton = new GuiActionButton("Export All", new IGuiAction() {
             public void onPress() {
                 Exception error = DebugExports.exportAll();
                 GuiDebugMenuPopup.this.mc.displayGuiScreen(new GuiDebugExportPopup(GuiDebugMenuPopup.this, error));
             }
         });
-        exportRecipesButton = new GuiActionButton("Export Recipes", new GuiActionButton.Action() {
+        exportRecipesButton = new GuiActionButton("Export Recipes", new IGuiAction() {
             public void onPress() {
                 Exception error = DebugExports.exportRecipes();
                 GuiDebugMenuPopup.this.mc.displayGuiScreen(new GuiDebugExportPopup(GuiDebugMenuPopup.this, error));
             }
         });
-        exportBlocksButton = new GuiActionButton("Export Blocks", new GuiActionButton.Action() {
+        exportBlocksButton = new GuiActionButton("Export Blocks", new IGuiAction() {
             public void onPress() {
                 Exception error = DebugExports.exportBlocks();
                 GuiDebugMenuPopup.this.mc.displayGuiScreen(new GuiDebugExportPopup(GuiDebugMenuPopup.this, error));
             }
         });
-        exportItemsButton = new GuiActionButton("Export Items", new GuiActionButton.Action() {
+        exportItemsButton = new GuiActionButton("Export Items", new IGuiAction() {
             public void onPress() {
                 Exception error = DebugExports.exportItems();
                 GuiDebugMenuPopup.this.mc.displayGuiScreen(new GuiDebugExportPopup(GuiDebugMenuPopup.this, error));
             }
         });
-        closeButton = new GuiActionButton("Close", new GuiActionButton.Action() {
+        closeButton = new GuiActionButton("Close", new IGuiAction() {
             public void onPress() {
                 GuiDebugMenuPopup.this.mc.displayGuiScreen(GuiDebugMenuPopup.this.parent);
             }
