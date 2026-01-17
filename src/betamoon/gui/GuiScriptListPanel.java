@@ -3,7 +3,7 @@ package betamoon.gui;
 import betamoon.gui.api.GuiColors;
 import betamoon.gui.api.GuiText;
 import betamoon.gui.api.GuiUtils;
-import betamoon.gui.api.GuiScrollState;
+import betamoon.gui.api.GuiScrollBar;
 import betamoon.scriptloader.ScriptMod;
 import java.util.List;
 import net.minecraft.src.FontRenderer;
@@ -12,7 +12,7 @@ public final class GuiScriptListPanel {
     private static final int ENTRY_PADDING = 10;
     private static final int PADDING = 10;
 
-    private final GuiScrollState scrollState = new GuiScrollState();
+    private final GuiScrollBar scrollBar = new GuiScrollBar();
     private int listLeft;
     private int listRight;
     private int listTop;
@@ -31,7 +31,7 @@ public final class GuiScriptListPanel {
      * Resets scroll state and clears selection/hover state.
      */
     public void reset() {
-        scrollState.reset();
+        scrollBar.reset();
         selectedIndex = -1;
         hoverIndex = -1;
     }
@@ -45,8 +45,8 @@ public final class GuiScriptListPanel {
      * @param mouseDown true when left mouse button is down
      */
     public void handleMouseInput(int mouseX, int mouseY, int wheelDelta, boolean mouseDown) {
-        scrollState.handleMouseWheel(mouseX, mouseY, wheelDelta);
-        scrollState.handleMouseDrag(mouseY, mouseDown);
+        scrollBar.handleMouseWheel(mouseX, mouseY, wheelDelta);
+        scrollBar.handleMouseDrag(mouseY, mouseDown);
         updateHoverIndex(mouseX, mouseY);
     }
 
@@ -58,7 +58,7 @@ public final class GuiScriptListPanel {
      * @param button mouse button id
      */
     public void mouseClicked(int mouseX, int mouseY, int button) {
-        scrollState.mouseClicked(mouseX, mouseY, button);
+        scrollBar.mouseClicked(mouseX, mouseY, button);
         if (button == 0) {
             selectEntryAt(mouseX, mouseY);
         }
@@ -70,7 +70,7 @@ public final class GuiScriptListPanel {
      * @param button mouse button id
      */
     public void mouseReleased(int button) {
-        scrollState.mouseReleased(button);
+        scrollBar.mouseReleased(button);
     }
 
     /**
@@ -119,10 +119,10 @@ public final class GuiScriptListPanel {
             contentHeight -= ENTRY_PADDING;
         }
         // Update scroll bounds based on total content height.
-        scrollState.setBounds(listLeft, listTop, listRight, listBottom);
-        scrollState.updateContentHeight(contentHeight);
+        scrollBar.setBounds(listLeft, listTop, listRight, listBottom);
+        scrollBar.updateContentHeight(contentHeight);
 
-        int y = listTop - scrollState.getScrollOffset();
+        int y = listTop - scrollBar.getScrollOffset();
         int scissorTop = listTop - 2;
         int scissorBottom = listBottom + 8;
         // Constrain list rendering to the visible panel.
@@ -153,7 +153,7 @@ public final class GuiScriptListPanel {
         }
         GuiUtils.endScissor();
 
-        scrollState.drawScrollbar(contentHeight);
+        scrollBar.drawScrollbar(contentHeight);
     }
 
     /**
@@ -232,7 +232,7 @@ public final class GuiScriptListPanel {
         if (mouseX < listLeft || mouseX > listContentRight || mouseY < listTop || mouseY > listBottom + 6) {
             return;
         }
-        int y = listTop - scrollState.getScrollOffset();
+        int y = listTop - scrollBar.getScrollOffset();
         for (int i = 0; i < entries.size(); i++) {
             ScriptMod entry = (ScriptMod) entries.get(i);
             String displayName = GuiText.trimToWidth(this.font, entry.getDisplayName(), listContentWidth);
@@ -260,7 +260,7 @@ public final class GuiScriptListPanel {
         if (mouseX < listLeft || mouseX > listContentRight || mouseY < listTop || mouseY > listBottom + 6) {
             return;
         }
-        int y = listTop - scrollState.getScrollOffset();
+        int y = listTop - scrollBar.getScrollOffset();
         for (int i = 0; i < entries.size(); i++) {
             ScriptMod entry = (ScriptMod) entries.get(i);
             String displayName = GuiText.trimToWidth(this.font, entry.getDisplayName(), listContentWidth);
