@@ -18,6 +18,10 @@ public final class GuiColors {
     public static final int LINK_PATH = 0x7FC9FF;
     public static final int LINK_PATH_HOVER = 0xBFE8FF;
     public static final int LINK_PATH_HOVER_UNDERLINE = 0xFFBFE8FF;
+    public static final int BUTTON_BG = 0xFF3A3A3A;
+    public static final int BUTTON_BG_HOVER = 0xFF4A4A4A;
+    public static final int BUTTON_BG_DISABLED = 0xFF222222;
+    public static final int BUTTON_TEXT = 0xFFFFFF;
 
     private GuiColors() {
     }

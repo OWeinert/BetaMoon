@@ -1,7 +1,10 @@
 package betamoon.gui;
 
+import betamoon.gui.api.GuiActionButton;
 import betamoon.gui.api.GuiColors;
 import betamoon.gui.api.GuiLayout;
+import betamoon.gui.api.GuiLine;
+import betamoon.gui.api.GuiScreenBase;
 import betamoon.gui.api.GuiUtils;
 import betamoon.scriptloader.LuaModLoader;
 import betamoon.scriptloader.LuaScriptRegistry;
@@ -11,17 +14,16 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import net.minecraft.src.GuiButton;
 import net.minecraft.src.GuiScreen;
-import org.lwjgl.input.Mouse;
 
-public class GuiScriptsScreen extends GuiScreen {
-    private static final int BUTTON_BACK = 0;
-    private static final int BUTTON_DEBUG = 1;
-    private static final int BUTTON_OPEN_SCRIPTS = 2;
+public class GuiScriptsScreen extends GuiScreenBase {
     private final GuiScreen parent;
     private final GuiScriptListPanel listPanel = new GuiScriptListPanel();
     private final GuiScriptInfoPanel infoPanel = new GuiScriptInfoPanel();
+    private final GuiActionButton backButton;
+    private final GuiActionButton openScriptsButton;
+    private final GuiActionButton debugButton;
+    private final GuiLine bottomSeparator;
     private int backButtonY;
 
     /**
@@ -31,79 +33,90 @@ public class GuiScriptsScreen extends GuiScreen {
      */
     public GuiScriptsScreen(GuiScreen parent) {
         this.parent = parent;
+        backButton = new GuiActionButton("Back", new GuiActionButton.Action() {
+            public void onPress() {
+                GuiScriptsScreen.this.mc.displayGuiScreen(GuiScriptsScreen.this.parent);
+            }
+        });
+        openScriptsButton = new GuiActionButton("Open Scripts Folder", new GuiActionButton.Action() {
+            public void onPress() {
+                openScriptsDir();
+            }
+        });
+        debugButton = new GuiActionButton("Debug", new GuiActionButton.Action() {
+            public void onPress() {
+                GuiScriptsScreen.this.mc.displayGuiScreen(new GuiDebugMenuPopup(GuiScriptsScreen.this));
+            }
+        });
+        bottomSeparator = new GuiLine(false, GuiColors.LINE_WHITE);
     }
 
     @Override
-    public void initGui() {
-        this.controlList.clear();
-        backButtonY = GuiLayout.alignBottom(this.height, 20, 20);
+    protected void buildGui() {
         listPanel.reset();
+        backButton.setMinecraft(this.mc);
+        openScriptsButton.setMinecraft(this.mc);
+        debugButton.setMinecraft(this.mc);
+        root.addChild(listPanel);
+        root.addChild(infoPanel);
+        root.addChild(bottomSeparator);
+        root.addChild(backButton);
+        root.addChild(openScriptsButton);
+        root.addChild(debugButton);
+    }
+
+    @Override
+    protected void layoutComponents() {
+        float headerScale = 1.35F;
+        backButtonY = GuiLayout.alignBottom(this.height, 20, 20);
         int debugButtonWidth = 90;
         int backButtonWidth = debugButtonWidth;
-        this.controlList.add(new GuiButton(BUTTON_BACK, 10, backButtonY, backButtonWidth, 20, "Back"));
+        int buttonHeight = 20;
+        backButton.setBounds(10, backButtonY, 10 + backButtonWidth, backButtonY + buttonHeight);
         int scriptsButtonWidth = 200;
         int scriptsButtonX = GuiLayout.centerX(this.width, scriptsButtonWidth);
-        this.controlList.add(new GuiButton(BUTTON_OPEN_SCRIPTS, scriptsButtonX, backButtonY, scriptsButtonWidth, 20, "Open Scripts Folder"));
+        openScriptsButton.setBounds(scriptsButtonX, backButtonY, scriptsButtonX + scriptsButtonWidth, backButtonY + buttonHeight);
         int debugButtonX = GuiLayout.alignRight(this.width, debugButtonWidth, 10);
-        this.controlList.add(new GuiButton(BUTTON_DEBUG, debugButtonX, backButtonY, debugButtonWidth, 20, "Debug"));
-    }
-
-    @Override
-    protected void actionPerformed(GuiButton button) {
-        if (button.id == BUTTON_BACK) {
-            this.mc.displayGuiScreen(this.parent);
-        } else if (button.id == BUTTON_DEBUG) {
-            this.mc.displayGuiScreen(new GuiDebugMenuPopup(this));
-        } else if (button.id == BUTTON_OPEN_SCRIPTS) {
-            openScriptsDir();
-        }
-    }
-
-    @Override
-    public void handleMouseInput() {
-        super.handleMouseInput();
-        int wheel = Mouse.getEventDWheel();
-        int mouseX = Mouse.getEventX() * this.width / this.mc.displayWidth;
-        int mouseY = this.height - Mouse.getEventY() * this.height / this.mc.displayHeight - 1;
-        listPanel.handleMouseInput(mouseX, mouseY, wheel, Mouse.isButtonDown(0));
-        infoPanel.handleMouseInput(mouseX, mouseY, wheel, Mouse.isButtonDown(0));
-    }
-
-    @Override
-    protected void mouseClicked(int var1, int var2, int var3) {
-        super.mouseClicked(var1, var2, var3);
-        listPanel.mouseClicked(var1, var2, var3);
-        infoPanel.mouseClicked(var1, var2, var3);
-    }
-
-    @Override
-    protected void mouseMovedOrUp(int var1, int var2, int var3) {
-        super.mouseMovedOrUp(var1, var2, var3);
-        listPanel.mouseReleased(var3);
-        infoPanel.mouseReleased(var3);
-    }
-
-    @Override
-    public void drawScreen(int var1, int var2, float var3) {
-        this.drawDefaultBackground();
-        float headerScale = 1.35F;
-        List entries = LuaScriptRegistry.getEntries();
-        // Sort only for display so the registry order stays intact.
-        List sortedEntries = getSortedEntries(entries);
+        debugButton.setBounds(debugButtonX, backButtonY, debugButtonX + debugButtonWidth, backButtonY + buttonHeight);
         int bottomSeparatorY = backButtonY - 8;
-        // Bottom separator also acts as a visual bound above the Back button.
-        GuiUtils.drawHorizontalLine(10, this.width - 10, bottomSeparatorY, GuiColors.LINE_WHITE);
-        listPanel.draw(this.fontRenderer, this.width, this.height, this.mc.displayWidth, this.mc.displayHeight, bottomSeparatorY, headerScale, sortedEntries);
+        bottomSeparator.setBounds(10, bottomSeparatorY, this.width - 10, bottomSeparatorY + 1);
 
-        ScriptMod selected = listPanel.getSelectedEntry(sortedEntries);
+        int listWidth = Math.min(200, Math.max(120, this.width / 4));
+        int listLeft = 10;
+        int listRight = listLeft + listWidth;
+        int listTop = 10;
+        int listBottom = backButtonY - 10;
+        listPanel.setBounds(listLeft, listTop, listRight, listBottom);
+        listPanel.setHeaderScale(headerScale);
+        listPanel.setDisplayMetrics(this.width, this.height, this.mc.displayWidth, this.mc.displayHeight);
+        listPanel.layout(this.width, this.height);
+
         int detailLeft = listPanel.getSeparatorX() + 8;
         int detailRight = this.width - listPanel.getPadding();
-        int headerY = listPanel.getHeaderTextY();
         int detailTop = listPanel.getListTop();
         int detailBottom = listPanel.getListBottom();
-        infoPanel.draw(this.fontRenderer, selected, detailLeft, detailRight, headerY, detailTop, detailBottom,
-            this.width, this.height, this.mc.displayWidth, this.mc.displayHeight, headerScale);
-        super.drawScreen(var1, var2, var3);
+        infoPanel.setBounds(detailLeft, detailTop, detailRight, detailBottom);
+        infoPanel.setHeaderY(listPanel.getHeaderTextY());
+        infoPanel.setHeaderScale(headerScale);
+        infoPanel.setDisplayMetrics(this.width, this.height, this.mc.displayWidth, this.mc.displayHeight);
+        super.layoutComponents();
+    }
+
+    @Override
+    protected void updateGuiState(int mouseX, int mouseY, float partialTicks) {
+        float headerScale = 1.35F;
+        List entries = LuaScriptRegistry.getEntries();
+        List sortedEntries = getSortedEntries(entries);
+        listPanel.setHeaderScale(headerScale);
+        listPanel.setEntries(sortedEntries);
+        ScriptMod selected = listPanel.getSelectedEntry();
+        infoPanel.setSelected(selected);
+        infoPanel.setHeaderScale(headerScale);
+    }
+
+    @Override
+    protected void drawBackground(int mouseX, int mouseY, float partialTicks) {
+        this.drawDefaultBackground();
     }
 
     /**

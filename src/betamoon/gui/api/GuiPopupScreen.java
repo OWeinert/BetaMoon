@@ -1,11 +1,12 @@
 package betamoon.gui.api;
 
 import net.minecraft.src.GuiScreen;
+import org.lwjgl.input.Keyboard;
 
 /**
  * Base class for BetaMoon popup dialogs.
  */
-public abstract class GuiPopupScreen extends GuiScreen {
+public abstract class GuiPopupScreen extends GuiScreenBase {
     protected static final int DEFAULT_MAX_PANEL_WIDTH = 360;
     protected static final int DEFAULT_MAX_PANEL_HEIGHT = 200;
     protected static final int DEFAULT_MIN_PANEL_HEIGHT = 0;
@@ -23,6 +24,7 @@ public abstract class GuiPopupScreen extends GuiScreen {
     protected int panelTop;
     protected int panelWidth;
     protected int panelHeight;
+    protected final GuiContainer popupRoot = new GuiContainer();
 
     /**
      * Creates a popup layered on top of the provided parent screen.
@@ -33,29 +35,33 @@ public abstract class GuiPopupScreen extends GuiScreen {
         this.parent = parent;
     }
 
-    @Override
-    public void initGui() {
-        updatePanelGeometry();
-        this.controlList.clear();
+    protected void buildGui() {
+        root.addChild(popupRoot);
         initPopupGui();
     }
 
     /**
      * Draws the popup frame and delegates to subclasses for contents.
      */
-    @Override
-    public void drawScreen(int mouseX, int mouseY, float partialTicks) {
+    protected void layoutComponents() {
         updatePanelGeometry();
+        popupRoot.setBounds(panelLeft, panelTop, panelLeft + panelWidth, panelTop + panelHeight);
+        layoutPopupComponents();
+        super.layoutComponents();
+    }
+
+    protected void drawBackground(int mouseX, int mouseY, float partialTicks) {
         drawPopupBackground(mouseX, mouseY, partialTicks);
         drawPopupFrame();
         drawPopupContents(mouseX, mouseY, partialTicks);
-        super.drawScreen(mouseX, mouseY, partialTicks);
     }
 
     /**
      * Builds the popup's buttons/controls; called after geometry is updated.
      */
     protected abstract void initPopupGui();
+
+    protected abstract void layoutPopupComponents();
 
     /**
      * Returns the title shown in the popup header.
@@ -192,5 +198,14 @@ public abstract class GuiPopupScreen extends GuiScreen {
             GuiUtils.drawHorizontalLine(left + DEFAULT_HEADER_LINE_INSET, right - DEFAULT_HEADER_LINE_INSET,
                 top + getHeaderLineOffset(), getHeaderLineColor());
         }
+    }
+
+    @Override
+    protected void keyTyped(char typedChar, int keyCode) {
+        if (keyCode == Keyboard.KEY_ESCAPE && this.parent != null) {
+            this.mc.displayGuiScreen(this.parent);
+            return;
+        }
+        super.keyTyped(typedChar, keyCode);
     }
 }

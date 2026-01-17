@@ -1,11 +1,7 @@
 package betamoon.gui.api;
 
-public final class GuiScrollPane {
+public final class GuiScrollPanel extends GuiPanel {
     private final ScrollState state = new ScrollState();
-    private int left;
-    private int right;
-    private int top;
-    private int bottom;
     private int scrollbarX;
     private int scrollbarTop;
     private int scrollbarBottom;
@@ -16,12 +12,12 @@ public final class GuiScrollPane {
     private boolean allowHorizontal = true;
     private boolean allowVertical = true;
 
-    public GuiScrollPane(boolean allowHorizontal, boolean allowVertical) {
+    public GuiScrollPanel(boolean allowHorizontal, boolean allowVertical) {
         this.allowHorizontal = allowHorizontal;
         this.allowVertical = allowVertical;
     }
 
-    public GuiScrollPane() {
+    public GuiScrollPanel() {
     }
 
     /**
@@ -30,21 +26,6 @@ public final class GuiScrollPane {
     public void reset() {
         state.reset();
         draggingScrollbar = false;
-    }
-
-    /**
-     * Updates the visible bounds for the scrollable pane.
-     *
-     * @param left left edge
-     * @param top top edge
-     * @param right right edge
-     * @param bottom bottom edge
-     */
-    public void setBounds(int left, int top, int right, int bottom) {
-        this.left = left;
-        this.top = top;
-        this.right = right;
-        this.bottom = bottom;
     }
 
     /**
@@ -134,14 +115,16 @@ public final class GuiScrollPane {
      * @param mouseY mouse y in GUI space
      * @param button mouse button
      */
-    public void mouseClicked(int mouseX, int mouseY, int button) {
+    public boolean mouseClicked(int mouseX, int mouseY, int button) {
         if (button != 0 || !allowVertical || state.getMaxScrollY() <= 0) {
-            return;
+            return false;
         }
         if (isMouseOverScrollbar(mouseX, mouseY)) {
             draggingScrollbar = true;
             dragOffsetY = mouseY - thumbY;
+            return true;
         }
+        return false;
     }
 
     /**
@@ -179,10 +162,6 @@ public final class GuiScrollPane {
 
         GuiUtils.drawRect(scrollbarX, scrollbarTop, scrollbarX + 4, scrollbarBottom, GuiColors.SCROLLBAR_TRACK);
         GuiUtils.drawRect(scrollbarX, thumbY, scrollbarX + 4, thumbY + thumbHeight, GuiColors.SCROLLBAR_THUMB);
-    }
-
-    private boolean isMouseOver(int mouseX, int mouseY) {
-        return mouseX >= left && mouseX <= right && mouseY >= top && mouseY <= bottom;
     }
 
     private boolean isMouseOverScrollbar(int mouseX, int mouseY) {
