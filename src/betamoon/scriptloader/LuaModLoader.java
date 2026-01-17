@@ -10,7 +10,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Logger;
 import betamoon.BetaMoonMain;
 import betamoon.luaapi.BetaMoonModule;
 import betamoon.worldgen.BiomeGenRegistry;
@@ -22,7 +21,7 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.jse.JsePlatform;
 
 public final class LuaModLoader {
-    private static final Logger LOGGER = Logger.getLogger("BetaMoon");
+    private static final java.util.logging.Logger LOGGER = BetaMoonMain.LOGGER;
     private static final String SCRIPT_ERROR_PREFIX = "Lua mod failed to load: ";
 
     /**

@@ -1,8 +1,10 @@
-package betamoon.luaapi;
+package betamoon.luaapi.item;
 
+import betamoon.BetaMoonMain;
 import betamoon.resources.EnumTexAtlas;
+import betamoon.luaapi.material.ArmorMaterialApi;
+import betamoon.luaapi.LuaApiUtils;
 import betamoon.wrappers.ItemArmorWrapper;
-import java.util.logging.Logger;
 import net.minecraft.src.Item;
 import net.minecraft.src.ModLoader;
 
@@ -12,15 +14,15 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-final class ItemArmorApi {
-    private static final Logger LOGGER = Logger.getLogger("BetaMoon");
+public final class ItemArmorApi {
+    private static final java.util.logging.Logger LOGGER = BetaMoonMain.LOGGER;
     /**
      * Utility class that installs armor-related Lua bindings.
      */
     private ItemArmorApi() {
     }
 
-    static void attach(LuaTable module) {
+    public static void attach(LuaTable module) {
         module.set("createArmor", new CreateArmor());
     }
 
