@@ -81,7 +81,7 @@ public final class GuiScriptListPanel extends GuiScrollPanel {
         // Section headers and separators.
         GuiUtils.drawScaledString(font, "Scripts", left, headerTextY, GuiColors.TEXT_PRIMARY, headerScale);
         GuiUtils.drawHorizontalLine(PADDING, screenWidth - PADDING, headerLineY, GuiColors.LINE_WHITE);
-        GuiUtils.drawVerticalLine(listTop - 6, listBottom + 10, separatorX, GuiColors.LINE_WHITE);
+        GuiUtils.drawVerticalLine(listTop - 6, listBottom + 2, separatorX, GuiColors.LINE_WHITE);
 
         int contentHeight = 0;
         if (entries != null) {
