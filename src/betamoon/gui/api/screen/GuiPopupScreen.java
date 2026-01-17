@@ -1,5 +1,9 @@
-package betamoon.gui.api;
+package betamoon.gui.api.screen;
 
+import betamoon.gui.api.component.GuiContainer;
+import betamoon.gui.api.layout.GuiLayout;
+import betamoon.gui.api.util.GuiColors;
+import betamoon.gui.api.util.GuiUtils;
 import net.minecraft.src.GuiScreen;
 import org.lwjgl.input.Keyboard;
 

@@ -1,15 +1,16 @@
 package betamoon.gui;
 
-import betamoon.gui.api.GuiColors;
-import betamoon.gui.api.GuiScrollablePanel;
-import betamoon.gui.api.GuiText;
-import betamoon.gui.api.GuiUtils;
+import betamoon.gui.api.component.EnumScrollMode;
+import betamoon.gui.api.util.GuiColors;
+import betamoon.gui.api.component.GuiScrollPanel;
+import betamoon.gui.api.util.GuiText;
+import betamoon.gui.api.util.GuiUtils;
 import betamoon.scriptloader.LuaScriptRegistry;
 import betamoon.scriptloader.ScriptMod;
 import java.util.List;
 import net.minecraft.src.FontRenderer;
 
-public final class GuiScriptInfoPanel extends GuiScrollablePanel {
+public final class GuiScriptInfoPanel extends GuiScrollPanel {
     private static final String LABEL_DESCRIPTION = "Description";
     private static final String LABEL_ERRORS = "Errors";
     private static final String LABEL_DEPENDENCIES = "Dependencies";
@@ -31,7 +32,7 @@ public final class GuiScriptInfoPanel extends GuiScrollablePanel {
     private ScriptMod selected;
 
     public GuiScriptInfoPanel() {
-        super(false, true);
+        super(EnumScrollMode.VERTICAL);
     }
 
     public void setSelected(ScriptMod selected) {
@@ -78,7 +79,6 @@ public final class GuiScriptInfoPanel extends GuiScrollablePanel {
         // Measure full content height to drive scrolling limits.
         int contentHeight = calculateContentHeight(font, contentWidth, hasDescription ? description : null,
             hasErrors ? failure : null, hasDependencies ? dependencies : null);
-        setScrollBounds(detailLeft, detailTop, detailRight, detailBottom);
         updateScrollContentSize(contentWidth, contentHeight);
         y = detailTop - getScrollOffsetY();
         int scissorTop = detailTop - 2;

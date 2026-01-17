@@ -1,4 +1,4 @@
-package betamoon.gui.api;
+package betamoon.gui.api.util;
 
 import java.awt.Desktop;
 import java.io.File;

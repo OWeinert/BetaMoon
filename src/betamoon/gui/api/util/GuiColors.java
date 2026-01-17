@@ -1,4 +1,4 @@
-package betamoon.gui.api;
+package betamoon.gui.api.util;
 
 public final class GuiColors {
     public static final int ALPHA_OPAQUE_MASK = 0xFF000000;

@@ -1,8 +1,8 @@
-package betamoon.gui.api;
+package betamoon.gui.api.component;
 
 import net.minecraft.src.FontRenderer;
 
-public abstract class GuiComponentBase implements GuiComponent {
+public abstract class GuiComponentBase implements IGuiComponent {
     protected int left;
     protected int top;
     protected int right;

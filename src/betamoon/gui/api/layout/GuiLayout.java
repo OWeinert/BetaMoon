@@ -1,4 +1,4 @@
-package betamoon.gui.api;
+package betamoon.gui.api.layout;
 
 /**
  * Common layout helpers for GUI positioning.

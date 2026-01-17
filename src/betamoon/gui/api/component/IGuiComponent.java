@@ -1,8 +1,8 @@
-package betamoon.gui.api;
+package betamoon.gui.api.component;
 
 import net.minecraft.src.FontRenderer;
 
-public interface GuiComponent {
+public interface IGuiComponent {
     void setBounds(int left, int top, int right, int bottom);
 
     void layout(int screenWidth, int screenHeight);

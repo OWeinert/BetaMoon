@@ -1,11 +1,12 @@
 package betamoon.gui;
 
 import betamoon.debug.DebugExports;
-import betamoon.gui.api.GuiActionButton;
-import betamoon.gui.api.GuiColors;
-import betamoon.gui.api.GuiPopupScreen;
-import betamoon.gui.api.GuiText;
-import betamoon.gui.api.GuiUtils;
+import betamoon.gui.api.component.GuiActionButton;
+import betamoon.gui.api.util.GuiColors;
+import betamoon.gui.api.screen.GuiPopupScreen;
+import betamoon.gui.api.util.GuiText;
+import betamoon.gui.api.util.GuiUtils;
+import betamoon.gui.api.component.IGuiAction;
 import java.io.File;
 
 import net.minecraft.src.GuiScreen;
@@ -36,7 +37,7 @@ public class GuiDebugExportPopup extends GuiPopupScreen {
             this.exportPath = "";
             this.showPath = false;
         }
-        closeButton = new GuiActionButton("Close", new GuiActionButton.Action() {
+        closeButton = new GuiActionButton("Close", new IGuiAction() {
             public void onPress() {
                 GuiDebugExportPopup.this.mc.displayGuiScreen(GuiDebugExportPopup.this.parent);
             }

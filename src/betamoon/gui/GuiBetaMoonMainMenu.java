@@ -1,14 +1,15 @@
 package betamoon.gui;
 
-import betamoon.gui.api.GuiActionButton;
-import betamoon.gui.api.GuiLayout;
-import betamoon.gui.api.GuiMainMenuBase;
+import betamoon.gui.api.component.GuiActionButton;
+import betamoon.gui.api.layout.GuiLayout;
+import betamoon.gui.api.screen.GuiMainMenuBase;
+import betamoon.gui.api.component.IGuiAction;
 
 public class GuiBetaMoonMainMenu extends GuiMainMenuBase {
     private final GuiActionButton scriptsButton;
 
     public GuiBetaMoonMainMenu() {
-        scriptsButton = new GuiActionButton("Scripts", new GuiActionButton.Action() {
+        scriptsButton = new GuiActionButton("Scripts", new IGuiAction() {
             public void onPress() {
                 GuiBetaMoonMainMenu.this.mc.displayGuiScreen(new GuiScriptsScreen(GuiBetaMoonMainMenu.this));
             }

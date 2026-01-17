@@ -1,4 +1,4 @@
-package betamoon.gui.api;
+package betamoon.gui.api.util;
 
 import net.minecraft.src.FontRenderer;
 

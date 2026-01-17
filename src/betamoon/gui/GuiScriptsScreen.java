@@ -1,11 +1,12 @@
 package betamoon.gui;
 
-import betamoon.gui.api.GuiActionButton;
-import betamoon.gui.api.GuiColors;
-import betamoon.gui.api.GuiLayout;
-import betamoon.gui.api.GuiLine;
-import betamoon.gui.api.GuiScreenBase;
-import betamoon.gui.api.GuiUtils;
+import betamoon.gui.api.component.GuiActionButton;
+import betamoon.gui.api.util.GuiColors;
+import betamoon.gui.api.layout.GuiLayout;
+import betamoon.gui.api.component.GuiLine;
+import betamoon.gui.api.screen.GuiScreenBase;
+import betamoon.gui.api.util.GuiUtils;
+import betamoon.gui.api.component.IGuiAction;
 import betamoon.scriptloader.LuaModLoader;
 import betamoon.scriptloader.LuaScriptRegistry;
 import betamoon.scriptloader.ScriptMod;
@@ -33,17 +34,17 @@ public class GuiScriptsScreen extends GuiScreenBase {
      */
     public GuiScriptsScreen(GuiScreen parent) {
         this.parent = parent;
-        backButton = new GuiActionButton("Back", new GuiActionButton.Action() {
+        backButton = new GuiActionButton("Back", new IGuiAction() {
             public void onPress() {
                 GuiScriptsScreen.this.mc.displayGuiScreen(GuiScriptsScreen.this.parent);
             }
         });
-        openScriptsButton = new GuiActionButton("Open Scripts Folder", new GuiActionButton.Action() {
+        openScriptsButton = new GuiActionButton("Open Scripts Folder", new IGuiAction() {
             public void onPress() {
                 openScriptsDir();
             }
         });
-        debugButton = new GuiActionButton("Debug", new GuiActionButton.Action() {
+        debugButton = new GuiActionButton("Debug", new IGuiAction() {
             public void onPress() {
                 GuiScriptsScreen.this.mc.displayGuiScreen(new GuiDebugMenuPopup(GuiScriptsScreen.this));
             }

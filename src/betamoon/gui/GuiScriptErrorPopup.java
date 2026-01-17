@@ -1,9 +1,10 @@
 package betamoon.gui;
 
-import betamoon.gui.api.GuiActionButton;
-import betamoon.gui.api.GuiColors;
-import betamoon.gui.api.GuiPopupScreen;
-import betamoon.gui.api.GuiUtils;
+import betamoon.gui.api.component.GuiActionButton;
+import betamoon.gui.api.util.GuiColors;
+import betamoon.gui.api.screen.GuiPopupScreen;
+import betamoon.gui.api.util.GuiUtils;
+import betamoon.gui.api.component.IGuiAction;
 import betamoon.scriptloader.LuaScriptErrors;
 import java.util.List;
 
@@ -19,13 +20,13 @@ public class GuiScriptErrorPopup extends GuiPopupScreen {
      */
     public GuiScriptErrorPopup(GuiScreen parent) {
         super(parent);
-        ignoreButton = new GuiActionButton("Ignore", new GuiActionButton.Action() {
+        ignoreButton = new GuiActionButton("Ignore", new IGuiAction() {
             public void onPress() {
                 LuaScriptErrors.ignore();
                 GuiScriptErrorPopup.this.mc.displayGuiScreen(GuiScriptErrorPopup.this.parent);
             }
         });
-        closeButton = new GuiActionButton("Close Game", new GuiActionButton.Action() {
+        closeButton = new GuiActionButton("Close Game", new IGuiAction() {
             public void onPress() {
                 GuiScriptErrorPopup.this.mc.shutdown();
             }
