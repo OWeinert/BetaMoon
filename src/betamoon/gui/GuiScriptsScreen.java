@@ -17,12 +17,12 @@ import org.lwjgl.input.Mouse;
 
 public class GuiScriptsScreen extends GuiScreen {
     private static final int BUTTON_BACK = 0;
-    private final GuiScreen parent;
-    private int backButtonY;
-    private final GuiScriptListPanel listPanel = new GuiScriptListPanel();
-    private final GuiScriptInfoPanel infoPanel = new GuiScriptInfoPanel();
     private static final int BUTTON_DEBUG = 1;
     private static final int BUTTON_OPEN_SCRIPTS = 2;
+    private final GuiScreen parent;
+    private final GuiScriptListPanel listPanel = new GuiScriptListPanel();
+    private final GuiScriptInfoPanel infoPanel = new GuiScriptInfoPanel();
+    private int backButtonY;
 
     /**
      * Creates the scripts screen with a parent GUI to return to.
