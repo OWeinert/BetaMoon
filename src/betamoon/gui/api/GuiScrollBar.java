@@ -1,9 +1,7 @@
 package betamoon.gui.api;
 
-
-public final class GuiScrollState {
-    private int scrollOffset;
-    private int maxScroll;
+public final class GuiScrollBar {
+    private final ScrollState state = new ScrollState();
     private int listLeft;
     private int listRight;
     private int listTop;
@@ -20,8 +18,7 @@ public final class GuiScrollState {
      * Resets scroll position and clears dragging state.
      */
     public void reset() {
-        scrollOffset = 0;
-        maxScroll = 0;
+        state.reset();
         draggingScrollbar = false;
     }
 
@@ -47,8 +44,7 @@ public final class GuiScrollState {
      */
     public void updateContentHeight(int contentHeight) {
         int viewHeight = listBottom - listTop;
-        maxScroll = Math.max(0, contentHeight - viewHeight);
-        scrollOffset = GuiUtils.clamp(scrollOffset, 0, maxScroll);
+        state.updateContentHeight(contentHeight, viewHeight);
     }
 
     /**
@@ -57,7 +53,7 @@ public final class GuiScrollState {
      * @return scroll offset in pixels
      */
     public int getScrollOffset() {
-        return scrollOffset;
+        return state.getScrollOffset();
     }
 
     /**
@@ -68,13 +64,13 @@ public final class GuiScrollState {
      * @param wheelDelta wheel delta
      */
     public void handleMouseWheel(int mouseX, int mouseY, int wheelDelta) {
-        if (wheelDelta == 0 || maxScroll <= 0) {
+        if (wheelDelta == 0 || state.getMaxScroll() <= 0) {
             return;
         }
         if (!isMouseOverList(mouseX, mouseY)) {
             return;
         }
-        scrollOffset = GuiUtils.clamp(scrollOffset - wheelDelta / 8, 0, maxScroll);
+        state.scrollBy(-wheelDelta / 8);
     }
 
     /**
@@ -97,7 +93,7 @@ public final class GuiScrollState {
             return;
         }
         int relative = mouseY - scrollbarTop - dragOffsetY;
-        scrollOffset = GuiUtils.clamp((int) ((float) relative / (float) trackHeight * (float) maxScroll), 0, maxScroll);
+        state.setScrollOffset((int) ((float) relative / (float) trackHeight * (float) state.getMaxScroll()));
     }
 
     /**
@@ -108,7 +104,7 @@ public final class GuiScrollState {
      * @param button mouse button
      */
     public void mouseClicked(int mouseX, int mouseY, int button) {
-        if (button != 0 || maxScroll <= 0) {
+        if (button != 0 || state.getMaxScroll() <= 0) {
             return;
         }
         if (isMouseOverScrollbar(mouseX, mouseY)) {
@@ -134,7 +130,7 @@ public final class GuiScrollState {
      * @param contentHeight total content height in pixels
      */
     public void drawScrollbar(int contentHeight) {
-        if (maxScroll <= 0) {
+        if (state.getMaxScroll() <= 0) {
             return;
         }
         // Compute thumb size and position from scroll state.
@@ -147,7 +143,9 @@ public final class GuiScrollState {
             thumbHeight = trackHeight;
         }
         int thumbRange = trackHeight - thumbHeight;
-        thumbY = scrollbarTop + (thumbRange > 0 ? (int) ((float) thumbRange * (float) scrollOffset / (float) maxScroll) : 0);
+        thumbY = scrollbarTop + (thumbRange > 0
+            ? (int) ((float) thumbRange * (float) state.getScrollOffset() / (float) state.getMaxScroll())
+            : 0);
 
         GuiUtils.drawRect(scrollbarX, scrollbarTop, scrollbarX + 4, scrollbarBottom, GuiColors.SCROLLBAR_TRACK);
         GuiUtils.drawRect(scrollbarX, thumbY, scrollbarX + 4, thumbY + thumbHeight, GuiColors.SCROLLBAR_THUMB);
