@@ -1,5 +1,6 @@
-package betamoon.luaapi;
+package betamoon.luaapi.material;
 
+import betamoon.luaapi.LuaApiUtils;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -14,11 +15,11 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 import sun.reflect.ReflectionFactory;
 
-final class ToolMaterialApi {
+public final class ToolMaterialApi {
     private ToolMaterialApi() {
     }
 
-    static void attach(LuaTable module) {
+    public static void attach(LuaTable module) {
         module.set("createToolMaterial", new CreateToolMaterial());
     }
 

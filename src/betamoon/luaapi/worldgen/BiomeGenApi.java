@@ -1,5 +1,6 @@
-package betamoon.luaapi;
+package betamoon.luaapi.worldgen;
 
+import betamoon.luaapi.LuaApiUtils;
 import betamoon.worldgen.WorldGenRegistry;
 import betamoon.wrappers.BiomeGenWrapper;
 import java.util.Map;

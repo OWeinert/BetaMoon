@@ -1,6 +1,8 @@
-package betamoon.luaapi;
+package betamoon.luaapi.worldgen;
 
 import betamoon.worldgen.WorldGenRegistry;
+import betamoon.luaapi.block.BlockApi;
+import betamoon.luaapi.LuaApiUtils;
 import net.minecraft.src.BiomeGenBase;
 import net.minecraft.src.Block;
 import org.luaj.vm2.LuaError;
@@ -9,7 +11,7 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-final class OreGenApi {
+public final class OreGenApi {
     private OreGenApi() {
     }
 
@@ -17,8 +19,8 @@ final class OreGenApi {
      * @deprecated Use betamoon.startWorldGen():addOreGen(...) instead.
      */
     @Deprecated
-    static VarArgFunction createAddOreGen(BlockApi.BlockHandle handle) {
-        return new AddOreGenForBlock(handle.block.blockID, handle);
+    public static VarArgFunction createAddOreGen(BlockApi.BlockHandle handle) {
+        return new AddOreGenForBlock(handle.getBlockId(), handle);
     }
 
     static VarArgFunction createWorldGenAddOreGen(WorldGenApi.WorldGenHandle handle) {

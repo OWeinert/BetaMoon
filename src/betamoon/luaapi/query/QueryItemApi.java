@@ -1,5 +1,6 @@
-package betamoon.luaapi;
+package betamoon.luaapi.query;
 
+import betamoon.luaapi.LuaApiUtils;
 import java.util.ArrayList;
 import java.util.List;
 import org.luaj.vm2.LuaError;
@@ -8,57 +9,57 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-final class QueryBlockApi {
-    private QueryBlockApi() {
+final class QueryItemApi {
+    private QueryItemApi() {
     }
 
     static LuaValue createHandle() {
-        return new BlockQueryHandle();
+        return new ItemQueryHandle();
     }
 
-    private static final class BlockQueryHandle extends LuaTable {
+    private static final class ItemQueryHandle extends LuaTable {
         private List entries;
 
-        private BlockQueryHandle() {
-            entries = QueryCommon.buildBlockEntries();
-            set("getById", new GetBlockById(this));
-            set("filterByName", new FilterBlockByName(this));
-            set("filterByDisplayName", new FilterBlockByDisplayName(this));
-            set("filterDamage", new FilterBlockByDamage(this));
-            set("getByDamage", new GetBlockByDamage(this));
-            set("fromHandle", new GetBlockFromHandle(this));
-            set("first", new FirstBlock(this));
-            set("last", new LastBlock(this));
-            set("get", new GetBlockAt(this));
-            set("count", new CountBlocks(this));
-            set("finishQuery", new FinishBlockQuery(this));
+        private ItemQueryHandle() {
+            entries = QueryCommon.buildItemEntries();
+            set("getById", new GetItemById(this));
+            set("filterByName", new FilterItemByName(this));
+            set("filterByDisplayName", new FilterItemByDisplayName(this));
+            set("filterDamage", new FilterItemByDamage(this));
+            set("getByDamage", new GetItemByDamage(this));
+            set("fromHandle", new GetItemFromHandle(this));
+            set("first", new FirstItem(this));
+            set("last", new LastItem(this));
+            set("get", new GetItemAt(this));
+            set("count", new CountItems(this));
+            set("finishQuery", new FinishItemQuery(this));
         }
     }
 
-    private static final class GetBlockById extends VarArgFunction {
-        private final BlockQueryHandle handle;
+    private static final class GetItemById extends VarArgFunction {
+        private final ItemQueryHandle handle;
 
-        private GetBlockById(BlockQueryHandle handle) {
+        private GetItemById(ItemQueryHandle handle) {
             this.handle = handle;
         }
 
         public Varargs invoke(Varargs args) {
             int id = (int) LuaApiUtils.getNumberArg(args, 1);
-            if (id < 0 || id > 255) {
-                throw new LuaError("Query: block id outside allowed range (0-255): " + id);
+            if (id < 256) {
+                throw new LuaError("Query: item id must be >= 256: " + id);
             }
             QueryCommon.QueryEntry entry = QueryCommon.findById(handle.entries, id, 0);
             if (entry == null) {
-                throw new LuaError("Query: block id not registered: " + id);
+                throw new LuaError("Query: item id not registered: " + id);
             }
-            return new QueryBlockHandle(entry.id, entry.damage);
+            return new QueryItemHandle(entry.id, entry.damage);
         }
     }
 
-    private static final class FilterBlockByName extends VarArgFunction {
-        private final BlockQueryHandle handle;
+    private static final class FilterItemByName extends VarArgFunction {
+        private final ItemQueryHandle handle;
 
-        private FilterBlockByName(BlockQueryHandle handle) {
+        private FilterItemByName(ItemQueryHandle handle) {
             this.handle = handle;
         }
 
@@ -76,10 +77,10 @@ final class QueryBlockApi {
         }
     }
 
-    private static final class FilterBlockByDisplayName extends VarArgFunction {
-        private final BlockQueryHandle handle;
+    private static final class FilterItemByDisplayName extends VarArgFunction {
+        private final ItemQueryHandle handle;
 
-        private FilterBlockByDisplayName(BlockQueryHandle handle) {
+        private FilterItemByDisplayName(ItemQueryHandle handle) {
             this.handle = handle;
         }
 
@@ -97,10 +98,10 @@ final class QueryBlockApi {
         }
     }
 
-    private static final class FilterBlockByDamage extends VarArgFunction {
-        private final BlockQueryHandle handle;
+    private static final class FilterItemByDamage extends VarArgFunction {
+        private final ItemQueryHandle handle;
 
-        private FilterBlockByDamage(BlockQueryHandle handle) {
+        private FilterItemByDamage(ItemQueryHandle handle) {
             this.handle = handle;
         }
 
@@ -119,10 +120,10 @@ final class QueryBlockApi {
         }
     }
 
-    private static final class GetBlockByDamage extends VarArgFunction {
-        private final BlockQueryHandle handle;
+    private static final class GetItemByDamage extends VarArgFunction {
+        private final ItemQueryHandle handle;
 
-        private GetBlockByDamage(BlockQueryHandle handle) {
+        private GetItemByDamage(ItemQueryHandle handle) {
             this.handle = handle;
         }
 
@@ -133,22 +134,22 @@ final class QueryBlockApi {
                 QueryCommon.QueryEntry entry = (QueryCommon.QueryEntry) handle.entries.get(i);
                 if (entry.damage == damage) {
                     if (match != null) {
-                        throw new LuaError("Query: multiple blocks match damage value: " + damage);
+                        throw new LuaError("Query: multiple items match damage value: " + damage);
                     }
                     match = entry;
                 }
             }
             if (match == null) {
-                throw new LuaError("Query: no block found with damage value: " + damage);
+                throw new LuaError("Query: no item found with damage value: " + damage);
             }
-            return new QueryBlockHandle(match.id, match.damage);
+            return new QueryItemHandle(match.id, match.damage);
         }
     }
 
-    private static final class GetBlockFromHandle extends VarArgFunction {
-        private final BlockQueryHandle handle;
+    private static final class GetItemFromHandle extends VarArgFunction {
+        private final ItemQueryHandle handle;
 
-        private GetBlockFromHandle(BlockQueryHandle handle) {
+        private GetItemFromHandle(ItemQueryHandle handle) {
             this.handle = handle;
         }
 
@@ -158,16 +159,16 @@ final class QueryBlockApi {
             int damage = QueryCommon.readDamageFromHandle(value);
             QueryCommon.QueryEntry entry = QueryCommon.findById(handle.entries, id, damage);
             if (entry == null) {
-                throw new LuaError("Query: block handle not found in registry.");
+                throw new LuaError("Query: item handle not found in registry.");
             }
-            return new QueryBlockHandle(entry.id, entry.damage);
+            return new QueryItemHandle(entry.id, entry.damage);
         }
     }
 
-    private static final class FirstBlock extends VarArgFunction {
-        private final BlockQueryHandle handle;
+    private static final class FirstItem extends VarArgFunction {
+        private final ItemQueryHandle handle;
 
-        private FirstBlock(BlockQueryHandle handle) {
+        private FirstItem(ItemQueryHandle handle) {
             this.handle = handle;
         }
 
@@ -176,14 +177,14 @@ final class QueryBlockApi {
                 return LuaValue.NIL;
             }
             QueryCommon.QueryEntry entry = (QueryCommon.QueryEntry) handle.entries.get(0);
-            return new QueryBlockHandle(entry.id, entry.damage);
+            return new QueryItemHandle(entry.id, entry.damage);
         }
     }
 
-    private static final class LastBlock extends VarArgFunction {
-        private final BlockQueryHandle handle;
+    private static final class LastItem extends VarArgFunction {
+        private final ItemQueryHandle handle;
 
-        private LastBlock(BlockQueryHandle handle) {
+        private LastItem(ItemQueryHandle handle) {
             this.handle = handle;
         }
 
@@ -192,34 +193,34 @@ final class QueryBlockApi {
                 return LuaValue.NIL;
             }
             QueryCommon.QueryEntry entry = (QueryCommon.QueryEntry) handle.entries.get(handle.entries.size() - 1);
-            return new QueryBlockHandle(entry.id, entry.damage);
+            return new QueryItemHandle(entry.id, entry.damage);
         }
     }
 
-    private static final class GetBlockAt extends VarArgFunction {
-        private final BlockQueryHandle handle;
+    private static final class GetItemAt extends VarArgFunction {
+        private final ItemQueryHandle handle;
 
-        private GetBlockAt(BlockQueryHandle handle) {
+        private GetItemAt(ItemQueryHandle handle) {
             this.handle = handle;
         }
 
         public Varargs invoke(Varargs args) {
             int index = (int) LuaApiUtils.getNumberArg(args, 1);
-            if (index < 0 || index > 255) {
-                throw new LuaError("Query: block index out of bounds (0-255): " + index);
+            if (index <= 255) {
+                throw new LuaError("Query: item index must be > 255: " + index);
             }
             QueryCommon.QueryEntry entry = QueryCommon.findFirstById(handle.entries, index);
             if (entry == null) {
-                throw new LuaError("Query: block id not found in query: " + index);
+                throw new LuaError("Query: item id not found in query: " + index);
             }
-            return new QueryBlockHandle(entry.id, entry.damage);
+            return new QueryItemHandle(entry.id, entry.damage);
         }
     }
 
-    private static final class CountBlocks extends VarArgFunction {
-        private final BlockQueryHandle handle;
+    private static final class CountItems extends VarArgFunction {
+        private final ItemQueryHandle handle;
 
-        private CountBlocks(BlockQueryHandle handle) {
+        private CountItems(ItemQueryHandle handle) {
             this.handle = handle;
         }
 
@@ -228,37 +229,37 @@ final class QueryBlockApi {
         }
     }
 
-    private static final class FinishBlockQuery extends VarArgFunction {
-        private final BlockQueryHandle handle;
+    private static final class FinishItemQuery extends VarArgFunction {
+        private final ItemQueryHandle handle;
 
-        private FinishBlockQuery(BlockQueryHandle handle) {
+        private FinishItemQuery(ItemQueryHandle handle) {
             this.handle = handle;
         }
 
         public Varargs invoke(Varargs args) {
-            return new BlockQueryResultHandle(handle.entries);
+            return new ItemQueryResultHandle(handle.entries);
         }
     }
 
-    private static final class BlockQueryResultHandle extends LuaTable {
+    private static final class ItemQueryResultHandle extends LuaTable {
         private final List entries;
 
-        private BlockQueryResultHandle(List entries) {
+        private ItemQueryResultHandle(List entries) {
             this.entries = new ArrayList(entries);
-            set("first", new FirstBlockResult(this));
-            set("last", new LastBlockResult(this));
-            set("get", new GetBlockResultAt(this));
-            set("count", new CountBlockResults(this));
-            set("ensureOne", new EnsureOneBlockResult(this));
-            set("intoHandle", new IntoBlockHandle(this));
-            set("intoHandles", new IntoBlockHandles(this));
+            set("first", new FirstItemResult(this));
+            set("last", new LastItemResult(this));
+            set("get", new GetItemResultAt(this));
+            set("count", new CountItemResults(this));
+            set("ensureOne", new EnsureOneItemResult(this));
+            set("intoHandle", new IntoItemHandle(this));
+            set("intoHandles", new IntoItemHandles(this));
         }
     }
 
-    private static final class FirstBlockResult extends VarArgFunction {
-        private final BlockQueryResultHandle handle;
+    private static final class FirstItemResult extends VarArgFunction {
+        private final ItemQueryResultHandle handle;
 
-        private FirstBlockResult(BlockQueryResultHandle handle) {
+        private FirstItemResult(ItemQueryResultHandle handle) {
             this.handle = handle;
         }
 
@@ -267,14 +268,14 @@ final class QueryBlockApi {
                 return LuaValue.NIL;
             }
             QueryCommon.QueryEntry entry = (QueryCommon.QueryEntry) handle.entries.get(0);
-            return new QueryBlockHandle(entry.id, entry.damage);
+            return new QueryItemHandle(entry.id, entry.damage);
         }
     }
 
-    private static final class LastBlockResult extends VarArgFunction {
-        private final BlockQueryResultHandle handle;
+    private static final class LastItemResult extends VarArgFunction {
+        private final ItemQueryResultHandle handle;
 
-        private LastBlockResult(BlockQueryResultHandle handle) {
+        private LastItemResult(ItemQueryResultHandle handle) {
             this.handle = handle;
         }
 
@@ -283,34 +284,34 @@ final class QueryBlockApi {
                 return LuaValue.NIL;
             }
             QueryCommon.QueryEntry entry = (QueryCommon.QueryEntry) handle.entries.get(handle.entries.size() - 1);
-            return new QueryBlockHandle(entry.id, entry.damage);
+            return new QueryItemHandle(entry.id, entry.damage);
         }
     }
 
-    private static final class GetBlockResultAt extends VarArgFunction {
-        private final BlockQueryResultHandle handle;
+    private static final class GetItemResultAt extends VarArgFunction {
+        private final ItemQueryResultHandle handle;
 
-        private GetBlockResultAt(BlockQueryResultHandle handle) {
+        private GetItemResultAt(ItemQueryResultHandle handle) {
             this.handle = handle;
         }
 
         public Varargs invoke(Varargs args) {
             int index = (int) LuaApiUtils.getNumberArg(args, 1);
-            if (index < 0 || index > 255) {
-                throw new LuaError("Query: block index out of bounds (0-255): " + index);
+            if (index <= 255) {
+                throw new LuaError("Query: item index must be > 255: " + index);
             }
             QueryCommon.QueryEntry entry = QueryCommon.findFirstById(handle.entries, index);
             if (entry == null) {
-                throw new LuaError("Query: block id not found in query: " + index);
+                throw new LuaError("Query: item id not found in query: " + index);
             }
-            return new QueryBlockHandle(entry.id, entry.damage);
+            return new QueryItemHandle(entry.id, entry.damage);
         }
     }
 
-    private static final class CountBlockResults extends VarArgFunction {
-        private final BlockQueryResultHandle handle;
+    private static final class CountItemResults extends VarArgFunction {
+        private final ItemQueryResultHandle handle;
 
-        private CountBlockResults(BlockQueryResultHandle handle) {
+        private CountItemResults(ItemQueryResultHandle handle) {
             this.handle = handle;
         }
 
@@ -319,41 +320,41 @@ final class QueryBlockApi {
         }
     }
 
-    private static final class EnsureOneBlockResult extends VarArgFunction {
-        private final BlockQueryResultHandle handle;
+    private static final class EnsureOneItemResult extends VarArgFunction {
+        private final ItemQueryResultHandle handle;
 
-        private EnsureOneBlockResult(BlockQueryResultHandle handle) {
+        private EnsureOneItemResult(ItemQueryResultHandle handle) {
             this.handle = handle;
         }
 
         public Varargs invoke(Varargs args) {
             if (handle.entries.size() != 1) {
-                throw new LuaError("Query: expected exactly one block, found " + handle.entries.size());
+                throw new LuaError("Query: expected exactly one item, found " + handle.entries.size());
             }
             return handle;
         }
     }
 
-    private static final class IntoBlockHandle extends VarArgFunction {
-        private final BlockQueryResultHandle handle;
+    private static final class IntoItemHandle extends VarArgFunction {
+        private final ItemQueryResultHandle handle;
 
-        private IntoBlockHandle(BlockQueryResultHandle handle) {
+        private IntoItemHandle(ItemQueryResultHandle handle) {
             this.handle = handle;
         }
 
         public Varargs invoke(Varargs args) {
             if (handle.entries.size() != 1) {
-                throw new LuaError("Query: expected exactly one block, found " + handle.entries.size());
+                throw new LuaError("Query: expected exactly one item, found " + handle.entries.size());
             }
             QueryCommon.QueryEntry entry = (QueryCommon.QueryEntry) handle.entries.get(0);
-            return new QueryBlockHandle(entry.id, entry.damage);
+            return new QueryItemHandle(entry.id, entry.damage);
         }
     }
 
-    private static final class IntoBlockHandles extends VarArgFunction {
-        private final BlockQueryResultHandle handle;
+    private static final class IntoItemHandles extends VarArgFunction {
+        private final ItemQueryResultHandle handle;
 
-        private IntoBlockHandles(BlockQueryResultHandle handle) {
+        private IntoItemHandles(ItemQueryResultHandle handle) {
             this.handle = handle;
         }
 
@@ -361,17 +362,17 @@ final class QueryBlockApi {
             LuaTable out = new LuaTable();
             for (int i = 0; i < handle.entries.size(); i++) {
                 QueryCommon.QueryEntry entry = (QueryCommon.QueryEntry) handle.entries.get(i);
-                out.set(i + 1, new QueryBlockHandle(entry.id, entry.damage));
+                out.set(i + 1, new QueryItemHandle(entry.id, entry.damage));
             }
             return out;
         }
     }
 
-    private static final class QueryBlockHandle extends LuaTable {
+    private static final class QueryItemHandle extends LuaTable {
         private final int id;
         private final int damage;
 
-        private QueryBlockHandle(int id, int damage) {
+        private QueryItemHandle(int id, int damage) {
             this.id = id;
             this.damage = damage;
             set("getId", new GetQueryId(this));
@@ -380,9 +381,9 @@ final class QueryBlockApi {
     }
 
     private static final class GetQueryId extends VarArgFunction {
-        private final QueryBlockHandle handle;
+        private final QueryItemHandle handle;
 
-        private GetQueryId(QueryBlockHandle handle) {
+        private GetQueryId(QueryItemHandle handle) {
             this.handle = handle;
         }
 
@@ -392,9 +393,9 @@ final class QueryBlockApi {
     }
 
     private static final class GetQueryDamage extends VarArgFunction {
-        private final QueryBlockHandle handle;
+        private final QueryItemHandle handle;
 
-        private GetQueryDamage(QueryBlockHandle handle) {
+        private GetQueryDamage(QueryItemHandle handle) {
             this.handle = handle;
         }
 

@@ -1,5 +1,6 @@
-package betamoon.luaapi;
+package betamoon.luaapi.material;
 
+import betamoon.luaapi.LuaApiUtils;
 import net.minecraft.src.ModLoader;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -7,14 +8,14 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-final class ArmorMaterialApi {
+public final class ArmorMaterialApi {
     /**
      * Simple container for armor material metadata.
      */
-    static final class ArmorMaterial {
-        final String name;
-        final int level;
-        final int renderIndex;
+    public static final class ArmorMaterial {
+        public final String name;
+        public final int level;
+        public final int renderIndex;
 
         private ArmorMaterial(String name, int level, int renderIndex) {
             this.name = name;
@@ -26,7 +27,7 @@ final class ArmorMaterialApi {
     private ArmorMaterialApi() {
     }
 
-    static void attach(LuaTable module) {
+    public static void attach(LuaTable module) {
         module.set("createArmorMaterial", new CreateArmorMaterial());
     }
 

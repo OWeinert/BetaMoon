@@ -1,14 +1,14 @@
-package betamoon.luaapi;
+package betamoon.luaapi.query;
 
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-final class QueryApi {
+public final class QueryApi {
     private QueryApi() {
     }
 
-    static void attach(LuaTable module) {
+    public static void attach(LuaTable module) {
         module.set("query", new CreateQuery());
     }
 

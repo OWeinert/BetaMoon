@@ -14,7 +14,7 @@ import org.luaj.vm2.Varargs;
 
 import betamoon.BetaMoonMain;
 
-final class LuaApiUtils {
+public final class LuaApiUtils {
     /**
      * Utility class for extracting typed arguments from Lua varargs.
      */
@@ -28,7 +28,7 @@ final class LuaApiUtils {
      * @param index positional index to read when no leading table is provided
      * @return the numeric value coerced to double
      */
-    static double getNumberArg(Varargs args, int index) {
+    public static double getNumberArg(Varargs args, int index) {
         int offset = (args.narg() >= 1 && args.arg(1).istable()) ? 1 : 0;
         return args.arg(index + offset).checkdouble();
     }
@@ -40,7 +40,7 @@ final class LuaApiUtils {
      * @param index positional index to read when no leading table is provided
      * @return the string value
      */
-    static String getStringArg(Varargs args, int index) {
+    public static String getStringArg(Varargs args, int index) {
         int offset = (args.narg() >= 1 && args.arg(1).istable()) ? 1 : 0;
         return args.arg(index + offset).checkjstring();
     }
@@ -52,7 +52,7 @@ final class LuaApiUtils {
      * @param index positional index to read when no leading table is provided
      * @return the raw Lua value at the resolved index
      */
-    static LuaValue getVarArg(Varargs args, int index) {
+    public static LuaValue getVarArg(Varargs args, int index) {
         int offset = (args.narg() >= 1 && args.arg(1).istable()) ? 1 : 0;
         return args.arg(index + offset);
     }
@@ -65,7 +65,7 @@ final class LuaApiUtils {
      * @param context error context label
      * @return parsed item stack
      */
-    static ItemStack readItemStack(LuaValue value, boolean allowCount, String context) {
+    public static ItemStack readItemStack(LuaValue value, boolean allowCount, String context) {
         if (value.isnumber()) {
             int id = value.checkint();
             return new ItemStack(id, 1, 0);
@@ -102,7 +102,7 @@ final class LuaApiUtils {
         throw new LuaError("LuaApi: expected " + context + " to be a number or table.");
     }
 
-    static int resolveItemId(LuaValue value) {
+    public static int resolveItemId(LuaValue value) {
         if (value.isnumber()) {
             return value.checkint();
         }
@@ -122,7 +122,7 @@ final class LuaApiUtils {
      * @param relativePath path to the texture relative to the luamods directory
      * @return allocated texture index on the atlas
      */
-    static int registerTexture(EnumTexAtlas atlas, String relativePath) {
+    public static int registerTexture(EnumTexAtlas atlas, String relativePath) {
         File luaModsDir = resolveLuaModsDir();
         if (luaModsDir == null) {
             throw new LuaError("LuaApi: lua mods directory not found.");

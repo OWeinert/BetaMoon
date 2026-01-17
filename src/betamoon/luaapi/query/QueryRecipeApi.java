@@ -1,5 +1,6 @@
-package betamoon.luaapi;
+package betamoon.luaapi.query;
 
+import betamoon.luaapi.LuaApiUtils;
 import betamoon.recipes.RecipeModificationHandler;
 import betamoon.recipes.SmeltingRecipe;
 import java.util.ArrayList;

@@ -1,4 +1,4 @@
-package betamoon.luaapi;
+package betamoon.luaapi.worldgen;
 
 import betamoon.worldgen.BiomeGenRegistry;
 import betamoon.worldgen.WorldGenRegistry;
@@ -16,14 +16,14 @@ import org.luaj.vm2.lib.VarArgFunction;
  * <p>Exposes a scoped handle so mods can group multiple world-gen registrations
  * and finish them explicitly.</p>
  */
-final class WorldGenApi {
+public final class WorldGenApi {
     /**
      * Utility class that installs world-gen-related Lua bindings.
      */
     private WorldGenApi() {
     }
 
-    static void attach(LuaTable module) {
+    public static void attach(LuaTable module) {
         module.set("startWorldGen", new StartWorldGen());
     }
 

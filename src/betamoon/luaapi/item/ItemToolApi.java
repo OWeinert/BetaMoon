@@ -1,6 +1,7 @@
-package betamoon.luaapi;
+package betamoon.luaapi.item;
 
 import betamoon.resources.EnumTexAtlas;
+import betamoon.luaapi.LuaApiUtils;
 import betamoon.wrappers.ItemAxeWrapper;
 import betamoon.wrappers.ItemHoeWrapper;
 import betamoon.wrappers.ItemPickaxeWrapper;
@@ -17,7 +18,7 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-final class ItemToolApi {
+public final class ItemToolApi {
     private static final Logger LOGGER = Logger.getLogger("BetaMoon");
     /**
      * Utility class that installs tool-related Lua bindings.
@@ -25,7 +26,7 @@ final class ItemToolApi {
     private ItemToolApi() {
     }
 
-    static void attach(LuaTable module) {
+    public static void attach(LuaTable module) {
         module.set("createTool", new CreateTool());
     }
 

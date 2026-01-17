@@ -1,7 +1,9 @@
-package betamoon.luaapi;
+package betamoon.luaapi.block;
 
 import betamoon.wrappers.BlockWrapper;
 import betamoon.resources.EnumTexAtlas;
+import betamoon.luaapi.LuaApiUtils;
+import betamoon.luaapi.worldgen.OreGenApi;
 import forge.MinecraftForge;
 import java.util.logging.Logger;
 import net.minecraft.src.Block;
@@ -15,7 +17,7 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-final class BlockApi {
+public final class BlockApi {
     private static final Logger LOGGER = Logger.getLogger("BetaMoon");
     /**
      * Utility class that installs block-related Lua bindings.
@@ -23,7 +25,7 @@ final class BlockApi {
     private BlockApi() {
     }
 
-    static void attach(LuaTable module) {
+    public static void attach(LuaTable module) {
         module.set("createBlock", new CreateBlock());
     }
 
@@ -46,8 +48,8 @@ final class BlockApi {
         }
     }
 
-    static final class BlockHandle extends LuaTable {
-        final BlockWrapper block;
+    public static final class BlockHandle extends LuaTable {
+        private final BlockWrapper block;
         private boolean registered;
 
         @SuppressWarnings("deprecation")
@@ -76,6 +78,10 @@ final class BlockApi {
             }
             LOGGER.warning("Ignored block mutation after register: id=" + block.blockID + " action=" + action);
             return false;
+        }
+
+        public int getBlockId() {
+            return block.blockID;
         }
     }
 

@@ -1,4 +1,4 @@
-package betamoon.luaapi;
+package betamoon.luaapi.module;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -8,13 +8,13 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-final class ModuleApi {
+public final class ModuleApi {
     private static final Map modules = new HashMap();
 
     private ModuleApi() {
     }
 
-    static void attach(LuaTable module, LuaValue env) {
+    public static void attach(LuaTable module, LuaValue env) {
         module.set("exportModule", new ExportModule(env));
         module.set("requireModule", new RequireModule());
     }
