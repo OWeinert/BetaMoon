@@ -193,12 +193,17 @@ public final class LuaModLoader {
         if (versionValue.isstring()) {
             version = versionValue.tojstring();
         }
+        String imagePath = null;
+        LuaValue imageValue = globals.get("image");
+        if (imageValue.isstring()) {
+            imagePath = imageValue.tojstring();
+        }
         LuaValue modInit = globals.get("modInit");
         if (!modInit.isfunction()) {
             LuaScriptRegistry.markFailedByFile(scriptFile.getName(), "Missing modInit function.");
             return null;
         }
-        return LuaScriptRegistry.updateParsed(scriptFile.getName(), modName, deps, modInit, description, version);
+        return LuaScriptRegistry.updateParsed(scriptFile.getName(), modName, deps, modInit, description, version, imagePath);
     }
 
     /**

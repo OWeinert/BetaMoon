@@ -10,6 +10,7 @@ public class ScriptMod {
     LuaValue modInit;
     String description;
     String version;
+    String imagePath;
     boolean loaded;
     boolean failed;
     String failureReason;
@@ -24,6 +25,7 @@ public class ScriptMod {
         this.sourceFileName = sourceFileName;
         this.description = "";
         this.version = "0.0.0";
+        this.imagePath = null;
     }
 
     /**
@@ -34,7 +36,7 @@ public class ScriptMod {
      * @param modInit Lua function to invoke during mod initialization
      * @param sourceFileName script file name on disk
      */
-    public ScriptMod(String name, List dependencies, LuaValue modInit, String sourceFileName, String description, String version) {
+    public ScriptMod(String name, List dependencies, LuaValue modInit, String sourceFileName, String description, String version, String imagePath) {
         this.sourceFileName = sourceFileName;
         this.name = name;
         this.dependencies = dependencies;
@@ -45,6 +47,7 @@ public class ScriptMod {
         } else {
             this.version = version;
         }
+        this.imagePath = imagePath;
     }
 
     /**
@@ -105,6 +108,15 @@ public class ScriptMod {
      */
     public String getVersion() {
         return version;
+    }
+
+    /**
+     * Returns the optional image path for this script, when provided.
+     *
+     * @return image path string or null
+     */
+    public String getImagePath() {
+        return imagePath;
     }
 
     /**
