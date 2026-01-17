@@ -1,17 +1,17 @@
 package betamoon.gui;
 
+import betamoon.gui.api.GuiActionButton;
 import betamoon.gui.api.GuiColors;
 import betamoon.gui.api.GuiPopupScreen;
 import betamoon.gui.api.GuiUtils;
 import betamoon.scriptloader.LuaScriptErrors;
 import java.util.List;
 
-import org.lwjgl.input.Keyboard;
-
-import net.minecraft.src.GuiButton;
 import net.minecraft.src.GuiScreen;
 
 public class GuiScriptErrorPopup extends GuiPopupScreen {
+    private final GuiActionButton ignoreButton;
+    private final GuiActionButton closeButton;
     /**
      * Creates the popup for showing Lua script load errors.
      *
@@ -19,15 +19,36 @@ public class GuiScriptErrorPopup extends GuiPopupScreen {
      */
     public GuiScriptErrorPopup(GuiScreen parent) {
         super(parent);
+        ignoreButton = new GuiActionButton("Ignore", new GuiActionButton.Action() {
+            public void onPress() {
+                LuaScriptErrors.ignore();
+                GuiScriptErrorPopup.this.mc.displayGuiScreen(GuiScriptErrorPopup.this.parent);
+            }
+        });
+        closeButton = new GuiActionButton("Close Game", new GuiActionButton.Action() {
+            public void onPress() {
+                GuiScriptErrorPopup.this.mc.shutdown();
+            }
+        });
     }
 
     @Override
     protected void initPopupGui() {
-        // Lay out buttons within the popup bounds.
+        ignoreButton.setMinecraft(this.mc);
+        closeButton.setMinecraft(this.mc);
+        popupRoot.addChild(ignoreButton);
+        popupRoot.addChild(closeButton);
+    }
+
+    @Override
+    protected void layoutPopupComponents() {
         int buttonWidth = (panelWidth - 30) / 2;
         int buttonY = panelTop + panelHeight - 30;
-        this.controlList.add(new GuiButton(0, panelLeft + 10, buttonY, buttonWidth, 20, "Ignore"));
-        this.controlList.add(new GuiButton(1, panelLeft + 20 + buttonWidth, buttonY, buttonWidth, 20, "Close Game"));
+        int buttonHeight = 20;
+        int leftX = panelLeft + 10;
+        int rightX = panelLeft + 20 + buttonWidth;
+        ignoreButton.setBounds(leftX, buttonY, leftX + buttonWidth, buttonY + buttonHeight);
+        closeButton.setBounds(rightX, buttonY, rightX + buttonWidth, buttonY + buttonHeight);
     }
 
     @Override
@@ -43,27 +64,6 @@ public class GuiScriptErrorPopup extends GuiPopupScreen {
     @Override
     protected int getMinPanelHeight() {
         return 140;
-    }
-
-    @Override
-    protected void keyTyped(char typedChar, int keyCode) {
-        if (keyCode == Keyboard.KEY_ESCAPE && this.parent != null) {
-            this.mc.displayGuiScreen(this.parent);
-        }
-    }
-
-    @Override
-    protected void actionPerformed(GuiButton button) {
-        if (!button.enabled) {
-            return;
-        }
-        if (button.id == 0) {
-            LuaScriptErrors.ignore();
-            this.mc.displayGuiScreen(this.parent);
-        }
-        if (button.id == 1) {
-            this.mc.shutdown();
-        }
     }
 
     @Override

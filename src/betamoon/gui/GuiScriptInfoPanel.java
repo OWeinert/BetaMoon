@@ -1,15 +1,15 @@
 package betamoon.gui;
 
 import betamoon.gui.api.GuiColors;
+import betamoon.gui.api.GuiScrollablePanel;
 import betamoon.gui.api.GuiText;
 import betamoon.gui.api.GuiUtils;
-import betamoon.gui.api.GuiScrollPane;
 import betamoon.scriptloader.LuaScriptRegistry;
 import betamoon.scriptloader.ScriptMod;
 import java.util.List;
 import net.minecraft.src.FontRenderer;
 
-public final class GuiScriptInfoPanel {
+public final class GuiScriptInfoPanel extends GuiScrollablePanel {
     private static final String LABEL_DESCRIPTION = "Description";
     private static final String LABEL_ERRORS = "Errors";
     private static final String LABEL_DEPENDENCIES = "Dependencies";
@@ -18,40 +18,56 @@ public final class GuiScriptInfoPanel {
     private static final int CONTENT_PADDING = 6;
     private static final int LINE_SPACING = 16;
     private static final int DEPENDENCY_LINE_HEIGHT = 12;
-    private final GuiScrollPane scrollPane = new GuiScrollPane(false, true);
-
     private int detailLeft;
     private int detailRight;
     private int detailTop;
     private int detailBottom;
+    private int headerY;
+    private float headerScale = 1.0F;
+    private int screenWidth;
+    private int screenHeight;
+    private int displayWidth;
+    private int displayHeight;
+    private ScriptMod selected;
 
-    /**
-     * Draws script details for the selected entry.
-     *
-     * @param font font renderer
-     * @param selected selected script entry
-     * @param detailLeft left x position
-     * @param detailRight right x position
-     * @param headerY y position for the header row
-     * @param detailTop top y position for details
-     * @param detailBottom bottom y position for details
-     * @param headerScale scale factor for the title
-     */
-    public void draw(FontRenderer font, ScriptMod selected, int detailLeft, int detailRight, int headerY, int detailTop, int detailBottom, int screenWidth, int screenHeight, int displayWidth, int displayHeight, float headerScale) {
+    public GuiScriptInfoPanel() {
+        super(false, true);
+    }
+
+    public void setSelected(ScriptMod selected) {
+        this.selected = selected;
+    }
+
+    public void setHeaderY(int headerY) {
+        this.headerY = headerY;
+    }
+
+    public void setHeaderScale(float headerScale) {
+        this.headerScale = headerScale;
+    }
+
+    public void setDisplayMetrics(int screenWidth, int screenHeight, int displayWidth, int displayHeight) {
+        this.screenWidth = screenWidth;
+        this.screenHeight = screenHeight;
+        this.displayWidth = displayWidth;
+        this.displayHeight = displayHeight;
+    }
+
+    public void draw(FontRenderer font, int mouseX, int mouseY, float partialTicks) {
         if (selected == null) {
             return;
         }
-        this.detailLeft = detailLeft;
-        this.detailRight = detailRight;
-        this.detailTop = detailTop;
-        this.detailBottom = detailBottom;
+        this.detailLeft = left;
+        this.detailRight = right;
+        this.detailTop = top;
+        this.detailBottom = bottom;
         int contentWidth = detailRight - detailLeft;
         // Title row: script name and version.
         String title = selected.getDisplayName() + "  v" + selected.getVersion();
         GuiUtils.drawScaledString(font, title, detailLeft, headerY, GuiColors.TEXT_PRIMARY, headerScale);
 
         // Resolve content flags and starting Y based on the current scroll offset.
-        int y = detailTop - scrollPane.getScrollOffsetY();
+        int y = detailTop - getScrollOffsetY();
         String description = selected.getDescription();
         boolean hasDescription = description != null && !description.trim().isEmpty();
         String failure = selected.getFailureReason();
@@ -62,9 +78,9 @@ public final class GuiScriptInfoPanel {
         // Measure full content height to drive scrolling limits.
         int contentHeight = calculateContentHeight(font, contentWidth, hasDescription ? description : null,
             hasErrors ? failure : null, hasDependencies ? dependencies : null);
-        scrollPane.setBounds(detailLeft, detailTop, detailRight, detailBottom);
-        scrollPane.updateContentSize(contentWidth, contentHeight);
-        y = detailTop - scrollPane.getScrollOffsetY();
+        setScrollBounds(detailLeft, detailTop, detailRight, detailBottom);
+        updateScrollContentSize(contentWidth, contentHeight);
+        y = detailTop - getScrollOffsetY();
         int scissorTop = detailTop - 2;
         int scissorBottom = detailBottom + 2;
         // Clip body text so it doesn't overlap the title row.
@@ -107,41 +123,8 @@ public final class GuiScriptInfoPanel {
                 + CONTENT_PADDING;
         }
 
-        scrollPane.drawScrollbar(contentHeight);
+        drawScrollbar(contentHeight);
         GuiUtils.endScissor();
-    }
-
-    /**
-     * Routes mouse wheel and drag events into the scroll state.
-     *
-     * @param mouseX mouse x in GUI coordinates
-     * @param mouseY mouse y in GUI coordinates
-     * @param wheelDelta mouse wheel delta
-     * @param mouseDown true when left mouse button is down
-     */
-    public void handleMouseInput(int mouseX, int mouseY, int wheelDelta, boolean mouseDown) {
-        scrollPane.handleMouseWheel(mouseX, mouseY, wheelDelta, false);
-        scrollPane.handleMouseDrag(mouseY, mouseDown);
-    }
-
-    /**
-     * Handles scrollbar clicks.
-     *
-     * @param mouseX mouse x in GUI coordinates
-     * @param mouseY mouse y in GUI coordinates
-     * @param button mouse button id
-     */
-    public void mouseClicked(int mouseX, int mouseY, int button) {
-        scrollPane.mouseClicked(mouseX, mouseY, button);
-    }
-
-    /**
-     * Ends any scrollbar drag on mouse release.
-     *
-     * @param button mouse button id
-     */
-    public void mouseReleased(int button) {
-        scrollPane.mouseReleased(button);
     }
 
     private int calculateContentHeight(FontRenderer font, int contentWidth, String description, String failure, List dependencies) {

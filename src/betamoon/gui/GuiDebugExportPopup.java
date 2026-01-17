@@ -1,25 +1,23 @@
 package betamoon.gui;
 
 import betamoon.debug.DebugExports;
+import betamoon.gui.api.GuiActionButton;
 import betamoon.gui.api.GuiColors;
 import betamoon.gui.api.GuiPopupScreen;
 import betamoon.gui.api.GuiText;
 import betamoon.gui.api.GuiUtils;
 import java.io.File;
 
-import org.lwjgl.input.Keyboard;
-
-import net.minecraft.src.GuiButton;
 import net.minecraft.src.GuiScreen;
 
 public class GuiDebugExportPopup extends GuiPopupScreen {
-    private static final int BUTTON_CLOSE = 0;
     private static final String TOOLTIP_OPEN = "Open in File Explorer";
 
     private final String title;
     private final String message;
     private final String exportPath;
     private final boolean showPath;
+    private final GuiActionButton closeButton;
     private int pathX;
     private int pathY;
     private int pathWidth;
@@ -38,14 +36,25 @@ public class GuiDebugExportPopup extends GuiPopupScreen {
             this.exportPath = "";
             this.showPath = false;
         }
+        closeButton = new GuiActionButton("Close", new GuiActionButton.Action() {
+            public void onPress() {
+                GuiDebugExportPopup.this.mc.displayGuiScreen(GuiDebugExportPopup.this.parent);
+            }
+        });
     }
 
     @Override
     protected void initPopupGui() {
+        closeButton.setMinecraft(this.mc);
+        popupRoot.addChild(closeButton);
+    }
+
+    @Override
+    protected void layoutPopupComponents() {
         int buttonWidth = 80;
         int buttonX = panelLeft + panelWidth / 2 - buttonWidth / 2;
         int buttonY = panelTop + panelHeight - 30;
-        this.controlList.add(new GuiButton(BUTTON_CLOSE, buttonX, buttonY, buttonWidth, 20, "Close"));
+        closeButton.setBounds(buttonX, buttonY, buttonX + buttonWidth, buttonY + 20);
     }
 
     @Override
@@ -56,23 +65,6 @@ public class GuiDebugExportPopup extends GuiPopupScreen {
     @Override
     protected int getMaxPanelHeight() {
         return 140;
-    }
-
-    @Override
-    protected void keyTyped(char typedChar, int keyCode) {
-        if (keyCode == Keyboard.KEY_ESCAPE && this.parent != null) {
-            this.mc.displayGuiScreen(this.parent);
-        }
-    }
-
-    @Override
-    protected void actionPerformed(GuiButton button) {
-        if (!button.enabled) {
-            return;
-        }
-        if (button.id == BUTTON_CLOSE) {
-            this.mc.displayGuiScreen(this.parent);
-        }
     }
 
     @Override
