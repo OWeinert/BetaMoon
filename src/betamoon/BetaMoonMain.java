@@ -22,7 +22,7 @@ import net.minecraft.src.ModLoader;
 import net.minecraft.src.World;
 
 public final class BetaMoonMain {
-    private static final String VERSION = "0.5.1";
+    private static final String VERSION = "0.5.0";
     public static final String LUA_SCRIPTS_DIR = "lua_scripts";
     public static final Logger LOGGER = Logger.getLogger("BetaMoon");
     static {
