@@ -1,5 +1,6 @@
-package betamoon.luaapi;
+package betamoon.luaapi.recipe;
 
+import betamoon.luaapi.LuaApiUtils;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -12,14 +13,14 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-final class RecipeApi {
+public final class RecipeApi {
     /**
      * Utility class that installs recipe-related Lua bindings.
      */
     private RecipeApi() {
     }
 
-    static void attach(LuaTable module) {
+    public static void attach(LuaTable module) {
         module.set("addShapedRecipe", new AddShapedRecipe());
         module.set("addShapelessRecipe", new AddShapelessRecipe());
         module.set("addSmeltingRecipe", new AddSmeltingRecipe());

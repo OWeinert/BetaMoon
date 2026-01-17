@@ -3,10 +3,11 @@ package betamoon.luaapi;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import javax.imageio.ImageIO;
 import betamoon.resources.EnumTexAtlas;
 import net.minecraft.src.ModLoader;
-import net.minecraft.src.ModTextureStatic;
 import net.minecraft.src.ItemStack;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
@@ -14,7 +15,7 @@ import org.luaj.vm2.Varargs;
 
 import betamoon.BetaMoonMain;
 
-final class LuaApiUtils {
+public final class LuaApiUtils {
     /**
      * Utility class for extracting typed arguments from Lua varargs.
      */
@@ -28,7 +29,7 @@ final class LuaApiUtils {
      * @param index positional index to read when no leading table is provided
      * @return the numeric value coerced to double
      */
-    static double getNumberArg(Varargs args, int index) {
+    public static double getNumberArg(Varargs args, int index) {
         int offset = (args.narg() >= 1 && args.arg(1).istable()) ? 1 : 0;
         return args.arg(index + offset).checkdouble();
     }
@@ -40,7 +41,7 @@ final class LuaApiUtils {
      * @param index positional index to read when no leading table is provided
      * @return the string value
      */
-    static String getStringArg(Varargs args, int index) {
+    public static String getStringArg(Varargs args, int index) {
         int offset = (args.narg() >= 1 && args.arg(1).istable()) ? 1 : 0;
         return args.arg(index + offset).checkjstring();
     }
@@ -52,7 +53,7 @@ final class LuaApiUtils {
      * @param index positional index to read when no leading table is provided
      * @return the raw Lua value at the resolved index
      */
-    static LuaValue getVarArg(Varargs args, int index) {
+    public static LuaValue getVarArg(Varargs args, int index) {
         int offset = (args.narg() >= 1 && args.arg(1).istable()) ? 1 : 0;
         return args.arg(index + offset);
     }
@@ -65,7 +66,7 @@ final class LuaApiUtils {
      * @param context error context label
      * @return parsed item stack
      */
-    static ItemStack readItemStack(LuaValue value, boolean allowCount, String context) {
+    public static ItemStack readItemStack(LuaValue value, boolean allowCount, String context) {
         if (value.isnumber()) {
             int id = value.checkint();
             return new ItemStack(id, 1, 0);
@@ -102,7 +103,7 @@ final class LuaApiUtils {
         throw new LuaError("LuaApi: expected " + context + " to be a number or table.");
     }
 
-    static int resolveItemId(LuaValue value) {
+    public static int resolveItemId(LuaValue value) {
         if (value.isnumber()) {
             return value.checkint();
         }
@@ -122,7 +123,7 @@ final class LuaApiUtils {
      * @param relativePath path to the texture relative to the luamods directory
      * @return allocated texture index on the atlas
      */
-    static int registerTexture(EnumTexAtlas atlas, String relativePath) {
+    public static int registerTexture(EnumTexAtlas atlas, String relativePath) {
         File luaModsDir = resolveLuaModsDir();
         if (luaModsDir == null) {
             throw new LuaError("LuaApi: lua mods directory not found.");
@@ -145,8 +146,11 @@ final class LuaApiUtils {
             throw new LuaError("LuaApi: texture could not be decoded: " + textureFile.getAbsolutePath());
         }
         int index = ModLoader.getUniqueSpriteIndex(atlas.getAtlasPath());
-        ModLoader.getMinecraftInstance().renderEngine.registerTextureFX(
-            new ModTextureStatic(index, atlas.getAtlasId(), image));
+        Object textureFx = createTextureFx(index, atlas.getAtlasId(), image);
+        if (textureFx == null) {
+            throw new LuaError("LuaApi: ModTextureStatic not available for texture registration.");
+        }
+        registerTextureFx(textureFx);
         return index;
     }
 
@@ -170,5 +174,36 @@ final class LuaApiUtils {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private static Object createTextureFx(int index, int atlasId, BufferedImage image) {
+        try {
+            Class cls = Class.forName("net.minecraft.src.ModTextureStatic");
+            Constructor ctor = cls.getConstructor(new Class[] { int.class, int.class, BufferedImage.class });
+            return ctor.newInstance(new Object[] { new Integer(index), new Integer(atlasId), image });
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static void registerTextureFx(Object textureFx) {
+        try {
+            Object renderEngine = ModLoader.getMinecraftInstance().renderEngine;
+            Method[] methods = renderEngine.getClass().getMethods();
+            for (int i = 0; i < methods.length; i++) {
+                Method method = methods[i];
+                if (!"registerTextureFX".equals(method.getName())) {
+                    continue;
+                }
+                Class[] params = method.getParameterTypes();
+                if (params.length == 1 && params[0].isInstance(textureFx)) {
+                    method.invoke(renderEngine, new Object[] { textureFx });
+                    return;
+                }
+            }
+        } catch (Exception e) {
+            throw new LuaError("LuaApi: failed to register texture FX (" + e.getMessage() + ").");
+        }
+        throw new LuaError("LuaApi: registerTextureFX not available.");
     }
 }
