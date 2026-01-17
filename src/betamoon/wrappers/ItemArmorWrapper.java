@@ -4,12 +4,12 @@ import forge.IArmorTextureProvider;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.logging.Level;
-import java.util.logging.Logger;
+import betamoon.BetaMoonMain;
 import net.minecraft.src.ItemArmor;
 import net.minecraft.src.RenderPlayer;
 
 public class ItemArmorWrapper extends ItemArmor implements IArmorTextureProvider {
-    private static final Logger LOGGER = Logger.getLogger("BetaMoon");
+    private static final java.util.logging.Logger LOGGER = BetaMoonMain.LOGGER;
     private static Field RENDER_INDEX_FIELD = resolveRenderIndexField();
     private int armorRenderIndex;
 

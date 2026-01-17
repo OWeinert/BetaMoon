@@ -1,11 +1,11 @@
 package betamoon.luaapi.block;
 
+import betamoon.BetaMoonMain;
 import betamoon.wrappers.BlockWrapper;
 import betamoon.resources.EnumTexAtlas;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.worldgen.OreGenApi;
 import forge.MinecraftForge;
-import java.util.logging.Logger;
 import net.minecraft.src.Block;
 import net.minecraft.src.Item;
 import net.minecraft.src.Material;
@@ -18,7 +18,7 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
 public final class BlockApi {
-    private static final Logger LOGGER = Logger.getLogger("BetaMoon");
+    private static final java.util.logging.Logger LOGGER = BetaMoonMain.LOGGER;
     /**
      * Utility class that installs block-related Lua bindings.
      */

@@ -1,10 +1,10 @@
 package betamoon.luaapi.item;
 
+import betamoon.BetaMoonMain;
 import betamoon.wrappers.ItemFoodWrapper;
 import betamoon.resources.EnumTexAtlas;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.wrappers.ItemWrapper;
-import java.util.logging.Logger;
 import net.minecraft.src.Item;
 import net.minecraft.src.ModLoader;
 import org.luaj.vm2.LuaError;
@@ -14,7 +14,7 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
 public final class ItemApi {
-    private static final Logger LOGGER = Logger.getLogger("BetaMoon");
+    private static final java.util.logging.Logger LOGGER = BetaMoonMain.LOGGER;
     /**
      * Utility class that installs item-related Lua bindings.
      */
