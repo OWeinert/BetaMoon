@@ -3,7 +3,7 @@ package betamoon.gui;
 import betamoon.gui.api.GuiColors;
 import betamoon.gui.api.GuiText;
 import betamoon.gui.api.GuiUtils;
-import betamoon.gui.api.GuiScrollBar;
+import betamoon.gui.api.GuiScrollPane;
 import betamoon.scriptloader.LuaScriptRegistry;
 import betamoon.scriptloader.ScriptMod;
 import java.util.List;
@@ -18,7 +18,7 @@ public final class GuiScriptInfoPanel {
     private static final int CONTENT_PADDING = 6;
     private static final int LINE_SPACING = 16;
     private static final int DEPENDENCY_LINE_HEIGHT = 12;
-    private final GuiScrollBar scrollBar = new GuiScrollBar();
+    private final GuiScrollPane scrollPane = new GuiScrollPane(false, true);
 
     private int detailLeft;
     private int detailRight;
@@ -51,7 +51,7 @@ public final class GuiScriptInfoPanel {
         GuiUtils.drawScaledString(font, title, detailLeft, headerY, GuiColors.TEXT_PRIMARY, headerScale);
 
         // Resolve content flags and starting Y based on the current scroll offset.
-        int y = detailTop - scrollBar.getScrollOffset();
+        int y = detailTop - scrollPane.getScrollOffsetY();
         String description = selected.getDescription();
         boolean hasDescription = description != null && !description.trim().isEmpty();
         String failure = selected.getFailureReason();
@@ -62,9 +62,9 @@ public final class GuiScriptInfoPanel {
         // Measure full content height to drive scrolling limits.
         int contentHeight = calculateContentHeight(font, contentWidth, hasDescription ? description : null,
             hasErrors ? failure : null, hasDependencies ? dependencies : null);
-        scrollBar.setBounds(detailLeft, detailTop, detailRight, detailBottom);
-        scrollBar.updateContentHeight(contentHeight);
-        y = detailTop - scrollBar.getScrollOffset();
+        scrollPane.setBounds(detailLeft, detailTop, detailRight, detailBottom);
+        scrollPane.updateContentSize(contentWidth, contentHeight);
+        y = detailTop - scrollPane.getScrollOffsetY();
         int scissorTop = detailTop - 2;
         int scissorBottom = detailBottom + 2;
         // Clip body text so it doesn't overlap the title row.
@@ -107,7 +107,7 @@ public final class GuiScriptInfoPanel {
                 + CONTENT_PADDING;
         }
 
-        scrollBar.drawScrollbar(contentHeight);
+        scrollPane.drawScrollbar(contentHeight);
         GuiUtils.endScissor();
     }
 
@@ -120,8 +120,8 @@ public final class GuiScriptInfoPanel {
      * @param mouseDown true when left mouse button is down
      */
     public void handleMouseInput(int mouseX, int mouseY, int wheelDelta, boolean mouseDown) {
-        scrollBar.handleMouseWheel(mouseX, mouseY, wheelDelta);
-        scrollBar.handleMouseDrag(mouseY, mouseDown);
+        scrollPane.handleMouseWheel(mouseX, mouseY, wheelDelta, false);
+        scrollPane.handleMouseDrag(mouseY, mouseDown);
     }
 
     /**
@@ -132,7 +132,7 @@ public final class GuiScriptInfoPanel {
      * @param button mouse button id
      */
     public void mouseClicked(int mouseX, int mouseY, int button) {
-        scrollBar.mouseClicked(mouseX, mouseY, button);
+        scrollPane.mouseClicked(mouseX, mouseY, button);
     }
 
     /**
@@ -141,7 +141,7 @@ public final class GuiScriptInfoPanel {
      * @param button mouse button id
      */
     public void mouseReleased(int button) {
-        scrollBar.mouseReleased(button);
+        scrollPane.mouseReleased(button);
     }
 
     private int calculateContentHeight(FontRenderer font, int contentWidth, String description, String failure, List dependencies) {
