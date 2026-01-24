@@ -10,6 +10,7 @@ public final class LuaScriptRegistry {
     private static final List entries = new ArrayList();
     private static final Map byFile = new HashMap();
     private static final Map byName = new HashMap();
+    private static final ThreadLocal currentScriptFile = new ThreadLocal();
 
     private LuaScriptRegistry() {
     }
@@ -142,5 +143,24 @@ public final class LuaScriptRegistry {
             return false;
         }
         return byName.containsKey(name);
+    }
+
+    /**
+     * Tracks the currently executing script file for warnings/errors.
+     */
+    static void setCurrentScriptFile(String fileName) {
+        if (fileName == null) {
+            currentScriptFile.remove();
+        } else {
+            currentScriptFile.set(fileName);
+        }
+    }
+
+    /**
+     * Returns the current script file, if a script is executing.
+     */
+    public static String getCurrentScriptFile() {
+        Object value = currentScriptFile.get();
+        return value == null ? null : value.toString();
     }
 }

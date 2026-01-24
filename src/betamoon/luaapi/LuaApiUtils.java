@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import betamoon.io.ImageIo;
 import betamoon.resources.EnumTexAtlas;
+import betamoon.scriptloader.LuaScriptRegistry;
 import betamoon.io.IoUtils;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.ItemStack;
@@ -16,10 +17,47 @@ import org.luaj.vm2.Varargs;
 import betamoon.BetaMoonMain;
 
 public final class LuaApiUtils {
+    private static final java.util.logging.Logger LOGGER = BetaMoonMain.LOGGER;
+    private static final String[] TEXTURE_FX_METHOD_NAMES = new String[] {
+        "registerTextureFX",
+        "RegisterTextureFX",
+        "a",
+        "func_78387_a"
+    };
     /**
      * Utility class for extracting typed arguments from Lua varargs.
      */
     private LuaApiUtils() {
+    }
+
+    public static void warn(String source, String message) {
+        String safeSource = normalize(source, "Lua");
+        String safeMessage = normalizePreserveFormatting(message, "Unknown warning");
+        String currentScript = LuaScriptRegistry.getCurrentScriptFile();
+        String scriptLabel = currentScript == null ? safeSource : currentScript;
+        String combined = safeSource + ": " + safeMessage;
+        LOGGER.warning("[Lua Warning] " + combined);
+        betamoon.scriptloader.LuaScriptErrors.addWarning(scriptLabel, combined);
+    }
+
+    public static void warn(String message) {
+        warn("Lua", message);
+    }
+
+    private static String normalize(String value, String fallback) {
+        if (value == null) {
+            return fallback;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? fallback : trimmed;
+    }
+
+    private static String normalizePreserveFormatting(String value, String fallback) {
+        if (value == null) {
+            return fallback;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? fallback : value;
     }
 
     /**
@@ -134,16 +172,16 @@ public final class LuaApiUtils {
         }
         File textureFile = new File(luaModsDir, trimmed);
         if (!textureFile.isFile()) {
-            throw new LuaError("LuaApi: texture file not found: " + textureFile.getAbsolutePath());
+            return warnMissingTexture(atlas, "Texture file not found: " + textureFile.getAbsolutePath());
         }
         BufferedImage image;
         try {
             image = ImageIo.loadImage(textureFile);
         } catch (IOException e) {
-            throw new LuaError("LuaApi: failed to read texture: " + textureFile.getAbsolutePath());
+            return warnMissingTexture(atlas, "Failed to read texture: " + textureFile.getAbsolutePath());
         }
         if (image == null) {
-            throw new LuaError("LuaApi: texture could not be decoded: " + textureFile.getAbsolutePath());
+            return warnMissingTexture(atlas, "Texture could not be decoded: " + textureFile.getAbsolutePath());
         }
         int index = ModLoader.getUniqueSpriteIndex(atlas.getAtlasPath());
         Object textureFx = createTextureFx(index, atlas.getAtlasId(), image);
@@ -151,28 +189,113 @@ public final class LuaApiUtils {
         return index;
     }
 
+    /**
+     * Resolves the luamods directory based on the mod jar location.
+     *
+     * @return the luamods directory or null when it cannot be resolved
+     */
     private static Object createTextureFx(int index, int atlasId, BufferedImage image) {
         return new betamoon.resources.BetaMoonTextureStatic(index, atlasId, image);
+    }
+
+    private static int warnMissingTexture(EnumTexAtlas atlas, String detail) {
+        warn("Texture", detail);
+        return getFallbackTextureIndex(atlas);
+    }
+
+    private static int getFallbackTextureIndex(EnumTexAtlas atlas) {
+        if (atlas == EnumTexAtlas.BLOCKS) {
+            return 253;
+        }
+        return 223;
     }
 
     private static void registerTextureFx(Object textureFx) {
         try {
             Object renderEngine = ModLoader.getMinecraftInstance().renderEngine;
-            Method[] methods = renderEngine.getClass().getMethods();
-            for (int i = 0; i < methods.length; i++) {
-                Method method = methods[i];
-                if (!"registerTextureFX".equals(method.getName())) {
-                    continue;
-                }
-                Class[] params = method.getParameterTypes();
-                if (params.length == 1 && params[0].isInstance(textureFx)) {
+            if (renderEngine != null) {
+                Method method = findTextureFxMethod(renderEngine.getClass(), textureFx);
+                if (method != null) {
+                    if (!method.isAccessible()) {
+                        method.setAccessible(true);
+                    }
                     method.invoke(renderEngine, new Object[] { textureFx });
                     return;
                 }
             }
+            Method modLoaderMethod = findTextureFxMethod(ModLoader.class, textureFx);
+            if (modLoaderMethod != null) {
+                if (!modLoaderMethod.isAccessible()) {
+                    modLoaderMethod.setAccessible(true);
+                }
+                modLoaderMethod.invoke(null, new Object[] { textureFx });
+                return;
+            }
         } catch (Exception e) {
-            throw new LuaError("LuaApi: failed to register texture FX (" + e.getMessage() + ").");
+            throw new LuaError("LuaApi: registerTextureFX not available.");
         }
         throw new LuaError("LuaApi: registerTextureFX not available.");
+    }
+
+    private static Method findTextureFxMethod(Class targetClass, Object textureFx) {
+        Method method = findTextureFxMethod(targetClass.getDeclaredMethods(), textureFx);
+        if (method != null) {
+            return method;
+        }
+        return findTextureFxMethod(targetClass.getMethods(), textureFx);
+    }
+
+    private static Method findTextureFxMethod(Method[] methods, Object textureFx) {
+        if (methods == null || textureFx == null) {
+            return null;
+        }
+        Class textureFxClass = textureFx.getClass();
+        for (int i = 0; i < TEXTURE_FX_METHOD_NAMES.length; i++) {
+            String expected = TEXTURE_FX_METHOD_NAMES[i];
+            Method named = findTextureFxMethodByName(methods, textureFxClass, expected);
+            if (named != null) {
+                return named;
+            }
+        }
+        for (int i = 0; i < methods.length; i++) {
+            Method method = methods[i];
+            String name = method.getName();
+            if (name == null) {
+                continue;
+            }
+            String lower = name.toLowerCase();
+            if (lower.indexOf("texturefx") == -1) {
+                continue;
+            }
+            if (matchesTextureFxSignature(method, textureFxClass)) {
+                return method;
+            }
+        }
+        return null;
+    }
+
+    private static Method findTextureFxMethodByName(Method[] methods, Class textureFxClass, String name) {
+        for (int i = 0; i < methods.length; i++) {
+            Method method = methods[i];
+            if (!name.equals(method.getName())) {
+                continue;
+            }
+            if (matchesTextureFxSignature(method, textureFxClass)) {
+                return method;
+            }
+        }
+        return null;
+    }
+
+    private static boolean matchesTextureFxSignature(Method method, Class textureFxClass) {
+        Class[] params = method.getParameterTypes();
+        if (params.length != 1) {
+            return false;
+        }
+        Class param = params[0];
+        if (param.isAssignableFrom(textureFxClass)) {
+            return true;
+        }
+        return param.getName().endsWith("TextureFX");
     }
 }
