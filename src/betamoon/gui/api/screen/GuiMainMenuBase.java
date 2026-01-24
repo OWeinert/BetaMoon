@@ -2,6 +2,7 @@ package betamoon.gui.api.screen;
 
 import betamoon.gui.api.component.GuiRoot;
 
+import net.minecraft.src.GuiScreen;
 import net.minecraft.src.GuiMainMenu;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
@@ -12,6 +13,18 @@ public abstract class GuiMainMenuBase extends GuiMainMenu {
     private int lastHeight = -1;
 
     protected abstract void buildGui();
+
+    protected void showScreen(GuiScreen screen) {
+        if (this.mc != null) {
+            this.mc.displayGuiScreen(screen);
+        }
+    }
+
+    protected void shutdownGame() {
+        if (this.mc != null) {
+            this.mc.shutdown();
+        }
+    }
 
     public void initGui() {
         super.initGui();

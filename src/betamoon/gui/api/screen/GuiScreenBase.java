@@ -13,6 +13,18 @@ public abstract class GuiScreenBase extends GuiScreen {
 
     protected abstract void buildGui();
 
+    protected void showScreen(GuiScreen screen) {
+        if (this.mc != null) {
+            this.mc.displayGuiScreen(screen);
+        }
+    }
+
+    protected void shutdownGame() {
+        if (this.mc != null) {
+            this.mc.shutdown();
+        }
+    }
+
     public void initGui() {
         this.controlList.clear();
         root.clear();
