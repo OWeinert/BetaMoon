@@ -4,10 +4,12 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.logging.Level;
+
 import betamoon.BetaMoonMain;
+import betamoon.io.IoUtils;
 import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
+import java.util.logging.Level;
 
 /**
  * Exports item ids and names into the debug items file.
@@ -64,22 +66,8 @@ final class DebugItemExporter {
             LOGGER.log(Level.WARNING, "Debug export failed: items", e);
             return e;
         } finally {
-            closeQuietly(writer);
+            IoUtils.closeQuietly(writer, "debug items");
         }
         return null;
-    }
-
-    /**
-     * Closes a writer without throwing.
-     */
-    private static void closeQuietly(BufferedWriter writer) {
-        if (writer == null) {
-            return;
-        }
-        try {
-            writer.close();
-        } catch (IOException e) {
-            LOGGER.log(Level.FINE, "Debug export close failed", e);
-        }
     }
 }

@@ -1,6 +1,7 @@
 package betamoon.debug;
 
 import betamoon.BetaMoonMain;
+import betamoon.io.IoUtils;
 import betamoon.recipes.RecipeModificationHandler;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -55,7 +56,7 @@ final class DebugRecipeExporter {
             LOGGER.log(Level.WARNING, "Debug export failed: recipes", e);
             return e;
         } finally {
-            closeQuietly(writer);
+            IoUtils.closeQuietly(writer, "debug recipes");
         }
         return null;
     }
@@ -69,17 +70,4 @@ final class DebugRecipeExporter {
         }
     }
 
-    /**
-     * Closes a writer without throwing.
-     */
-    private static void closeQuietly(BufferedWriter writer) {
-        if (writer == null) {
-            return;
-        }
-        try {
-            writer.close();
-        } catch (IOException e) {
-            LOGGER.log(Level.FINE, "Debug export close failed", e);
-        }
-    }
 }
