@@ -1,16 +1,14 @@
 package betamoon.scriptloader;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import betamoon.BetaMoonMain;
+import betamoon.io.FileIo;
+import betamoon.io.IoUtils;
 import betamoon.luaapi.BetaMoonModule;
 import betamoon.worldgen.BiomeGenRegistry;
 import net.minecraft.src.ModLoader;
@@ -37,7 +35,6 @@ public final class LuaModLoader {
         List ordered = orderMods(modsByName, errors);
         if (!errors.isEmpty()) {
             reportErrors(errors);
-            return;
         }
         List failedMods = new ArrayList();
         runModsInOrder(ordered, failedMods);
@@ -69,25 +66,11 @@ public final class LuaModLoader {
         return resolveLuaModsDir(true);
     }
 
+    /**
+     * Resolves the Lua mods directory via IoUtils.
+     */
     private static File resolveLuaModsDir(boolean create) {
-        try {
-            File modLocation = new File(LuaModLoader.class.getProtectionDomain().getCodeSource().getLocation().toURI());
-            File modsDir = modLocation.getParentFile();
-            if (modsDir == null) {
-                return null;
-            }
-            File minecraftDir = modsDir.getParentFile();
-            if (minecraftDir == null) {
-                return null;
-            }
-            File luaModsDir = new File(minecraftDir, BetaMoonMain.LUA_SCRIPTS_DIR);
-            if (create && !luaModsDir.isDirectory()) {
-                luaModsDir.mkdirs();
-            }
-            return luaModsDir;
-        } catch (URISyntaxException e) {
-            return null;
-        }
+        return IoUtils.resolveLuaModsDir(LuaModLoader.class, create);
     }
 
     /**
@@ -117,7 +100,7 @@ public final class LuaModLoader {
             }
             LuaScriptRegistry.registerFile(name);
             try {
-                String scriptText = readFileToString(scriptFile);
+                String scriptText = FileIo.readUtf8Normalized(scriptFile);
                 ScriptMod mod = parseLuaMod(scriptFile, scriptText, errors);
                 if (mod != null) {
                     mods.add(mod);
@@ -164,6 +147,14 @@ public final class LuaModLoader {
             errors.add("Lua mod has empty name: " + scriptFile.getName());
             LuaScriptErrors.add(scriptFile.getName(), "Script has empty or whitespace-only name.");
             LuaScriptRegistry.markFailedByFile(scriptFile.getName(), "Script has empty or whitespace-only name.");
+            return null;
+        }
+        if (LuaScriptRegistry.hasScriptName(modName)) {
+            String message = "Duplicate Lua mod name field: '" + modName
+                + "'. Another script already uses this name.";
+            errors.add(message);
+            LuaScriptErrors.add(scriptFile.getName(), message);
+            LuaScriptRegistry.markFailedByFile(scriptFile.getName(), message);
             return null;
         }
         List deps = new ArrayList();
@@ -217,9 +208,10 @@ public final class LuaModLoader {
         for (int i = 0; i < mods.size(); i++) {
             ScriptMod mod = (ScriptMod) mods.get(i);
             if (modsByName.containsKey(mod.name)) {
-                errors.add("Duplicate Lua mod name: " + mod.name);
-                LuaScriptErrors.add(mod.name, "Duplicate Lua mod name.");
-                LuaScriptRegistry.markFailedByFile(mod.sourceFileName, "Duplicate Lua mod name.");
+                String errMsg = "Duplicate Lua mod name";
+                errors.add(errMsg + ": " + mod.name);
+                LuaScriptErrors.add(mod.name, errMsg + ".");
+                LuaScriptRegistry.markFailedByFile(mod.sourceFileName, errMsg + ".");
                 continue;
             }
             modsByName.put(mod.name, mod);
@@ -237,12 +229,11 @@ public final class LuaModLoader {
     List orderMods(Map modsByName, List errors) {
         List ordered = new ArrayList();
         Map state = new HashMap();
+        java.util.Set failed = new java.util.HashSet();
         for (Object keyObj : modsByName.keySet()) {
             String name = (String) keyObj;
             if (!state.containsKey(name)) {
-                if (!visitMod(name, modsByName, state, ordered, new ArrayList(), errors)) {
-                    return new ArrayList();
-                }
+                visitMod(name, modsByName, state, ordered, new ArrayList(), errors, failed);
             }
         }
         return ordered;
@@ -259,7 +250,8 @@ public final class LuaModLoader {
      * @param errors collector for cycle/missing dependency errors
      * @return true when successfully ordered, false on error
      */
-    boolean visitMod(String name, Map modsByName, Map state, List ordered, List stack, List errors) {
+    boolean visitMod(String name, Map modsByName, Map state, List ordered, List stack, List errors,
+        java.util.Set failed) {
         Integer currentState = (Integer) state.get(name);
         if (currentState != null) {
             if (currentState.intValue() == 1) {
@@ -267,7 +259,8 @@ public final class LuaModLoader {
                 errors.add(message);
                 LuaScriptErrors.add(name, message);
                 LuaScriptRegistry.markFailedByName(name, message);
-                return false;
+                markCycleFailed(stack, name, failed);
+                return true;
             }
             if (currentState.intValue() == 2) {
                 return true;
@@ -278,28 +271,42 @@ public final class LuaModLoader {
         ScriptMod mod = (ScriptMod) modsByName.get(name);
         if (mod == null) {
             stack.remove(stack.size() - 1);
-            return false;
+            return true;
         }
         List missingDeps = new ArrayList();
+        List failedDeps = new ArrayList();
         for (int i = 0; i < mod.dependencies.size(); i++) {
             String dep = (String) mod.dependencies.get(i);
             if (!modsByName.containsKey(dep)) {
                 missingDeps.add(dep);
                 continue;
             }
-            if (!visitMod(dep, modsByName, state, ordered, stack, errors)) {
-                stack.remove(stack.size() - 1);
-                return false;
+            visitMod(dep, modsByName, state, ordered, stack, errors, failed);
+            if (failed.contains(dep)) {
+                failedDeps.add(dep);
             }
         }
+        // Stop scheduling this mod when dependencies are missing or failed.
         if (!missingDeps.isEmpty()) {
             mod.missingDependencies = missingDeps;
             String message = "Missing dependencies for '" + name + "': " + formatMissingDeps(missingDeps);
             errors.add(message);
             LuaScriptErrors.add(name, message);
             LuaScriptRegistry.markFailedByName(name, message);
+            failed.add(name);
             stack.remove(stack.size() - 1);
-            return false;
+            state.put(name, new Integer(2));
+            return true;
+        }
+        if (!failedDeps.isEmpty()) {
+            String message = "Dependency failed to load for '" + name + "': " + formatMissingDeps(failedDeps);
+            errors.add(message);
+            LuaScriptErrors.add(name, message);
+            LuaScriptRegistry.markFailedByName(name, message);
+            failed.add(name);
+            stack.remove(stack.size() - 1);
+            state.put(name, new Integer(2));
+            return true;
         }
         mod.missingDependencies = null;
         state.put(name, new Integer(2));
@@ -308,6 +315,26 @@ public final class LuaModLoader {
         return true;
     }
 
+    /**
+     * Marks every node participating in a cycle as failed.
+     */
+    private void markCycleFailed(List stack, String name, java.util.Set failed) {
+        int start = stack.indexOf(name);
+        if (start == -1) {
+            failed.add(name);
+            return;
+        }
+        for (int i = start; i < stack.size(); i++) {
+            String modName = (String) stack.get(i);
+            failed.add(modName);
+            LuaScriptRegistry.markFailedByName(modName, "Circular dependency detected.");
+        }
+        failed.add(name);
+    }
+
+    /**
+     * Formats dependency names for logging.
+     */
     private String formatMissingDeps(List missingDeps) {
         StringBuffer buffer = new StringBuffer();
         for (int i = 0; i < missingDeps.size(); i++) {
@@ -330,16 +357,19 @@ public final class LuaModLoader {
         runModsInOrder(ordered, new ArrayList());
     }
 
+
+    private static final String seperator = "-------------------------------------------------------------\n";
     /**
      * Executes modInit for each mod and records failures instead of crashing.
-     *
-     * @param ordered ordered mods to execute
-     * @param failedMods output list for names that fail during modInit
-     */
+    *
+    * @param ordered ordered mods to execute
+    * @param failedMods output list for names that fail during modInit
+    */
     void runModsInOrder(List ordered, List failedMods) {
         for (int i = 0; i < ordered.size(); i++) {
             ScriptMod mod = (ScriptMod) ordered.get(i);
             try {
+                LuaScriptRegistry.setCurrentScriptFile(mod.sourceFileName);
                 mod.modInit.call();
                 LuaScriptRegistry.markLoadedByFile(mod.sourceFileName);
             } catch (LuaError e) {
@@ -347,48 +377,22 @@ public final class LuaModLoader {
                 LuaScriptErrors.add(mod.name, e.getMessage());
                 LuaScriptRegistry.markFailedByFile(mod.sourceFileName, e.getMessage());
                 reportError(SCRIPT_ERROR_PREFIX + mod.name + "\n"
-                + "-------------------------------------------------------------\n"
+                + seperator
                 + e.getMessage() + "\n" 
-                + "-------------------------------------------------------------\n"
+                + seperator
                 );
             } catch (Throwable t) {
                 failedMods.add(mod.name);
                 LuaScriptErrors.add(mod.name, t.toString());
                 LuaScriptRegistry.markFailedByFile(mod.sourceFileName, t.toString());
                 reportError(SCRIPT_ERROR_PREFIX + mod.name + "\n"
-                + "-------------------------------------------------------------\n"
+                + seperator
                 + t.toString() + "\n" 
-                + "-------------------------------------------------------------\n");
+                + seperator);
+            } finally {
+                LuaScriptRegistry.setCurrentScriptFile(null);
             }
         }
-    }
-
-    /**
-     * Reads a file into a UTF-8 string.
-     *
-     * @param file file to read
-     * @return file contents as a string
-     * @throws IOException when the file cannot be read
-     */
-    String readFileToString(File file) throws IOException {
-        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-        FileInputStream input = new FileInputStream(file);
-        try {
-            byte[] data = new byte[4096];
-            int count;
-            while ((count = input.read(data)) != -1) {
-                buffer.write(data, 0, count);
-            }
-        } finally {
-            input.close();
-        }
-        String text = buffer.toString(StandardCharsets.UTF_8.name());
-        if (!text.isEmpty() && text.charAt(0) == '\uFEFF') {
-            text = text.substring(1);
-        }
-        // Normalize line endings so LuaJ line numbers match editors on all platforms.
-        text = text.replace("\r\n", "\n").replace("\r", "\n");
-        return text;
     }
 
     /**
@@ -486,10 +490,11 @@ public final class LuaModLoader {
         int total = ordered == null ? 0 : ordered.size();
         int failed = failedMods == null ? 0 : failedMods.size();
         int succeeded = total - failed;
+        String msg = "Lua mod load summary: " + succeeded + " succeeded, " + failed + " failed.";
         if (failed > 0) {
-            LOGGER.warning("Lua mod load summary: " + succeeded + " succeeded, " + failed + " failed.");
+            LOGGER.warning(msg);
         } else {
-            LOGGER.info("Lua mod load summary: " + succeeded + " succeeded, " + failed + " failed.");
+            LOGGER.info(msg);
         }
     }
 }
