@@ -63,6 +63,15 @@ public class ScriptMod {
     }
 
     /**
+     * Returns the source file name for this script.
+     *
+     * @return source file name
+     */
+    public String getSourceFileName() {
+        return sourceFileName;
+    }
+
+    /**
      * Returns a sort key that falls back to the file name when name is empty.
      *
      * @return sort key for UI lists
