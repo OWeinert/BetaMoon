@@ -3,10 +3,10 @@ package betamoon.luaapi;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
-import javax.imageio.ImageIO;
+import betamoon.io.ImageIo;
 import betamoon.resources.EnumTexAtlas;
+import betamoon.io.IoUtils;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.ItemStack;
 import org.luaj.vm2.LuaError;
@@ -124,7 +124,7 @@ public final class LuaApiUtils {
      * @return allocated texture index on the atlas
      */
     public static int registerTexture(EnumTexAtlas atlas, String relativePath) {
-        File luaModsDir = resolveLuaModsDir();
+        File luaModsDir = IoUtils.resolveLuaModsDir(LuaApiUtils.class, false);
         if (luaModsDir == null) {
             throw new LuaError("LuaApi: lua mods directory not found.");
         }
@@ -138,7 +138,7 @@ public final class LuaApiUtils {
         }
         BufferedImage image;
         try {
-            image = ImageIO.read(textureFile);
+            image = ImageIo.loadImage(textureFile);
         } catch (IOException e) {
             throw new LuaError("LuaApi: failed to read texture: " + textureFile.getAbsolutePath());
         }
@@ -147,43 +147,12 @@ public final class LuaApiUtils {
         }
         int index = ModLoader.getUniqueSpriteIndex(atlas.getAtlasPath());
         Object textureFx = createTextureFx(index, atlas.getAtlasId(), image);
-        if (textureFx == null) {
-            throw new LuaError("LuaApi: ModTextureStatic not available for texture registration.");
-        }
         registerTextureFx(textureFx);
         return index;
     }
 
-    /**
-     * Resolves the luamods directory based on the mod jar location.
-     *
-     * @return the luamods directory or null when it cannot be resolved
-     */
-    private static File resolveLuaModsDir() {
-        try {
-            File modLocation = new File(LuaApiUtils.class.getProtectionDomain().getCodeSource().getLocation().toURI());
-            File modsDir = modLocation.getParentFile();
-            if (modsDir == null) {
-                return null;
-            }
-            File minecraftDir = modsDir.getParentFile();
-            if (minecraftDir == null) {
-                return null;
-            }
-            return new File(minecraftDir, BetaMoonMain.LUA_SCRIPTS_DIR);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
     private static Object createTextureFx(int index, int atlasId, BufferedImage image) {
-        try {
-            Class cls = Class.forName("net.minecraft.src.ModTextureStatic");
-            Constructor ctor = cls.getConstructor(new Class[] { int.class, int.class, BufferedImage.class });
-            return ctor.newInstance(new Object[] { new Integer(index), new Integer(atlasId), image });
-        } catch (Exception e) {
-            return null;
-        }
+        return new betamoon.resources.BetaMoonTextureStatic(index, atlasId, image);
     }
 
     private static void registerTextureFx(Object textureFx) {
