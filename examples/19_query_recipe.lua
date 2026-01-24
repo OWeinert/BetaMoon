@@ -1,157 +1,140 @@
 name = "Query API: Recipe Examples"
 version = "1.0.0"
 description = "Shows how to query recipes using the BetaMoon query API."
+dependencies = { "Custom Recipe Examples" }
 
 function modInit()
-  -- Query API example: recipes
-  -- Demonstrates all RecipeQueryHandle and RecipeQueryResultHandle features.
-  -- Note: many query functions can be chained together; these snippets keep them separate for clarity.
 
-  local recipeQuery = betamoon.query():recipe()
+  -- Just a simple shortening so we don't need to call "betamoon.query():recipe()" for every query example.
+  local function recipeQuery()
+    return betamoon.query():recipe()
+  end
 
-  -- filterTypes: return only recipes of the listed types (duplicates ignored).
-  recipeQuery
-    :filterTypes({ "shaped", "shapeless", "shaped" })
-    :count()
+  -- filterTypes narrows the query to the recipe types you want to keep.
+  -- finishQuery returns a result handle so you can inspect the matched set.
+  recipeQuery()
+    :filterTypes({ "shaped", "shapeless" })
+    :finishQuery()
 
-  -- filterTypes: use a single string for quick type filtering.
-  recipeQuery
+  -- filterTypes also accepts a single string for quick filtering.
+  recipeQuery()
     :filterTypes("smelting")
-    :count()
+    :finishQuery()
 
-  -- filterShaped: return only shaped crafting recipes.
-  recipeQuery
+  -- filterShaped, filterShapeless, filterSmelting are convenience filters.
+  -- Basically does the same as :filterTypes("shaped"), etc.
+  recipeQuery()
     :filterShaped()
-    :count()
+    :finishQuery()
 
-  -- filterShapeless: return only shapeless crafting recipes.
-  recipeQuery
+  recipeQuery()
     :filterShapeless()
-    :count()
+    :finishQuery()
 
-  -- filterSmelting: return only furnace smelting recipes.
-  recipeQuery
+  recipeQuery()
     :filterSmelting()
-    :count()
+    :finishQuery()
 
-  -- filterOutput: return recipes whose output matches the given stack.
-  recipeQuery
-    :filterOutput({ id = 1, count = 1, damage = 0 })
-    :count()
+  -- filterOutput matches recipes by their output stack.
+  -- count=0 means "any stack size" for that item id.
+  recipeQuery()
+    :filterOutput({ id = 5003, count = 0 })
+    :finishQuery()
 
-  -- filterInput: return recipes that use the given input ingredient.
-  -- Smelting matches by input id; crafting matches any ingredient.
-  recipeQuery
-    :filterInput({ id = 4 })
-    :count()
+  -- filterInput matches any recipe that uses the given input.
+  -- For smelting, this matches the input id; for crafting, any ingredient matches.
+  recipeQuery()
+    :filterInput({ id = 3 })
+    :finishQuery()
 
-  -- filterOutAndIn: return recipes that match both output and input list.
-  -- Use this when you know the result and the ingredients.
-  -- - when inputs length > 1, smelting is excluded.
-  -- - when length == 1, smelting input id is also checked.
-  recipeQuery
+  -- filterOutAndIn matches both the output and the full input list.
+  -- With a single input entry, smelting recipes are included as well.
+  recipeQuery()
     :filterOutAndIn(
-      { id = 1, count = 1 },
-      { { id = 4 } }
+      { id = 5003, count = 1 },
+      { { id = 3 } }
     )
-    :count()
+    :finishQuery()
 
-  -- Exact recipe matching.
-  -- Shaped recipe format matches betamoon.addShapedRecipe output.
+  -- Exact recipe matching uses the same structures as addShapedRecipe/addShapelessRecipe/addSmeltingRecipe.
   local shapedRecipe = {
-    output = { id = 1, count = 1 },
-    pattern = { "AA", "AA" },
+    output = { id = 5003, count = 4 },
+    pattern = { "##", "##" },
     key = {
-      A = { id = 4 }
+      ["#"] = { id = 265 }
     }
   }
 
-  -- Shapeless recipe format matches betamoon.addShapelessRecipe output.
   local shapelessRecipe = {
-    output = { id = 265, count = 1 },
+    output = { id = 5003, count = 2 },
     ingredients = {
-      { id = 265 },
+      { id = 264 },
       { id = 263 }
     }
   }
 
-  -- Smelting recipe format matches betamoon.addSmeltingRecipe output.
   local smeltingRecipe = {
-    input = { id = 15 },
-    output = { id = 265, count = 1 }
+    input = { id = 3 },
+    output = { id = 5003, count = 1 }
   }
 
-  -- getShaped: find a specific shaped recipe by pattern + key table.
-  -- The shape layout must match; key names are not preserved at runtime.
-  local shapedHandle = recipeQuery
+  -- getShaped returns a singular query, so finishQuery yields the recipe handle.
+  local shapedHandle = recipeQuery()
     :getShaped(shapedRecipe)
+    :finishQuery()
 
-  -- getShapeless: find a specific shapeless recipe by ingredient list.
-  local shapelessHandle = recipeQuery
+  -- getShapeless returns a singular query, so finishQuery yields the recipe handle.
+  local shapelessHandle = recipeQuery()
     :getShapeless(shapelessRecipe)
+    :finishQuery()
 
-  -- getSmelting: find a specific smelting recipe by input and output.
-  local smeltingHandle = recipeQuery
+  -- getSmelting returns a singular query, so finishQuery yields the recipe handle.
+  local smeltingHandle = recipeQuery()
     :getSmelting(smeltingRecipe)
+    :finishQuery()
 
-  -- getByName: look up a recipe by its internal recipe-map key.
-  -- Format: "{type}/{itemName_or_id}_{count}" (optionally with a "_n" suffix for duplicates).
-  -- Example: "smelting/item.ingotIron_1" or similar in your pack.
-  local recipeByName = recipeQuery
-    :getByName("smelting/item.ingotIron_1")
+  -- getByName looks up a recipe by its recipe-map key.
+  -- Keys are formatted as "{type}/{itemName_or_id}_{count}".
+  recipeQuery()
+    :getByName("shaped/item.example_dust_4")
+    :finishQuery()
 
-  -- fromHandle: verify a recipe handle is still registered.
-  recipeQuery
+  recipeQuery()
+    :getByName("shapeless/item.example_dust_2")
+    :finishQuery()
+
+  recipeQuery()
+    :getByName("smelting/item.example_dust_1")
+    :finishQuery()
+
+  -- fromHandle validates that a recipe handle is still registered.
+  recipeQuery()
+    :fromHandle(shapedHandle)
+    :finishQuery()
+
+  recipeQuery()
+    :fromHandle(shapelessHandle)
+    :finishQuery()
+
+  recipeQuery()
     :fromHandle(smeltingHandle)
+    :finishQuery()
 
-  -- first: return the first recipe in the filtered query.
-  recipeQuery
-    :filterTypes({ "shaped", "shapeless" })
+  -- first/last/get as query steps make the query singular,
+  -- so finishQuery yields the recipe handle instead of a list.
+  recipeQuery()
+    :filterOutput({ id = 5003, count = 0 })
     :first()
+    :finishQuery()
 
-  -- last: return the last recipe in the filtered query.
-  recipeQuery
-    :filterTypes({ "shaped", "shapeless" })
+  recipeQuery()
+    :filterOutput({ id = 5003, count = 0 })
     :last()
+    :finishQuery()
 
-  -- get: return the recipe at the given index in the filtered query.
-  recipeQuery
-    :filterTypes({ "shaped", "shapeless" })
+  recipeQuery()
+    :filterOutput({ id = 5003, count = 0 })
     :get(1)
-
-  -- count: return how many recipes match the filtered query.
-  recipeQuery
-    :filterTypes({ "shaped", "shapeless" })
-    :count()
-
-  -- finishQuery + first: finalize the query, then return the first recipe.
-  -- The query result is immutable and won’t change if recipes are added later.
-  recipeQuery
-    :filterTypes({ "shaped", "shapeless" })
     :finishQuery()
-      :first()
 
-  -- finishQuery + last: finalize the query, then return the last recipe.
-  recipeQuery
-    :filterTypes({ "shaped", "shapeless" })
-    :finishQuery()
-      :last()
-
-  -- finishQuery + get: finalize the query, then return the recipe at an index.
-  recipeQuery
-    :filterTypes({ "shaped", "shapeless" })
-    :finishQuery()
-      :get(1)
-
-  -- finishQuery + count: count recipes in the query result.
-  recipeQuery
-    :filterTypes({ "shaped", "shapeless" })
-    :finishQuery()
-      :count()
-
-  -- finishQuery + ensureOne: assert the query result has exactly one recipe.
-  recipeQuery
-    :filterTypes({ "shaped", "shapeless" })
-    :finishQuery()
-      :ensureOne() -- errors if size ~= 1
 end

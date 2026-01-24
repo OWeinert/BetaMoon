@@ -3,102 +3,61 @@ version = "1.0.0"
 description = "Shows how to query items using the BetaMoon query API."
 
 function modInit()
-  -- Query API example: items
-  -- Demonstrates all ItemQueryHandle and ItemQueryResultHandle features.
-  -- Note: many query functions can be chained together; these snippets keep them separate for clarity.
+  
+  -- Just a simple shortening so we don't need to call "betamoon.query():item()" for every query example.
+  local function itemQuery()
+    return betamoon.query():item()
+  end
 
-  local itemQuery = betamoon.query():item()
-
-  -- Single builder-style chains without intermediate results.
-  -- Each snippet stands alone and shows one API call in context.
-
-  -- getById + getId: look up an item by its numeric id and read the id back.
-  -- Item ids start at 256 in Minecraft Beta.
-  itemQuery
+  -- getById limits the query to a specific item id (>= 256).
+  -- finishQuery executes the accumulated steps and returns an item handle because the query is singular.
+  local ironHandle = itemQuery()
     :getById(265)
-    :getId()
+    :finishQuery()
 
-  -- getById + getDamage: read the metadata/damage value for the item.
-  -- Some items use metadata for variants (dyes, tools, etc.).
-  itemQuery
-    :getById(265)
-    :getDamage()
+  -- fromHandle validates that a provided handle still exists in the registry,
+  -- then finishQuery returns a fresh handle that is guaranteed to be valid.
+  itemQuery()
+    :fromHandle(ironHandle)
+    :finishQuery()
 
-  -- fromHandle: resolve an item from an existing handle.
-  -- This is a validation step when you already have a handle from elsewhere.
-  itemQuery
-    :fromHandle(itemQuery:getById(265))
-
-  -- filterByName + first: filter by the internal (unlocalized) name.
-  -- Internal names are stable but are not shown in the UI.
-  itemQuery
+  -- filterByName keeps only items with the given internal name.
+  -- finishQuery returns a result handle that exposes list-style helpers.
+  local ironResult = itemQuery()
     :filterByName("item.ingotIron")
-    :first()
+    :finishQuery()
 
-  -- filterByDisplayName + last: filter by the localized display name.
-  -- Display names are what players see in-game, but can vary by language.
-  itemQuery
+  -- filterByDisplayName matches the name shown to players.
+  itemQuery()
     :filterByDisplayName("Iron Ingot")
-    :last()
+    :finishQuery()
 
-  -- filterDamage + count: count how many items in the query fall within a damage range.
-  -- Useful for items that have multiple metadata variants.
-  itemQuery
-    :filterDamage(0, 3)
-    :count()
+  -- filterDamage narrows the query to items whose metadata is within the range.
+  itemQuery()
+    :filterDamage(0, 0)
+    :finishQuery()
 
-  -- getByDamage: find the single item with this exact damage value.
-  -- Errors if the query matches none or more than one item.
-  itemQuery
+  -- getByDamage selects a single item by damage value.
+  -- If multiple items share that damage, the query becomes an error at finishQuery.
+  itemQuery()
     :filterByName("item.ingotIron")
     :getByDamage(0)
+    :finishQuery()
 
-  -- get(index): for items, the "index" is the item id (>255).
-  -- Returns the matching item entry for that id if it exists in the query.
-  itemQuery
+  -- first/last/get can be used as query steps to make the query singular,
+  -- so finishQuery returns an item handle instead of a result list.
+  itemQuery()
+    :filterByName("item.ingotIron")
+    :first()
+    :finishQuery()
+
+  itemQuery()
+    :filterByName("item.ingotIron")
+    :last()
+    :finishQuery()
+
+  itemQuery()
     :filterByName("item.ingotIron")
     :get(265)
-
-  -- finishQuery + first: finalize the query, then return its first item.
-  -- The query result is immutable and won’t change if items are registered later.
-  itemQuery
-    :filterByName("item.ingotIron")
     :finishQuery()
-      :first()
-
-  -- finishQuery + last: finalize the query, then return its last item.
-  itemQuery
-    :filterByName("item.ingotIron")
-    :finishQuery()
-      :last()
-
-  -- finishQuery + get: fetch an item by id from the query result.
-  itemQuery
-    :filterByName("item.ingotIron")
-    :finishQuery()
-      :get(265)
-
-  -- count: return how many items match the current query.
-  itemQuery
-    :filterByName("item.ingotIron")
-    :count()
-
-  -- finishQuery + count: count how many items are in the query result.
-  itemQuery
-    :filterByName("item.ingotIron")
-    :finishQuery()
-      :count()
-
-  -- finishQuery + ensureOne + intoHandle: assert exactly one match, then return an immutable item handle.
-  itemQuery
-    :getById(265)
-    :finishQuery()
-      :ensureOne()
-      :intoHandle()
-
-  -- finishQuery + intoHandles: convert all matched items into immutable item handles.
-  itemQuery
-    :filterByName("item.ingotIron")
-    :finishQuery()
-      :intoHandles()
 end
