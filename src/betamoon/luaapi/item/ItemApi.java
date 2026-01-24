@@ -6,6 +6,7 @@ import betamoon.resources.EnumTexAtlas;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.wrappers.ItemWrapper;
 import net.minecraft.src.Item;
+import net.minecraft.src.ItemStack;
 import net.minecraft.src.ModLoader;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -23,6 +24,17 @@ public final class ItemApi {
     
     public static void attach(LuaTable module) {
         module.set("createItem", new CreateItem());
+    }
+
+    public static LuaValue createHandle(ItemStack stack) {
+        if (stack == null) {
+            return LuaValue.NIL;
+        }
+        Item item = stack.getItem();
+        if (item == null) {
+            return LuaValue.NIL;
+        }
+        return new ReadOnlyItemHandle(item);
     }
 
     private static final class CreateItem extends VarArgFunction {
@@ -246,4 +258,24 @@ public final class ItemApi {
         }
     }
 
+    private static final class ReadOnlyItemHandle extends LuaTable {
+        private final Item item;
+
+        private ReadOnlyItemHandle(Item item) {
+            this.item = item;
+            set("getId", new GetIdReadOnly(this));
+        }
+    }
+
+    private static final class GetIdReadOnly extends VarArgFunction {
+        private final ReadOnlyItemHandle handle;
+
+        private GetIdReadOnly(ReadOnlyItemHandle handle) {
+            this.handle = handle;
+        }
+
+        public Varargs invoke(Varargs args) {
+            return LuaValue.valueOf(handle.item.shiftedIndex);
+        }
+    }
 }
