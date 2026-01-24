@@ -1,6 +1,7 @@
 package betamoon.luaapi.recipe;
 
 import betamoon.luaapi.LuaApiUtils;
+import betamoon.recipes.RecipeModificationHandler;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -108,6 +109,7 @@ public final class RecipeApi {
             }
             
             ModLoader.AddRecipe(output, recipe.toArray(new Object[recipe.size()]));
+            RecipeModificationHandler.addLatestCraftingRecipe();
             return LuaValue.NIL;
         }
     }
@@ -129,6 +131,7 @@ public final class RecipeApi {
                 recipe.add(LuaApiUtils.readItemStack(value, false, "ingredient " + i));
             }
             ModLoader.AddShapelessRecipe(output, recipe.toArray(new Object[recipe.size()]));
+            RecipeModificationHandler.addLatestCraftingRecipe();
             return LuaValue.NIL;
         }
     }
@@ -138,6 +141,7 @@ public final class RecipeApi {
             int inputId = readItemId(args.arg(1), "input");
             ItemStack output = LuaApiUtils.readItemStack(args.arg(2), true, "output");
             ModLoader.AddSmelting(inputId, output);
+            RecipeModificationHandler.addSmeltingRecipeEntry(inputId, output);
             return LuaValue.NIL;
         }
     }
