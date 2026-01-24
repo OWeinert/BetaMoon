@@ -17,12 +17,14 @@ import net.minecraft.src.ShapelessRecipes;
 
 public final class RecipeModificationHandler {
     private static Map recipeMap;
+    private static Map recipeCounts;
 
     /**
      * Builds the cached map for crafting and smelting recipes.
      */
     public static void createRecipeMap() {
-        recipeMap = mapRecipes();
+        recipeCounts = new HashMap();
+        recipeMap = mapRecipes(recipeCounts);
     }
 
     /**
@@ -32,6 +34,62 @@ public final class RecipeModificationHandler {
      */
     public static Map getRecipeMap() {
         return recipeMap;
+    }
+
+    /**
+     * Adds the newest crafting recipe from the CraftingManager list to the cache.
+     */
+    public static void addLatestCraftingRecipe() {
+        List recipes = CraftingManager.getInstance().getRecipeList();
+        if (recipes == null || recipes.isEmpty()) {
+            return;
+        }
+        Object last = recipes.get(recipes.size() - 1);
+        if (!(last instanceof IRecipe)) {
+            return;
+        }
+        addCraftingRecipeEntry((IRecipe) last);
+    }
+
+    /**
+     * Adds a crafting recipe entry to the cached recipe map.
+     */
+    public static void addCraftingRecipeEntry(IRecipe recipe) {
+        if (recipe == null) {
+            return;
+        }
+        ItemStack output = recipe.getRecipeOutput();
+        if (output == null) {
+            return;
+        }
+        String type = recipe instanceof ShapedRecipes ? "shaped"
+            : recipe instanceof ShapelessRecipes ? "shapeless"
+            : "unknown";
+        String key = buildOutputKey(output, type, recipeCounts);
+        recipeMap.put(key, recipe);
+    }
+
+    /**
+     * Adds a smelting recipe entry to the cached recipe map.
+     */
+    public static void addSmeltingRecipeEntry(int inputId, ItemStack output) {
+        Map smelting = FurnaceRecipes.smelting().getSmeltingList();
+        if (smelting == null) {
+            return;
+        }
+        Map.Entry entry = findSmeltingEntry(smelting, Integer.valueOf(inputId));
+        if (entry == null) {
+            return;
+        }
+        ItemStack entryOutput = (ItemStack) entry.getValue();
+        if (entryOutput == null) {
+            entryOutput = output;
+        }
+        if (entryOutput == null) {
+            return;
+        }
+        String key = buildOutputKey(entryOutput, "smelting", recipeCounts);
+        recipeMap.put(key, new SmeltingRecipe(smelting, entry));
     }
 
     /**
@@ -165,10 +223,9 @@ public final class RecipeModificationHandler {
      * Keys are formatted as "{type}/{itemName_amount}" with an optional "_n" suffix when
      * multiple recipes share the same output id and amount.
      */
-    private static Map mapRecipes() {
+    private static Map mapRecipes(Map counts) {
         List recipes = CraftingManager.getInstance().getRecipeList();
         Map mapped = new LinkedHashMap();
-        Map counts = new HashMap();
 
         // Copy crafting recipes first so smelting entries append after them.
         for (Iterator it = recipes.iterator(); it.hasNext();) {
@@ -196,6 +253,16 @@ public final class RecipeModificationHandler {
             mapped.put(key, new SmeltingRecipe(smelting, entry));
         }
         return mapped;
+    }
+
+    private static Map.Entry findSmeltingEntry(Map smelting, Integer key) {
+        for (Iterator it = smelting.entrySet().iterator(); it.hasNext();) {
+            Map.Entry entry = (Map.Entry) it.next();
+            if (key.equals(entry.getKey())) {
+                return entry;
+            }
+        }
+        return null;
     }
 
     /**
