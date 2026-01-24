@@ -2,6 +2,7 @@ package betamoon.debug;
 
 import java.io.File;
 import java.io.IOException;
+import betamoon.io.IoUtils;
 import net.minecraft.client.Minecraft;
 
 /**
@@ -37,10 +38,6 @@ final class DebugExportPaths {
      */
     private static File resolveDebugDir() {
         File minecraftDir = Minecraft.getMinecraftDir();
-        File debugDir = new File(minecraftDir, DEBUG_DIR);
-        if (!debugDir.isDirectory()) {
-            debugDir.mkdirs();
-        }
-        return debugDir.isDirectory() ? debugDir : null;
+        return IoUtils.resolveChildDirectory(minecraftDir, DEBUG_DIR, true);
     }
 }
