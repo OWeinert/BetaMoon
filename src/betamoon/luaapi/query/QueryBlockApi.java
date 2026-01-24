@@ -1,9 +1,12 @@
 package betamoon.luaapi.query;
 
 import betamoon.luaapi.LuaApiUtils;
+import betamoon.query.ContentQuery;
+import betamoon.query.ContentQueryBlock;
+import betamoon.query.QueryEntry;
+import betamoon.query.QueryExecutionResult;
 import java.util.ArrayList;
 import java.util.List;
-import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
@@ -14,14 +17,14 @@ final class QueryBlockApi {
     }
 
     static LuaValue createHandle() {
-        return new BlockQueryHandle();
+        return new BlockQueryHandle(new ContentQueryBlock());
     }
 
     private static final class BlockQueryHandle extends LuaTable {
-        private List entries;
+        private final ContentQueryBlock query;
 
-        private BlockQueryHandle() {
-            entries = QueryCommon.buildBlockEntries();
+        private BlockQueryHandle(ContentQueryBlock query) {
+            this.query = query;
             set("getById", new GetBlockById(this));
             set("filterByName", new FilterBlockByName(this));
             set("filterByDisplayName", new FilterBlockByDisplayName(this));
@@ -31,7 +34,6 @@ final class QueryBlockApi {
             set("first", new FirstBlock(this));
             set("last", new LastBlock(this));
             set("get", new GetBlockAt(this));
-            set("count", new CountBlocks(this));
             set("finishQuery", new FinishBlockQuery(this));
         }
     }
@@ -45,14 +47,8 @@ final class QueryBlockApi {
 
         public Varargs invoke(Varargs args) {
             int id = (int) LuaApiUtils.getNumberArg(args, 1);
-            if (id < 0 || id > 255) {
-                throw new LuaError("Query: block id outside allowed range (0-255): " + id);
-            }
-            QueryCommon.QueryEntry entry = QueryCommon.findById(handle.entries, id, 0);
-            if (entry == null) {
-                throw new LuaError("Query: block id not registered: " + id);
-            }
-            return new QueryBlockHandle(entry.id, entry.damage);
+            handle.query.getById(id);
+            return handle;
         }
     }
 
@@ -65,14 +61,7 @@ final class QueryBlockApi {
 
         public Varargs invoke(Varargs args) {
             String name = LuaApiUtils.getStringArg(args, 1);
-            List filtered = new ArrayList();
-            for (int i = 0; i < handle.entries.size(); i++) {
-                QueryCommon.QueryEntry entry = (QueryCommon.QueryEntry) handle.entries.get(i);
-                if (name.equals(entry.internalName)) {
-                    filtered.add(entry);
-                }
-            }
-            handle.entries = filtered;
+            handle.query.filterByName(name);
             return handle;
         }
     }
@@ -86,14 +75,7 @@ final class QueryBlockApi {
 
         public Varargs invoke(Varargs args) {
             String name = LuaApiUtils.getStringArg(args, 1);
-            List filtered = new ArrayList();
-            for (int i = 0; i < handle.entries.size(); i++) {
-                QueryCommon.QueryEntry entry = (QueryCommon.QueryEntry) handle.entries.get(i);
-                if (name.equals(entry.displayName)) {
-                    filtered.add(entry);
-                }
-            }
-            handle.entries = filtered;
+            handle.query.filterByDisplayName(name);
             return handle;
         }
     }
@@ -108,14 +90,7 @@ final class QueryBlockApi {
         public Varargs invoke(Varargs args) {
             int min = (int) LuaApiUtils.getNumberArg(args, 1);
             int max = (int) LuaApiUtils.getNumberArg(args, 2);
-            List filtered = new ArrayList();
-            for (int i = 0; i < handle.entries.size(); i++) {
-                QueryCommon.QueryEntry entry = (QueryCommon.QueryEntry) handle.entries.get(i);
-                if (entry.damage >= min && entry.damage <= max) {
-                    filtered.add(entry);
-                }
-            }
-            handle.entries = filtered;
+            handle.query.filterDamage(min, max);
             return handle;
         }
     }
@@ -129,20 +104,8 @@ final class QueryBlockApi {
 
         public Varargs invoke(Varargs args) {
             int damage = (int) LuaApiUtils.getNumberArg(args, 1);
-            QueryCommon.QueryEntry match = null;
-            for (int i = 0; i < handle.entries.size(); i++) {
-                QueryCommon.QueryEntry entry = (QueryCommon.QueryEntry) handle.entries.get(i);
-                if (entry.damage == damage) {
-                    if (match != null) {
-                        throw new LuaError("Query: multiple blocks match damage value: " + damage);
-                    }
-                    match = entry;
-                }
-            }
-            if (match == null) {
-                throw new LuaError("Query: no block found with damage value: " + damage);
-            }
-            return new QueryBlockHandle(match.id, match.damage);
+            handle.query.getByDamage(damage);
+            return handle;
         }
     }
 
@@ -155,13 +118,17 @@ final class QueryBlockApi {
 
         public Varargs invoke(Varargs args) {
             LuaValue value = LuaApiUtils.getVarArg(args, 1);
-            int id = LuaApiUtils.resolveItemId(value);
-            int damage = QueryCommon.readDamageFromHandle(value);
-            QueryCommon.QueryEntry entry = QueryCommon.findById(handle.entries, id, damage);
-            if (entry == null) {
-                throw new LuaError("Query: block handle not found in registry.");
+            int id = 0;
+            int damage = 0;
+            boolean valid = true;
+            try {
+                id = LuaApiUtils.resolveItemId(value);
+                damage = QueryApiUtils.readDamageFromHandle(value);
+            } catch (RuntimeException e) {
+                valid = false;
             }
-            return new QueryBlockHandle(entry.id, entry.damage);
+            handle.query.fromHandle(id, damage, valid);
+            return handle;
         }
     }
 
@@ -173,11 +140,8 @@ final class QueryBlockApi {
         }
 
         public Varargs invoke(Varargs args) {
-            if (handle.entries.isEmpty()) {
-                return LuaValue.NIL;
-            }
-            QueryCommon.QueryEntry entry = (QueryCommon.QueryEntry) handle.entries.get(0);
-            return new QueryBlockHandle(entry.id, entry.damage);
+            handle.query.first();
+            return handle;
         }
     }
 
@@ -189,11 +153,8 @@ final class QueryBlockApi {
         }
 
         public Varargs invoke(Varargs args) {
-            if (handle.entries.isEmpty()) {
-                return LuaValue.NIL;
-            }
-            QueryCommon.QueryEntry entry = (QueryCommon.QueryEntry) handle.entries.get(handle.entries.size() - 1);
-            return new QueryBlockHandle(entry.id, entry.damage);
+            handle.query.last();
+            return handle;
         }
     }
 
@@ -206,26 +167,8 @@ final class QueryBlockApi {
 
         public Varargs invoke(Varargs args) {
             int index = (int) LuaApiUtils.getNumberArg(args, 1);
-            if (index < 0 || index > 255) {
-                throw new LuaError("Query: block index out of bounds (0-255): " + index);
-            }
-            QueryCommon.QueryEntry entry = QueryCommon.findFirstById(handle.entries, index);
-            if (entry == null) {
-                throw new LuaError("Query: block id not found in query: " + index);
-            }
-            return new QueryBlockHandle(entry.id, entry.damage);
-        }
-    }
-
-    private static final class CountBlocks extends VarArgFunction {
-        private final BlockQueryHandle handle;
-
-        private CountBlocks(BlockQueryHandle handle) {
-            this.handle = handle;
-        }
-
-        public Varargs invoke(Varargs args) {
-            return LuaValue.valueOf(handle.entries.size());
+            handle.query.get(index);
+            return handle;
         }
     }
 
@@ -237,7 +180,26 @@ final class QueryBlockApi {
         }
 
         public Varargs invoke(Varargs args) {
-            return new BlockQueryResultHandle(handle.entries);
+            QueryExecutionResult<List<QueryEntry>> result = handle.query.execute();
+            if (result.isFailure()) {
+                return QueryApiUtils.pushWarning(result.getFailure());
+            }
+            if (result.getWarning() != null) {
+                QueryApiUtils.pushWarning(result.getWarning());
+            }
+            ContentQuery.ResultMode mode = result.getResultMode();
+            List<QueryEntry> entries = result.getState();
+            if (mode == ContentQuery.ResultMode.SINGLE) {
+                if (entries.isEmpty()) {
+                    return LuaValue.NIL;
+                }
+                if (entries.size() != 1) {
+                    return QueryApiUtils.pushNil("Query: expected exactly one block, found " + entries.size());
+                }
+                QueryEntry entry = (QueryEntry) entries.get(0);
+                return new QueryBlockHandle(entry.id, entry.damage);
+            }
+            return new BlockQueryResultHandle(entries);
         }
     }
 
@@ -267,7 +229,7 @@ final class QueryBlockApi {
             if (handle.entries.isEmpty()) {
                 return LuaValue.NIL;
             }
-            QueryCommon.QueryEntry entry = (QueryCommon.QueryEntry) handle.entries.get(0);
+            QueryEntry entry = (QueryEntry) handle.entries.get(0);
             return new QueryBlockHandle(entry.id, entry.damage);
         }
     }
@@ -283,7 +245,7 @@ final class QueryBlockApi {
             if (handle.entries.isEmpty()) {
                 return LuaValue.NIL;
             }
-            QueryCommon.QueryEntry entry = (QueryCommon.QueryEntry) handle.entries.get(handle.entries.size() - 1);
+            QueryEntry entry = (QueryEntry) handle.entries.get(handle.entries.size() - 1);
             return new QueryBlockHandle(entry.id, entry.damage);
         }
     }
@@ -298,11 +260,18 @@ final class QueryBlockApi {
         public Varargs invoke(Varargs args) {
             int index = (int) LuaApiUtils.getNumberArg(args, 1);
             if (index < 0 || index > 255) {
-                throw new LuaError("Query: block index out of bounds (0-255): " + index);
+                return QueryApiUtils.pushNil("Query: block index out of bounds (0-255): " + index);
             }
-            QueryCommon.QueryEntry entry = QueryCommon.findFirstById(handle.entries, index);
+            QueryEntry entry = null;
+            for (int i = 0; i < handle.entries.size(); i++) {
+                QueryEntry candidate = (QueryEntry) handle.entries.get(i);
+                if (candidate.id == index) {
+                    entry = candidate;
+                    break;
+                }
+            }
             if (entry == null) {
-                throw new LuaError("Query: block id not found in query: " + index);
+                return QueryApiUtils.pushNil("Query: block id not found in query: " + index);
             }
             return new QueryBlockHandle(entry.id, entry.damage);
         }
@@ -329,7 +298,7 @@ final class QueryBlockApi {
 
         public Varargs invoke(Varargs args) {
             if (handle.entries.size() != 1) {
-                throw new LuaError("Query: expected exactly one block, found " + handle.entries.size());
+                return QueryApiUtils.pushNil("Query: expected exactly one block, found " + handle.entries.size());
             }
             return handle;
         }
@@ -343,10 +312,10 @@ final class QueryBlockApi {
         }
 
         public Varargs invoke(Varargs args) {
-            if (handle.entries.size() != 1) {
-                throw new LuaError("Query: expected exactly one block, found " + handle.entries.size());
+            if (handle.entries.isEmpty()) {
+                return QueryApiUtils.pushNil("Query: no blocks found in query.");
             }
-            QueryCommon.QueryEntry entry = (QueryCommon.QueryEntry) handle.entries.get(0);
+            QueryEntry entry = (QueryEntry) handle.entries.get(0);
             return new QueryBlockHandle(entry.id, entry.damage);
         }
     }
@@ -359,9 +328,12 @@ final class QueryBlockApi {
         }
 
         public Varargs invoke(Varargs args) {
+            if (handle.entries.isEmpty()) {
+                return QueryApiUtils.pushNil("Query: no blocks found in query.");
+            }
             LuaTable out = new LuaTable();
             for (int i = 0; i < handle.entries.size(); i++) {
-                QueryCommon.QueryEntry entry = (QueryCommon.QueryEntry) handle.entries.get(i);
+                QueryEntry entry = (QueryEntry) handle.entries.get(i);
                 out.set(i + 1, new QueryBlockHandle(entry.id, entry.damage));
             }
             return out;
@@ -403,4 +375,6 @@ final class QueryBlockApi {
             return LuaValue.valueOf(handle.damage);
         }
     }
+
+    
 }
