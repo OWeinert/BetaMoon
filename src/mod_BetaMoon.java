@@ -12,7 +12,7 @@ public class mod_BetaMoon extends BaseMod {
 
 
     public mod_BetaMoon() {
-        this.betaMoon = new BetaMoonMain(this);
+        this.betaMoon = BetaMoonMain.create(this);
     }
 
     @Override
@@ -23,6 +23,11 @@ public class mod_BetaMoon extends BaseMod {
     @Override
     public boolean OnTickInGUI(Minecraft mc, GuiScreen screen) {
         return this.betaMoon.onTickInGUI(mc, screen);
+    }
+
+    @Override
+    public boolean OnTickInGame(Minecraft mc) {
+        return this.betaMoon.onTickInGame(mc);
     }
 
     @Override

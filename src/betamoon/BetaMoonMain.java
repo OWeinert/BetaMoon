@@ -1,7 +1,6 @@
 package betamoon;
 
 import java.util.Random;
-import java.util.logging.Filter;
 import java.util.logging.Formatter;
 import java.util.logging.Handler;
 import java.util.logging.Level;
@@ -9,8 +8,9 @@ import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 import java.util.logging.StreamHandler;
 
+import betamoon.config.BetaMoonConfig;
 import betamoon.gui.GuiBetaMoonMainMenu;
-import betamoon.gui.GuiScriptErrorPopup;
+import betamoon.gui.GuiPopupScriptErrors;
 import betamoon.recipes.RecipeModificationHandler;
 import betamoon.scriptloader.LuaModLoader;
 import betamoon.scriptloader.LuaScriptErrors;
@@ -22,6 +22,8 @@ import net.minecraft.src.ModLoader;
 import net.minecraft.src.World;
 
 public final class BetaMoonMain {
+    private static BetaMoonMain instance;
+
     private static final String VERSION = "0.5.0";
     public static final String LUA_SCRIPTS_DIR = "lua_scripts";
     public static final Logger LOGGER = Logger.getLogger("BetaMoon");
@@ -29,20 +31,41 @@ public final class BetaMoonMain {
         configureLogger();
     }
 
-    private final BaseMod betaMoonBaseMod;
+    private final BetaMoonEventHandler eventHandler;
+    private final BetaMoonConfig config;
     private final LuaModLoader luaModLoader;
+    private final BaseMod betaMoonBaseMod;
 
     private boolean finishedLoading = false;
     private boolean loadedScripts = false;
 
-    public BetaMoonMain(BaseMod baseMod) {
+    private BetaMoonMain(BaseMod baseMod) {
         this.betaMoonBaseMod = baseMod;
+        this.config = new BetaMoonConfig("betamoon.config");
+        this.eventHandler = new BetaMoonEventHandler();
         this.luaModLoader  = new LuaModLoader();
         setInitHooks(this.betaMoonBaseMod);
     }
 
+    public static synchronized BetaMoonMain create(BaseMod baseMod) {
+        if (instance == null) {
+            instance = new BetaMoonMain(baseMod);
+        } else if (baseMod != null) {
+            LOGGER.warning("External source tried to re-initialize BetaMoon from: "
+                + baseMod.getClass().getName() + "!");
+        } else {
+            LOGGER.warning("Unknown external source tried to re-initialize BetaMoon!");
+        }
+        return instance;
+    }
+
+    public static BetaMoonMain getInstance() {
+        return instance;
+    }
+
     public void setInitHooks(BaseMod baseMod) {
         ModLoader.SetInGUIHook(baseMod, true, false);
+        ModLoader.SetInGameHook(baseMod, true, false);
     }
 
     public void modsLoaded() {
@@ -50,29 +73,13 @@ public final class BetaMoonMain {
     }
 
     public boolean onTickInGUI(net.minecraft.client.Minecraft mc, GuiScreen current) {
-        if (current instanceof GuiMainMenu) {
-            // onTickInGUI is called after every other mod is loaded,
-            // So we only call loadAndRun() here to ensure BetaMoon loads and executes the scripts after every other mod.
-            // This ensures that any content from other mods that might be referenced by scripts is present.
-            if(finishedLoading && !loadedScripts) {
-                // create recipe map before loading scripts to ensure recipe creation/override is possible
-                RecipeModificationHandler.createRecipeMap();
-                // load and run scripts.
-                luaModLoader.loadAndRun();
-                loadedScripts = true;
-            }
+        eventHandler.handleGuiEvents(mc, current);
+        addBetamoonMenues(mc, current);
+        return true;
+    }
 
-            // Render custom Menu
-            if (!(current instanceof GuiBetaMoonMainMenu)) {
-                mc.displayGuiScreen(new GuiBetaMoonMainMenu());
-                return true;
-            }
-            // Render script error Popup
-            if (LuaScriptErrors.shouldShowPopup()) {
-                mc.displayGuiScreen(new GuiScriptErrorPopup(current));
-                return true;
-            }
-        }
+    public boolean onTickInGame(net.minecraft.client.Minecraft mc) {
+        eventHandler.handleGameEvents(mc);
         return true;
     }
 
@@ -86,6 +93,33 @@ public final class BetaMoonMain {
 
     public String version() {
         return VERSION;
+    }
+
+    
+    private void addBetamoonMenues(net.minecraft.client.Minecraft mc, GuiScreen current) {
+        if (current instanceof GuiMainMenu) {
+            // onTickInGUI runs on every game tick when a GUI is open, 
+            // which is first after ModLoader/MinecraftForge loaded every mod and Minecraft shows the main menu.
+            // So we only call loadAndRun() once here to ensure BetaMoon loads and executes the scripts after every other mod.
+            // This makes sure that any content from other mods that might be referenced by scripts is present.
+            if(finishedLoading && !loadedScripts) {
+                // create recipe map before loading scripts to ensure recipe creation/override is possible
+                RecipeModificationHandler.createRecipeMap();
+                luaModLoader.loadAndRun();
+                loadedScripts = true;
+            }
+
+            // Render custom Main Menu
+            if (!(current instanceof GuiBetaMoonMainMenu)) {
+                mc.displayGuiScreen(new GuiBetaMoonMainMenu());
+                return;
+            }
+            // Render script error Popup
+            if (LuaScriptErrors.shouldShowPopup()) {
+                mc.displayGuiScreen(new GuiPopupScriptErrors(current));
+                return;
+            }
+        }
     }
 
     private static void configureLogger() {
@@ -110,11 +144,7 @@ public final class BetaMoonMain {
             }
         };
         outHandler.setLevel(Level.INFO);
-        outHandler.setFilter(new Filter() {
-            public boolean isLoggable(LogRecord record) {
-                return record.getLevel().intValue() < Level.WARNING.intValue();
-            }
-        });
+        outHandler.setFilter(record -> record.getLevel().intValue() < Level.WARNING.intValue());
         Handler errHandler = new StreamHandler(System.err, formatter) {
             @Override
             public synchronized void publish(LogRecord record) {
@@ -123,11 +153,7 @@ public final class BetaMoonMain {
             }
         };
         errHandler.setLevel(Level.WARNING);
-        errHandler.setFilter(new Filter() {
-            public boolean isLoggable(LogRecord record) {
-                return record.getLevel().intValue() >= Level.WARNING.intValue();
-            }
-        });
+        errHandler.setFilter(record -> record.getLevel().intValue() >= Level.WARNING.intValue());
         LOGGER.addHandler(outHandler);
         LOGGER.addHandler(errHandler);
     }
