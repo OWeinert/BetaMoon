@@ -4,7 +4,7 @@ import betamoon.BetaMoonMain;
 import betamoon.wrappers.BlockWrapper;
 import betamoon.resources.EnumTexAtlas;
 import betamoon.luaapi.LuaApiUtils;
-import betamoon.luaapi.worldgen.OreGenApi;
+import betamoon.luaapi.world.OreGenApi;
 import forge.MinecraftForge;
 import net.minecraft.src.Block;
 import net.minecraft.src.Item;

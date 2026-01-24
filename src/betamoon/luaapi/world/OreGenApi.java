@@ -1,4 +1,4 @@
-package betamoon.luaapi.worldgen;
+package betamoon.luaapi.world;
 
 import betamoon.worldgen.WorldGenRegistry;
 import betamoon.luaapi.block.BlockApi;
