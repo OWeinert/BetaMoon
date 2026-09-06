@@ -81,12 +81,15 @@ public final class LuaModLoader {
     public synchronized void reloadAll() {
         if (loading) return;
         loading = true;
+        ScriptReloadStatus.begin();
+        boolean reloadFinished = false;
         try {
             LuaScriptErrors.clear();
             if (!preflightScripts()) {
                 reportIssuesInChat();
                 reportReloadSummaryInChat();
                 knownFingerprint = calculateFingerprint();
+                reloadFinished = true;
                 return;
             }
             invokeUnloadCallbacks();
@@ -100,9 +103,18 @@ public final class LuaModLoader {
             knownFingerprint = calculateFingerprint();
             LOGGER.info("Lua scripts reloaded.");
             reportReloadSummaryInChat();
+            reloadFinished = true;
+        } catch (RuntimeException error) {
+            LuaScriptErrors.add("Hot reload", "Unexpected reload failure: " + error.getMessage());
+            throw error;
+        } catch (Error error) {
+            LuaScriptErrors.add("Hot reload", "Unexpected reload failure: " + error.getMessage());
+            throw error;
         } finally {
             hotReload = false;
             loading = false;
+            int errorCount = LuaScriptErrors.getErrorCount();
+            ScriptReloadStatus.complete(!reloadFinished && errorCount == 0 ? 1 : errorCount);
         }
     }
 

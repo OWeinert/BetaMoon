@@ -4,6 +4,7 @@ import betamoon.gui.api.component.GuiActionButton;
 import betamoon.gui.api.util.GuiColors;
 import betamoon.gui.api.layout.GuiLayout;
 import betamoon.gui.api.component.GuiLine;
+import betamoon.gui.api.component.GuiReloadStatusIndicator;
 import betamoon.gui.api.screen.GuiScreenBase;
 import betamoon.io.IoUtils;
 import betamoon.luamodloader.LuaModLoader;
@@ -28,7 +29,9 @@ public class GuiScreenScripts extends GuiScreenBase {
     private final GuiActionButton reloadButton;
     private final GuiActionButton debugButton;
     private final GuiLine bottomSeparator;
+    private final GuiReloadStatusIndicator reloadIndicator;
     private int backButtonY;
+    private boolean reloadPending;
 
     /**
      * Creates the scripts screen with a parent GUI to return to.
@@ -39,9 +42,10 @@ public class GuiScreenScripts extends GuiScreenBase {
         this.parent = parent;
         backButton = new GuiActionButton("Back", () -> GuiScreenScripts.this.showScreen(GuiScreenScripts.this.parent));
         openScriptsButton = new GuiActionButton("Open Scripts Folder", () -> openScriptsDir());
-        reloadButton = new GuiActionButton("Reload Scripts", () -> reloadScripts());
+        reloadButton = new GuiActionButton("Reload Scripts", () -> requestReload());
         debugButton = new GuiActionButton("Debug", () -> GuiScreenScripts.this.showScreen(new GuiPopupDebugMenu(GuiScreenScripts.this)));
         bottomSeparator = new GuiLine(false, GuiColors.LINE_WHITE);
+        reloadIndicator = new GuiReloadStatusIndicator(() -> showErrorPopup());
     }
 
     @Override
@@ -50,6 +54,8 @@ public class GuiScreenScripts extends GuiScreenBase {
         backButton.setMinecraft(this.mc);
         openScriptsButton.setMinecraft(this.mc);
         reloadButton.setMinecraft(this.mc);
+        reloadIndicator.setMinecraft(this.mc);
+        reloadIndicator.setDisplaySize(this.width, this.height);
         debugButton.setMinecraft(this.mc);
         root.addChild(listPanel);
         root.addChild(infoPanel);
@@ -58,6 +64,8 @@ public class GuiScreenScripts extends GuiScreenBase {
         root.addChild(openScriptsButton);
         root.addChild(reloadButton);
         root.addChild(debugButton);
+        // Draw last so its hover tooltip stays above the neighboring buttons.
+        root.addChild(reloadIndicator);
     }
 
     @Override
@@ -76,6 +84,12 @@ public class GuiScreenScripts extends GuiScreenBase {
         int reloadButtonX = debugButtonX - reloadButtonWidth - 6;
         reloadButton.setBounds(reloadButtonX, backButtonY,
             reloadButtonX + reloadButtonWidth, backButtonY + buttonHeight);
+        int indicatorSize = 17;
+        int indicatorRight = reloadButtonX - 6;
+        reloadIndicator.setBounds(indicatorRight - indicatorSize,
+            backButtonY + (buttonHeight - indicatorSize) / 2, indicatorRight,
+            backButtonY + (buttonHeight - indicatorSize) / 2 + indicatorSize);
+        reloadIndicator.setDisplaySize(this.width, this.height);
         debugButton.setBounds(debugButtonX, backButtonY, debugButtonX + debugButtonWidth, backButtonY + buttonHeight);
         int bottomSeparatorY = backButtonY - 8;
         bottomSeparator.setBounds(10, bottomSeparatorY, this.width - 10, bottomSeparatorY + 1);
@@ -166,7 +180,30 @@ public class GuiScreenScripts extends GuiScreenBase {
             return;
         }
         main.reloadLuaScripts();
+        reloadPending = false;
+        reloadButton.setEnabled(true);
         if (LuaScriptErrors.shouldShowPopup()) {
+            showScreen(new GuiPopupScriptErrors(this));
+        }
+    }
+
+    private void requestReload() {
+        if (reloadPending) return;
+        reloadPending = true;
+        reloadButton.setEnabled(false);
+        reloadIndicator.beginReload();
+    }
+
+    /** Runs the pending reload only after the spinner has appeared in a rendered frame. */
+    public void updateScreen() {
+        super.updateScreen();
+        if (reloadPending && reloadIndicator.hasDrawnReloadingFrame()) {
+            reloadScripts();
+        }
+    }
+
+    private void showErrorPopup() {
+        if (!LuaScriptErrors.getEntries().isEmpty()) {
             showScreen(new GuiPopupScriptErrors(this));
         }
     }

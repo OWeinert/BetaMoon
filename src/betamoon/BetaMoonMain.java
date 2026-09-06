@@ -12,6 +12,7 @@ import betamoon.instrumentation.agent.AgentStatus;
 import betamoon.instrumentation.agent.BetaMoonAgent;
 import betamoon.config.BetaMoonConfig;
 import betamoon.gui.GuiBetaMoonMainMenu;
+import betamoon.gui.GuiBetaMoonIngameMenu;
 import betamoon.gui.GuiPopupAgentWarning;
 import betamoon.gui.GuiPopupScriptErrors;
 import betamoon.luamodloader.LuaModLoader;
@@ -21,6 +22,7 @@ import betamoon.recipes.RecipeModificationHandler;
 import betamoon.worldgen.WorldGenRegistry;
 import net.minecraft.src.BaseMod;
 import net.minecraft.src.GuiMainMenu;
+import net.minecraft.src.GuiIngameMenu;
 import net.minecraft.src.GuiScreen;
 import net.minecraft.src.KeyBinding;
 import net.minecraft.src.ModLoader;
@@ -141,6 +143,10 @@ public final class BetaMoonMain {
 
     
     private void addBetamoonMenues(net.minecraft.client.Minecraft mc, GuiScreen current) {
+        if (current instanceof GuiIngameMenu && !(current instanceof GuiBetaMoonIngameMenu)) {
+            mc.displayGuiScreen(new GuiBetaMoonIngameMenu());
+            return;
+        }
         if (current instanceof GuiMainMenu) {
             // onTickInGUI runs on every game tick when a GUI is open, 
             // which is first after ModLoader/MinecraftForge loaded every mod and Minecraft shows the main menu.

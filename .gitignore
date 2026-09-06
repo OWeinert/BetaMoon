@@ -9,6 +9,7 @@ Thumbs.db
 *.orig
 *.rej
 .github/
+.gradle/
 
 # Java / IDE
 .classpath

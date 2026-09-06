@@ -99,7 +99,10 @@ public final class GuiPanelScriptList extends GuiComponentBase {
             }
         }
         if (contentHeight > 0) {
-            contentHeight -= ENTRY_PADDING;
+            // The last row still draws its background and vertically centered text into
+            // all but two pixels of the normal inter-row spacing. Include those pixels
+            // so even a one-pixel overflow creates a matching scroll range.
+            contentHeight -= 2;
         }
         scrollPanel.setContentSize(Math.max(0, right - left), contentHeight);
         scrollPanel.draw(font, mouseX, mouseY, partialTicks);
