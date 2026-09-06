@@ -6,7 +6,7 @@ dependencies = {
 }
 
 function modInit()
-  local dust = betamoon.items:require(5014)
+  local dust = betamoon.items:getRequired(5014)
   -- Find recipes that make dust. A count of zero means any amount.
   local matches = betamoon.recipes:find {
     output = betamoon.stack(dust, 0),
@@ -20,7 +20,7 @@ function modInit()
 
   if recipe then
     -- A recipe key lets you find the same recipe again.
-    assert(betamoon.recipes:require(recipe.key).key == recipe.key)
+    assert(betamoon.recipes:getRequired(recipe.key).key == recipe.key)
 
     -- This change is only made when the recipe is currently enabled.
     local patch = recipe:override {

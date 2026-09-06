@@ -13,8 +13,8 @@ function modInit()
     damage = 3
   }
 
-  -- require can find the same material later by its key.
-  assert(betamoon.materials.tools:require("EXAMPLE_TOOLS") == exampleMaterial)
+  -- getRequired can find the same material later by its key.
+  assert(betamoon.materials.tools:getRequired("EXAMPLE_TOOLS") == exampleMaterial)
 
   -- BetaMoon can create axes, pickaxes, shovels, hoes, and swords.
   local toolTypes = {

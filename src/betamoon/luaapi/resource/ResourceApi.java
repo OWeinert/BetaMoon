@@ -53,7 +53,7 @@ public final class ResourceApi {
             this.blocks = blocks;
             this.filterType = filterType;
             set("get", new Get(this, false));
-            set("require", new Get(this, true));
+            set("getRequired", new Get(this, true));
             set("find", new Find(this, 0));
             set("first", new Find(this, 1));
             set("one", new Find(this, 2));

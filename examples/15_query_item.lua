@@ -3,7 +3,7 @@ version = "2.0.0"
 description = "Shows item, tool, and armor registry queries."
 
 function modInit()
-  local iron = betamoon.items:require(265)
+  local iron = betamoon.items:getRequired(265)
   -- You can search for items within a damage-value range.
   local matches = betamoon.items:find {
     displayName = "Iron Ingot",

@@ -22,7 +22,7 @@ function modInit()
     veinSize = 8,
     height = { min = 0, max = 60 },
     dimension = "overworld",
-    replace = betamoon.blocks:require(1),
+    replace = betamoon.blocks:getRequired(1),
     -- An empty biome list lets the ore appear in every biome.
     biomes = {}
   }

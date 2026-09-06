@@ -3,7 +3,7 @@ version = "2.0.0"
 description = "Shows direct, conditional, prioritized, and bulk overrides."
 
 function modInit()
-  local stone = betamoon.blocks:require(1)
+  local stone = betamoon.blocks:getRequired(1)
   -- An override temporarily changes an existing block or item.
   local direct = stone:override {
     displayName = "Smooth Stone"

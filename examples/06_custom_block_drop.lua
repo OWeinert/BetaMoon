@@ -3,7 +3,7 @@ version = "2.0.0"
 description = "Declares fixed and ranged custom block drops."
 
 function modInit()
-  -- require finds an existing item. The script shows an error if it cannot be found.
+  -- getRequired finds an existing item. The script shows an error if it cannot be found.
   -- You can also use an item ID directly, as shown by the coal below.
   betamoon.blocks:add {
     id = 205,
@@ -16,7 +16,7 @@ function modInit()
     drops = {
       -- Drop between one and four diamonds.
       {
-        item = betamoon.items:require(264),
+        item = betamoon.items:getRequired(264),
         min = 1,
         max = 4
       },

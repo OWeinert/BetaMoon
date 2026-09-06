@@ -48,7 +48,7 @@ public final class DeclarativeApi {
             this.tools = tools;
             set("add", new AddMaterial(this));
             set("get", new GetMaterial(this));
-            set("require", new RequireMaterial(this));
+            set("getRequired", new GetRequiredMaterial(this));
         }
     }
 
@@ -87,9 +87,9 @@ public final class DeclarativeApi {
         }
     }
 
-    private static final class RequireMaterial extends VarArgFunction {
+    private static final class GetRequiredMaterial extends VarArgFunction {
         private final MaterialRegistry registry;
-        private RequireMaterial(MaterialRegistry registry) { this.registry = registry; }
+        private GetRequiredMaterial(MaterialRegistry registry) { this.registry = registry; }
         public Varargs invoke(Varargs args) {
             String key = argument(args, registry).checkjstring();
             LuaValue value = (LuaValue) registry.values.get(normalize(key));

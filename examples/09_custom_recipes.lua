@@ -20,7 +20,7 @@ function modInit()
       "##"
     },
     ingredients = {
-      ["#"] = betamoon.items:require(265)
+      ["#"] = betamoon.items:getRequired(265)
     }
   }
 
@@ -29,15 +29,15 @@ function modInit()
     type = "shapeless",
     output = betamoon.stack(dust, 2),
     ingredients = {
-      betamoon.items:require(264),
-      betamoon.items:require(263)
+      betamoon.items:getRequired(264),
+      betamoon.items:getRequired(263)
     }
   }
 
   -- A smelting recipe turns one item or block into another in a furnace.
   betamoon.recipes:add {
     type = "smelting",
-    input = betamoon.blocks:require(3),
+    input = betamoon.blocks:getRequired(3),
     output = betamoon.stack(dust)
   }
 end

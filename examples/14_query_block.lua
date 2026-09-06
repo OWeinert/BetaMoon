@@ -4,7 +4,7 @@ description = "Shows block lookup, criteria, and result helpers."
 
 function modInit()
   -- Find a block by its ID or internal key.
-  local stone = betamoon.blocks:require("minecraft:stone")
+  local stone = betamoon.blocks:getRequired("minecraft:stone")
   -- one is useful when your search should find no more than one block.
   local exact = betamoon.blocks:one {
     id = 1,

@@ -5,7 +5,7 @@ description = "Shows stack and position helpers."
 function modInit()
   -- stack describes an item or block, its amount, and its damage value.
   local stack = betamoon.stack(
-    betamoon.blocks:require(1),
+    betamoon.blocks:getRequired(1),
     4,
     0
   )

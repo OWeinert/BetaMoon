@@ -28,7 +28,7 @@ public final class RecipeRegistryApi {
     public static void attach(LuaTable root) {
         LuaTable recipes = (LuaTable) root.get("recipes");
         recipes.set("get", new Get(recipes, true));
-        recipes.set("require", new Get(recipes, false));
+        recipes.set("getRequired", new Get(recipes, false));
         recipes.set("find", new Find(recipes, 0));
         recipes.set("first", new Find(recipes, 1));
         recipes.set("one", new Find(recipes, 2));
