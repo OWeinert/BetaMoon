@@ -9,9 +9,10 @@ import org.lwjgl.opengl.GL11;
 
 /** Draws and handles the compact script-reload status indicator. */
 public final class GuiReloadStatusIndicator extends GuiComponentBase {
-    private static final String SUCCESS_TEXTURE = "/resources/betamoon/gui/reload_success.png";
-    private static final String ERROR_TEXTURE = "/resources/betamoon/gui/reload_error.png";
-    private static final String SPINNER_TEXTURE = "/resources/betamoon/gui/reload_spinner.png";
+    private static final String RESOURCE_PATH = "/resources/betamoon/gui/";
+    private static final String SUCCESS_TEXTURE = RESOURCE_PATH + "symbol_success.png";
+    private static final String ERROR_TEXTURE = RESOURCE_PATH + "symbol_error.png";
+    private static final String SPINNER_TEXTURE = RESOURCE_PATH + "symbol_spinner.png";
     private static final int SPINNER_FRAMES = 8;
     private static final long SUCCESS_HOLD_MS = 1000L;
     private static final long SUCCESS_FADE_MS = 2000L;
