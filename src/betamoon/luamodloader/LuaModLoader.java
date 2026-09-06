@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 import betamoon.BetaMoonMain;
 import betamoon.io.FileIo;
 import betamoon.io.IoUtils;
@@ -28,6 +30,7 @@ public final class LuaModLoader {
     private long pendingSince;
     private boolean loading;
     private boolean hotReload;
+    private final Map startupMods = new HashMap();
 
     /**
      * Loads Lua mods, validates dependencies, and executes each modInit in order.
@@ -93,7 +96,7 @@ public final class LuaModLoader {
                 return;
             }
             invokeUnloadCallbacks();
-            ScriptResourceTracker.unloadAll();
+            ScriptResourceTracker.unloadReloadable();
             WorldGenRegistry.clear();
             BiomeGenRegistry.clear();
             betamoon.recipes.RecipeModificationHandler.createRecipeMap();
@@ -213,6 +216,7 @@ public final class LuaModLoader {
      */
     List loadLuaMods(List errors) {
         List mods = new ArrayList();
+        Set seenFiles = new HashSet();
         File scriptsDir = getOrCreateLuaModsDir();
         if (scriptsDir == null || !scriptsDir.isDirectory()) {
             return mods;
@@ -230,7 +234,21 @@ public final class LuaModLoader {
             if (!name.endsWith(".lua")) {
                 continue;
             }
+            seenFiles.add(name);
             LuaScriptRegistry.registerFile(name);
+            if (hotReload && NonReloadableScriptRegistry.contains(name)) {
+                ScriptMod active = (ScriptMod) startupMods.get(name);
+                if (active != null) {
+                    LuaScriptRegistry.updateParsed(name, active.name, active.dependencies, active.modInit,
+                        active.modReload, active.modUnload, active.description, active.version, active.imagePath);
+                    LuaScriptRegistry.markLoadedByFile(name);
+                    mods.add(active);
+                    String warning = "Skipped '" + name + "': this script registers "
+                        + NonReloadableScriptRegistry.reason(name) + ". Restart Minecraft to reload it.";
+                    LuaScriptErrors.addWarning(name, warning);
+                    continue;
+                }
+            }
             try {
                 String scriptText = FileIo.readUtf8Normalized(scriptFile);
                 ScriptMod mod = parseLuaMod(scriptFile, scriptText, errors);
@@ -241,6 +259,21 @@ public final class LuaModLoader {
                 errors.add("Failed to read Lua script: " + scriptFile.getName());
                 LuaScriptErrors.add(scriptFile.getName(), "Failed to read Lua script.");
                 LuaScriptRegistry.markFailedByFile(scriptFile.getName(), "Failed to read Lua script.");
+            }
+        }
+        if (hotReload) {
+            java.util.Iterator retained = startupMods.entrySet().iterator();
+            while (retained.hasNext()) {
+                Map.Entry entry = (Map.Entry) retained.next();
+                String fileName = (String) entry.getKey();
+                if (seenFiles.contains(fileName)) continue;
+                ScriptMod active = (ScriptMod) entry.getValue();
+                LuaScriptRegistry.updateParsed(fileName, active.name, active.dependencies, active.modInit,
+                    active.modReload, active.modUnload, active.description, active.version, active.imagePath);
+                LuaScriptRegistry.markLoadedByFile(fileName);
+                mods.add(active);
+                LuaScriptErrors.addWarning(fileName, "Kept '" + fileName
+                    + "' active because structural content cannot be unloaded. Restart Minecraft to remove it.");
             }
         }
         return mods;
@@ -515,6 +548,7 @@ public final class LuaModLoader {
     void runModsInOrder(List ordered, List failedMods) {
         for (int i = 0; i < ordered.size(); i++) {
             ScriptMod mod = (ScriptMod) ordered.get(i);
+            if (hotReload && NonReloadableScriptRegistry.contains(mod.sourceFileName)) continue;
             try {
                 LuaScriptRegistry.setCurrentScriptFile(mod.sourceFileName);
                 mod.modInit.call();
@@ -522,7 +556,11 @@ public final class LuaModLoader {
                     mod.modReload.call();
                 }
                 LuaScriptRegistry.markLoadedByFile(mod.sourceFileName);
+                if (NonReloadableScriptRegistry.contains(mod.sourceFileName)) {
+                    startupMods.put(mod.sourceFileName, mod);
+                }
             } catch (LuaError e) {
+                betamoon.tileentity.TileEntityRegistry.removeOwned(mod.sourceFileName);
                 ScriptResourceTracker.unload(mod.sourceFileName);
                 failedMods.add(mod.name);
                 LuaScriptErrors.add(mod.name, e.getMessage());
@@ -533,6 +571,7 @@ public final class LuaModLoader {
                 + seperator
                 );
             } catch (Throwable t) {
+                betamoon.tileentity.TileEntityRegistry.removeOwned(mod.sourceFileName);
                 ScriptResourceTracker.unload(mod.sourceFileName);
                 failedMods.add(mod.name);
                 LuaScriptErrors.add(mod.name, t.toString());
@@ -564,6 +603,7 @@ public final class LuaModLoader {
         List entries = LuaScriptRegistry.getEntries();
         for (int i = entries.size() - 1; i >= 0; i--) {
             ScriptMod mod = (ScriptMod) entries.get(i);
+            if (NonReloadableScriptRegistry.contains(mod.sourceFileName)) continue;
             if (!mod.isLoaded() || mod.modUnload == null || !mod.modUnload.isfunction()) continue;
             try {
                 LuaScriptRegistry.setCurrentScriptFile(mod.sourceFileName);

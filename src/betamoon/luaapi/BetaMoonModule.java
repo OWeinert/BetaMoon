@@ -16,6 +16,7 @@ import betamoon.luaapi.world.WorldGenApi;
 import betamoon.luaapi.resource.ResourceApi;
 import betamoon.luaapi.resource.RecipeRegistryApi;
 import betamoon.luaapi.v2.DeclarativeApi;
+import betamoon.luaapi.tileentity.TileEntityApi;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.TwoArgFunction;
@@ -71,6 +72,7 @@ public final class BetaMoonModule extends TwoArgFunction {
         ResourceApi.attach(module, backend);
         DeclarativeApi.attach(module, backend);
         RecipeRegistryApi.attach(module);
+        TileEntityApi.attach(module);
 
         // Module Registration
         env.set("betamoon", module);

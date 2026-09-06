@@ -8,7 +8,7 @@ The earlier builder and chained-query functions are no longer exported to Lua.
 Blocks and items share the same lookup workflow:
 
 ```lua
-local stone = betamoon.blocks:require("minecraft:stone")
+local stone = betamoon.blocks:getRequired("minecraft:stone")
 local wool = betamoon.blocks:get(35)       -- nil when absent
 local tools = betamoon.tools:find { owner = "minecraft" }
 local pickaxe = betamoon.tools:one { id = 278 }
@@ -21,7 +21,7 @@ for _, item in ipairs(betamoon.items:find {
 end
 ```
 
-`get` returns a reference or `nil`; `require` raises a descriptive error. `find`
+`get` returns a reference or `nil`; `getRequired` raises a descriptive error. `find`
 returns a normal 1-based Lua array with `:first()`, `:last()`, `:one()`,
 `:isEmpty()`, and `:overrideAll()`. The registry `first` and `one` methods avoid
 allocating a result wrapper when only one match is needed.
@@ -145,7 +145,7 @@ Overrides patch supported properties on an existing registry object. The short
 form belongs to the reference:
 
 ```lua
-local stone = betamoon.blocks:require("minecraft:stone")
+local stone = betamoon.blocks:getRequired("minecraft:stone")
 local patch = stone:override {
     displayName = "Polished Stone",
     texture = "example/polished_stone.png",
@@ -194,6 +194,142 @@ references to that object, so doing this during play would leave mixed old/new
 instances. BetaMoon therefore treats these fields as registration identity and
 requires a restart when they change.
 
+## Tile entities and containers
+
+Stateful blocks use three standalone definitions. A tile entity owns persistent
+data and named inventory slots, a container defines item interaction, and a
+container GUI draws that container. The block explicitly connects all three:
+
+```lua
+local entity = betamoon.tileEntities:add {
+    name = "machine",
+    inventory = { slots = { input = {}, output = {} } },
+    data = { progress = { type = "integer", default = 0, sync = true } },
+    onTick = {
+        mode = "continuous",
+        action = function(ctx)
+            local progress = ctx.entity.data:get("progress")
+            ctx.entity.data:set("progress", progress + 1)
+        end
+    }
+}
+
+local container = betamoon.containers:add {
+    name = "machine", tileEntity = entity,
+    slots = {
+        { slot = "input", x = 56, y = 17 },
+        { slot = "output", x = 116, y = 35, outputOnly = true }
+    },
+    playerInventory = { x = 8, y = 84, includeHotbar = true }
+}
+
+local gui = betamoon.containerGuis:add {
+    name = "machine", container = container,
+    layout = {
+        preset = "minecraft:furnace",
+        title = "Machine"
+    },
+    elements = {{
+        type = "progress", value = "progress", maximum = 100,
+        x = 79, y = 34,
+        builtin = "minecraft:furnace_arrow",
+        tooltip = "Progress: {progress}/100"
+    }}
+}
+
+betamoon.blocks:add {
+    id = 204, material = "rock", key = "machine",
+    tileEntity = entity, container = container, gui = gui
+}
+```
+
+Tile data supports `integer`, `number`, `boolean`, and `string`. Inventory
+access provides `get`, `set`, `remove`, `canAdd`, `add`, and `consumeFuel`.
+Tick contexts expose Minecraft smelting recipes through
+`ctx.recipes:getSmeltingResult(stack)` and fuel behavior through
+`ctx.fuels:getBurnTime(stack)`.
+
+Container GUIs are declarative. Lua describes the appearance, while BetaMoon
+handles textures, clipping, mouse hover, and rendering. GUI elements can read
+integer and boolean tile data fields marked `sync = true`.
+
+`layout.preset` accepts `minecraft:container`, `minecraft:chest`,
+`minecraft:dispenser`, `minecraft:furnace`, `minecraft:crafting`, and
+`minecraft:inventory`. A chest layout also accepts `rows` from 1 to 6. The
+`title` and `playerInventoryLabel` may be text, a label table, or `false`.
+
+A custom background uses one complete PNG relative to the scripts directory:
+
+```lua
+background = { image = "my_mod/gui/machine.png" }
+```
+
+Its size is detected automatically. `background = { style = "minecraft",
+drawSlotFrames = true }` creates a simple panel and draws frames around the
+container's slots.
+
+Available element types are `image`, `text`, `progress`, `state_image`,
+`rectangle`, `item`, `tooltip`, and `group`. Custom element images are complete
+PNG files, so scripts never supply texture-atlas coordinates. Built-in sprites
+include `minecraft:furnace_flame`, `minecraft:furnace_arrow`,
+`minecraft:crafting_arrow`, `minecraft:slot`, and `minecraft:output_slot`.
+
+Progress elements accept a positive integer maximum or another synced field.
+Directions are `left_to_right`, `right_to_left`, `top_to_bottom`, and
+`bottom_to_top`. `background` draws an empty image below the fill image,
+`minimumPixels` keeps a nonzero value visible, and `hideWhenEmpty` hides the fill
+at zero.
+
+Text elements accept either `text` or a synced field in `value`. A `format`
+such as `"Heat: %d"` formats a field value. Colors may be an RGB/ARGB number or
+a named color such as `dark_gray`, `red`, `green`, `yellow`, or `aqua`.
+
+Every element accepts `anchor`, `layer`, `tooltip`, and `visibleWhen`. Anchors
+cover the four corners, top/bottom center, and screen center. Layers are
+`background`, `content`, and `foreground`. Tooltip text may contain synchronized
+field placeholders such as `{progress}`.
+
+Conditions use a field and one comparison:
+
+```lua
+visibleWhen = { field = "powered", equals = true }
+visibleWhen = { field = "heat", greaterOrEqual = 100 }
+visibleWhen = {
+    all = {
+        { field = "powered", equals = true },
+        { field = "progress", greaterThan = 0 }
+    }
+}
+```
+
+The supported comparisons are `equals`, `notEquals`, `greaterThan`,
+`greaterOrEqual`, `lessThan`, and `lessOrEqual`. Condition groups use `all` or
+`any`. Groups also let several elements share a position offset and condition.
+
+Tile entities and their connected definitions are structural content. Their
+owning script remains active and is skipped during hot reload. Restart
+Minecraft to apply changes to that script.
+
+A tile-entity block may omit both `container` and `gui` when it has no screen.
+Structural redstone behavior reads integer data fields and can react to neighbor
+changes:
+
+```lua
+redstone = {
+    weakPower = "power",
+    strongPower = "power",
+    onNeighborChanged = {
+        action = function(ctx)
+            ctx.entity.data:set("powered", ctx.powered)
+            ctx.world:notifyNeighbors()
+        end
+    }
+}
+```
+
+Minecraft Beta uses powered/unpowered booleans for these block methods, so a
+field value from 1 through 15 means powered and zero means unpowered.
+
 ## Events and reload ownership
 
 ```lua
@@ -228,7 +364,7 @@ Scripts share references through a named module:
 local public = betamoon.modules:export("example")
 public.block = betamoon.blocks:add { ... }
 
-local dependency = betamoon.modules:require("example")
+local dependency = betamoon.modules:getRequired("example")
 ```
 
 Exports are owned by their declaring script and are removed during reload.

@@ -9,6 +9,10 @@ contract and `docs/LUA_HOT_RELOAD.md` for reload guarantees.
 
 You can use most of the examples by placing them in your `.minecraft/lua_scripts/` folder.
 
+`22_custom_furnace.lua` demonstrates persistent tile data, named inventory
+slots, a standalone container, and a synchronized furnace-style GUI. Restart
+Minecraft after editing this startup-only example.
+
 The texture examples also need their PNG files from this folder. This includes
 `example_block.png` for `04_custom_textures.lua` and the six `example_armor_*.png`
 files for `08_custom_armor.lua`.

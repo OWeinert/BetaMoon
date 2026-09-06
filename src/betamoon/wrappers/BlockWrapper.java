@@ -7,9 +7,15 @@ import java.util.Random;
 import net.minecraft.src.Block;
 import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
+import net.minecraft.src.EntityItem;
+import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.Material;
 import net.minecraft.src.StepSound;
+import net.minecraft.src.TileEntity;
 import net.minecraft.src.World;
+import net.minecraft.src.IBlockAccess;
+import betamoon.tileentity.LuaTileEntity;
+import betamoon.tileentity.TileEntityRegistry;
 
 public class BlockWrapper extends Block {
     private static final List<PendingDrop> PENDING_DROPS = new ArrayList<PendingDrop>();
@@ -155,7 +161,56 @@ public class BlockWrapper extends Block {
     /** Starts any configured scheduled updates after this block is placed. */
     public void onBlockAdded(World world, int x, int y, int z) {
         super.onBlockAdded(world, x, y, z);
+        LuaTileEntity entity = TileEntityRegistry.createForBlock(this.blockID);
+        if (entity != null) world.setBlockTileEntity(x, y, z, entity);
         BlockTickRegistry.onBlockAdded(this, world, x, y, z);
+    }
+
+    /** Opens an attached standalone Lua container and GUI. */
+    public boolean blockActivated(World world, int x, int y, int z, EntityPlayer player) {
+        TileEntity entity = world.getBlockTileEntity(x, y, z);
+        return entity instanceof LuaTileEntity && TileEntityRegistry.open(player, (LuaTileEntity) entity);
+    }
+
+    public void onNeighborBlockChange(World world, int x, int y, int z, int neighborId) {
+        super.onNeighborBlockChange(world, x, y, z, neighborId);
+        TileEntityRegistry.neighborChanged(world, x, y, z, blockID, neighborId);
+    }
+
+    public boolean canProvidePower() {
+        return TileEntityRegistry.providesPower(blockID);
+    }
+
+    public boolean isPoweringTo(IBlockAccess world, int x, int y, int z, int side) {
+        return TileEntityRegistry.power(world, x, y, z, blockID, false) > 0;
+    }
+
+    public boolean isIndirectlyPoweringTo(World world, int x, int y, int z, int side) {
+        return TileEntityRegistry.power(world, x, y, z, blockID, true) > 0;
+    }
+
+    /** Drops stored items and removes an attached Lua tile entity. */
+    public void onBlockRemoval(World world, int x, int y, int z) {
+        TileEntity entity = world.getBlockTileEntity(x, y, z);
+        if (entity instanceof LuaTileEntity && !world.multiplayerWorld) {
+            LuaTileEntity lua = (LuaTileEntity) entity;
+            for (int slot = 0; slot < lua.getSizeInventory(); slot++) {
+                ItemStack stack = lua.getStackInSlot(slot);
+                if (stack == null) continue;
+                float ox = world.rand.nextFloat() * 0.8F + 0.1F;
+                float oy = world.rand.nextFloat() * 0.8F + 0.1F;
+                float oz = world.rand.nextFloat() * 0.8F + 0.1F;
+                EntityItem dropped = new EntityItem(world, x + ox, y + oy, z + oz, stack.copy());
+                world.entityJoinedWorld(dropped);
+            }
+        }
+        world.removeBlockTileEntity(x, y, z);
+        super.onBlockRemoval(world, x, y, z);
+    }
+
+    /** Marks this block ID as containing a tile entity in Minecraft's chunk format. */
+    public void enableTileEntity() {
+        Block.isBlockContainer[this.blockID] = true;
     }
 
     /** Delegates Minecraft gameplay updates to the active script-owned definition. */

@@ -32,20 +32,20 @@ public final class LuaTextureResources {
     public static synchronized String register(String relativePath) {
         File root = IoUtils.resolveLuaModsDir(LuaTextureResources.class, false);
         if (root == null) {
-            throw new LuaError("Armor: Lua scripts directory not found.");
+            throw new LuaError("Texture: Lua scripts directory not found.");
         }
         File file = resolveContainedFile(root, relativePath);
         if (!file.isFile()) {
-            throw new LuaError("Armor: model texture file not found: " + file.getAbsolutePath());
+            throw new LuaError("Texture file not found: " + file.getAbsolutePath());
         }
         BufferedImage image;
         try {
             image = ImageIo.loadImage(file);
             if (image == null) {
-                throw new LuaError("Armor: model texture could not be decoded: " + file.getAbsolutePath());
+                throw new LuaError("Texture could not be decoded: " + file.getAbsolutePath());
             }
         } catch (IOException e) {
-            throw new LuaError("Armor: failed to read model texture: " + file.getAbsolutePath());
+            throw new LuaError("Failed to read texture: " + file.getAbsolutePath());
         }
         String signature = file.getAbsolutePath().toLowerCase() + "\n" + file.lastModified() + "\n" + file.length();
         String resource = (String) RESOURCES_BY_SIGNATURE.get(signature);
@@ -66,6 +66,12 @@ public final class LuaTextureResources {
             return null;
         }
         return entry.image;
+    }
+
+    /** Returns the decoded dimensions of a registered Lua texture. */
+    public static synchronized int[] dimensions(String resourcePath) {
+        Entry entry = (Entry) ENTRIES.get(resourcePath);
+        return entry == null ? null : new int[] { entry.image.getWidth(), entry.image.getHeight() };
     }
 
     /** Releases a texture name after an armor item stops using it. */
@@ -100,7 +106,7 @@ public final class LuaTextureResources {
 
     private static File resolveContainedFile(File root, String relativePath) {
         if (relativePath == null || relativePath.trim().length() == 0) {
-            throw new LuaError("Armor: modelTexture must be a non-empty path.");
+            throw new LuaError("Texture path must not be empty.");
         }
         try {
             File canonicalRoot = root.getCanonicalFile();
@@ -109,11 +115,11 @@ public final class LuaTextureResources {
             String candidatePath = candidate.getPath();
             if (!candidatePath.equals(rootPath)
                 && !candidatePath.startsWith(rootPath + File.separator)) {
-                throw new LuaError("Armor: modelTexture must stay inside the Lua scripts directory.");
+                throw new LuaError("Texture must stay inside the Lua scripts directory.");
             }
             return candidate;
         } catch (IOException e) {
-            throw new LuaError("Armor: invalid modelTexture path: " + relativePath);
+            throw new LuaError("Invalid texture path: " + relativePath);
         }
     }
 

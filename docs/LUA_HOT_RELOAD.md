@@ -27,6 +27,11 @@ pickaxe/axe/shovel/hoe/sword, armor material and armor slot changes require a
 Minecraft restart. BetaMoon reports such a change as a script error instead of
 replacing a live registry object.
 
+Scripts that register tile entities, containers, or container GUIs remain in
+their original Lua environment and are skipped during hot reload. Persistent
+inventories and tile callbacks continue running unchanged. Restart Minecraft
+to apply edits to one of these scripts; other scripts still reload normally.
+
 Removing a block or item declaration does not free its ID during play. The
 registration is retained until restart, while its recipes and world generators
 are removed. This avoids corrupting loaded chunks, inventories and references
@@ -53,7 +58,7 @@ local copper = bm.blocks:add {
 bm.recipes:add {
     type = "shapeless",
     output = bm.stack(copper, 1),
-    ingredients = { bm.blocks:require("minecraft:stone") }
+    ingredients = { bm.blocks:getRequired("minecraft:stone") }
 }
 
 bm.events:on("game_tick", function(event)
@@ -63,15 +68,15 @@ end)
 
 | Namespace | Functions |
 | --- | --- |
-| `blocks` | `get`, `require`, `find`, `first`, `one`, `add` |
-| `items`, `tools`, `armor` | `get`, `require`, `find`, `first`, `one`, `add` |
-| `materials.tools`, `materials.armor` | `get`, `require`, `add` |
-| `recipes` | `get`, `require`, `find`, `first`, `one`, `add` |
+| `blocks` | `get`, `getRequired`, `find`, `first`, `one`, `add` |
+| `items`, `tools`, `armor` | `get`, `getRequired`, `find`, `first`, `one`, `add` |
+| `materials.tools`, `materials.armor` | `get`, `getRequired`, `add` |
+| `recipes` | `get`, `getRequired`, `find`, `first`, `one`, `add` |
 | `worldgen.ores`, `worldgen.biomes` | declarative `add` |
 | `events` | `on(name, callback)` |
 | `overrides` | declarative `add` for a queried resource |
 | `chat` | `send`, `broadcast` |
-| `modules` | `export`, `require` |
+| `modules` | `export`, `getRequired` |
 | `positions` | `integer`, `float` |
 
 See `LUA_API.md` for definitions, query criteria, and override semantics.

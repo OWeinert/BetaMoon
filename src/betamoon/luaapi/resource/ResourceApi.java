@@ -2,7 +2,12 @@ package betamoon.luaapi.resource;
 
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.block.BlockTickRegistry;
+import betamoon.luaapi.tileentity.TileEntityApi;
+import betamoon.tileentity.TileEntityRegistry;
+import betamoon.tileentity.RedstoneDefinition;
+import betamoon.tileentity.TileEntityDefinition;
 import betamoon.luamodloader.LuaContentRegistry;
+import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.resources.EnumTexAtlas;
 import betamoon.query.QueryEntries;
 import betamoon.query.QueryEntry;
@@ -389,10 +394,57 @@ public final class ResourceApi {
         call(handle, "register", optionalString(def, "displayName", name));
         Block block = Block.blocksList[id];
         if (block instanceof betamoon.wrappers.BlockWrapper) {
-            BlockTickRegistry.register((betamoon.wrappers.BlockWrapper) block,
+            betamoon.wrappers.BlockWrapper wrapper = (betamoon.wrappers.BlockWrapper) block;
+            BlockTickRegistry.register(wrapper,
                 def.get("onTick"), def.get("onDisplayTick"));
+            LuaValue tile = def.get("tileEntity");
+            LuaValue container = def.get("container");
+            LuaValue gui = def.get("gui");
+            if (!tile.isnil() || !container.isnil() || !gui.isnil()) {
+                if (tile.isnil()) throw new LuaError("A structural block requires a tileEntity handle.");
+                if (container.isnil() != gui.isnil()) {
+                    throw new LuaError("A block must provide both container and gui, or neither.");
+                }
+                TileEntityDefinition tileDefinition = TileEntityApi.tileHandle(tile).definition;
+                if (!tileDefinition.owner.equals(LuaScriptRegistry.getCurrentScriptFile())) {
+                    throw new LuaError("A block and its structural tile entity must be declared by the same script.");
+                }
+                betamoon.tileentity.ContainerDefinition containerDefinition = container.isnil() ? null
+                    : TileEntityApi.containerHandle(container).definition;
+                betamoon.tileentity.ContainerGuiDefinition guiDefinition = gui.isnil() ? null
+                    : TileEntityApi.guiHandle(gui).definition;
+                TileEntityRegistry.attachBlock(id, tileDefinition,
+                    containerDefinition, guiDefinition,
+                    parseRedstone(def.get("redstone"), tileDefinition));
+                wrapper.enableTileEntity();
+            }
         }
         return new BlockReference(Block.blocksList[id], 0);
+    }
+
+    private static RedstoneDefinition parseRedstone(LuaValue value, TileEntityDefinition tile) {
+        if (value.isnil()) return null;
+        if (!value.istable()) throw new LuaError("redstone must be a definition table.");
+        String weak = optionalDataField(value.get("weakPower"), "redstone.weakPower", tile);
+        String strong = optionalDataField(value.get("strongPower"), "redstone.strongPower", tile);
+        LuaValue changed = value.get("onNeighborChanged");
+        LuaValue action = LuaValue.NIL;
+        if (!changed.isnil()) {
+            if (!changed.istable()) throw new LuaError("redstone.onNeighborChanged must be a table.");
+            action = required(changed, "action");
+            if (!action.isfunction()) throw new LuaError("redstone.onNeighborChanged.action must be a function.");
+        }
+        return new RedstoneDefinition(weak, strong, action);
+    }
+
+    private static String optionalDataField(LuaValue value, String name, TileEntityDefinition tile) {
+        if (value.isnil()) return null;
+        String fieldName = value.checkjstring();
+        TileEntityDefinition.Field field = (TileEntityDefinition.Field) tile.fields.get(fieldName);
+        if (field == null || !"integer".equals(field.type)) {
+            throw new LuaError(name + " must name an integer tile entity data field.");
+        }
+        return fieldName;
     }
 
     private static LuaValue addItem(LuaTable root, LuaValue def) {

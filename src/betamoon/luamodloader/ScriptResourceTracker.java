@@ -57,6 +57,16 @@ public final class ScriptResourceTracker {
         }
     }
 
+    /** Unloads only scripts that do not own startup-only structural content. */
+    public static synchronized void unloadReloadable() {
+        List owners = new ArrayList(CLEANUPS.keySet());
+        Collections.sort(owners);
+        for (int i = owners.size() - 1; i >= 0; i--) {
+            String owner = (String) owners.get(i);
+            if (!NonReloadableScriptRegistry.contains(owner)) unload(owner);
+        }
+    }
+
     public static synchronized void unload(String owner) {
         List entries = (List) CLEANUPS.remove(owner);
         if (entries == null) {

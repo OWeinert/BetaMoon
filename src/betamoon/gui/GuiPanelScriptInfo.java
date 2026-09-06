@@ -3,6 +3,7 @@ package betamoon.gui;
 import betamoon.gui.api.component.EnumScrollMode;
 import betamoon.gui.api.component.GuiComponentBase;
 import betamoon.gui.api.component.GuiTextClickable;
+import betamoon.gui.api.component.GuiNonReloadableIndicator;
 import betamoon.gui.api.component.IGuiAction;
 import betamoon.gui.api.util.GuiColors;
 import betamoon.gui.api.component.GuiScrollPanel;
@@ -24,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.src.FontRenderer;
+import net.minecraft.src.ModLoader;
 import net.minecraft.src.Tessellator;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
@@ -54,6 +56,10 @@ public final class GuiPanelScriptInfo extends GuiComponentBase {
     private final GuiTextClickable inlineHelper = new GuiTextClickable();
     private final ScriptInfoContent content = new ScriptInfoContent();
     private final GuiScrollPanel scrollPanel = new GuiScrollPanel(content, EnumScrollMode.VERTICAL);
+    private static final int WARNING_SIZE = 11;
+    private static final int WARNING_GAP = 4;
+    private int warningIconX = -1;
+    private int warningIconY = -1;
 
     public GuiPanelScriptInfo() {
     }
@@ -96,7 +102,17 @@ public final class GuiPanelScriptInfo extends GuiComponentBase {
         int contentWidth = detailRight - detailLeft;
         // Title row: script name and version.
         String title = selected.getDisplayName() + "  v" + selected.getVersion();
-        GuiUtils.drawScaledString(font, title, detailLeft, headerY, GuiColors.TEXT_PRIMARY, headerScale);
+        boolean nonReloadable = GuiNonReloadableIndicator.isVisible(selected.getSourceFileName());
+        int titleX = detailLeft;
+        warningIconX = -1;
+        if (nonReloadable) {
+            int iconY = headerY - 1;
+            GuiNonReloadableIndicator.draw(ModLoader.getMinecraftInstance(), detailLeft, iconY, WARNING_SIZE);
+            warningIconX = detailLeft;
+            warningIconY = iconY;
+            titleX += WARNING_SIZE + WARNING_GAP;
+        }
+        GuiUtils.drawScaledString(font, title, titleX, headerY, GuiColors.TEXT_PRIMARY, headerScale);
 
         String description = selected.getDescription();
         boolean hasDescription = description != null && !description.trim().isEmpty();
@@ -116,6 +132,10 @@ public final class GuiPanelScriptInfo extends GuiComponentBase {
             hasErrors ? failure : null, errorIssues, warningIssues, hasDependencies ? dependencies : null, imageSize);
         scrollPanel.setContentSize(Math.max(0, contentWidth), contentHeight);
         scrollPanel.draw(font, mouseX, mouseY, partialTicks);
+        if (warningIconX >= 0) {
+            GuiNonReloadableIndicator.drawTooltip(font, screenWidth, screenHeight,
+                selected.getSourceFileName(), warningIconX, warningIconY, WARNING_SIZE, mouseX, mouseY);
+        }
     }
 
     private final class ScriptInfoContent extends GuiComponentBase {
