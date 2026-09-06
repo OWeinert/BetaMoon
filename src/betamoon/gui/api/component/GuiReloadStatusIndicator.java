@@ -1,14 +1,18 @@
 package betamoon.gui.api.component;
 
 import betamoon.gui.api.util.GuiText;
-import betamoon.gui.api.util.GuiUtils;
 import betamoon.luamodloader.ScriptReloadStatus;
-import betamoon.utils.McColors;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.FontRenderer;
+import net.minecraft.src.Tessellator;
+import org.lwjgl.opengl.GL11;
 
 /** Draws and handles the compact script-reload status indicator. */
 public final class GuiReloadStatusIndicator extends GuiComponentBase {
+    private static final String SUCCESS_TEXTURE = "/resources/betamoon/gui/reload_success.png";
+    private static final String ERROR_TEXTURE = "/resources/betamoon/gui/reload_error.png";
+    private static final String SPINNER_TEXTURE = "/resources/betamoon/gui/reload_spinner.png";
+    private static final int SPINNER_FRAMES = 8;
     private static final long SUCCESS_HOLD_MS = 1000L;
     private static final long SUCCESS_FADE_MS = 2000L;
     private IGuiAction errorAction;
@@ -86,43 +90,35 @@ public final class GuiReloadStatusIndicator extends GuiComponentBase {
     }
 
     private void drawSpinner(int alpha) {
-        int[][] points = new int[][] {
-            { 7, 1 }, { 11, 3 }, { 13, 7 }, { 11, 11 },
-            { 7, 13 }, { 3, 11 }, { 1, 7 }, { 3, 3 }
-        };
-        int active = (int) (System.currentTimeMillis() / 100L % points.length);
-        for (int i = 0; i < points.length; i++) {
-            int distance = (i - active + points.length) % points.length;
-            int pointAlpha = Math.max(45, alpha - distance * 26);
-            int x = left + points[i][0];
-            int y = top + points[i][1];
-            GuiUtils.drawRect(x, y, x + 2, y + 2, McColors.YELLOW.getArgb(pointAlpha));
-        }
+        int frame = (int) (System.currentTimeMillis() / 100L % SPINNER_FRAMES);
+        drawSprite(SPINNER_TEXTURE, frame / (float) SPINNER_FRAMES,
+            (frame + 1) / (float) SPINNER_FRAMES, alpha);
     }
 
     private void drawSuccess(int alpha) {
-        drawCircle(McColors.DARK_GREEN.getArgb(alpha));
-        int white = McColors.WHITE.getArgb(alpha);
-        GuiUtils.drawRect(left + 4, top + 8, left + 6, top + 10, white);
-        GuiUtils.drawRect(left + 6, top + 10, left + 8, top + 12, white);
-        GuiUtils.drawRect(left + 8, top + 8, left + 10, top + 10, white);
-        GuiUtils.drawRect(left + 10, top + 6, left + 12, top + 8, white);
-        GuiUtils.drawRect(left + 12, top + 4, left + 14, top + 6, white);
+        drawSprite(SUCCESS_TEXTURE, 0.0F, 1.0F, alpha);
     }
 
     private void drawFailure(int alpha) {
-        drawCircle(McColors.DARK_RED.getArgb(alpha));
-        int white = McColors.WHITE.getArgb(alpha);
-        GuiUtils.drawRect(left + 7, top + 4, left + 10, top + 10, white);
-        GuiUtils.drawRect(left + 7, top + 12, left + 10, top + 14, white);
+        drawSprite(ERROR_TEXTURE, 0.0F, 1.0F, alpha);
     }
 
-    private void drawCircle(int color) {
-        GuiUtils.drawRect(left + 5, top + 1, left + 12, top + 2, color);
-        GuiUtils.drawRect(left + 3, top + 2, left + 14, top + 4, color);
-        GuiUtils.drawRect(left + 2, top + 4, left + 15, top + 13, color);
-        GuiUtils.drawRect(left + 3, top + 13, left + 14, top + 15, color);
-        GuiUtils.drawRect(left + 5, top + 15, left + 12, top + 16, color);
+    /** Draws a 16-pixel sprite across the component's existing 17-pixel bounds. */
+    private void drawSprite(String texture, float minU, float maxU, int alpha) {
+        if (minecraft == null) return;
+        minecraft.renderEngine.bindTexture(minecraft.renderEngine.getTexture(texture));
+        GL11.glEnable(GL11.GL_BLEND);
+        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        GL11.glColor4f(1.0F, 1.0F, 1.0F, alpha / 255.0F);
+        Tessellator tessellator = Tessellator.instance;
+        tessellator.startDrawingQuads();
+        tessellator.addVertexWithUV(left, bottom, 0.0D, minU, 1.0D);
+        tessellator.addVertexWithUV(right, bottom, 0.0D, maxU, 1.0D);
+        tessellator.addVertexWithUV(right, top, 0.0D, maxU, 0.0D);
+        tessellator.addVertexWithUV(left, top, 0.0D, minU, 0.0D);
+        tessellator.draw();
+        GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+        GL11.glDisable(GL11.GL_BLEND);
     }
 
     private String tooltip(ScriptReloadStatus.State state) {

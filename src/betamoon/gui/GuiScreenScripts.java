@@ -84,7 +84,7 @@ public class GuiScreenScripts extends GuiScreenBase {
         int reloadButtonX = debugButtonX - reloadButtonWidth - 6;
         reloadButton.setBounds(reloadButtonX, backButtonY,
             reloadButtonX + reloadButtonWidth, backButtonY + buttonHeight);
-        int indicatorSize = 17;
+        int indicatorSize = 19;
         int indicatorRight = reloadButtonX - 6;
         reloadIndicator.setBounds(indicatorRight - indicatorSize,
             backButtonY + (buttonHeight - indicatorSize) / 2, indicatorRight,

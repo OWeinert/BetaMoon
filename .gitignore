@@ -28,7 +28,7 @@ temp/
 reobf/
 logs/
 dist/
-/resources/
+/internal_resources/
 texturepacks/
 mods/
 lib/
