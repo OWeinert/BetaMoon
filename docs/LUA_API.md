@@ -71,6 +71,44 @@ local food = betamoon.items:add {
 `pickaxe`, `axe`, `shovel`, `hoe`, and `sword` plus a material. `armor:add` accepts
 an armor material and slot. Definitions return the same reference type as a query.
 
+Custom blocks can run gameplay updates and separate client-side display effects:
+
+```lua
+betamoon.blocks:add {
+    id = 201,
+    material = "rock",
+    key = "smoking_block",
+
+    onTick = {
+        mode = "scheduled",
+        schedule = { delay = 20, repeatEvery = 20 },
+        action = function(ctx)
+            -- Gameplay logic runs once per second.
+        end
+    },
+
+    onDisplayTick = {
+        chance = 0.25,
+        attempts = 1,
+        action = function(ctx)
+            ctx.world:spawnParticle("smoke", {
+                x = ctx.x + 0.5, y = ctx.y + 1, z = ctx.z + 0.5
+            })
+        end
+    }
+}
+```
+
+`onTick.mode` accepts `default`, `random`, or `scheduled`. `default` updates
+every game tick. `random` uses Minecraft's random block selection. `scheduled`
+requires `schedule.delay`; `schedule.repeatEvery` is optional. An action can call
+`ctx:schedule(delay)` to request another update itself.
+
+`onDisplayTick` is independent from gameplay ticking. Its `chance` defaults to
+`1`, and `attempts` defaults to `1`. Each attempt makes a separate chance check.
+The context exposes the block position, ID, damage, `random()`, and a limited
+world facade with `getBlock`, `setBlock`, `spawnParticle`, and `playSound`.
+
 Materials are declared through `materials.tools:add` and `materials.armor:add`:
 
 ```lua

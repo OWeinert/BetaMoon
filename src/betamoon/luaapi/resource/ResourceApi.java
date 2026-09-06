@@ -1,6 +1,7 @@
 package betamoon.luaapi.resource;
 
 import betamoon.luaapi.LuaApiUtils;
+import betamoon.luaapi.block.BlockTickRegistry;
 import betamoon.luamodloader.LuaContentRegistry;
 import betamoon.resources.EnumTexAtlas;
 import betamoon.query.QueryEntries;
@@ -386,6 +387,11 @@ public final class ResourceApi {
             }
         }
         call(handle, "register", optionalString(def, "displayName", name));
+        Block block = Block.blocksList[id];
+        if (block instanceof betamoon.wrappers.BlockWrapper) {
+            BlockTickRegistry.register((betamoon.wrappers.BlockWrapper) block,
+                def.get("onTick"), def.get("onDisplayTick"));
+        }
         return new BlockReference(Block.blocksList[id], 0);
     }
 

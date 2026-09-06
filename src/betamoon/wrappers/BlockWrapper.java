@@ -1,5 +1,6 @@
 package betamoon.wrappers;
 
+import betamoon.luaapi.block.BlockTickRegistry;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -143,6 +144,28 @@ public class BlockWrapper extends Block {
     public BlockWrapper setBlockUnbreakable() {
         this.setHardness(-1.0F);
 		return this;
+    }
+
+    /** Enables or disables Minecraft's random update selection for this block. */
+    public BlockWrapper setRandomTicks(boolean enabled) {
+        this.setTickOnLoad(enabled);
+        return this;
+    }
+
+    /** Starts any configured scheduled updates after this block is placed. */
+    public void onBlockAdded(World world, int x, int y, int z) {
+        super.onBlockAdded(world, x, y, z);
+        BlockTickRegistry.onBlockAdded(this, world, x, y, z);
+    }
+
+    /** Delegates Minecraft gameplay updates to the active script-owned definition. */
+    public void updateTick(World world, int x, int y, int z, Random random) {
+        BlockTickRegistry.update(this, world, x, y, z, random);
+    }
+
+    /** Delegates nearby client display updates to the active script-owned definition. */
+    public void randomDisplayTick(World world, int x, int y, int z, Random random) {
+        BlockTickRegistry.display(this, world, x, y, z, random);
     }
 
     /**
