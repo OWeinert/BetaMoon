@@ -422,7 +422,19 @@ public final class ResourceApi {
         callIfPresent(handle, "setEfficiency", def.get("efficiency"));
         callIfPresent(handle, "setDamageVsEntity", def.get("damageVsEntity"));
         if (def.get("full3D").toboolean()) call(handle, "setFull3D");
-        callIfPresent(handle, "setVanillaRenderIndex", def.get("renderIndex"));
+        LuaValue modelTexture = def.get("modelTexture");
+        LuaValue renderIndex = def.get("renderIndex");
+        if (type.equals("armor") && !modelTexture.isnil() && !renderIndex.isnil()) {
+            throw new LuaError("Armor definition cannot use modelTexture and renderIndex together.");
+        }
+        if (type.equals("armor")) {
+            if (!modelTexture.isnil()) {
+                call(handle, "setArmorTexture", modelTexture.checkstring());
+            } else {
+                call(handle, "useVanillaArmorTexture");
+            }
+            callIfPresent(handle, "setVanillaRenderIndex", renderIndex);
+        }
         LuaValue icon = def.get("icon");
         if (icon.istable()) call(handle, "setIconCoord", icon.get("x"), icon.get("y"));
         LuaValue texture = def.get("texture");

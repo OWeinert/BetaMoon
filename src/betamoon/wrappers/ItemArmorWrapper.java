@@ -7,11 +7,13 @@ import java.util.logging.Level;
 import betamoon.BetaMoonMain;
 import net.minecraft.src.ItemArmor;
 import net.minecraft.src.RenderPlayer;
+import betamoon.resources.LuaTextureResources;
 
 public class ItemArmorWrapper extends ItemArmor implements IArmorTextureProvider {
     private static final java.util.logging.Logger LOGGER = BetaMoonMain.LOGGER;
     private static Field RENDER_INDEX_FIELD = resolveRenderIndexField();
     private int armorRenderIndex;
+    private String customArmorTexture;
 
     /**
      * Creates an armor wrapper with the provided id, material, render index, slot type, and internal name.
@@ -37,6 +39,8 @@ public class ItemArmorWrapper extends ItemArmor implements IArmorTextureProvider
      */
     public ItemArmorWrapper setRenderIndex(int renderIndex) {
         this.armorRenderIndex = renderIndex;
+        LuaTextureResources.release(this.customArmorTexture);
+        this.customArmorTexture = null;
         if (RENDER_INDEX_FIELD == null) {
             RENDER_INDEX_FIELD = resolveRenderIndexField();
         }
@@ -56,8 +60,35 @@ public class ItemArmorWrapper extends ItemArmor implements IArmorTextureProvider
      * @return texture path including layer suffix
      */
     public String getArmorTextureFile() {
+        if (customArmorTexture != null) {
+            return customArmorTexture;
+        }
         String texture = "armor/" + resolveArmorTextureName(armorRenderIndex);
         return "/" + texture + "_" + (armorType == 2 ? 2 : 1) + ".png";
+    }
+
+    /**
+     * Selects a standalone texture for the armor model. This deliberately bypasses renderIndex.
+     *
+     * @param texture virtual texture resource path
+     * @return this wrapper for chaining
+     */
+    public ItemArmorWrapper setArmorTexture(String texture) {
+        if (texture != null && texture.equals(this.customArmorTexture)) {
+            // register() acquired another reference for the same resource; balance it immediately.
+            LuaTextureResources.release(texture);
+            return this;
+        }
+        LuaTextureResources.release(this.customArmorTexture);
+        this.customArmorTexture = texture;
+        return this;
+    }
+
+    /** Clears a custom model texture while retaining the current vanilla render index. */
+    public ItemArmorWrapper useVanillaArmorTexture() {
+        LuaTextureResources.release(this.customArmorTexture);
+        this.customArmorTexture = null;
+        return this;
     }
 
     /**

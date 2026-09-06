@@ -3,7 +3,7 @@ version = "2.0.0"
 description = "Exports a resource reference for another script."
 
 -- modules:export creates a table that other scripts can use.
-local export = betamoon.modules:export("16a_script_export")
+local export = betamoon.modules:export("13a_script_export")
 
 function modInit()
   -- Save the block in that table so other scripts can find it.

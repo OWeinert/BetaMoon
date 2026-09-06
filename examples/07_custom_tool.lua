@@ -1,28 +1,41 @@
 name = "Custom Tool Example"
-version = "2.0.0"
-description = "Declares every supported tool type."
+version = "2.1.0"
+description = "Declares a custom tool material and every supported tool type."
 
 function modInit()
+  -- A tool material controls mining level, uses, speed, and attack damage.
+  -- Create it once, then use the returned material for every tool in the set.
+  local exampleMaterial = betamoon.materials.tools:add {
+    key = "EXAMPLE_TOOLS",
+    harvestLevel = 3,
+    durability = 2048,
+    efficiency = 7,
+    damage = 3
+  }
+
+  -- require can find the same material later by its key.
+  assert(betamoon.materials.tools:require("EXAMPLE_TOOLS") == exampleMaterial)
+
   -- BetaMoon can create axes, pickaxes, shovels, hoes, and swords.
   local toolTypes = {
-    "axe",
-    "pickaxe",
+    "sword",
     "shovel",
-    "hoe",
-    "sword"
+    "pickaxe",
+    "axe",
+    "hoe"
   }
 
   for index, toolType in ipairs(toolTypes) do
-    -- This loop creates one diamond tool of every type in the list.
+    -- This loop creates one tool of every type with the custom material.
     betamoon.tools:add {
       id = 5001 + index,
       type = toolType,
-      material = "diamond",
+      material = exampleMaterial,
       key = "example_" .. toolType,
       displayName = "Example " .. toolType,
       -- full3D makes the item look like a normal tool when held.
       full3D = true,
-      icon = { x = index - 1, y = 7 }
+      icon = { x = 3, y = 3 + index }
     }
   end
 end

@@ -8,7 +8,7 @@ dependencies = {
 
 function modInit()
   -- modules:require gets the table shared by the other script.
-  local imported = betamoon.modules:require("16a_script_export")
+  local imported = betamoon.modules:require("13a_script_export")
 
   betamoon.worldgen.ores:add {
     block = imported.block,

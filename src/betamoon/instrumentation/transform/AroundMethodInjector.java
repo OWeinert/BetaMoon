@@ -52,11 +52,12 @@ final class AroundMethodInjector {
         if (captureType.getSort() == Type.VOID) {
             throw failure(definition, "Capture handler must return a value: " + captureHandler);
         }
-        if (Type.getReturnType(returnHandler.getDescriptor()).getSort() != Type.VOID) {
-            throw failure(definition, "Return handler must return void: " + returnHandler);
-        }
-
         Type targetReturnType = Type.getReturnType(targetMatch.target.getDescriptor());
+        Type returnHandlerType = Type.getReturnType(returnHandler.getDescriptor());
+        if (returnHandlerType.getSort() != Type.VOID && !returnHandlerType.equals(targetReturnType)) {
+            throw failure(definition, "Return handler must return void or the target return type "
+                + targetReturnType + ": " + returnHandler);
+        }
         List<AbstractInsnNode> returns = collectReturns(targetMatch.method, targetReturnType);
         if (returns.isEmpty()) {
             throw failure(definition, "Target method has no compatible normal return instruction: "
@@ -104,7 +105,7 @@ final class AroundMethodInjector {
                 targetReturnType, captureType);
             exit.add(new MethodInsnNode(Opcodes.INVOKESTATIC, returnHandler.getOwner(), returnHandler.getName(),
                 returnHandler.getDescriptor(), false));
-            if (targetReturnType.getSort() != Type.VOID) {
+            if (returnHandlerType.getSort() == Type.VOID && targetReturnType.getSort() != Type.VOID) {
                 exit.add(new VarInsnNode(targetReturnType.getOpcode(Opcodes.ILOAD), returnLocal));
             }
             targetMatch.method.instructions.insertBefore(returnInstruction, exit);

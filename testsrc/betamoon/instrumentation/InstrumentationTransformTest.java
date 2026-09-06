@@ -88,10 +88,12 @@ public final class InstrumentationTransformTest {
             "Missing block-placement return callback for " + namespace);
 
         List<HookDiagnostic> diagnostics = report.snapshot();
-        require(diagnostics.size() == 2, "Expected two hook diagnostics");
+        require(diagnostics.size() == 3, "Expected three hook diagnostics");
         for (HookDiagnostic diagnostic : diagnostics) {
-            require(diagnostic.getStatus() == HookStatus.APPLIED,
-                diagnostic.getHookId() + " was not marked applied in " + namespace);
+            HookStatus expected = diagnostic.getHookId().equals("betamoon:lua_texture_resource")
+                ? HookStatus.WAITING_FOR_TARGET : HookStatus.APPLIED;
+            require(diagnostic.getStatus() == expected,
+                diagnostic.getHookId() + " has an unexpected status in " + namespace);
         }
     }
 
@@ -134,6 +136,21 @@ public final class InstrumentationTransformTest {
         require(transformer.transform(null, runtimeOwner, null, null, transformed) == null,
             "Applying the same hooks twice must be a no-op");
 
+        betamoon.instrumentation.api.ClassRef renderEngine =
+            new betamoon.instrumentation.api.ClassRef("net/minecraft/src/RenderEngine");
+        String renderEngineOwner = mappings.resolveClass(renderEngine, RuntimeNamespace.CLIENT);
+        byte[] renderEngineOriginal = readClass(clientJarPath, renderEngineOwner);
+        byte[] renderEngineTransformed = transformer.transform(null, renderEngineOwner, null, null,
+            renderEngineOriginal);
+        require(renderEngineTransformed != null, "Runtime RenderEngine was not transformed");
+        require(countCallbackCalls(renderEngineTransformed, "findLuaTexture") == 1,
+            "Runtime RenderEngine is missing the Lua texture lookup callback");
+        int textureReturns = countReturns(renderEngineOriginal, mappings.resolveMethod(
+            new betamoon.instrumentation.api.MethodRef(renderEngine, "getTexture", "(Ljava/lang/String;)I"),
+            RuntimeNamespace.CLIENT));
+        require(countCallbackCalls(renderEngineTransformed, "uploadLuaTexture") == textureReturns,
+            "Runtime RenderEngine must upload Lua textures on every return path");
+
         byte[] partial = removeFirstCallbackCall(transformed, "afterBlockBroken");
         PrintStream originalError = System.err;
         try {
@@ -147,6 +164,22 @@ public final class InstrumentationTransformTest {
             }
         } finally {
             System.setErr(originalError);
+        }
+    }
+
+    private static byte[] readClass(String jarPath, String owner) throws Exception {
+        ZipFile jar = new ZipFile(jarPath);
+        try {
+            ZipEntry entry = jar.getEntry(owner + ".class");
+            require(entry != null, "Runtime client does not contain " + owner + ".class");
+            InputStream input = jar.getInputStream(entry);
+            try {
+                return readFully(input, (int) entry.getSize());
+            } finally {
+                input.close();
+            }
+        } finally {
+            jar.close();
         }
     }
 
@@ -182,13 +215,32 @@ public final class InstrumentationTransformTest {
                 if (instruction instanceof MethodInsnNode) {
                     MethodInsnNode call = (MethodInsnNode) instruction;
                     if (call.getOpcode() == Opcodes.INVOKESTATIC && methodName.equals(call.name)
-                        && call.owner.startsWith("betamoon/instrumentation/hooks/block/")) {
+                        && call.owner.startsWith("betamoon/instrumentation/hooks/")) {
                         count++;
                     }
                 }
             }
         }
         return count;
+    }
+
+    private static int countReturns(byte[] bytecode, ResolvedMethod target) {
+        ClassNode node = new ClassNode();
+        new ClassReader(bytecode).accept(node, 0);
+        for (MethodNode method : node.methods) {
+            if (!target.getName().equals(method.name) || !target.getDescriptor().equals(method.desc)) {
+                continue;
+            }
+            int count = 0;
+            for (AbstractInsnNode instruction = method.instructions.getFirst(); instruction != null;
+                instruction = instruction.getNext()) {
+                if (instruction.getOpcode() == Opcodes.IRETURN) {
+                    count++;
+                }
+            }
+            return count;
+        }
+        return 0;
     }
 
     private static byte[] removeFirstCallbackCall(byte[] bytecode, String methodName) {

@@ -6,6 +6,7 @@ import betamoon.luaapi.material.ArmorMaterialApi;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luamodloader.LuaContentRegistry;
 import betamoon.wrappers.ItemArmorWrapper;
+import betamoon.resources.LuaTextureResources;
 import net.minecraft.src.Item;
 import net.minecraft.src.ModLoader;
 
@@ -81,9 +82,8 @@ public final class ItemArmorApi {
             set("setFull3D", new SetFull3D(this));
             set("setIconCoord", new SetIconCoord(this));
             set("addTexture", new AddTexture(this));
-            // TEMPORARILY DISABLED: setArmorTexture is disabled while armor texture loading
-            // returns to the vanilla /armor/ lookup behavior.
-            // set("setArmorTexture", new SetArmorTexture(this));
+            set("setArmorTexture", new SetArmorTexture(this));
+            set("useVanillaArmorTexture", new UseVanillaArmorTexture(this));
             set("setVanillaRenderIndex", new SetVanillaRenderIndex(this));
             set("register", new RegisterArmor(this));
             set("getId", new GetId(this));
@@ -147,9 +147,6 @@ public final class ItemArmorApi {
         }
     }
 
-/*
-    // TEMPORARILY DISABLED: setArmorTexture is disabled while armor textures
-    // use the vanilla /armor/ lookup behavior.
     private static final class SetArmorTexture extends VarArgFunction {
         private final ArmorHandle handle;
 
@@ -162,11 +159,10 @@ public final class ItemArmorApi {
                 return handle;
             }
             String texture = LuaApiUtils.getStringArg(args, 1);
-            handle.armor.setArmorTexture(texture);
+            handle.armor.setArmorTexture(LuaTextureResources.register(texture));
             return handle;
         }
     }
-*/
 
     private static final class SetVanillaRenderIndex extends VarArgFunction {
         private final ArmorHandle handle;
@@ -185,6 +181,19 @@ public final class ItemArmorApi {
             }
             int index = resolveVanillaRenderIndex(value);
             handle.armor.setRenderIndex(index);
+            return handle;
+        }
+    }
+
+    private static final class UseVanillaArmorTexture extends VarArgFunction {
+        private final ArmorHandle handle;
+
+        private UseVanillaArmorTexture(ArmorHandle handle) {
+            this.handle = handle;
+        }
+
+        public Varargs invoke(Varargs args) {
+            handle.armor.useVanillaArmorTexture();
             return handle;
         }
     }
