@@ -18,6 +18,7 @@ public class GuiTextClickable extends GuiComponentBase {
     private Supplier tooltipSupplier;
     private int screenWidth;
     private int screenHeight;
+    private boolean wrapText;
 
     public GuiTextClickable() {
     }
@@ -90,6 +91,13 @@ public class GuiTextClickable extends GuiComponentBase {
     }
 
     /**
+     * Enables wrapping within the component bounds for long clickable text.
+     */
+    public void setWrapText(boolean wrapText) {
+        this.wrapText = wrapText;
+    }
+
+    /**
      * Draws the text and hover underline/tooltip.
      */
     public void draw(FontRenderer font, int mouseX, int mouseY, float partialTicks) {
@@ -102,12 +110,19 @@ public class GuiTextClickable extends GuiComponentBase {
         }
         boolean hovered = isMouseOver(mouseX, mouseY);
         int color = hovered ? GuiColors.LINK_PATH_HOVER : GuiColors.LINK_PATH;
-        font.drawStringWithShadow(resolvedText, left, top, color);
+        int availableWidth = Math.max(0, right - left);
+        if (wrapText && availableWidth > 0) {
+            font.func_27278_a(resolvedText, left, top, availableWidth, color);
+        } else {
+            font.drawStringWithShadow(resolvedText, left, top, color);
+        }
         if (hovered) {
-            int height = GuiText.getLineHeight(font);
-            // Draw underline and tooltip only while hovered to avoid clutter.
-            GuiUtils.drawRect(left, top + height + 1, left + font.getStringWidth(resolvedText),
-                top + height + 2, GuiColors.LINK_PATH_HOVER_UNDERLINE);
+            if (!wrapText) {
+                int height = GuiText.getLineHeight(font);
+                // Draw underline and tooltip only while hovered to avoid clutter.
+                GuiUtils.drawRect(left, top + height + 1, left + font.getStringWidth(resolvedText),
+                    top + height + 2, GuiColors.LINK_PATH_HOVER_UNDERLINE);
+            }
             String resolvedTooltip = resolveTooltip();
             if (resolvedTooltip != null && !resolvedTooltip.isEmpty()) {
                 GuiText.drawTooltip(font, screenWidth, screenHeight, resolvedTooltip, mouseX, mouseY);

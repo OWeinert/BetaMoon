@@ -39,6 +39,12 @@ public final class BiomeGenRegistry {
     private BiomeGenRegistry() {
     }
 
+    /** Removes Lua biome overlays and restores the vanilla lookup table. */
+    public static synchronized void clear() {
+        ENTRIES.clear();
+        getBiomeLookupTable();
+    }
+
     /**
      * Registers a new biome generator entry.
      *
@@ -48,7 +54,7 @@ public final class BiomeGenRegistry {
      * @param minHumidity minimum humidity (0..1)
      * @param maxHumidity maximum humidity (0..1)
      */
-    public static void registerBiomeGenerator(BiomeGenBase biome, double minTemperature, double maxTemperature,
+    public static synchronized void registerBiomeGenerator(BiomeGenBase biome, double minTemperature, double maxTemperature,
         double minHumidity, double maxHumidity) {
         if (biome == null) {
             return;

@@ -1,20 +1,28 @@
 name = "Custom Tool Example"
-version = "1.0.0"
-description = "Shows a custom tool item."
-
+version = "2.0.0"
+description = "Declares every supported tool type."
 
 function modInit()
+  -- BetaMoon can create axes, pickaxes, shovels, hoes, and swords.
+  local toolTypes = {
+    "axe",
+    "pickaxe",
+    "shovel",
+    "hoe",
+    "sword"
+  }
 
-  -- Instead of createItem, you need to use createTool.
-  -- In addition to the itemId you need to provide the internal name and either the name of a tool material
-  -- or a ToolMaterial instance like created in 07_custom_tool_material.lua
-  betamoon.createTool(5002, "diamond", "example_axe")
-    
-    -- You can call either pickaxe(), axe(), shovel(), hoe() or sword() to define which kind of tool you want to create.
-    -- In this case we create an axe.
-    :axe()
-
-    -- Afterwards just configure your tool like any other item.
-    :setIconCoord(3, 7)
-    :register("Example Axe")
+  for index, toolType in ipairs(toolTypes) do
+    -- This loop creates one diamond tool of every type in the list.
+    betamoon.tools:add {
+      id = 5001 + index,
+      type = toolType,
+      material = "diamond",
+      key = "example_" .. toolType,
+      displayName = "Example " .. toolType,
+      -- full3D makes the item look like a normal tool when held.
+      full3D = true,
+      icon = { x = index - 1, y = 7 }
+    }
+  end
 end

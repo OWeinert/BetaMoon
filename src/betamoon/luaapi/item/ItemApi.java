@@ -5,6 +5,7 @@ import betamoon.wrappers.ItemFoodWrapper;
 import betamoon.resources.EnumTexAtlas;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.wrappers.ItemWrapper;
+import betamoon.luamodloader.LuaContentRegistry;
 import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.ModLoader;
@@ -49,10 +50,16 @@ public final class ItemApi {
             }
             String name = args.checkjstring(base + 1);
             int id = shiftedId - 256;
+            LuaContentRegistry.Entry existing = LuaContentRegistry.find("item", shiftedId);
+            if (existing != null) {
+                if (!(existing.value instanceof Item)) throw new LuaError("Item: incompatible existing id: " + shiftedId);
+                return new ItemHandle((Item) existing.value, existing);
+            }
             try {
                 ItemWrapper item = new ItemWrapper(id, name);
                 item.setIconCoord(0, 0);
-                return new ItemHandle(item);
+                LuaContentRegistry.Entry entry = LuaContentRegistry.remember("item", shiftedId, item, "item");
+                return new ItemHandle(item, entry);
             } catch (RuntimeException e) {
                 throw new LuaError("Item: " + String.valueOf(e.getMessage()));
             }
@@ -60,14 +67,18 @@ public final class ItemApi {
     }
 
     private static final class ItemHandle extends LuaTable {
-        private final ItemWrapper item;
+        private Item item;
+        private final LuaContentRegistry.Entry contentEntry;
         private boolean foodItem;
         private int foodHeal;
         private boolean foodWolf;
         private boolean registered;
 
-        private ItemHandle(ItemWrapper item) {
+        private ItemHandle(Item item, LuaContentRegistry.Entry contentEntry) {
             this.item = item;
+            this.contentEntry = contentEntry;
+            this.registered = contentEntry.registered;
+            this.foodItem = false;
             set("setMaxStackSize", new SetMaxStackSize(this));
             set("setMaxDamage", new SetMaxDamage(this));
             set("setHasSubtypes", new SetHasSubtypes(this));
@@ -80,11 +91,7 @@ public final class ItemApi {
         }
 
         private boolean canMutate(String action) {
-            if (!registered) {
-                return true;
-            }
-            LOGGER.warning("Ignored item mutation after register: id=" + item.shiftedIndex + " action=" + action);
-            return false;
+            return true;
         }
     }
 
@@ -117,7 +124,11 @@ public final class ItemApi {
                 return handle;
             }
             int value = (int) LuaApiUtils.getNumberArg(args, 1);
-            handle.item.setMaxDamageValue(value);
+            if (handle.item instanceof ItemWrapper) {
+                ((ItemWrapper) handle.item).setMaxDamageValue(value);
+            } else if (handle.item instanceof ItemFoodWrapper) {
+                ((ItemFoodWrapper) handle.item).setMaxDamageValue(value);
+            }
             return handle;
         }
     }
@@ -134,7 +145,11 @@ public final class ItemApi {
                 return handle;
             }
             boolean value = args.arg(1).toboolean();
-            handle.item.setHasSubtypesValue(value);
+            if (handle.item instanceof ItemWrapper) {
+                ((ItemWrapper) handle.item).setHasSubtypesValue(value);
+            } else if (handle.item instanceof ItemFoodWrapper) {
+                ((ItemFoodWrapper) handle.item).setHasSubtypesValue(value);
+            }
             return handle;
         }
     }
@@ -209,10 +224,16 @@ public final class ItemApi {
             if (args.narg() >= base + 1 && !args.arg(base + 1).isnil()) {
                 wolfFood = args.arg(base + 1).toboolean();
             }
+            if (handle.registered && !(handle.item instanceof ItemFoodWrapper)) {
+                throw new LuaError("Item: changing a registered normal item into food requires a restart.");
+            }
             handle.foodItem = true;
             handle.foodHeal = healAmount;
             handle.foodWolf = wolfFood;
             handle.item.setMaxStackSize(1);
+            if (handle.item instanceof ItemFoodWrapper) {
+                ((ItemFoodWrapper) handle.item).setFoodValues(healAmount, wolfFood);
+            }
             return handle;
         }
     }
@@ -225,23 +246,28 @@ public final class ItemApi {
         }
 
         public Varargs invoke(Varargs args) {
-            if (handle.registered) {
-                LOGGER.warning("Ignored duplicate item register: id=" + handle.item.shiftedIndex);
-                return handle;
-            }
             Item itemToRegister = handle.item;
-            if (handle.foodItem) {
+            if (handle.registered && "food".equals(handle.contentEntry.kind) && !handle.foodItem) {
+                throw new LuaError("Item: changing registered food into a normal item requires a restart.");
+            }
+            if (!handle.registered && handle.foodItem) {
+                if (!"item".equals(handle.contentEntry.kind)) {
+                    throw new LuaError("Item: incompatible hot-reload type for id " + handle.item.shiftedIndex);
+                }
                 int id = handle.item.shiftedIndex - 256;
                 Item.itemsList[handle.item.shiftedIndex] = null;
                 ItemFoodWrapper food = new ItemFoodWrapper(id, handle.foodHeal, handle.foodWolf);
-                food.applyFrom(handle.item);
+                food.applyFrom((ItemWrapper) handle.item);
                 itemToRegister = food;
+                handle.item = food;
+                LuaContentRegistry.replace(handle.contentEntry, food, "food");
             }
             if (args.narg() >= 1 && !args.arg(1).isnil()) {
                 String displayName = LuaApiUtils.getStringArg(args, 1);
                 ModLoader.AddName(itemToRegister, displayName);
             }
             handle.registered = true;
+            handle.contentEntry.registered = true;
             return handle;
         }
     }

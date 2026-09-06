@@ -7,8 +7,11 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
+import java.util.HashMap;
+import java.util.Map;
 
 public final class ArmorMaterialApi {
+    private static final Map MATERIALS = new HashMap();
     /**
      * Simple container for armor material metadata.
      */
@@ -38,8 +41,17 @@ public final class ArmorMaterialApi {
             if (level < 0) {
                 throw new LuaError("ArmorMaterial: level must be 0 or higher.");
             }
+            ArmorMaterial existing = (ArmorMaterial) MATERIALS.get(name.toLowerCase());
+            if (existing != null) {
+                if (existing.level != level) {
+                    throw new LuaError("ArmorMaterial: changing material '" + name + "' requires a restart.");
+                }
+                return LuaValue.userdataOf(existing);
+            }
             int renderIndex = ModLoader.AddArmor(name);
-            return LuaValue.userdataOf(new ArmorMaterial(name, level, renderIndex));
+            ArmorMaterial created = new ArmorMaterial(name, level, renderIndex);
+            MATERIALS.put(name.toLowerCase(), created);
+            return LuaValue.userdataOf(created);
         }
     }
 }

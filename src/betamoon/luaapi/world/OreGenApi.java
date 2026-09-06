@@ -128,7 +128,7 @@ public final class OreGenApi {
 
         public Varargs invoke(Varargs args) {
             int base = (args.narg() >= 1 && args.arg(1).istable()) ? 2 : 1;
-            int blockId = args.checkint(base);
+            int blockId = resolveBlockId(args.arg(base));
             if (blockId < 0 || blockId >= Block.blocksList.length || Block.blocksList[blockId] == null) {
                 throw new LuaError("OreGen: unknown spawn block id: " + blockId);
             }

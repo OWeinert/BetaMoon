@@ -8,23 +8,29 @@ import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 import java.util.logging.StreamHandler;
 
+import betamoon.instrumentation.agent.AgentStatus;
+import betamoon.instrumentation.agent.BetaMoonAgent;
 import betamoon.config.BetaMoonConfig;
 import betamoon.gui.GuiBetaMoonMainMenu;
+import betamoon.gui.GuiPopupAgentWarning;
 import betamoon.gui.GuiPopupScriptErrors;
+import betamoon.luamodloader.LuaModLoader;
+import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.luaapi.chat.ChatApi;
 import betamoon.recipes.RecipeModificationHandler;
-import betamoon.scriptloader.LuaModLoader;
-import betamoon.scriptloader.LuaScriptErrors;
 import betamoon.worldgen.WorldGenRegistry;
 import net.minecraft.src.BaseMod;
 import net.minecraft.src.GuiMainMenu;
 import net.minecraft.src.GuiScreen;
+import net.minecraft.src.KeyBinding;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.World;
+import org.lwjgl.input.Keyboard;
 
 public final class BetaMoonMain {
     private static BetaMoonMain instance;
 
-    private static final String VERSION = "0.5.0";
+    private static final String VERSION = "0.6.0-wip3";
     public static final String LUA_SCRIPTS_DIR = "lua_scripts";
     public static final Logger LOGGER = Logger.getLogger("BetaMoon");
     static {
@@ -35,12 +41,26 @@ public final class BetaMoonMain {
     private final BetaMoonConfig config;
     private final LuaModLoader luaModLoader;
     private final BaseMod betaMoonBaseMod;
+    private final boolean agentRegistered;
 
     private boolean finishedLoading = false;
     private boolean loadedScripts = false;
+    private boolean agentWarningShown = false;
 
     private BetaMoonMain(BaseMod baseMod) {
         this.betaMoonBaseMod = baseMod;
+        this.agentRegistered = BetaMoonAgent.isRegistered();
+        if (!this.agentRegistered) {
+            String failure = BetaMoonAgent.getFailureMessage();
+            if (BetaMoonAgent.getStatus() == AgentStatus.FAILED && failure != null) {
+                LOGGER.warning("The BetaMoon Java agent failed to initialize: " + failure);
+            } else {
+                LOGGER.warning("The BetaMoon Java agent is not enabled. Some BetaMoon features may be unavailable!");
+            }
+        } else if (BetaMoonAgent.getStatus() == AgentStatus.DEGRADED) {
+            LOGGER.warning("The BetaMoon Java agent is active with hook failures: "
+                + BetaMoonAgent.getFailureMessage());
+        }
         this.config = new BetaMoonConfig("betamoon.config");
         this.eventHandler = new BetaMoonEventHandler();
         this.luaModLoader  = new LuaModLoader();
@@ -73,14 +93,38 @@ public final class BetaMoonMain {
     }
 
     public boolean onTickInGUI(net.minecraft.client.Minecraft mc, GuiScreen current) {
+        if (loadedScripts) {
+            luaModLoader.pollForChanges();
+        }
         eventHandler.handleGuiEvents(mc, current);
         addBetamoonMenues(mc, current);
         return true;
     }
 
     public boolean onTickInGame(net.minecraft.client.Minecraft mc) {
+        if (loadedScripts) {
+            luaModLoader.pollForChanges();
+        }
+        ChatApi.flushPendingMessages();
         eventHandler.handleGameEvents(mc);
         return true;
+    }
+
+    public void reloadLuaScripts() {
+        luaModLoader.reloadAll();
+    }
+
+    /** Reloads scripts for Ctrl+Shift+R while normal gameplay has keyboard focus. */
+    public void handleReloadHotkey(KeyBinding key) {
+        net.minecraft.client.Minecraft mc = ModLoader.getMinecraftInstance();
+        if (!loadedScripts || mc == null || mc.currentScreen != null) return;
+        boolean control = Keyboard.isKeyDown(Keyboard.KEY_LCONTROL)
+            || Keyboard.isKeyDown(Keyboard.KEY_RCONTROL);
+        boolean shift = Keyboard.isKeyDown(Keyboard.KEY_LSHIFT)
+            || Keyboard.isKeyDown(Keyboard.KEY_RSHIFT);
+        if (!control || !shift) return;
+        LOGGER.info("Reloading Lua scripts from Ctrl+Shift+" + Keyboard.getKeyName(key.keyCode) + ".");
+        reloadLuaScripts();
     }
 
     public void generateSurface(World world, Random random, int chunkX, int chunkZ) {
@@ -112,6 +156,12 @@ public final class BetaMoonMain {
             // Render custom Main Menu
             if (!(current instanceof GuiBetaMoonMainMenu)) {
                 mc.displayGuiScreen(new GuiBetaMoonMainMenu());
+                return;
+            }
+            // Warn once after the custom main menu is ready so the popup has a stable parent screen.
+            if (!agentRegistered && !agentWarningShown) {
+                agentWarningShown = true;
+                mc.displayGuiScreen(new GuiPopupAgentWarning(current));
                 return;
             }
             // Render script error Popup

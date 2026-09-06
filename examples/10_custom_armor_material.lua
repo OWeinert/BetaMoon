@@ -1,16 +1,22 @@
 name = "Custom Armor Material Example"
-version = "1.0.0"
-description = "Defines a custom armor material."
-
+version = "2.0.0"
+description = "Declares a custom armor material and uses it."
 
 function modInit()
+  -- An armor material controls how much protection armor gives.
+  local material = betamoon.materials.armor:add {
+    key = "EXAMPLE_MATERIAL",
+    protection = 2
+  }
 
-  -- Creates a new armor material (level: 2 = iron-tier).
-  local example_material = betamoon.createArmorMaterial("EXAMPLE_MATERIAL", 2)
-
-  -- Use the custom material to create a full set piece.
-  betamoon.createArmor(5007, example_material, "leggings", "example_leggings")
-    :setVanillaRenderIndex("iron")
-    :setIconCoord(2, 2)
-    :register("Example Leggings")
+  -- Use the new material when creating an armor piece.
+  betamoon.armor:add {
+    id = 5010,
+    material = material,
+    slot = "leggings",
+    key = "example_leggings",
+    displayName = "Example Leggings",
+    renderIndex = "iron",
+    icon = { x = 2, y = 2 }
+  }
 end

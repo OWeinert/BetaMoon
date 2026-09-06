@@ -1,6 +1,7 @@
 package betamoon.gui;
 
 import betamoon.gui.api.component.EnumScrollMode;
+import betamoon.gui.api.component.GuiComponentBase;
 import betamoon.gui.api.component.GuiTextClickable;
 import betamoon.gui.api.component.IGuiAction;
 import betamoon.gui.api.component.GuiScrollPanel;
@@ -8,8 +9,9 @@ import betamoon.gui.api.util.GuiColors;
 import betamoon.gui.api.util.GuiText;
 import betamoon.gui.api.util.GuiUtils;
 import betamoon.io.IoUtils;
-import betamoon.scriptloader.LuaModLoader;
-import betamoon.scriptloader.LuaScriptErrors;
+import betamoon.luamodloader.LuaModLoader;
+import betamoon.luamodloader.LuaScriptErrors;
+
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,7 +20,7 @@ import net.minecraft.src.FontRenderer;
 /**
  * Scrollable list of script errors and warnings with clickable links.
  */
-final class GuiPanelScriptErrorList extends GuiScrollPanel {
+final class GuiPanelScriptErrorList extends GuiComponentBase {
     private static final int ENTRY_GAP = 10;
     private static final int ENTRY_SEPARATOR_OFFSET = 4;
     private static final int CONTENT_PADDING = 6;
@@ -26,16 +28,24 @@ final class GuiPanelScriptErrorList extends GuiScrollPanel {
 
     private final List linkTexts = new ArrayList();
     private final GuiTextClickable inlineHelper = new GuiTextClickable();
+    private final ErrorListContent content = new ErrorListContent();
+    private final GuiScrollPanel scrollPanel = new GuiScrollPanel(content, EnumScrollMode.VERTICAL);
     private int screenWidth;
     private int screenHeight;
-    private int displayWidth;
-    private int displayHeight;
 
     /**
      * Creates a vertical scroll list for script issues.
      */
     GuiPanelScriptErrorList() {
-        super(EnumScrollMode.VERTICAL);
+    }
+
+    public void setBounds(int left, int top, int right, int bottom) {
+        super.setBounds(left, top, right, bottom);
+        scrollPanel.setBounds(left, top, right, bottom);
+    }
+
+    public void layout(int screenWidth, int screenHeight) {
+        scrollPanel.layout(screenWidth, screenHeight);
     }
 
     /**
@@ -44,8 +54,7 @@ final class GuiPanelScriptErrorList extends GuiScrollPanel {
     void setDisplayMetrics(int screenWidth, int screenHeight, int displayWidth, int displayHeight) {
         this.screenWidth = screenWidth;
         this.screenHeight = screenHeight;
-        this.displayWidth = displayWidth;
-        this.displayHeight = displayHeight;
+        scrollPanel.setDisplayMetrics(screenWidth, screenHeight, displayWidth, displayHeight);
     }
 
     /**
@@ -55,46 +64,67 @@ final class GuiPanelScriptErrorList extends GuiScrollPanel {
         List entries = LuaScriptErrors.getEntries();
         int contentWidth = Math.max(0, right - left - CONTENT_PADDING);
         int contentHeight = measureContentHeight(font, entries, contentWidth);
-        updateScrollContentSize(contentWidth, contentHeight);
-
-        int y = top - getScrollOffsetY();
-        int scissorTop = top - 2;
-        int scissorBottom = bottom + 2;
-        linkTexts.clear();
-        // Clip to the scroll panel so off-screen entries are not drawn.
-        GuiUtils.beginScissor(left, scissorTop, right, scissorBottom, screenWidth, screenHeight, displayWidth, displayHeight);
-        for (int i = 0; i < entries.size(); i++) {
-            LuaScriptErrors.ScriptIssue issue = (LuaScriptErrors.ScriptIssue) entries.get(i);
-            String entry = issue.getMessage();
-            int color = issue.isWarning() ? GuiColors.TEXT_WARNING : GuiColors.TEXT_ERROR;
-            int entryY = y;
-            String linkText = buildLinkText(issue);
-            File linkPath = resolveScriptFile(issue);
-            IGuiAction action = linkPath == null ? null : () -> IoUtils.openPath(linkPath);
-            int entryHeight = drawEntry(font, entry, linkText, action, left + CONTENT_PADDING, entryY,
-                contentWidth, screenWidth, screenHeight, color, mouseX, mouseY, partialTicks, linkTexts);
-            y = entryY + entryHeight + ENTRY_GAP;
-            if (i < entries.size() - 1) {
-                int lineY = entryY + entryHeight + ENTRY_SEPARATOR_OFFSET;
-                GuiUtils.drawHorizontalLine(left + CONTENT_PADDING, right - CONTENT_PADDING, lineY, GuiUtils.COLOR_LIST_SEPERATOR);
-            }
-        }
-        GuiUtils.endScissor();
-
-        drawScrollbar(contentHeight);
+        scrollPanel.setContentSize(Math.max(0, right - left), contentHeight);
+        scrollPanel.draw(font, mouseX, mouseY, partialTicks);
     }
 
     /**
      * Routes mouse clicks to any inline links before the scroll panel.
      */
     public boolean mouseClicked(int mouseX, int mouseY, int button) {
-        for (int i = 0; i < linkTexts.size(); i++) {
-            GuiTextClickable link = (GuiTextClickable) linkTexts.get(i);
-            if (link.mouseClicked(mouseX, mouseY, button)) {
-                return true;
+        return scrollPanel.mouseClicked(mouseX, mouseY, button);
+    }
+
+    public boolean mouseReleased(int mouseX, int mouseY, int button) {
+        return scrollPanel.mouseReleased(mouseX, mouseY, button);
+    }
+
+    public boolean mouseDragged(int mouseX, int mouseY, boolean mouseDown) {
+        return scrollPanel.mouseDragged(mouseX, mouseY, mouseDown);
+    }
+
+    public boolean mouseScrolled(int mouseX, int mouseY, int wheelDelta, boolean shiftDown) {
+        return scrollPanel.mouseScrolled(mouseX, mouseY, wheelDelta, shiftDown);
+    }
+
+    public boolean keyTyped(char typedChar, int keyCode) {
+        return scrollPanel.keyTyped(typedChar, keyCode);
+    }
+
+    private final class ErrorListContent extends GuiComponentBase {
+        public void draw(FontRenderer font, int mouseX, int mouseY, float partialTicks) {
+            List entries = LuaScriptErrors.getEntries();
+            int contentWidth = Math.max(0, right - left - CONTENT_PADDING);
+            int y = top;
+            linkTexts.clear();
+            for (int i = 0; i < entries.size(); i++) {
+                LuaScriptErrors.ScriptIssue issue = (LuaScriptErrors.ScriptIssue) entries.get(i);
+                String entry = issue.getMessage();
+                int color = issue.isWarning() ? GuiColors.TEXT_WARNING : GuiColors.TEXT_ERROR;
+                int entryY = y;
+                String linkText = buildLinkText(issue);
+                File linkPath = resolveScriptFile(issue);
+                IGuiAction action = linkPath == null ? null : () -> IoUtils.openPath(linkPath);
+                int entryHeight = drawEntry(font, entry, linkText, action, left + CONTENT_PADDING, entryY,
+                    contentWidth, screenWidth, screenHeight, color, mouseX, mouseY, partialTicks, linkTexts);
+                y = entryY + entryHeight + ENTRY_GAP;
+                if (i < entries.size() - 1) {
+                    int lineY = entryY + entryHeight + ENTRY_SEPARATOR_OFFSET;
+                    GuiUtils.drawHorizontalLine(left + CONTENT_PADDING, right - CONTENT_PADDING, lineY,
+                        GuiUtils.COLOR_LIST_SEPERATOR);
+                }
             }
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+
+        public boolean mouseClicked(int mouseX, int mouseY, int button) {
+            for (int i = 0; i < linkTexts.size(); i++) {
+                GuiTextClickable link = (GuiTextClickable) linkTexts.get(i);
+                if (link.mouseClicked(mouseX, mouseY, button)) {
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 
     /**

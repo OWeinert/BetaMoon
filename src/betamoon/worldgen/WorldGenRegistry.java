@@ -46,6 +46,11 @@ public final class WorldGenRegistry {
     private WorldGenRegistry() {
     }
 
+    /** Removes all Lua world generators before a coordinated reload. */
+    public static synchronized void clear() {
+        ORE_ENTRIES.clear();
+    }
+
     /**
      * Registers a new ore generation entry.
      *
@@ -58,7 +63,7 @@ public final class WorldGenRegistry {
      * @param targetBlockId block id to replace when generating
      * @param allowedBiomes optional whitelist of biomes for generation
      */
-    public static void addOreGen(int blockId, int veinsPerChunk, int veinSize, int minY, int maxY, boolean nether,
+    public static synchronized void addOreGen(int blockId, int veinsPerChunk, int veinSize, int minY, int maxY, boolean nether,
         int targetBlockId, BiomeGenBase[] allowedBiomes) {
         ORE_ENTRIES.add(new OreGenEntry(blockId, veinsPerChunk, veinSize, minY, maxY, nether, targetBlockId,
             allowedBiomes));

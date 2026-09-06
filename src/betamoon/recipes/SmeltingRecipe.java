@@ -36,6 +36,11 @@ public final class SmeltingRecipe implements IRecipe {
         return this.output;
     }
 
+    /** Returns whether this wrapper's input is still present in the furnace registry. */
+    public boolean isRegistered() {
+        return this.smeltingMap.containsKey(Integer.valueOf(this.inputId));
+    }
+
     /**
      * Updates the input id and keeps the furnace recipe map in sync.
      *

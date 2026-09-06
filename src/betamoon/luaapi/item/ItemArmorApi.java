@@ -4,6 +4,7 @@ import betamoon.BetaMoonMain;
 import betamoon.resources.EnumTexAtlas;
 import betamoon.luaapi.material.ArmorMaterialApi;
 import betamoon.luaapi.LuaApiUtils;
+import betamoon.luamodloader.LuaContentRegistry;
 import betamoon.wrappers.ItemArmorWrapper;
 import net.minecraft.src.Item;
 import net.minecraft.src.ModLoader;
@@ -53,17 +54,30 @@ public final class ItemArmorApi {
             // Armor type is always the next argument after material.
             int armorType = resolveArmorType(args.arg(base + 2));
             String name = args.checkjstring(base + 3);
+            String kind = "armor:" + material + ":" + armorType;
+            LuaContentRegistry.Entry existing = LuaContentRegistry.find("item", shiftedId);
+            if (existing != null) {
+                LuaContentRegistry.remember("item", shiftedId, existing.value, kind);
+                if (!(existing.value instanceof ItemArmorWrapper)) {
+                    throw new LuaError("Armor: changing the type of id " + shiftedId + " requires a restart.");
+                }
+                return new ArmorHandle((ItemArmorWrapper) existing.value, existing);
+            }
             ItemArmorWrapper armor = new ItemArmorWrapper(shiftedId - 256, material, renderIndex, armorType, name);
-            return new ArmorHandle(armor);
+            LuaContentRegistry.Entry entry = LuaContentRegistry.remember("item", shiftedId, armor, kind);
+            return new ArmorHandle(armor, entry);
         }
     }
 
     private static final class ArmorHandle extends LuaTable {
         private final ItemArmorWrapper armor;
+        private final LuaContentRegistry.Entry contentEntry;
         private boolean registered;
 
-        private ArmorHandle(ItemArmorWrapper armor) {
+        private ArmorHandle(ItemArmorWrapper armor, LuaContentRegistry.Entry contentEntry) {
             this.armor = armor;
+            this.contentEntry = contentEntry;
+            this.registered = contentEntry.registered;
             set("setFull3D", new SetFull3D(this));
             set("setIconCoord", new SetIconCoord(this));
             set("addTexture", new AddTexture(this));
@@ -76,11 +90,7 @@ public final class ItemArmorApi {
         }
 
         private boolean canMutate(String action) {
-            if (!registered) {
-                return true;
-            }
-            LOGGER.warning("Ignored armor mutation after register: id=" + armor.shiftedIndex + " action=" + action);
-            return false;
+            return true;
         }
     }
 
@@ -196,6 +206,7 @@ public final class ItemArmorApi {
                 ModLoader.AddName(handle.armor, displayName);
             }
             handle.registered = true;
+            handle.contentEntry.registered = true;
             return handle;
         }
     }

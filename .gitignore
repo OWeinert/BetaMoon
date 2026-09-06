@@ -9,7 +9,6 @@ Thumbs.db
 *.orig
 *.rej
 .github/
-internal/
 
 # Java / IDE
 .classpath
@@ -42,3 +41,11 @@ scripts/
 
 # Local dev files
 internal/
+
+# Gradle
+gradle/
+gradlew
+gradlew.bat
+build.gradle
+gradle.properties
+settings.gradle

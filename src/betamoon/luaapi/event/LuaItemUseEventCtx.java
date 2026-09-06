@@ -12,11 +12,12 @@ public final class LuaItemUseEventCtx extends LuaTable {
 
     public LuaItemUseEventCtx(ItemUseEventCtx context) {
         this.context = context;
-        set("getItemId", new GetItemId(this));
-        set("getDamage", new GetDamage(this));
-        set("getCount", new GetCount(this));
-        set("getName", new GetName(this));
-        set("getHandle", new GetHandle(this));
+        if (context != null && context.getItemStack() != null) {
+            set("itemId", context.getItemStack().itemID);
+            set("damage", context.getItemStack().getItemDamage());
+            set("count", context.getItemStack().stackSize);
+            set("item", ItemApi.createHandle(context.getItemStack()));
+        }
     }
 
     private static final class GetItemId extends VarArgFunction {

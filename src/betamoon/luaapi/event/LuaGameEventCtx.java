@@ -14,8 +14,12 @@ public final class LuaGameEventCtx extends LuaTable {
 
     public LuaGameEventCtx(GameEventCtx context) {
         this.context = context;
-        set("getWorldName", new GetWorldName(this));
-        set("getWorldInfo", new GetWorldInfo(this));
+        World world = context == null ? null : context.getWorld();
+        WorldInfo info = world == null ? null : world.getWorldInfo();
+        if (info != null) {
+            set("worldName", LuaValue.valueOf(info.getWorldName()));
+            set("worldInfo", new LuaWorldInfo(info));
+        }
     }
 
     private static final class GetWorldName extends VarArgFunction {

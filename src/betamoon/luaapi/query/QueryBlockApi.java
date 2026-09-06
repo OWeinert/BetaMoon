@@ -7,6 +7,7 @@ import betamoon.query.QueryEntry;
 import betamoon.query.QueryExecutionResult;
 import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.src.Block;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
@@ -349,6 +350,52 @@ final class QueryBlockApi {
             this.damage = damage;
             set("getId", new GetQueryId(this));
             set("getDamage", new GetQueryDamage(this));
+            set("getName", new GetName(this));
+            set("getDisplayName", new GetDisplayName(this));
+        }
+    }
+
+    private static final class GetName extends VarArgFunction {
+        private final QueryBlockHandle handle;
+
+        private GetName(QueryBlockHandle handle) {
+            this.handle = handle;
+        }
+
+        @Override
+        public Varargs invoke(Varargs args) {
+            Block block = handle.id >= 0 && handle.id < Block.blocksList.length
+                ? Block.blocksList[handle.id] : null;
+            if (block == null) {
+                return LuaValue.valueOf("NULL BLOCK");
+            }
+            String name = block.getBlockName();
+            if (name == null || name.length() == 0) {
+                return LuaValue.valueOf("UNKNOWN BLOCK");
+            }
+            return LuaValue.valueOf(name);
+        }
+    }
+
+    private static final class GetDisplayName extends VarArgFunction {
+        private final QueryBlockHandle handle;
+
+        private GetDisplayName(QueryBlockHandle handle) {
+            this.handle = handle;
+        }
+
+        @Override
+        public Varargs invoke(Varargs args) {
+            Block block = handle.id >= 0 && handle.id < Block.blocksList.length
+                ? Block.blocksList[handle.id] : null;
+            if (block == null) {
+                return LuaValue.valueOf("NULL BLOCK");
+            }
+            String name = block.translateBlockName();
+            if (name == null || "null.name".equals(name) || "Unknown".equals(name) || name.endsWith(".name")) {
+                return LuaValue.valueOf("UNKNOWN BLOCK");
+            }
+            return LuaValue.valueOf(name);
         }
     }
 

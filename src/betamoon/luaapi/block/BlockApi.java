@@ -5,6 +5,7 @@ import betamoon.wrappers.BlockWrapper;
 import betamoon.resources.EnumTexAtlas;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.world.OreGenApi;
+import betamoon.luamodloader.LuaContentRegistry;
 import forge.MinecraftForge;
 import net.minecraft.src.Block;
 import net.minecraft.src.Item;
@@ -39,9 +40,16 @@ public final class BlockApi {
             String materialName = args.checkjstring(base + 1);
             String name = args.checkjstring(base + 2);
             Material material = resolveMaterial(materialName);
+            LuaContentRegistry.Entry existing = LuaContentRegistry.find("block", id);
+            if (existing != null) {
+                LuaContentRegistry.remember("block", id, existing.value, "block:" + materialName.toLowerCase());
+                if (!(existing.value instanceof BlockWrapper)) throw new LuaError("Block: incompatible existing id: " + id);
+                return new BlockHandle((BlockWrapper) existing.value, existing.registered);
+            }
             try {
                 BlockWrapper block = new BlockWrapper(id, 0, material, name);
-                return new BlockHandle(block);
+                LuaContentRegistry.Entry entry = LuaContentRegistry.remember("block", id, block, "block:" + materialName.toLowerCase());
+                return new BlockHandle(block, entry.registered);
             } catch (RuntimeException e) {
                 throw new LuaError("Block: " + String.valueOf(e.getMessage()));
             }
@@ -53,8 +61,9 @@ public final class BlockApi {
         private boolean registered;
 
         @SuppressWarnings("deprecation")
-        private BlockHandle(BlockWrapper block) {
+        private BlockHandle(BlockWrapper block, boolean registered) {
             this.block = block;
+            this.registered = registered;
             set("setHardness", new SetHardness(this));
             set("setResistance", new SetResistance(this));
             set("setLightValue", new SetLightValue(this));
@@ -70,14 +79,12 @@ public final class BlockApi {
             set("addOreGen", OreGenApi.createAddOreGen(this));
             set("register", new RegisterBlock(this));
             set("getId", new GetId(this));
+            set("getName", new GetName(this));
+            set("getDisplayName", new GetDisplayName(this));
         }
 
         private boolean canMutate(String action) {
-            if (!registered) {
-                return true;
-            }
-            LOGGER.warning("Ignored block mutation after register: id=" + block.blockID + " action=" + action);
-            return false;
+            return true;
         }
 
         public int getBlockId() {
@@ -411,7 +418,50 @@ public final class BlockApi {
                 ModLoader.AddName(handle.block, displayName);
             }
             handle.registered = true;
+            LuaContentRegistry.find("block", handle.block.blockID).registered = true;
             return handle;
+        }
+    }
+
+    private static final class GetName extends VarArgFunction {
+        private final BlockHandle handle;
+
+        private GetName(BlockHandle handle) {
+            this.handle = handle;
+        }
+
+        @Override
+        public Varargs invoke(Varargs args) {
+            Block block = handle.block;
+            if (block == null) {
+                return LuaValue.valueOf("NULL BLOCK");
+            }
+            String name = block.getBlockName();
+            if (name == null || name.length() == 0) {
+                return LuaValue.valueOf("UNKNOWN BLOCK");
+            }
+            return LuaValue.valueOf(name);
+        }
+    }
+
+    private static final class GetDisplayName extends VarArgFunction {
+        private final BlockHandle handle;
+
+        private GetDisplayName(BlockHandle handle) {
+            this.handle = handle;
+        }
+
+        @Override
+        public Varargs invoke(Varargs args) {
+            Block block = handle.block;
+            if (block == null) {
+                return LuaValue.valueOf("NULL BLOCK");
+            }
+            String name = block.translateBlockName();
+            if (name == null || "null.name".equals(name) || "Unknown".equals(name) || name.endsWith(".name")) {
+                return LuaValue.valueOf("UNKNOWN BLOCK");
+            }
+            return LuaValue.valueOf(name);
         }
     }
 

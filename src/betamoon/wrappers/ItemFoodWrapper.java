@@ -1,5 +1,6 @@
 package betamoon.wrappers;
 
+import java.lang.reflect.Field;
 import net.minecraft.src.ItemFood;
 
 public class ItemFoodWrapper extends ItemFood {
@@ -58,5 +59,24 @@ public class ItemFoodWrapper extends ItemFood {
             this.setFull3D();
         }
         return this;
+    }
+
+    /** Updates food behavior without replacing the registered item identity. */
+    public ItemFoodWrapper setFoodValues(int healAmount, boolean wolfFood) {
+        setField("healAmount", "a", Integer.valueOf(healAmount));
+        setField("isWolfsFavoriteMeat", "bk", Boolean.valueOf(wolfFood));
+        return this;
+    }
+
+    private void setField(String mappedName, String obfuscatedName, Object value) {
+        try {
+            Field field;
+            try { field = ItemFood.class.getDeclaredField(mappedName); }
+            catch (NoSuchFieldException ignored) { field = ItemFood.class.getDeclaredField(obfuscatedName); }
+            field.setAccessible(true);
+            field.set(this, value);
+        } catch (Exception e) {
+            throw new IllegalStateException("Unable to update food values", e);
+        }
     }
 }

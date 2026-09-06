@@ -39,7 +39,13 @@ public final class ToolMaterialApi {
         int damage) {
         String enumName = name.toUpperCase();
         try {
-            return EnumToolMaterial.valueOf(enumName);
+            EnumToolMaterial existing = EnumToolMaterial.valueOf(enumName);
+            if (existing.getHarvestLevel() != harvestLevel || existing.getMaxUses() != maxUses
+                || existing.getEfficiencyOnProperMaterial() != efficiency
+                || existing.getDamageVsEntity() != damage) {
+                throw new LuaError("ToolMaterial: changing material '" + name + "' requires a restart.");
+            }
+            return existing;
         } 
         catch (IllegalArgumentException ignored) { }
         

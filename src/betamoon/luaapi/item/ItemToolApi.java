@@ -3,6 +3,7 @@ package betamoon.luaapi.item;
 import betamoon.BetaMoonMain;
 import betamoon.resources.EnumTexAtlas;
 import betamoon.luaapi.LuaApiUtils;
+import betamoon.luamodloader.LuaContentRegistry;
 import betamoon.wrappers.ItemAxeWrapper;
 import betamoon.wrappers.ItemHoeWrapper;
 import betamoon.wrappers.ItemPickaxeWrapper;
@@ -63,6 +64,24 @@ public final class ItemToolApi {
             set("hoe", new AsHoe(this));
             set("sword", new AsSword(this));
         }
+
+        private ToolHandle existing(String type, Class expected) {
+            int shiftedId = id + 256;
+            LuaContentRegistry.Entry entry = LuaContentRegistry.find("item", shiftedId);
+            if (entry == null) return null;
+            String kind = "tool:" + type + ":" + material.name();
+            LuaContentRegistry.remember("item", shiftedId, entry.value, kind);
+            if (!expected.isInstance(entry.value)) {
+                throw new LuaError("Tool: changing the type of id " + shiftedId + " requires a restart.");
+            }
+            return new ToolHandle((Item) entry.value, entry);
+        }
+
+        private ToolHandle remember(Item item, String type) {
+            LuaContentRegistry.Entry entry = LuaContentRegistry.remember("item", item.shiftedIndex, item,
+                "tool:" + type + ":" + material.name());
+            return new ToolHandle(item, entry);
+        }
     }
 
     private static final class AsPickaxe extends VarArgFunction {
@@ -73,9 +92,11 @@ public final class ItemToolApi {
         }
 
         public Varargs invoke(Varargs args) {
+            ToolHandle existing = handle.existing("pickaxe", ItemPickaxeWrapper.class);
+            if (existing != null) return existing;
             ItemPickaxeWrapper tool = new ItemPickaxeWrapper(handle.id, handle.material, handle.name);
             MinecraftForge.setToolClass(tool, "pickaxe", handle.material.getHarvestLevel());
-            return new ToolHandle(tool);
+            return handle.remember(tool, "pickaxe");
         }
     }
 
@@ -87,9 +108,11 @@ public final class ItemToolApi {
         }
 
         public Varargs invoke(Varargs args) {
+            ToolHandle existing = handle.existing("axe", ItemAxeWrapper.class);
+            if (existing != null) return existing;
             ItemAxeWrapper tool = new ItemAxeWrapper(handle.id, handle.material, handle.name);
             MinecraftForge.setToolClass(tool, "axe", handle.material.getHarvestLevel());
-            return new ToolHandle(tool);
+            return handle.remember(tool, "axe");
         }
     }
 
@@ -101,9 +124,11 @@ public final class ItemToolApi {
         }
 
         public Varargs invoke(Varargs args) {
+            ToolHandle existing = handle.existing("shovel", ItemSpadeWrapper.class);
+            if (existing != null) return existing;
             ItemSpadeWrapper tool = new ItemSpadeWrapper(handle.id, handle.material, handle.name);
             MinecraftForge.setToolClass(tool, "shovel", handle.material.getHarvestLevel());
-            return new ToolHandle(tool);
+            return handle.remember(tool, "shovel");
         }
     }
 
@@ -115,9 +140,11 @@ public final class ItemToolApi {
         }
 
         public Varargs invoke(Varargs args) {
+            ToolHandle existing = handle.existing("hoe", ItemHoeWrapper.class);
+            if (existing != null) return existing;
             ItemHoeWrapper tool = new ItemHoeWrapper(handle.id, handle.material, handle.name);
             MinecraftForge.setToolClass(tool, "hoe", handle.material.getHarvestLevel());
-            return new ToolHandle(tool);
+            return handle.remember(tool, "hoe");
         }
     }
 
@@ -129,20 +156,26 @@ public final class ItemToolApi {
         }
 
         public Varargs invoke(Varargs args) {
+            ToolHandle existing = handle.existing("sword", ItemSwordWrapper.class);
+            if (existing != null) return existing;
             int damage = handle.material.getDamageVsEntity();
             ItemSwordWrapper tool = new ItemSwordWrapper(handle.id, handle.material, damage, handle.name);
             MinecraftForge.setToolClass(tool, "sword", handle.material.getHarvestLevel());
-            return new ToolHandle(tool);
+            return handle.remember(tool, "sword");
         }
     }
 
     private static final class ToolHandle extends LuaTable {
         private final Item item;
+        private final LuaContentRegistry.Entry contentEntry;
         private boolean registered;
 
-        private ToolHandle(Item item) {
+        private ToolHandle(Item item, LuaContentRegistry.Entry contentEntry) {
             this.item = item;
+            this.contentEntry = contentEntry;
+            this.registered = contentEntry.registered;
             set("setMaxDamage", new SetMaxDamage(this));
+            set("setFull3D", new SetFull3D(this));
             set("setIconCoord", new SetIconCoord(this));
             set("setEfficiency", new SetEfficiency(this));
             set("setDamageVsEntity", new SetDamageVsEntity(this));
@@ -152,11 +185,20 @@ public final class ItemToolApi {
         }
 
         private boolean canMutate(String action) {
-            if (!registered) {
-                return true;
-            }
-            LOGGER.warning("Ignored tool mutation after register: id=" + item.shiftedIndex + " action=" + action);
-            return false;
+            return true;
+        }
+    }
+
+    private static final class SetFull3D extends VarArgFunction {
+        private final ToolHandle handle;
+
+        private SetFull3D(ToolHandle handle) {
+            this.handle = handle;
+        }
+
+        public Varargs invoke(Varargs args) {
+            handle.item.setFull3D();
+            return handle;
         }
     }
 
@@ -295,6 +337,7 @@ public final class ItemToolApi {
                 ModLoader.AddName(handle.item, displayName);
             }
             handle.registered = true;
+            handle.contentEntry.registered = true;
             return handle;
         }
     }

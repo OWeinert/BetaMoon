@@ -2,8 +2,7 @@ package betamoon.gui;
 
 import betamoon.gui.api.component.GuiActionButton;
 import betamoon.gui.api.screen.GuiScreenPopup;
-import betamoon.scriptloader.LuaScriptErrors;
-
+import betamoon.luamodloader.LuaScriptErrors;
 import net.minecraft.src.GuiScreen;
 
 public class GuiPopupScriptErrors extends GuiScreenPopup {

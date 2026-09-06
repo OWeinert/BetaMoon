@@ -6,9 +6,12 @@ import betamoon.gui.api.layout.GuiLayout;
 import betamoon.gui.api.component.GuiLine;
 import betamoon.gui.api.screen.GuiScreenBase;
 import betamoon.io.IoUtils;
-import betamoon.scriptloader.LuaModLoader;
-import betamoon.scriptloader.LuaScriptRegistry;
-import betamoon.scriptloader.ScriptMod;
+import betamoon.luamodloader.LuaModLoader;
+import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.luamodloader.LuaScriptRegistry;
+import betamoon.luamodloader.ScriptMod;
+import betamoon.BetaMoonMain;
+
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -22,6 +25,7 @@ public class GuiScreenScripts extends GuiScreenBase {
     private final GuiPanelScriptInfo infoPanel = new GuiPanelScriptInfo();
     private final GuiActionButton backButton;
     private final GuiActionButton openScriptsButton;
+    private final GuiActionButton reloadButton;
     private final GuiActionButton debugButton;
     private final GuiLine bottomSeparator;
     private int backButtonY;
@@ -35,6 +39,7 @@ public class GuiScreenScripts extends GuiScreenBase {
         this.parent = parent;
         backButton = new GuiActionButton("Back", () -> GuiScreenScripts.this.showScreen(GuiScreenScripts.this.parent));
         openScriptsButton = new GuiActionButton("Open Scripts Folder", () -> openScriptsDir());
+        reloadButton = new GuiActionButton("Reload Scripts", () -> reloadScripts());
         debugButton = new GuiActionButton("Debug", () -> GuiScreenScripts.this.showScreen(new GuiPopupDebugMenu(GuiScreenScripts.this)));
         bottomSeparator = new GuiLine(false, GuiColors.LINE_WHITE);
     }
@@ -44,12 +49,14 @@ public class GuiScreenScripts extends GuiScreenBase {
         listPanel.reset();
         backButton.setMinecraft(this.mc);
         openScriptsButton.setMinecraft(this.mc);
+        reloadButton.setMinecraft(this.mc);
         debugButton.setMinecraft(this.mc);
         root.addChild(listPanel);
         root.addChild(infoPanel);
         root.addChild(bottomSeparator);
         root.addChild(backButton);
         root.addChild(openScriptsButton);
+        root.addChild(reloadButton);
         root.addChild(debugButton);
     }
 
@@ -61,10 +68,14 @@ public class GuiScreenScripts extends GuiScreenBase {
         int backButtonWidth = debugButtonWidth;
         int buttonHeight = 20;
         backButton.setBounds(10, backButtonY, 10 + backButtonWidth, backButtonY + buttonHeight);
-        int scriptsButtonWidth = 200;
+        int scriptsButtonWidth = 140;
         int scriptsButtonX = GuiLayout.centerX(this.width, scriptsButtonWidth);
         openScriptsButton.setBounds(scriptsButtonX, backButtonY, scriptsButtonX + scriptsButtonWidth, backButtonY + buttonHeight);
         int debugButtonX = GuiLayout.alignRight(this.width, debugButtonWidth, 10);
+        int reloadButtonWidth = 100;
+        int reloadButtonX = debugButtonX - reloadButtonWidth - 6;
+        reloadButton.setBounds(reloadButtonX, backButtonY,
+            reloadButtonX + reloadButtonWidth, backButtonY + buttonHeight);
         debugButton.setBounds(debugButtonX, backButtonY, debugButtonX + debugButtonWidth, backButtonY + buttonHeight);
         int bottomSeparatorY = backButtonY - 8;
         bottomSeparator.setBounds(10, bottomSeparatorY, this.width - 10, bottomSeparatorY + 1);
@@ -146,5 +157,17 @@ public class GuiScreenScripts extends GuiScreenBase {
             return;
         }
         IoUtils.openInFileExplorer(scriptsDir);
+    }
+
+    /** Reloads every Lua script and immediately presents any resulting issues. */
+    private void reloadScripts() {
+        BetaMoonMain main = BetaMoonMain.getInstance();
+        if (main == null) {
+            return;
+        }
+        main.reloadLuaScripts();
+        if (LuaScriptErrors.shouldShowPopup()) {
+            showScreen(new GuiPopupScriptErrors(this));
+        }
     }
 }

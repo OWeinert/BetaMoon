@@ -1,19 +1,17 @@
 name = "Custom Item Example"
-version = "1.0.0"
-description = "Shows a basic custom item setup."
-
+version = "2.0.0"
+description = "Declares a normal item with durability and stack settings."
 
 function modInit()
-
-  -- Creates an ItemHandle which is used to configure your item.
-  betamoon.createItem(5000, "example_item")
-
-    -- Sets the x/y coordinates of the item texture in the item texture atlas [Optional]
-    :setIconCoord(7, 3)
-
-    -- Sets the maximum stack size of the item [Optional]
-    :setMaxStackSize(16)
-    
-    -- Finally register the item and give it it's ingame name.
-    :register("Example Item")
+  -- items:add creates a normal item. Pick an unused item ID of 256 or higher.
+  betamoon.items:add {
+    id = 5000,
+    key = "example_item",
+    displayName = "Example Item",
+    -- The item stacks up to 16 and can take 32 points of damage before breaking.
+    maxStackSize = 16,
+    maxDamage = 32,
+    -- icon picks a picture from Minecraft's item texture sheet.
+    icon = { x = 7, y = 3 }
+  }
 end

@@ -1,21 +1,19 @@
 name = "Custom Food Example"
-version = "1.0.0"
-description = "Shows a custom food item setup."
-
+version = "2.0.0"
+description = "Declares a food item and its food-specific properties."
 
 function modInit()
-
-  -- Create a custom item like before  
-  betamoon.createItem(5001, "example_food")
-    
-    -- This sets the item to a food item. 
-    -- The first argument is how many health it heals and the second is a boolean that defines if this food is suitable for wolfs.
-    :setFood(4, false)
-    
-    -- From here on it's the same process as configuring and registering any other item.
-    :setIconCoord(11, 0)
-
-    -- :setMaxStackSize(1) doesn't need to be called since :setFood(...) already sets the max stack size to 1.
-    
-    :register("Example Food")
+  -- Set type to "food" to make an edible item.
+  betamoon.items:add {
+    id = 5001,
+    type = "food",
+    key = "example_food",
+    displayName = "Example Food",
+    icon = { x = 11, y = 0 },
+    -- This food heals four points and cannot be fed to wolves.
+    food = {
+      healing = 4,
+      wolfFood = false
+    }
+  }
 end

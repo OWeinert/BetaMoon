@@ -1,22 +1,27 @@
 name = "Custom Block Drop Example"
-version = "1.0.0"
-description = "Shows custom drops for a block."
-
+version = "2.0.0"
+description = "Declares fixed and ranged custom block drops."
 
 function modInit()
-  -- Create a block the same as before. 
-  betamoon.createBlock(205, "rock", "example_block2")
-    :setHardness(3.0)
-    :setResistance(5.0)
-    :setTextureId(50)
-    :setBlockHarvestLevel("pickaxe", 2)
-    :setStepSound("stone")
-
-    -- With this function we can add custom item/block drops.
-    -- The function needs an Id for a block or item that will get dropped.
-    -- minAmount and maxAmount are optional and when omitted the block always drops 1 of the given Id.
-    :addCustomDrop(264, 1, 4) -- This drops between 1-4 of item with Id 264 (diamond).
-    -- :addCustomDrop(264) also works and always drops 1 item of Id 264 (diamond).
-
-    :register("Example Block 2")
+  -- require finds an existing item. The script shows an error if it cannot be found.
+  -- You can also use an item ID directly, as shown by the coal below.
+  betamoon.blocks:add {
+    id = 205,
+    material = "rock",
+    key = "example_block2",
+    displayName = "Example Block 2",
+    hardness = 3,
+    texture = 50,
+    harvest = { pickaxe = 2 },
+    drops = {
+      -- Drop between one and four diamonds.
+      {
+        item = betamoon.items:require(264),
+        min = 1,
+        max = 4
+      },
+      -- Without min and max, exactly one coal drops.
+      { item = 263 }
+    }
+  }
 end

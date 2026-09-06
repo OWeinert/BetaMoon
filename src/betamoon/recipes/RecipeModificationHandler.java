@@ -1,7 +1,6 @@
 package betamoon.recipes;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -144,6 +143,39 @@ public final class RecipeModificationHandler {
         }
         // Delegate to the underlying recipe-specific update logic.
         return setRecipeOutput(recipe, output);
+    }
+
+    /**
+     * Updates the output of a concrete recipe without resolving it through its
+     * output-derived cache key. This is the safe path for reversible overrides,
+     * because changing an output must not invalidate the handle used to restore it.
+     *
+     * @param recipe concrete crafting recipe or smelting wrapper
+     * @param output new output stack
+     * @return true when the recipe output was updated
+     */
+    public static boolean setRecipeOutput(Object recipe, ItemStack output) {
+        if (recipe == null || output == null) {
+            return false;
+        }
+        if (recipe instanceof SmeltingRecipe) {
+            ((SmeltingRecipe) recipe).setOutput(output.copy());
+            return true;
+        }
+        if (!(recipe instanceof IRecipe)) {
+            return false;
+        }
+
+        ItemStack current = ((IRecipe) recipe).getRecipeOutput();
+        if (current == null) {
+            return false;
+        }
+        // Mutating the existing stack works for both shaped and shapeless recipes,
+        // including the latter's final output field and obfuscated runtime builds.
+        current.itemID = output.itemID;
+        current.stackSize = output.stackSize;
+        current.setItemDamage(output.getItemDamage());
+        return true;
     }
 
     /**
@@ -423,31 +455,4 @@ public final class RecipeModificationHandler {
     /**
      * Attempts to update the recipe output stack for crafting or smelting recipes.
      */
-    private static boolean setRecipeOutput(Object recipe, ItemStack output) {
-        if (recipe instanceof SmeltingRecipe) {
-            // Smelting recipes store outputs directly in the furnace map wrapper.
-            ((SmeltingRecipe) recipe).setOutput(output);
-            return true;
-        }
-        if (!(recipe instanceof IRecipe)) {
-            return false;
-        }
-        try {
-            // Recipe outputs are usually stored in a private field named recipeOutput.
-            Field field = recipe.getClass().getDeclaredField("recipeOutput");
-            field.setAccessible(true);
-            int modifiers = field.getModifiers();
-            if (Modifier.isFinal(modifiers)) {
-                // Strip final so we can replace the output stack in-place.
-                Field modifiersField = Field.class.getDeclaredField("modifiers");
-                modifiersField.setAccessible(true);
-                modifiersField.setInt(field, modifiers & ~Modifier.FINAL);
-            }
-            // Replace the output stack reference with the new value.
-            field.set(recipe, output);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
 }

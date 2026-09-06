@@ -8,6 +8,11 @@ import java.util.List;
 import java.util.Set;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.ModLoader;
+import net.minecraft.src.CraftingManager;
+import net.minecraft.src.IRecipe;
+import net.minecraft.src.FurnaceRecipes;
+import java.util.Map;
+import betamoon.luamodloader.ScriptResourceTracker;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -109,6 +114,7 @@ public final class RecipeApi {
             }
             
             ModLoader.AddRecipe(output, recipe.toArray(new Object[recipe.size()]));
+            trackLatestCraftingRecipe();
             RecipeModificationHandler.addLatestCraftingRecipe();
             return LuaValue.NIL;
         }
@@ -131,6 +137,7 @@ public final class RecipeApi {
                 recipe.add(LuaApiUtils.readItemStack(value, false, "ingredient " + i));
             }
             ModLoader.AddShapelessRecipe(output, recipe.toArray(new Object[recipe.size()]));
+            trackLatestCraftingRecipe();
             RecipeModificationHandler.addLatestCraftingRecipe();
             return LuaValue.NIL;
         }
@@ -140,7 +147,20 @@ public final class RecipeApi {
         public Varargs invoke(Varargs args) {
             int inputId = readItemId(args.arg(1), "input");
             ItemStack output = LuaApiUtils.readItemStack(args.arg(2), true, "output");
+            final Map smelting = FurnaceRecipes.smelting().getSmeltingList();
+            final Integer key = new Integer(inputId);
+            final Object previous = smelting.get(key);
             ModLoader.AddSmelting(inputId, output);
+            final Object installed = smelting.get(key);
+            ScriptResourceTracker.trackOwned(installed);
+            ScriptResourceTracker.track(new ScriptResourceTracker.Cleanup() {
+                public void run() {
+                    if (smelting.get(key) == installed) {
+                        if (previous == null) smelting.remove(key);
+                        else smelting.put(key, previous);
+                    }
+                }
+            });
             RecipeModificationHandler.addSmeltingRecipeEntry(inputId, output);
             return LuaValue.NIL;
         }
@@ -162,6 +182,17 @@ public final class RecipeApi {
             return LuaApiUtils.resolveItemId(value.get(1));
         }
         throw new LuaError("Recipe: expected " + context + " to be a number or table.");
+    }
+
+    private static void trackLatestCraftingRecipe() {
+        final List recipes = CraftingManager.getInstance().getRecipeList();
+        if (recipes == null || recipes.isEmpty()) return;
+        final Object recipe = recipes.get(recipes.size() - 1);
+        if (!(recipe instanceof IRecipe)) return;
+        ScriptResourceTracker.trackOwned(recipe);
+        ScriptResourceTracker.track(new ScriptResourceTracker.Cleanup() {
+            public void run() { recipes.remove(recipe); }
+        });
     }
 
 }

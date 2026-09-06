@@ -7,6 +7,7 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
+import betamoon.luamodloader.ScriptResourceTracker;
 
 public final class ModuleApi {
     private static final Map modules = new HashMap();
@@ -48,6 +49,19 @@ public final class ModuleApi {
             }
             packageLoaded.set(name, moduleTable);
             modules.put(name, moduleTable);
+            final String exportedName = name;
+            final LuaTable exportedTable = moduleTable;
+            final LuaValue loadedTable = packageLoaded;
+            ScriptResourceTracker.track(new ScriptResourceTracker.Cleanup() {
+                public void run() {
+                    if (modules.get(exportedName) == exportedTable) {
+                        modules.remove(exportedName);
+                    }
+                    if (loadedTable.get(exportedName) == exportedTable) {
+                        loadedTable.set(exportedName, LuaValue.NIL);
+                    }
+                }
+            });
             return moduleTable;
         }
     }

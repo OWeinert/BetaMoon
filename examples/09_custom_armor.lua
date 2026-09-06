@@ -1,21 +1,28 @@
 name = "Custom Armor Example"
-version = "1.0.0"
-description = "Shows a custom armor set."
-
+version = "2.0.0"
+description = "Declares armor with a vanilla material and render texture."
 
 function modInit()
+  -- armor:add creates armor for a chosen body slot.
+  betamoon.armor:add {
+    id = 5008,
+    material = "iron",
+    slot = "helmet",
+    key = "example_helmet",
+    displayName = "Example Helmet",
+    -- renderIndex uses the normal iron armor picture on the player.
+    renderIndex = "iron",
+    icon = { x = 2, y = 0 }
+  }
 
-  -- Creates a helmet using a vanilla armor material (iron).
-  betamoon.createArmor(5005, "iron", "helmet", "example_helmet")
-    -- Reuse vanilla armor textures for the selected material.
-    :setVanillaRenderIndex("iron")
-    -- Use a vanilla item icon.
-    :setIconCoord(2, 0)
-    :register("Example Helmet")
-
-  -- Creates a chestplate using the same material.
-  betamoon.createArmor(5006, "iron", "chestplate", "example_chestplate")
-    :setVanillaRenderIndex("iron")
-    :setIconCoord(2, 1)
-    :register("Example Chestplate")
+  -- Create each piece of an armor set separately.
+  betamoon.armor:add {
+    id = 5009,
+    material = "iron",
+    slot = "chestplate",
+    key = "example_chestplate",
+    displayName = "Example Chestplate",
+    renderIndex = "iron",
+    icon = { x = 2, y = 1 }
+  }
 end

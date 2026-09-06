@@ -4,10 +4,12 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.util.HashMap;
+import java.util.Map;
 import betamoon.io.ImageIo;
 import betamoon.resources.EnumTexAtlas;
-import betamoon.scriptloader.LuaScriptRegistry;
 import betamoon.io.IoUtils;
+import betamoon.luamodloader.LuaScriptRegistry;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.ItemStack;
 import org.luaj.vm2.LuaError;
@@ -18,6 +20,7 @@ import betamoon.BetaMoonMain;
 
 public final class LuaApiUtils {
     private static final java.util.logging.Logger LOGGER = BetaMoonMain.LOGGER;
+    private static final Map TEXTURE_INDICES = new HashMap();
     private static final String[] TEXTURE_FX_METHOD_NAMES = new String[] {
         "registerTextureFX",
         "RegisterTextureFX",
@@ -37,7 +40,7 @@ public final class LuaApiUtils {
         String scriptLabel = currentScript == null ? safeSource : currentScript;
         String combined = safeSource + ": " + safeMessage;
         LOGGER.warning("[Lua Warning] " + combined);
-        betamoon.scriptloader.LuaScriptErrors.addWarning(scriptLabel, combined);
+        betamoon.luamodloader.LuaScriptErrors.addWarning(scriptLabel, combined);
     }
 
     public static void warn(String message) {
@@ -183,7 +186,10 @@ public final class LuaApiUtils {
         if (image == null) {
             return warnMissingTexture(atlas, "Texture could not be decoded: " + textureFile.getAbsolutePath());
         }
-        int index = ModLoader.getUniqueSpriteIndex(atlas.getAtlasPath());
+        String textureKey = atlas.getAtlasPath() + "\n" + textureFile.getAbsolutePath().toLowerCase();
+        Integer cachedIndex = (Integer) TEXTURE_INDICES.get(textureKey);
+        int index = cachedIndex == null ? ModLoader.getUniqueSpriteIndex(atlas.getAtlasPath()) : cachedIndex.intValue();
+        if (cachedIndex == null) TEXTURE_INDICES.put(textureKey, new Integer(index));
         Object textureFx = createTextureFx(index, atlas.getAtlasId(), image);
         registerTextureFx(textureFx);
         return index;

@@ -1,5 +1,6 @@
 package betamoon.luaapi.world;
 
+import betamoon.luaapi.utils.PositionI;
 import net.minecraft.src.WorldInfo;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -16,14 +17,10 @@ public final class LuaWorldInfo extends LuaTable {
         }
         set("name", LuaValue.valueOf(info.getWorldName()));
         set("seed", LuaValue.valueOf(info.getRandomSeed()));
-        set("spawnX", LuaValue.valueOf(info.getSpawnX()));
-        set("spawnY", LuaValue.valueOf(info.getSpawnY()));
-        set("spawnZ", LuaValue.valueOf(info.getSpawnZ()));
-        LuaTable spawn = new LuaTable();
-            spawn.set("x", LuaValue.valueOf(info.getSpawnX()));
-            spawn.set("y", LuaValue.valueOf(info.getSpawnY()));
-            spawn.set("z", LuaValue.valueOf(info.getSpawnZ()));
-        set("spawn", spawn);
+        set("getSpawnX", LuaValue.valueOf(info.getSpawnX()));
+        set("getSpawnY", LuaValue.valueOf(info.getSpawnY()));
+        set("getSpawnZ", LuaValue.valueOf(info.getSpawnZ()));
+        set("spawnPos", new PositionI(info.getSpawnX(), info.getSpawnY(), info.getSpawnZ()));
         set("worldTime", LuaValue.valueOf(info.getWorldTime()));
         set("lastTimePlayed", LuaValue.valueOf(info.getLastTimePlayed()));
         set("sizeOnDisk", LuaValue.valueOf(info.getSizeOnDisk()));
