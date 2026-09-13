@@ -1,100 +1,109 @@
 # BetaMoon
 
-BetaMoon is a Mod for Minecraft Beta 1.7.3 that adds Lua-based scripting.<br>
-The Lua API is designed to be easy-to-use and is fully documented in the [Wiki](https://github.com/OWeinert/BetaMoon/wiki).<br>
-<br>
-You can find a list of awesome [BetaMoon Mods here](https://github.com/OWeinert/AwesomeBetaMoon) (It's probably very empty at the moment)
+Lua scripting for **Minecraft Beta 1.7.3**. This branch targets **BetaMoon 0.6.0**.
 
-### W.I.P Notice
-BetaMoon is very W.I.P. That means it doesn't have a lot of features currently!<br>
-BUT the plan is to provide full backwards compatibility, so you can already start to create your Lua scripts without the worry of redoing everything in the future!<br>
-Even though the main goal is to offer backwards compatibility, it sometimes isn't avoidable to do breaking changes.<br>
-So please read the changelogs when you update the mod to avoid your scripts breaking while the mod is in its W.I.P stage (Version <1.0.0)!
+[Wiki](https://github.com/OWeinert/BetaMoon/wiki) · [Lua API](https://github.com/OWeinert/BetaMoon/wiki/API-Documentation) · [Example scripts](examples/README.md) · [Downloads](https://github.com/OWeinert/BetaMoon/releases)
+
+## What you can build
+
+- Custom blocks, items, food, tools and armor with textures and interaction callbacks.
+- Block state, placement rules, collision shapes, scheduled updates and redstone behavior.
+- Crafting and smelting recipes, plus custom recipe types for processing machines.
+- Persistent tile inventories, containers and screens with synchronized data.
+- Ore and biome generation, event-driven behavior, and overrides for registered content.
+
+Scripts support hot reload, dependency ordering and shared modules. The in-game **Scripts** screen shows loading status and errors.
+
+BetaMoon is under active development. Read the release notes when updating and keep persistent IDs and schemas stable for saved worlds. See [reload and compatibility](https://github.com/OWeinert/BetaMoon/wiki/Hot-Reload-and-Compatibility).
 
 ## Requirements
-- Minecraft Beta 1.7.3 (Recommended to be installed via MultiMC or similar client)
-- [Java 8 (Adoptium is recommended since it's open source)](https://adoptium.net/de/temurin/releases?version=8&os=any&arch=any)
-  (Select JDK 8 on the website and then download either JDK or JRE for your OS. You'll probably only need JRE)
-- [Risugami's ModLoader](https://mcarchive.net/mods/modloader?gvsn=b1.7.3)
-- [MinecraftForge (1.0.6 is recommended)](https://mcarchive.net/mods/minecraftforge?gvsn=b1.7.3)
-  - Note: 1.0.7 may crash when used with ModLoaderMP, so it is not recommended if you need ModloaderMP. 
-    (1.0.6 can be found when you click the "7 more" button below the 1.0.7 downloads on MCArchive)
-- [LuaJ (luaj-jse-3.0.1.jar)](https://central.sonatype.com/artifact/org.luaj/luaj-jse/3.0.1/versions)
 
-## Recommended: MultiMC installation
-[MultiMC](https://multimc.org/) is the easiest and safest way to install legacy mods because it keeps everything in one instance without the need to modify the minecraft.jar yourself.
-Of course you can use other similar clients like [Prism](https://prismlauncher.org/), but the setup process might be different there.
-For Prism specifically, the setup may be the same since it's a direct fork of MultiMC.
+| Component | Version / setup |
+| --- | --- |
+| Minecraft | Beta 1.7.3 |
+| [Java](https://adoptium.net/temurin/releases/?version=8) | Java 8, selected for this Minecraft instance |
+| [Risugami's ModLoader](https://mcarchive.net/mods/modloader?gvsn=b1.7.3) | Beta 1.7.3 build |
+| [MinecraftForge](https://mcarchive.net/mods/minecraftforge?gvsn=b1.7.3) | Beta 1.7.3 build; use Forge 1.0.6 for this setup |
+| BetaMoon | Matching mod JAR, also enabled as a Java agent |
 
-1) Download and install Java 8
-   - Download and install Java 8 using the link in [Requirements](#requirements).
+The packaged BetaMoon 0.6.0 JAR bundles LuaJ 3.0.1 and the agent's runtime dependencies.
 
-2) Create a new instance in MultiMC
-   - Instance version: Minecraft Beta 1.7.3
-   - Right-click the instance -> Edit Instance -> Settings
-   - Click on "Java installation" and "Browse..."
-   - Select the javaw.exe from your Java 8 installation (for Adoptium it's defaulted to "C:/Program Files/Eclipse Adoptium/jre-W.X.YYY.Z-hotspot/bin/javaw.exe" on Windows, where W/X/Y/Z are numbers for the version you downloaded) <br> 
-   For other OS' it will vary.<br>
-   <br>
-     
-3) Install ModLoader and MinecraftForge
-   - Download Risugami's ModLoader and MinecraftForge from the links in [Requirements](#requirements).
-   - Right-click the instance -> Edit Instance -> Version tab
-   - Click "Add to Minecraft.jar"
-   - Add ModLoader first, then add MinecraftForge second
-   - Order matters: ModLoader must be applied before Forge
+## MultiMC installation
 
-4) Add BetaMoon and LuaJ
-   - In the same Edit Instance window, open the "Loader mods" section
-   - Add `betamoon-X.Y.Z.jar` (X.Y.Z is the version, e.g. "0.1.0") and `luaj-jse-3.0.1.jar` using the "Add" button on the top right.
-   - If MultiMC lists them, make sure both are enabled
+[MultiMC](https://multimc.org/) keeps the mod setup and Java configuration within a Minecraft instance.
 
-5) Run the instance
-   - Start the instance and verify no ModLoader/MinecraftForge or BetaMoon errors appear on launch in the console.
+1. **Create the instance.** Select Minecraft Beta 1.7.3.
+2. **Select Java 8.** Open **Edit Instance → Settings → Java**, enable the **Java installation** override and select your Java 8 executable. On Windows, use `bin/javaw.exe` inside the Java installation.
+3. **Install the JAR mods.** Open **Version → Add to Minecraft.jar**. Add ModLoader first, then Forge.
+4. **Install BetaMoon.** Open **Loader mods**, add `betamoon-0.6.0.jar` and make sure it is enabled.
+5. **Enable the Java agent.** Return to **Settings → Java**, enable the **Java arguments** override and append the argument below to the instance's existing arguments. Replace the example with the absolute path to the installed BetaMoon JAR.
 
-6) Install BetaMoon scripts or start developing your own!
+   ```text
+   -javaagent:"F:/Games/MultiMC/instances/BetaMoon/.minecraft/mods/betamoon-0.6.0.jar"
+   ```
 
-## Manual installation (not recommended, but possible)
+6. **Launch Minecraft.** Inspect the console for initialization errors, then open BetaMoon's **Scripts** screen.
 
-1) Download and install Java 8
-   - Download and install Java 8 using the link in ["Requirements"](#requirements).
-   - Set Java 8 as the active version:
-     - Windows: set `JAVA_HOME` to your Java 8 install and add `%JAVA_HOME%\\bin` to `PATH`.
-     (for Adoptium it's defaulted to "C:/Program Files/Eclipse Adoptium/jre-W.X.YYY.Z-hotspot/bin/javaw.exe", where W/X/Y/Z are numbers for the version you downloaded)
-     - macOS: `export JAVA_HOME=$(/usr/libexec/java_home -v 1.8)` and ensure `$JAVA_HOME/bin` is first in `PATH`.
-     - Linux: use `update-alternatives --config java` (or your distro's equivalent) to select Java 8.
-   (You probably have to change back your Java version to whatever you need for other Java applications everytime you don't play Minecraft, that's mainly why this installation method is not recommended!)
+MultiMC documents these controls under [instance settings](https://github.com/MultiMC/Launcher/wiki/Instance-settings). See [agent setup notes](#java-agent-setup-notes) for path handling and upgrades.
 
-2) Prepare `minecraft.jar`
-   - Download Minecraft b1.7.3 through official methods.
-   - Download Risugami's ModLoader and MinecraftForge from the links in ["Requirements"](#requirements).
-   - Backup `minecraft.jar` (from your `.minecraft/bin` folder).
-   - Open `minecraft.jar` with a zip tool (7-Zip/WinRAR).
-   - Add ModLoader contents and delete `META-INF`.
-   - Add MinecraftForge contents to the same jar (do not remove ModLoader).
+## Manual installation
 
-3) Install BetaMoon and LuaJ
-   - Put `betamoon-X.Y.Z.jar` (X.Y.Z is the version, e.g. "0.1.0") and `luaj-jse-3.0.1.jar` into `.minecraft/mods`.
+Use these steps with a launcher that supports a modified `minecraft.jar` and custom JVM arguments.
 
-4) Run the game
-   - Launch Minecraft Beta 1.7.3.
+1. **Prepare the instance.** Install Minecraft Beta 1.7.3 and configure the launcher to use Java 8 for that instance.
+2. **Back up `minecraft.jar`.** Locate the instance's game JAR, conventionally `.minecraft/bin/minecraft.jar`, and make a backup before editing it.
+3. **Install ModLoader and Forge.** Open the JAR with an archive editor. Add ModLoader's contents, remove the original `META-INF` signature directory, then add Forge's contents.
+4. **Install BetaMoon.** Put `betamoon-0.6.0.jar` in the instance's `.minecraft/mods` folder.
+5. **Enable the Java agent.** Append the following to the launcher's JVM arguments for this instance, using the actual absolute path to the installed JAR:
 
-5) Install BetaMoon scripts or start developing your own!
+   ```text
+   -javaagent:"C:/Users/YourName/AppData/Roaming/.minecraft/mods/betamoon-0.6.0.jar"
+   ```
 
-## Where to put Lua mods
-BetaMoon looks for scripts in:
-- `.minecraft/lua_scripts/`
+   If a script launches Java directly, place this JVM option before the main class or `-jar` argument in the existing launch command.
 
-Create that folder if it does not exist and place your `.lua` files there. <br>
-You can also start Minecraft first and BetaMoon will create the folder automatically.<br>
-<br>
-Lua mods will only be loaded on game start!<br>
-That means if you change anything in a Lua script or add/remove a Lua mod you need to restart your game.
+6. **Launch Minecraft.** Check the console for initialization errors and open the **Scripts** screen.
 
-## Lua Mod Developement
-How to create your own BetaMoon Lua Mod is fully documented in the [Wiki](https://github.com/OWeinert/BetaMoon/wiki).
+## Java agent setup notes
+
+The BetaMoon JAR serves as both the mod and its Java agent. The agent enables engine hooks used by callbacks on existing content and global block/item interaction events. Java loads it through the [`-javaagent` JVM option](https://docs.oracle.com/javase/8/docs/api/java/lang/instrument/package-summary.html).
+
+Use an absolute path to the same JAR installed in the instance. On Windows, use forward slashes and quote the path as shown above, especially when it contains spaces. On macOS or Linux, substitute the corresponding absolute path, for example:
+
+```text
+-javaagent:"/home/yourname/Games/BetaMoon/.minecraft/mods/betamoon-0.6.0.jar"
+```
+
+Update the argument whenever you move or rename the JAR, including after a version upgrade, and restart Minecraft. If BetaMoon shows an agent warning, click its displayed argument to copy the detected JAR path, paste it into the instance's Java arguments and restart.
+
+## Installing scripts
+
+Place scripts directly inside the active instance's `.minecraft/lua_scripts` folder. BetaMoon creates this folder when it starts. Use the lowercase `.lua` extension and copy required assets while preserving their directory structure. Texture paths resolve from `lua_scripts`.
+
+Keep dependency scripts together. The [example index](examples/README.md) explains which example files belong to the same lesson, required assets and how to try the content. Check numeric content IDs when combining scripts with other mods.
+
+Saved script changes trigger hot reload after the save settles. You can also use **Reload** on the Scripts screen. Changes to persistent structural definitions, including tile entities, containers and GUIs, require a Minecraft restart. See [installing scripts](https://github.com/OWeinert/BetaMoon/wiki/Install-Scripts) and [reload and compatibility](https://github.com/OWeinert/BetaMoon/wiki/Hot-Reload-and-Compatibility).
+
+## Writing scripts
+
+Start with [your first BetaMoon script](https://github.com/OWeinert/BetaMoon/wiki/Getting-Started), then use the [Lua API reference](https://github.com/OWeinert/BetaMoon/wiki/API-Documentation) for function signatures, declaration fields and focused snippets. The [examples](examples/README.md) range from simple registrations to complete processing machines.
+
+Community scripts are collected in [AwesomeBetaMoon](https://github.com/OWeinert/AwesomeBetaMoon).
 
 ## Troubleshooting
-- If the game crashes on startup, verify the ModLoader -> Forge install order.
-- BetaMoon logs any Lua errors in the console. It is highly recommended to use MultiMC or similar clients that provide a console so you can debug your Lua mod.
-- Make sure that you have the correct LuaJ version because otherwise BetaMoon might crash.
+
+| Symptom | Check |
+| --- | --- |
+| Startup failure | Java 8, matching Beta 1.7.3 dependencies, and ModLoader before Forge. Read the first console error. |
+| Java agent warning | The instance's Java arguments and the absolute path to its installed BetaMoon JAR. Restart after correcting the argument. |
+| Agent JAR cannot be opened | File existence, filename, path quoting and read permissions. |
+| Script fails to load | Errors on the Scripts screen, script metadata and required dependencies. |
+| Content ID already occupied | IDs used by other installed scripts or mods. |
+| Texture missing | PNG paths relative to `lua_scripts` and the package's asset directories. |
+| Changes require restart | Retained structural definitions; follow BetaMoon's restart indication. |
+
+See the wiki's [troubleshooting guide](https://github.com/OWeinert/BetaMoon/wiki/Troubleshooting) for more detail. When [reporting an issue](https://github.com/OWeinert/BetaMoon/issues), include the BetaMoon version, relevant console error and steps to reproduce it.
+
+## License
+
+BetaMoon is available under the [MIT license](LICENSE).
