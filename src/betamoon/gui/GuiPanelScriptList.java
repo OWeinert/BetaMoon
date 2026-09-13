@@ -18,6 +18,7 @@ final class GuiPanelScriptList extends GuiContainer {
     private static final int PADDING = 10;
     private static final int WARNING_SIZE = 12;
     private static final int WARNING_GAP = 3;
+    private static final int NAME_RIGHT_INSET = 2;
 
     private final ScriptListContent content = new ScriptListContent();
     private final GuiScrollView scrollView = new GuiScrollView(content, GuiScrollView.Policy.VERTICAL);
@@ -187,7 +188,7 @@ final class GuiPanelScriptList extends GuiContainer {
                 GuiScriptRestartIndicator indicator = warningIndicators.get(i);
                 boolean restartRequired = indicator.shouldRender();
                 int nameLeft = getLeft() + 4 + (restartRequired ? WARNING_SIZE + WARNING_GAP : 0);
-                int nameWidth = listContentRight - nameLeft;
+                int nameWidth = Math.max(0, listContentRight - nameLeft - NAME_RIGHT_INSET);
                 String displayName = context.getRenderer().trimToWidth(fullName, nameWidth);
                 int blockHeight = ROW_HEIGHT - 2;
                 if (i == selectedIndex) {
