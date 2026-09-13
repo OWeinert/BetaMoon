@@ -1,7 +1,5 @@
 import betamoon.BetaMoonMain;
-
 import java.util.Random;
-
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.BaseMod;
 import net.minecraft.src.GuiScreen;
@@ -11,10 +9,8 @@ import net.minecraft.src.World;
 import org.lwjgl.input.Keyboard;
 
 public class mod_BetaMoon extends BaseMod {
-    private static final KeyBinding RELOAD_SCRIPTS_KEY =
-        new KeyBinding("key.betamoon.reload_scripts", Keyboard.KEY_R);
-    private BetaMoonMain betaMoon;
-
+    private static final KeyBinding RELOAD_SCRIPTS_KEY = new KeyBinding("key.betamoon.reload_scripts", Keyboard.KEY_R);
+    private final BetaMoonMain betaMoon;
 
     public mod_BetaMoon() {
         this.betaMoon = BetaMoonMain.create(this);

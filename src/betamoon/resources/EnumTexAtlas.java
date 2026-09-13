@@ -1,8 +1,7 @@
 package betamoon.resources;
 
 public enum EnumTexAtlas {
-    BLOCKS(0, "/terrain.png"),
-    ITEMS(1, "/gui/items.png");
+    BLOCKS(0, "/terrain.png"), ITEMS(1, "/gui/items.png");
 
     private final int atlasId;
     private final String atlasPath;

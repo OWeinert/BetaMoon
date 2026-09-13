@@ -2,12 +2,16 @@ package betamoon.utils;
 
 public final class KeyInputMapper {
     public enum Layout {
-        QWERTY,
-        QWERTZ,
-        AZERTY
+        QWERTY(new QwertyKeyLayout()), QWERTZ(new QwertzKeyLayout()), AZERTY(new AzertyKeyLayout());
+
+        private final KeyLayoutMapper mapper;
+
+        Layout(KeyLayoutMapper mapper) {
+            this.mapper = mapper;
+        }
     }
 
-    private static KeyLayoutMapper current = new QwertyKeyLayout();
+    private static KeyLayoutMapper current = Layout.QWERTY.mapper;
 
     private KeyInputMapper() {
     }
@@ -20,19 +24,6 @@ public final class KeyInputMapper {
         if (layout == null) {
             return;
         }
-        switch (layout) {
-            case QWERTY:
-                current = new QwertyKeyLayout();
-                break;
-            case QWERTZ:
-                current = new QwertzKeyLayout();
-                break;
-            case AZERTY:
-                current = new AzertyKeyLayout();
-                break;
-            default:
-                current = new QwertyKeyLayout();
-                break;
-        }
+        current = layout.mapper;
     }
 }

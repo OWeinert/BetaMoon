@@ -3,6 +3,8 @@ package betamoon.wrappers;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import betamoon.worldgen.BiomeSpawnGroup;
+import betamoon.worldgen.BiomeTreeMode;
 import net.minecraft.src.BiomeGenBase;
 import net.minecraft.src.Block;
 import net.minecraft.src.SpawnListEntry;
@@ -16,17 +18,12 @@ import org.luaj.vm2.LuaError;
  * Custom biome implementation with extra tuning hooks used by Lua.
  */
 public final class BiomeGenWrapper extends BiomeGenBase {
-    private static final String[] FIELD_ENABLE_SNOW = new String[] { "enableSnow", "v" };
-    private static final String[] FIELD_ENABLE_RAIN = new String[] { "enableRain", "w" };
-    private static final String[] FIELD_SPAWN_MONSTER = new String[] { "spawnableMonsterList", "s" };
-    private static final String[] FIELD_SPAWN_CREATURE = new String[] { "spawnableCreatureList", "t" };
-    private static final String[] FIELD_SPAWN_WATER = new String[] { "spawnableWaterCreatureList", "u" };
-    private static final int TREE_MODE_DEFAULT = 0;
-    private static final int TREE_MODE_BIG = 1;
-    private static final int TREE_MODE_NORMAL = 2;
-    private static final int TREE_MODE_NONE = 3;
-
-    private int treeMode = TREE_MODE_DEFAULT;
+    private static final String[] FIELD_ENABLE_SNOW = new String[]{"enableSnow", "v"};
+    private static final String[] FIELD_ENABLE_RAIN = new String[]{"enableRain", "w"};
+    private static final String[] FIELD_SPAWN_MONSTER = new String[]{"spawnableMonsterList", "s"};
+    private static final String[] FIELD_SPAWN_CREATURE = new String[]{"spawnableCreatureList", "t"};
+    private static final String[] FIELD_SPAWN_WATER = new String[]{"spawnableWaterCreatureList", "u"};
+    private BiomeTreeMode treeMode = BiomeTreeMode.DEFAULT;
     private int bigTreeChance = 10;
 
     public BiomeGenWrapper(String name) {
@@ -42,7 +39,8 @@ public final class BiomeGenWrapper extends BiomeGenBase {
     }
 
     public void applyFoliageColor(int color) {
-        // Vanilla method name is obfuscated; this sets the foliage color used for the biome.
+        // Vanilla method name is obfuscated; this sets the foliage color used for the
+        // biome.
         func_4124_a(color);
     }
 
@@ -67,9 +65,9 @@ public final class BiomeGenWrapper extends BiomeGenBase {
         // Copy weather flags and spawn lists to match the vanilla baseline.
         applySnowEnabled(getBiomeFlag(source, FIELD_ENABLE_SNOW));
         applyRainEnabled(getBiomeFlag(source, FIELD_ENABLE_RAIN));
-        copySpawnList(source, FIELD_SPAWN_MONSTER, spawnableMonsterList);
-        copySpawnList(source, FIELD_SPAWN_CREATURE, spawnableCreatureList);
-        copySpawnList(source, FIELD_SPAWN_WATER, spawnableWaterCreatureList);
+        copySpawnList(source, FIELD_SPAWN_MONSTER, getSpawnList(BiomeSpawnGroup.MONSTER));
+        copySpawnList(source, FIELD_SPAWN_CREATURE, getSpawnList(BiomeSpawnGroup.CREATURE));
+        copySpawnList(source, FIELD_SPAWN_WATER, getSpawnList(BiomeSpawnGroup.WATER));
     }
 
     public void applyTopBlock(int blockId) {
@@ -91,28 +89,11 @@ public final class BiomeGenWrapper extends BiomeGenBase {
     /**
      * Selects the tree generator mode for this biome.
      *
-     * @param mode user-provided mode token
+     * @param mode
+     *            user-provided mode token
      */
-    public void applyTreeMode(String mode) {
-        String key = mode.trim().toLowerCase();
-        // Map user strings to the internal tree mode constants.
-        if (key.equals("default")) {
-            treeMode = TREE_MODE_DEFAULT;
-            return;
-        }
-        if (key.equals("big")) {
-            treeMode = TREE_MODE_BIG;
-            return;
-        }
-        if (key.equals("normal")) {
-            treeMode = TREE_MODE_NORMAL;
-            return;
-        }
-        if (key.equals("none")) {
-            treeMode = TREE_MODE_NONE;
-            return;
-        }
-        throw new LuaError("Biome: unknown tree generator mode: " + mode);
+    public void applyTreeMode(BiomeTreeMode mode) {
+        treeMode = mode;
     }
 
     public void applyBigTreeChance(int chance) {
@@ -122,57 +103,61 @@ public final class BiomeGenWrapper extends BiomeGenBase {
     /**
      * Clears one of the spawn lists (monsters/creatures/water).
      *
-     * @param type spawn list selector
+     * @param type
+     *            spawn list selector
      */
-    public void clearSpawns(String type) {
-        List list = getSpawnList(type);
+    public void clearSpawns(BiomeSpawnGroup type) {
+        List<SpawnListEntry> list = getSpawnList(type);
         list.clear();
     }
 
     /**
      * Adds a spawn entry to the selected list.
      *
-     * @param type spawn list selector
-     * @param entityClass entity type to spawn
-     * @param weight spawn weight
+     * @param type
+     *            spawn list selector
+     * @param entityClass
+     *            entity type to spawn
+     * @param weight
+     *            spawn weight
      */
-    public void addSpawn(String type, Class entityClass, int weight) {
-        List list = getSpawnList(type);
+    public void addSpawn(BiomeSpawnGroup type, Class<?> entityClass, int weight) {
+        List<SpawnListEntry> list = getSpawnList(type);
         list.add(new SpawnListEntry(entityClass, weight));
     }
 
     /**
      * Resolves a spawn list based on a string token.
      *
-     * @param type spawn list selector
+     * @param type
+     *            spawn list selector
      * @return mutable list for the selected category
      */
-    private List getSpawnList(String type) {
-        // Match common aliases so Lua scripts can be concise.
-        String key = type.trim().toLowerCase();
-        if (key.equals("monster") || key.equals("monsters")) {
-            return spawnableMonsterList;
+    @SuppressWarnings("unchecked") // Minecraft exposes its spawn lists without generic signatures.
+    private List<SpawnListEntry> getSpawnList(BiomeSpawnGroup type) {
+        switch (type) {
+            case MONSTER:
+                return spawnableMonsterList;
+            case CREATURE:
+                return spawnableCreatureList;
+            case WATER:
+                return spawnableWaterCreatureList;
+            default:
+                throw new IllegalArgumentException("Unsupported spawn group: " + type);
         }
-        if (key.equals("creature") || key.equals("creatures") || key.equals("animal")
-            || key.equals("animals")) {
-            return spawnableCreatureList;
-        }
-        if (key.equals("water") || key.equals("watercreature") || key.equals("watercreatures")) {
-            return spawnableWaterCreatureList;
-        }
-        throw new LuaError("Biome: unknown spawn list type: " + type);
     }
 
+    @Override
     public WorldGenerator getRandomWorldGenForTrees(Random random) {
-        // Mirror vanilla behavior while allowing explicit overrides.
+        // Mirror vanilla definition while allowing explicit overrides.
         // Explicit modes bypass random selection.
-        if (treeMode == TREE_MODE_BIG) {
+        if (treeMode == BiomeTreeMode.BIG) {
             return new WorldGenBigTree();
         }
-        if (treeMode == TREE_MODE_NORMAL) {
+        if (treeMode == BiomeTreeMode.NORMAL) {
             return new WorldGenTrees();
         }
-        if (treeMode == TREE_MODE_NONE) {
+        if (treeMode == BiomeTreeMode.NONE) {
             return NoopWorldGenerator.INSTANCE;
         }
         // Default mode uses a weighted chance for big trees.
@@ -185,8 +170,10 @@ public final class BiomeGenWrapper extends BiomeGenBase {
     /**
      * Sets a private boolean flag on the vanilla biome class.
      *
-     * @param fieldName private field to modify
-     * @param value boolean to set
+     * @param fieldName
+     *            private field to modify
+     * @param value
+     *            boolean to set
      */
     private void setBiomeFlag(String[] fieldNames, boolean value) {
         try {
@@ -202,8 +189,10 @@ public final class BiomeGenWrapper extends BiomeGenBase {
     /**
      * Reads a private boolean flag from a vanilla biome.
      *
-     * @param source biome instance to read
-     * @param fieldName private field to access
+     * @param source
+     *            biome instance to read
+     * @param fieldName
+     *            private field to access
      * @return flag value
      */
     private boolean getBiomeFlag(BiomeGenBase source, String[] fieldNames) {
@@ -220,13 +209,16 @@ public final class BiomeGenWrapper extends BiomeGenBase {
     /**
      * Copies spawn list entries from a vanilla biome into this biome.
      *
-     * @param source biome to copy from
-     * @param fieldName private list field name
-     * @param target target list to populate
+     * @param source
+     *            biome to copy from
+     * @param fieldName
+     *            private list field name
+     * @param target
+     *            target list to populate
      */
-    private void copySpawnList(BiomeGenBase source, String[] fieldNames, List target) {
+    private void copySpawnList(BiomeGenBase source, String[] fieldNames, List<SpawnListEntry> target) {
         // Clone entries so Lua scripts don't mutate vanilla lists.
-        List list = getSpawnListField(source, fieldNames);
+        List<?> list = getSpawnListField(source, fieldNames);
         target.clear();
         for (int i = 0; i < list.size(); i++) {
             SpawnListEntry entry = (SpawnListEntry) list.get(i);
@@ -237,18 +229,20 @@ public final class BiomeGenWrapper extends BiomeGenBase {
     /**
      * Reads a spawn list field from a vanilla biome via reflection.
      *
-     * @param source biome to read from
-     * @param fieldName private list field name
+     * @param source
+     *            biome to read from
+     * @param fieldName
+     *            private list field name
      * @return list instance or empty list when missing
      */
-    private List getSpawnListField(BiomeGenBase source, String[] fieldNames) {
+    private List<?> getSpawnListField(BiomeGenBase source, String[] fieldNames) {
         try {
             // Spawn lists are protected; use reflection for consistent access.
             java.lang.reflect.Field field = resolveField(BiomeGenBase.class, fieldNames);
             field.setAccessible(true);
-            List list = (List) field.get(source);
+            List<?> list = (List<?>) field.get(source);
             if (list == null) {
-                return new ArrayList();
+                return new ArrayList<>();
             }
             return list;
         } catch (Exception e) {
@@ -256,7 +250,7 @@ public final class BiomeGenWrapper extends BiomeGenBase {
         }
     }
 
-    private static java.lang.reflect.Field resolveField(Class owner, String[] fieldNames) throws Exception {
+    private static java.lang.reflect.Field resolveField(Class<?> owner, String[] fieldNames) throws Exception {
         Exception last = null;
         for (int i = 0; i < fieldNames.length; i++) {
             try {
@@ -274,7 +268,8 @@ public final class BiomeGenWrapper extends BiomeGenBase {
     }
 
     /**
-     * An empty WorldGenerator used if TREE_MODE_NONE is selected as the biome's tree generation mode.
+     * An empty WorldGenerator used if TREE_MODE_NONE is selected as the biome's
+     * tree generation mode.
      */
     private static final class NoopWorldGenerator extends WorldGenerator {
         private static final NoopWorldGenerator INSTANCE = new NoopWorldGenerator();
@@ -282,6 +277,7 @@ public final class BiomeGenWrapper extends BiomeGenBase {
         private NoopWorldGenerator() {
         }
 
+        @Override
         public boolean generate(World world, Random random, int x, int y, int z) {
             return false;
         }

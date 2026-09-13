@@ -6,9 +6,9 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
 public final class PositionI extends LuaTable {
-    private int x;
-    private int y;
-    private int z;
+    private final int x;
+    private final int y;
+    private final int z;
 
     public PositionI(int x, int y, int z) {
         this.x = x;
@@ -31,8 +31,8 @@ public final class PositionI extends LuaTable {
         return z;
     }
 
-    public static void attach(LuaTable module) {
-        module.set("PositionI", new CreatePositionI());
+    public static void attach(LuaTable positions) {
+        positions.set("integer", new CreatePositionI());
     }
 
     private static final class CreatePositionI extends VarArgFunction {

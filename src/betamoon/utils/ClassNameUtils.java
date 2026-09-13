@@ -17,8 +17,8 @@ public final class ClassNameUtils {
             return null;
         }
         String direct = toUnobfuscated
-            ? ClassNameTable.getUnobfuscated(className)
-            : ClassNameTable.getObfuscated(className);
+                ? ClassNameTable.getUnobfuscated(className)
+                : ClassNameTable.getObfuscated(className);
         if (direct != null) {
             return direct;
         }
@@ -27,9 +27,7 @@ public final class ClassNameUtils {
             return className;
         }
         String simple = className.substring(lastDot + 1);
-        String mapped = toUnobfuscated
-            ? ClassNameTable.getUnobfuscated(simple)
-            : ClassNameTable.getObfuscated(simple);
+        String mapped = toUnobfuscated ? ClassNameTable.getUnobfuscated(simple) : ClassNameTable.getObfuscated(simple);
         if (mapped == null) {
             return className;
         }
