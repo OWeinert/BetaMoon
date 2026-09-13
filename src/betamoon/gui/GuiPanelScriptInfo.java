@@ -2,20 +2,18 @@ package betamoon.gui;
 
 import betamoon.gui.api.component.EnumScrollMode;
 import betamoon.gui.api.component.GuiComponentBase;
-import betamoon.gui.api.component.GuiTextClickable;
 import betamoon.gui.api.component.GuiNonReloadableIndicator;
-import betamoon.gui.api.component.IGuiAction;
-import betamoon.gui.api.util.GuiColors;
 import betamoon.gui.api.component.GuiScrollPanel;
+import betamoon.gui.api.component.GuiTextClickable;
+import betamoon.gui.api.util.GuiColors;
 import betamoon.gui.api.util.GuiText;
 import betamoon.gui.api.util.GuiUtils;
 import betamoon.io.ImageIo;
-import betamoon.io.IoUtils;
 import betamoon.luamodloader.LuaModLoader;
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.luamodloader.LuaScriptErrors.ScriptIssue;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptMod;
-
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -41,40 +39,45 @@ public final class GuiPanelScriptInfo extends GuiComponentBase {
     private static final int DEPENDENCY_LINE_HEIGHT = 12;
     private static final int IMAGE_PADDING = 12;
     private static final int IMAGE_FIXED_SIZE = 72;
-    private static final Map IMAGE_CACHE = new HashMap();
+    private static final Map<String, ImageTexture> IMAGE_CACHE = new HashMap<>();
     private static final ImageTexture INVALID_IMAGE = new ImageTexture(-1, 0, 0);
     private int detailLeft;
     private int detailRight;
     private int detailTop;
-    private int detailBottom;
     private int headerY;
     private float headerScale = 1.0F;
     private int screenWidth;
     private int screenHeight;
     private ScriptMod selected;
-    private final List issueLinks = new ArrayList();
+    private final List<GuiTextClickable> issueLinks = new ArrayList<>();
     private final GuiTextClickable inlineHelper = new GuiTextClickable();
     private final ScriptInfoContent content = new ScriptInfoContent();
     private final GuiScrollPanel scrollPanel = new GuiScrollPanel(content, EnumScrollMode.VERTICAL);
-    private static final int WARNING_SIZE = 11;
+    private ScriptInfoLayout currentLayout;
+    private static final int WARNING_SIZE = GuiNonReloadableIndicator.DEFAULT_SIZE;
     private static final int WARNING_GAP = 4;
-    private int warningIconX = -1;
-    private int warningIconY = -1;
+    private final GuiNonReloadableIndicator warningIndicator = new GuiNonReloadableIndicator(null);
 
     public GuiPanelScriptInfo() {
+        warningIndicator.setTooltipDeferred(true);
     }
 
+    @Override
     public void setBounds(int left, int top, int right, int bottom) {
         super.setBounds(left, top, right, bottom);
         scrollPanel.setBounds(left, top, right, bottom);
     }
 
+    @Override
     public void layout(int screenWidth, int screenHeight) {
         scrollPanel.layout(screenWidth, screenHeight);
     }
 
     public void setSelected(ScriptMod selected) {
         this.selected = selected;
+        currentLayout = null;
+        issueLinks.clear();
+        warningIndicator.setSourceFileName(selected == null ? null : selected.getSourceFileName());
     }
 
     public void setHeaderY(int headerY) {
@@ -88,9 +91,11 @@ public final class GuiPanelScriptInfo extends GuiComponentBase {
     public void setDisplayMetrics(int screenWidth, int screenHeight, int displayWidth, int displayHeight) {
         this.screenWidth = screenWidth;
         this.screenHeight = screenHeight;
+        warningIndicator.layout(screenWidth, screenHeight);
         scrollPanel.setDisplayMetrics(screenWidth, screenHeight, displayWidth, displayHeight);
     }
 
+    @Override
     public void draw(FontRenderer font, int mouseX, int mouseY, float partialTicks) {
         if (selected == null) {
             return;
@@ -98,131 +103,100 @@ public final class GuiPanelScriptInfo extends GuiComponentBase {
         this.detailLeft = left;
         this.detailRight = right;
         this.detailTop = top;
-        this.detailBottom = bottom;
         int contentWidth = detailRight - detailLeft;
         // Title row: script name and version.
         String title = selected.getDisplayName() + "  v" + selected.getVersion();
-        boolean nonReloadable = GuiNonReloadableIndicator.isVisible(selected.getSourceFileName());
+        boolean nonReloadable = warningIndicator.isVisible();
         int titleX = detailLeft;
-        warningIconX = -1;
         if (nonReloadable) {
-            int iconY = headerY - 1;
-            GuiNonReloadableIndicator.draw(ModLoader.getMinecraftInstance(), detailLeft, iconY, WARNING_SIZE);
-            warningIconX = detailLeft;
-            warningIconY = iconY;
+            int iconY = headerY + ((int) (8 * headerScale) - WARNING_SIZE) / 2;
+            warningIndicator.setMinecraft(ModLoader.getMinecraftInstance());
+            warningIndicator.setBounds(detailLeft, iconY, detailLeft + WARNING_SIZE, iconY + WARNING_SIZE);
+            warningIndicator.draw(font, mouseX, mouseY, partialTicks);
             titleX += WARNING_SIZE + WARNING_GAP;
         }
         GuiUtils.drawScaledString(font, title, titleX, headerY, GuiColors.TEXT_PRIMARY, headerScale);
 
-        String description = selected.getDescription();
-        boolean hasDescription = description != null && !description.trim().isEmpty();
-        String failure = selected.getFailureReason();
-        List issues = LuaScriptErrors.getIssuesFor(selected.getDisplayName(), selected.getSourceFileName());
-        List errorIssues = filterIssues(issues, false);
-        List warningIssues = filterIssues(issues, true);
-        boolean hasErrors = !errorIssues.isEmpty()
-            || (selected.isFailed() && failure != null && !failure.trim().isEmpty());
-        boolean hasWarnings = !warningIssues.isEmpty();
-        List dependencies = selected.getDependencies();
-        boolean hasDependencies = dependencies != null && !dependencies.isEmpty();
-        int imageSize = calculateImageDrawSize();
-
-        // Measure full content height to drive scrolling limits.
-        int contentHeight = calculateContentHeight(font, contentWidth, hasDescription ? description : null,
-            hasErrors ? failure : null, errorIssues, warningIssues, hasDependencies ? dependencies : null, imageSize);
-        scrollPanel.setContentSize(Math.max(0, contentWidth), contentHeight);
+        currentLayout = new ScriptInfoLayout(font, contentWidth);
+        scrollPanel.setContentSize(Math.max(0, contentWidth), currentLayout.contentHeight);
         scrollPanel.draw(font, mouseX, mouseY, partialTicks);
-        if (warningIconX >= 0) {
-            GuiNonReloadableIndicator.drawTooltip(font, screenWidth, screenHeight,
-                selected.getSourceFileName(), warningIconX, warningIconY, WARNING_SIZE, mouseX, mouseY);
-        }
+        warningIndicator.drawTooltip(font, mouseX, mouseY);
     }
 
     private final class ScriptInfoContent extends GuiComponentBase {
+        @Override
         public void draw(FontRenderer font, int mouseX, int mouseY, float partialTicks) {
-            if (selected == null) {
+            if (selected == null || currentLayout == null) {
                 return;
             }
             issueLinks.clear();
             detailLeft = left;
             detailRight = right;
             detailTop = top;
-            detailBottom = bottom;
             int contentWidth = detailRight - detailLeft;
             int y = detailTop;
-            String description = selected.getDescription();
-            boolean hasDescription = description != null && !description.trim().isEmpty();
-            String failure = selected.getFailureReason();
-            List issues = LuaScriptErrors.getIssuesFor(selected.getDisplayName(), selected.getSourceFileName());
-            List errorIssues = filterIssues(issues, false);
-            List warningIssues = filterIssues(issues, true);
-            boolean hasErrors = !errorIssues.isEmpty()
-                || (selected.isFailed() && failure != null && !failure.trim().isEmpty());
-            boolean hasWarnings = !warningIssues.isEmpty();
-            List dependencies = selected.getDependencies();
-            boolean hasDependencies = dependencies != null && !dependencies.isEmpty();
-            ImageTexture image = resolveImageTexture(selected.getImagePath());
-            int imageSize = calculateImageDrawSize();
+            ScriptInfoLayout layout = currentLayout;
 
-            if (imageSize > 0) {
+            if (layout.imageSize > 0) {
                 int imageX = detailLeft;
-                if (image != null) {
-                    drawImage(image, imageX, y, imageSize);
+                if (layout.image != null) {
+                    drawImage(layout.image, imageX, y, layout.imageSize);
                 } else {
-                    drawImagePlaceholder(font, imageX, y, imageSize);
+                    drawImagePlaceholder(font, imageX, y, layout.imageSize);
                 }
-                y += imageSize + IMAGE_PADDING;
+                y += layout.imageSize + IMAGE_PADDING;
             }
 
             float descriptionScale = 1.25F;
             GuiUtils.drawScaledStringUL(font, LABEL_DESCRIPTION, detailLeft, y, GuiColors.TEXT_PRIMARY,
-                descriptionScale);
+                    descriptionScale);
             y += (int) (10 * descriptionScale) + CONTENT_PADDING;
-            if (hasDescription) {
-                y += drawWrappedClipped(font, description, detailLeft, y, contentWidth, GuiColors.TEXT_PRIMARY,
-                    detailBottom) + CONTENT_PADDING;
+            if (layout.hasDescription) {
+                y += drawWrapped(font, layout.description, detailLeft, y, contentWidth, GuiColors.TEXT_PRIMARY)
+                        + CONTENT_PADDING;
             }
             y += LINE_SPACING;
 
-            if (hasDescription && (hasErrors || hasWarnings)) {
-                GuiUtils.drawHorizontalLine(detailLeft, detailRight, y + 2, GuiUtils.COLOR_LIST_SEPERATOR);
-                y += getIssueSectionPadding(hasErrors, hasWarnings);
+            if (layout.hasDescription && layout.hasIssues()) {
+                GuiUtils.drawHorizontalLine(detailLeft, detailRight, y + 2, GuiUtils.COLOR_LIST_SEPARATOR);
+                y += getIssueSectionPadding(layout.hasErrors, layout.hasWarnings);
             }
 
-            if (hasErrors || hasWarnings) {
+            if (layout.hasIssues()) {
                 float errorScale = 1.25F;
-                int headerColor = hasErrors ? GuiColors.TEXT_ERROR : GuiColors.TEXT_WARNING;
+                int headerColor = layout.hasErrors ? GuiColors.TEXT_ERROR : GuiColors.TEXT_WARNING;
                 GuiUtils.drawScaledStringUL(font, LABEL_ERRORS, detailLeft, y, headerColor, errorScale);
                 y += (int) (10 * errorScale) + CONTENT_PADDING;
-                if (!errorIssues.isEmpty()) {
-                    y += drawIssuesClipped(font, errorIssues, detailLeft, y, contentWidth, GuiColors.TEXT_ERROR,
-                        detailBottom, mouseX, mouseY, partialTicks) + CONTENT_PADDING;
+                if (!layout.errorIssues.getEntries().isEmpty()) {
+                    y += drawIssues(font, layout.errorIssues, detailLeft, y, contentWidth, GuiColors.TEXT_ERROR, mouseX,
+                            mouseY, partialTicks) + CONTENT_PADDING;
                     y += LINE_SPACING;
-                } else if (hasErrors) {
-                    y += drawWrappedClipped(font, failure, detailLeft, y, contentWidth, GuiColors.TEXT_ERROR,
-                        detailBottom) + CONTENT_PADDING;
+                } else if (layout.hasErrors) {
+                    y += drawWrapped(font, layout.failure, detailLeft, y, contentWidth, GuiColors.TEXT_ERROR)
+                            + CONTENT_PADDING;
                     y += LINE_SPACING;
                 }
-                if (!warningIssues.isEmpty()) {
-                    y += drawIssuesClipped(font, warningIssues, detailLeft, y, contentWidth, GuiColors.TEXT_WARNING,
-                        detailBottom, mouseX, mouseY, partialTicks) + CONTENT_PADDING;
+                if (!layout.warningIssues.getEntries().isEmpty()) {
+                    y += drawIssues(font, layout.warningIssues, detailLeft, y, contentWidth, GuiColors.TEXT_WARNING,
+                            mouseX, mouseY, partialTicks) + CONTENT_PADDING;
                     y += LINE_SPACING;
                 }
             }
 
-            if (hasDependencies) {
+            if (layout.hasDependencies) {
                 float dependencyScale = 1.25F;
                 GuiUtils.drawScaledStringUL(font, LABEL_DEPENDENCIES, detailLeft, y, GuiColors.TEXT_PRIMARY,
-                    dependencyScale);
+                        dependencyScale);
                 y += (int) (10 * dependencyScale) + CONTENT_PADDING;
-                drawDependenciesClipped(font, dependencies, selected.getMissingDependencies(), detailLeft, y,
-                    contentWidth, detailBottom);
+                drawDependencies(font, layout.dependencies, selected.getMissingDependencies(), detailLeft, y,
+                        contentWidth);
             }
         }
 
+        @Override
         public boolean mouseClicked(int mouseX, int mouseY, int button) {
             for (int i = 0; i < issueLinks.size(); i++) {
-                GuiTextClickable link = (GuiTextClickable) issueLinks.get(i);
+                GuiTextClickable link = issueLinks.get(i);
                 if (link.mouseClicked(mouseX, mouseY, button)) {
                     return true;
                 }
@@ -231,54 +205,82 @@ public final class GuiPanelScriptInfo extends GuiComponentBase {
         }
     }
 
-    private int calculateContentHeight(FontRenderer font, int contentWidth, String description, String failure,
-        List errorIssues, List warningIssues, List dependencies, int imageSize) {
-        int height = 0;
-        if (imageSize > 0) {
-            height += imageSize + IMAGE_PADDING;
+    private final class ScriptInfoLayout {
+        private final String description;
+        private final String failure;
+        private final List<String> dependencies;
+        private final GuiIssueLayout errorIssues;
+        private final GuiIssueLayout warningIssues;
+        private final ImageTexture image;
+        private final int imageSize;
+        private final boolean hasDescription;
+        private final boolean hasErrors;
+        private final boolean hasWarnings;
+        private final boolean hasDependencies;
+        private final int contentHeight;
+
+        private ScriptInfoLayout(FontRenderer font, int contentWidth) {
+            description = selected.getDescription();
+            failure = selected.getFailureReason();
+            dependencies = selected.getDependencies();
+            List<ScriptIssue> issues = LuaScriptErrors.getIssuesFor(selected.getDisplayName(),
+                    selected.getSourceFileName());
+            errorIssues = GuiIssueLayout.prepare(font, filterIssues(issues, false), contentWidth, 0);
+            warningIssues = GuiIssueLayout.prepare(font, filterIssues(issues, true), contentWidth, 0);
+            image = resolveImageTexture(selected.getImagePath());
+            imageSize = calculateImageDrawSize();
+            hasDescription = hasText(description);
+            hasErrors = !errorIssues.getEntries().isEmpty() || (selected.isFailed() && hasText(failure));
+            hasWarnings = !warningIssues.getEntries().isEmpty();
+            hasDependencies = dependencies != null && !dependencies.isEmpty();
+            contentHeight = calculateHeight(font, contentWidth);
         }
-        float sectionScale = 1.25F;
-        height += (int) (10 * sectionScale) + CONTENT_PADDING;
-        if (description != null && !description.trim().isEmpty()) {
-            height += font.func_27277_a(description, contentWidth) + CONTENT_PADDING;
+
+        private boolean hasIssues() {
+            return hasErrors || hasWarnings;
         }
-        height += LINE_SPACING;
-        boolean hasErrorIssues = errorIssues != null && !errorIssues.isEmpty();
-        boolean hasWarningIssues = warningIssues != null && !warningIssues.isEmpty();
-        if (description != null && !description.trim().isEmpty()
-            && ((failure != null && !failure.trim().isEmpty()) || hasErrorIssues || hasWarningIssues)) {
-            boolean hasErrors = (failure != null && !failure.trim().isEmpty()) || hasErrorIssues;
-            boolean hasWarnings = hasWarningIssues;
-            height += getIssueSectionPadding(hasErrors, hasWarnings);
-        }
-        if (hasErrorIssues) {
-            height += (int) (10 * sectionScale) + CONTENT_PADDING;
-            height += measureIssuesHeight(font, errorIssues, contentWidth) + CONTENT_PADDING;
+
+        private int calculateHeight(FontRenderer font, int contentWidth) {
+            int height = imageSize > 0 ? imageSize + IMAGE_PADDING : 0;
+            int headerHeight = (int) (10 * 1.25F) + CONTENT_PADDING;
+            height += headerHeight;
+            if (hasDescription) {
+                height += measureWrapped(font, description, contentWidth) + CONTENT_PADDING;
+            }
             height += LINE_SPACING;
-        } else if (failure != null && !failure.trim().isEmpty()) {
-            height += (int) (10 * sectionScale) + CONTENT_PADDING;
-            height += font.func_27277_a(failure, contentWidth) + CONTENT_PADDING;
-            height += LINE_SPACING;
+
+            if (hasDescription && hasIssues()) {
+                height += getIssueSectionPadding(hasErrors, hasWarnings);
+            }
+            if (hasIssues()) {
+                height += headerHeight;
+                if (!errorIssues.getEntries().isEmpty()) {
+                    height += errorIssues.getHeight() + CONTENT_PADDING + LINE_SPACING;
+                } else if (hasErrors) {
+                    height += measureWrapped(font, failure, contentWidth) + CONTENT_PADDING + LINE_SPACING;
+                }
+                if (!warningIssues.getEntries().isEmpty()) {
+                    height += warningIssues.getHeight() + CONTENT_PADDING + LINE_SPACING;
+                }
+            }
+            if (hasDependencies) {
+                height += headerHeight + dependencies.size() * DEPENDENCY_LINE_HEIGHT + CONTENT_PADDING;
+            }
+            return height;
         }
-        if (hasWarningIssues) {
-            height += (int) (10 * sectionScale) + CONTENT_PADDING;
-            height += measureIssuesHeight(font, warningIssues, contentWidth) + CONTENT_PADDING;
-            height += LINE_SPACING;
-        }
-        if (dependencies != null && !dependencies.isEmpty()) {
-            height += (int) (10 * sectionScale) + CONTENT_PADDING;
-            height += dependencies.size() * DEPENDENCY_LINE_HEIGHT + CONTENT_PADDING;
-        }
-        return height;
     }
 
-    private List filterIssues(List issues, boolean warning) {
-        List out = new ArrayList();
+    private static boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
+    }
+
+    private List<ScriptIssue> filterIssues(List<ScriptIssue> issues, boolean warning) {
+        List<ScriptIssue> out = new ArrayList<>();
         if (issues == null) {
             return out;
         }
         for (int i = 0; i < issues.size(); i++) {
-            LuaScriptErrors.ScriptIssue issue = (LuaScriptErrors.ScriptIssue) issues.get(i);
+            ScriptIssue issue = issues.get(i);
             if (issue.isWarning() == warning) {
                 out.add(issue);
             }
@@ -302,7 +304,7 @@ public final class GuiPanelScriptInfo extends GuiComponentBase {
             return null;
         }
         String trimmed = imagePath.trim();
-        ImageTexture cached = (ImageTexture) IMAGE_CACHE.get(trimmed);
+        ImageTexture cached = IMAGE_CACHE.get(trimmed);
         if (cached != null) {
             return cached == INVALID_IMAGE ? null : cached;
         }
@@ -368,8 +370,8 @@ public final class GuiPanelScriptInfo extends GuiComponentBase {
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL11.GL_CLAMP);
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL11.GL_CLAMP);
-        GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA8, width, height, 0, GL11.GL_RGBA,
-            GL11.GL_UNSIGNED_BYTE, buffer);
+        GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA8, width, height, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE,
+                buffer);
         return textureId;
     }
 
@@ -411,229 +413,74 @@ public final class GuiPanelScriptInfo extends GuiComponentBase {
         }
     }
 
-    private int drawWrappedClipped(FontRenderer font, String text, int x, int y, int width, int color, int bottom) {
+    private int drawWrapped(FontRenderer font, String text, int x, int y, int width, int color) {
         if (text == null || text.isEmpty()) {
             return 0;
         }
-        int startY = y;
-        // Manual line wrapping to keep control over clipping boundaries.
-        String[] lines = text.split("\n");
-        for (int i = 0; i < lines.length; i++) {
-            String line = lines[i];
-            String[] words = line.split(" ");
-            int index = 0;
-            while (index < words.length) {
-                if (y + 8 > bottom) {
-                    return y - startY;
-                }
-                String current = words[index];
-                index++;
-                while (index < words.length && font.getStringWidth(current + " " + words[index]) <= width) {
-                    current = current + " " + words[index];
-                    index++;
-                }
-                font.drawStringWithShadow(current, x, y, color);
-                y += 8;
-            }
-            if (line.length() == 0) {
-                if (y + 8 > bottom) {
-                    return y - startY;
-                }
-                y += 8;
-            }
-        }
-        return y - startY;
+        font.func_27278_a(text, x, y, width, color);
+        return measureWrapped(font, text, width);
     }
 
-    private int measureIssuesHeight(FontRenderer font, List issues, int width) {
-        if (issues == null || issues.isEmpty()) {
+    private int measureWrapped(FontRenderer font, String text, int width) {
+        if (font == null || text == null || text.isEmpty()) {
             return 0;
         }
-        int height = 0;
-        for (int i = 0; i < issues.size(); i++) {
-            LuaScriptErrors.ScriptIssue issue = (LuaScriptErrors.ScriptIssue) issues.get(i);
-            String entry = issue.getMessage();
-            String linkText = buildLinkText(issue);
-            height += measureEntryHeight(font, entry, linkText, width);
-        }
-        return height;
+        return font.func_27277_a(text, width);
     }
 
-    private int drawIssuesClipped(FontRenderer font, List issues, int x, int y, int width, int color, int bottom,
-        int mouseX, int mouseY, float partialTicks) {
-        if (issues == null || issues.isEmpty()) {
+    private int drawIssues(FontRenderer font, GuiIssueLayout layout, int x, int y, int width, int color, int mouseX,
+            int mouseY, float partialTicks) {
+        if (layout == null) {
             return 0;
         }
-        int startY = y;
-        for (int i = 0; i < issues.size(); i++) {
-            LuaScriptErrors.ScriptIssue issue = (LuaScriptErrors.ScriptIssue) issues.get(i);
-            String linkText = buildLinkText(issue);
-            File linkPath = resolveScriptFile(issue);
-            int entryHeight = drawEntry(font, issue.getMessage(), linkText, linkPath, x, y, width, color, mouseX, mouseY,
-                partialTicks);
-            y += entryHeight;
+        int entryY = y;
+        List<GuiIssueLayout.Entry> entries = layout.getEntries();
+        for (int i = 0; i < entries.size(); i++) {
+            GuiIssueLayout.Entry entry = entries.get(i);
+            entry.draw(font, inlineHelper, issueLinks, x, entryY, width, screenWidth, screenHeight, color, mouseX,
+                    mouseY, partialTicks);
+            entryY += entry.getHeight();
         }
-        return y - startY;
+        return layout.getHeight();
     }
 
-    private int drawEntry(FontRenderer font, String fullText, String linkText, File linkPath, int left, int top,
-        int maxWidth, int textColor, int mouseX, int mouseY, float partialTicks) {
-        if (font == null || fullText == null) {
-            return 0;
-        }
-        String[] lines = splitLines(fullText);
-        if (lines.length == 0) {
-            return 0;
-        }
-        int y = top;
-        int usedHeight = 0;
-        IGuiAction action = linkPath == null ? null : () -> IoUtils.openPath(linkPath);
-        int firstHeight = inlineHelper.drawInline(font, lines[0], linkText, action, left, y, maxWidth,
-            screenWidth, screenHeight, textColor, mouseX, mouseY, partialTicks, issueLinks);
-        if (firstHeight <= 0) {
-            firstHeight = GuiText.getLineHeight(font);
-        }
-        y += firstHeight;
-        usedHeight += firstHeight;
-        for (int i = 1; i < lines.length; i++) {
-            String line = lines[i];
-            if (line.length() == 0) {
-                int lineHeight = GuiText.getLineHeight(font);
-                y += lineHeight;
-                usedHeight += lineHeight;
-                continue;
-            }
-            font.func_27278_a(line, left, y, maxWidth, textColor);
-            int lineHeightUsed = font.func_27277_a(line, maxWidth);
-            y += lineHeightUsed;
-            usedHeight += lineHeightUsed;
-        }
-        return usedHeight;
-    }
-
-    private int measureEntryHeight(FontRenderer font, String fullText, String linkText, int maxWidth) {
-        if (font == null || fullText == null) {
-            return 0;
-        }
-        String[] lines = splitLines(fullText);
-        if (lines.length == 0) {
-            return 0;
-        }
-        int height = 0;
-        int lineHeight = GuiText.getLineHeight(font);
-        int firstLineHeight = measureInlineLineHeight(font, lines[0], linkText, maxWidth);
-        height += firstLineHeight > 0 ? firstLineHeight : lineHeight;
-        for (int i = 1; i < lines.length; i++) {
-            String line = lines[i];
-            if (line.length() == 0) {
-                height += lineHeight;
-            } else {
-                height += font.func_27277_a(line, maxWidth);
-            }
-        }
-        return height;
-    }
-
-    private int measureInlineLineHeight(FontRenderer font, String fullText, String linkText, int maxWidth) {
-        if (font == null || fullText == null) {
-            return 0;
-        }
-        if (linkText == null || linkText.length() == 0) {
-            return font.func_27277_a(fullText, maxWidth);
-        }
-        int linkIndex = fullText.indexOf(linkText);
-        if (linkIndex < 0) {
-            return font.func_27277_a(fullText, maxWidth);
-        }
-        String remainder = trimInlineRemainder(fullText.substring(linkIndex + linkText.length()));
-        int linkHeight = GuiText.getLineHeight(font);
-        int remainderWidth = Math.max(10, maxWidth - font.getStringWidth(linkText) - 4);
-        int remainderHeight = remainder.length() > 0 ? font.func_27277_a(remainder, remainderWidth) : 0;
-        return Math.max(linkHeight, remainderHeight);
-    }
-
-    private String trimInlineRemainder(String value) {
-        if (value == null || value.length() == 0) {
-            return "";
-        }
-        int index = 0;
-        while (index < value.length()) {
-            char ch = value.charAt(index);
-            if (ch == ' ' || ch == '\t') {
-                index++;
-                continue;
-            }
-            break;
-        }
-        return value.substring(index);
-    }
-
-    private String[] splitLines(String value) {
-        if (value == null) {
-            return new String[0];
-        }
-        return value.split("\\n", -1);
-    }
-
-    private String buildLinkText(LuaScriptErrors.ScriptIssue issue) {
-        if (issue == null || issue.getSourceFile() == null) {
-            return null;
-        }
-        if (issue.getLine() > 0) {
-            return issue.getSourceFile() + ":" + issue.getLine();
-        }
-        return issue.getSourceFile();
-    }
-
-    private File resolveScriptFile(LuaScriptErrors.ScriptIssue issue) {
-        if (issue == null || issue.getSourceFile() == null) {
-            return null;
-        }
-        File scriptsDir = LuaModLoader.getLuaModsDir();
-        if (scriptsDir == null) {
-            return null;
-        }
-        File file = new File(scriptsDir, issue.getSourceFile());
-        if (file.isFile()) {
-            return file;
-        }
-        return null;
-    }
-
+    @Override
     public boolean mouseClicked(int mouseX, int mouseY, int button) {
         return scrollPanel.mouseClicked(mouseX, mouseY, button);
     }
 
+    @Override
     public boolean mouseReleased(int mouseX, int mouseY, int button) {
         return scrollPanel.mouseReleased(mouseX, mouseY, button);
     }
 
+    @Override
     public boolean mouseDragged(int mouseX, int mouseY, boolean mouseDown) {
         return scrollPanel.mouseDragged(mouseX, mouseY, mouseDown);
     }
 
+    @Override
     public boolean mouseScrolled(int mouseX, int mouseY, int wheelDelta, boolean shiftDown) {
         return scrollPanel.mouseScrolled(mouseX, mouseY, wheelDelta, shiftDown);
     }
 
+    @Override
     public boolean keyTyped(char typedChar, int keyCode) {
         return scrollPanel.keyTyped(typedChar, keyCode);
     }
 
-    private int drawDependenciesClipped(FontRenderer font, List dependencies, List missingDeps, int x, int y, int width, int bottom) {
+    private int drawDependencies(FontRenderer font, List<String> dependencies, List<String> missingDeps, int x, int y,
+            int width) {
         if (dependencies == null || dependencies.isEmpty()) {
             return 0;
         }
         int startY = y;
         for (int i = 0; i < dependencies.size(); i++) {
-            if (y + DEPENDENCY_LINE_HEIGHT > bottom) {
-                return y - startY;
-            }
-            Object dep = dependencies.get(i);
+            String dep = dependencies.get(i);
             if (dep == null) {
                 continue;
             }
-            String name = dep.toString();
+            String name = dep;
             boolean isMissing = false;
             if (missingDeps != null) {
                 isMissing = missingDeps.contains(name);

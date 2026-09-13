@@ -12,7 +12,8 @@ public class GuiPopupScriptErrors extends GuiScreenPopup {
     /**
      * Creates the popup for showing Lua script load errors.
      *
-     * @param parent parent GUI to return to
+     * @param parent
+     *            parent GUI to return to
      */
     public GuiPopupScriptErrors(GuiScreen parent) {
         super(parent);

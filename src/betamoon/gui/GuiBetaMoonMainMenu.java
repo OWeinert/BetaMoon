@@ -8,7 +8,8 @@ public class GuiBetaMoonMainMenu extends GuiMainMenuBase {
     private final GuiActionButton scriptsButton;
 
     public GuiBetaMoonMainMenu() {
-        scriptsButton = new GuiActionButton("Scripts", () -> GuiBetaMoonMainMenu.this.showScreen(new GuiScreenScripts(GuiBetaMoonMainMenu.this)));
+        scriptsButton = new GuiActionButton("Scripts",
+                () -> GuiBetaMoonMainMenu.this.showScreen(new GuiScreenScripts(GuiBetaMoonMainMenu.this)));
     }
 
     @Override

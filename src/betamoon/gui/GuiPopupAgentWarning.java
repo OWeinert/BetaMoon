@@ -1,16 +1,15 @@
 package betamoon.gui;
 
-import java.awt.Toolkit;
-import java.awt.datatransfer.StringSelection;
-import java.io.File;
-import java.net.URL;
-
 import betamoon.BetaMoonMain;
 import betamoon.gui.api.component.GuiActionButton;
 import betamoon.gui.api.component.GuiComponentBase;
 import betamoon.gui.api.component.GuiTextClickable;
 import betamoon.gui.api.screen.GuiScreenPopup;
 import betamoon.gui.api.util.GuiColors;
+import java.awt.Toolkit;
+import java.awt.datatransfer.StringSelection;
+import java.io.File;
+import java.net.URL;
 import net.minecraft.src.FontRenderer;
 import net.minecraft.src.GuiScreen;
 
@@ -19,7 +18,7 @@ import net.minecraft.src.GuiScreen;
  */
 public final class GuiPopupAgentWarning extends GuiScreenPopup {
     private static final String MESSAGE = "The BetaMoon Java agent is not enabled. Some BetaMoon features may be "
-        + "unavailable. Add this argument to the instance's Java arguments:";
+            + "unavailable. Add this argument to the instance's Java arguments:";
     private static final String AGENT_ARGUMENT = getAgentArgument();
 
     private final GuiActionButton continueButton;
@@ -28,8 +27,8 @@ public final class GuiPopupAgentWarning extends GuiScreenPopup {
     public GuiPopupAgentWarning(GuiScreen parent) {
         super(parent);
         setTitleColor(GuiColors.TEXT_WARNING);
-        continueButton = new GuiActionButton("Continue", () ->
-            GuiPopupAgentWarning.this.showScreen(GuiPopupAgentWarning.this.parent));
+        continueButton = new GuiActionButton("Continue",
+                () -> GuiPopupAgentWarning.this.showScreen(GuiPopupAgentWarning.this.parent));
     }
 
     @Override
@@ -115,6 +114,7 @@ public final class GuiPopupAgentWarning extends GuiScreenPopup {
             }
         }
 
+        @Override
         public void draw(FontRenderer font, int mouseX, int mouseY, float partialTicks) {
             if (font == null) {
                 return;
@@ -133,6 +133,7 @@ public final class GuiPopupAgentWarning extends GuiScreenPopup {
             font.drawStringWithShadow(status, left, statusTop, statusColor);
         }
 
+        @Override
         public boolean mouseClicked(int mouseX, int mouseY, int button) {
             return agentArgumentLink.mouseClicked(mouseX, mouseY, button);
         }

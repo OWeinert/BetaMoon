@@ -3,19 +3,19 @@ package betamoon.gui;
 import betamoon.gui.api.component.EnumScrollMode;
 import betamoon.gui.api.component.GuiComponentBase;
 import betamoon.gui.api.component.GuiNonReloadableIndicator;
-import betamoon.gui.api.util.GuiColors;
 import betamoon.gui.api.component.GuiScrollPanel;
+import betamoon.gui.api.util.GuiColors;
 import betamoon.gui.api.util.GuiText;
 import betamoon.gui.api.util.GuiUtils;
 import betamoon.luamodloader.LuaScriptErrors;
 import betamoon.luamodloader.ScriptMod;
-
+import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.src.FontRenderer;
 import net.minecraft.src.ModLoader;
 
 public final class GuiPanelScriptList extends GuiComponentBase {
-    private static final int ENTRY_PADDING = 10;
+    private static final int ROW_HEIGHT = 16;
     private static final int PADDING = 10;
 
     private int listTop;
@@ -27,15 +27,14 @@ public final class GuiPanelScriptList extends GuiComponentBase {
     private int headerLineY;
     private int selectedIndex = -1;
     private int hoverIndex = -1;
-    private List entries;
+    private List<ScriptMod> entries;
     private FontRenderer font;
     private float headerScale = 1.0F;
     private int screenWidth;
     private int screenHeight;
-    private int warningX = -1;
-    private int warningY = -1;
-    private ScriptMod warningEntry;
-    private static final int WARNING_SIZE = 7;
+    private final List<GuiNonReloadableIndicator> warningIndicators = new ArrayList<GuiNonReloadableIndicator>();
+    private GuiNonReloadableIndicator hoveredWarning;
+    private static final int WARNING_SIZE = 12;
     private static final int WARNING_GAP = 3;
     private final ScriptListContent content = new ScriptListContent();
     private final GuiScrollPanel scrollPanel = new GuiScrollPanel(content, EnumScrollMode.VERTICAL);
@@ -52,8 +51,22 @@ public final class GuiPanelScriptList extends GuiComponentBase {
         hoverIndex = -1;
     }
 
-    public void setEntries(List entries) {
+    public void setEntries(List<ScriptMod> entries) {
         this.entries = entries;
+        int count = entries == null ? 0 : entries.size();
+        while (warningIndicators.size() > count) {
+            warningIndicators.remove(warningIndicators.size() - 1);
+        }
+        for (int i = 0; i < count; i++) {
+            ScriptMod entry = entries.get(i);
+            if (i == warningIndicators.size()) {
+                GuiNonReloadableIndicator indicator = new GuiNonReloadableIndicator(entry.getSourceFileName());
+                indicator.setTooltipDeferred(true);
+                warningIndicators.add(indicator);
+            } else {
+                warningIndicators.get(i).setSourceFileName(entry.getSourceFileName());
+            }
+        }
     }
 
     public void setHeaderScale(float headerScale) {
@@ -66,11 +79,13 @@ public final class GuiPanelScriptList extends GuiComponentBase {
         scrollPanel.setDisplayMetrics(screenWidth, screenHeight, displayWidth, displayHeight);
     }
 
+    @Override
     public void setBounds(int left, int top, int right, int bottom) {
         super.setBounds(left, top, right, bottom);
         scrollPanel.setBounds(left, top, right, bottom);
     }
 
+    @Override
     public void layout(int screenWidth, int screenHeight) {
         headerTextY = top + 4;
         headerLineY = top + 20;
@@ -89,6 +104,7 @@ public final class GuiPanelScriptList extends GuiComponentBase {
     /**
      * Draws the scripts list panel and its scrollbar.
      */
+    @Override
     public void draw(FontRenderer font, int mouseX, int mouseY, float partialTicks) {
         this.font = font;
 
@@ -97,16 +113,7 @@ public final class GuiPanelScriptList extends GuiComponentBase {
         GuiUtils.drawHorizontalLine(PADDING, screenWidth - PADDING, headerLineY, GuiColors.LINE_WHITE);
         GuiUtils.drawVerticalLine(listTop - 6, listBottom + 2, separatorX, GuiColors.LINE_WHITE);
 
-        int contentHeight = 0;
-        if (entries != null) {
-            // Precompute total height for scrolling.
-            for (int i = 0; i < entries.size(); i++) {
-                ScriptMod entry = (ScriptMod) entries.get(i);
-                String displayName = GuiText.trimToWidth(font, entry.getDisplayName(), entryTextWidth(entry));
-                int entryHeight = font.func_27277_a(displayName, listContentWidth);
-                contentHeight += entryHeight + ENTRY_PADDING;
-            }
-        }
+        int contentHeight = entries == null ? 0 : entries.size() * ROW_HEIGHT;
         if (contentHeight > 0) {
             // The last row still draws its background and vertically centered text into
             // all but two pixels of the normal inter-row spacing. Include those pixels
@@ -114,15 +121,15 @@ public final class GuiPanelScriptList extends GuiComponentBase {
             contentHeight -= 2;
         }
         scrollPanel.setContentSize(Math.max(0, right - left), contentHeight);
-        warningEntry = null;
+        hoveredWarning = null;
         scrollPanel.draw(font, mouseX, mouseY, partialTicks);
-        if (warningEntry != null) {
-            GuiNonReloadableIndicator.drawTooltip(font, screenWidth, screenHeight,
-                warningEntry.getSourceFileName(), warningX, warningY, WARNING_SIZE, mouseX, mouseY);
+        if (hoveredWarning != null) {
+            hoveredWarning.drawTooltip(font, mouseX, mouseY);
         }
     }
 
     private final class ScriptListContent extends GuiComponentBase {
+        @Override
         public void draw(FontRenderer font, int mouseX, int mouseY, float partialTicks) {
             updateHoverIndex(mouseX, mouseY);
             int y = top;
@@ -130,42 +137,44 @@ public final class GuiPanelScriptList extends GuiComponentBase {
                 return;
             }
             for (int i = 0; i < entries.size(); i++) {
-                ScriptMod entry = (ScriptMod) entries.get(i);
+                ScriptMod entry = entries.get(i);
                 int color = entry.isFailed() ? GuiColors.TEXT_ERROR : GuiColors.TEXT_PRIMARY;
-                if (!entry.isFailed() && LuaScriptErrors.hasWarningFor(entry.getDisplayName(),
-                    entry.getSourceFileName())) {
+                if (!entry.isFailed()
+                        && LuaScriptErrors.hasWarningFor(entry.getDisplayName(), entry.getSourceFileName())) {
                     color = GuiColors.TEXT_WARNING;
                 }
-                boolean nonReloadable = GuiNonReloadableIndicator.isVisible(entry.getSourceFileName());
+                GuiNonReloadableIndicator indicator = warningIndicators.get(i);
+                boolean nonReloadable = indicator.isVisible();
                 int nameLeft = left + 4 + (nonReloadable ? WARNING_SIZE + WARNING_GAP : 0);
                 int nameWidth = listContentRight - nameLeft;
                 String displayName = GuiText.trimToWidth(font, entry.getDisplayName(), nameWidth);
                 int entryHeight = font.func_27277_a(displayName, listContentWidth);
-                int blockHeight = entryHeight + ENTRY_PADDING - 2;
+                int blockHeight = ROW_HEIGHT - 2;
                 if (i == selectedIndex) {
                     GuiUtils.drawRect(left + 1, y - 1, listContentRight - 1, y + blockHeight - 1,
-                        GuiColors.LIST_SELECTED_BG);
+                            GuiColors.LIST_SELECTED_BG);
                 } else if (i == hoverIndex) {
                     GuiUtils.drawRect(left + 1, y - 1, listContentRight - 1, y + blockHeight - 1,
-                        GuiColors.LIST_HOVER_BG);
+                            GuiColors.LIST_HOVER_BG);
                 }
                 int textY = y + (blockHeight - entryHeight) / 2;
                 if (nonReloadable) {
-                    int iconY = y + (blockHeight - WARNING_SIZE) / 2;
-                    GuiNonReloadableIndicator.draw(ModLoader.getMinecraftInstance(), left + 4, iconY, WARNING_SIZE);
-                    if (mouseX >= left + 4 && mouseX < left + 4 + WARNING_SIZE
-                        && mouseY >= iconY && mouseY < iconY + WARNING_SIZE
-                        && mouseY >= listTop && mouseY < listBottom) {
-                        warningEntry = entry;
-                        warningX = left + 4;
-                        warningY = iconY;
+                    int iconY = y + (blockHeight - WARNING_SIZE - 2) / 2;
+                    indicator.setMinecraft(ModLoader.getMinecraftInstance());
+                    indicator.layout(screenWidth, screenHeight);
+                    indicator.setBounds(left + 4, iconY, left + 4 + WARNING_SIZE, iconY + WARNING_SIZE);
+                    indicator.draw(font, mouseX, mouseY, partialTicks);
+                    if (indicator.isHovered(mouseX, mouseY) && mouseX >= left && mouseX < right && mouseY >= listTop
+                            && mouseY < listBottom) {
+                        hoveredWarning = indicator;
                     }
                 }
                 font.func_27278_a(displayName, nameLeft, textY, nameWidth, color);
-                y += entryHeight + ENTRY_PADDING;
+                y += ROW_HEIGHT;
             }
         }
 
+        @Override
         public boolean mouseClicked(int mouseX, int mouseY, int button) {
             if (button == 0) {
                 selectEntryAt(mouseX, mouseY);
@@ -184,36 +193,29 @@ public final class GuiPanelScriptList extends GuiComponentBase {
             }
             int y = top;
             for (int i = 0; i < entries.size(); i++) {
-                ScriptMod entry = (ScriptMod) entries.get(i);
-                String displayName = GuiText.trimToWidth(font, entry.getDisplayName(), entryTextWidth(entry));
-                int entryHeight = font.func_27277_a(displayName, listContentWidth);
-                int blockHeight = entryHeight + ENTRY_PADDING - 2;
+                int blockHeight = ROW_HEIGHT - 2;
                 if (mouseY >= y && mouseY <= y + blockHeight) {
                     selectedIndex = i;
                     return;
                 }
-                y += entryHeight + ENTRY_PADDING;
+                y += ROW_HEIGHT;
             }
         }
 
         private void updateHoverIndex(int mouseX, int mouseY) {
             hoverIndex = -1;
-            if (entries == null || entries.isEmpty() || font == null
-                || mouseX < left || mouseX > listContentRight
-                || mouseY < listTop || mouseY > listBottom) {
+            if (entries == null || entries.isEmpty() || font == null || mouseX < left || mouseX > listContentRight
+                    || mouseY < listTop || mouseY > listBottom) {
                 return;
             }
             int y = top;
             for (int i = 0; i < entries.size(); i++) {
-                ScriptMod entry = (ScriptMod) entries.get(i);
-                String displayName = GuiText.trimToWidth(font, entry.getDisplayName(), entryTextWidth(entry));
-                int entryHeight = font.func_27277_a(displayName, listContentWidth);
-                int blockHeight = entryHeight + ENTRY_PADDING - 2;
+                int blockHeight = ROW_HEIGHT - 2;
                 if (mouseY >= y && mouseY <= y + blockHeight) {
                     hoverIndex = i;
                     return;
                 }
-                y += entryHeight + ENTRY_PADDING;
+                y += ROW_HEIGHT;
             }
         }
     }
@@ -221,7 +223,8 @@ public final class GuiPanelScriptList extends GuiComponentBase {
     /**
      * Returns the currently selected script entry.
      *
-     * @param entries list of ScriptMod entries
+     * @param entries
+     *            list of ScriptMod entries
      * @return selected entry or null when none exist
      */
     public ScriptMod getSelectedEntry() {
@@ -232,7 +235,7 @@ public final class GuiPanelScriptList extends GuiComponentBase {
         if (selectedIndex < 0 || selectedIndex >= entries.size()) {
             selectedIndex = 0;
         }
-        return (ScriptMod) entries.get(selectedIndex);
+        return entries.get(selectedIndex);
     }
 
     /**
@@ -280,28 +283,29 @@ public final class GuiPanelScriptList extends GuiComponentBase {
         return listBottom;
     }
 
+    @Override
     public boolean mouseClicked(int mouseX, int mouseY, int button) {
         return scrollPanel.mouseClicked(mouseX, mouseY, button);
     }
 
+    @Override
     public boolean mouseReleased(int mouseX, int mouseY, int button) {
         return scrollPanel.mouseReleased(mouseX, mouseY, button);
     }
 
+    @Override
     public boolean mouseDragged(int mouseX, int mouseY, boolean mouseDown) {
         return scrollPanel.mouseDragged(mouseX, mouseY, mouseDown);
     }
 
+    @Override
     public boolean mouseScrolled(int mouseX, int mouseY, int wheelDelta, boolean shiftDown) {
         return scrollPanel.mouseScrolled(mouseX, mouseY, wheelDelta, shiftDown);
     }
 
+    @Override
     public boolean keyTyped(char typedChar, int keyCode) {
         return scrollPanel.keyTyped(typedChar, keyCode);
     }
 
-    private int entryTextWidth(ScriptMod entry) {
-        return listContentWidth - (GuiNonReloadableIndicator.isVisible(entry.getSourceFileName())
-            ? WARNING_SIZE + WARNING_GAP : 0);
-    }
 }

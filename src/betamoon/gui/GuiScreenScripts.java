@@ -1,18 +1,17 @@
 package betamoon.gui;
 
+import betamoon.BetaMoonMain;
 import betamoon.gui.api.component.GuiActionButton;
-import betamoon.gui.api.util.GuiColors;
-import betamoon.gui.api.layout.GuiLayout;
 import betamoon.gui.api.component.GuiLine;
 import betamoon.gui.api.component.GuiReloadStatusIndicator;
+import betamoon.gui.api.layout.GuiLayout;
 import betamoon.gui.api.screen.GuiScreenBase;
+import betamoon.gui.api.util.GuiColors;
 import betamoon.io.IoUtils;
 import betamoon.luamodloader.LuaModLoader;
 import betamoon.luamodloader.LuaScriptErrors;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptMod;
-import betamoon.BetaMoonMain;
-
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,14 +35,16 @@ public class GuiScreenScripts extends GuiScreenBase {
     /**
      * Creates the scripts screen with a parent GUI to return to.
      *
-     * @param parent parent GUI screen
+     * @param parent
+     *            parent GUI screen
      */
     public GuiScreenScripts(GuiScreen parent) {
         this.parent = parent;
         backButton = new GuiActionButton("Back", () -> GuiScreenScripts.this.showScreen(GuiScreenScripts.this.parent));
         openScriptsButton = new GuiActionButton("Open Scripts Folder", () -> openScriptsDir());
         reloadButton = new GuiActionButton("Reload Scripts", () -> requestReload());
-        debugButton = new GuiActionButton("Debug", () -> GuiScreenScripts.this.showScreen(new GuiPopupDebugMenu(GuiScreenScripts.this)));
+        debugButton = new GuiActionButton("Debug",
+                () -> GuiScreenScripts.this.showScreen(new GuiPopupDebugMenu(GuiScreenScripts.this)));
         bottomSeparator = new GuiLine(false, GuiColors.LINE_WHITE);
         reloadIndicator = new GuiReloadStatusIndicator(() -> showErrorPopup());
     }
@@ -78,17 +79,17 @@ public class GuiScreenScripts extends GuiScreenBase {
         backButton.setBounds(10, backButtonY, 10 + backButtonWidth, backButtonY + buttonHeight);
         int scriptsButtonWidth = 140;
         int scriptsButtonX = GuiLayout.centerX(this.width, scriptsButtonWidth);
-        openScriptsButton.setBounds(scriptsButtonX, backButtonY, scriptsButtonX + scriptsButtonWidth, backButtonY + buttonHeight);
+        openScriptsButton.setBounds(scriptsButtonX, backButtonY, scriptsButtonX + scriptsButtonWidth,
+                backButtonY + buttonHeight);
         int debugButtonX = GuiLayout.alignRight(this.width, debugButtonWidth, 10);
         int reloadButtonWidth = 100;
         int reloadButtonX = debugButtonX - reloadButtonWidth - 6;
-        reloadButton.setBounds(reloadButtonX, backButtonY,
-            reloadButtonX + reloadButtonWidth, backButtonY + buttonHeight);
+        reloadButton.setBounds(reloadButtonX, backButtonY, reloadButtonX + reloadButtonWidth,
+                backButtonY + buttonHeight);
         int indicatorSize = 19;
         int indicatorRight = reloadButtonX - 6;
-        reloadIndicator.setBounds(indicatorRight - indicatorSize,
-            backButtonY + (buttonHeight - indicatorSize) / 2, indicatorRight,
-            backButtonY + (buttonHeight - indicatorSize) / 2 + indicatorSize);
+        reloadIndicator.setBounds(indicatorRight - indicatorSize, backButtonY + (buttonHeight - indicatorSize) / 2,
+                indicatorRight, backButtonY + (buttonHeight - indicatorSize) / 2 + indicatorSize);
         reloadIndicator.setDisplaySize(this.width, this.height);
         debugButton.setBounds(debugButtonX, backButtonY, debugButtonX + debugButtonWidth, backButtonY + buttonHeight);
         int bottomSeparatorY = backButtonY - 8;
@@ -118,8 +119,8 @@ public class GuiScreenScripts extends GuiScreenBase {
     @Override
     protected void updateGuiState(int mouseX, int mouseY, float partialTicks) {
         float headerScale = 1.35F;
-        List entries = LuaScriptRegistry.getEntries();
-        List sortedEntries = getSortedEntries(entries);
+        List<ScriptMod> entries = LuaScriptRegistry.getEntries();
+        List<ScriptMod> sortedEntries = getSortedEntries(entries);
         listPanel.setHeaderScale(headerScale);
         listPanel.setEntries(sortedEntries);
         ScriptMod selected = listPanel.getSelectedEntry();
@@ -133,24 +134,22 @@ public class GuiScreenScripts extends GuiScreenBase {
     }
 
     /**
-     * Returns a GUI-only sorted list with failed scripts first and names sorted alphabetically.
+     * Returns a GUI-only sorted list with failed scripts first and names sorted
+     * alphabetically.
      *
-     * @param entries unsorted script entries
+     * @param entries
+     *            unsorted script entries
      * @return sorted list for display
      */
-    private static List getSortedEntries(List entries) {
+    private static List<ScriptMod> getSortedEntries(List<ScriptMod> entries) {
         if (entries == null || entries.isEmpty()) {
             return entries;
         }
-        List sorted = new ArrayList(entries.size());
-        for (int i = 0; i < entries.size(); i++) {
-            sorted.add(entries.get(i));
-        }
-        Comparator comparator = Comparator
-            .comparing((Object entry) -> Boolean.valueOf(entry != null && ((ScriptMod) entry).isFailed()))
-            .reversed()
-            .thenComparing(entry -> safeName(entry == null ? null : ((ScriptMod) entry).getSortName()),
-                String.CASE_INSENSITIVE_ORDER);
+        List<ScriptMod> sorted = new ArrayList<>(entries);
+        Comparator<ScriptMod> comparator = Comparator
+                .comparing((ScriptMod entry) -> Boolean.valueOf(entry != null && entry.isFailed())).reversed()
+                .thenComparing(entry -> safeName(entry == null ? null : entry.getSortName()),
+                        String.CASE_INSENSITIVE_ORDER);
         Collections.sort(sorted, comparator);
         return sorted;
     }
@@ -158,7 +157,8 @@ public class GuiScreenScripts extends GuiScreenBase {
     /**
      * Normalizes a name for sorting, falling back to an empty string.
      *
-     * @param name input name
+     * @param name
+     *            input name
      * @return non-null name for sorting
      */
     private static String safeName(String name) {
@@ -188,13 +188,19 @@ public class GuiScreenScripts extends GuiScreenBase {
     }
 
     private void requestReload() {
-        if (reloadPending) return;
+        if (reloadPending) {
+            return;
+        }
         reloadPending = true;
         reloadButton.setEnabled(false);
         reloadIndicator.beginReload();
     }
 
-    /** Runs the pending reload only after the spinner has appeared in a rendered frame. */
+    /**
+     * Runs the pending reload only after the spinner has appeared in a rendered
+     * frame.
+     */
+    @Override
     public void updateScreen() {
         super.updateScreen();
         if (reloadPending && reloadIndicator.hasDrawnReloadingFrame()) {
