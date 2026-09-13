@@ -8,7 +8,7 @@ import java.util.List;
 public final class GuiStackPanel extends GuiContainer {
     public static final int FILL = -1;
 
-    private final List entries = new ArrayList();
+    private final List<Entry> entries = new ArrayList<>();
     private EnumAxis axis = EnumAxis.VERTICAL;
     private int spacing = 4;
     private int padding = 0;
@@ -45,21 +45,24 @@ public final class GuiStackPanel extends GuiContainer {
         return child;
     }
 
+    @Override
     public void removeChild(IGuiComponent child) {
         super.removeChild(child);
         for (int i = entries.size() - 1; i >= 0; i--) {
-            Entry entry = (Entry) entries.get(i);
+            Entry entry = entries.get(i);
             if (entry.child == child) {
                 entries.remove(i);
             }
         }
     }
 
+    @Override
     public void clear() {
         super.clear();
         entries.clear();
     }
 
+    @Override
     public void layout(int screenWidth, int screenHeight) {
         int contentWidth = right - left;
         int contentHeight = bottom - top;
@@ -78,7 +81,7 @@ public final class GuiStackPanel extends GuiContainer {
         int fixed = 0;
         int fillCount = 0;
         for (int i = 0; i < entries.size(); i++) {
-            Entry entry = (Entry) entries.get(i);
+            Entry entry = entries.get(i);
             if (entry.height == FILL) {
                 fillCount++;
             } else {
@@ -92,7 +95,7 @@ public final class GuiStackPanel extends GuiContainer {
         int y = top + padding;
         int availableWidth = Math.max(0, contentWidth - padding * 2);
         for (int i = 0; i < entries.size(); i++) {
-            Entry entry = (Entry) entries.get(i);
+            Entry entry = entries.get(i);
             int height = entry.height == FILL ? fillSize : entry.height;
             int width = entry.width == FILL ? availableWidth : entry.width;
             entry.child.setBounds(x, y, x + width, y + height);
@@ -104,7 +107,7 @@ public final class GuiStackPanel extends GuiContainer {
         int fixed = 0;
         int fillCount = 0;
         for (int i = 0; i < entries.size(); i++) {
-            Entry entry = (Entry) entries.get(i);
+            Entry entry = entries.get(i);
             if (entry.width == FILL) {
                 fillCount++;
             } else {
@@ -118,7 +121,7 @@ public final class GuiStackPanel extends GuiContainer {
         int y = top + padding;
         int availableHeight = Math.max(0, contentHeight - padding * 2);
         for (int i = 0; i < entries.size(); i++) {
-            Entry entry = (Entry) entries.get(i);
+            Entry entry = entries.get(i);
             int width = entry.width == FILL ? fillSize : entry.width;
             int height = entry.height == FILL ? availableHeight : entry.height;
             entry.child.setBounds(x, y, x + width, y + height);

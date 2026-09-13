@@ -204,10 +204,10 @@ final class QueryItemApi {
     }
 
     private static final class ItemQueryResultHandle extends LuaTable {
-        private final List entries;
+        private final List<QueryEntry> entries;
 
-        private ItemQueryResultHandle(List entries) {
-            this.entries = new ArrayList(entries);
+        private ItemQueryResultHandle(List<QueryEntry> entries) {
+            this.entries = new ArrayList<>(entries);
             set("first", new FirstItemResult(this));
             set("last", new LastItemResult(this));
             set("get", new GetItemResultAt(this));
@@ -229,7 +229,7 @@ final class QueryItemApi {
             if (handle.entries.isEmpty()) {
                 return LuaValue.NIL;
             }
-            QueryEntry entry = (QueryEntry) handle.entries.get(0);
+            QueryEntry entry = handle.entries.get(0);
             return new QueryItemHandle(entry.id, entry.damage);
         }
     }
@@ -245,7 +245,7 @@ final class QueryItemApi {
             if (handle.entries.isEmpty()) {
                 return LuaValue.NIL;
             }
-            QueryEntry entry = (QueryEntry) handle.entries.get(handle.entries.size() - 1);
+            QueryEntry entry = handle.entries.get(handle.entries.size() - 1);
             return new QueryItemHandle(entry.id, entry.damage);
         }
     }
@@ -264,7 +264,7 @@ final class QueryItemApi {
             }
             QueryEntry entry = null;
             for (int i = 0; i < handle.entries.size(); i++) {
-                QueryEntry candidate = (QueryEntry) handle.entries.get(i);
+                QueryEntry candidate = handle.entries.get(i);
                 if (candidate.id == index) {
                     entry = candidate;
                     break;
@@ -315,7 +315,7 @@ final class QueryItemApi {
             if (handle.entries.isEmpty()) {
                 return QueryApiUtils.pushNil("Query: no items found in query.");
             }
-            QueryEntry entry = (QueryEntry) handle.entries.get(0);
+            QueryEntry entry = handle.entries.get(0);
             return new QueryItemHandle(entry.id, entry.damage);
         }
     }
@@ -333,7 +333,7 @@ final class QueryItemApi {
             }
             LuaTable out = new LuaTable();
             for (int i = 0; i < handle.entries.size(); i++) {
-                QueryEntry entry = (QueryEntry) handle.entries.get(i);
+                QueryEntry entry = handle.entries.get(i);
                 out.set(i + 1, new QueryItemHandle(entry.id, entry.damage));
             }
             return out;
@@ -376,5 +376,4 @@ final class QueryItemApi {
         }
     }
 
-    
 }

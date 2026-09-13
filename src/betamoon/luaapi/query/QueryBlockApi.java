@@ -205,10 +205,10 @@ final class QueryBlockApi {
     }
 
     private static final class BlockQueryResultHandle extends LuaTable {
-        private final List entries;
+        private final List<QueryEntry> entries;
 
-        private BlockQueryResultHandle(List entries) {
-            this.entries = new ArrayList(entries);
+        private BlockQueryResultHandle(List<QueryEntry> entries) {
+            this.entries = new ArrayList<>(entries);
             set("first", new FirstBlockResult(this));
             set("last", new LastBlockResult(this));
             set("get", new GetBlockResultAt(this));
@@ -230,7 +230,7 @@ final class QueryBlockApi {
             if (handle.entries.isEmpty()) {
                 return LuaValue.NIL;
             }
-            QueryEntry entry = (QueryEntry) handle.entries.get(0);
+            QueryEntry entry = handle.entries.get(0);
             return new QueryBlockHandle(entry.id, entry.damage);
         }
     }
@@ -246,7 +246,7 @@ final class QueryBlockApi {
             if (handle.entries.isEmpty()) {
                 return LuaValue.NIL;
             }
-            QueryEntry entry = (QueryEntry) handle.entries.get(handle.entries.size() - 1);
+            QueryEntry entry = handle.entries.get(handle.entries.size() - 1);
             return new QueryBlockHandle(entry.id, entry.damage);
         }
     }
@@ -265,7 +265,7 @@ final class QueryBlockApi {
             }
             QueryEntry entry = null;
             for (int i = 0; i < handle.entries.size(); i++) {
-                QueryEntry candidate = (QueryEntry) handle.entries.get(i);
+                QueryEntry candidate = handle.entries.get(i);
                 if (candidate.id == index) {
                     entry = candidate;
                     break;
@@ -316,7 +316,7 @@ final class QueryBlockApi {
             if (handle.entries.isEmpty()) {
                 return QueryApiUtils.pushNil("Query: no blocks found in query.");
             }
-            QueryEntry entry = (QueryEntry) handle.entries.get(0);
+            QueryEntry entry = handle.entries.get(0);
             return new QueryBlockHandle(entry.id, entry.damage);
         }
     }
@@ -334,7 +334,7 @@ final class QueryBlockApi {
             }
             LuaTable out = new LuaTable();
             for (int i = 0; i < handle.entries.size(); i++) {
-                QueryEntry entry = (QueryEntry) handle.entries.get(i);
+                QueryEntry entry = handle.entries.get(i);
                 out.set(i + 1, new QueryBlockHandle(entry.id, entry.damage));
             }
             return out;
@@ -364,8 +364,7 @@ final class QueryBlockApi {
 
         @Override
         public Varargs invoke(Varargs args) {
-            Block block = handle.id >= 0 && handle.id < Block.blocksList.length
-                ? Block.blocksList[handle.id] : null;
+            Block block = handle.id >= 0 && handle.id < Block.blocksList.length ? Block.blocksList[handle.id] : null;
             if (block == null) {
                 return LuaValue.valueOf("NULL BLOCK");
             }
@@ -386,8 +385,7 @@ final class QueryBlockApi {
 
         @Override
         public Varargs invoke(Varargs args) {
-            Block block = handle.id >= 0 && handle.id < Block.blocksList.length
-                ? Block.blocksList[handle.id] : null;
+            Block block = handle.id >= 0 && handle.id < Block.blocksList.length ? Block.blocksList[handle.id] : null;
             if (block == null) {
                 return LuaValue.valueOf("NULL BLOCK");
             }
@@ -423,5 +421,4 @@ final class QueryBlockApi {
         }
     }
 
-    
 }

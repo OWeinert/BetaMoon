@@ -5,7 +5,7 @@ import java.util.List;
 import net.minecraft.src.FontRenderer;
 
 public class GuiContainer extends GuiComponentBase {
-    private final List children = new ArrayList();
+    private final List<IGuiComponent> children = new ArrayList<>();
 
     public IGuiComponent addChild(IGuiComponent child) {
         if (child == null) {
@@ -32,23 +32,26 @@ public class GuiContainer extends GuiComponentBase {
         children.clear();
     }
 
+    @Override
     public void layout(int screenWidth, int screenHeight) {
         for (int i = 0; i < children.size(); i++) {
-            IGuiComponent child = (IGuiComponent) children.get(i);
+            IGuiComponent child = children.get(i);
             child.layout(screenWidth, screenHeight);
         }
     }
 
+    @Override
     public void draw(FontRenderer font, int mouseX, int mouseY, float partialTicks) {
         for (int i = 0; i < children.size(); i++) {
-            IGuiComponent child = (IGuiComponent) children.get(i);
+            IGuiComponent child = children.get(i);
             child.draw(font, mouseX, mouseY, partialTicks);
         }
     }
 
+    @Override
     public boolean mouseClicked(int mouseX, int mouseY, int button) {
         for (int i = children.size() - 1; i >= 0; i--) {
-            IGuiComponent child = (IGuiComponent) children.get(i);
+            IGuiComponent child = children.get(i);
             if (child.mouseClicked(mouseX, mouseY, button)) {
                 return true;
             }
@@ -56,9 +59,10 @@ public class GuiContainer extends GuiComponentBase {
         return false;
     }
 
+    @Override
     public boolean mouseReleased(int mouseX, int mouseY, int button) {
         for (int i = children.size() - 1; i >= 0; i--) {
-            IGuiComponent child = (IGuiComponent) children.get(i);
+            IGuiComponent child = children.get(i);
             if (child.mouseReleased(mouseX, mouseY, button)) {
                 return true;
             }
@@ -66,10 +70,11 @@ public class GuiContainer extends GuiComponentBase {
         return false;
     }
 
+    @Override
     public boolean mouseDragged(int mouseX, int mouseY, boolean mouseDown) {
         boolean handled = false;
         for (int i = children.size() - 1; i >= 0; i--) {
-            IGuiComponent child = (IGuiComponent) children.get(i);
+            IGuiComponent child = children.get(i);
             if (child.mouseDragged(mouseX, mouseY, mouseDown)) {
                 handled = true;
             }
@@ -77,9 +82,10 @@ public class GuiContainer extends GuiComponentBase {
         return handled;
     }
 
+    @Override
     public boolean mouseScrolled(int mouseX, int mouseY, int wheelDelta, boolean shiftDown) {
         for (int i = children.size() - 1; i >= 0; i--) {
-            IGuiComponent child = (IGuiComponent) children.get(i);
+            IGuiComponent child = children.get(i);
             if (child.mouseScrolled(mouseX, mouseY, wheelDelta, shiftDown)) {
                 return true;
             }
@@ -87,9 +93,10 @@ public class GuiContainer extends GuiComponentBase {
         return false;
     }
 
+    @Override
     public boolean keyTyped(char typedChar, int keyCode) {
         for (int i = children.size() - 1; i >= 0; i--) {
-            IGuiComponent child = (IGuiComponent) children.get(i);
+            IGuiComponent child = children.get(i);
             if (child.keyTyped(typedChar, keyCode)) {
                 return true;
             }

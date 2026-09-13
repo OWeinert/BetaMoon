@@ -7,10 +7,10 @@ import java.util.Map;
 import org.luaj.vm2.LuaValue;
 
 public final class LuaScriptRegistry {
-    private static final List entries = new ArrayList();
-    private static final Map byFile = new HashMap();
-    private static final Map byName = new HashMap();
-    private static final ThreadLocal currentScriptFile = new ThreadLocal();
+    private static final List<ScriptMod> entries = new ArrayList<>();
+    private static final Map<String, ScriptMod> byFile = new HashMap<>();
+    private static final Map<String, ScriptMod> byName = new HashMap<>();
+    private static final ThreadLocal<String> currentScriptFile = new ThreadLocal<>();
 
     private LuaScriptRegistry() {
     }
@@ -25,13 +25,15 @@ public final class LuaScriptRegistry {
     }
 
     /**
-     * Ensures a file name has a tracked entry, returning the existing entry when present.
+     * Ensures a file name has a tracked entry, returning the existing entry when
+     * present.
      *
-     * @param fileName script file name
+     * @param fileName
+     *            script file name
      * @return tracked script entry
      */
     public static synchronized ScriptMod registerFile(String fileName) {
-        ScriptMod entry = (ScriptMod) byFile.get(fileName);
+        ScriptMod entry = byFile.get(fileName);
         if (entry != null) {
             return entry;
         }
@@ -44,18 +46,26 @@ public final class LuaScriptRegistry {
     /**
      * Updates a script entry with parsed metadata and returns the tracked entry.
      *
-     * @param fileName script file name
-     * @param name declared mod name
-     * @param dependencies dependency list
-     * @param modInit init function
-     * @param description description string or null
-     * @param version version string or null
-     * @param imagePath optional image path relative to the Lua mods directory
+     * @param fileName
+     *            script file name
+     * @param name
+     *            declared mod name
+     * @param dependencies
+     *            dependency list
+     * @param modInit
+     *            init function
+     * @param description
+     *            description string or null
+     * @param version
+     *            version string or null
+     * @param imagePath
+     *            optional image path relative to the Lua mods directory
      * @return tracked script entry
      */
-    public static synchronized ScriptMod updateParsed(String fileName, String name, List dependencies, LuaValue modInit,
-        LuaValue modReload, LuaValue modUnload, String description, String version, String imagePath) {
-        ScriptMod entry = (ScriptMod) byFile.get(fileName);
+    public static synchronized ScriptMod updateParsed(String fileName, String name, List<String> dependencies,
+            LuaValue modInit, LuaValue modReload, LuaValue modUnload, String description, String version,
+            String imagePath) {
+        ScriptMod entry = byFile.get(fileName);
         if (entry == null) {
             entry = registerFile(fileName);
         }
@@ -84,11 +94,13 @@ public final class LuaScriptRegistry {
     /**
      * Records a failure for a script identified by its file name.
      *
-     * @param fileName script file name
-     * @param reason failure description
+     * @param fileName
+     *            script file name
+     * @param reason
+     *            failure description
      */
     public static synchronized void markFailedByFile(String fileName, String reason) {
-        ScriptMod entry = (ScriptMod) byFile.get(fileName);
+        ScriptMod entry = byFile.get(fileName);
         if (entry == null) {
             entry = registerFile(fileName);
         }
@@ -99,11 +111,13 @@ public final class LuaScriptRegistry {
     /**
      * Records a failure for a script identified by its declared name.
      *
-     * @param name declared mod name
-     * @param reason failure description
+     * @param name
+     *            declared mod name
+     * @param reason
+     *            failure description
      */
     public static synchronized void markFailedByName(String name, String reason) {
-        ScriptMod entry = (ScriptMod) byName.get(name);
+        ScriptMod entry = byName.get(name);
         if (entry == null) {
             return;
         }
@@ -114,10 +128,11 @@ public final class LuaScriptRegistry {
     /**
      * Marks a script as successfully loaded by file name.
      *
-     * @param fileName script file name
+     * @param fileName
+     *            script file name
      */
     public static synchronized void markLoadedByFile(String fileName) {
-        ScriptMod entry = (ScriptMod) byFile.get(fileName);
+        ScriptMod entry = byFile.get(fileName);
         if (entry == null) {
             entry = registerFile(fileName);
         }
@@ -130,14 +145,15 @@ public final class LuaScriptRegistry {
      *
      * @return list of tracked entries
      */
-    public static synchronized List getEntries() {
-        return new ArrayList(entries);
+    public static synchronized List<ScriptMod> getEntries() {
+        return new ArrayList<>(entries);
     }
 
     /**
      * Returns true when a script with the given name has been registered.
      *
-     * @param name script name
+     * @param name
+     *            script name
      * @return true when the name exists
      */
     public static synchronized boolean hasScriptName(String name) {
@@ -162,7 +178,6 @@ public final class LuaScriptRegistry {
      * Returns the current script file, if a script is executing.
      */
     public static String getCurrentScriptFile() {
-        Object value = currentScriptFile.get();
-        return value == null ? null : value.toString();
+        return currentScriptFile.get();
     }
 }

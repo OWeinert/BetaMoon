@@ -1,12 +1,12 @@
 package betamoon.luamodloader;
 
-/** Stores the latest script-reload result independently of the Scripts screen lifecycle. */
+/**
+ * Stores the latest script-reload result independently of the Scripts screen
+ * lifecycle.
+ */
 public final class ScriptReloadStatus {
     public enum State {
-        IDLE,
-        RELOADING,
-        SUCCESS,
-        FAILED
+        IDLE, RELOADING, SUCCESS, FAILED
     }
 
     private static State state = State.IDLE;

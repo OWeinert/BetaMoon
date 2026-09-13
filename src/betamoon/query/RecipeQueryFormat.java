@@ -1,6 +1,8 @@
 package betamoon.query;
 
+import betamoon.recipes.NativeRecipeRegistries;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
@@ -54,7 +56,7 @@ final class RecipeQueryFormat {
         return builder.toString();
     }
 
-    static String formatInputs(List inputs) {
+    static String formatInputs(List<ItemStack> inputs) {
         if (inputs == null || inputs.isEmpty()) {
             return "[]";
         }
@@ -64,19 +66,19 @@ final class RecipeQueryFormat {
             if (i > 0) {
                 builder.append(", ");
             }
-            ItemStack stack = (ItemStack) inputs.get(i);
+            ItemStack stack = inputs.get(i);
             builder.append(stackLabel(stack));
         }
         builder.append("]");
         return builder.toString();
     }
 
-    static void logShapedQueryFailure(Logger logger, Map source, ContentQueryRecipe.ShapedQuery query) {
+    static void logShapedQueryFailure(Logger logger, Map<String, ?> source, ContentQueryRecipe.ShapedQuery query) {
         if (query == null || source == null) {
             return;
         }
-        List candidates = new ArrayList();
-        for (java.util.Iterator it = source.values().iterator(); it.hasNext();) {
+        List<ShapedRecipes> candidates = new ArrayList<>();
+        for (Iterator<?> it = source.values().iterator(); it.hasNext();) {
             Object recipe = it.next();
             if (!(recipe instanceof ShapedRecipes)) {
                 continue;
@@ -89,10 +91,8 @@ final class RecipeQueryFormat {
             candidates.add(shaped);
         }
         StringBuilder builder = new StringBuilder();
-        builder.append("Query: shaped recipe not found. Output=")
-            .append(stackLabel(query.output))
-            .append(" pattern=")
-            .append(formatGrid(query.grid, query.width, query.height));
+        builder.append("Query: shaped recipe not found. Output=").append(stackLabel(query.output)).append(" pattern=")
+                .append(formatGrid(query.grid, query.width, query.height));
         if (candidates.isEmpty()) {
             builder.append(" candidates=0");
             logger.warning(builder.toString());
@@ -100,23 +100,25 @@ final class RecipeQueryFormat {
         }
         builder.append(" candidates=").append(candidates.size());
         for (int i = 0; i < candidates.size(); i++) {
-            ShapedRecipes shaped = (ShapedRecipes) candidates.get(i);
+            ShapedRecipes shaped = candidates.get(i);
             ItemStack[] items = RecipeQueryUtils.getShapedInputs(shaped);
             int[] dims = items == null ? null : RecipeQueryUtils.getShapedDimensions(shaped, items.length);
             int width = dims == null ? RecipeQueryUtils.inferGridWidth(items == null ? 0 : items.length) : dims[0];
-            int height = dims == null ? RecipeQueryUtils.inferGridHeight(items == null ? 0 : items.length, width) : dims[1];
-            builder.append(" candidate[").append(i).append("]=")
-                .append(formatGrid(items, width, height));
+            int height = dims == null
+                    ? RecipeQueryUtils.inferGridHeight(items == null ? 0 : items.length, width)
+                    : dims[1];
+            builder.append(" candidate[").append(i).append("]=").append(formatGrid(items, width, height));
         }
         logger.warning(builder.toString());
     }
 
-    static void logShapelessQueryFailure(Logger logger, Map source, ContentQueryRecipe.ShapelessQuery query) {
+    static void logShapelessQueryFailure(Logger logger, Map<String, ?> source,
+            ContentQueryRecipe.ShapelessQuery query) {
         if (query == null || source == null) {
             return;
         }
-        List candidates = new ArrayList();
-        for (java.util.Iterator it = source.values().iterator(); it.hasNext();) {
+        List<ShapelessRecipes> candidates = new ArrayList<>();
+        for (Iterator<?> it = source.values().iterator(); it.hasNext();) {
             Object recipe = it.next();
             if (!(recipe instanceof ShapelessRecipes)) {
                 continue;
@@ -129,17 +131,12 @@ final class RecipeQueryFormat {
             candidates.add(shapeless);
         }
         StringBuilder builder = new StringBuilder();
-        builder.append("Query: shapeless recipe not found. Output=")
-            .append(stackLabel(query.output))
-            .append(" inputs=")
-            .append(formatInputs(query.inputs))
-            .append(" candidates=")
-            .append(candidates.size());
+        builder.append("Query: shapeless recipe not found. Output=").append(stackLabel(query.output)).append(" inputs=")
+                .append(formatInputs(query.inputs)).append(" candidates=").append(candidates.size());
         for (int i = 0; i < candidates.size(); i++) {
-            ShapelessRecipes shapeless = (ShapelessRecipes) candidates.get(i);
-            List inputs = RecipeQueryUtils.collectRecipeInputs(shapeless);
-            builder.append(" candidate[").append(i).append("]=")
-                .append(formatInputs(inputs));
+            ShapelessRecipes shapeless = candidates.get(i);
+            List<ItemStack> inputs = RecipeQueryUtils.collectRecipeInputs(shapeless);
+            builder.append(" candidate[").append(i).append("]=").append(formatInputs(inputs));
         }
         logger.warning(builder.toString());
     }
@@ -148,15 +145,13 @@ final class RecipeQueryFormat {
         if (query == null) {
             return;
         }
-        Map smelting = net.minecraft.src.FurnaceRecipes.smelting().getSmeltingList();
+        Map<Integer, ItemStack> smelting = NativeRecipeRegistries.smelting();
         StringBuilder builder = new StringBuilder();
-        builder.append("Query: smelting recipe not found. Input=")
-            .append(query.inputId)
-            .append(" output=")
-            .append(stackLabel(query.output));
-        List candidates = new ArrayList();
-        for (java.util.Iterator it = smelting.entrySet().iterator(); it.hasNext();) {
-            Map.Entry entry = (Map.Entry) it.next();
+        builder.append("Query: smelting recipe not found. Input=").append(query.inputId).append(" output=")
+                .append(stackLabel(query.output));
+        List<Map.Entry<Integer, ItemStack>> candidates = new ArrayList<>();
+        for (Iterator<Map.Entry<Integer, ItemStack>> it = smelting.entrySet().iterator(); it.hasNext();) {
+            Map.Entry<Integer, ItemStack> entry = it.next();
             Object key = entry.getKey();
             if (key instanceof Integer && ((Integer) key).intValue() == query.inputId) {
                 candidates.add(entry);
@@ -164,9 +159,8 @@ final class RecipeQueryFormat {
         }
         builder.append(" candidates=").append(candidates.size());
         for (int i = 0; i < candidates.size(); i++) {
-            Map.Entry entry = (Map.Entry) candidates.get(i);
-            builder.append(" candidate[").append(i).append("]=")
-                .append(stackLabel((ItemStack) entry.getValue()));
+            Map.Entry<Integer, ItemStack> entry = candidates.get(i);
+            builder.append(" candidate[").append(i).append("]=").append(stackLabel(entry.getValue()));
         }
         logger.warning(builder.toString());
     }

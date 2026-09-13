@@ -5,7 +5,7 @@ import java.util.Map;
 import net.minecraft.src.GuiScreen;
 
 public final class GuiScreenRegistry {
-    private static final Map registry = new HashMap();
+    private static final Map<String, IGuiScreenFactory> registry = new HashMap<>();
 
     private GuiScreenRegistry() {
     }
@@ -18,7 +18,7 @@ public final class GuiScreenRegistry {
     }
 
     public static IGuiScreenFactory getFactory(String id) {
-        return (IGuiScreenFactory) registry.get(id);
+        return registry.get(id);
     }
 
     public static GuiScreen create(String id, GuiScreen parent) {

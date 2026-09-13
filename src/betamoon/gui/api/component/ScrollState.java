@@ -21,8 +21,10 @@ public final class ScrollState {
     /**
      * Updates horizontal scroll limits based on content width and view width.
      *
-     * @param contentWidth total content width in pixels
-     * @param viewWidth visible width in pixels
+     * @param contentWidth
+     *            total content width in pixels
+     * @param viewWidth
+     *            visible width in pixels
      */
     public void updateContentWidthX(int contentWidth, int viewWidth) {
         maxScrollX = Math.max(0, contentWidth - viewWidth);
@@ -32,8 +34,10 @@ public final class ScrollState {
     /**
      * Updates vertical scroll limits based on total content height and view height.
      *
-     * @param contentHeight total content height in pixels
-     * @param viewHeight visible height in pixels
+     * @param contentHeight
+     *            total content height in pixels
+     * @param viewHeight
+     *            visible height in pixels
      */
     public void updateContentHeightY(int contentHeight, int viewHeight) {
         maxScroll = Math.max(0, contentHeight - viewHeight);

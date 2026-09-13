@@ -40,12 +40,14 @@ public abstract class GuiScreenPopup extends GuiScreenBase {
     /**
      * Creates a popup layered on top of the provided parent screen.
      *
-     * @param parent screen to render behind the popup (may be null)
+     * @param parent
+     *            screen to render behind the popup (may be null)
      */
     protected GuiScreenPopup(GuiScreen parent) {
         this.parent = parent;
     }
 
+    @Override
     protected void buildGui() {
         root.addChild(popupRoot);
         initPopupGui();
@@ -54,6 +56,7 @@ public abstract class GuiScreenPopup extends GuiScreenBase {
     /**
      * Draws the popup frame and delegates to subclasses for contents.
      */
+    @Override
     protected void layoutComponents() {
         updatePanelGeometry();
         popupRoot.setBounds(panelLeft, panelTop, panelLeft + panelWidth, panelTop + panelHeight);
@@ -61,6 +64,7 @@ public abstract class GuiScreenPopup extends GuiScreenBase {
         super.layoutComponents();
     }
 
+    @Override
     protected void drawBackground(int mouseX, int mouseY, float partialTicks) {
         drawPopupBackground(mouseX, mouseY, partialTicks);
         drawPopupFrame();
@@ -251,10 +255,10 @@ public abstract class GuiScreenPopup extends GuiScreenBase {
         String title = getPopupTitle();
         if (title != null && !title.isEmpty()) {
             // Render the header title and underline for consistent popup styling.
-            GuiUtils.drawScaledCenteredString(this.fontRenderer, title, this.width / 2,
-                top + getHeaderTextOffset(), getTitleColor(), getTitleScale());
+            GuiUtils.drawScaledCenteredString(this.fontRenderer, title, this.width / 2, top + getHeaderTextOffset(),
+                    getTitleColor(), getTitleScale());
             GuiUtils.drawHorizontalLine(left + getHeaderLineInset(), right - getHeaderLineInset(),
-                top + getHeaderLineOffset(), getHeaderLineColor());
+                    top + getHeaderLineOffset(), getHeaderLineColor());
         }
     }
 

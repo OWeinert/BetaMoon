@@ -64,7 +64,8 @@ public class GuiScrollPanel extends GuiComponentBase {
     }
 
     /**
-     * Updates the GUI and display sizes required to convert the viewport to a GL scissor rectangle.
+     * Updates the GUI and display sizes required to convert the viewport to a GL
+     * scissor rectangle.
      */
     public void setDisplayMetrics(int screenWidth, int screenHeight, int displayWidth, int displayHeight) {
         this.screenWidth = screenWidth;
@@ -73,18 +74,21 @@ public class GuiScrollPanel extends GuiComponentBase {
         this.displayHeight = displayHeight;
     }
 
+    @Override
     public void setBounds(int left, int top, int right, int bottom) {
         super.setBounds(left, top, right, bottom);
         updateScrollLimits();
         updateContentBounds();
     }
 
+    @Override
     public void layout(int screenWidth, int screenHeight) {
         updateScrollLimits();
         updateContentBounds();
         content.layout(screenWidth, screenHeight);
     }
 
+    @Override
     public void draw(FontRenderer font, int mouseX, int mouseY, float partialTicks) {
         updateScrollLimits();
         updateContentBounds();
@@ -101,6 +105,7 @@ public class GuiScrollPanel extends GuiComponentBase {
         drawScrollbar();
     }
 
+    @Override
     public boolean mouseClicked(int mouseX, int mouseY, int button) {
         if (!isMouseOver(mouseX, mouseY)) {
             return false;
@@ -114,6 +119,7 @@ public class GuiScrollPanel extends GuiComponentBase {
         return content.mouseClicked(mouseX, mouseY, button);
     }
 
+    @Override
     public boolean mouseReleased(int mouseX, int mouseY, int button) {
         boolean wasDragging = draggingScrollbar;
         if (button == 0) {
@@ -122,6 +128,7 @@ public class GuiScrollPanel extends GuiComponentBase {
         return content.mouseReleased(mouseX, mouseY, button) || wasDragging;
     }
 
+    @Override
     public boolean mouseDragged(int mouseX, int mouseY, boolean mouseDown) {
         if (!mouseDown) {
             boolean wasDragging = draggingScrollbar;
@@ -141,6 +148,7 @@ public class GuiScrollPanel extends GuiComponentBase {
         return content.mouseDragged(mouseX, mouseY, true);
     }
 
+    @Override
     public boolean mouseScrolled(int mouseX, int mouseY, int wheelDelta, boolean shiftDown) {
         if (wheelDelta == 0 || !isMouseOver(mouseX, mouseY)) {
             return false;
@@ -164,6 +172,7 @@ public class GuiScrollPanel extends GuiComponentBase {
         return false;
     }
 
+    @Override
     public boolean keyTyped(char typedChar, int keyCode) {
         return content.keyTyped(typedChar, keyCode);
     }
@@ -207,13 +216,12 @@ public class GuiScrollPanel extends GuiComponentBase {
         }
         int thumbRange = trackHeight - thumbHeight;
         thumbY = scrollbarTop + (thumbRange > 0 && state.getMaxScrollY() > 0
-            ? (int) ((float) thumbRange * (float) state.getScrollOffsetY() / (float) state.getMaxScrollY())
-            : 0);
+                ? (int) ((float) thumbRange * (float) state.getScrollOffsetY() / (float) state.getMaxScrollY())
+                : 0);
     }
 
     private boolean isMouseOverScrollbar(int mouseX, int mouseY) {
-        return scrollMode != EnumScrollMode.HORIZONTAL && state.getMaxScrollY() > 0
-            && mouseX >= scrollbarX && mouseX <= scrollbarX + 4
-            && mouseY >= thumbY && mouseY <= thumbY + thumbHeight;
+        return scrollMode != EnumScrollMode.HORIZONTAL && state.getMaxScrollY() > 0 && mouseX >= scrollbarX
+                && mouseX <= scrollbarX + 4 && mouseY >= thumbY && mouseY <= thumbY + thumbHeight;
     }
 }

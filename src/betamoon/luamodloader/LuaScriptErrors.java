@@ -7,7 +7,7 @@ import java.util.List;
  * Tracks script load errors and warnings for UI display.
  */
 public final class LuaScriptErrors {
-    private static final List entries = new ArrayList();
+    private static final List<ScriptIssue> entries = new ArrayList<>();
     private static boolean ignored;
 
     private LuaScriptErrors() {
@@ -24,8 +24,10 @@ public final class LuaScriptErrors {
     /**
      * Adds a script error entry, normalizing missing values.
      *
-     * @param script script name or file name
-     * @param message error description
+     * @param script
+     *            script name or file name
+     * @param message
+     *            error description
      */
     public static synchronized ScriptIssue add(String script, String message) {
         String scriptName = normalize(script, "Unknown");
@@ -38,8 +40,10 @@ public final class LuaScriptErrors {
     /**
      * Adds a script warning entry, normalizing missing values.
      *
-     * @param script script name or file name
-     * @param message warning description
+     * @param script
+     *            script name or file name
+     * @param message
+     *            warning description
      */
     public static synchronized ScriptIssue addWarning(String script, String message) {
         String scriptName = normalize(script, "Unknown");
@@ -52,13 +56,15 @@ public final class LuaScriptErrors {
     /**
      * Returns true when a warning exists for the provided script names.
      *
-     * @param displayName script display name or mod name
-     * @param sourceFile script file name
+     * @param displayName
+     *            script display name or mod name
+     * @param sourceFile
+     *            script file name
      * @return true when warnings exist for the script
      */
     public static synchronized boolean hasWarningFor(String displayName, String sourceFile) {
         for (int i = 0; i < entries.size(); i++) {
-            ScriptIssue issue = (ScriptIssue) entries.get(i);
+            ScriptIssue issue = entries.get(i);
             if (issue.isWarning() && matchesScript(issue, displayName, sourceFile)) {
                 return true;
             }
@@ -69,14 +75,16 @@ public final class LuaScriptErrors {
     /**
      * Returns issue entries for the provided script names.
      *
-     * @param displayName script display name or mod name
-     * @param sourceFile script file name
+     * @param displayName
+     *            script display name or mod name
+     * @param sourceFile
+     *            script file name
      * @return list of ScriptIssue entries
      */
-    public static synchronized List getIssuesFor(String displayName, String sourceFile) {
-        List issues = new ArrayList();
+    public static synchronized List<ScriptIssue> getIssuesFor(String displayName, String sourceFile) {
+        List<ScriptIssue> issues = new ArrayList<>();
         for (int i = 0; i < entries.size(); i++) {
-            ScriptIssue issue = (ScriptIssue) entries.get(i);
+            ScriptIssue issue = entries.get(i);
             if (matchesScript(issue, displayName, sourceFile)) {
                 issues.add(issue);
             }
@@ -85,12 +93,12 @@ public final class LuaScriptErrors {
     }
 
     /**
-     * Returns a copy of formatted error entries.
+     * Returns a snapshot of the current script issues.
      *
-     * @return list of formatted error strings
+     * @return list of script issues
      */
-    public static synchronized List getEntries() {
-        return new ArrayList(entries);
+    public static synchronized List<ScriptIssue> getEntries() {
+        return new ArrayList<>(entries);
     }
 
     /**
@@ -101,7 +109,7 @@ public final class LuaScriptErrors {
     public static synchronized int getErrorCount() {
         int count = 0;
         for (int i = 0; i < entries.size(); i++) {
-            if (!((ScriptIssue) entries.get(i)).isWarning()) {
+            if (!entries.get(i).isWarning()) {
                 count++;
             }
         }
@@ -127,8 +135,10 @@ public final class LuaScriptErrors {
     /**
      * Trims user-facing strings while preserving a reasonable fallback.
      *
-     * @param value raw value to normalize
-     * @param fallback text when the value is null or empty
+     * @param value
+     *            raw value to normalize
+     * @param fallback
+     *            text when the value is null or empty
      * @return normalized non-empty string
      */
     private static String normalize(String value, String fallback) {

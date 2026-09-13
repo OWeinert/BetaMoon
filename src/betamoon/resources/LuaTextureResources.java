@@ -5,28 +5,32 @@ import betamoon.io.IoUtils;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
 import java.lang.reflect.Field;
+import java.util.HashMap;
 import java.util.Map;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.RenderEngine;
 import org.luaj.vm2.LuaError;
 
-/** Provides immutable virtual resource names for standalone textures stored with Lua scripts. */
+/**
+ * Provides immutable virtual resource names for standalone textures stored with
+ * Lua scripts.
+ */
 public final class LuaTextureResources {
     public static final String PREFIX = "/betamoon-lua-texture/";
-    private static final Map ENTRIES = new HashMap();
-    private static final Map RESOURCES_BY_SIGNATURE = new HashMap();
+    private static final Map<String, Entry> ENTRIES = new HashMap<>();
+    private static final Map<String, String> RESOURCES_BY_SIGNATURE = new HashMap<>();
     private static long nextId;
 
     private LuaTextureResources() {
     }
 
     /**
-     * Validates and publishes a texture file under a fresh resource name.
-     * A fresh name ensures Minecraft does not reuse an image cached before a script reload.
+     * Validates and publishes a texture file under a fresh resource name. A fresh
+     * name ensures Minecraft does not reuse an image cached before a script reload.
      *
-     * @param relativePath path relative to the Lua scripts directory
+     * @param relativePath
+     *            path relative to the Lua scripts directory
      * @return virtual resource path understood by the texture-pack hook
      */
     public static synchronized String register(String relativePath) {
@@ -48,9 +52,9 @@ public final class LuaTextureResources {
             throw new LuaError("Failed to read texture: " + file.getAbsolutePath());
         }
         String signature = file.getAbsolutePath().toLowerCase() + "\n" + file.lastModified() + "\n" + file.length();
-        String resource = (String) RESOURCES_BY_SIGNATURE.get(signature);
+        String resource = RESOURCES_BY_SIGNATURE.get(signature);
         if (resource != null) {
-            ((Entry) ENTRIES.get(resource)).references++;
+            ENTRIES.get(resource).references++;
             return resource;
         }
         resource = PREFIX + (++nextId) + ".png";
@@ -59,9 +63,12 @@ public final class LuaTextureResources {
         return resource;
     }
 
-    /** Loads a BetaMoon virtual resource, or returns null for an ordinary Minecraft resource. */
+    /**
+     * Loads a BetaMoon virtual resource, or returns null for an ordinary Minecraft
+     * resource.
+     */
     public static synchronized BufferedImage load(String resourcePath) {
-        Entry entry = (Entry) ENTRIES.get(resourcePath);
+        Entry entry = ENTRIES.get(resourcePath);
         if (entry == null) {
             return null;
         }
@@ -70,13 +77,13 @@ public final class LuaTextureResources {
 
     /** Returns the decoded dimensions of a registered Lua texture. */
     public static synchronized int[] dimensions(String resourcePath) {
-        Entry entry = (Entry) ENTRIES.get(resourcePath);
-        return entry == null ? null : new int[] { entry.image.getWidth(), entry.image.getHeight() };
+        Entry entry = ENTRIES.get(resourcePath);
+        return entry == null ? null : new int[]{entry.image.getWidth(), entry.image.getHeight()};
     }
 
     /** Releases a texture name after an armor item stops using it. */
     public static synchronized void release(String resourcePath) {
-        Entry entry = (Entry) ENTRIES.get(resourcePath);
+        Entry entry = ENTRIES.get(resourcePath);
         if (entry == null || --entry.references > 0) {
             return;
         }
@@ -90,9 +97,11 @@ public final class LuaTextureResources {
             RenderEngine engine = ModLoader.getMinecraftInstance().renderEngine;
             Field[] fields = RenderEngine.class.getDeclaredFields();
             for (int i = 0; i < fields.length; i++) {
-                if (!Map.class.isAssignableFrom(fields[i].getType())) continue;
+                if (!Map.class.isAssignableFrom(fields[i].getType())) {
+                    continue;
+                }
                 fields[i].setAccessible(true);
-                Map values = (Map) fields[i].get(engine);
+                Map<?, ?> values = (Map<?, ?>) fields[i].get(engine);
                 Object textureId = values == null ? null : values.remove(resourcePath);
                 if (textureId instanceof Integer) {
                     engine.deleteTexture(((Integer) textureId).intValue());
@@ -113,8 +122,7 @@ public final class LuaTextureResources {
             File candidate = new File(canonicalRoot, stripLeadingSeparators(relativePath)).getCanonicalFile();
             String rootPath = canonicalRoot.getPath();
             String candidatePath = candidate.getPath();
-            if (!candidatePath.equals(rootPath)
-                && !candidatePath.startsWith(rootPath + File.separator)) {
+            if (!candidatePath.equals(rootPath) && !candidatePath.startsWith(rootPath + File.separator)) {
                 throw new LuaError("Texture must stay inside the Lua scripts directory.");
             }
             return candidate;

@@ -1,7 +1,6 @@
 package betamoon.gui.api.component;
 
 import betamoon.gui.api.util.GuiUtils;
-
 import net.minecraft.src.FontRenderer;
 
 public final class GuiLine extends GuiComponentBase {
@@ -17,6 +16,7 @@ public final class GuiLine extends GuiComponentBase {
         this.color = color;
     }
 
+    @Override
     public void draw(FontRenderer font, int mouseX, int mouseY, float partialTicks) {
         if (vertical) {
             GuiUtils.drawVerticalLine(top, bottom, left, color);

@@ -1,12 +1,12 @@
 package betamoon.query;
 
+import betamoon.recipes.NativeRecipeRegistries;
 import betamoon.recipes.SmeltingRecipe;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import net.minecraft.src.CraftingManager;
-import net.minecraft.src.FurnaceRecipes;
-import net.minecraft.src.InventoryCrafting;
 import net.minecraft.src.IRecipe;
+import net.minecraft.src.InventoryCrafting;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.ShapedRecipes;
 import net.minecraft.src.ShapelessRecipes;
@@ -15,13 +15,13 @@ final class RecipeQueryMatcher {
     private RecipeQueryMatcher() {
     }
 
-    static Object findMatchingShaped(Map source, ContentQueryRecipe.ShapedQuery query) {
-        List recipeList = CraftingManager.getInstance().getRecipeList();
+    static Object findMatchingShaped(Map<String, ?> source, ContentQueryRecipe.ShapedQuery query) {
+        List<?> recipeList = NativeRecipeRegistries.crafting();
         Object match = findMatchingShapedInList(recipeList, query);
         if (match != null) {
             return match;
         }
-        for (java.util.Iterator it = source.values().iterator(); it.hasNext();) {
+        for (Iterator<?> it = source.values().iterator(); it.hasNext();) {
             Object recipe = it.next();
             if (!(recipe instanceof ShapedRecipes)) {
                 continue;
@@ -55,13 +55,13 @@ final class RecipeQueryMatcher {
         return null;
     }
 
-    static Object findMatchingShapeless(Map source, ContentQueryRecipe.ShapelessQuery query) {
-        List recipeList = CraftingManager.getInstance().getRecipeList();
+    static Object findMatchingShapeless(Map<String, ?> source, ContentQueryRecipe.ShapelessQuery query) {
+        List<?> recipeList = NativeRecipeRegistries.crafting();
         Object match = findMatchingShapelessInList(recipeList, query);
         if (match != null) {
             return match;
         }
-        for (java.util.Iterator it = source.values().iterator(); it.hasNext();) {
+        for (Iterator<?> it = source.values().iterator(); it.hasNext();) {
             Object recipe = it.next();
             if (!(recipe instanceof ShapelessRecipes)) {
                 continue;
@@ -74,7 +74,7 @@ final class RecipeQueryMatcher {
             if (matchesShapelessUsingGrid(shapeless, query)) {
                 return recipe;
             }
-            List recipeInputs = RecipeQueryUtils.collectRecipeInputs(shapeless);
+            List<ItemStack> recipeInputs = RecipeQueryUtils.collectRecipeInputs(shapeless);
             if (recipeInputs == null || recipeInputs.size() != query.inputs.size()) {
                 continue;
             }
@@ -85,12 +85,12 @@ final class RecipeQueryMatcher {
         return null;
     }
 
-    static Object findMatchingSmelting(Map source, ContentQueryRecipe.SmeltingQuery query) {
+    static Object findMatchingSmelting(Map<String, ?> source, ContentQueryRecipe.SmeltingQuery query) {
         Object liveMatch = findMatchingSmeltingInList(query);
         if (liveMatch != null) {
             return liveMatch;
         }
-        for (java.util.Iterator it = source.values().iterator(); it.hasNext();) {
+        for (Iterator<?> it = source.values().iterator(); it.hasNext();) {
             Object recipe = it.next();
             if (!(recipe instanceof SmeltingRecipe)) {
                 continue;
@@ -107,7 +107,7 @@ final class RecipeQueryMatcher {
         return null;
     }
 
-    private static Object findMatchingShapedInList(List recipeList, ContentQueryRecipe.ShapedQuery query) {
+    private static Object findMatchingShapedInList(List<?> recipeList, ContentQueryRecipe.ShapedQuery query) {
         if (recipeList == null) {
             return null;
         }
@@ -128,7 +128,7 @@ final class RecipeQueryMatcher {
         return null;
     }
 
-    private static Object findMatchingShapelessInList(List recipeList, ContentQueryRecipe.ShapelessQuery query) {
+    private static Object findMatchingShapelessInList(List<?> recipeList, ContentQueryRecipe.ShapelessQuery query) {
         if (recipeList == null || query == null) {
             return null;
         }
@@ -153,9 +153,9 @@ final class RecipeQueryMatcher {
         if (query == null) {
             return null;
         }
-        Map smelting = FurnaceRecipes.smelting().getSmeltingList();
-        for (java.util.Iterator it = smelting.entrySet().iterator(); it.hasNext();) {
-            Map.Entry entry = (Map.Entry) it.next();
+        Map<Integer, ItemStack> smelting = NativeRecipeRegistries.smelting();
+        for (Iterator<Map.Entry<Integer, ItemStack>> it = smelting.entrySet().iterator(); it.hasNext();) {
+            Map.Entry<Integer, ItemStack> entry = it.next();
             Object key = entry.getKey();
             if (!(key instanceof Integer)) {
                 continue;
@@ -164,7 +164,7 @@ final class RecipeQueryMatcher {
             if (inputId != query.inputId) {
                 continue;
             }
-            ItemStack output = (ItemStack) entry.getValue();
+            ItemStack output = entry.getValue();
             if (RecipeQueryUtils.matchesSmeltingOutput(output, query.output)) {
                 return new SmeltingRecipe(smelting, entry);
             }
@@ -195,7 +195,7 @@ final class RecipeQueryMatcher {
     }
 
     private static InventoryCrafting buildCraftingGrid(ContentQueryRecipe.ShapedQuery query, int width, int height,
-        boolean padTopLeft) {
+            boolean padTopLeft) {
         if (query == null || query.grid == null || width <= 0 || height <= 0) {
             return null;
         }
@@ -211,8 +211,8 @@ final class RecipeQueryMatcher {
                 if (padTopLeft && (x >= width || y >= height)) {
                     continue;
                 }
-                if (sourceIndex >= 0 && sourceIndex < query.grid.length
-                    && targetIndex >= 0 && targetIndex < stacks.length) {
+                if (sourceIndex >= 0 && sourceIndex < query.grid.length && targetIndex >= 0
+                        && targetIndex < stacks.length) {
                     stacks[targetIndex] = query.grid[sourceIndex];
                 }
             }
@@ -230,7 +230,7 @@ final class RecipeQueryMatcher {
         InventoryCrafting craftingGrid = new InventoryCrafting(null, 3, 3);
         ItemStack[] stacks = new ItemStack[9];
         for (int i = 0; i < query.inputs.size() && i < stacks.length; i++) {
-            stacks[i] = (ItemStack) query.inputs.get(i);
+            stacks[i] = query.inputs.get(i);
         }
         if (!setInventoryStacks(craftingGrid, stacks)) {
             return null;
@@ -259,7 +259,7 @@ final class RecipeQueryMatcher {
     }
 
     private static boolean matchesShapedGrid(ItemStack[] actual, int actualWidth, int actualHeight,
-        ItemStack[] expected, int expectedWidth, int expectedHeight) {
+            ItemStack[] expected, int expectedWidth, int expectedHeight) {
         if (actual == null || expected == null) {
             return false;
         }

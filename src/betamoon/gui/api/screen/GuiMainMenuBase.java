@@ -1,9 +1,8 @@
 package betamoon.gui.api.screen;
 
 import betamoon.gui.api.component.GuiRoot;
-
-import net.minecraft.src.GuiScreen;
 import net.minecraft.src.GuiMainMenu;
+import net.minecraft.src.GuiScreen;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 
@@ -26,6 +25,7 @@ public abstract class GuiMainMenuBase extends GuiMainMenu {
         }
     }
 
+    @Override
     public void initGui() {
         super.initGui();
         root.clear();
@@ -43,6 +43,7 @@ public abstract class GuiMainMenuBase extends GuiMainMenu {
     protected void updateGuiState(int mouseX, int mouseY, float partialTicks) {
     }
 
+    @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         if (this.width != lastWidth || this.height != lastHeight) {
             layoutComponents();
@@ -52,6 +53,7 @@ public abstract class GuiMainMenuBase extends GuiMainMenu {
         root.draw(this.fontRenderer, mouseX, mouseY, partialTicks);
     }
 
+    @Override
     public void handleMouseInput() {
         super.handleMouseInput();
         int wheel = Mouse.getEventDWheel();
@@ -62,16 +64,19 @@ public abstract class GuiMainMenuBase extends GuiMainMenu {
         root.mouseDragged(mouseX, mouseY, Mouse.isButtonDown(0));
     }
 
+    @Override
     protected void mouseClicked(int mouseX, int mouseY, int button) {
         super.mouseClicked(mouseX, mouseY, button);
         root.mouseClicked(mouseX, mouseY, button);
     }
 
+    @Override
     protected void mouseMovedOrUp(int mouseX, int mouseY, int button) {
         super.mouseMovedOrUp(mouseX, mouseY, button);
         root.mouseReleased(mouseX, mouseY, button);
     }
 
+    @Override
     protected void keyTyped(char typedChar, int keyCode) {
         if (!root.keyTyped(typedChar, keyCode)) {
             super.keyTyped(typedChar, keyCode);

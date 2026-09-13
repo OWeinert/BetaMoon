@@ -30,6 +30,7 @@ public final class GuiActionButton extends GuiButton implements IGuiComponent {
         this.minecraft = minecraft;
     }
 
+    @Override
     public void setBounds(int left, int top, int right, int bottom) {
         this.xPosition = left;
         this.yPosition = top;
@@ -37,15 +38,18 @@ public final class GuiActionButton extends GuiButton implements IGuiComponent {
         this.height = Math.max(0, bottom - top);
     }
 
+    @Override
     public void layout(int screenWidth, int screenHeight) {
     }
 
+    @Override
     public void draw(FontRenderer font, int mouseX, int mouseY, float partialTicks) {
         if (minecraft != null) {
             drawButton(minecraft, mouseX, mouseY);
         }
     }
 
+    @Override
     public boolean mouseClicked(int mouseX, int mouseY, int button) {
         if (!enabled || button != 0) {
             return false;
@@ -60,19 +64,23 @@ public final class GuiActionButton extends GuiButton implements IGuiComponent {
         return true;
     }
 
+    @Override
     public boolean mouseReleased(int mouseX, int mouseY, int button) {
         mouseReleased(mouseX, mouseY);
         return false;
     }
 
+    @Override
     public boolean mouseDragged(int mouseX, int mouseY, boolean mouseDown) {
         return false;
     }
 
+    @Override
     public boolean mouseScrolled(int mouseX, int mouseY, int wheelDelta, boolean shiftDown) {
         return false;
     }
 
+    @Override
     public boolean keyTyped(char typedChar, int keyCode) {
         return false;
     }

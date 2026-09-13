@@ -2,7 +2,6 @@ package betamoon.gui.api.component;
 
 import betamoon.gui.api.util.GuiColors;
 import betamoon.gui.api.util.GuiUtils;
-
 import net.minecraft.src.FontRenderer;
 
 public class GuiPanel extends GuiContainer {
@@ -19,6 +18,7 @@ public class GuiPanel extends GuiContainer {
         this.color = color;
     }
 
+    @Override
     public void draw(FontRenderer font, int mouseX, int mouseY, float partialTicks) {
         GuiUtils.drawRect(left, top, right, bottom, color);
         super.draw(font, mouseX, mouseY, partialTicks);

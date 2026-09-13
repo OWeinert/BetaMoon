@@ -4,7 +4,11 @@ import net.minecraft.src.FontRenderer;
 import org.lwjgl.opengl.GL11;
 
 public final class GuiUtils {
-    public static final int COLOR_LIST_SEPERATOR = GuiColors.LIST_SEPARATOR;
+    public static final int COLOR_LIST_SEPARATOR = GuiColors.LIST_SEPARATOR;
+
+    /** @deprecated Use {@link #COLOR_LIST_SEPARATOR}. */
+    @Deprecated
+    public static final int COLOR_LIST_SEPERATOR = COLOR_LIST_SEPARATOR;
 
     /**
      * Utility class for shared GUI rendering helpers.
@@ -15,11 +19,16 @@ public final class GuiUtils {
     /**
      * Draws a solid colored rectangle in GUI space.
      *
-     * @param left left edge
-     * @param top top edge
-     * @param right right edge
-     * @param bottom bottom edge
-     * @param color ARGB color
+     * @param left
+     *            left edge
+     * @param top
+     *            top edge
+     * @param right
+     *            right edge
+     * @param bottom
+     *            bottom edge
+     * @param color
+     *            ARGB color
      */
     public static void drawRect(int left, int top, int right, int bottom, int color) {
         // Normalize coordinates to match GuiScreen.drawRect behavior.
@@ -57,14 +66,21 @@ public final class GuiUtils {
     /**
      * Draws scaled text centered around the provided x coordinate.
      *
-     * @param font font renderer
-     * @param text text to draw
-     * @param centerX center x position
-     * @param y top position
-     * @param color ARGB color
-     * @param scale scale factor
+     * @param font
+     *            font renderer
+     * @param text
+     *            text to draw
+     * @param centerX
+     *            center x position
+     * @param y
+     *            top position
+     * @param color
+     *            ARGB color
+     * @param scale
+     *            scale factor
      */
-    public static void drawScaledCenteredString(FontRenderer font, String text, int centerX, int y, int color, float scale) {
+    public static void drawScaledCenteredString(FontRenderer font, String text, int centerX, int y, int color,
+            float scale) {
         GL11.glPushMatrix();
         GL11.glScalef(scale, scale, 1.0F);
         int scaledX = (int) (centerX / scale);
@@ -76,12 +92,18 @@ public final class GuiUtils {
     /**
      * Draws scaled text aligned to the left.
      *
-     * @param font font renderer
-     * @param text text to draw
-     * @param x left position
-     * @param y top position
-     * @param color ARGB color
-     * @param scale scale factor
+     * @param font
+     *            font renderer
+     * @param text
+     *            text to draw
+     * @param x
+     *            left position
+     * @param y
+     *            top position
+     * @param color
+     *            ARGB color
+     * @param scale
+     *            scale factor
      */
     public static void drawScaledString(FontRenderer font, String text, int x, int y, int color, float scale) {
         GL11.glPushMatrix();
@@ -95,12 +117,18 @@ public final class GuiUtils {
     /**
      * Draws scaled text with a 1px underline in the same color.
      *
-     * @param font font renderer
-     * @param text text to draw
-     * @param x left position
-     * @param y top position
-     * @param textColor ARGB text/underline color
-     * @param scale scale factor
+     * @param font
+     *            font renderer
+     * @param text
+     *            text to draw
+     * @param x
+     *            left position
+     * @param y
+     *            top position
+     * @param textColor
+     *            ARGB text/underline color
+     * @param scale
+     *            scale factor
      */
     public static void drawScaledStringUL(FontRenderer font, String text, int x, int y, int textColor, float scale) {
         int textWidth = font.getStringWidth(text);
@@ -114,10 +142,14 @@ public final class GuiUtils {
     /**
      * Draws a 1px horizontal line.
      *
-     * @param left left edge
-     * @param right right edge
-     * @param y y position
-     * @param color ARGB color
+     * @param left
+     *            left edge
+     * @param right
+     *            right edge
+     * @param y
+     *            y position
+     * @param color
+     *            ARGB color
      */
     public static void drawHorizontalLine(int left, int right, int y, int color) {
         if (left > right) {
@@ -151,10 +183,14 @@ public final class GuiUtils {
     /**
      * Draws a 1px vertical line.
      *
-     * @param top top edge
-     * @param bottom bottom edge
-     * @param x x position
-     * @param color ARGB color
+     * @param top
+     *            top edge
+     * @param bottom
+     *            bottom edge
+     * @param x
+     *            x position
+     * @param color
+     *            ARGB color
      */
     public static void drawVerticalLine(int top, int bottom, int x, int color) {
         if (top > bottom) {
@@ -188,9 +224,12 @@ public final class GuiUtils {
     /**
      * Clamps a value to a range.
      *
-     * @param value input value
-     * @param min minimum value
-     * @param max maximum value
+     * @param value
+     *            input value
+     * @param min
+     *            minimum value
+     * @param max
+     *            maximum value
      * @return clamped value
      */
     public static int clamp(int value, int min, int max) {
@@ -203,7 +242,8 @@ public final class GuiUtils {
         return value;
     }
 
-    public static void beginScissor(int left, int top, int right, int bottom, int screenWidth, int screenHeight, int displayWidth, int displayHeight) {
+    public static void beginScissor(int left, int top, int right, int bottom, int screenWidth, int screenHeight,
+            int displayWidth, int displayHeight) {
         int scissorX = left * displayWidth / screenWidth;
         int scissorY = (screenHeight - bottom) * displayHeight / screenHeight;
         int scissorW = (right - left) * displayWidth / screenWidth;

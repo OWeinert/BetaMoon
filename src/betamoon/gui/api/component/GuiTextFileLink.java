@@ -1,7 +1,7 @@
 package betamoon.gui.api.component;
 
-import java.io.File;
 import betamoon.io.IoUtils;
+import java.io.File;
 
 /**
  * Clickable link-like text for opening files or directories.
@@ -20,7 +20,8 @@ public class GuiTextFileLink extends GuiTextClickable {
     /**
      * Sets the file or directory to open on click.
      *
-     * @param path file or directory to open
+     * @param path
+     *            file or directory to open
      */
     public void setPath(File path) {
         this.path = path;

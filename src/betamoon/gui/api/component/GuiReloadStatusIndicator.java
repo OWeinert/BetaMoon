@@ -45,6 +45,7 @@ public final class GuiReloadStatusIndicator extends GuiComponentBase {
         return drewReloadingFrame;
     }
 
+    @Override
     public void draw(FontRenderer font, int mouseX, int mouseY, float partialTicks) {
         ScriptReloadStatus.State state = ScriptReloadStatus.getState();
         if (state == ScriptReloadStatus.State.IDLE) {
@@ -68,9 +69,10 @@ public final class GuiReloadStatusIndicator extends GuiComponentBase {
         }
     }
 
+    @Override
     public boolean mouseClicked(int mouseX, int mouseY, int button) {
         if (button != 0 || ScriptReloadStatus.getState() != ScriptReloadStatus.State.FAILED
-            || !isMouseOver(mouseX, mouseY)) {
+                || !isMouseOver(mouseX, mouseY)) {
             return false;
         }
         if (minecraft != null) {
@@ -84,16 +86,19 @@ public final class GuiReloadStatusIndicator extends GuiComponentBase {
 
     private int successAlpha() {
         long elapsed = System.currentTimeMillis() - ScriptReloadStatus.getCompletedAt();
-        if (elapsed <= SUCCESS_HOLD_MS) return 255;
+        if (elapsed <= SUCCESS_HOLD_MS) {
+            return 255;
+        }
         long fadeElapsed = elapsed - SUCCESS_HOLD_MS;
-        if (fadeElapsed >= SUCCESS_FADE_MS) return 0;
+        if (fadeElapsed >= SUCCESS_FADE_MS) {
+            return 0;
+        }
         return 255 - (int) (255L * fadeElapsed / SUCCESS_FADE_MS);
     }
 
     private void drawSpinner(int alpha) {
         int frame = (int) (System.currentTimeMillis() / 100L % SPINNER_FRAMES);
-        drawSprite(SPINNER_TEXTURE, frame / (float) SPINNER_FRAMES,
-            (frame + 1) / (float) SPINNER_FRAMES, alpha);
+        drawSprite(SPINNER_TEXTURE, frame / (float) SPINNER_FRAMES, (frame + 1) / (float) SPINNER_FRAMES, alpha);
     }
 
     private void drawSuccess(int alpha) {
@@ -106,7 +111,9 @@ public final class GuiReloadStatusIndicator extends GuiComponentBase {
 
     /** Draws a 16-pixel sprite across the component's existing 17-pixel bounds. */
     private void drawSprite(String texture, float minU, float maxU, int alpha) {
-        if (minecraft == null) return;
+        if (minecraft == null) {
+            return;
+        }
         minecraft.renderEngine.bindTexture(minecraft.renderEngine.getTexture(texture));
         GL11.glEnable(GL11.GL_BLEND);
         GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
@@ -123,10 +130,13 @@ public final class GuiReloadStatusIndicator extends GuiComponentBase {
     }
 
     private String tooltip(ScriptReloadStatus.State state) {
-        if (state == ScriptReloadStatus.State.RELOADING) return "Reloading scripts...";
-        if (state == ScriptReloadStatus.State.SUCCESS) return "Scripts reloaded successfully";
+        if (state == ScriptReloadStatus.State.RELOADING) {
+            return "Reloading scripts...";
+        }
+        if (state == ScriptReloadStatus.State.SUCCESS) {
+            return "Scripts reloaded successfully";
+        }
         int errors = ScriptReloadStatus.getErrorCount();
-        return "Reload completed with " + errors + (errors == 1 ? " error" : " errors")
-            + ". Click to view details.";
+        return "Reload completed with " + errors + (errors == 1 ? " error" : " errors") + ". Click to view details.";
     }
 }

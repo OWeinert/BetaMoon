@@ -29,7 +29,7 @@ public final class ContentQueryItem extends ContentQueryEntry {
         }
         return QueryStepResult.success(wrapSingle(entry));
     }
-    
+
     public ContentQueryItem getById(final int id) {
         addSingleStep("getById", String.valueOf(id), (List<QueryEntry> state) -> {
             if (id < 256) {

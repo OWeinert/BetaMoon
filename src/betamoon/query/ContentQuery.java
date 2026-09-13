@@ -5,8 +5,7 @@ import java.util.List;
 
 public abstract class ContentQuery<TResult> {
     public enum ResultMode {
-        LIST,
-        SINGLE
+        LIST, SINGLE
     }
 
     private final List<QueryStep<List<TResult>>> steps = new ArrayList<QueryStep<List<TResult>>>();
@@ -115,7 +114,7 @@ public abstract class ContentQuery<TResult> {
     }
 
     private QueryFailure buildFailure(String message, List<QueryStep<List<TResult>>> executed,
-        QueryStep<List<TResult>> step) {
+            QueryStep<List<TResult>> step) {
         return new QueryFailure(message, formatTree(executed, step), step.getName());
     }
 

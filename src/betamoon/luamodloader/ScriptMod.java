@@ -6,7 +6,7 @@ import org.luaj.vm2.LuaValue;
 public class ScriptMod {
     final String sourceFileName;
     String name;
-    List dependencies;
+    List<String> dependencies;
     LuaValue modInit;
     LuaValue modReload;
     LuaValue modUnload;
@@ -16,12 +16,13 @@ public class ScriptMod {
     boolean loaded;
     boolean failed;
     String failureReason;
-    List missingDependencies;
+    List<String> missingDependencies;
 
     /**
      * Creates a script entry for a file that has not yet been parsed.
      *
-     * @param sourceFileName script file name on disk
+     * @param sourceFileName
+     *            script file name on disk
      */
     public ScriptMod(String sourceFileName) {
         this.sourceFileName = sourceFileName;
@@ -31,14 +32,20 @@ public class ScriptMod {
     }
 
     /**
-     * Creates a parsed Lua mod definition with its name, dependencies, and init function.
+     * Creates a parsed Lua mod definition with its name, dependencies, and init
+     * function.
      *
-     * @param name declared mod name used for dependency ordering
-     * @param dependencies list of mod names this mod depends on
-     * @param modInit Lua function to invoke during mod initialization
-     * @param sourceFileName script file name on disk
+     * @param name
+     *            declared mod name used for dependency ordering
+     * @param dependencies
+     *            list of mod names this mod depends on
+     * @param modInit
+     *            Lua function to invoke during mod initialization
+     * @param sourceFileName
+     *            script file name on disk
      */
-    public ScriptMod(String name, List dependencies, LuaValue modInit, String sourceFileName, String description, String version, String imagePath) {
+    public ScriptMod(String name, List<String> dependencies, LuaValue modInit, String sourceFileName,
+            String description, String version, String imagePath) {
         this.sourceFileName = sourceFileName;
         this.name = name;
         this.dependencies = dependencies;
@@ -144,7 +151,7 @@ public class ScriptMod {
      *
      * @return list of dependency names or null
      */
-    public List getDependencies() {
+    public List<String> getDependencies() {
         return dependencies;
     }
 
@@ -153,7 +160,7 @@ public class ScriptMod {
      *
      * @return list of missing dependency names or null
      */
-    public List getMissingDependencies() {
+    public List<String> getMissingDependencies() {
         return missingDependencies;
     }
 }

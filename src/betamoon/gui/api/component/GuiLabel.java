@@ -2,7 +2,6 @@ package betamoon.gui.api.component;
 
 import betamoon.gui.api.util.GuiColors;
 import betamoon.gui.api.util.GuiUtils;
-
 import net.minecraft.src.FontRenderer;
 
 public final class GuiLabel extends GuiComponentBase {
@@ -31,6 +30,7 @@ public final class GuiLabel extends GuiComponentBase {
         this.centered = centered;
     }
 
+    @Override
     public void draw(FontRenderer font, int mouseX, int mouseY, float partialTicks) {
         if (font == null || text == null) {
             return;

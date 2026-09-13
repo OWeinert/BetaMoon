@@ -3,9 +3,9 @@ package betamoon.gui.api.component;
 import betamoon.gui.api.util.GuiColors;
 import betamoon.gui.api.util.GuiText;
 import betamoon.gui.api.util.GuiUtils;
-import net.minecraft.src.FontRenderer;
 import java.util.List;
 import java.util.function.Supplier;
+import net.minecraft.src.FontRenderer;
 
 /**
  * Clickable text component with optional tooltip and custom click action.
@@ -14,8 +14,8 @@ public class GuiTextClickable extends GuiComponentBase {
     private String text;
     private String tooltip;
     private IGuiAction action;
-    private Supplier textSupplier;
-    private Supplier tooltipSupplier;
+    private Supplier<String> textSupplier;
+    private Supplier<String> tooltipSupplier;
     private int screenWidth;
     private int screenHeight;
     private boolean wrapText;
@@ -26,7 +26,8 @@ public class GuiTextClickable extends GuiComponentBase {
     /**
      * Creates clickable text that runs the provided action on click.
      *
-     * @param action action invoked when the text is clicked
+     * @param action
+     *            action invoked when the text is clicked
      */
     public GuiTextClickable(IGuiAction action) {
         this.action = action;
@@ -35,7 +36,8 @@ public class GuiTextClickable extends GuiComponentBase {
     /**
      * Sets the static text to render.
      *
-     * @param text text to render
+     * @param text
+     *            text to render
      */
     public void setText(String text) {
         this.text = text;
@@ -45,7 +47,8 @@ public class GuiTextClickable extends GuiComponentBase {
     /**
      * Sets the tooltip to show on hover.
      *
-     * @param tooltip tooltip text
+     * @param tooltip
+     *            tooltip text
      */
     public void setTooltip(String tooltip) {
         this.tooltip = tooltip;
@@ -55,7 +58,8 @@ public class GuiTextClickable extends GuiComponentBase {
     /**
      * Updates the click action.
      *
-     * @param action action invoked on click
+     * @param action
+     *            action invoked on click
      */
     public void setAction(IGuiAction action) {
         this.action = action;
@@ -64,26 +68,30 @@ public class GuiTextClickable extends GuiComponentBase {
     /**
      * Provides text lazily for dynamic updates.
      *
-     * @param textSupplier supplier returning current text
+     * @param textSupplier
+     *            supplier returning current text
      */
-    public void setTextSupplier(Supplier textSupplier) {
+    public void setTextSupplier(Supplier<String> textSupplier) {
         this.textSupplier = textSupplier;
     }
 
     /**
      * Provides tooltip text lazily for dynamic updates.
      *
-     * @param tooltipSupplier supplier returning current tooltip
+     * @param tooltipSupplier
+     *            supplier returning current tooltip
      */
-    public void setTooltipSupplier(Supplier tooltipSupplier) {
+    public void setTooltipSupplier(Supplier<String> tooltipSupplier) {
         this.tooltipSupplier = tooltipSupplier;
     }
 
     /**
      * Sets the screen size used for tooltip placement.
      *
-     * @param screenWidth current screen width
-     * @param screenHeight current screen height
+     * @param screenWidth
+     *            current screen width
+     * @param screenHeight
+     *            current screen height
      */
     public void setScreenSize(int screenWidth, int screenHeight) {
         this.screenWidth = screenWidth;
@@ -100,6 +108,7 @@ public class GuiTextClickable extends GuiComponentBase {
     /**
      * Draws the text and hover underline/tooltip.
      */
+    @Override
     public void draw(FontRenderer font, int mouseX, int mouseY, float partialTicks) {
         if (font == null) {
             return;
@@ -120,8 +129,8 @@ public class GuiTextClickable extends GuiComponentBase {
             if (!wrapText) {
                 int height = GuiText.getLineHeight(font);
                 // Draw underline and tooltip only while hovered to avoid clutter.
-                GuiUtils.drawRect(left, top + height + 1, left + font.getStringWidth(resolvedText),
-                    top + height + 2, GuiColors.LINK_PATH_HOVER_UNDERLINE);
+                GuiUtils.drawRect(left, top + height + 1, left + font.getStringWidth(resolvedText), top + height + 2,
+                        GuiColors.LINK_PATH_HOVER_UNDERLINE);
             }
             String resolvedTooltip = resolveTooltip();
             if (resolvedTooltip != null && !resolvedTooltip.isEmpty()) {
@@ -135,6 +144,7 @@ public class GuiTextClickable extends GuiComponentBase {
      *
      * @return true if the click was handled
      */
+    @Override
     public boolean mouseClicked(int mouseX, int mouseY, int button) {
         if (button != 0 || !isMouseOver(mouseX, mouseY)) {
             return false;
@@ -151,7 +161,7 @@ public class GuiTextClickable extends GuiComponentBase {
      */
     private String resolveText() {
         if (textSupplier != null) {
-            return (String) textSupplier.get();
+            return textSupplier.get();
         }
         return text;
     }
@@ -161,30 +171,31 @@ public class GuiTextClickable extends GuiComponentBase {
      */
     private String resolveTooltip() {
         if (tooltipSupplier != null) {
-            return (String) tooltipSupplier.get();
+            return tooltipSupplier.get();
         }
         return tooltip;
     }
 
     /**
-     * Draws text with an inline clickable segment and registers it for click handling.
+     * Draws text with an inline clickable segment and registers it for click
+     * handling.
      *
      * @return the rendered height for this line
      */
-    public int drawInline(FontRenderer font, String fullText, String linkText, IGuiAction action, int left,
-        int top, int maxWidth, int screenWidth, int screenHeight, int textColor, int mouseX, int mouseY,
-        float partialTicks, List linkSink) {
+    public int drawInline(FontRenderer font, String fullText, String linkText, IGuiAction action, int left, int top,
+            int maxWidth, int screenWidth, int screenHeight, int textColor, int mouseX, int mouseY, float partialTicks,
+            List<GuiTextClickable> linkSink) {
         if (font == null || fullText == null) {
             return 0;
         }
         if (linkText == null || linkText.length() == 0) {
             font.func_27278_a(fullText, left, top, maxWidth, textColor);
-            return font.func_27277_a(fullText, maxWidth);
+            return measureInlineHeight(font, fullText, linkText, maxWidth);
         }
         int linkIndex = fullText.indexOf(linkText);
         if (linkIndex < 0) {
             font.func_27278_a(fullText, left, top, maxWidth, textColor);
-            return font.func_27277_a(fullText, maxWidth);
+            return measureInlineHeight(font, fullText, linkText, maxWidth);
         }
         String remainder = trimInlineRemainder(fullText.substring(linkIndex + linkText.length()));
         int linkWidth = font.getStringWidth(linkText);
@@ -203,6 +214,26 @@ public class GuiTextClickable extends GuiComponentBase {
         if (remainder.length() > 0) {
             font.func_27278_a(remainder, remainderX, top, remainderWidth, textColor);
         }
+        return measureInlineHeight(font, fullText, linkText, maxWidth);
+    }
+
+    /** Measures the exact height used by {@link #drawInline}. */
+    public static int measureInlineHeight(FontRenderer font, String fullText, String linkText, int maxWidth) {
+        if (font == null || fullText == null) {
+            return 0;
+        }
+        if (linkText == null || linkText.length() == 0) {
+            return font.func_27277_a(fullText, maxWidth);
+        }
+
+        int linkIndex = fullText.indexOf(linkText);
+        if (linkIndex < 0) {
+            return font.func_27277_a(fullText, maxWidth);
+        }
+
+        String remainder = trimInlineRemainder(fullText.substring(linkIndex + linkText.length()));
+        int linkHeight = GuiText.getLineHeight(font);
+        int remainderWidth = Math.max(10, maxWidth - font.getStringWidth(linkText) - 4);
         int remainderHeight = remainder.length() > 0 ? font.func_27277_a(remainder, remainderWidth) : 0;
         return Math.max(linkHeight, remainderHeight);
     }
