@@ -3,35 +3,64 @@ package betamoon.luaapi.resource;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptResourceTracker;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.luaj.vm2.LuaError;
 
 /**
- * Applies layered, script-owned property overrides to existing Minecraft resources.
+ * Applies layered, script-owned property overrides to existing Minecraft
+ * resources.
  *
- * <p>The first layer captures the value that existed before BetaMoon touched the
- * property. Removing any layer recomputes the effective value from the remaining
- * layers, so unloading one script does not erase another script's override.</p>
+ * <p>
+ * The first layer captures the value that existed before BetaMoon touched the
+ * property. Removing any layer recomputes the effective value from the
+ * remaining layers, so unloading one script does not erase another script's
+ * override.
+ * </p>
  */
 public final class OverrideManager {
     /** Reads and writes one supported property on a resource. */
-    public interface PropertyAdapter {
-        Object read(Object target);
-        void write(Object target, Object value);
+    public interface PropertyAdapter<T, V> {
+        V read(T target);
+
+        void write(T target, V value);
+    }
+
+    /** A stable property identity paired with its type-safe native adapter. */
+    public static final class Property<T, V> {
+        private final String name;
+        private final PropertyAdapter<T, V> adapter;
+
+        public Property(String name, PropertyAdapter<T, V> adapter) {
+            if (name == null || adapter == null) {
+                throw new IllegalArgumentException("Property name and adapter are required");
+            }
+            this.name = name;
+            this.adapter = adapter;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public V read(T target) {
+            return adapter.read(target);
+        }
     }
 
     /** A removable override returned to Lua through an override handle. */
-    public static final class Layer {
-        private final Slot slot;
+    public static final class Layer<T, V> {
+        private final Slot<T, V> slot;
         private final String owner;
-        private final Object value;
+        private final V value;
         private final int priority;
         private final long sequence;
         private boolean active = true;
 
-        private Layer(Slot slot, String owner, Object value, int priority, long sequence) {
+        private Layer(Slot<T, V> slot, String owner, V value, int priority, long sequence) {
             this.slot = slot;
             this.owner = owner;
             this.value = value;
@@ -40,81 +69,107 @@ public final class OverrideManager {
         }
 
         public synchronized void remove() {
-            if (!active) return;
+            if (!active) {
+                return;
+            }
             active = false;
-            slot.remove(this);
+            OverrideManager.remove(this);
         }
 
-        public boolean isActive() { return active; }
-        public String getOwner() { return owner; }
-        public Object getValue() { return value; }
+        public synchronized boolean isActive() {
+            return active;
+        }
+
+        public String getOwner() {
+            return owner;
+        }
+
+        public V getValue() {
+            return value;
+        }
     }
 
-    private static final class Slot {
+    private static final class Slot<T, V> {
         private final String key;
-        private final Object target;
-        private final PropertyAdapter adapter;
-        private final Object baseValue;
-        private final List layers = new ArrayList();
+        private final T target;
+        private final PropertyAdapter<T, V> adapter;
+        private final V baseValue;
+        private final List<Layer<T, V>> layers = new ArrayList<>();
 
-        private Slot(String key, Object target, PropertyAdapter adapter) {
+        private Slot(String key, T target, PropertyAdapter<T, V> adapter) {
             this.key = key;
             this.target = target;
             this.adapter = adapter;
             this.baseValue = adapter.read(target);
         }
 
-        private synchronized void add(Layer layer) {
+        private void add(Layer<T, V> layer) {
             layers.add(layer);
-            java.util.Collections.sort(layers, new java.util.Comparator() {
-                public int compare(Object leftValue, Object rightValue) {
-                    Layer left = (Layer) leftValue;
-                    Layer right = (Layer) rightValue;
-                    if (left.priority != right.priority) return left.priority < right.priority ? -1 : 1;
+            Collections.sort(layers, new Comparator<Layer<T, V>>() {
+                public int compare(Layer<T, V> left, Layer<T, V> right) {
+                    if (left.priority != right.priority) {
+                        return left.priority < right.priority ? -1 : 1;
+                    }
                     return left.sequence < right.sequence ? -1 : left.sequence == right.sequence ? 0 : 1;
                 }
             });
             apply();
         }
 
-        private synchronized void remove(Layer layer) {
+        private void remove(Layer<T, V> layer) {
             layers.remove(layer);
             apply();
-            if (layers.isEmpty()) {
-                synchronized (OverrideManager.class) { SLOTS.remove(key); }
-            }
         }
 
         private void apply() {
-            Object value = layers.isEmpty() ? baseValue : ((Layer) layers.get(layers.size() - 1)).value;
+            V value = layers.isEmpty() ? baseValue : layers.get(layers.size() - 1).value;
             adapter.write(target, value);
         }
     }
 
-    private static final Map SLOTS = new HashMap();
+    private static final Map<String, Slot<?, ?>> SLOTS = new HashMap<>();
     private static long nextSequence;
 
     private OverrideManager() {
     }
 
     /** Adds an override layer owned by the currently loading Lua script. */
-    public static synchronized Layer apply(String targetKey, Object target, String property,
-        Object value, int priority, PropertyAdapter adapter) {
+    public static synchronized <T, V> Layer<T, V> apply(String targetKey, T target, Property<T, V> property, V value,
+            int priority) {
         String owner = LuaScriptRegistry.getCurrentScriptFile();
         if (owner == null) {
             throw new LuaError("Overrides can only be declared while a Lua script is loading.");
         }
-        String slotKey = targetKey + "\n" + property;
-        Slot slot = (Slot) SLOTS.get(slotKey);
+        String slotKey = targetKey + "\n" + property.name;
+        Slot<T, V> slot = getSlot(slotKey, target);
         if (slot == null) {
-            slot = new Slot(slotKey, target, adapter);
+            slot = new Slot<>(slotKey, target, property.adapter);
             SLOTS.put(slotKey, slot);
         }
-        final Layer layer = new Layer(slot, owner, value, priority, nextSequence++);
+        final Layer<T, V> layer = new Layer<>(slot, owner, value, priority, nextSequence++);
         slot.add(layer);
         ScriptResourceTracker.track(new ScriptResourceTracker.Cleanup() {
-            public void run() { layer.remove(); }
+            public void run() {
+                layer.remove();
+            }
         });
         return layer;
+    }
+
+    private static synchronized <T, V> void remove(Layer<T, V> layer) {
+        Slot<T, V> slot = layer.slot;
+        slot.remove(layer);
+        if (slot.layers.isEmpty()) {
+            SLOTS.remove(slot.key);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T, V> Slot<T, V> getSlot(String key, T target) {
+        Slot<?, ?> slot = SLOTS.get(key);
+        if (slot != null && slot.target != target) {
+            throw new IllegalStateException("Override property key refers to multiple resource instances: " + key);
+        }
+        return (Slot<T, V>) slot;
     }
 }
