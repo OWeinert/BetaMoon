@@ -5,9 +5,8 @@
 Compared with **0.5.0 at the previous `main` tip, `cf8ab67`**, through the 0.6.0 development
 tip, `b3c002d`. [Full code comparison](https://github.com/OWeinert/BetaMoon/compare/cf8ab67f47a3db7596026259c6c9ed233694edb8...b3c002d5c9fb66f435030bddb2b1d31298077405).
 
-BetaMoon 0.6.0 introduces a declarative Lua API, script hot reload, interactive block and
+BetaMoon 0.6.0 introduces a new declarative Lua API, script hot reload, interactive block and
 item behavior, and persistent machines with custom recipes and container screens.
-Minecraft Beta 1.7.3 and Java 8 remain the target runtime.
 
 ### Upgrading from 0.5.0
 
@@ -36,6 +35,8 @@ restart after changes. See [reload and compatibility](https://github.com/OWeiner
 
 ### Script lifecycle and shared APIs
 
+- Changed most content related APIs to declarative programming style.
+  See the [documentation](https://github.com/OWeinert/BetaMoon/wiki/API-Documentation) for full information on the new APIs.
 - Added automatic hot reload after script changes settle, manual reload controls,
   `modUnload()` and `modReload()` hooks, and visible reload/restart status.
 - Added ownership tracking and cleanup for subscriptions, overrides, module exports and
@@ -47,7 +48,7 @@ restart after changes. See [reload and compatibility](https://github.com/OWeiner
 - Added resource references, detached stack descriptions, position helpers, registry
   lookups, search criteria and result-list helpers.
 - Added conditional and prioritized override layers, removable handles, bulk overrides,
-  and callback overrides with access to original behavior through `ctx:base()`.
+  and callback overrides.
 - Added read-only named Minecraft constants through `betamoon.mc`, plus biome tree-mode
   constants through `betamoon.worldgen.treeModes`.
 
@@ -99,9 +100,6 @@ restart after changes. See [reload and compatibility](https://github.com/OWeiner
   harvesting, redstone, display callbacks and texture resources.
 - Added an in-game Scripts screen, reload/restart indicators and a copyable agent
   argument in the agent warning.
-- Reworked BetaMoon's menus into reusable GUI components with shared layout and input
-  routing. Improved the pause-menu Scripts button, long-name trimming and full-name
-  hover display.
 - Extended debug exports with recipe-type schemas and formatting for custom recipes,
   role values and item stacks.
 
@@ -113,9 +111,5 @@ restart after changes. See [reload and compatibility](https://github.com/OWeiner
   getting-started guide and an index of the example scripts.
 - Reorganized the examples into **62 Lua files** across beginner, intermediate and
   advanced lessons, including storage, furnaces, redstone, GUI and custom-matcher examples.
-- Added showcase image assets and an explicit MIT license for those PNGs. BetaMoon
-  remains MIT-licensed.
 - Added regression coverage for Lua examples, block/item behavior, tile persistence,
   recipe processing, loader cleanup, events, instrumentation, GUI behavior and exports.
-- Applied Java 8 source conventions, typed collections, defensive definition copies,
-  and clearer separation of declarations, registries, contexts and runtime policies.
