@@ -3,12 +3,11 @@ package betamoon.gui;
 import betamoon.debug.DebugExports;
 import betamoon.gui.api.component.GuiActionButton;
 import betamoon.gui.api.component.GuiTextFileLink;
-import betamoon.gui.api.util.GuiColors;
 import betamoon.gui.api.screen.GuiScreenPopup;
+import betamoon.gui.api.util.GuiColors;
 import betamoon.gui.api.util.GuiText;
 import java.io.File;
 import net.minecraft.src.FontRenderer;
-
 import net.minecraft.src.GuiScreen;
 
 public class GuiPopupDebugExport extends GuiScreenPopup {
@@ -34,7 +33,8 @@ public class GuiPopupDebugExport extends GuiScreenPopup {
             this.exportPath = "";
             this.showPath = false;
         }
-        closeButton = new GuiActionButton("Close", () -> GuiPopupDebugExport.this.showScreen(GuiPopupDebugExport.this.parent));
+        closeButton = new GuiActionButton("Close",
+                () -> GuiPopupDebugExport.this.showScreen(GuiPopupDebugExport.this.parent));
     }
 
     @Override
@@ -87,6 +87,7 @@ public class GuiPopupDebugExport extends GuiScreenPopup {
             this.screenHeight = screenHeight;
         }
 
+        @Override
         public void draw(FontRenderer font, int mouseX, int mouseY, float partialTicks) {
             if (font == null) {
                 return;
@@ -109,6 +110,7 @@ public class GuiPopupDebugExport extends GuiScreenPopup {
             }
         }
 
+        @Override
         public boolean mouseClicked(int mouseX, int mouseY, int button) {
             return pathLink.mouseClicked(mouseX, mouseY, button);
         }

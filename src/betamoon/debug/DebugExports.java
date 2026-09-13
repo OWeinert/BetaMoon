@@ -8,12 +8,16 @@ public final class DebugExports {
     }
 
     /**
-     * Exports recipes, blocks, and items in sequence.
+     * Exports recipe types, recipes, blocks, and items in sequence.
      *
      * @return first exception encountered or null on success
      */
     public static Exception exportAll() {
-        Exception error = DebugRecipeExporter.exportRecipes();
+        Exception error = DebugRecipeTypeExporter.exportRecipeTypes();
+        if (error != null) {
+            return error;
+        }
+        error = DebugRecipeExporter.exportRecipes();
         if (error != null) {
             return error;
         }
@@ -22,6 +26,15 @@ public final class DebugExports {
             return error;
         }
         return DebugItemExporter.exportItems();
+    }
+
+    /**
+     * Exports recipe type schemas into the debug recipe types file.
+     *
+     * @return exception when export fails, otherwise null
+     */
+    public static Exception exportRecipeTypes() {
+        return DebugRecipeTypeExporter.exportRecipeTypes();
     }
 
     /**

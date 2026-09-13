@@ -7,6 +7,7 @@ import net.minecraft.src.GuiScreen;
 
 public class GuiPopupDebugMenu extends GuiScreenPopup {
     private final GuiActionButton exportAllButton;
+    private final GuiActionButton exportRecipeTypesButton;
     private final GuiActionButton exportRecipesButton;
     private final GuiActionButton exportBlocksButton;
     private final GuiActionButton exportItemsButton;
@@ -16,6 +17,10 @@ public class GuiPopupDebugMenu extends GuiScreenPopup {
         super(parent);
         exportAllButton = new GuiActionButton("Export All", () -> {
             Exception error = DebugExports.exportAll();
+            GuiPopupDebugMenu.this.showScreen(new GuiPopupDebugExport(GuiPopupDebugMenu.this, error));
+        });
+        exportRecipeTypesButton = new GuiActionButton("Export Recipe Types", () -> {
+            Exception error = DebugExports.exportRecipeTypes();
             GuiPopupDebugMenu.this.showScreen(new GuiPopupDebugExport(GuiPopupDebugMenu.this, error));
         });
         exportRecipesButton = new GuiActionButton("Export Recipes", () -> {
@@ -30,17 +35,20 @@ public class GuiPopupDebugMenu extends GuiScreenPopup {
             Exception error = DebugExports.exportItems();
             GuiPopupDebugMenu.this.showScreen(new GuiPopupDebugExport(GuiPopupDebugMenu.this, error));
         });
-        closeButton = new GuiActionButton("Close", () -> GuiPopupDebugMenu.this.showScreen(GuiPopupDebugMenu.this.parent));
+        closeButton = new GuiActionButton("Close",
+                () -> GuiPopupDebugMenu.this.showScreen(GuiPopupDebugMenu.this.parent));
     }
 
     @Override
     protected void initPopupGui() {
         exportAllButton.setMinecraft(this.mc);
+        exportRecipeTypesButton.setMinecraft(this.mc);
         exportRecipesButton.setMinecraft(this.mc);
         exportBlocksButton.setMinecraft(this.mc);
         exportItemsButton.setMinecraft(this.mc);
         closeButton.setMinecraft(this.mc);
         popupRoot.addChild(exportAllButton);
+        popupRoot.addChild(exportRecipeTypesButton);
         popupRoot.addChild(exportRecipesButton);
         popupRoot.addChild(exportBlocksButton);
         popupRoot.addChild(exportItemsButton);
@@ -56,6 +64,8 @@ public class GuiPopupDebugMenu extends GuiScreenPopup {
         int buttonGap = 6;
 
         exportAllButton.setBounds(buttonX, buttonY, buttonX + buttonWidth, buttonY + buttonHeight);
+        buttonY += buttonHeight + buttonGap;
+        exportRecipeTypesButton.setBounds(buttonX, buttonY, buttonX + buttonWidth, buttonY + buttonHeight);
         buttonY += buttonHeight + buttonGap;
         exportRecipesButton.setBounds(buttonX, buttonY, buttonX + buttonWidth, buttonY + buttonHeight);
         buttonY += buttonHeight + buttonGap;
