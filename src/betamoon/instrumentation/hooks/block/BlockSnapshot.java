@@ -3,7 +3,10 @@ package betamoon.instrumentation.hooks.block;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.World;
 
-/** Original block state retained across a block-removal or placement method call. */
+/**
+ * Original block state retained across a block-removal or placement method
+ * call.
+ */
 public final class BlockSnapshot {
     private final Minecraft minecraft;
     private final World world;
@@ -14,8 +17,7 @@ public final class BlockSnapshot {
     private final int blockId;
     private final int blockMeta;
 
-    BlockSnapshot(Minecraft minecraft, World world, int x, int y, int z, int side,
-        int blockId, int blockMeta) {
+    BlockSnapshot(Minecraft minecraft, World world, int x, int y, int z, int side, int blockId, int blockMeta) {
         this.minecraft = minecraft;
         this.world = world;
         this.x = x;

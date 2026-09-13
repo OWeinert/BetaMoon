@@ -11,16 +11,15 @@ public final class BlockPlacedCallbacks {
     private BlockPlacedCallbacks() {
     }
 
-    public static BlockSnapshot beforeBlockPlaced(Minecraft minecraft, World world,
-        int x, int y, int z, int side) {
+    public static BlockSnapshot beforeBlockPlaced(Minecraft minecraft, World world, int x, int y, int z, int side) {
         if (minecraft == null || world == null) {
             return null;
         }
         try {
             int[] target = offsetBySide(x, y, z, side);
             return new BlockSnapshot(minecraft, world, target[0], target[1], target[2], side,
-                world.getBlockId(target[0], target[1], target[2]),
-                world.getBlockMetadata(target[0], target[1], target[2]));
+                    world.getBlockId(target[0], target[1], target[2]),
+                    world.getBlockMetadata(target[0], target[1], target[2]));
         } catch (RuntimeException error) {
             BetaMoonMain.LOGGER.warning("Block-placement capture failed: " + error);
             return null;
@@ -35,12 +34,11 @@ public final class BlockPlacedCallbacks {
             World world = snapshot.getWorld();
             int blockId = world.getBlockId(snapshot.getX(), snapshot.getY(), snapshot.getZ());
             int blockMeta = world.getBlockMetadata(snapshot.getX(), snapshot.getY(), snapshot.getZ());
-            if (blockId <= 0 || blockId == snapshot.getBlockId()
-                && blockMeta == snapshot.getBlockMeta()) {
+            if (blockId <= 0 || blockId == snapshot.getBlockId() && blockMeta == snapshot.getBlockMeta()) {
                 return;
             }
-            Events.BLOCK_PLACED.publish(new BlockEventCtx(snapshot.getMinecraft(), world,
-                snapshot.getX(), snapshot.getY(), snapshot.getZ(), snapshot.getSide(), blockId, blockMeta));
+            Events.BLOCK_PLACED.publish(new BlockEventCtx(snapshot.getMinecraft(), world, snapshot.getX(),
+                    snapshot.getY(), snapshot.getZ(), snapshot.getSide(), blockId, blockMeta));
         } catch (RuntimeException error) {
             BetaMoonMain.LOGGER.warning("Block-placed hook listener failed: " + error);
         }
@@ -69,6 +67,6 @@ public final class BlockPlacedCallbacks {
             default:
                 break;
         }
-        return new int[] {x, y, z};
+        return new int[]{x, y, z};
     }
 }

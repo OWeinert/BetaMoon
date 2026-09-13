@@ -8,10 +8,10 @@ import betamoon.instrumentation.api.MethodRef;
 final class BlockHookTargets {
     static final ClassRef PLAYER_CONTROLLER = new ClassRef("net/minecraft/src/PlayerController");
     static final FieldRef PLAYER_CONTROLLER_MC = new FieldRef(PLAYER_CONTROLLER, "mc",
-        "Lnet/minecraft/client/Minecraft;");
+            "Lnet/minecraft/client/Minecraft;");
     static final MethodRef SEND_BLOCK_REMOVED = new MethodRef(PLAYER_CONTROLLER, "sendBlockRemoved", "(IIII)Z");
     static final MethodRef SEND_PLACE_BLOCK = new MethodRef(PLAYER_CONTROLLER, "sendPlaceBlock",
-        "(Lnet/minecraft/src/EntityPlayer;Lnet/minecraft/src/World;Lnet/minecraft/src/ItemStack;IIII)Z");
+            "(Lnet/minecraft/src/EntityPlayer;Lnet/minecraft/src/World;Lnet/minecraft/src/ItemStack;IIII)Z");
 
     private BlockHookTargets() {
     }
