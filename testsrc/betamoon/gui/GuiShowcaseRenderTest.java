@@ -1,10 +1,16 @@
 package betamoon.gui;
 
-import betamoon.gui.api.component.GuiTextClickable;
-import betamoon.gui.api.util.GuiText;
-import betamoon.gui.api.util.GuiUtils;
+import betamoon.gui.framework.GuiContainer;
+import betamoon.gui.framework.GuiContext;
+import betamoon.gui.framework.GuiGeometry.Rect;
+import betamoon.gui.framework.GuiRenderer;
+import betamoon.gui.framework.GuiScene;
+import betamoon.gui.framework.GuiTextureCache;
+import betamoon.gui.widget.GuiIcon;
 import betamoon.io.IoUtils;
+import betamoon.luaapi.minecraft.MinecraftApi;
 import betamoon.luaapi.tileentity.TileEntityApi;
+import betamoon.luamodloader.NonReloadableScriptRegistry;
 import betamoon.luamodloader.LuaScriptErrors;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptMod;
@@ -18,10 +24,10 @@ import java.io.File;
 import java.io.FileReader;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -37,6 +43,7 @@ import net.minecraft.src.GuiScreen;
 import net.minecraft.src.InventoryPlayer;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.RenderEngine;
+import net.minecraft.src.Tessellator;
 import net.minecraft.src.UnexpectedThrowable;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaTable;
@@ -77,6 +84,7 @@ public final class GuiShowcaseRenderTest {
         Globals globals = JsePlatform.standardGlobals();
         LuaTable api = new LuaTable();
         TileEntityApi.attach(api);
+        MinecraftApi.attach(api);
         globals.set("betamoon", api);
         // Block/item/recipe registration needs a running ModLoader client. Capture
         // those calls, while parsing tile, container and GUI definitions unchanged.
@@ -118,13 +126,19 @@ public final class GuiShowcaseRenderTest {
             GameSettings settings = new GameSettings();
             AssetEngine engine = new AssetEngine(settings);
             FontRenderer font = new FontRenderer(settings, "/font/default.png", engine);
+            Minecraft minecraft = new TestMinecraft();
+            minecraft.gameSettings = settings;
+            minecraft.renderEngine = engine;
+            minecraft.fontRenderer = font;
             verifyIssueLayout(font);
+            verifyTextureRenderState(minecraft, font);
+            renderFrameworkScreens(minecraft, font, output);
             setupFrame();
             GL11.glEnable(GL11.GL_LIGHTING);
             GL11.glEnable(GL11.GL_DEPTH_TEST);
             GL11.glDepthFunc(GL11.GL_LESS);
             GL11.glBindTexture(GL11.GL_TEXTURE_2D, 0);
-            GuiText.drawTooltipLines(font, 320, 240, Arrays.asList("Visible tooltip", "Second line"), 20, 20);
+            GuiRenderer.drawTooltipLines(font, 320, 240, Arrays.asList("Visible tooltip", "Second line"), 20, 20);
             require(GL11.glIsEnabled(GL11.GL_LIGHTING) && GL11.glIsEnabled(GL11.GL_DEPTH_TEST)
                     && GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK) && GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D) == 0,
                     "Tooltip leaked render state");
@@ -139,13 +153,10 @@ public final class GuiShowcaseRenderTest {
             GL11.glEnable(GL11.GL_LIGHTING);
             GL11.glEnable(GL11.GL_DEPTH_TEST);
             GL11.glDepthFunc(GL11.GL_LESS);
-            GuiUtils.drawRect(32, 28, 160, 54, 0xF0100010);
+            drawLegacyStateLeakingRect(32, 28, 160, 54, 0xF0100010);
             font.drawStringWithShadow("Visible tooltip", 36, 32, 0xFFFFFF);
             require(whitePixels(capture(), 36, 32, 120, 8) == 0, "Regression setup did not reproduce missing text");
 
-            Minecraft minecraft = new TestMinecraft();
-            minecraft.gameSettings = settings;
-            minecraft.renderEngine = engine;
             GuiLuaContainer gui = new GuiLuaContainer(new InventoryPlayer(null), entity, definition);
             setField(GuiScreen.class, gui, "mc", minecraft);
             setField(GuiScreen.class, gui, "fontRenderer", font);
@@ -178,7 +189,8 @@ public final class GuiShowcaseRenderTest {
             }
             require(GL11.glGetError() == GL11.GL_NO_ERROR, "OpenGL error during showcase rendering");
             System.out.println(
-                    "Showcase parsed; 640 ticks and four selectors passed; tooltip glyphs and GL state verified; four pages rendered.");
+                    "Showcase parsed; 640 ticks and four selectors passed; framework screens, tooltip state and four "
+                            + "GUI pages rendered.");
         } finally {
             buffer.destroy();
         }
@@ -195,40 +207,108 @@ public final class GuiShowcaseRenderTest {
             require(layout.getHeight() == entries.get(0).getHeight() + 10 + entries.get(1).getHeight(),
                     "Issue list height must use the prepared entry heights and gap");
 
-            setupFrame();
-            GuiTextClickable helper = new GuiTextClickable();
-            List<GuiTextClickable> links = new ArrayList<>();
-            int y = 10;
-            for (int i = 0; i < entries.size(); i++) {
-                GuiIssueLayout.Entry entry = entries.get(i);
-                int drawnHeight = entry.draw(font, helper, links, 10, y, 80, 320, 240, 0xFFFFFF, 0, 0, 0.0F);
-                require(drawnHeight == entry.getHeight(),
-                        "Issue drawing must advance by the exact prepared measurement");
-                y += drawnHeight + 10;
-            }
-            require(links.size() == 2, "Every source location must register one matching input target");
-
             ScriptMod selected = LuaScriptRegistry.updateParsed("broken.lua", "broken",
                     Collections.singletonList("missing"), LuaValue.NIL, LuaValue.NIL, LuaValue.NIL,
                     "A long description that wraps consistently while the details panel is scrolled.", "1.0.0", null);
             LuaScriptRegistry.markFailedByFile("broken.lua", "Fallback failure text");
-            GuiPanelScriptInfo infoPanel = new GuiPanelScriptInfo();
-            infoPanel.setBounds(10, 35, 155, 150);
-            infoPanel.setHeaderY(12);
-            infoPanel.setSelected(selected);
-            infoPanel.setDisplayMetrics(320, 240, 320, 240);
-            infoPanel.layout(320, 240);
-            infoPanel.draw(font, 0, 0, 0.0F);
-
-            GuiPanelScriptErrorList errorPanel = new GuiPanelScriptErrorList();
-            errorPanel.setBounds(165, 10, 310, 150);
-            errorPanel.setDisplayMetrics(320, 240, 320, 240);
-            errorPanel.layout(320, 240);
-            errorPanel.draw(font, 0, 0, 0.0F);
+            setupFrame();
+            GuiScene scene = new GuiScene();
+            scene.setContent(new IssuePanelLayout(selected));
+            scene.updateEnvironment(null, font, 320, 240, 320, 240);
+            scene.render(0, 0, 0.0F);
             require(GL11.glGetError() == GL11.GL_NO_ERROR, "Prepared script issue panels produced an OpenGL error");
         } finally {
             LuaScriptErrors.clear();
             LuaScriptRegistry.clear();
+        }
+    }
+
+    private static void verifyTextureRenderState(Minecraft minecraft, FontRenderer font) {
+        setupFrame();
+        GL11.glEnable(GL11.GL_LIGHTING);
+        GL11.glEnable(GL11.GL_DEPTH_TEST);
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D, 0);
+        GuiScene scene = new GuiScene();
+        scene.setContent(new GuiIcon("/betamoon/gui/symbol_success.png"));
+        scene.updateEnvironment(minecraft, font, 320, 240, 320, 240);
+        scene.render(0, 0, 0.0F);
+        require(GL11.glIsEnabled(GL11.GL_LIGHTING) && GL11.glIsEnabled(GL11.GL_DEPTH_TEST)
+                && GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK) && GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D) == 0,
+                "Texture rendering leaked OpenGL state");
+    }
+
+    private static void renderFrameworkScreens(Minecraft minecraft, FontRenderer font, File output) throws Exception {
+        LuaScriptErrors.clear();
+        LuaScriptRegistry.clear();
+        String restartFile = "broken.lua";
+        try {
+            LuaScriptRegistry.updateParsed("loaded.lua", "Loaded Example", Collections.<String>emptyList(),
+                    LuaValue.NIL, LuaValue.NIL, LuaValue.NIL, "A successfully loaded script.", "1.2.3", null);
+            ScriptMod failed = LuaScriptRegistry.updateParsed(restartFile, "Broken Example",
+                    Collections.singletonList("missing_dependency"), LuaValue.NIL, LuaValue.NIL, LuaValue.NIL,
+                    "This script demonstrates failure and restart-required states.", "0.4.0", null);
+            LuaScriptRegistry.markFailedByFile(failed.getSourceFileName(), "A representative load failure.");
+            LuaScriptErrors.add(restartFile, restartFile + ":12 representative load failure");
+            LuaScriptErrors.addWarning("loaded.lua", "loaded.lua:5 representative warning");
+            NonReloadableScriptRegistry.mark(restartFile, "registered startup-only content");
+
+            GuiScreenScripts scripts = new GuiScreenScripts(new GuiScreen());
+            renderScreen(scripts, minecraft, output, "scripts-screen.png");
+            renderScreen(new GuiPopupDebugMenu(scripts), minecraft, output, "debug-menu.png");
+            renderScreen(new GuiPopupDebugExport(scripts, null), minecraft, output, "debug-export.png");
+            renderScreen(new GuiPopupScriptErrors(scripts), minecraft, output, "script-errors.png");
+            renderScreen(new GuiPopupAgentWarning(scripts), minecraft, output, "agent-warning.png");
+        } finally {
+            NonReloadableScriptRegistry.unmark(restartFile);
+            LuaScriptErrors.clear();
+            LuaScriptRegistry.clear();
+            GuiTextureCache.shared().clear();
+        }
+    }
+
+    private static void renderScreen(GuiScreen screen, Minecraft minecraft, File output, String fileName)
+            throws Exception {
+        screen.setWorldAndResolution(minecraft, 320, 240);
+        setupFrame();
+        screen.drawScreen(0, 0, 0.0F);
+        require(GL11.glGetError() == GL11.GL_NO_ERROR, fileName + " produced an OpenGL error");
+        ImageIO.write(capture(), "png", new File(output, fileName));
+    }
+
+    /** Recreates the old rectangle helper's leaked state for the regression setup above. */
+    private static void drawLegacyStateLeakingRect(int left, int top, int right, int bottom, int color) {
+        float alpha = (float) (color >> 24 & 255) / 255.0F;
+        float red = (float) (color >> 16 & 255) / 255.0F;
+        float green = (float) (color >> 8 & 255) / 255.0F;
+        float blue = (float) (color & 255) / 255.0F;
+        GL11.glEnable(GL11.GL_BLEND);
+        GL11.glDisable(GL11.GL_TEXTURE_2D);
+        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        GL11.glColor4f(red, green, blue, alpha);
+        Tessellator tessellator = Tessellator.instance;
+        tessellator.startDrawingQuads();
+        tessellator.addVertex(right, top, 0.0D);
+        tessellator.addVertex(left, top, 0.0D);
+        tessellator.addVertex(left, bottom, 0.0D);
+        tessellator.addVertex(right, bottom, 0.0D);
+        tessellator.draw();
+        GL11.glEnable(GL11.GL_TEXTURE_2D);
+        GL11.glDisable(GL11.GL_BLEND);
+    }
+
+    private static final class IssuePanelLayout extends GuiContainer {
+        private final GuiPanelScriptInfo infoPanel = add(new GuiPanelScriptInfo());
+        private final GuiPanelScriptErrorList errorPanel = add(new GuiPanelScriptErrorList());
+
+        private IssuePanelLayout(ScriptMod selected) {
+            infoPanel.setHeaderY(12);
+            infoPanel.setSelected(selected);
+        }
+
+        @Override
+        protected void arrangeChildren(GuiContext context) {
+            infoPanel.arrange(context, new Rect(10, 35, 155, 150));
+            errorPanel.arrange(context, new Rect(165, 10, 310, 150));
         }
     }
 
@@ -303,7 +383,14 @@ public final class GuiShowcaseRenderTest {
             try {
                 BufferedImage image = LuaTextureResources.load(path);
                 if (image == null) {
-                    image = ImageIO.read(RenderEngine.class.getResourceAsStream(path));
+                    URL resource = RenderEngine.class.getResource(path);
+                    if (resource == null && path.startsWith("/resources/")) {
+                        resource = RenderEngine.class.getResource(path.substring("/resources".length()));
+                    }
+                    if (resource == null) {
+                        throw new IllegalArgumentException("Missing texture resource: " + path);
+                    }
+                    image = ImageIO.read(resource);
                 }
                 int texture = allocateAndSetupTexture(image);
                 textures.put(path, texture);

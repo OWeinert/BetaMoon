@@ -1,118 +1,74 @@
 package betamoon.gui;
 
 import betamoon.debug.DebugExports;
-import betamoon.gui.api.component.GuiActionButton;
-import betamoon.gui.api.component.GuiTextFileLink;
-import betamoon.gui.api.screen.GuiScreenPopup;
-import betamoon.gui.api.util.GuiColors;
-import betamoon.gui.api.util.GuiText;
+import betamoon.gui.framework.GuiContainer;
+import betamoon.gui.framework.GuiContext;
+import betamoon.gui.framework.GuiDialogScreen;
+import betamoon.gui.framework.GuiGeometry.Rect;
+import betamoon.gui.widget.GuiButton;
+import betamoon.gui.widget.GuiDialog.FooterAlignment;
+import betamoon.gui.widget.GuiLink;
+import betamoon.io.IoUtils;
 import java.io.File;
-import net.minecraft.src.FontRenderer;
 import net.minecraft.src.GuiScreen;
 
-public class GuiPopupDebugExport extends GuiScreenPopup {
+/** Result dialog shown after a debug export finishes. */
+public final class GuiPopupDebugExport extends GuiDialogScreen {
     private static final String TOOLTIP_OPEN = "Open in File Explorer";
 
-    private final String title;
     private final String message;
     private final String exportPath;
     private final boolean showPath;
-    private final GuiActionButton closeButton;
-    private final PopupMessage messagePanel = new PopupMessage();
 
     public GuiPopupDebugExport(GuiScreen parent, Exception error) {
-        super(parent);
+        super(parent, error == null ? "Export Complete" : "Export Failed");
+
         if (error == null) {
-            this.title = "Export Complete";
-            this.message = "Files exported to:";
-            this.exportPath = DebugExports.getDebugDirPath();
-            this.showPath = true;
+            message = "Files exported to:";
+            exportPath = DebugExports.getDebugDirPath();
+            showPath = true;
         } else {
-            this.title = "Export Failed";
-            this.message = String.valueOf(error);
-            this.exportPath = "";
-            this.showPath = false;
-        }
-        closeButton = new GuiActionButton("Close",
-                () -> GuiPopupDebugExport.this.showScreen(GuiPopupDebugExport.this.parent));
-    }
-
-    @Override
-    protected void initPopupGui() {
-        closeButton.setMinecraft(this.mc);
-        popupRoot.addChild(closeButton);
-        popupRoot.addChild(messagePanel);
-        messagePanel.setTooltip(TOOLTIP_OPEN);
-    }
-
-    @Override
-    protected void layoutPopupComponents() {
-        int buttonWidth = 80;
-        int buttonX = panelLeft + panelWidth / 2 - buttonWidth / 2;
-        int buttonY = panelTop + panelHeight - 30;
-        closeButton.setBounds(buttonX, buttonY, buttonX + buttonWidth, buttonY + 20);
-        int contentLeft = panelLeft + 14;
-        int contentTop = panelTop + 36;
-        int contentRight = panelLeft + panelWidth - 14;
-        int contentBottom = buttonY - 6;
-        messagePanel.setBounds(contentLeft, contentTop, contentRight, contentBottom);
-        messagePanel.setScreenSize(this.width, this.height);
-    }
-
-    @Override
-    protected String getPopupTitle() {
-        return title;
-    }
-
-    @Override
-    protected int getMaxPanelHeight() {
-        return 140;
-    }
-
-    private final class PopupMessage extends betamoon.gui.api.component.GuiComponentBase {
-        private final GuiTextFileLink pathLink = new GuiTextFileLink();
-        private int screenWidth;
-        private int screenHeight;
-        private String tooltip;
-
-        PopupMessage() {
+            message = String.valueOf(error);
+            exportPath = "";
+            showPath = false;
         }
 
-        void setTooltip(String tooltip) {
-            this.tooltip = tooltip;
-        }
+        dialog.setPanelSize(360, 140, 0);
+        dialog.setBodyInsets(14, 36, 6);
+        dialog.setFooterLayout(FooterAlignment.CENTER, 0, 0, 80);
+        dialog.setBody(new ExportMessage());
+        dialog.addFooterButton(new GuiButton("Close", () -> showScreen(parent)));
+    }
 
-        void setScreenSize(int screenWidth, int screenHeight) {
-            this.screenWidth = screenWidth;
-            this.screenHeight = screenHeight;
+    private final class ExportMessage extends GuiContainer {
+        private final GuiLink pathLink = add(new GuiLink(() -> IoUtils.openPath(new File(exportPath))));
+
+        private ExportMessage() {
+            pathLink.setTooltip(TOOLTIP_OPEN);
+            pathLink.setVisible(showPath);
         }
 
         @Override
-        public void draw(FontRenderer font, int mouseX, int mouseY, float partialTicks) {
-            if (font == null) {
+        protected void arrangeChildren(GuiContext context) {
+            if (!showPath) {
                 return;
             }
-            int contentWidth = right - left;
-            if (showPath) {
-                font.drawStringWithShadow(message, left, top, GuiColors.TEXT_MUTED);
-                int textY = top + GuiText.getLineHeight(font) + 4;
-                String displayPath = GuiText.trimToWidth(font, exportPath, contentWidth);
-                int pathWidth = font.getStringWidth(displayPath);
-                int pathHeight = GuiText.getLineHeight(font);
-                pathLink.setText(displayPath);
-                pathLink.setPath(new File(exportPath));
-                pathLink.setBounds(left, textY, left + pathWidth, textY + pathHeight);
-                pathLink.setScreenSize(screenWidth, screenHeight);
-                pathLink.setTooltip(tooltip);
-                pathLink.draw(font, mouseX, mouseY, partialTicks);
-            } else {
-                font.func_27278_a(message, left, top, contentWidth, GuiColors.TEXT_MUTED);
-            }
+            int textY = getTop() + context.getRenderer().lineHeight() + 4;
+            String displayPath = context.getRenderer().trimToWidth(exportPath, getWidth());
+            pathLink.setText(displayPath);
+            pathLink.arrange(context, Rect.fromPositionAndSize(getLeft(), textY,
+                    context.getRenderer().textWidth(displayPath), context.getRenderer().lineHeight()));
         }
 
         @Override
-        public boolean mouseClicked(int mouseX, int mouseY, int button) {
-            return pathLink.mouseClicked(mouseX, mouseY, button);
+        protected void renderBeforeChildren(GuiContext context) {
+            if (showPath) {
+                context.getRenderer().drawText(message, getLeft(), getTop(),
+                        context.getRenderer().getTheme().textMuted);
+            } else {
+                context.getRenderer().drawWrappedText(message, getLeft(), getTop(), getWidth(),
+                        context.getRenderer().getTheme().textMuted);
+            }
         }
     }
 }

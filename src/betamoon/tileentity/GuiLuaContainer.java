@@ -1,6 +1,6 @@
 package betamoon.tileentity;
 
-import betamoon.gui.api.util.GuiText;
+import betamoon.gui.framework.GuiRenderer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -266,7 +266,7 @@ public final class GuiLuaContainer extends GuiContainer {
     }
 
     private void drawTooltip(List<String> lines, int mouseX, int mouseY) {
-        GuiText.drawTooltipLines(fontRenderer, width, height, lines, mouseX, mouseY);
+        GuiRenderer.drawTooltipLines(fontRenderer, width, height, lines, mouseX, mouseY);
     }
 
     private int elementWidth(ContainerGuiDefinition.Element element) {

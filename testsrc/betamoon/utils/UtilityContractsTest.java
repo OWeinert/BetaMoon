@@ -1,7 +1,6 @@
 package betamoon.utils;
 
 import betamoon.io.FileIo;
-import betamoon.gui.api.util.GuiUtils;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.utils.LuaDeclarationValues;
 import betamoon.query.RecipeQueryUtils;
@@ -30,7 +29,6 @@ public final class UtilityContractsTest {
         verifyKeyLayouts();
         verifyReflectionFallbacks();
         verifyRecipeInputDelegation();
-        verifyCompatibilityAlias();
         System.out.println("Utility contracts passed: files, Lua arguments, key layouts, reflection and recipes.");
     }
 
@@ -107,12 +105,6 @@ public final class UtilityContractsTest {
                 "One recipe input matched more than once");
         require(RecipeQueryUtils.getRecipeOutput(recipe).itemID == 3, "Typed recipe output lookup changed");
         require(RecipeQueryUtils.getRecipeOutput(new Object()) == null, "Unknown recipe output must remain absent");
-    }
-
-    @SuppressWarnings("deprecation")
-    private static void verifyCompatibilityAlias() {
-        require(GuiUtils.COLOR_LIST_SEPARATOR == GuiUtils.COLOR_LIST_SEPERATOR,
-                "Deprecated separator-color alias changed value");
     }
 
     public static final class ReflectionTarget {

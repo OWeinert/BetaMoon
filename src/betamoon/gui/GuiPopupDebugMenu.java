@@ -1,99 +1,51 @@
 package betamoon.gui;
 
 import betamoon.debug.DebugExports;
-import betamoon.gui.api.component.GuiActionButton;
-import betamoon.gui.api.screen.GuiScreenPopup;
+import betamoon.gui.framework.GuiDialogScreen;
+import betamoon.gui.framework.GuiLayouts;
+import betamoon.gui.framework.GuiLayouts.Axis;
+import betamoon.gui.framework.GuiLayouts.Length;
+import betamoon.gui.widget.GuiButton;
+import betamoon.gui.widget.GuiDialog.FooterAlignment;
 import net.minecraft.src.GuiScreen;
 
-public class GuiPopupDebugMenu extends GuiScreenPopup {
-    private final GuiActionButton exportAllButton;
-    private final GuiActionButton exportRecipeTypesButton;
-    private final GuiActionButton exportRecipesButton;
-    private final GuiActionButton exportBlocksButton;
-    private final GuiActionButton exportItemsButton;
-    private final GuiActionButton closeButton;
-
+/** Dialog that exposes BetaMoon's development data exporters. */
+public final class GuiPopupDebugMenu extends GuiDialogScreen {
     public GuiPopupDebugMenu(GuiScreen parent) {
-        super(parent);
-        exportAllButton = new GuiActionButton("Export All", () -> {
-            Exception error = DebugExports.exportAll();
-            GuiPopupDebugMenu.this.showScreen(new GuiPopupDebugExport(GuiPopupDebugMenu.this, error));
+        super(parent, "Debug Menu");
+
+        dialog.setPanelSize(260, 200, 0);
+        dialog.setScreenMargins(60, 80);
+        dialog.setBodyInsets(20, 30, 8);
+        dialog.setFooterLayout(FooterAlignment.FILL, 20, 0, 0);
+        dialog.setBody(createExportButtons());
+        dialog.addFooterButton(new GuiButton("Close", () -> showScreen(parent)));
+    }
+
+    private GuiLayouts.Stack createExportButtons() {
+        GuiLayouts.Stack buttons = new GuiLayouts.Stack(Axis.VERTICAL);
+        buttons.setGap(6);
+        buttons.addItem(exportButton("Export All", () -> DebugExports.exportAll()), Length.fill(), Length.fixed(20));
+        buttons.addItem(exportButton("Export Recipe Types", () -> DebugExports.exportRecipeTypes()), Length.fill(),
+                Length.fixed(20));
+        buttons.addItem(exportButton("Export Recipes", () -> DebugExports.exportRecipes()), Length.fill(),
+                Length.fixed(20));
+        buttons.addItem(exportButton("Export Blocks", () -> DebugExports.exportBlocks()), Length.fill(),
+                Length.fixed(20));
+        buttons.addItem(exportButton("Export Items", () -> DebugExports.exportItems()), Length.fill(),
+                Length.fixed(20));
+        return buttons;
+    }
+
+    private GuiButton exportButton(String label, ExportAction action) {
+        return new GuiButton(label, () -> {
+            Exception error = action.export();
+            showScreen(new GuiPopupDebugExport(this, error));
         });
-        exportRecipeTypesButton = new GuiActionButton("Export Recipe Types", () -> {
-            Exception error = DebugExports.exportRecipeTypes();
-            GuiPopupDebugMenu.this.showScreen(new GuiPopupDebugExport(GuiPopupDebugMenu.this, error));
-        });
-        exportRecipesButton = new GuiActionButton("Export Recipes", () -> {
-            Exception error = DebugExports.exportRecipes();
-            GuiPopupDebugMenu.this.showScreen(new GuiPopupDebugExport(GuiPopupDebugMenu.this, error));
-        });
-        exportBlocksButton = new GuiActionButton("Export Blocks", () -> {
-            Exception error = DebugExports.exportBlocks();
-            GuiPopupDebugMenu.this.showScreen(new GuiPopupDebugExport(GuiPopupDebugMenu.this, error));
-        });
-        exportItemsButton = new GuiActionButton("Export Items", () -> {
-            Exception error = DebugExports.exportItems();
-            GuiPopupDebugMenu.this.showScreen(new GuiPopupDebugExport(GuiPopupDebugMenu.this, error));
-        });
-        closeButton = new GuiActionButton("Close",
-                () -> GuiPopupDebugMenu.this.showScreen(GuiPopupDebugMenu.this.parent));
     }
 
-    @Override
-    protected void initPopupGui() {
-        exportAllButton.setMinecraft(this.mc);
-        exportRecipeTypesButton.setMinecraft(this.mc);
-        exportRecipesButton.setMinecraft(this.mc);
-        exportBlocksButton.setMinecraft(this.mc);
-        exportItemsButton.setMinecraft(this.mc);
-        closeButton.setMinecraft(this.mc);
-        popupRoot.addChild(exportAllButton);
-        popupRoot.addChild(exportRecipeTypesButton);
-        popupRoot.addChild(exportRecipesButton);
-        popupRoot.addChild(exportBlocksButton);
-        popupRoot.addChild(exportItemsButton);
-        popupRoot.addChild(closeButton);
+    @FunctionalInterface
+    private interface ExportAction {
+        Exception export();
     }
-
-    @Override
-    protected void layoutPopupComponents() {
-        int buttonWidth = panelWidth - 40;
-        int buttonX = panelLeft + 20;
-        int buttonY = panelTop + 30;
-        int buttonHeight = 20;
-        int buttonGap = 6;
-
-        exportAllButton.setBounds(buttonX, buttonY, buttonX + buttonWidth, buttonY + buttonHeight);
-        buttonY += buttonHeight + buttonGap;
-        exportRecipeTypesButton.setBounds(buttonX, buttonY, buttonX + buttonWidth, buttonY + buttonHeight);
-        buttonY += buttonHeight + buttonGap;
-        exportRecipesButton.setBounds(buttonX, buttonY, buttonX + buttonWidth, buttonY + buttonHeight);
-        buttonY += buttonHeight + buttonGap;
-        exportBlocksButton.setBounds(buttonX, buttonY, buttonX + buttonWidth, buttonY + buttonHeight);
-        buttonY += buttonHeight + buttonGap;
-        exportItemsButton.setBounds(buttonX, buttonY, buttonX + buttonWidth, buttonY + buttonHeight);
-        int closeY = panelTop + panelHeight - 30;
-        closeButton.setBounds(buttonX, closeY, buttonX + buttonWidth, closeY + buttonHeight);
-    }
-
-    @Override
-    protected String getPopupTitle() {
-        return "Debug Menu";
-    }
-
-    @Override
-    protected int getMaxPanelWidth() {
-        return 260;
-    }
-
-    @Override
-    protected int getMaxPanelHeight() {
-        return 200;
-    }
-
-    @Override
-    protected int getPanelHorizontalMargin() {
-        return 60;
-    }
-
 }
