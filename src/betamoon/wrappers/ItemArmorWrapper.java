@@ -1,28 +1,45 @@
 package betamoon.wrappers;
 
+import betamoon.BetaMoonMain;
+import betamoon.luaapi.item.ItemBehavior;
+import betamoon.luaapi.item.ItemCallback;
+import betamoon.luaapi.item.ItemCallbackRegistry;
+import betamoon.luaapi.utils.InteractionOutcome;
+import betamoon.resources.LuaTextureResources;
 import forge.IArmorTextureProvider;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.logging.Level;
-import betamoon.BetaMoonMain;
+import java.util.logging.Logger;
+import net.minecraft.src.Block;
+import net.minecraft.src.Entity;
+import net.minecraft.src.EntityLiving;
+import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.ItemArmor;
+import net.minecraft.src.ItemStack;
 import net.minecraft.src.RenderPlayer;
-import betamoon.resources.LuaTextureResources;
+import net.minecraft.src.World;
 
 public class ItemArmorWrapper extends ItemArmor implements IArmorTextureProvider {
-    private static final java.util.logging.Logger LOGGER = BetaMoonMain.LOGGER;
+    private static final Logger LOGGER = BetaMoonMain.LOGGER;
     private static Field RENDER_INDEX_FIELD = resolveRenderIndexField();
     private int armorRenderIndex;
     private String customArmorTexture;
 
     /**
-     * Creates an armor wrapper with the provided id, material, render index, slot type, and internal name.
+     * Creates an armor wrapper with the provided id, material, render index, slot
+     * type, and internal name.
      *
-     * @param id numeric item id (unshifted)
-     * @param material armor material index
-     * @param renderIndex armor render index
-     * @param armorType armor slot type (0-3)
-     * @param name internal armor name (unlocalized)
+     * @param id
+     *            numeric item id (unshifted)
+     * @param material
+     *            armor material index
+     * @param renderIndex
+     *            armor render index
+     * @param armorType
+     *            armor slot type (0-3)
+     * @param name
+     *            internal armor name (unlocalized)
      */
     public ItemArmorWrapper(int id, int material, int renderIndex, int armorType, String name) {
         super(id, material, renderIndex, armorType);
@@ -34,7 +51,8 @@ public class ItemArmorWrapper extends ItemArmor implements IArmorTextureProvider
     /**
      * Overrides the armor render index to use a vanilla armor texture prefix.
      *
-     * @param renderIndex armor render index (0+)
+     * @param renderIndex
+     *            armor render index (0+)
      * @return this wrapper for chaining
      */
     public ItemArmorWrapper setRenderIndex(int renderIndex) {
@@ -68,14 +86,17 @@ public class ItemArmorWrapper extends ItemArmor implements IArmorTextureProvider
     }
 
     /**
-     * Selects a standalone texture for the armor model. This deliberately bypasses renderIndex.
+     * Selects a standalone texture for the armor model. This deliberately bypasses
+     * renderIndex.
      *
-     * @param texture virtual texture resource path
+     * @param texture
+     *            virtual texture resource path
      * @return this wrapper for chaining
      */
     public ItemArmorWrapper setArmorTexture(String texture) {
         if (texture != null && texture.equals(this.customArmorTexture)) {
-            // register() acquired another reference for the same resource; balance it immediately.
+            // register() acquired another reference for the same resource; balance it
+            // immediately.
             LuaTextureResources.release(texture);
             return this;
         }
@@ -84,7 +105,10 @@ public class ItemArmorWrapper extends ItemArmor implements IArmorTextureProvider
         return this;
     }
 
-    /** Clears a custom model texture while retaining the current vanilla render index. */
+    /**
+     * Clears a custom model texture while retaining the current vanilla render
+     * index.
+     */
     public ItemArmorWrapper useVanillaArmorTexture() {
         LuaTextureResources.release(this.customArmorTexture);
         this.customArmorTexture = null;
@@ -94,7 +118,8 @@ public class ItemArmorWrapper extends ItemArmor implements IArmorTextureProvider
     /**
      * Resolves the vanilla armor texture base name for a render index.
      *
-     * @param index vanilla render index
+     * @param index
+     *            vanilla render index
      * @return texture base name (e.g. "iron")
      */
     private static String resolveArmorTextureName(int index) {
@@ -119,18 +144,13 @@ public class ItemArmorWrapper extends ItemArmor implements IArmorTextureProvider
     }
 
     /**
-     * Attempts to resolve the render index field across mapped and obfuscated names.
+     * Attempts to resolve the render index field across mapped and obfuscated
+     * names.
      *
      * @return resolved field or null when unavailable
      */
     private static Field resolveRenderIndexField() {
-        final String[] candidates = new String[] {
-            "renderIndex",
-            "field_77883_b",
-            "b",
-            "c",
-            "d"
-        };
+        final String[] candidates = new String[]{"renderIndex", "field_77883_b", "b", "c", "d"};
         for (int i = 0; i < candidates.length; i++) {
             Field field = tryResolveRenderIndexField(candidates[i]);
             if (field != null) {
@@ -143,7 +163,8 @@ public class ItemArmorWrapper extends ItemArmor implements IArmorTextureProvider
     /**
      * Resolves and prepares a render index field by name.
      *
-     * @param name candidate field name
+     * @param name
+     *            candidate field name
      * @return prepared field or null
      */
     private static Field tryResolveRenderIndexField(String name) {
@@ -162,4 +183,60 @@ public class ItemArmorWrapper extends ItemArmor implements IArmorTextureProvider
         }
     }
 
+    @Override
+    public int getIconFromDamage(int metadata) {
+        return ItemBehavior.icon(shiftedIndex, metadata, () -> super.getIconFromDamage(metadata));
+    }
+
+    @Override
+    public int getColorFromDamage(int metadata) {
+        return ItemBehavior.color(shiftedIndex, metadata, () -> super.getColorFromDamage(metadata));
+    }
+
+    public boolean onItemUseFirst(ItemStack stack, EntityPlayer player, World world, int x, int y, int z, int side) {
+        return ItemCallbackRegistry.interact(ItemCallback.USE_FIRST, stack, player, world, x, y, z, side,
+                null) != InteractionOutcome.PASS;
+    }
+
+    public boolean onItemUse(ItemStack stack, EntityPlayer player, World world, int x, int y, int z, int side) {
+        InteractionOutcome result = ItemCallbackRegistry.interact(ItemCallback.USE_ON_BLOCK, stack, player, world, x, y,
+                z, side, null);
+        return result != InteractionOutcome.PASS || super.onItemUse(stack, player, world, x, y, z, side);
+    }
+
+    @Override
+    public ItemStack onItemRightClick(ItemStack stack, World world, EntityPlayer player) {
+        return ItemBehavior.use(stack, world, player, () -> super.onItemRightClick(stack, world, player));
+    }
+
+    @Override
+    public void onUpdate(ItemStack stack, World world, Entity entity, int slot, boolean selected) {
+        super.onUpdate(stack, world, entity, slot, selected);
+        ItemBehavior.inventoryTick(stack, world, entity, slot, selected);
+    }
+
+    @Override
+    public void onCreated(ItemStack stack, World world, EntityPlayer player) {
+        super.onCreated(stack, world, player);
+        ItemBehavior.crafted(stack, world, player);
+    }
+
+    @Override
+    public boolean hitEntity(ItemStack stack, EntityLiving target, EntityLiving attacker) {
+        return ItemBehavior.hit(shiftedIndex, stack, target, attacker, () -> super.hitEntity(stack, target, attacker));
+    }
+
+    @Override
+    public boolean onBlockDestroyed(ItemStack stack, int id, int x, int y, int z, EntityLiving entity) {
+        return ItemBehavior.destroyedBlock(shiftedIndex, stack, x, y, z, entity,
+                () -> super.onBlockDestroyed(stack, id, x, y, z, entity));
+    }
+
+    public boolean canHarvestBlock(Block block) {
+        return ItemCallbackRegistry.canHarvest(shiftedIndex, block, 0, super.canHarvestBlock(block));
+    }
+
+    public float getStrVsBlock(ItemStack stack, Block block, int metadata) {
+        return ItemCallbackRegistry.miningSpeed(stack, block, metadata, super.getStrVsBlock(stack, block, metadata));
+    }
 }
