@@ -196,7 +196,7 @@ final class GuiPanelScriptList extends GuiContainer {
                     context.getRenderer().drawRect(getLeft() + 1, y - 1, listContentRight - 1,
                             y + blockHeight - 1, context.getRenderer().getTheme().listHoverBackground);
                 }
-                int textHeight = context.getRenderer().wrappedTextHeight(displayName, Math.max(0, nameWidth));
+                int textHeight = context.getRenderer().lineHeight();
                 int textY = y + (blockHeight - textHeight) / 2;
                 if (restartRequired) {
                     int iconY = y + (blockHeight - WARNING_SIZE - 2) / 2;
@@ -204,7 +204,7 @@ final class GuiPanelScriptList extends GuiContainer {
                             Rect.fromPositionAndSize(getLeft() + 4, iconY, WARNING_SIZE, WARNING_SIZE));
                     indicator.render(context);
                 }
-                context.getRenderer().drawWrappedText(displayName, nameLeft, textY, nameWidth, color);
+                context.getRenderer().drawText(displayName, nameLeft, textY, color);
                 y += ROW_HEIGHT;
             }
         }

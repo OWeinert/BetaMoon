@@ -242,7 +242,8 @@ public final class GuiShowcaseRenderTest {
         LuaScriptRegistry.clear();
         String restartFile = "broken.lua";
         try {
-            LuaScriptRegistry.updateParsed("loaded.lua", "Loaded Example", Collections.<String>emptyList(),
+            LuaScriptRegistry.updateParsed("loaded.lua", "Advanced Fabrication Recipes Example",
+                    Collections.<String>emptyList(),
                     LuaValue.NIL, LuaValue.NIL, LuaValue.NIL, "A successfully loaded script.", "1.2.3", null);
             ScriptMod failed = LuaScriptRegistry.updateParsed(restartFile, "Broken Example",
                     Collections.singletonList("missing_dependency"), LuaValue.NIL, LuaValue.NIL, LuaValue.NIL,
