@@ -2,7 +2,7 @@
 
 Lua scripting for **Minecraft Beta 1.7.3**. This branch targets **BetaMoon 0.6.0**.
 
-[Wiki](https://github.com/OWeinert/BetaMoon/wiki) · [Lua API](https://github.com/OWeinert/BetaMoon/wiki/API-Documentation) · [Example scripts](examples/README.md) · [Downloads](https://github.com/OWeinert/BetaMoon/releases)
+[Wiki](https://github.com/OWeinert/BetaMoon/wiki) · [Lua API](https://github.com/OWeinert/BetaMoon/wiki/API-Documentation) · [Example scripts](examples/README.md) · [Changelog](CHANGELOG.md) · [Downloads](https://github.com/OWeinert/BetaMoon/releases)
 
 ## What you can build
 
