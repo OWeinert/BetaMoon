@@ -31,7 +31,7 @@ import org.lwjgl.input.Keyboard;
 public final class BetaMoonMain {
     private static BetaMoonMain instance;
 
-    private static final String VERSION = "0.6.0-wip3";
+    private static final String VERSION = "0.6.0";
     public static final String LUA_SCRIPTS_DIR = "lua_scripts";
     public static final Logger LOGGER = Logger.getLogger("BetaMoon");
     static {
