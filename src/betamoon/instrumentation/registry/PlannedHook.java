@@ -6,19 +6,16 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** One hook together with the namespaces that can produce a target class name. */
+/**
+ * One hook together with the namespaces that can produce a target class name.
+ */
 public final class PlannedHook {
     private final HookDefinition definition;
-    private final List<RuntimeNamespace> namespaces = new ArrayList<RuntimeNamespace>();
+    private final List<RuntimeNamespace> namespaces;
 
-    PlannedHook(HookDefinition definition) {
+    PlannedHook(HookDefinition definition, List<RuntimeNamespace> namespaces) {
         this.definition = definition;
-    }
-
-    void addNamespace(RuntimeNamespace namespace) {
-        if (!namespaces.contains(namespace)) {
-            namespaces.add(namespace);
-        }
+        this.namespaces = Collections.unmodifiableList(new ArrayList<RuntimeNamespace>(namespaces));
     }
 
     public HookDefinition getDefinition() {
@@ -26,6 +23,6 @@ public final class PlannedHook {
     }
 
     public List<RuntimeNamespace> getNamespaces() {
-        return Collections.unmodifiableList(namespaces);
+        return namespaces;
     }
 }

@@ -3,11 +3,7 @@ package betamoon.instrumentation.api;
 /** Selects a value from the target method to pass to a hook callback. */
 public final class ValueBinding {
     public enum Kind {
-        THIS,
-        ARGUMENT,
-        INSTANCE_FIELD,
-        RETURN_VALUE,
-        CAPTURED_VALUE
+        THIS, ARGUMENT, INSTANCE_FIELD, RETURN_VALUE, CAPTURED_VALUE
     }
 
     private final Kind kind;

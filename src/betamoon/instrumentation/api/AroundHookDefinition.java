@@ -20,6 +20,7 @@ public final class AroundHookDefinition implements HookDefinition {
     private final List<ValueBinding> returnBindings;
     private final MatchRequirement matchRequirement;
     private final int priority;
+    private final boolean skipWhenCapturedNonZero;
 
     private AroundHookDefinition(Builder builder) {
         this.id = builder.id;
@@ -30,16 +31,19 @@ public final class AroundHookDefinition implements HookDefinition {
         this.returnBindings = immutableCopy(builder.returnBindings);
         this.matchRequirement = builder.matchRequirement;
         this.priority = builder.priority;
+        this.skipWhenCapturedNonZero = builder.skipWhenCapturedNonZero;
     }
 
     public static Builder builder(String id, MethodRef target) {
         return new Builder(id, target);
     }
 
+    @Override
     public String getId() {
         return id;
     }
 
+    @Override
     public MethodRef getTarget() {
         return target;
     }
@@ -60,10 +64,20 @@ public final class AroundHookDefinition implements HookDefinition {
         return returnBindings;
     }
 
+    @Override
     public MatchRequirement getMatchRequirement() {
         return matchRequirement;
     }
 
+    /**
+     * An integer capture can stop boolean/void methods before they change the
+     * world.
+     */
+    public boolean skipsWhenCapturedNonZero() {
+        return skipWhenCapturedNonZero;
+    }
+
+    @Override
     public int getPriority() {
         return priority;
     }
@@ -81,6 +95,7 @@ public final class AroundHookDefinition implements HookDefinition {
         private List<ValueBinding> returnBindings = Collections.emptyList();
         private MatchRequirement matchRequirement = MatchRequirement.exactly(1);
         private int priority;
+        private boolean skipWhenCapturedNonZero;
 
         private Builder(String id, MethodRef target) {
             if (id == null || id.trim().length() == 0) {
@@ -116,6 +131,11 @@ public final class AroundHookDefinition implements HookDefinition {
                 throw new IllegalArgumentException("Match requirement is required");
             }
             this.matchRequirement = requirement;
+            return this;
+        }
+
+        public Builder skipWhenCapturedNonZero() {
+            this.skipWhenCapturedNonZero = true;
             return this;
         }
 

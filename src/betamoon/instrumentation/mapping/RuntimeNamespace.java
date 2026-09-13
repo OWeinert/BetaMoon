@@ -2,9 +2,7 @@ package betamoon.instrumentation.mapping;
 
 /** Namespaces supported by the bundled RetroMCP Tiny mappings. */
 public enum RuntimeNamespace {
-    NAMED("named"),
-    CLIENT("client"),
-    SERVER("server");
+    NAMED("named"), CLIENT("client"), SERVER("server");
 
     private final String mappingName;
 

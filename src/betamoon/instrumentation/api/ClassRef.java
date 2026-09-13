@@ -6,7 +6,7 @@ public final class ClassRef {
 
     public ClassRef(String internalName) {
         if (internalName == null || internalName.length() == 0 || internalName.indexOf('.') >= 0) {
-            throw new IllegalArgumentException("Class names must use non-empty JVM internal-name syntax");
+            throw new IllegalArgumentException("Class<?> names must use non-empty JVM internal-name syntax");
         }
         this.internalName = internalName;
     }

@@ -16,13 +16,19 @@ public final class TransformationReport {
     }
 
     public void waiting(String hookId, String target) {
-        diagnostics.put(hookId, new HookDiagnostic(hookId, HookStatus.WAITING_FOR_TARGET,
-            "Waiting for " + target));
+        diagnostics.put(hookId, new HookDiagnostic(hookId, HookStatus.WAITING_FOR_TARGET, "Waiting for " + target));
     }
 
     public void applied(String hookId, String target) {
-        diagnostics.put(hookId, new HookDiagnostic(hookId, HookStatus.APPLIED,
-            "Applied to " + target));
+        diagnostics.put(hookId, new HookDiagnostic(hookId, HookStatus.APPLIED, "Applied to " + target));
+    }
+
+    public void alreadyApplied(String hookId, String target) {
+        diagnostics.put(hookId, new HookDiagnostic(hookId, HookStatus.ALREADY_APPLIED, "Already applied to " + target));
+    }
+
+    public void noMatch(String hookId, String target) {
+        diagnostics.put(hookId, new HookDiagnostic(hookId, HookStatus.NO_MATCH, "No call site found in " + target));
     }
 
     public void failed(String hookId, String message) {

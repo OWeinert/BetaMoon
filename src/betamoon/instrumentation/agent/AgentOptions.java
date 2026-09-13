@@ -1,6 +1,8 @@
 package betamoon.instrumentation.agent;
 
-/** Parsed options supplied after the optional equals sign in {@code -javaagent}. */
+/**
+ * Parsed options supplied after the optional equals sign in {@code -javaagent}.
+ */
 public final class AgentOptions {
     private final boolean strict;
     private final boolean debug;

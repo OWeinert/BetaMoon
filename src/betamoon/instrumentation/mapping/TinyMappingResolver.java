@@ -13,7 +13,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Minimal Tiny v2 reader for class, method, field, and descriptor resolution. */
+/**
+ * Minimal Tiny v2 reader for class, method, field, and descriptor resolution.
+ */
 public final class TinyMappingResolver implements MappingResolver {
     private final List<String> namespaces;
     private final Map<String, ClassMapping> classes;
@@ -86,6 +88,7 @@ public final class TinyMappingResolver implements MappingResolver {
         }
     }
 
+    @Override
     public String resolveClass(ClassRef classRef, RuntimeNamespace namespace) {
         ClassMapping mapping = classes.get(classRef.getInternalName());
         if (mapping == null) {
@@ -94,6 +97,7 @@ public final class TinyMappingResolver implements MappingResolver {
         return mappedName(mapping.names, namespace, classRef.getInternalName());
     }
 
+    @Override
     public String resolveDescriptor(String namedDescriptor, RuntimeNamespace namespace) {
         StringBuilder resolved = new StringBuilder(namedDescriptor.length());
         int index = 0;
@@ -115,20 +119,23 @@ public final class TinyMappingResolver implements MappingResolver {
         return resolved.toString();
     }
 
+    @Override
     public ResolvedMethod resolveMethod(MethodRef method, RuntimeNamespace namespace) {
         String owner = resolveClass(method.getOwner(), namespace);
-        String name = resolveMemberName(method.getOwner(), method.getName(), method.getDescriptor(), namespace, true);
+        String name = resolveMemberName(method.getMappingOwner(), method.getName(), method.getDescriptor(), namespace,
+                true);
         return new ResolvedMethod(owner, name, resolveDescriptor(method.getDescriptor(), namespace));
     }
 
+    @Override
     public ResolvedField resolveField(FieldRef field, RuntimeNamespace namespace) {
         String owner = resolveClass(field.getOwner(), namespace);
         String name = resolveMemberName(field.getOwner(), field.getName(), field.getDescriptor(), namespace, false);
         return new ResolvedField(owner, name, resolveDescriptor(field.getDescriptor(), namespace));
     }
 
-    private String resolveMemberName(ClassRef owner, String name, String descriptor,
-        RuntimeNamespace namespace, boolean method) {
+    private String resolveMemberName(ClassRef owner, String name, String descriptor, RuntimeNamespace namespace,
+            boolean method) {
         ClassMapping classMapping = classes.get(owner.getInternalName());
         if (classMapping == null) {
             return name;

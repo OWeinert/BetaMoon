@@ -15,10 +15,8 @@ public final class ClassTransformPlan {
         List<PlannedHook> ordered = new ArrayList<PlannedHook>(hooks);
         Collections.sort(ordered, new Comparator<PlannedHook>() {
             public int compare(PlannedHook left, PlannedHook right) {
-                int priority = Integer.compare(right.getDefinition().getPriority(),
-                    left.getDefinition().getPriority());
-                return priority != 0 ? priority
-                    : left.getDefinition().getId().compareTo(right.getDefinition().getId());
+                int priority = Integer.compare(right.getDefinition().getPriority(), left.getDefinition().getPriority());
+                return priority != 0 ? priority : left.getDefinition().getId().compareTo(right.getDefinition().getId());
             }
         });
         this.hooks = Collections.unmodifiableList(ordered);

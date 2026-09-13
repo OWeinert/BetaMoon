@@ -43,6 +43,7 @@ public final class HookRegistry implements HookRegistrar {
         module.register(this);
     }
 
+    @Override
     public void register(HookDefinition definition) {
         ensureOpen();
         if (definition == null) {
@@ -80,29 +81,33 @@ public final class HookRegistry implements HookRegistrar {
         }
         frozen = true;
 
-        Map<String, Map<String, PlannedHook>> mutablePlans =
-            new LinkedHashMap<String, Map<String, PlannedHook>>();
+        Map<String, Map<String, List<RuntimeNamespace>>> mutablePlans = new LinkedHashMap<String, Map<String, List<RuntimeNamespace>>>();
         for (HookDefinition definition : definitions.values()) {
             for (RuntimeNamespace namespace : namespaces) {
                 String className = mappings.resolveClass(definition.getTarget().getOwner(), namespace);
-                Map<String, PlannedHook> hooksById = mutablePlans.get(className);
+                Map<String, List<RuntimeNamespace>> hooksById = mutablePlans.get(className);
                 if (hooksById == null) {
-                    hooksById = new LinkedHashMap<String, PlannedHook>();
+                    hooksById = new LinkedHashMap<String, List<RuntimeNamespace>>();
                     mutablePlans.put(className, hooksById);
                 }
-                PlannedHook planned = hooksById.get(definition.getId());
-                if (planned == null) {
-                    planned = new PlannedHook(definition);
-                    hooksById.put(definition.getId(), planned);
+                List<RuntimeNamespace> hookNamespaces = hooksById.get(definition.getId());
+                if (hookNamespaces == null) {
+                    hookNamespaces = new ArrayList<RuntimeNamespace>();
+                    hooksById.put(definition.getId(), hookNamespaces);
                 }
-                planned.addNamespace(namespace);
+                if (!hookNamespaces.contains(namespace)) {
+                    hookNamespaces.add(namespace);
+                }
                 report.waiting(definition.getId(), definition.getTarget().toString());
             }
         }
 
         Map<String, ClassTransformPlan> frozenPlans = new LinkedHashMap<String, ClassTransformPlan>();
-        for (Map.Entry<String, Map<String, PlannedHook>> entry : mutablePlans.entrySet()) {
-            List<PlannedHook> hooks = new ArrayList<PlannedHook>(entry.getValue().values());
+        for (Map.Entry<String, Map<String, List<RuntimeNamespace>>> entry : mutablePlans.entrySet()) {
+            List<PlannedHook> hooks = new ArrayList<PlannedHook>();
+            for (Map.Entry<String, List<RuntimeNamespace>> hook : entry.getValue().entrySet()) {
+                hooks.add(new PlannedHook(definitions.get(hook.getKey()), hook.getValue()));
+            }
             frozenPlans.put(entry.getKey(), new ClassTransformPlan(entry.getKey(), hooks));
         }
         return Collections.unmodifiableMap(frozenPlans);

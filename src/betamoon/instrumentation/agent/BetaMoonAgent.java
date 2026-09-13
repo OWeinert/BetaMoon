@@ -14,8 +14,7 @@ import java.util.Map;
 /** JVM entry point that installs the BetaMoon instrumentation framework. */
 public final class BetaMoonAgent {
     public static final String STATUS_PROPERTY = AgentRuntime.STATUS_PROPERTY;
-    private static final String MAPPINGS_RESOURCE =
-        "/betamoon/instrumentation/mapping/b1.7.3.tiny";
+    private static final String MAPPINGS_RESOURCE = "/betamoon/instrumentation/mapping/b1.7.3.tiny";
 
     private BetaMoonAgent() {
     }
@@ -23,9 +22,9 @@ public final class BetaMoonAgent {
     public static void premain(String rawOptions, Instrumentation instrumentation) {
         AgentStatus currentStatus = AgentRuntime.getStatus();
         if (currentStatus == AgentStatus.INITIALIZING || currentStatus == AgentStatus.ACTIVE
-            || currentStatus == AgentStatus.DEGRADED) {
-            System.out.println("[BetaMoon Agent] Ignoring duplicate initialization; current status is "
-                + currentStatus);
+                || currentStatus == AgentStatus.DEGRADED) {
+            System.out
+                    .println("[BetaMoon Agent] Ignoring duplicate initialization; current status is " + currentStatus);
             return;
         }
         TransformationReport report = new TransformationReport();
@@ -36,13 +35,13 @@ public final class BetaMoonAgent {
             TinyMappingResolver mappings = loadMappings();
             HookRegistry registry = new HookRegistry(report);
             BuiltinHookModules.registerAll(registry);
-            Map<String, ClassTransformPlan> plans = registry.freeze(mappings,
-                RuntimeNamespace.NAMED, RuntimeNamespace.CLIENT);
-            instrumentation.addTransformer(new BetaMoonTransformer(plans, mappings, report,
-                options.isStrict(), options.isDebug()), false);
+            Map<String, ClassTransformPlan> plans = registry.freeze(mappings, RuntimeNamespace.NAMED,
+                    RuntimeNamespace.CLIENT);
+            instrumentation.addTransformer(
+                    new BetaMoonTransformer(plans, mappings, report, options.isStrict(), options.isDebug()), false);
             AgentRuntime.activate();
-            System.out.println("[BetaMoon Agent] Instrumentation active with " + plans.size()
-                + " target class name(s)");
+            System.out
+                    .println("[BetaMoon Agent] Instrumentation active with " + plans.size() + " target class name(s)");
         } catch (Throwable error) {
             String message = "Agent initialization failed: " + error.getMessage();
             AgentRuntime.fail(message);

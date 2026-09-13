@@ -16,6 +16,9 @@ import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.InsnList;
+import org.objectweb.asm.tree.InsnNode;
+import org.objectweb.asm.tree.JumpInsnNode;
+import org.objectweb.asm.tree.LabelNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.VarInsnNode;
@@ -28,18 +31,18 @@ final class AroundMethodInjector {
         this.mappings = mappings;
     }
 
-    boolean apply(ClassNode classNode, PlannedHook plannedHook) throws HookTransformException {
+    HookTransformOutcome apply(ClassNode classNode, PlannedHook plannedHook) throws HookTransformException {
         HookDefinition genericDefinition = plannedHook.getDefinition();
         if (!(genericDefinition instanceof AroundHookDefinition)) {
-            throw failure(genericDefinition, "Unsupported hook definition type: "
-                + genericDefinition.getClass().getName());
+            throw failure(genericDefinition,
+                    "Unsupported hook definition type: " + genericDefinition.getClass().getName());
         }
         AroundHookDefinition definition = (AroundHookDefinition) genericDefinition;
         TargetMatch targetMatch = findTarget(classNode, plannedHook);
-        ResolvedMethod captureHandler = mappings.resolveMethod(
-            definition.getCaptureHandler().getMethod(), targetMatch.namespace);
-        ResolvedMethod returnHandler = mappings.resolveMethod(
-            definition.getReturnHandler().getMethod(), targetMatch.namespace);
+        ResolvedMethod captureHandler = mappings.resolveMethod(definition.getCaptureHandler().getMethod(),
+                targetMatch.namespace);
+        ResolvedMethod returnHandler = mappings.resolveMethod(definition.getReturnHandler().getMethod(),
+                targetMatch.namespace);
 
         if ((targetMatch.method.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) != 0) {
             throw failure(definition, "Cannot inject into an abstract or native method: " + targetMatch.target);
@@ -53,32 +56,35 @@ final class AroundMethodInjector {
             throw failure(definition, "Capture handler must return a value: " + captureHandler);
         }
         Type targetReturnType = Type.getReturnType(targetMatch.target.getDescriptor());
+        if (definition.skipsWhenCapturedNonZero() && (captureType.getSort() != Type.INT
+                || (targetReturnType.getSort() != Type.BOOLEAN && targetReturnType.getSort() != Type.VOID))) {
+            throw failure(definition, "Early return requires an integer capture and a boolean or void target");
+        }
         Type returnHandlerType = Type.getReturnType(returnHandler.getDescriptor());
         if (returnHandlerType.getSort() != Type.VOID && !returnHandlerType.equals(targetReturnType)) {
-            throw failure(definition, "Return handler must return void or the target return type "
-                + targetReturnType + ": " + returnHandler);
+            throw failure(definition, "Return handler must return void or the target return type " + targetReturnType
+                    + ": " + returnHandler);
         }
         List<AbstractInsnNode> returns = collectReturns(targetMatch.method, targetReturnType);
         if (returns.isEmpty()) {
-            throw failure(definition, "Target method has no compatible normal return instruction: "
-                + targetMatch.target);
+            throw failure(definition,
+                    "Target method has no compatible normal return instruction: " + targetMatch.target);
         }
 
         int captureCalls = countHandlerCalls(targetMatch.method, captureHandler);
         int returnCalls = countHandlerCalls(targetMatch.method, returnHandler);
         if (captureCalls == 1 && returnCalls == returns.size()) {
-            return false;
+            return HookTransformOutcome.ALREADY_APPLIED;
         }
         if (captureCalls != 0 || returnCalls != 0) {
             throw failure(definition, "Target contains partial or conflicting instrumentation (capture calls "
-                + captureCalls + ", return calls " + returnCalls + ", return instructions " + returns.size()
-                + ")");
+                    + captureCalls + ", return calls " + returnCalls + ", return instructions " + returns.size() + ")");
         }
 
-        validateBindings(definition, targetMatch, captureHandler, definition.getCaptureBindings(),
-            null, captureType, false);
-        validateBindings(definition, targetMatch, returnHandler, definition.getReturnBindings(),
-            targetReturnType, captureType, true);
+        validateBindings(definition, targetMatch, captureHandler, definition.getCaptureBindings(), null, captureType,
+                false);
+        validateBindings(definition, targetMatch, returnHandler, definition.getReturnBindings(), targetReturnType,
+                captureType, true);
 
         int captureLocal = targetMatch.method.maxLocals;
         targetMatch.method.maxLocals += captureType.getSize();
@@ -90,10 +96,23 @@ final class AroundMethodInjector {
 
         InsnList entry = new InsnList();
         emitBindings(definition, entry, definition.getCaptureBindings(), targetMatch, -1, captureLocal,
-            targetReturnType, captureType);
+                targetReturnType, captureType);
         entry.add(new MethodInsnNode(Opcodes.INVOKESTATIC, captureHandler.getOwner(), captureHandler.getName(),
-            captureHandler.getDescriptor(), false));
+                captureHandler.getDescriptor(), false));
         entry.add(new VarInsnNode(captureType.getOpcode(Opcodes.ISTORE), captureLocal));
+        if (definition.skipsWhenCapturedNonZero()) {
+            LabelNode continueOriginal = new LabelNode();
+            entry.add(new VarInsnNode(Opcodes.ILOAD, captureLocal));
+            entry.add(new JumpInsnNode(Opcodes.IFEQ, continueOriginal));
+            if (targetReturnType.getSort() == Type.BOOLEAN) {
+                entry.add(new InsnNode(Opcodes.ICONST_0));
+            }
+            InsnNode earlyReturn = new InsnNode(
+                    targetReturnType.getSort() == Type.VOID ? Opcodes.RETURN : Opcodes.IRETURN);
+            entry.add(earlyReturn);
+            returns.add(earlyReturn);
+            entry.add(continueOriginal);
+        }
         targetMatch.method.instructions.insert(entry);
 
         for (AbstractInsnNode returnInstruction : returns) {
@@ -102,15 +121,15 @@ final class AroundMethodInjector {
                 exit.add(new VarInsnNode(targetReturnType.getOpcode(Opcodes.ISTORE), returnLocal));
             }
             emitBindings(definition, exit, definition.getReturnBindings(), targetMatch, returnLocal, captureLocal,
-                targetReturnType, captureType);
+                    targetReturnType, captureType);
             exit.add(new MethodInsnNode(Opcodes.INVOKESTATIC, returnHandler.getOwner(), returnHandler.getName(),
-                returnHandler.getDescriptor(), false));
+                    returnHandler.getDescriptor(), false));
             if (returnHandlerType.getSort() == Type.VOID && targetReturnType.getSort() != Type.VOID) {
                 exit.add(new VarInsnNode(targetReturnType.getOpcode(Opcodes.ILOAD), returnLocal));
             }
             targetMatch.method.instructions.insertBefore(returnInstruction, exit);
         }
-        return true;
+        return HookTransformOutcome.APPLIED;
     }
 
     private TargetMatch findTarget(ClassNode classNode, PlannedHook plannedHook) throws HookTransformException {
@@ -132,30 +151,30 @@ final class AroundMethodInjector {
                 return new TargetMatch(namespace, target, matches.get(0));
             }
         }
-        throw failure(definition, "Target match requirement " + definition.getMatchRequirement()
-            + " was not met; attempted " + attempts);
+        throw failure(definition,
+                "Target match requirement " + definition.getMatchRequirement() + " was not met; attempted " + attempts);
     }
 
     private void validateBindings(HookDefinition definition, TargetMatch targetMatch, ResolvedMethod handler,
-        List<ValueBinding> bindings, Type returnType, Type captureType, boolean returnPhase)
-        throws HookTransformException {
+            List<ValueBinding> bindings, Type returnType, Type captureType, boolean returnPhase)
+            throws HookTransformException {
         Type[] handlerArguments = Type.getArgumentTypes(handler.getDescriptor());
         if (handlerArguments.length != bindings.size()) {
-            throw failure(definition, "Handler " + handler + " expects " + handlerArguments.length
-                + " arguments but " + bindings.size() + " bindings were supplied");
+            throw failure(definition, "Handler " + handler + " expects " + handlerArguments.length + " arguments but "
+                    + bindings.size() + " bindings were supplied");
         }
         for (int i = 0; i < handlerArguments.length; i++) {
             Type bindingType = bindingType(definition, bindings.get(i), targetMatch, returnType, captureType,
-                returnPhase);
+                    returnPhase);
             if (!handlerArguments[i].equals(bindingType)) {
                 throw failure(definition, "Binding " + i + " for " + handler + " produces " + bindingType
-                    + " but the handler expects " + handlerArguments[i]);
+                        + " but the handler expects " + handlerArguments[i]);
             }
         }
     }
 
-    private Type bindingType(HookDefinition definition, ValueBinding binding, TargetMatch targetMatch,
-        Type returnType, Type captureType, boolean returnPhase) throws HookTransformException {
+    private Type bindingType(HookDefinition definition, ValueBinding binding, TargetMatch targetMatch, Type returnType,
+            Type captureType, boolean returnPhase) throws HookTransformException {
         boolean isStatic = (targetMatch.method.access & Opcodes.ACC_STATIC) != 0;
         switch (binding.getKind()) {
             case THIS:
@@ -166,7 +185,7 @@ final class AroundMethodInjector {
                 int argumentIndex = binding.getArgumentIndex();
                 if (argumentIndex >= arguments.length) {
                     throw failure(definition, "Argument index " + argumentIndex + " is outside target descriptor "
-                        + targetMatch.target.getDescriptor());
+                            + targetMatch.target.getDescriptor());
                 }
                 return arguments[argumentIndex];
             case INSTANCE_FIELD:
@@ -189,24 +208,24 @@ final class AroundMethodInjector {
     }
 
     private void emitBindings(HookDefinition definition, InsnList output, List<ValueBinding> bindings,
-        TargetMatch targetMatch,
-        int returnLocal, int captureLocal, Type returnType, Type captureType) throws HookTransformException {
+            TargetMatch targetMatch, int returnLocal, int captureLocal, Type returnType, Type captureType)
+            throws HookTransformException {
         for (ValueBinding binding : bindings) {
             switch (binding.getKind()) {
                 case THIS:
                     output.add(new VarInsnNode(Opcodes.ALOAD, 0));
                     break;
                 case ARGUMENT:
-                    Type argumentType = Type.getArgumentTypes(targetMatch.target.getDescriptor())[
-                        binding.getArgumentIndex()];
+                    Type argumentType = Type.getArgumentTypes(targetMatch.target.getDescriptor())[binding
+                            .getArgumentIndex()];
                     output.add(new VarInsnNode(argumentType.getOpcode(Opcodes.ILOAD),
-                        argumentLocal(targetMatch.method, targetMatch.target, binding.getArgumentIndex())));
+                            argumentLocal(targetMatch.method, targetMatch.target, binding.getArgumentIndex())));
                     break;
                 case INSTANCE_FIELD:
                     ResolvedField field = mappings.resolveField(binding.getField(), targetMatch.namespace);
                     output.add(new VarInsnNode(Opcodes.ALOAD, 0));
                     output.add(new FieldInsnNode(Opcodes.GETFIELD, field.getOwner(), field.getName(),
-                        field.getDescriptor()));
+                            field.getDescriptor()));
                     break;
                 case RETURN_VALUE:
                     output.add(new VarInsnNode(returnType.getOpcode(Opcodes.ILOAD), returnLocal));
@@ -232,8 +251,8 @@ final class AroundMethodInjector {
     private static List<AbstractInsnNode> collectReturns(MethodNode method, Type returnType) {
         List<AbstractInsnNode> returns = new ArrayList<AbstractInsnNode>();
         int expectedOpcode = returnType.getOpcode(Opcodes.IRETURN);
-        for (AbstractInsnNode instruction = method.instructions.getFirst(); instruction != null;
-            instruction = instruction.getNext()) {
+        for (AbstractInsnNode instruction = method.instructions
+                .getFirst(); instruction != null; instruction = instruction.getNext()) {
             if (instruction.getOpcode() == expectedOpcode) {
                 returns.add(instruction);
             }
@@ -243,12 +262,12 @@ final class AroundMethodInjector {
 
     private static int countHandlerCalls(MethodNode method, ResolvedMethod handler) {
         int count = 0;
-        for (AbstractInsnNode instruction = method.instructions.getFirst(); instruction != null;
-            instruction = instruction.getNext()) {
+        for (AbstractInsnNode instruction = method.instructions
+                .getFirst(); instruction != null; instruction = instruction.getNext()) {
             if (instruction instanceof MethodInsnNode) {
                 MethodInsnNode call = (MethodInsnNode) instruction;
                 if (call.getOpcode() == Opcodes.INVOKESTATIC && handler.getOwner().equals(call.owner)
-                    && handler.getName().equals(call.name) && handler.getDescriptor().equals(call.desc)) {
+                        && handler.getName().equals(call.name) && handler.getDescriptor().equals(call.desc)) {
                     count++;
                 }
             }
@@ -257,7 +276,7 @@ final class AroundMethodInjector {
     }
 
     private static void requireInstance(HookDefinition definition, boolean isStatic, ValueBinding.Kind kind)
-        throws HookTransformException {
+            throws HookTransformException {
         if (isStatic) {
             throw failure(definition, kind + " cannot be bound from a static target method");
         }
