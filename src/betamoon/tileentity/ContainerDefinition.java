@@ -1,6 +1,7 @@
 package betamoon.tileentity;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /** Immutable slot layout for a Lua container. */
@@ -8,17 +9,17 @@ public final class ContainerDefinition {
     public final String name;
     public final String owner;
     public final TileEntityDefinition tileEntity;
-    public final List slots = new ArrayList();
+    public final List<SlotDefinition> slots;
     public final int playerX;
     public final int playerY;
     public final boolean includeHotbar;
 
-    public ContainerDefinition(String name, String owner, TileEntityDefinition tileEntity,
-        List slots, int playerX, int playerY, boolean includeHotbar) {
+    public ContainerDefinition(String name, String owner, TileEntityDefinition tileEntity, List<SlotDefinition> slots,
+            int playerX, int playerY, boolean includeHotbar) {
         this.name = name;
         this.owner = owner;
         this.tileEntity = tileEntity;
-        this.slots.addAll(slots);
+        this.slots = Collections.unmodifiableList(new ArrayList<>(slots));
         this.playerX = playerX;
         this.playerY = playerY;
         this.includeHotbar = includeHotbar;
