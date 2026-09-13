@@ -11,8 +11,10 @@ public final class LuaDimensionEventCtx extends LuaTable {
 
     public LuaDimensionEventCtx(DimensionEventCtx context) {
         this.context = context;
-        set("getOldId", new GetOldId(this));
-        set("getNewId", new GetNewId(this));
+        if (context != null) {
+            set("oldId", context.getPreviousDimension());
+            set("newId", context.getCurrentDimension());
+        }
     }
 
     private static final class GetOldId extends VarArgFunction {

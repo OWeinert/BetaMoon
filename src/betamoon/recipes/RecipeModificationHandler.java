@@ -1,14 +1,11 @@
 package betamoon.recipes;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import net.minecraft.src.CraftingManager;
-import net.minecraft.src.FurnaceRecipes;
 import net.minecraft.src.IRecipe;
 import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
@@ -16,14 +13,14 @@ import net.minecraft.src.ShapedRecipes;
 import net.minecraft.src.ShapelessRecipes;
 
 public final class RecipeModificationHandler {
-    private static Map recipeMap;
-    private static Map recipeCounts;
+    private static Map<String, IRecipe> recipeMap;
+    private static Map<String, Integer> recipeCounts;
 
     /**
      * Builds the cached map for crafting and smelting recipes.
      */
     public static void createRecipeMap() {
-        recipeCounts = new HashMap();
+        recipeCounts = new HashMap<>();
         recipeMap = mapRecipes(recipeCounts);
     }
 
@@ -32,23 +29,19 @@ public final class RecipeModificationHandler {
      *
      * @return map of output keys to recipes
      */
-    public static Map getRecipeMap() {
-        return recipeMap;
+    public static Map<String, IRecipe> getRecipeMap() {
+        return recipeMap == null ? null : Collections.unmodifiableMap(recipeMap);
     }
 
     /**
      * Adds the newest crafting recipe from the CraftingManager list to the cache.
      */
     public static void addLatestCraftingRecipe() {
-        List recipes = CraftingManager.getInstance().getRecipeList();
+        List<IRecipe> recipes = NativeRecipeRegistries.crafting();
         if (recipes == null || recipes.isEmpty()) {
             return;
         }
-        Object last = recipes.get(recipes.size() - 1);
-        if (!(last instanceof IRecipe)) {
-            return;
-        }
-        addCraftingRecipeEntry((IRecipe) last);
+        addCraftingRecipeEntry(recipes.get(recipes.size() - 1));
     }
 
     /**
@@ -62,9 +55,7 @@ public final class RecipeModificationHandler {
         if (output == null) {
             return;
         }
-        String type = recipe instanceof ShapedRecipes ? "shaped"
-            : recipe instanceof ShapelessRecipes ? "shapeless"
-            : "unknown";
+        String type = NativeRecipeInspector.kind(recipe).getLuaName();
         String key = buildOutputKey(output, type, recipeCounts);
         recipeMap.put(key, recipe);
     }
@@ -73,15 +64,15 @@ public final class RecipeModificationHandler {
      * Adds a smelting recipe entry to the cached recipe map.
      */
     public static void addSmeltingRecipeEntry(int inputId, ItemStack output) {
-        Map smelting = FurnaceRecipes.smelting().getSmeltingList();
+        Map<Integer, ItemStack> smelting = NativeRecipeRegistries.smelting();
         if (smelting == null) {
             return;
         }
-        Map.Entry entry = findSmeltingEntry(smelting, Integer.valueOf(inputId));
+        Map.Entry<Integer, ItemStack> entry = findSmeltingEntry(smelting, Integer.valueOf(inputId));
         if (entry == null) {
             return;
         }
-        ItemStack entryOutput = (ItemStack) entry.getValue();
+        ItemStack entryOutput = entry.getValue();
         if (entryOutput == null) {
             entryOutput = output;
         }
@@ -95,10 +86,11 @@ public final class RecipeModificationHandler {
     /**
      * Returns a recipe entry by its output key.
      *
-     * @param key output key string
+     * @param key
+     *            output key string
      * @return recipe instance or null when not found
      */
-    public static Object getRecipeByKey(String key) {
+    public static IRecipe getRecipeByKey(String key) {
         if (key == null) {
             return null;
         }
@@ -108,14 +100,15 @@ public final class RecipeModificationHandler {
     /**
      * Removes a recipe entry by its output key.
      *
-     * @param key output key string
+     * @param key
+     *            output key string
      * @return true when the recipe was removed
      */
     public static boolean removeRecipeByKey(String key) {
         if (key == null) {
             return false;
         }
-        Object recipe = recipeMap.remove(key);
+        IRecipe recipe = recipeMap.remove(key);
         if (recipe == null) {
             return false;
         }
@@ -123,18 +116,17 @@ public final class RecipeModificationHandler {
         if (recipe instanceof SmeltingRecipe) {
             return ((SmeltingRecipe) recipe).removeFromFurnace();
         }
-        if (recipe instanceof IRecipe) {
-            List recipes = CraftingManager.getInstance().getRecipeList();
-            return recipes.remove(recipe);
-        }
-        return false;
+        List<IRecipe> recipes = NativeRecipeRegistries.crafting();
+        return recipes.remove(recipe);
     }
 
     /**
      * Updates the output stack for a recipe entry by its output key.
      *
-     * @param key output key string
-     * @param output new output item stack
+     * @param key
+     *            output key string
+     * @param output
+     *            new output item stack
      * @return true when the recipe output was updated
      */
     public static boolean setRecipeOutputByKey(String key, ItemStack output) {
@@ -147,20 +139,56 @@ public final class RecipeModificationHandler {
     }
 
     /**
-     * Filters recipes by output stack, matching item id and amount.
-     * If the target stack size is 0, all amounts for the item id are returned.
+     * Updates the output of a concrete recipe without resolving it through its
+     * output-derived cache key. This is the safe path for reversible overrides,
+     * because changing an output must not invalidate the handle used to restore it.
      *
-     * @param output output item stack to match
+     * @param recipe
+     *            concrete crafting recipe or smelting wrapper
+     * @param output
+     *            new output stack
+     * @return true when the recipe output was updated
+     */
+    public static boolean setRecipeOutput(Object recipe, ItemStack output) {
+        if (recipe == null || output == null) {
+            return false;
+        }
+        if (recipe instanceof SmeltingRecipe) {
+            ((SmeltingRecipe) recipe).setOutput(output.copy());
+            return true;
+        }
+        if (!(recipe instanceof IRecipe)) {
+            return false;
+        }
+
+        ItemStack current = ((IRecipe) recipe).getRecipeOutput();
+        if (current == null) {
+            return false;
+        }
+        // Mutating the existing stack works for both shaped and shapeless recipes,
+        // including the latter's final output field and obfuscated runtime builds.
+        current.itemID = output.itemID;
+        current.stackSize = output.stackSize;
+        current.setItemDamage(output.getItemDamage());
+        return true;
+    }
+
+    /**
+     * Filters recipes by output stack, matching item id and amount. If the target
+     * stack size is 0, all amounts for the item id are returned.
+     *
+     * @param output
+     *            output item stack to match
      * @return map of output keys to matching recipes
      */
-    public static Map filterRecipesByOutput(ItemStack output) {
-        Map matches = new LinkedHashMap();
+    public static Map<String, IRecipe> filterRecipesByOutput(ItemStack output) {
+        Map<String, IRecipe> matches = new LinkedHashMap<>();
         if (output == null) {
             return matches;
         }
-        for (Iterator it = recipeMap.entrySet().iterator(); it.hasNext();) {
-            Map.Entry entry = (Map.Entry) it.next();
-            IRecipe recipe = (IRecipe) entry.getValue();
+        for (Iterator<Map.Entry<String, IRecipe>> it = recipeMap.entrySet().iterator(); it.hasNext();) {
+            Map.Entry<String, IRecipe> entry = it.next();
+            IRecipe recipe = entry.getValue();
             ItemStack recipeOutput = recipe.getRecipeOutput();
             if (matchesOutput(recipeOutput, output)) {
                 matches.put(entry.getKey(), recipe);
@@ -172,17 +200,18 @@ public final class RecipeModificationHandler {
     /**
      * Filters recipes by input stack, matching item id and damage.
      *
-     * @param input input item stack to match
+     * @param input
+     *            input item stack to match
      * @return map of output keys to matching recipes
      */
-    public static Map filterRecipesByInput(ItemStack input) {
-        Map matches = new LinkedHashMap();
+    public static Map<String, IRecipe> filterRecipesByInput(ItemStack input) {
+        Map<String, IRecipe> matches = new LinkedHashMap<>();
         if (input == null) {
             return matches;
         }
-        for (Iterator it = recipeMap.entrySet().iterator(); it.hasNext();) {
-            Map.Entry entry = (Map.Entry) it.next();
-            Object recipe = entry.getValue();
+        for (Iterator<Map.Entry<String, IRecipe>> it = recipeMap.entrySet().iterator(); it.hasNext();) {
+            Map.Entry<String, IRecipe> entry = it.next();
+            IRecipe recipe = entry.getValue();
             if (matchesInput(recipe, input)) {
                 matches.put(entry.getKey(), recipe);
             }
@@ -195,7 +224,7 @@ public final class RecipeModificationHandler {
      *
      * @return map of output keys to shaped recipes
      */
-    public static Map filterShapedRecipes() {
+    public static Map<String, IRecipe> filterShapedRecipes() {
         return filterRecipesByType(ShapedRecipes.class);
     }
 
@@ -204,7 +233,7 @@ public final class RecipeModificationHandler {
      *
      * @return map of output keys to shapeless recipes
      */
-    public static Map filterShapelessRecipes() {
+    public static Map<String, IRecipe> filterShapelessRecipes() {
         return filterRecipesByType(ShapelessRecipes.class);
     }
 
@@ -213,39 +242,37 @@ public final class RecipeModificationHandler {
      *
      * @return map of output keys to smelting recipes
      */
-    public static Map filterSmeltingRecipes() {
+    public static Map<String, IRecipe> filterSmeltingRecipes() {
         return filterRecipesByType(SmeltingRecipe.class);
     }
 
     /**
      * Builds a map of all registered recipes keyed by type and output signature.
      *
-     * Keys are formatted as "{type}/{itemName_amount}" with an optional "_n" suffix when
-     * multiple recipes share the same output id and amount.
+     * Keys are formatted as "{type}/{itemName_amount}" with an optional "_n" suffix
+     * when multiple recipes share the same output id and amount.
      */
-    private static Map mapRecipes(Map counts) {
-        List recipes = CraftingManager.getInstance().getRecipeList();
-        Map mapped = new LinkedHashMap();
+    private static Map<String, IRecipe> mapRecipes(Map<String, Integer> counts) {
+        List<IRecipe> recipes = NativeRecipeRegistries.crafting();
+        Map<String, IRecipe> mapped = new LinkedHashMap<>();
 
         // Copy crafting recipes first so smelting entries append after them.
-        for (Iterator it = recipes.iterator(); it.hasNext();) {
+        for (Iterator<?> it = recipes.iterator(); it.hasNext();) {
             IRecipe recipe = (IRecipe) it.next();
             ItemStack output = recipe.getRecipeOutput();
             if (output == null) {
                 continue;
             }
-            String type = recipe instanceof ShapedRecipes ? "shaped"
-                : recipe instanceof ShapelessRecipes ? "shapeless"
-                : "unknown";
+            String type = NativeRecipeInspector.kind(recipe).getLuaName();
             String key = buildOutputKey(output, type, counts);
             mapped.put(key, recipe);
         }
 
         // Wrap smelting recipes so they can be treated like IRecipe for filtering.
-        Map smelting = FurnaceRecipes.smelting().getSmeltingList();
-        for (Iterator it = smelting.entrySet().iterator(); it.hasNext();) {
-            Map.Entry entry = (Map.Entry) it.next();
-            ItemStack output = (ItemStack) entry.getValue();
+        Map<Integer, ItemStack> smelting = NativeRecipeRegistries.smelting();
+        for (Iterator<Map.Entry<Integer, ItemStack>> it = smelting.entrySet().iterator(); it.hasNext();) {
+            Map.Entry<Integer, ItemStack> entry = it.next();
+            ItemStack output = entry.getValue();
             if (output == null) {
                 continue;
             }
@@ -255,9 +282,9 @@ public final class RecipeModificationHandler {
         return mapped;
     }
 
-    private static Map.Entry findSmeltingEntry(Map smelting, Integer key) {
-        for (Iterator it = smelting.entrySet().iterator(); it.hasNext();) {
-            Map.Entry entry = (Map.Entry) it.next();
+    private static Map.Entry<Integer, ItemStack> findSmeltingEntry(Map<Integer, ItemStack> smelting, Integer key) {
+        for (Iterator<Map.Entry<Integer, ItemStack>> it = smelting.entrySet().iterator(); it.hasNext();) {
+            Map.Entry<Integer, ItemStack> entry = it.next();
             if (key.equals(entry.getKey())) {
                 return entry;
             }
@@ -269,7 +296,7 @@ public final class RecipeModificationHandler {
      * Compares recipe outputs against a target stack, honoring the "any amount"
      * rule when the target stack size is 0.
      */
-    private static boolean matchesOutput(ItemStack recipeOutput, ItemStack target) {
+    public static boolean matchesOutput(ItemStack recipeOutput, ItemStack target) {
         if (recipeOutput == null || target == null) {
             return false;
         }
@@ -279,19 +306,18 @@ public final class RecipeModificationHandler {
         if (target.stackSize == 0) {
             return true;
         }
-        return recipeOutput.stackSize == target.stackSize
-            && recipeOutput.getItemDamage() == target.getItemDamage();
+        return recipeOutput.stackSize == target.stackSize && recipeOutput.getItemDamage() == target.getItemDamage();
     }
 
     /**
      * Filters the cached recipes by concrete recipe class.
      */
-    private static Map filterRecipesByType(Class recipeClass) {
-        Map matches = new LinkedHashMap();
+    private static Map<String, IRecipe> filterRecipesByType(Class<?> recipeClass) {
+        Map<String, IRecipe> matches = new LinkedHashMap<>();
         // Filter the cached map by concrete recipe type.
-        for (Iterator it = recipeMap.entrySet().iterator(); it.hasNext();) {
-            Map.Entry entry = (Map.Entry) it.next();
-            IRecipe recipe = (IRecipe) entry.getValue();
+        for (Iterator<Map.Entry<String, IRecipe>> it = recipeMap.entrySet().iterator(); it.hasNext();) {
+            Map.Entry<String, IRecipe> entry = it.next();
+            IRecipe recipe = entry.getValue();
             if (recipeClass.isInstance(recipe)) {
                 matches.put(entry.getKey(), recipe);
             }
@@ -303,24 +329,26 @@ public final class RecipeModificationHandler {
      * Builds a unique key from the output item name and amount, adding suffixes
      * when the same output appears multiple times.
      */
-    private static String buildOutputKey(ItemStack output, String recipeType, Map counts) {
+    private static String buildOutputKey(ItemStack output, String recipeType, Map<String, Integer> counts) {
         Item item = Item.itemsList[output.itemID];
         String itemName = null;
         if (item != null) {
             itemName = item.getItemName();
         }
-        // Some modded items return null for base item names; fall back to stack-aware names.
+        // Some modded items return null for base item names; fall back to stack-aware
+        // names.
         if (itemName == null || "null".equals(itemName)) {
             itemName = output.getItemName();
         }
-        // If the stack still yields no name, fall back to the numeric id for a stable key.
+        // If the stack still yields no name, fall back to the numeric id for a stable
+        // key.
         if (itemName == null || "null".equals(itemName)) {
             itemName = String.valueOf(output.itemID);
         }
         int damage = output.getItemDamage();
         String baseKey = itemName + (damage > 0 ? ":" + damage : "") + "_" + output.stackSize;
         String typeKey = recipeType + "/" + baseKey;
-        Integer count = (Integer) counts.get(typeKey);
+        Integer count = counts.get(typeKey);
         if (count == null) {
             counts.put(typeKey, new Integer(0));
             return typeKey;
@@ -334,7 +362,7 @@ public final class RecipeModificationHandler {
     /**
      * Checks whether a recipe uses the target stack as an input ingredient.
      */
-    private static boolean matchesInput(Object recipe, ItemStack target) {
+    public static boolean matchesInput(Object recipe, ItemStack target) {
         if (recipe instanceof SmeltingRecipe) {
             // Smelting recipes use a single input item id.
             return ((SmeltingRecipe) recipe).getInputId() == target.itemID;
@@ -343,7 +371,7 @@ public final class RecipeModificationHandler {
             return false;
         }
         if (recipe instanceof ShapedRecipes) {
-            ItemStack[] items = getShapedInputs((ShapedRecipes) recipe);
+            ItemStack[] items = NativeRecipeInspector.shapedInputs((ShapedRecipes) recipe);
             if (items == null) {
                 return false;
             }
@@ -356,13 +384,13 @@ public final class RecipeModificationHandler {
             return false;
         }
         if (recipe instanceof ShapelessRecipes) {
-            List items = getShapelessInputs((ShapelessRecipes) recipe);
+            List<?> items = NativeRecipeInspector.shapelessInputs((ShapelessRecipes) recipe);
             if (items == null) {
                 return false;
             }
             // Match against any ingredient in the shapeless list.
             for (int i = 0; i < items.size(); i++) {
-                ItemStack stack = (ItemStack) items.get(i);
+                ItemStack stack = NativeRecipeInspector.normalizeIngredient(items.get(i));
                 if (matchesInputStack(stack, target)) {
                     return true;
                 }
@@ -373,7 +401,8 @@ public final class RecipeModificationHandler {
     }
 
     /**
-     * Compares an input ingredient stack against the target input, honoring wildcard damage.
+     * Compares an input ingredient stack against the target input, honoring
+     * wildcard damage.
      */
     private static boolean matchesInputStack(ItemStack input, ItemStack target) {
         if (input == null || target == null) {
@@ -395,59 +424,6 @@ public final class RecipeModificationHandler {
     }
 
     /**
-     * Reflects the shaped recipe input grid from its internal field.
-     */
-    private static ItemStack[] getShapedInputs(ShapedRecipes recipe) {
-        try {
-            Field field = ShapedRecipes.class.getDeclaredField("recipeItems");
-            field.setAccessible(true);
-            return (ItemStack[]) field.get(recipe);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    /**
-     * Reflects the shapeless recipe input list from its internal field.
-     */
-    private static List getShapelessInputs(ShapelessRecipes recipe) {
-        try {
-            Field field = ShapelessRecipes.class.getDeclaredField("recipeItems");
-            field.setAccessible(true);
-            return (List) field.get(recipe);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    /**
      * Attempts to update the recipe output stack for crafting or smelting recipes.
      */
-    private static boolean setRecipeOutput(Object recipe, ItemStack output) {
-        if (recipe instanceof SmeltingRecipe) {
-            // Smelting recipes store outputs directly in the furnace map wrapper.
-            ((SmeltingRecipe) recipe).setOutput(output);
-            return true;
-        }
-        if (!(recipe instanceof IRecipe)) {
-            return false;
-        }
-        try {
-            // Recipe outputs are usually stored in a private field named recipeOutput.
-            Field field = recipe.getClass().getDeclaredField("recipeOutput");
-            field.setAccessible(true);
-            int modifiers = field.getModifiers();
-            if (Modifier.isFinal(modifiers)) {
-                // Strip final so we can replace the output stack in-place.
-                Field modifiersField = Field.class.getDeclaredField("modifiers");
-                modifiersField.setAccessible(true);
-                modifiersField.setInt(field, modifiers & ~Modifier.FINAL);
-            }
-            // Replace the output stack reference with the new value.
-            field.set(recipe, output);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
 }

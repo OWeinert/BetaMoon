@@ -11,16 +11,17 @@ public final class LuaInputEventCtx extends LuaTable {
 
     public LuaInputEventCtx(InputEventCtx context) {
         this.context = context;
-        set("isKey", new IsKey(this));
-        set("isMouse", new IsMouse(this));
-        set("getKeyCode", new GetKeyCode(this));
-        set("getChar", new GetChar(this));
-        set("getButton", new GetButton(this));
-        set("getX", new GetX(this));
-        set("getY", new GetY(this));
-        set("isPressed", new IsPressed(this));
-        set("isReleased", new IsReleased(this));
-        set("getAction", new GetAction(this));
+        if (context != null) {
+            set("type", LuaValue.valueOf(context.isKeyEvent() ? "key" : "mouse"));
+            set("keyCode", context.getKeyCode());
+            set("char", LuaValue.valueOf(String.valueOf(context.getKeyChar())));
+            set("button", context.getMouseButton());
+            set("x", context.getMouseX());
+            set("y", context.getMouseY());
+            set("pressed", LuaValue.valueOf(context.isPressed()));
+            set("released", LuaValue.valueOf(context.isReleased()));
+            set("action", LuaValue.valueOf(context.getAction().name().toLowerCase()));
+        }
     }
 
     private static final class IsKey extends VarArgFunction {

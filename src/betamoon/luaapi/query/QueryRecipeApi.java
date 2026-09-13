@@ -182,7 +182,7 @@ final class QueryRecipeApi {
                 if (count < 1 || count > 9) {
                     throw new LuaError("Query: filterOutAndIn input list must have 1 to 9 entries.");
                 }
-                List inputs = new ArrayList();
+                List<ItemStack> inputs = new ArrayList<>();
                 for (int i = 1; i <= count; i++) {
                     inputs.add(LuaApiUtils.readItemStack(inputsValue.get(i), false, "input " + i));
                 }
@@ -349,9 +349,9 @@ final class QueryRecipeApi {
     }
 
     private static final class RecipeQueryResultHandle extends LuaTable {
-        private final List recipes;
+        private final List<Object> recipes;
 
-        private RecipeQueryResultHandle(List recipes) {
+        private RecipeQueryResultHandle(List<Object> recipes) {
             this.recipes = recipes;
             set("first", new FirstRecipeResult(this));
             set("last", new LastRecipeResult(this));
@@ -437,13 +437,13 @@ final class QueryRecipeApi {
     private static boolean[] parseRecipeType(String type) {
         String value = type == null ? "" : type.trim().toLowerCase();
         if ("shaped".equals(value)) {
-            return new boolean[] { true, false, false };
+            return new boolean[]{true, false, false};
         }
         if ("shapeless".equals(value)) {
-            return new boolean[] { false, true, false };
+            return new boolean[]{false, true, false};
         }
         if ("smelting".equals(value)) {
-            return new boolean[] { false, false, true };
+            return new boolean[]{false, false, true};
         }
         throw new LuaError("Query: unknown recipe type: " + type);
     }
@@ -493,7 +493,7 @@ final class QueryRecipeApi {
                     throw new LuaError("Query: missing shaped recipe ingredient for key '" + keyChar + "'.");
                 }
                 grid[j + (i - 1) * width] = LuaApiUtils.readItemStack(ingredientValue, false,
-                    "ingredient '" + keyString + "'");
+                        "ingredient '" + keyString + "'");
             }
         }
         return new ContentQueryRecipe.ShapedQuery(output, width, rows, grid);
@@ -512,7 +512,7 @@ final class QueryRecipeApi {
         if (count < 1 || count > 9) {
             throw new LuaError("Query: shapeless recipe must have 1 to 9 ingredients.");
         }
-        List ingredients = new ArrayList();
+        List<ItemStack> ingredients = new ArrayList<>();
         for (int i = 1; i <= count; i++) {
             ingredients.add(LuaApiUtils.readItemStack(ingredientsValue.get(i), false, "ingredient " + i));
         }
@@ -701,8 +701,8 @@ final class QueryRecipeApi {
         return entries.get(0).getRecipe();
     }
 
-    private static List extractRecipes(List<RecipeEntry> entries) {
-        List recipes = new ArrayList();
+    private static List<Object> extractRecipes(List<RecipeEntry> entries) {
+        List<Object> recipes = new ArrayList<>();
         if (entries == null) {
             return recipes;
         }
@@ -713,5 +713,4 @@ final class QueryRecipeApi {
         return recipes;
     }
 
-    
 }

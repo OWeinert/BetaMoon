@@ -1,9 +1,9 @@
 package betamoon.config;
 
-import forge.Configuration;
-import forge.Property;
 import betamoon.BetaMoonMain;
 import betamoon.io.IoUtils;
+import forge.Configuration;
+import forge.Property;
 import java.io.File;
 import java.util.Optional;
 
@@ -20,11 +20,8 @@ public final class BetaMoonConfig {
         config.load();
 
         // Assign config fields
-        showPopupOnWarnings = getOrCreateBooleanProperty(
-            "showPopupOnWarnings",
-            Configuration.GENERAL_PROPERTY,
-            Optional.of(true)
-        );
+        showPopupOnWarnings = getOrCreateBooleanProperty("showPopupOnWarnings", Configuration.GENERAL_PROPERTY,
+                Optional.of(true));
 
         config.save();
     }
@@ -32,8 +29,6 @@ public final class BetaMoonConfig {
     public ConfigField<Boolean> getShowPopupWarnings() {
         return showPopupOnWarnings;
     }
-
-
 
     private void loadFileIntoConfig(String configFileName) {
         File minecraftDir = IoUtils.resolveMinecraftDirFromCodeSource(BetaMoonMain.class);

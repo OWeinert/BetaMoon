@@ -12,7 +12,9 @@ public final class LuaPlayerEventCtx extends LuaTable {
 
     public LuaPlayerEventCtx(PlayerEventCtx context) {
         this.context = context;
-        set("getName", new GetName(this));
+        if (context != null && context.getPlayer() != null && context.getPlayer().username != null) {
+            set("name", LuaValue.valueOf(context.getPlayer().username));
+        }
     }
 
     private static final class GetName extends VarArgFunction {

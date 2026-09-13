@@ -11,7 +11,7 @@ import net.minecraft.src.StatCollector;
  * Formatting and name resolution helpers for debug exports.
  */
 final class DebugExportNames {
-    private static final Map OBF_BLOCK_CLASS_NAMES = new LinkedHashMap();
+    private static final Map<String, String> OBF_BLOCK_CLASS_NAMES = new LinkedHashMap<>();
 
     static {
         // Obfuscated -> unobfuscated class name mapping for unknown-name exports.
@@ -64,8 +64,7 @@ final class DebugExportNames {
      * Returns true when the localized display name is missing.
      */
     static boolean isUnknownDisplayName(String value) {
-        return value == null || "null.name".equals(value) || "Unknown".equals(value)
-            || value.endsWith(".name");
+        return value == null || "null.name".equals(value) || "Unknown".equals(value) || value.endsWith(".name");
     }
 
     /**
@@ -88,7 +87,7 @@ final class DebugExportNames {
     /**
      * Returns a readable class name for fallback internal names.
      */
-    static String safeClassName(Class type, boolean isBlock) {
+    static String safeClassName(Class<?> type, boolean isBlock) {
         if (type == null) {
             return "unknown";
         }
@@ -105,7 +104,7 @@ final class DebugExportNames {
 
     private static String mapObfuscatedClassName(String name, boolean isBlock) {
         // Only blocks currently have known obfuscated mappings.
-        String mapped = (String) (isBlock ? OBF_BLOCK_CLASS_NAMES.get(name) : null);
+        String mapped = (isBlock ? OBF_BLOCK_CLASS_NAMES.get(name) : null);
         return mapped == null ? name : mapped;
     }
 

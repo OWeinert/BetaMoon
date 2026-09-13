@@ -14,8 +14,8 @@ public final class QueryEntries {
     private QueryEntries() {
     }
 
-    public static List buildBlockEntries() {
-        List entries = new ArrayList();
+    public static List<QueryEntry> buildBlockEntries() {
+        List<QueryEntry> entries = new ArrayList<>();
         for (int id = 0; id < Block.blocksList.length && id <= 255; id++) {
             Block block = Block.blocksList[id];
             if (block == null) {
@@ -26,8 +26,8 @@ public final class QueryEntries {
         return entries;
     }
 
-    public static List buildItemEntries() {
-        List entries = new ArrayList();
+    public static List<QueryEntry> buildItemEntries() {
+        List<QueryEntry> entries = new ArrayList<>();
         for (int id = 256; id < Item.itemsList.length; id++) {
             Item item = Item.itemsList[id];
             if (item == null) {
@@ -38,7 +38,7 @@ public final class QueryEntries {
         return entries;
     }
 
-    private static void addEntriesForId(List entries, int id) {
+    private static void addEntriesForId(List<QueryEntry> entries, int id) {
         String baseInternal = resolveInternalName(id, 0);
         String baseDisplay = resolveDisplayName(id, 0);
         entries.add(new QueryEntry(id, 0, baseInternal, baseDisplay));
@@ -46,7 +46,7 @@ public final class QueryEntries {
         if (item == null || !item.getHasSubtypes()) {
             return;
         }
-        Set seen = new HashSet();
+        Set<String> seen = new HashSet<>();
         if (baseInternal != null && baseDisplay != null) {
             seen.add(baseInternal + "|" + baseDisplay);
         }
@@ -112,13 +112,12 @@ public final class QueryEntries {
     }
 
     private static boolean isUnknownDisplayName(String value) {
-        return value == null || "null.name".equals(value) || "Unknown".equals(value)
-            || value.endsWith(".name");
+        return value == null || "null.name".equals(value) || "Unknown".equals(value) || value.endsWith(".name");
     }
 
-    public static QueryEntry findById(List entries, int id, int damage) {
+    public static QueryEntry findById(List<QueryEntry> entries, int id, int damage) {
         for (int i = 0; i < entries.size(); i++) {
-            QueryEntry entry = (QueryEntry) entries.get(i);
+            QueryEntry entry = entries.get(i);
             if (entry.id == id && entry.damage == damage) {
                 return entry;
             }
@@ -126,9 +125,9 @@ public final class QueryEntries {
         return null;
     }
 
-    public static QueryEntry findFirstById(List entries, int id) {
+    public static QueryEntry findFirstById(List<QueryEntry> entries, int id) {
         for (int i = 0; i < entries.size(); i++) {
-            QueryEntry entry = (QueryEntry) entries.get(i);
+            QueryEntry entry = entries.get(i);
             if (entry.id == id) {
                 return entry;
             }
@@ -150,12 +149,12 @@ public final class QueryEntries {
         return filtered;
     }
 
-    public static QueryEntry findFirst(List entries, Predicate predicate) {
+    public static QueryEntry findFirst(List<QueryEntry> entries, Predicate<QueryEntry> predicate) {
         if (entries == null || predicate == null) {
             return null;
         }
         for (int i = 0; i < entries.size(); i++) {
-            QueryEntry entry = (QueryEntry) entries.get(i);
+            QueryEntry entry = entries.get(i);
             if (predicate.test(entry)) {
                 return entry;
             }

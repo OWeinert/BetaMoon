@@ -12,8 +12,8 @@ public final class Events {
     public static final ScreenChangedEvent SCREEN_CHANGED = new ScreenChangedEvent();
     public static final KeyInputEvent KEY_INPUT = new KeyInputEvent();
     public static final MouseInputEvent MOUSE_INPUT = new MouseInputEvent();
-    public static final BlockBreakAttemptEvent BLOCK_BREAK_ATTEMPT = new BlockBreakAttemptEvent();
-    public static final BlockPlaceAttemptEvent BLOCK_PLACE_ATTEMPT = new BlockPlaceAttemptEvent();
+    public static final BlockBrokenEvent BLOCK_BROKEN = new BlockBrokenEvent();
+    public static final BlockPlacedEvent BLOCK_PLACED = new BlockPlacedEvent();
     public static final ItemUseEvent ITEM_USE = new ItemUseEvent();
     public static final DimensionChangeEvent DIMENSION_CHANGE = new DimensionChangeEvent();
 

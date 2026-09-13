@@ -1,14 +1,18 @@
 package betamoon.luaapi.chat;
 
 import betamoon.luaapi.LuaApiUtils;
-import betamoon.scriptloader.LuaScriptRegistry;
+import betamoon.luamodloader.LuaScriptRegistry;
+import betamoon.luamodloader.ScriptResourceTracker;
 import betamoon.utils.ClassUtils;
 import betamoon.utils.MinecraftUtils;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
+import net.minecraft.client.Minecraft;
 import net.minecraft.src.ModLoader;
-import net.minecraft.src.Packet;
 import net.minecraft.src.Packet3Chat;
+import net.minecraft.src.Packet;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
@@ -17,13 +21,17 @@ import org.luaj.vm2.lib.VarArgFunction;
 public final class ChatApi {
     private static final char FORMAT_SPECIFIER = '%';
     private static final char COLOR_CODE_CHAR = '\u00a7';
+    private static final int MAX_PENDING_MESSAGES = 100;
+    private static final List<PendingMessage> pendingMessages = new ArrayList<>();
 
     private ChatApi() {
     }
 
     public static void attach(LuaTable module) {
-        module.set("chat", new Chat());
-        module.set("broadcast", new Broadcast());
+        LuaTable chat = new LuaTable();
+        chat.set("send", new Chat());
+        chat.set("broadcast", new Broadcast());
+        module.set("chat", chat);
     }
 
     private static final class Chat extends VarArgFunction {
@@ -53,14 +61,67 @@ public final class ChatApi {
     private static void sendChat(String message) {
         message = prefixMessage(message);
         try {
-            net.minecraft.client.Minecraft mc = ModLoader.getMinecraftInstance();
+            Minecraft mc = ModLoader.getMinecraftInstance();
             if (mc != null && mc.thePlayer != null) {
                 mc.thePlayer.addChatMessage(message);
             } else {
-                LuaApiUtils.warn("Chat", "Chat unavailable: player not ready.");
+                queueMessage(message);
             }
         } catch (Throwable t) {
             LuaApiUtils.warn("Chat", "Chat unavailable: " + t.getClass().getSimpleName());
+        }
+    }
+
+    /**
+     * Delivers messages that scripts sent while Minecraft was still at the main
+     * menu. The game tick calls this once a player is available.
+     */
+    public static void flushPendingMessages() {
+        Minecraft mc = ModLoader.getMinecraftInstance();
+        if (mc == null || mc.thePlayer == null) {
+            return;
+        }
+        List<PendingMessage> messages;
+        synchronized (pendingMessages) {
+            if (pendingMessages.isEmpty()) {
+                return;
+            }
+            messages = new ArrayList<>(pendingMessages);
+            pendingMessages.clear();
+        }
+        for (int i = 0; i < messages.size(); i++) {
+            mc.thePlayer.addChatMessage(messages.get(i).text);
+        }
+    }
+
+    /**
+     * Keeps startup messages bounded so a broken script cannot grow memory forever.
+     */
+    private static void queueMessage(String message) {
+        final PendingMessage pending = new PendingMessage(message);
+        synchronized (pendingMessages) {
+            if (pendingMessages.size() >= MAX_PENDING_MESSAGES) {
+                pendingMessages.remove(0);
+            }
+            pendingMessages.add(pending);
+        }
+        ScriptResourceTracker.track(new ScriptResourceTracker.Cleanup() {
+            public void run() {
+                synchronized (pendingMessages) {
+                    pendingMessages.remove(pending);
+                }
+            }
+        });
+    }
+
+    /**
+     * One identity-bearing entry so script cleanup can remove only its own message.
+     */
+    private static final class PendingMessage {
+        private final String text;
+
+        private PendingMessage(String text) {
+            this.text = text;
         }
     }
 
@@ -147,6 +208,10 @@ public final class ChatApi {
                 return null;
             }
             char spec = format.charAt(++i);
+            if (spec == FORMAT_SPECIFIER) {
+                builder.append(FORMAT_SPECIFIER);
+                continue;
+            }
             LuaValue value = args.arg(argIndex++);
             if (value.isnil()) {
                 LuaApiUtils.warn("Chat", "Not enough arguments for format string.");
@@ -195,11 +260,13 @@ public final class ChatApi {
             providedArgs = 0;
         }
         if (providedArgs > usedArgs) {
-            LuaApiUtils.warn("Chat", "Too many arguments for format string. Expected: " + usedArgs + " | Found: " + providedArgs);
+            LuaApiUtils.warn("Chat",
+                    "Too many arguments for format string. Expected: " + usedArgs + " | Found: " + providedArgs);
             return null;
         }
         if (providedArgs < usedArgs) {
-            LuaApiUtils.warn("Chat", "Not enough arguments for format string. Expected: " + usedArgs + " | Found: " + providedArgs);
+            LuaApiUtils.warn("Chat",
+                    "Not enough arguments for format string. Expected: " + usedArgs + " | Found: " + providedArgs);
             return null;
         }
         return builder.toString();

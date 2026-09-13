@@ -3,6 +3,7 @@ package betamoon.debug;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.Set;
 import net.minecraft.src.ItemStack;
 
 /**
@@ -18,7 +19,7 @@ final class DebugSubtypeExporter {
     static void writeSubItemEntries(BufferedWriter writer, int exportId, int stackId) throws IOException {
         String baseInternal = null;
         String baseDisplay = null;
-        java.util.Set seen = new HashSet();
+        Set<String> seen = new HashSet<>();
         try {
             ItemStack baseStack = new ItemStack(stackId, 1, 0);
             baseInternal = DebugExportNames.resolveInternalName(stackId, baseStack);

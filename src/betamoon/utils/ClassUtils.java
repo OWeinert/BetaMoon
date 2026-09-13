@@ -6,9 +6,9 @@ public final class ClassUtils {
     private ClassUtils() {
     }
 
-    public static Object tryInvokeStatic(Class target, String methodName) {
+    public static Object tryInvokeStatic(Class<?> target, String methodName) {
         try {
-            Method method = target.getMethod(methodName, new Class[0]);
+            Method method = target.getMethod(methodName, new Class<?>[0]);
             return method.invoke(null, new Object[0]);
         } catch (Exception e) {
             return null;
@@ -17,9 +17,7 @@ public final class ClassUtils {
 
     public static Object tryInvokeStaticClass(String className, String methodName) {
         try {
-            Class target = Class.forName(className);
-            Method method = target.getMethod(methodName, new Class[0]);
-            return method.invoke(null, new Object[0]);
+            return tryInvokeStatic(Class.forName(className), methodName);
         } catch (Exception e) {
             return null;
         }

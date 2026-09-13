@@ -34,7 +34,8 @@ public final class InputEventCtx extends EventContext {
         this.pressed = action != PressAction.RELEASED;
     }
 
-    public InputEventCtx(net.minecraft.client.Minecraft minecraft, int mouseButton, boolean pressed, int mouseX, int mouseY) {
+    public InputEventCtx(net.minecraft.client.Minecraft minecraft, int mouseButton, boolean pressed, int mouseX,
+            int mouseY) {
         super(minecraft);
         this.keyEvent = false;
         this.keyCode = -1;
@@ -46,7 +47,8 @@ public final class InputEventCtx extends EventContext {
         this.action = pressed ? PressAction.PRESSED : PressAction.RELEASED;
     }
 
-    public InputEventCtx(net.minecraft.client.Minecraft minecraft, int mouseButton, PressAction action, int mouseX, int mouseY) {
+    public InputEventCtx(net.minecraft.client.Minecraft minecraft, int mouseButton, PressAction action, int mouseX,
+            int mouseY) {
         super(minecraft);
         this.keyEvent = false;
         this.keyCode = -1;

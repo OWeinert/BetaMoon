@@ -1,15 +1,14 @@
 package betamoon.debug;
 
+import betamoon.BetaMoonMain;
+import betamoon.io.IoUtils;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-
-import betamoon.BetaMoonMain;
-import betamoon.io.IoUtils;
+import java.util.logging.Level;
 import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
-import java.util.logging.Level;
 
 /**
  * Exports item ids and names into the debug items file.
@@ -47,14 +46,15 @@ final class DebugItemExporter {
                 }
                 // Use the base unlocalized and localized names for consistent output.
                 String rawInternal = item.getItemName();
-                String rawDisplay = DebugExportNames.resolveDisplayName(item.shiftedIndex, new ItemStack(item.shiftedIndex, 1, 0));
+                String rawDisplay = DebugExportNames.resolveDisplayName(item.shiftedIndex,
+                        new ItemStack(item.shiftedIndex, 1, 0));
                 // Fall back to class names when items do not expose internal identifiers.
                 String internalName = rawInternal == null || rawInternal.length() == 0
-                    ? DebugExportNames.safeClassName(item.getClass(), false)
-                    : DebugExportNames.safeString(rawInternal);
+                        ? DebugExportNames.safeClassName(item.getClass(), false)
+                        : DebugExportNames.safeString(rawInternal);
                 String displayName = DebugExportNames.isUnknownDisplayName(rawDisplay)
-                    ? "Unknown Item (Probably only used internally)"
-                    : DebugExportNames.safeString(rawDisplay);
+                        ? "Unknown Item (Probably only used internally)"
+                        : DebugExportNames.safeString(rawDisplay);
                 writer.write(itemId + " : " + internalName + " : \"" + displayName + "\"");
                 writer.newLine();
                 // Emit subtype entries when metadata is enabled.

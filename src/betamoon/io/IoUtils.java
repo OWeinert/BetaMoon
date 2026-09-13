@@ -1,17 +1,19 @@
 package betamoon.io;
 
+import betamoon.BetaMoonMain;
 import java.awt.Desktop;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
+import java.util.Locale;
 import java.util.logging.Level;
-import betamoon.BetaMoonMain;
+import java.util.logging.Logger;
 
 /**
  * Shared I/O helpers.
  */
 public final class IoUtils {
-    private static final java.util.logging.Logger LOGGER = BetaMoonMain.LOGGER;
+    private static final Logger LOGGER = BetaMoonMain.LOGGER;
 
     private IoUtils() {
     }
@@ -34,7 +36,8 @@ public final class IoUtils {
     /**
      * Ensures a directory exists, creating it when needed.
      *
-     * @param dir directory to validate
+     * @param dir
+     *            directory to validate
      * @return the directory when it exists, otherwise null
      */
     public static File ensureDirectory(File dir) {
@@ -50,9 +53,12 @@ public final class IoUtils {
     /**
      * Resolves a child directory, optionally creating it.
      *
-     * @param parent base directory
-     * @param name directory name
-     * @param create true to create the directory if missing
+     * @param parent
+     *            base directory
+     * @param name
+     *            directory name
+     * @param create
+     *            true to create the directory if missing
      * @return resolved directory when it exists, otherwise null
      */
     public static File resolveChildDirectory(File parent, String name, boolean create) {
@@ -69,10 +75,11 @@ public final class IoUtils {
     /**
      * Resolves the Minecraft directory based on a class code source location.
      *
-     * @param anchor class anchored within the mod jar
+     * @param anchor
+     *            class anchored within the mod jar
      * @return Minecraft directory or null when unavailable
      */
-    public static File resolveMinecraftDirFromCodeSource(Class anchor) {
+    public static File resolveMinecraftDirFromCodeSource(Class<?> anchor) {
         if (anchor == null) {
             return null;
         }
@@ -91,11 +98,13 @@ public final class IoUtils {
     /**
      * Resolves the Lua scripts directory near the mod jar.
      *
-     * @param anchor class anchored within the mod jar
-     * @param create true to create the directory if missing
+     * @param anchor
+     *            class anchored within the mod jar
+     * @param create
+     *            true to create the directory if missing
      * @return Lua scripts directory or null when unavailable
      */
-    public static File resolveLuaModsDir(Class anchor, boolean create) {
+    public static File resolveLuaModsDir(Class<?> anchor, boolean create) {
         File minecraftDir = resolveMinecraftDirFromCodeSource(anchor);
         if (minecraftDir == null) {
             return null;
@@ -110,49 +119,24 @@ public final class IoUtils {
     /**
      * Attempts to open a file or folder using the native file explorer.
      *
-     * @param path file or directory to open
+     * @param path
+     *            file or directory to open
      * @return true when the open command was dispatched
      */
     public static boolean openInFileExplorer(File path) {
         if (path == null) {
             return false;
         }
-        try {
-            if (Desktop.isDesktopSupported()) {
-                Desktop desktop = Desktop.getDesktop();
-                if (desktop.isSupported(Desktop.Action.OPEN)) {
-                    desktop.open(path);
-                    return true;
-                }
-            }
-        } catch (Throwable t) {
-            // Fall through to shell-based open.
-        }
-        try {
-            String os = System.getProperty("os.name");
-            if (os != null) {
-                os = os.toLowerCase();
-            }
-            String resolved = path.getAbsolutePath();
-            if (os != null && os.indexOf("win") >= 0) {
-                Runtime.getRuntime().exec(new String[] { "explorer", resolved });
-            } else if (os != null && os.indexOf("mac") >= 0) {
-                Runtime.getRuntime().exec(new String[] { "open", resolved });
-            } else {
-                Runtime.getRuntime().exec(new String[] { "xdg-open", resolved });
-            }
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
+        return tryDesktopOpen(path) || launch(DesktopPlatform.current().openCommand(path));
     }
 
     /**
-     * Opens a file or directory using a sensible default.
-     * Directories open in the file explorer, .lua files open with the default program,
-     * other files attempt to open with selection in the file explorer when possible.
+     * Opens a file or directory using a sensible default. Directories open in the
+     * file explorer, .lua files open with the default program, other files attempt
+     * to open with selection in the file explorer when possible.
      *
-     * @param path file or directory to open
+     * @param path
+     *            file or directory to open
      * @return true when the open command was dispatched
      */
     public static boolean openPath(File path) {
@@ -162,42 +146,96 @@ public final class IoUtils {
         if (path.isDirectory()) {
             return openInFileExplorer(path);
         }
-        String name = path.getName() == null ? "" : path.getName().toLowerCase();
+        String name = path.getName().toLowerCase(Locale.ROOT);
         if (name.endsWith(".lua")) {
-            try {
-                if (Desktop.isDesktopSupported()) {
-                    Desktop desktop = Desktop.getDesktop();
-                    if (desktop.isSupported(Desktop.Action.OPEN)) {
-                        desktop.open(path);
-                        return true;
-                    }
-                }
-            } catch (Throwable t) {
-                // Fall through to explorer open.
+            if (tryDesktopOpen(path)) {
+                return true;
             }
             return openInFileExplorer(path);
         }
-        try {
-            String os = System.getProperty("os.name");
-            if (os != null) {
-                os = os.toLowerCase();
-            }
-            String resolved = path.getAbsolutePath();
-            if (os != null && os.indexOf("win") >= 0) {
-                Runtime.getRuntime().exec(new String[] { "explorer", "/select,", resolved });
-                return true;
-            }
-            if (os != null && os.indexOf("mac") >= 0) {
-                Runtime.getRuntime().exec(new String[] { "open", "-R", resolved });
-                return true;
-            }
-        } catch (Exception e) {
-            // Fall through to directory open.
+        if (launch(DesktopPlatform.current().revealCommand(path))) {
+            return true;
         }
         File parent = path.getParentFile();
         if (parent != null) {
             return openInFileExplorer(parent);
         }
         return openInFileExplorer(path);
+    }
+
+    private static boolean tryDesktopOpen(File path) {
+        try {
+            if (!Desktop.isDesktopSupported()) {
+                return false;
+            }
+            Desktop desktop = Desktop.getDesktop();
+            if (!desktop.isSupported(Desktop.Action.OPEN)) {
+                return false;
+            }
+            desktop.open(path);
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static boolean launch(String[] command) {
+        if (command == null) {
+            return false;
+        }
+        try {
+            Runtime.getRuntime().exec(command);
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private enum DesktopPlatform {
+        WINDOWS {
+            @Override
+            String[] openCommand(File path) {
+                return new String[]{"explorer", path.getAbsolutePath()};
+            }
+
+            @Override
+            String[] revealCommand(File path) {
+                return new String[]{"explorer", "/select,", path.getAbsolutePath()};
+            }
+        },
+        MAC {
+            @Override
+            String[] openCommand(File path) {
+                return new String[]{"open", path.getAbsolutePath()};
+            }
+
+            @Override
+            String[] revealCommand(File path) {
+                return new String[]{"open", "-R", path.getAbsolutePath()};
+            }
+        },
+        OTHER {
+            @Override
+            String[] openCommand(File path) {
+                return new String[]{"xdg-open", path.getAbsolutePath()};
+            }
+        };
+
+        abstract String[] openCommand(File path);
+
+        String[] revealCommand(File path) {
+            return null;
+        }
+
+        static DesktopPlatform current() {
+            String name = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+            if (name.indexOf("mac") >= 0) {
+                return MAC;
+            }
+            if (name.indexOf("win") >= 0) {
+                return WINDOWS;
+            }
+            return OTHER;
+        }
     }
 }

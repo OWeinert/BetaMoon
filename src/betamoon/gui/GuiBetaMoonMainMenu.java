@@ -1,28 +1,89 @@
 package betamoon.gui;
 
-import betamoon.gui.api.component.GuiActionButton;
-import betamoon.gui.api.layout.GuiLayout;
-import betamoon.gui.api.screen.GuiMainMenuBase;
+import betamoon.gui.framework.GuiContainer;
+import betamoon.gui.framework.GuiContext;
+import betamoon.gui.framework.GuiGeometry.Rect;
+import betamoon.gui.framework.GuiScene;
+import betamoon.gui.widget.GuiButton;
+import net.minecraft.src.GuiMainMenu;
+import org.lwjgl.input.Keyboard;
+import org.lwjgl.input.Mouse;
 
-public class GuiBetaMoonMainMenu extends GuiMainMenuBase {
-    private final GuiActionButton scriptsButton;
+/** Minecraft main menu with BetaMoon's retained Scripts button layered on top. */
+public final class GuiBetaMoonMainMenu extends GuiMainMenu {
+    private final GuiScene betaMoonScene = new GuiScene();
+    private final MainMenuActions betaMoonActions = new MainMenuActions();
 
-    public GuiBetaMoonMainMenu() {
-        scriptsButton = new GuiActionButton("Scripts", () -> GuiBetaMoonMainMenu.this.showScreen(new GuiScreenScripts(GuiBetaMoonMainMenu.this)));
+    @Override
+    public void initGui() {
+        super.initGui();
+        updateSceneEnvironment();
+        betaMoonScene.setContent(betaMoonActions);
     }
 
     @Override
-    protected void buildGui() {
-        scriptsButton.setMinecraft(this.mc);
-        root.addChild(scriptsButton);
+    public void drawScreen(int mouseX, int mouseY, float partialTicks) {
+        updateSceneEnvironment();
+        super.drawScreen(mouseX, mouseY, partialTicks);
+        betaMoonScene.render(mouseX, mouseY, partialTicks);
     }
 
     @Override
-    protected void layoutComponents() {
-        int buttonWidth = 90;
-        int buttonHeight = 20;
-        int buttonY = GuiLayout.alignBottom(this.height, buttonHeight, 20);
-        scriptsButton.setBounds(10, buttonY, 10 + buttonWidth, buttonY + buttonHeight);
-        super.layoutComponents();
+    public void updateScreen() {
+        super.updateScreen();
+        betaMoonScene.update();
+    }
+
+    @Override
+    public void handleMouseInput() {
+        super.handleMouseInput();
+        int mouseX = Mouse.getEventX() * width / mc.displayWidth;
+        int mouseY = height - Mouse.getEventY() * height / mc.displayHeight - 1;
+        int wheel = Mouse.getEventDWheel();
+        if (wheel != 0) {
+            betaMoonScene.mouseScrolled(mouseX, mouseY, wheel, isShiftDown());
+        }
+        if (Mouse.isButtonDown(0)) {
+            betaMoonScene.mouseDragged(mouseX, mouseY, true);
+        }
+    }
+
+    @Override
+    protected void mouseClicked(int mouseX, int mouseY, int button) {
+        super.mouseClicked(mouseX, mouseY, button);
+        betaMoonScene.mousePressed(mouseX, mouseY, button);
+    }
+
+    @Override
+    protected void mouseMovedOrUp(int mouseX, int mouseY, int button) {
+        super.mouseMovedOrUp(mouseX, mouseY, button);
+        betaMoonScene.mouseReleased(mouseX, mouseY, button);
+    }
+
+    @Override
+    protected void keyTyped(char typedChar, int keyCode) {
+        if (!betaMoonScene.keyTyped(typedChar, keyCode, isShiftDown())) {
+            super.keyTyped(typedChar, keyCode);
+        }
+    }
+
+    private void updateSceneEnvironment() {
+        int displayWidth = mc == null ? width : mc.displayWidth;
+        int displayHeight = mc == null ? height : mc.displayHeight;
+        betaMoonScene.updateEnvironment(mc, fontRenderer, width, height, displayWidth, displayHeight);
+    }
+
+    private static boolean isShiftDown() {
+        return Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) || Keyboard.isKeyDown(Keyboard.KEY_RSHIFT);
+    }
+
+    private final class MainMenuActions extends GuiContainer {
+        private final GuiButton scriptsButton = add(new GuiButton("Scripts", 90,
+                () -> mc.displayGuiScreen(new GuiScreenScripts(GuiBetaMoonMainMenu.this))));
+
+        @Override
+        protected void arrangeChildren(GuiContext context) {
+            scriptsButton.arrange(context, Rect.fromPositionAndSize(getLeft() + 10, getBottom() - 40, 90, 20));
+        }
     }
 }

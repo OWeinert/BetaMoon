@@ -18,6 +18,7 @@ public class BetaMoonTextureStatic extends TextureFX {
         updateImageData();
     }
 
+    @Override
     public void onTick() {
         updateImageData();
     }

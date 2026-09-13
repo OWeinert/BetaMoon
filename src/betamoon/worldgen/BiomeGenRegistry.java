@@ -8,16 +8,19 @@ import net.minecraft.src.BiomeGenBase;
 /**
  * Registry for Lua-defined biomes and lookup table customization.
  *
- * <p>The vanilla biome system uses a 64x64 lookup table keyed by
- * temperature/humidity. Lua adds biomes by specifying a range on that table
- * and we patch the lookup table after scripts load.</p>
+ * <p>
+ * The vanilla biome system uses a 64x64 lookup table keyed by
+ * temperature/humidity. Lua adds biomes by specifying a range on that table and
+ * we patch the lookup table after scripts load.
+ * </p>
  */
 public final class BiomeGenRegistry {
-    private static final String[] FIELD_BIOME_LOOKUP_TABLE = new String[] { "biomeLookupTable", "x" };
-    private static final List ENTRIES = new ArrayList();
+    private static final String[] FIELD_BIOME_LOOKUP_TABLE = new String[]{"biomeLookupTable", "x"};
+    private static final List<BiomeGenEntry> ENTRIES = new ArrayList<>();
 
     /**
-     * Immutable registration entry describing where a biome should appear in the lookup table.
+     * Immutable registration entry describing where a biome should appear in the
+     * lookup table.
      */
     private static final class BiomeGenEntry {
         private final BiomeGenBase biome;
@@ -26,8 +29,8 @@ public final class BiomeGenRegistry {
         private final double minHumidity;
         private final double maxHumidity;
 
-        private BiomeGenEntry(BiomeGenBase biome, double minTemperature, double maxTemperature,
-            double minHumidity, double maxHumidity) {
+        private BiomeGenEntry(BiomeGenBase biome, double minTemperature, double maxTemperature, double minHumidity,
+                double maxHumidity) {
             this.biome = biome;
             this.minTemperature = minTemperature;
             this.maxTemperature = maxTemperature;
@@ -39,17 +42,28 @@ public final class BiomeGenRegistry {
     private BiomeGenRegistry() {
     }
 
+    /** Removes Lua biome overlays and restores the vanilla lookup table. */
+    public static synchronized void clear() {
+        ENTRIES.clear();
+        getBiomeLookupTable();
+    }
+
     /**
      * Registers a new biome generator entry.
      *
-     * @param biome biome instance created by Lua
-     * @param minTemperature minimum temperature (0..1)
-     * @param maxTemperature maximum temperature (0..1)
-     * @param minHumidity minimum humidity (0..1)
-     * @param maxHumidity maximum humidity (0..1)
+     * @param biome
+     *            biome instance created by Lua
+     * @param minTemperature
+     *            minimum temperature (0..1)
+     * @param maxTemperature
+     *            maximum temperature (0..1)
+     * @param minHumidity
+     *            minimum humidity (0..1)
+     * @param maxHumidity
+     *            maximum humidity (0..1)
      */
-    public static void registerBiomeGenerator(BiomeGenBase biome, double minTemperature, double maxTemperature,
-        double minHumidity, double maxHumidity) {
+    public static synchronized void registerBiomeGenerator(BiomeGenBase biome, double minTemperature,
+            double maxTemperature, double minHumidity, double maxHumidity) {
         if (biome == null) {
             return;
         }
@@ -59,8 +73,10 @@ public final class BiomeGenRegistry {
     /**
      * Applies registered biome generators to the biome lookup table.
      *
-     * <p>This should run after all Lua mods are loaded so custom biomes are
-     * available during world generation.</p>
+     * <p>
+     * This should run after all Lua mods are loaded so custom biomes are available
+     * during world generation.
+     * </p>
      */
     public static void applyBiomeGenerators() {
         if (ENTRIES.isEmpty()) {
@@ -73,7 +89,7 @@ public final class BiomeGenRegistry {
         }
         // Apply in registration order so later entries can override earlier ones.
         for (int i = 0; i < ENTRIES.size(); i++) {
-            BiomeGenEntry entry = (BiomeGenEntry) ENTRIES.get(i);
+            BiomeGenEntry entry = ENTRIES.get(i);
             applyBiomeEntry(table, entry);
         }
     }
@@ -99,7 +115,9 @@ public final class BiomeGenRegistry {
     /**
      * Accesses the private biome lookup table and refreshes it first.
      *
-     * <p>Reflection is required because the table is private in BiomeGenBase.</p>
+     * <p>
+     * Reflection is required because the table is private in BiomeGenBase.
+     * </p>
      */
     private static BiomeGenBase[] getBiomeLookupTable() {
         try {
@@ -112,7 +130,7 @@ public final class BiomeGenRegistry {
         }
     }
 
-    private static Field resolveField(Class owner, String[] fieldNames) throws Exception {
+    private static Field resolveField(Class<?> owner, String[] fieldNames) throws Exception {
         Exception last = null;
         for (int i = 0; i < fieldNames.length; i++) {
             try {

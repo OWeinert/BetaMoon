@@ -1,8 +1,8 @@
 package betamoon.debug;
 
+import betamoon.io.IoUtils;
 import java.io.File;
 import java.io.IOException;
-import betamoon.io.IoUtils;
 import net.minecraft.client.Minecraft;
 
 /**

@@ -11,9 +11,12 @@ public final class LuaGuiEventCtx extends LuaTable {
 
     public LuaGuiEventCtx(GuiEventCtx context) {
         this.context = context;
-        set("getName", new GetName(this));
-        set("getOldName", new GetOldName(this));
-        set("getNewName", new GetNewName(this));
+        if (context != null) {
+            String current = context.getCurrentScreenName();
+            String previous = context.getPreviousScreenName();
+            set("name", current == null ? LuaValue.NIL : LuaValue.valueOf(current));
+            set("previousName", previous == null ? LuaValue.NIL : LuaValue.valueOf(previous));
+        }
     }
 
     private static final class GetName extends VarArgFunction {

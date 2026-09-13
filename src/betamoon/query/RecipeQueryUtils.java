@@ -1,12 +1,10 @@
 package betamoon.query;
 
+import betamoon.recipes.NativeRecipeInspector;
 import betamoon.recipes.SmeltingRecipe;
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.src.IRecipe;
-import net.minecraft.src.Block;
-import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.ShapedRecipes;
 import net.minecraft.src.ShapelessRecipes;
@@ -25,8 +23,7 @@ public final class RecipeQueryUtils {
         if (target.stackSize == 0) {
             return true;
         }
-        return recipeOutput.stackSize == target.stackSize
-            && recipeOutput.getItemDamage() == target.getItemDamage();
+        return recipeOutput.stackSize == target.stackSize && recipeOutput.getItemDamage() == target.getItemDamage();
     }
 
     public static boolean matchesStack(ItemStack stack, ItemStack target) {
@@ -37,91 +34,22 @@ public final class RecipeQueryUtils {
     }
 
     public static ItemStack normalizeIngredient(Object ingredient) {
-        if (ingredient == null) {
-            return null;
-        }
-        if (ingredient instanceof ItemStack) {
-            return (ItemStack) ingredient;
-        }
-        if (ingredient instanceof Item) {
-            return new ItemStack((Item) ingredient);
-        }
-        if (ingredient instanceof Block) {
-            return new ItemStack((Block) ingredient);
-        }
-        return null;
+        return NativeRecipeInspector.normalizeIngredient(ingredient);
     }
 
-    public static List getShapelessInputs(ShapelessRecipes recipe) {
-        try {
-            Field[] fields = ShapelessRecipes.class.getDeclaredFields();
-            for (int i = 0; i < fields.length; i++) {
-                Field field = fields[i];
-                if (List.class.isAssignableFrom(field.getType())) {
-                    field.setAccessible(true);
-                    return (List) field.get(recipe);
-                }
-            }
-        } catch (Exception e) {
-            return null;
-        }
-        return null;
+    public static List<?> getShapelessInputs(ShapelessRecipes recipe) {
+        return NativeRecipeInspector.shapelessInputs(recipe);
     }
 
     public static ItemStack[] getShapedInputs(ShapedRecipes recipe) {
-        try {
-            Field[] fields = ShapedRecipes.class.getDeclaredFields();
-            for (int i = 0; i < fields.length; i++) {
-                Field field = fields[i];
-                if (field.getType().isArray()
-                    && ItemStack.class.equals(field.getType().getComponentType())) {
-                    field.setAccessible(true);
-                    return (ItemStack[]) field.get(recipe);
-                }
-            }
-        } catch (Exception e) {
-            return null;
-        }
-        return null;
+        return NativeRecipeInspector.shapedInputs(recipe);
     }
 
     public static int[] getShapedDimensions(ShapedRecipes recipe, int itemCount) {
-        try {
-            Field[] fields = ShapedRecipes.class.getDeclaredFields();
-            int[] candidates = new int[3];
-            int count = 0;
-            for (int i = 0; i < fields.length; i++) {
-                Field field = fields[i];
-                if (field.getType() == Integer.TYPE) {
-                    field.setAccessible(true);
-                    candidates[count++] = field.getInt(recipe);
-                    if (count == candidates.length) {
-                        break;
-                    }
-                }
-            }
-            for (int i = 0; i < count; i++) {
-                for (int j = 0; j < count; j++) {
-                    if (i == j) {
-                        continue;
-                    }
-                    int width = candidates[i];
-                    int height = candidates[j];
-                    if (width > 0 && height > 0 && width * height == itemCount) {
-                        return new int[] { width, height };
-                    }
-                }
-            }
-        } catch (Exception e) {
-            return null;
-        }
-        return null;
+        return NativeRecipeInspector.shapedDimensions(recipe, itemCount);
     }
 
     public static ItemStack getRecipeOutput(Object recipe) {
-        if (recipe instanceof SmeltingRecipe) {
-            return ((SmeltingRecipe) recipe).getRecipeOutput();
-        }
         if (recipe instanceof IRecipe) {
             return ((IRecipe) recipe).getRecipeOutput();
         }
@@ -160,7 +88,7 @@ public final class RecipeQueryUtils {
             return false;
         }
         if (craft instanceof ShapelessRecipes) {
-            List items = getShapelessInputs((ShapelessRecipes) craft);
+            List<?> items = getShapelessInputs((ShapelessRecipes) craft);
             if (items == null) {
                 return false;
             }
@@ -174,68 +102,25 @@ public final class RecipeQueryUtils {
         return false;
     }
 
-    public static boolean matchesInputs(IRecipe recipe, List inputs) {
-        List recipeInputs = collectRecipeInputs(recipe);
+    public static boolean matchesInputs(IRecipe recipe, List<ItemStack> inputs) {
+        List<ItemStack> recipeInputs = collectRecipeInputs(recipe);
         if (recipeInputs == null) {
             return false;
         }
-        List remaining = new ArrayList(recipeInputs);
-        for (int i = 0; i < inputs.size(); i++) {
-            ItemStack target = (ItemStack) inputs.get(i);
-            boolean matched = false;
-            for (int j = 0; j < remaining.size(); j++) {
-                ItemStack candidate = (ItemStack) remaining.get(j);
-                if (candidate != null && matchesStack(candidate, target)) {
-                    remaining.remove(j);
-                    matched = true;
-                    break;
-                }
-            }
-            if (!matched) {
-                return false;
-            }
-        }
-        return true;
+        return matchesInputList(recipeInputs, inputs);
     }
 
-    public static List collectRecipeInputs(IRecipe recipe) {
-        if (recipe instanceof ShapedRecipes) {
-            ItemStack[] items = getShapedInputs((ShapedRecipes) recipe);
-            if (items == null) {
-                return null;
-            }
-            List list = new ArrayList();
-            for (int i = 0; i < items.length; i++) {
-                if (items[i] != null) {
-                    list.add(items[i]);
-                }
-            }
-            return list;
-        }
-        if (recipe instanceof ShapelessRecipes) {
-            List items = getShapelessInputs((ShapelessRecipes) recipe);
-            if (items == null) {
-                return null;
-            }
-            List list = new ArrayList();
-            for (int i = 0; i < items.size(); i++) {
-                ItemStack stack = normalizeIngredient(items.get(i));
-                if (stack != null) {
-                    list.add(stack);
-                }
-            }
-            return list;
-        }
-        return null;
+    public static List<ItemStack> collectRecipeInputs(IRecipe recipe) {
+        return NativeRecipeInspector.collectInputs(recipe);
     }
 
-    public static boolean matchesInputList(List recipeInputs, List desiredInputs) {
-        List remaining = new ArrayList(recipeInputs);
+    public static boolean matchesInputList(List<ItemStack> recipeInputs, List<ItemStack> desiredInputs) {
+        List<ItemStack> remaining = new ArrayList<>(recipeInputs);
         for (int i = 0; i < desiredInputs.size(); i++) {
-            ItemStack target = (ItemStack) desiredInputs.get(i);
+            ItemStack target = desiredInputs.get(i);
             boolean matched = false;
             for (int j = 0; j < remaining.size(); j++) {
-                ItemStack candidate = (ItemStack) remaining.get(j);
+                ItemStack candidate = remaining.get(j);
                 if (candidate != null && matchesStack(candidate, target)) {
                     remaining.remove(j);
                     matched = true;

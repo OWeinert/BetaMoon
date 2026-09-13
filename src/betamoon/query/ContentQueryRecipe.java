@@ -1,15 +1,15 @@
 package betamoon.query;
 
 import betamoon.BetaMoonMain;
+import betamoon.recipes.NativeRecipeRegistries;
 import betamoon.recipes.RecipeModificationHandler;
 import betamoon.recipes.SmeltingRecipe;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
-
-import net.minecraft.src.FurnaceRecipes;
 import net.minecraft.src.IRecipe;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.ShapedRecipes;
@@ -64,10 +64,10 @@ public final class ContentQueryRecipe extends ContentQuery<RecipeEntry> {
     }
 
     public ContentQueryRecipe filterTypes(final boolean allowShaped, final boolean allowShapeless,
-        final boolean allowSmelting) {
+            final boolean allowSmelting) {
         addFilterStep("filterTypes", formatTypes(allowShaped, allowShapeless, allowSmelting),
-            (List<RecipeEntry> state) -> QueryStepResult.success(
-                filterByTypesList(state, allowShaped, allowShapeless, allowSmelting)));
+                (List<RecipeEntry> state) -> QueryStepResult
+                        .success(filterByTypesList(state, allowShaped, allowShapeless, allowSmelting)));
         return this;
     }
 
@@ -111,20 +111,21 @@ public final class ContentQueryRecipe extends ContentQuery<RecipeEntry> {
             if (input == null) {
                 return QueryStepResult.failure("Query: expected input itemstack.");
             }
-            return QueryStepResult.success(filterEntries(state,
-                entry -> RecipeQueryUtils.matchesInput(entry.getRecipe(), input)));
+            return QueryStepResult
+                    .success(filterEntries(state, entry -> RecipeQueryUtils.matchesInput(entry.getRecipe(), input)));
         });
         return this;
     }
 
-    public ContentQueryRecipe filterOutAndIn(final ItemStack output, final List inputs) {
+    public ContentQueryRecipe filterOutAndIn(final ItemStack output, final List<ItemStack> inputs) {
         return filterOutAndIn(output, inputs, null);
     }
 
-    public ContentQueryRecipe filterOutAndIn(final ItemStack output, final List inputs, final String detail) {
+    public ContentQueryRecipe filterOutAndIn(final ItemStack output, final List<ItemStack> inputs,
+            final String detail) {
         String label = detail == null || detail.length() == 0
-            ? RecipeQueryFormat.stackLabel(output) + ", " + RecipeQueryFormat.formatInputs(inputs)
-            : detail;
+                ? RecipeQueryFormat.stackLabel(output) + ", " + RecipeQueryFormat.formatInputs(inputs)
+                : detail;
         addFilterStep("filterOutAndIn", label, (List<RecipeEntry> state) -> {
             if (output == null) {
                 return QueryStepResult.failure("Query: expected output itemstack.");
@@ -143,7 +144,7 @@ public final class ContentQueryRecipe extends ContentQuery<RecipeEntry> {
                         return false;
                     }
                     SmeltingRecipe smelting = (SmeltingRecipe) recipe;
-                    ItemStack inputStack = (ItemStack) inputs.get(0);
+                    ItemStack inputStack = inputs.get(0);
                     return smelting.getInputId() == inputStack.itemID;
                 }
                 return recipe instanceof IRecipe && RecipeQueryUtils.matchesInputs((IRecipe) recipe, inputs);
@@ -153,58 +154,59 @@ public final class ContentQueryRecipe extends ContentQuery<RecipeEntry> {
     }
 
     public ContentQueryRecipe getShaped(final ShapedQuery query) {
-        addSingleStep("getShaped", RecipeQueryFormat.formatGrid(query == null ? null : query.grid,
-            query == null ? 0 : query.width, query == null ? 0 : query.height),
-            (List<RecipeEntry> state) -> {
-            if (query == null) {
-                return QueryStepResult.failure("Query: shaped recipe must be a table.");
-            }
-            Map sourceMap = mapFromList(state);
-            Object match = RecipeQueryMatcher.findMatchingShaped(sourceMap, query);
-            if (match == null) {
-                RecipeQueryFormat.logShapedQueryFailure(LOGGER, sourceMap, query);
-                return QueryStepResult.failure("Query: shaped recipe not found.");
-            }
-            return QueryStepResult.success(wrapSingle(findEntryByRecipe(state, match)));
-        });
+        addSingleStep(
+                "getShaped", RecipeQueryFormat.formatGrid(query == null ? null : query.grid,
+                        query == null ? 0 : query.width, query == null ? 0 : query.height),
+                (List<RecipeEntry> state) -> {
+                    if (query == null) {
+                        return QueryStepResult.failure("Query: shaped recipe must be a table.");
+                    }
+                    Map<String, ?> sourceMap = mapFromList(state);
+                    Object match = RecipeQueryMatcher.findMatchingShaped(sourceMap, query);
+                    if (match == null) {
+                        RecipeQueryFormat.logShapedQueryFailure(LOGGER, sourceMap, query);
+                        return QueryStepResult.failure("Query: shaped recipe not found.");
+                    }
+                    return QueryStepResult.success(wrapSingle(findEntryByRecipe(state, match)));
+                });
         return this;
     }
 
     public ContentQueryRecipe getShapeless(final ShapelessQuery query) {
         addSingleStep("getShapeless", RecipeQueryFormat.formatInputs(query == null ? null : query.inputs),
-            (List<RecipeEntry> state) -> {
-            if (query == null) {
-                return QueryStepResult.failure("Query: shapeless recipe must be a table.");
-            }
-            Object match = RecipeQueryMatcher.findMatchingShapeless(mapFromList(state), query);
-            if (match == null) {
-                RecipeQueryFormat.logShapelessQueryFailure(LOGGER, mapFromList(state), query);
-                return QueryStepResult.failure("Query: shapeless recipe not found.");
-            }
-            return QueryStepResult.success(wrapSingle(findEntryByRecipe(state, match)));
-        });
+                (List<RecipeEntry> state) -> {
+                    if (query == null) {
+                        return QueryStepResult.failure("Query: shapeless recipe must be a table.");
+                    }
+                    Object match = RecipeQueryMatcher.findMatchingShapeless(mapFromList(state), query);
+                    if (match == null) {
+                        RecipeQueryFormat.logShapelessQueryFailure(LOGGER, mapFromList(state), query);
+                        return QueryStepResult.failure("Query: shapeless recipe not found.");
+                    }
+                    return QueryStepResult.success(wrapSingle(findEntryByRecipe(state, match)));
+                });
         return this;
     }
 
     public ContentQueryRecipe getSmelting(final SmeltingQuery query) {
         addSingleStep("getSmelting", query == null ? "null" : String.valueOf(query.inputId),
-            (List<RecipeEntry> state) -> {
-            if (query == null) {
-                return QueryStepResult.failure("Query: smelting recipe must be a table.");
-            }
-            Object match = RecipeQueryMatcher.findMatchingSmelting(mapFromList(state), query);
-            if (match == null) {
-                RecipeQueryFormat.logSmeltingQueryFailure(LOGGER, query);
-                return QueryStepResult.failure("Query: smelting recipe not found.");
-            }
-            return QueryStepResult.success(wrapSingle(findEntryByRecipe(state, match)));
-        });
+                (List<RecipeEntry> state) -> {
+                    if (query == null) {
+                        return QueryStepResult.failure("Query: smelting recipe must be a table.");
+                    }
+                    Object match = RecipeQueryMatcher.findMatchingSmelting(mapFromList(state), query);
+                    if (match == null) {
+                        RecipeQueryFormat.logSmeltingQueryFailure(LOGGER, query);
+                        return QueryStepResult.failure("Query: smelting recipe not found.");
+                    }
+                    return QueryStepResult.success(wrapSingle(findEntryByRecipe(state, match)));
+                });
         return this;
     }
 
     public ContentQueryRecipe getByName(final String name) {
         addSingleStep("getByName", quote(name), (List<RecipeEntry> state) -> {
-            Map sourceMap = mapFromList(state);
+            Map<String, ?> sourceMap = mapFromList(state);
             Object recipe = sourceMap.get(name);
             if (recipe == null) {
                 recipe = findRecipeByAlternateName(sourceMap, name);
@@ -236,7 +238,6 @@ public final class ContentQueryRecipe extends ContentQuery<RecipeEntry> {
         return this;
     }
 
-
     private static RecipeEntry findEntryByRecipe(List<RecipeEntry> source, Object recipe) {
         if (source == null) {
             return null;
@@ -266,20 +267,20 @@ public final class ContentQueryRecipe extends ContentQuery<RecipeEntry> {
         return null;
     }
 
-    private static List<RecipeEntry> listFromMap(Map source) {
+    private static List<RecipeEntry> listFromMap(Map<String, ?> source) {
         List<RecipeEntry> list = new ArrayList<RecipeEntry>();
         if (source == null) {
             return list;
         }
-        for (java.util.Iterator it = source.entrySet().iterator(); it.hasNext();) {
-            Map.Entry entry = (Map.Entry) it.next();
-            list.add(new RecipeEntry((String) entry.getKey(), entry.getValue()));
+        for (Iterator<? extends Map.Entry<String, ?>> it = source.entrySet().iterator(); it.hasNext();) {
+            Map.Entry<String, ?> entry = it.next();
+            list.add(new RecipeEntry(entry.getKey(), entry.getValue()));
         }
         return list;
     }
 
-    private static Map mapFromList(List<RecipeEntry> source) {
-        Map map = new LinkedHashMap();
+    private static Map<String, Object> mapFromList(List<RecipeEntry> source) {
+        Map<String, Object> map = new LinkedHashMap<>();
         if (source == null) {
             return map;
         }
@@ -332,7 +333,7 @@ public final class ContentQueryRecipe extends ContentQuery<RecipeEntry> {
     }
 
     private static List<RecipeEntry> filterByTypesList(List<RecipeEntry> source, boolean allowShaped,
-        boolean allowShapeless, boolean allowSmelting) {
+            boolean allowShapeless, boolean allowSmelting) {
         return filterEntries(source, entry -> {
             Object recipe = entry.getRecipe();
             if (recipe instanceof ShapedRecipes) {
@@ -359,7 +360,7 @@ public final class ContentQueryRecipe extends ContentQuery<RecipeEntry> {
         return filtered;
     }
 
-    private static Object findRecipeByAlternateName(Map recipeMap, String name) {
+    private static Object findRecipeByAlternateName(Map<String, ?> recipeMap, String name) {
         if (recipeMap == null || name == null) {
             return null;
         }
@@ -391,18 +392,16 @@ public final class ContentQueryRecipe extends ContentQuery<RecipeEntry> {
         return null;
     }
 
-    private static void logRecipeNameFailure(Map recipeMap, String name) {
+    private static void logRecipeNameFailure(Map<String, ?> recipeMap, String name) {
         if (recipeMap == null || name == null) {
             return;
         }
         int slash = name.indexOf('/');
         String type = slash > 0 ? name.substring(0, slash) : "";
         StringBuilder builder = new StringBuilder();
-        builder.append("Query: recipe name not found. Requested=")
-            .append(name)
-            .append(" keys=");
+        builder.append("Query: recipe name not found. Requested=").append(name).append(" keys=");
         int count = 0;
-        for (java.util.Iterator it = recipeMap.keySet().iterator(); it.hasNext();) {
+        for (Iterator<String> it = recipeMap.keySet().iterator(); it.hasNext();) {
             Object key = it.next();
             if (!(key instanceof String)) {
                 continue;
@@ -425,7 +424,7 @@ public final class ContentQueryRecipe extends ContentQuery<RecipeEntry> {
     }
 
     private static String[] buildRecipeKeyCandidates(String type, String itemToken, String countToken) {
-        List keys = new ArrayList();
+        List<String> keys = new ArrayList<>();
         keys.add(type + "/" + itemToken + "_" + countToken);
         String noPrefix = stripPrefix(itemToken);
         if (noPrefix != null) {
@@ -448,7 +447,7 @@ public final class ContentQueryRecipe extends ContentQuery<RecipeEntry> {
         }
         String[] result = new String[keys.size()];
         for (int i = 0; i < keys.size(); i++) {
-            result[i] = (String) keys.get(i);
+            result[i] = keys.get(i);
         }
         return result;
     }
@@ -519,10 +518,10 @@ public final class ContentQueryRecipe extends ContentQuery<RecipeEntry> {
             outputCount = Integer.parseInt(countToken);
         } catch (NumberFormatException ignored) {
         }
-        Map smelting = FurnaceRecipes.smelting().getSmeltingList();
-        for (java.util.Iterator it = smelting.entrySet().iterator(); it.hasNext();) {
-            Map.Entry entry = (Map.Entry) it.next();
-            ItemStack output = (ItemStack) entry.getValue();
+        Map<Integer, ItemStack> smelting = NativeRecipeRegistries.smelting();
+        for (Iterator<Map.Entry<Integer, ItemStack>> it = smelting.entrySet().iterator(); it.hasNext();) {
+            Map.Entry<Integer, ItemStack> entry = it.next();
+            ItemStack output = entry.getValue();
             if (output == null) {
                 continue;
             }
@@ -569,9 +568,9 @@ public final class ContentQueryRecipe extends ContentQuery<RecipeEntry> {
 
     public static final class ShapelessQuery {
         public final ItemStack output;
-        public final List inputs;
+        public final List<ItemStack> inputs;
 
-        public ShapelessQuery(ItemStack output, List inputs) {
+        public ShapelessQuery(ItemStack output, List<ItemStack> inputs) {
             this.output = output;
             this.inputs = inputs;
         }

@@ -7,7 +7,7 @@ public final class QueryExecutionResult<TState> {
     private final QueryFailure warning;
 
     private QueryExecutionResult(TState state, ContentQuery.ResultMode resultMode, QueryFailure failure,
-        QueryFailure warning) {
+            QueryFailure warning) {
         this.state = state;
         this.resultMode = resultMode;
         this.failure = failure;
@@ -15,7 +15,7 @@ public final class QueryExecutionResult<TState> {
     }
 
     public static <TState> QueryExecutionResult<TState> success(TState state, ContentQuery.ResultMode mode,
-        QueryFailure warning) {
+            QueryFailure warning) {
         return new QueryExecutionResult<TState>(state, mode, null, warning);
     }
 

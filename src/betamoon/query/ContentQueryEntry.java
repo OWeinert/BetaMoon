@@ -20,23 +20,21 @@ public abstract class ContentQueryEntry extends ContentQuery<QueryEntry> {
     }
 
     public ContentQueryEntry filterByName(final String name) {
-        addFilterStep("filterByName", quote(name),
-            (List<QueryEntry> state) -> QueryStepResult.success(QueryEntries.filterEntries(state,
-                entry -> name.equals(entry.internalName))));
+        addFilterStep("filterByName", quote(name), (List<QueryEntry> state) -> QueryStepResult
+                .success(QueryEntries.filterEntries(state, entry -> name.equals(entry.internalName))));
         return this;
     }
 
     public ContentQueryEntry filterByDisplayName(final String name) {
-        addFilterStep("filterByDisplayName", quote(name),
-            (List<QueryEntry> state) -> QueryStepResult.success(QueryEntries.filterEntries(state,
-                entry -> name.equals(entry.displayName))));
+        addFilterStep("filterByDisplayName", quote(name), (List<QueryEntry> state) -> QueryStepResult
+                .success(QueryEntries.filterEntries(state, entry -> name.equals(entry.displayName))));
         return this;
     }
 
     public ContentQueryEntry filterDamage(final int min, final int max) {
         addFilterStep("filterDamage", min + ", " + max, (List<QueryEntry> state) -> {
-            List filtered = QueryEntries.filterEntries(state,
-                entry -> entry.damage >= min && entry.damage <= max);
+            List<QueryEntry> filtered = QueryEntries.filterEntries(state,
+                    entry -> entry.damage >= min && entry.damage <= max);
             return QueryStepResult.success(filtered);
         });
         return this;
@@ -49,15 +47,14 @@ public abstract class ContentQueryEntry extends ContentQuery<QueryEntry> {
                 QueryEntry entry = state.get(i);
                 if (entry.damage == damage) {
                     if (match != null) {
-                        return QueryStepResult.failure("Query: multiple " + pluralType()
-                            + " match damage value: " + damage);
+                        return QueryStepResult
+                                .failure("Query: multiple " + pluralType() + " match damage value: " + damage);
                     }
                     match = entry;
                 }
             }
             if (match == null) {
-                return QueryStepResult.failure("Query: no " + getQueryType()
-                    + " found with damage value: " + damage);
+                return QueryStepResult.failure("Query: no " + getQueryType() + " found with damage value: " + damage);
             }
             return QueryStepResult.success(wrapSingle(match));
         });

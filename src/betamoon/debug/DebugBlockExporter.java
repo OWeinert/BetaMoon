@@ -1,16 +1,15 @@
 package betamoon.debug;
 
+import betamoon.BetaMoonMain;
+import betamoon.io.IoUtils;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-
-import betamoon.BetaMoonMain;
-import betamoon.io.IoUtils;
+import java.util.logging.Level;
 import net.minecraft.src.Block;
 import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
-import java.util.logging.Level;
 
 /**
  * Exports block ids and names into the debug blocks file.
@@ -47,11 +46,11 @@ final class DebugBlockExporter {
                 String rawDisplay = DebugExportNames.resolveDisplayName(i, new ItemStack(i, 1, 0));
                 // Fall back to class names when blocks do not expose internal identifiers.
                 String internalName = rawInternal == null || rawInternal.length() == 0
-                    ? DebugExportNames.safeClassName(block.getClass(), true)
-                    : DebugExportNames.safeString(rawInternal);
+                        ? DebugExportNames.safeClassName(block.getClass(), true)
+                        : DebugExportNames.safeString(rawInternal);
                 String displayName = DebugExportNames.isUnknownDisplayName(rawDisplay)
-                    ? "Unknown Block (Probably only used internally)"
-                    : DebugExportNames.safeString(rawDisplay);
+                        ? "Unknown Block (Probably only used internally)"
+                        : DebugExportNames.safeString(rawDisplay);
                 writer.write(i + " : " + internalName + " : \"" + displayName + "\"");
                 writer.newLine();
                 // Emit subtype entries when the corresponding item supports metadata.

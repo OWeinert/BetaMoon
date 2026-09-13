@@ -2,6 +2,9 @@ package betamoon.luaapi.event;
 
 import betamoon.event.context.ItemUseEventCtx;
 import betamoon.luaapi.item.ItemApi;
+import net.minecraft.src.Item;
+import net.minecraft.src.ItemStack;
+import net.minecraft.src.StatCollector;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
@@ -12,11 +15,12 @@ public final class LuaItemUseEventCtx extends LuaTable {
 
     public LuaItemUseEventCtx(ItemUseEventCtx context) {
         this.context = context;
-        set("getItemId", new GetItemId(this));
-        set("getDamage", new GetDamage(this));
-        set("getCount", new GetCount(this));
-        set("getName", new GetName(this));
-        set("getHandle", new GetHandle(this));
+        if (context != null && context.getItemStack() != null) {
+            set("itemId", context.getItemStack().itemID);
+            set("damage", context.getItemStack().getItemDamage());
+            set("count", context.getItemStack().stackSize);
+            set("item", ItemApi.createHandle(context.getItemStack()));
+        }
     }
 
     private static final class GetItemId extends VarArgFunction {
@@ -79,8 +83,8 @@ public final class LuaItemUseEventCtx extends LuaTable {
             if (owner.context == null || owner.context.getItemStack() == null) {
                 return LuaValue.NIL;
             }
-            net.minecraft.src.ItemStack stack = owner.context.getItemStack();
-            net.minecraft.src.Item item = stack.getItem();
+            ItemStack stack = owner.context.getItemStack();
+            Item item = stack.getItem();
             if (item == null) {
                 return LuaValue.NIL;
             }
@@ -91,7 +95,7 @@ public final class LuaItemUseEventCtx extends LuaTable {
             if (key == null) {
                 return LuaValue.NIL;
             }
-            String name = net.minecraft.src.StatCollector.translateToLocal(key + ".name");
+            String name = StatCollector.translateToLocal(key + ".name");
             if (name == null || "null.name".equals(name) || name.endsWith(".name")) {
                 return LuaValue.NIL;
             }

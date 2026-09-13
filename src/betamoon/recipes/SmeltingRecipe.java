@@ -1,27 +1,28 @@
 package betamoon.recipes;
 
+import java.util.Iterator;
 import java.util.Map;
 import net.minecraft.src.IRecipe;
 import net.minecraft.src.InventoryCrafting;
 import net.minecraft.src.ItemStack;
 
 public final class SmeltingRecipe implements IRecipe {
-    private final Map smeltingMap;
-    private Map.Entry smeltingRecipe;
+    private final Map<Integer, ItemStack> smeltingMap;
+    private Map.Entry<Integer, ItemStack> smeltingRecipe;
     private int inputId;
     private ItemStack output;
 
-    public SmeltingRecipe(Map smeltingMap, Map.Entry smeltingRecipe) {
+    public SmeltingRecipe(Map<Integer, ItemStack> smeltingMap, Map.Entry<Integer, ItemStack> smeltingRecipe) {
         this.smeltingMap = smeltingMap;
         this.smeltingRecipe = smeltingRecipe;
-        this.inputId = ((Integer) smeltingRecipe.getKey()).intValue();
-        this.output = (ItemStack) smeltingRecipe.getValue();
+        this.inputId = smeltingRecipe.getKey().intValue();
+        this.output = smeltingRecipe.getValue();
     }
 
     /**
      * Returns the raw smelting entry (input id -> output stack).
      */
-    public Map.Entry getSmeltingEntry() {
+    public Map.Entry<Integer, ItemStack> getSmeltingEntry() {
         return this.smeltingRecipe;
     }
 
@@ -37,9 +38,18 @@ public final class SmeltingRecipe implements IRecipe {
     }
 
     /**
+     * Returns whether this wrapper's input is still present in the furnace
+     * registry.
+     */
+    public boolean isRegistered() {
+        return this.smeltingMap.get(Integer.valueOf(this.inputId)) == this.output;
+    }
+
+    /**
      * Updates the input id and keeps the furnace recipe map in sync.
      *
-     * @param newInputId new input item or block id
+     * @param newInputId
+     *            new input item or block id
      * @return true when the input id was updated
      */
     public boolean setInputId(int newInputId) {
@@ -61,12 +71,21 @@ public final class SmeltingRecipe implements IRecipe {
     /**
      * Updates the output stack and keeps the furnace recipe map in sync.
      *
-     * @param newOutput new output stack
+     * @param newOutput
+     *            new output stack
      */
     public void setOutput(ItemStack newOutput) {
         this.output = newOutput;
         this.smeltingMap.put(Integer.valueOf(this.inputId), newOutput);
         this.smeltingRecipe = findEntryForKey(Integer.valueOf(this.inputId));
+    }
+
+    /**
+     * Updates a disabled registration without making it visible in the native
+     * furnace.
+     */
+    public void setStoredOutput(ItemStack newOutput) {
+        this.output = newOutput;
     }
 
     /**
@@ -86,8 +105,10 @@ public final class SmeltingRecipe implements IRecipe {
     /**
      * Replaces the input id and output stack in one call.
      *
-     * @param newInputId new input item or block id
-     * @param newOutput new output stack
+     * @param newInputId
+     *            new input item or block id
+     * @param newOutput
+     *            new output stack
      * @return true when the recipe was updated
      */
     public boolean replaceRecipe(int newInputId, ItemStack newOutput) {
@@ -108,9 +129,9 @@ public final class SmeltingRecipe implements IRecipe {
         return true;
     }
 
-    private Map.Entry findEntryForKey(Integer key) {
-        for (java.util.Iterator it = this.smeltingMap.entrySet().iterator(); it.hasNext();) {
-            Map.Entry entry = (Map.Entry) it.next();
+    private Map.Entry<Integer, ItemStack> findEntryForKey(Integer key) {
+        for (Iterator<Map.Entry<Integer, ItemStack>> it = this.smeltingMap.entrySet().iterator(); it.hasNext();) {
+            Map.Entry<Integer, ItemStack> entry = it.next();
             if (key.equals(entry.getKey())) {
                 return entry;
             }
@@ -119,25 +140,29 @@ public final class SmeltingRecipe implements IRecipe {
     }
 
     /*
-    ----------------------------------------------------------------------
-        This is a dummy wrapper for use in RecipeModificationHandler.
-        Therefore the IRecipe functions will never be called for this
-        class and return dummy values.
-    ----------------------------------------------------------------------
-    */
+     * ---------------------------------------------------------------------- This
+     * is a dummy wrapper for use in RecipeModificationHandler. Therefore the
+     * IRecipe functions will never be called for this class and return dummy
+     * values.
+     * ----------------------------------------------------------------------
+     */
 
+    @Override
     public boolean matches(InventoryCrafting var1) {
         return false;
     }
 
+    @Override
     public ItemStack getCraftingResult(InventoryCrafting var1) {
         return this.output == null ? null : this.output.copy();
     }
 
+    @Override
     public int getRecipeSize() {
         return 0;
     }
 
+    @Override
     public ItemStack getRecipeOutput() {
         return this.output;
     }
