@@ -39,7 +39,7 @@ The packaged BetaMoon 0.6.0 JAR bundles LuaJ 3.0.1 and the agent's runtime depen
 5. **Enable the Java agent.** Return to **Settings → Java**, enable the **Java arguments** override and append the argument below to the instance's existing arguments. Replace the example with the absolute path to the installed BetaMoon JAR.
 
    ```text
-   -javaagent:"F:/Games/MultiMC/instances/BetaMoon/.minecraft/mods/betamoon-0.6.0.jar"
+   -javaagent:"C:/your/path/to/MultiMC/instances/your_instance_name/.minecraft/mods/betamoon-0.6.0.jar"
    ```
 
 6. **Launch Minecraft.** Inspect the console for initialization errors, then open BetaMoon's **Scripts** screen.
