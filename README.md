@@ -71,7 +71,7 @@ The BetaMoon JAR serves as both the mod and its Java agent. The agent enables en
 Use an absolute path to the same JAR installed in the instance. On Windows, use forward slashes and quote the path as shown above, especially when it contains spaces. On macOS or Linux, substitute the corresponding absolute path, for example:
 
 ```text
--javaagent:"/home/yourname/Games/BetaMoon/.minecraft/mods/betamoon-0.6.0.jar"
+-javaagent:"/your/path/to/MultiMC/instances/your_instance_name/.minecraft/mods/betamoon-0.6.0.jar"
 ```
 
 Update the argument whenever you move or rename the JAR, including after a version upgrade, and restart Minecraft. If BetaMoon shows an agent warning, click its displayed argument to copy the detected JAR path, paste it into the instance's Java arguments and restart.
