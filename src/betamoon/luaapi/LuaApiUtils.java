@@ -1,32 +1,30 @@
 package betamoon.luaapi;
 
+import betamoon.BetaMoonMain;
+import betamoon.io.ImageIo;
+import betamoon.io.IoUtils;
+import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.luamodloader.LuaScriptRegistry;
+import betamoon.resources.BetaMoonTextureStatic;
+import betamoon.resources.EnumTexAtlas;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
-import betamoon.io.ImageIo;
-import betamoon.resources.EnumTexAtlas;
-import betamoon.io.IoUtils;
-import betamoon.luamodloader.LuaScriptRegistry;
-import net.minecraft.src.ModLoader;
+import java.util.logging.Logger;
 import net.minecraft.src.ItemStack;
+import net.minecraft.src.ModLoader;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
-import betamoon.BetaMoonMain;
-
 public final class LuaApiUtils {
-    private static final java.util.logging.Logger LOGGER = BetaMoonMain.LOGGER;
-    private static final Map TEXTURE_INDICES = new HashMap();
-    private static final String[] TEXTURE_FX_METHOD_NAMES = new String[] {
-        "registerTextureFX",
-        "RegisterTextureFX",
-        "a",
-        "func_78387_a"
-    };
+    private static final Logger LOGGER = BetaMoonMain.LOGGER;
+    private static final Map<String, Integer> TEXTURE_INDICES = new HashMap<>();
+    private static final String[] TEXTURE_FX_METHOD_NAMES = new String[]{"registerTextureFX", "RegisterTextureFX", "a",
+            "func_78387_a"};
     /**
      * Utility class for extracting typed arguments from Lua varargs.
      */
@@ -34,13 +32,17 @@ public final class LuaApiUtils {
     }
 
     public static void warn(String source, String message) {
+        warnForScript(LuaScriptRegistry.getCurrentScriptFile(), source, message);
+    }
+
+    /** Records a warning against a previously captured script owner. */
+    public static void warnForScript(String script, String source, String message) {
         String safeSource = normalize(source, "Lua");
         String safeMessage = normalizePreserveFormatting(message, "Unknown warning");
-        String currentScript = LuaScriptRegistry.getCurrentScriptFile();
-        String scriptLabel = currentScript == null ? safeSource : currentScript;
+        String scriptLabel = script == null ? safeSource : script;
         String combined = safeSource + ": " + safeMessage;
         LOGGER.warning("[Lua Warning] " + combined);
-        betamoon.luamodloader.LuaScriptErrors.addWarning(scriptLabel, combined);
+        LuaScriptErrors.addWarning(scriptLabel, combined);
     }
 
     public static void warn(String message) {
@@ -66,32 +68,36 @@ public final class LuaApiUtils {
     /**
      * Reads a numeric argument, supporting an optional table as the first argument.
      *
-     * @param args Lua varargs passed to the API function
-     * @param index positional index to read when no leading table is provided
+     * @param args
+     *            Lua varargs passed to the API function
+     * @param index
+     *            positional index to read when no leading table is provided
      * @return the numeric value coerced to double
      */
     public static double getNumberArg(Varargs args, int index) {
-        int offset = (args.narg() >= 1 && args.arg(1).istable()) ? 1 : 0;
-        return args.arg(index + offset).checkdouble();
+        return getVarArg(args, index).checkdouble();
     }
 
     /**
      * Reads a string argument, supporting an optional table as the first argument.
      *
-     * @param args Lua varargs passed to the API function
-     * @param index positional index to read when no leading table is provided
+     * @param args
+     *            Lua varargs passed to the API function
+     * @param index
+     *            positional index to read when no leading table is provided
      * @return the string value
      */
     public static String getStringArg(Varargs args, int index) {
-        int offset = (args.narg() >= 1 && args.arg(1).istable()) ? 1 : 0;
-        return args.arg(index + offset).checkjstring();
+        return getVarArg(args, index).checkjstring();
     }
 
     /**
      * Reads a raw argument, skipping a leading table when called via ':'.
      *
-     * @param args Lua varargs passed to the API function
-     * @param index positional index to read when no leading table is provided
+     * @param args
+     *            Lua varargs passed to the API function
+     * @param index
+     *            positional index to read when no leading table is provided
      * @return the raw Lua value at the resolved index
      */
     public static LuaValue getVarArg(Varargs args, int index) {
@@ -102,9 +108,12 @@ public final class LuaApiUtils {
     /**
      * Reads an ItemStack from a Lua value, accepting numbers or tables.
      *
-     * @param value Lua value representing the item stack
-     * @param allowCount true to accept count values, false to force count 1
-     * @param context error context label
+     * @param value
+     *            Lua value representing the item stack
+     * @param allowCount
+     *            true to accept count values, false to force count 1
+     * @param context
+     *            error context label
      * @return parsed item stack
      */
     public static ItemStack readItemStack(LuaValue value, boolean allowCount, String context) {
@@ -160,8 +169,10 @@ public final class LuaApiUtils {
     /**
      * Registers a texture from the luamods directory on the specified atlas.
      *
-     * @param atlas texture atlas to register against
-     * @param relativePath path to the texture relative to the luamods directory
+     * @param atlas
+     *            texture atlas to register against
+     * @param relativePath
+     *            path to the texture relative to the luamods directory
      * @return allocated texture index on the atlas
      */
     public static int registerTexture(EnumTexAtlas atlas, String relativePath) {
@@ -187,9 +198,11 @@ public final class LuaApiUtils {
             return warnMissingTexture(atlas, "Texture could not be decoded: " + textureFile.getAbsolutePath());
         }
         String textureKey = atlas.getAtlasPath() + "\n" + textureFile.getAbsolutePath().toLowerCase();
-        Integer cachedIndex = (Integer) TEXTURE_INDICES.get(textureKey);
+        Integer cachedIndex = TEXTURE_INDICES.get(textureKey);
         int index = cachedIndex == null ? ModLoader.getUniqueSpriteIndex(atlas.getAtlasPath()) : cachedIndex.intValue();
-        if (cachedIndex == null) TEXTURE_INDICES.put(textureKey, new Integer(index));
+        if (cachedIndex == null) {
+            TEXTURE_INDICES.put(textureKey, Integer.valueOf(index));
+        }
         Object textureFx = createTextureFx(index, atlas.getAtlasId(), image);
         registerTextureFx(textureFx);
         return index;
@@ -201,7 +214,7 @@ public final class LuaApiUtils {
      * @return the luamods directory or null when it cannot be resolved
      */
     private static Object createTextureFx(int index, int atlasId, BufferedImage image) {
-        return new betamoon.resources.BetaMoonTextureStatic(index, atlasId, image);
+        return new BetaMoonTextureStatic(index, atlasId, image);
     }
 
     private static int warnMissingTexture(EnumTexAtlas atlas, String detail) {
@@ -225,7 +238,7 @@ public final class LuaApiUtils {
                     if (!method.isAccessible()) {
                         method.setAccessible(true);
                     }
-                    method.invoke(renderEngine, new Object[] { textureFx });
+                    method.invoke(renderEngine, new Object[]{textureFx});
                     return;
                 }
             }
@@ -234,7 +247,7 @@ public final class LuaApiUtils {
                 if (!modLoaderMethod.isAccessible()) {
                     modLoaderMethod.setAccessible(true);
                 }
-                modLoaderMethod.invoke(null, new Object[] { textureFx });
+                modLoaderMethod.invoke(null, new Object[]{textureFx});
                 return;
             }
         } catch (Exception e) {
@@ -243,7 +256,7 @@ public final class LuaApiUtils {
         throw new LuaError("LuaApi: registerTextureFX not available.");
     }
 
-    private static Method findTextureFxMethod(Class targetClass, Object textureFx) {
+    private static Method findTextureFxMethod(Class<?> targetClass, Object textureFx) {
         Method method = findTextureFxMethod(targetClass.getDeclaredMethods(), textureFx);
         if (method != null) {
             return method;
@@ -255,7 +268,7 @@ public final class LuaApiUtils {
         if (methods == null || textureFx == null) {
             return null;
         }
-        Class textureFxClass = textureFx.getClass();
+        Class<?> textureFxClass = textureFx.getClass();
         for (int i = 0; i < TEXTURE_FX_METHOD_NAMES.length; i++) {
             String expected = TEXTURE_FX_METHOD_NAMES[i];
             Method named = findTextureFxMethodByName(methods, textureFxClass, expected);
@@ -280,7 +293,7 @@ public final class LuaApiUtils {
         return null;
     }
 
-    private static Method findTextureFxMethodByName(Method[] methods, Class textureFxClass, String name) {
+    private static Method findTextureFxMethodByName(Method[] methods, Class<?> textureFxClass, String name) {
         for (int i = 0; i < methods.length; i++) {
             Method method = methods[i];
             if (!name.equals(method.getName())) {
@@ -293,12 +306,12 @@ public final class LuaApiUtils {
         return null;
     }
 
-    private static boolean matchesTextureFxSignature(Method method, Class textureFxClass) {
-        Class[] params = method.getParameterTypes();
+    private static boolean matchesTextureFxSignature(Method method, Class<?> textureFxClass) {
+        Class<?>[] params = method.getParameterTypes();
         if (params.length != 1) {
             return false;
         }
-        Class param = params[0];
+        Class<?> param = params[0];
         if (param.isAssignableFrom(textureFxClass)) {
             return true;
         }

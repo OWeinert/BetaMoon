@@ -1,21 +1,15 @@
 package betamoon.luaapi.event;
 
 import betamoon.event.Events;
-import betamoon.event.context.BlockEventCtx;
-import betamoon.event.context.DimensionEventCtx;
-import betamoon.event.context.GameEventCtx;
-import betamoon.event.context.GuiEventCtx;
-import betamoon.event.context.InputEventCtx;
-import betamoon.event.context.ItemUseEventCtx;
-import betamoon.event.context.PlayerEventCtx;
-import betamoon.event.context.WorldEventCtx;
-import betamoon.luaapi.LuaApiUtils;
-import betamoon.luamodloader.ScriptResourceTracker;
+import betamoon.event.api.EventChannel;
 import betamoon.event.api.IEventListener;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
+import betamoon.event.context.EventContext;
+import betamoon.luaapi.LuaApiUtils;
+import betamoon.luamodloader.LuaScriptRegistry;
+import betamoon.luamodloader.ScriptResourceTracker;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -28,104 +22,91 @@ public final class EventsApi {
 
     public static void attach(LuaTable module) {
         LuaTable events = new LuaTable();
-        Map subscriptions = new HashMap();
-        subscriptions.put("world_join", new Subscribe(Events.WORLD_JOIN));
-        subscriptions.put("world_leave", new Subscribe(Events.WORLD_LEAVE));
-        subscriptions.put("player_join", new Subscribe(Events.PLAYER_JOIN));
-        subscriptions.put("player_leave", new Subscribe(Events.PLAYER_LEAVE));
-        subscriptions.put("gui_opened", new Subscribe(Events.GUI_OPENED));
-        subscriptions.put("gui_closed", new Subscribe(Events.GUI_CLOSED));
-        subscriptions.put("gui_tick", new Subscribe(Events.GUI_TICK));
-        subscriptions.put("game_tick", new Subscribe(Events.GAME_TICK));
-        subscriptions.put("screen_changed", new Subscribe(Events.SCREEN_CHANGED));
-        subscriptions.put("key_input", new Subscribe(Events.KEY_INPUT));
-        subscriptions.put("mouse_input", new Subscribe(Events.MOUSE_INPUT));
-        subscriptions.put("block_broken", new Subscribe(Events.BLOCK_BROKEN));
-        subscriptions.put("block_placed", new Subscribe(Events.BLOCK_PLACED));
-        subscriptions.put("item_used", new Subscribe(Events.ITEM_USE));
-        subscriptions.put("dimension_changed", new Subscribe(Events.DIMENSION_CHANGE));
-        events.set("on", new On(events, subscriptions));
+        Map<String, EventBinding<?>> bindings = new HashMap<>();
+        register(bindings, new EventBinding<>("world_join", Events.WORLD_JOIN, LuaWorldEventCtx::new));
+        register(bindings, new EventBinding<>("world_leave", Events.WORLD_LEAVE, LuaWorldEventCtx::new));
+        register(bindings, new EventBinding<>("player_join", Events.PLAYER_JOIN, LuaPlayerEventCtx::new));
+        register(bindings, new EventBinding<>("player_leave", Events.PLAYER_LEAVE, LuaPlayerEventCtx::new));
+        register(bindings, new EventBinding<>("gui_opened", Events.GUI_OPENED, LuaGuiEventCtx::new));
+        register(bindings, new EventBinding<>("gui_closed", Events.GUI_CLOSED, LuaGuiEventCtx::new));
+        register(bindings, new EventBinding<>("gui_tick", Events.GUI_TICK, LuaGuiEventCtx::new));
+        register(bindings, new EventBinding<>("game_tick", Events.GAME_TICK, LuaGameEventCtx::new));
+        register(bindings, new EventBinding<>("screen_changed", Events.SCREEN_CHANGED, LuaGuiEventCtx::new));
+        register(bindings, new EventBinding<>("key_input", Events.KEY_INPUT, LuaInputEventCtx::new));
+        register(bindings, new EventBinding<>("mouse_input", Events.MOUSE_INPUT, LuaInputEventCtx::new));
+        register(bindings, new EventBinding<>("block_broken", Events.BLOCK_BROKEN, LuaBlockEventCtx::new));
+        register(bindings, new EventBinding<>("block_placed", Events.BLOCK_PLACED, LuaBlockEventCtx::new));
+        register(bindings, new EventBinding<>("item_used", Events.ITEM_USE, LuaItemUseEventCtx::new));
+        register(bindings, new EventBinding<>("dimension_changed", Events.DIMENSION_CHANGE, LuaDimensionEventCtx::new));
+        events.set("on", new On(events, bindings));
         module.set("events", events);
+    }
+
+    private static void register(Map<String, EventBinding<?>> bindings, EventBinding<?> binding) {
+        bindings.put(binding.name, binding);
     }
 
     /** Resolves a snake-case event name and subscribes its callback. */
     private static final class On extends VarArgFunction {
         private final LuaTable service;
-        private final Map subscriptions;
-        private On(LuaTable service, Map subscriptions) {
+        private final Map<String, EventBinding<?>> bindings;
+        private On(LuaTable service, Map<String, EventBinding<?>> bindings) {
             this.service = service;
-            this.subscriptions = subscriptions;
+            this.bindings = bindings;
         }
+
         public Varargs invoke(Varargs args) {
             int offset = args.arg1() == service ? 1 : 0;
             String name = args.arg(1 + offset).checkjstring().trim().toLowerCase();
             LuaValue callback = args.arg(2 + offset);
-            Subscribe subscription = (Subscribe) subscriptions.get(name);
-            if (subscription == null) throw new LuaError("Unknown event: " + name);
-            return subscription.invoke(callback);
+            EventBinding<?> binding = bindings.get(name);
+            if (binding == null) {
+                throw new LuaError("Unknown event: " + name);
+            }
+            return binding.subscribe(callback);
         }
     }
 
-    private static final class Subscribe<TContext extends betamoon.event.context.EventContext> extends VarArgFunction {
-        private final betamoon.event.api.EventChannel<TContext> channel;
-        private final String eventName;
+    /** Connects one public event name to its exact Java context and Lua view. */
+    private static final class EventBinding<TContext extends EventContext> {
+        private final String name;
+        private final EventChannel<TContext> channel;
+        private final Function<TContext, LuaValue> contextFactory;
 
-        private Subscribe(betamoon.event.api.EventChannel<TContext> channel) {
+        private EventBinding(String name, EventChannel<TContext> channel, Function<TContext, LuaValue> contextFactory) {
+            this.name = name;
             this.channel = channel;
-            this.eventName = resolveEventName(channel);
+            this.contextFactory = contextFactory;
         }
 
-        public Varargs invoke(Varargs args) {
-            LuaValue functionValue = LuaApiUtils.getVarArg(args, 1);
+        private LuaValue subscribe(LuaValue functionValue) {
             if (!functionValue.isfunction()) {
-                throw new LuaError("Events: " + eventName + " listener must be a function.");
+                throw new LuaError("Events: " + name + " listener must be a function.");
             }
             final LuaValue callback = functionValue.checkfunction();
+            final String owner = LuaScriptRegistry.getCurrentScriptFile();
             final IEventListener<TContext> listener = ctx -> {
                 try {
-                    LuaValue contextValue = null;
-                    if (ctx instanceof GuiEventCtx) {
-                        contextValue = new LuaGuiEventCtx((GuiEventCtx) ctx);
-                    } else if (ctx instanceof WorldEventCtx) {
-                        contextValue = new LuaWorldEventCtx((WorldEventCtx) ctx);
-                    } else if (ctx instanceof GameEventCtx) {
-                        contextValue = new LuaGameEventCtx((GameEventCtx) ctx);
-                    } else if (ctx instanceof PlayerEventCtx) {
-                        contextValue = new LuaPlayerEventCtx((PlayerEventCtx) ctx);
-                    } else if (ctx instanceof InputEventCtx) {
-                        contextValue = new LuaInputEventCtx((InputEventCtx) ctx);
-                    } else if (ctx instanceof BlockEventCtx) {
-                        contextValue = new LuaBlockEventCtx((BlockEventCtx) ctx);
-                    } else if (ctx instanceof ItemUseEventCtx) {
-                        contextValue = new LuaItemUseEventCtx((ItemUseEventCtx) ctx);
-                    } else if (ctx instanceof DimensionEventCtx) {
-                        contextValue = new LuaDimensionEventCtx((DimensionEventCtx) ctx);
-                    }
-                    if (contextValue == null) {
-                        throw new LuaError("Events: context expected but none is provided.");
-                    }
-                    callback.call(contextValue);
+                    callback.call(contextFactory.apply(ctx));
                 } catch (LuaError e) {
-                    LuaApiUtils.warn("Events", eventName + " listener error: " + e.getMessage());
+                    LuaApiUtils.warnForScript(owner, "Events", name + " listener error: " + e.getMessage());
                 }
             };
             channel.subscribe(listener);
-            final Subscription<TContext> subscription = new Subscription<TContext>(channel, listener);
+            final Subscription<TContext> subscription = new Subscription<>(channel, listener);
             ScriptResourceTracker.track(subscription);
             return subscription.luaHandle();
         }
     }
 
     /** Owns one listener and exposes explicit, idempotent unsubscription to Lua. */
-    private static final class Subscription<TContext extends betamoon.event.context.EventContext>
-        implements ScriptResourceTracker.Cleanup {
-        private final betamoon.event.api.EventChannel<TContext> channel;
+    private static final class Subscription<TContext extends EventContext> implements ScriptResourceTracker.Cleanup {
+        private final EventChannel<TContext> channel;
         private final IEventListener<TContext> listener;
         private boolean active = true;
         private LuaTable handle;
 
-        private Subscription(betamoon.event.api.EventChannel<TContext> channel,
-                             IEventListener<TContext> listener) {
+        private Subscription(EventChannel<TContext> channel, IEventListener<TContext> listener) {
             this.channel = channel;
             this.listener = listener;
         }
@@ -143,22 +124,15 @@ public final class EventsApi {
         }
 
         public void run() {
-            if (!active) return;
+            if (!active) {
+                return;
+            }
             active = false;
             channel.unsubscribe(listener);
-            if (handle != null) handle.set("active", LuaValue.FALSE);
-        }
-    }
-
-    private static String resolveEventName(betamoon.event.api.EventChannel<?> channel) {
-        Type type = channel.getClass().getGenericSuperclass();
-        if (type instanceof ParameterizedType) {
-            Type[] args = ((ParameterizedType) type).getActualTypeArguments();
-            if (args.length == 1 && args[0] instanceof Class) {
-                return ((Class<?>) args[0]).getSimpleName();
+            if (handle != null) {
+                handle.set("active", LuaValue.FALSE);
             }
         }
-        return channel.getClass().getSimpleName();
     }
 
 }

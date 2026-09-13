@@ -22,7 +22,8 @@ public final class LuaBlockEventCtx extends LuaTable {
             set("id", context.getBlockId());
             set("damage", context.getBlockMeta());
             Block block = context.getBlockId() >= 0 && context.getBlockId() < Block.blocksList.length
-                ? Block.blocksList[context.getBlockId()] : null;
+                    ? Block.blocksList[context.getBlockId()]
+                    : null;
             if (block != null) {
                 set("name", LuaValue.valueOf(block.getBlockName()));
                 set("displayName", LuaValue.valueOf(block.translateBlockName()));

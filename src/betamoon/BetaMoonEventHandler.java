@@ -44,7 +44,8 @@ public final class BetaMoonEventHandler {
             }
             lastGui = current;
         }
-        // world leave event (makes sure that the event fires, because world leaving is triggered from the esc GUI)
+        // world leave event (makes sure that the event fires, because world leaving is
+        // triggered from the esc GUI)
         World worldForLeave = lastWorld;
         if (mc.theWorld == null && worldForLeave != null) {
             Events.WORLD_LEAVE.publish(new WorldEventCtx(mc, worldForLeave));
@@ -75,7 +76,8 @@ public final class BetaMoonEventHandler {
         World currentWorld = mc.theWorld;
         World previousWorld = lastWorld;
         if (currentWorld != lastWorld) {
-            // The world can be left unintentionally (server disconnect, etc.), so publish WORLD_LEAVE here as well.
+            // The world can be left unintentionally (server disconnect, etc.), so publish
+            // WORLD_LEAVE here as well.
             if (previousWorld != null) {
                 Events.WORLD_LEAVE.publish(new WorldEventCtx(mc, previousWorld));
             }
