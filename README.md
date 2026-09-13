@@ -107,3 +107,7 @@ See the wiki's [troubleshooting guide](https://github.com/OWeinert/BetaMoon/wiki
 ## License
 
 BetaMoon is available under the [MIT license](LICENSE).
+
+## AI Disclaimer
+
+BetaMoon is developed with assistance of AI Agents to increase development and research speed.
