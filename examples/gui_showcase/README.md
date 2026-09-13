@@ -24,3 +24,8 @@ the gallery canvas, with slot frames drawn at the container's actual positions.
 symbols. The other PNGs are small, flat pixel textures for progress fills,
 empty meters, and the optional custom background. All PNG paths in the script
 are relative to `lua_scripts`, not to the script file or the game JAR.
+
+## License
+
+All PNG image assets in this folder are licensed under the [MIT License](LICENSE.md).
+Include the copyright and license notice when redistributing the images or substantial portions of them.
