@@ -255,6 +255,7 @@ public final class GuiShowcaseRenderTest {
 
             GuiScreenScripts scripts = new GuiScreenScripts(new GuiScreen());
             renderScreen(scripts, minecraft, output, "scripts-screen.png");
+            renderScreen(scripts, minecraft, output, "scripts-name-tooltip.png", 45, 57);
             renderScreen(new GuiPopupDebugMenu(scripts), minecraft, output, "debug-menu.png");
             renderScreen(new GuiPopupDebugExport(scripts, null), minecraft, output, "debug-export.png");
             renderScreen(new GuiPopupScriptErrors(scripts), minecraft, output, "script-errors.png");
@@ -269,9 +270,14 @@ public final class GuiShowcaseRenderTest {
 
     private static void renderScreen(GuiScreen screen, Minecraft minecraft, File output, String fileName)
             throws Exception {
+        renderScreen(screen, minecraft, output, fileName, 0, 0);
+    }
+
+    private static void renderScreen(GuiScreen screen, Minecraft minecraft, File output, String fileName,
+            int mouseX, int mouseY) throws Exception {
         screen.setWorldAndResolution(minecraft, 320, 240);
         setupFrame();
-        screen.drawScreen(0, 0, 0.0F);
+        screen.drawScreen(mouseX, mouseY, 0.0F);
         require(GL11.glGetError() == GL11.GL_NO_ERROR, fileName + " produced an OpenGL error");
         ImageIO.write(capture(), "png", new File(output, fileName));
     }

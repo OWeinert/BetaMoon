@@ -183,11 +183,12 @@ final class GuiPanelScriptList extends GuiContainer {
                         && LuaScriptErrors.hasWarningFor(entry.getDisplayName(), entry.getSourceFileName())) {
                     color = context.getRenderer().getTheme().textWarning;
                 }
+                String fullName = entry.getDisplayName();
                 GuiScriptRestartIndicator indicator = warningIndicators.get(i);
                 boolean restartRequired = indicator.shouldRender();
                 int nameLeft = getLeft() + 4 + (restartRequired ? WARNING_SIZE + WARNING_GAP : 0);
                 int nameWidth = listContentRight - nameLeft;
-                String displayName = context.getRenderer().trimToWidth(entry.getDisplayName(), nameWidth);
+                String displayName = context.getRenderer().trimToWidth(fullName, nameWidth);
                 int blockHeight = ROW_HEIGHT - 2;
                 if (i == selectedIndex) {
                     context.getRenderer().drawRect(getLeft() + 1, y - 1, listContentRight - 1,
@@ -205,6 +206,11 @@ final class GuiPanelScriptList extends GuiContainer {
                     indicator.render(context);
                 }
                 context.getRenderer().drawText(displayName, nameLeft, textY, color);
+                int nameRight = nameLeft + context.getRenderer().textWidth(displayName);
+                if (!displayName.equals(fullName) && context.getMouseX() >= nameLeft
+                        && context.getMouseX() < nameRight && i == hoveredIndex) {
+                    context.showTooltip(fullName);
+                }
                 y += ROW_HEIGHT;
             }
         }
