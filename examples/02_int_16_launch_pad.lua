@@ -4,7 +4,13 @@
 
 name = "Launch Pad Example"
 version = "1.0.0"
-description = "Craft a floor-supported launch pad that preserves horizontal movement while launching players."
+description = "Adds Launch Pad, a thin wooden platform that pushes players upward when they walk on it. " ..
+    "Combine one wooden plank block and one redstone dust in any arrangement to craft a pad.\n\n" ..
+    "Place it on a solid floor with room overhead, then walk onto it to launch upward while " ..
+    "keeping your horizontal motion. Its configured launch reaches roughly four blocks above the " ..
+    "starting height under normal conditions. Creatures and dropped items do not receive this " ..
+    "player-only effect. Breaking the support drops the pad; pistons destroy it, and it can burn. " ..
+    "Compare its quarter-block shape and support rules with the walking callback."
 
 function modInit()
   local padBox = { min = { 0, 0, 0 }, max = { 1, 0.25, 1 } }

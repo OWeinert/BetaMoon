@@ -6,7 +6,17 @@
 
 name = "Tool Interactions Example"
 version = "1.0.0"
-description = "A wrench rotates an oriented practice block; a multi-tool harvests as a pickaxe and shovel."
+description = "Adds Wrench Practice Block, Example Wrench, and Example Multi-tool. All three recipes are " ..
+    "shapeless: cobblestone plus an iron ingot makes the practice block, iron plus a stick makes " ..
+    "the wrench, and a wrench plus another iron ingot makes the multi-tool.\n\n" ..
+    "Place the practice block and identify its furnace-textured front. Right-click it with the " ..
+    "wrench to rotate clockwise, or sneak-right-click to rotate counterclockwise. A successful " ..
+    "rotation costs one durability point. The wrench also attempts to rotate other blocks with a " ..
+    "supported facing; unsuccessful rotations do not spend durability.\n\n" ..
+    "Craft a separate wrench if you want to keep one before making the multi-tool. Test the " ..
+    "multi-tool on stone and dirt: it combines iron-level pickaxe and shovel harvesting, spending " ..
+    "one durability per mined block and two per entity hit. Compare the wrench's action callback " ..
+    "with the multi-tool's declarative tool settings."
 
 function modInit()
   local practice = betamoon.blocks:add {

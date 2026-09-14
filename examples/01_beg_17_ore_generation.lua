@@ -5,7 +5,14 @@
 
 name = "Ore Gen Example"
 version = "2.0.0"
-description = "Declares an ore block and its world generation."
+description = "Adds Example Ore and generates it in newly created Overworld terrain. It replaces stone in " ..
+    "veins, with ten placement attempts per chunk, a configured vein size of eight, and a height " ..
+    "range from Y=0 through Y=60.\n\n" ..
+    "Start a new world or explore beyond previously generated terrain, then search underground. " ..
+    "Existing chunks are not filled with the new ore, and generation attempts do not guarantee a " ..
+    "vein in every location. Mine it with an iron pickaxe or better. The ore uses block ID 206; " ..
+    "compare its block declaration with the separate generation rule and its biome and height " ..
+    "settings."
 
 function modInit()
   local ore = betamoon.blocks:add {

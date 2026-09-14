@@ -5,7 +5,13 @@
 
 name = "Custom Food Example"
 version = "2.0.0"
-description = "Declares a food item and its food-specific properties."
+description = "Adds Example Food, an edible item that uses Minecraft's normal food behavior. In Beta 1.7.3, " ..
+    "eating restores health directly; this food heals four health points, equivalent to two " ..
+    "hearts.\n\n" ..
+    "No recipe is included. Obtain item ID 5001 with an inventory editor or item-spawning tool, " ..
+    "lose some health, and right-click while holding it to eat. It is not accepted as wolf food. " ..
+    "Compare the healing amount and wolf-feeding setting with the food declaration; no custom " ..
+    "item-use callback is needed."
 
 function modInit()
   -- Set type to "food" to make an edible item.

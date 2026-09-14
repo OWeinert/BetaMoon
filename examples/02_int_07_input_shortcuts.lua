@@ -4,7 +4,13 @@
 
 name = "Input Shortcuts Example"
 version = "1.0.0"
-description = "Builds simple keyboard and mouse shortcuts from input events."
+description = "Adds two example input shortcuts while you are playing: press G to print a greeting, or press " ..
+    "the middle mouse button to print the current mouse coordinates in chat.\n\n" ..
+    "Try both shortcuts with normal gameplay visible, then open your inventory or another GUI and " ..
+    "try again. The script tracks the current screen and suppresses its shortcuts while a GUI is " ..
+    "open. The reported coordinates are mouse coordinates, not the world position of the block you " ..
+    "are looking at. Compare the key/button checks with the screen-change subscription and " ..
+    "pressed-event handling."
 
 local currentScreen
 

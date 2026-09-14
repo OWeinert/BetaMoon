@@ -4,7 +4,15 @@
 
 name = "Targeted Item Actions Example"
 version = "1.0.0"
-description = "Uses block, air, and entity targets from item action contexts."
+description = "Adds Example Surveyor, a reusable item demonstrating separate block, air, and entity " ..
+    "interactions. Craft it from one iron ingot and one redstone dust in any arrangement.\n\n" ..
+    "Right-click a block to report its ID, coordinates, and clicked face in chat. Aim into the air " ..
+    "and right-click to perform a ray trace up to twelve blocks away, including liquids; a hit " ..
+    "reports the position, while a miss reports that nothing was found. Right-click an entity to " ..
+    "push it upward.\n\n" ..
+    "Successful block or ray-trace uses cost one durability point, and entity uses cost two; a " ..
+    "missed ray trace causes no wear. Successful actions have a five-tick cooldown. Compare each " ..
+    "action with its own callback and watch the held item's durability."
 
 function modInit()
   local surveyor = betamoon.items:add {

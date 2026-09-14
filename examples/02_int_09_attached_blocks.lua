@@ -4,7 +4,14 @@
 
 name = "Attached Blocks Example"
 version = "1.0.0"
-description = "Creates a small lamp that can attach to any solid face."
+description = "Adds Attached Lamp, a small light-emitting block that can attach to a solid floor, wall, or " ..
+    "ceiling. Combine one stone block and one glowstone dust in any arrangement to craft four " ..
+    "lamps.\n\n" ..
+    "Place lamps against different faces of solid supporting blocks, then view them in a dark " ..
+    "area. Their visible cuboid, collision box, and selection outline occupy only the central part " ..
+    "of a block. Remove a support to see the attached lamp drop automatically. Compare the " ..
+    "attachment state and support rules with the shape and light settings; no right-click switch " ..
+    "or fuel is required."
 
 function modInit()
   -- Reuse one local box for collision, targeting, and drawing so the visible

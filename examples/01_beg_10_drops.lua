@@ -5,7 +5,12 @@
 
 name = "Custom Block Drop Example"
 version = "2.0.0"
-description = "Declares fixed and ranged custom block drops."
+description = "Adds Example Block 2 to demonstrate several drops from one block and a randomly selected drop " ..
+    "count. It requires an iron pickaxe or better for harvesting.\n\n" ..
+    "Obtain block ID 205 with an inventory editor or item-spawning tool; this example adds no " ..
+    "recipe or natural generation. Place several copies and mine them with a suitable pickaxe. " ..
+    "Each harvested block drops one to four diamonds plus one coal. Repeat the test to compare the " ..
+    "changing diamond count with the fixed coal drop, then find those two entries in the script."
 
 function modInit()
   -- getRequired finds an existing item. The script shows an error if it cannot be found.

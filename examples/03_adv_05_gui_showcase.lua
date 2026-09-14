@@ -7,7 +7,21 @@
 
 name = "GUI Showcase"
 version = "1.0.0"
-description = "Four pages demonstrating every container GUI element. Craft one chest with one redstone dust, place the block, and right-click."
+description = "Adds GUI Showcase, an interactive four-page gallery of container GUI elements. Copy this " ..
+    "script and the complete gui_showcase asset folder into your scripts folder, preserving the " ..
+    "folder name. Craft one chest with one redstone dust in any arrangement, place the resulting " ..
+    "block, and right-click it.\n\n" ..
+    "Leave the Page slot empty for an automatic tour, with roughly eight seconds per page. Put a " ..
+    "stack of one, two, three, or four items in that slot to hold the corresponding page; the " ..
+    "items are not consumed. Put an item into Sample to see its live preview on page 1.\n\n" ..
+    "Page 1 demonstrates text alignment, images, item previews, and hover tooltips. Page 2 " ..
+    "animates progress bars in four directions, including empty and nearly empty values. Page 3 " ..
+    "shows state images and conditional visibility. Page 4 demonstrates groups, offsets, drawing " ..
+    "layers, and translucent rectangles. Hover over examples for additional explanations.\n\n" ..
+    "Use the real inventory slots to control the gallery; the drawn previews and decorations are " ..
+    "not clickable inventory slots. Compare each page with its numbered source section. To try " ..
+    "another background, edit BACKGROUND and restart Minecraft; structural GUI changes require a " ..
+    "restart."
 
 -- This example is an overview of most features the ContainerGUI API offers.
 -- The defined GUI is also explorable ingame via the "GUI Showcase"-block.

@@ -4,7 +4,14 @@
 
 name = "Script Export Example"
 version = "2.0.0"
-description = "Exports a resource reference for another script."
+description = "Adds Exported Block and shares its resource handle through the script_export module. This is " ..
+    "the exporting half of a two-script example that keeps block registration separate from world " ..
+    "generation.\n\n" ..
+    "Load this file together with beginner example 18b, Script Import Example, to generate the " ..
+    "block in new Overworld terrain. This file alone registers block ID 207 but supplies neither a " ..
+    "recipe nor ore generation; you can obtain it with an inventory editor or item-spawning tool. " ..
+    "Place it and mine it with a stone pickaxe or better, then compare the exported table with the " ..
+    "companion script's import."
 
 function modInit()
   -- Only values placed in this table become available to importing scripts.

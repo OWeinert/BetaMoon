@@ -6,7 +6,15 @@
 
 name = "Redstone Switch Example"
 version = "1.0.0"
-description = "Craft stone with redstone. Right-click the switch; its furnace-textured face emits weak power."
+description = "Adds Directional Switch, a manually toggled redstone source whose front follows its placement " ..
+    "orientation. Combine one stone block and one redstone dust in any arrangement to craft it.\n\n" ..
+    "Enable BetaMoon's instrumentation agent for custom solid-block power behavior. Place the " ..
+    "switch, identify its furnace-textured front, and connect redstone wire on that side. " ..
+    "Right-click to turn the output on or off. The front texture and tint change with the powered " ..
+    "state. It supplies weak power at the front and strong power below.\n\n" ..
+    "Place another switch while facing a different direction to compare the rotated output. The " ..
+    "source keeps facing and powered values in block state and uses them for both rendering and " ..
+    "redstone behavior."
 
 function modInit()
   local switch = betamoon.blocks:add {

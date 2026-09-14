@@ -6,7 +6,16 @@
 
 name = "Block Ticks Example"
 version = "2.0.0"
-description = "Gives a block regular behavior and visual effects."
+description = "Adds Ticking Block to demonstrate scheduled gameplay updates separately from random display " ..
+    "effects. Obtain block ID 203 with an inventory editor or item-spawning tool; no recipe is " ..
+    "included.\n\n" ..
+    "Place it nearby and watch for smoke above its top. The display callback has a one-in-four " ..
+    "chance to emit a smoke particle on each display tick. Independently, a scheduled callback " ..
+    "starts after twenty game ticks and repeats every twenty ticks, toggling the block's metadata " ..
+    "between zero and one.\n\n" ..
+    "The script does not define different textures for those metadata values, so the scheduled " ..
+    "toggle is not a visible animation. Compare the metadata update with the particle callback to " ..
+    "see the distinction between gameplay timing and visual effects."
 
 function modInit()
   betamoon.blocks:add {

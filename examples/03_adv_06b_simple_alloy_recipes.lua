@@ -6,7 +6,16 @@
 
 name = "Simple Alloy Recipes Example"
 version = "1.0.0"
-description = "Recipes for the custom recipe type \"Alloying\""
+description = "Adds two Alloying recipes for the type in advanced example 06a. Load 06c as well to process " ..
+    "them in the Alloy Furnace; they are not crafting-table or vanilla-furnace recipes.\n\n" ..
+    "For gold processing, put one gold ore in Base, one coal or charcoal in Coal, and a stick in " ..
+    "Mold. After 200 ticks, about ten seconds, collect three gold ingots from Result and one " ..
+    "cobblestone from Slag. The stick remains for the next batch.\n\n" ..
+    "For compression, put four dirt or four cobblestone in Base, one ordinary coal in Coal, and " ..
+    "leave Mold empty. After 80 ticks, about four seconds, collect one stone. Coal is consumed as " ..
+    "a recipe ingredient; no separate fuel or redstone is needed. Keep both output slots clear for " ..
+    "recipes that produce slag. Compare ingredient alternatives, quantities, retained molds, and " ..
+    "durations with the declarations here."
 dependencies = { "Simple Alloy Recipe Type Example" }
 
 function modInit()

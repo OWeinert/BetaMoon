@@ -4,7 +4,16 @@
 
 name = "Contextual Recipe Type Example"
 version = "1.0.0"
-description = "Declares a thermal recipe type whose matches depend on heat and redstone power."
+description = "Defines Thermal Processing, a recipe type whose requirements include the machine's current " ..
+    "heat and redstone power as well as its input item. It exports the type for the other two " ..
+    "contextual-recipe examples.\n\n" ..
+    "Load advanced examples 07a, 07b, and 07c together. This file alone adds no machine or " ..
+    "recipes. In the companion Contextual Processor, dirt becomes clay while cool and unpowered, " ..
+    "whereas sand becomes glass only while hot and powered.\n\n" ..
+    "Compare the heat and powered context fields here with the conditions declared in 07b and the " ..
+    "current values supplied by 07c. The machine checks those values again before consuming inputs " ..
+    "and producing the result, so finding a recipe earlier does not bypass its operating " ..
+    "conditions."
 
 function modInit()
   local public = {}

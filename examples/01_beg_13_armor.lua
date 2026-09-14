@@ -5,7 +5,14 @@
 
 name = "Custom Armor Example"
 version = "2.1.0"
-description = "Declares a custom armor material and a complete armor set with custom textures."
+description = "Adds a complete set of Example armor with a custom armor material, separate inventory icons, " ..
+    "and textures for the worn equipment. Copy the example_armor_helmet, chestplate, leggings, " ..
+    "boots, layer_1, and layer_2 PNG files from the examples into your scripts folder, preserving " ..
+    "their full filenames.\n\n" ..
+    "No recipes are included. Obtain the helmet (5008), chestplate (5009), leggings (5011), and " ..
+    "boots (5012) with an inventory editor or item-spawning tool. Equip them in their matching " ..
+    "armor slots and inspect your character in the inventory or third-person view. Compare the " ..
+    "item icons with the two armor-layer textures used on the player."
 
 function modInit()
   -- An armor material controls how much protection each piece gives. A larger

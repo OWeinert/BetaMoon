@@ -4,7 +4,13 @@
 
 name = "Item Subtypes Example"
 version = "1.0.0"
-description = "Declares metadata-based item subtypes with distinct icons and colors."
+description = "Adds three visual subtypes of Example Crystal under one item ID, 5025. The item's damage " ..
+    "value selects a blue, red, or yellow icon and tint rather than representing tool wear.\n\n" ..
+    "Craft one coal by itself to obtain the blue crystal, one redstone dust by itself for red, or " ..
+    "one glowstone dust by itself for yellow. Place the results side by side in your inventory and " ..
+    "select each in turn. They share a display name but have different appearances. The crystals " ..
+    "have no special use powers; compare their damage values, icons, colors, and recipe outputs in " ..
+    "the source."
 
 function modInit()
   local crystal = betamoon.items:add {

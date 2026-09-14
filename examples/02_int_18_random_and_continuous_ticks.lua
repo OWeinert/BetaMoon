@@ -4,7 +4,15 @@
 
 name = "Random and Continuous Ticks Example"
 version = "1.0.0"
-description = "Compares continuous default ticks with vanilla random ticks."
+description = "Adds Continuous Pulse Block and Weathering Block to compare continuous game ticks with " ..
+    "Minecraft's random block ticks. No recipes are included; obtain block IDs 222 and 223 with an " ..
+    "inventory editor or item-spawning tool.\n\n" ..
+    "Place them near you and watch their colors. Continuous Pulse Block alternates its lit state " ..
+    "and tint every game tick, normally about twenty times per second. Weathering Block starts " ..
+    "brown and has a one-in-four chance to turn green whenever it receives a random tick, so its " ..
+    "change is unpredictable and does not repeat after weathering.\n\n" ..
+    "The states are stored in block metadata. These changes affect appearance, not redstone output " ..
+    "or emitted light. Compare the tick modes and state-dependent render variants in the source."
 
 function modInit()
   betamoon.blocks:add {

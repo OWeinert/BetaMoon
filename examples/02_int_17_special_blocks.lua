@@ -4,7 +4,15 @@
 
 name = "Special Blocks Example"
 version = "1.0.0"
-description = "Demonstrates replaceable plants, translucent light, and unbreakable blocks."
+description = "Adds three blocks that demonstrate special physical and rendering properties. No recipes are " ..
+    "included; obtain IDs 219, 220, and 221 with an inventory editor or item-spawning tool.\n\n" ..
+    "Replaceable Sprout (219) has a crossed-plant appearance and no collision. Walk through it or " ..
+    "place another block into its space to test replacement. Luminous Glass (220) is translucent " ..
+    "and emits light; place it in a dark area to compare its illumination and see-through " ..
+    "rendering with ordinary blocks.\n\n" ..
+    "Sealed Casing (221) demonstrates an unbreakable, highly blast-resistant block that cannot be " ..
+    "moved by pistons. Use a test location when placing it, since normal survival mining will not " ..
+    "remove it. Compare each block's declaration with these different behaviors."
 
 function modInit()
   local plantSelection = { min = { 0.2, 0, 0.2 }, max = { 0.8, 0.8, 0.8 } }

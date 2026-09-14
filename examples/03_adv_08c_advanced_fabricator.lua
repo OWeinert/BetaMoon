@@ -3,7 +3,20 @@
 
 name = "Advanced Fabricator Example"
 version = "1.0.0"
-description = "A machine demonstrating advanced custom matching and atomic fabrication plans."
+description = "Adds Advanced Fabricator, a machine that applies three kinds of recipe to one 3x3 work grid. " ..
+    "Load advanced examples 08a and 08b as well. Craft it with iron ingots in the four corners, a " ..
+    "crafting table in the center, and redstone dust in the remaining four cells.\n\n" ..
+    "Place it and right-click. For bulk mixing, put a total of two sand and two gravel anywhere in " ..
+    "the work grid, keep Catalyst empty, and leave unrelated cells empty. Collect four clay balls " ..
+    "from Result and flint plus cobblestone from the two byproduct slots.\n\n" ..
+    "For grid assembly, place iron ingots at all four work-grid corners and a stick in the center, " ..
+    "leaving the other cells empty, to produce one iron block. For sequence assembly, put only an " ..
+    "iron ingot in the top-left cell and coal in the top-middle cell to make gold. Reverse that " ..
+    "pair to see the ordered match fail.\n\n" ..
+    "Processing is automatic with no fuel, redstone, or timed progress bar. Clear the grid between " ..
+    "experiments. Make room in every required output when 'Full output' appears. Compare the " ..
+    "sequence, grid, and pool search order and slot bindings with the companion files. The machine " ..
+    "saves its inventory; restart after structural edits."
 dependencies = { "Advanced Fabrication Types Example", "Advanced Fabrication Recipes Example" }
 
 function modInit()

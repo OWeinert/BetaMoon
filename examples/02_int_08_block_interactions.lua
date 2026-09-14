@@ -7,7 +7,17 @@
 
 name = "Block Interactions Example"
 version = "1.0.0"
-description = "Craft cobblestone with a stick. Right-click to toggle; sneak-right-click to lock mining."
+description = "Adds Interaction Block with two saved states: active and locked. Craft it from one " ..
+    "cobblestone and one stick in any arrangement, then place it. Normal right-click toggles " ..
+    "active; sneak-right-click toggles locked. Each activation plays a click.\n\n" ..
+    "Its tint identifies the combination: white is inactive and unlocked, green is active and " ..
+    "unlocked, red is inactive and locked, and orange is active and locked. With BetaMoon's " ..
+    "instrumentation agent enabled, a locked block cannot be broken through the survival break " ..
+    "guard; unlock it before mining. An active block drops two cobblestone, otherwise one, and " ..
+    "breaking it reports its ID and metadata in chat.\n\n" ..
+    "Compare the interactions with the state, rendering, break-check, and drop callbacks. Beginner " ..
+    "example 22 shares this crafting recipe, so test the two separately if crafting returns " ..
+    "Greeting Block instead."
 
 function modInit()
   local block = betamoon.blocks:add {

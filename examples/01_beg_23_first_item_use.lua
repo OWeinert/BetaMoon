@@ -4,7 +4,12 @@
 
 name = "First Item Use Example"
 version = "1.0.0"
-description = "Creates a consumable item with a right-click action and cooldown."
+description = "Adds Signal Bell, a consumable item with a sound, chat message, and cooldown. Combine one " ..
+    "sugar and one redstone dust in any arrangement to craft four bells.\n\n" ..
+    "Select a bell and right-click to hear a pop and read 'The signal bell rings' in chat. Each " ..
+    "successful use consumes one bell and starts a 20-tick cooldown, about one second at normal " ..
+    "game speed. Watch the stack count decrease and try clicking again during the cooldown. " ..
+    "Compare the callback's visible effects with the separate consumption and cooldown settings."
 
 function modInit()
   local signalBell = betamoon.items:add {

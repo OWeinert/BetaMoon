@@ -8,7 +8,18 @@
 
 name = "Simple Alloy Furnace Example"
 version = "1.0.0"
-description = "A machine with two inputs, an optional retained mold, and two outputs. Craft two furnaces with stone and cobblestone."
+description = "Adds Alloy Furnace, a machine with Base, Coal, and Mold inputs plus Result and Slag outputs. " ..
+    "Load advanced examples 06a and 06b alongside it. Craft it with three cobblestone across the " ..
+    "top and bottom rows and furnace, stone, furnace across the middle row.\n\n" ..
+    "Place it and right-click. Put one gold ore in Base, coal or charcoal in Coal, and a stick in " ..
+    "Mold. After about ten seconds, take three gold ingots and one cobblestone from the two output " ..
+    "slots; the mold stays in place. Alternatively, use four dirt or four cobblestone in Base, " ..
+    "ordinary coal in Coal, and an empty Mold slot to make stone in about four seconds.\n\n" ..
+    "There is no separate fuel timer or redstone requirement. The arrow shows progress and the " ..
+    "front changes while processing. Full outputs pause valid work and show 'Output full'; remove " ..
+    "results to resume. Changing to a different recipe resets progress. The placed machine saves " ..
+    "its inventory and progress. Compare slot bindings and the processing callback with the " ..
+    "companion recipes. Recipe-only edits can reload; structural machine edits require a restart."
 dependencies = { "Simple Alloy Recipe Type Example" }
 
 -- This example contains an alloy furnace block which uses the custom recipe type

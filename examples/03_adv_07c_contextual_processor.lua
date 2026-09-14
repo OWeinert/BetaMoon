@@ -5,7 +5,21 @@
 
 name = "Contextual Processor Example"
 version = "1.0.0"
-description = "A heated machine that safely rechecks contextual recipe conditions before applying."
+description = "Adds Contextual Processor, a machine whose recipes depend on both heat and redstone power. " ..
+    "Load advanced examples 07a and 07b with it. Combine a vanilla furnace, one redstone dust, and " ..
+    "one iron ingot in any arrangement to craft it, then place and right-click it.\n\n" ..
+    "First leave it unpowered and cool. Put dirt in the left input slot; at heat 100 or below, " ..
+    "each dirt makes four clay balls in about three seconds. Results appear in the right output " ..
+    "slot.\n\n" ..
+    "For the hot recipe, replace the input with sand, put normal furnace fuel in the lower fuel " ..
+    "slot, and supply a steady redstone signal. It starts burning fuel when powered with input " ..
+    "present. Watch Heat reach at least 400; each sand then makes two glass in about five seconds. " ..
+    "Removing power stops that recipe, but already-lit fuel keeps burning. To return to clay, let " ..
+    "fuel burn out and heat fall to 100 or below.\n\n" ..
+    "The flame and arrow show fuel and processing progress. A blocked output pauses valid work; " ..
+    "losing the required conditions resets progress. Compare the displayed values with the context " ..
+    "checks in the tick callback. Inventory and data persist with the placed machine; restart " ..
+    "after structural edits."
 dependencies = { "Contextual Recipe Type Example", "Contextual Recipes Example" }
 
 function modInit()

@@ -5,7 +5,13 @@
 
 name = "Chat Examples"
 version = "2.0.0"
-description = "Shows local messages, broadcasts, and message formatting."
+description = "Demonstrates sending chat messages with the script's filename prefix, formatted values, and " ..
+    "colored text. Initialization sends a loaded message and sample messages, including a green " ..
+    "line and a sentence containing placeholder values.\n\n" ..
+    "Load the script and enter a world to read the queued messages, or reload it while playing to " ..
+    "see its initialization messages again. The sample player name and item count are " ..
+    "demonstration values. The broadcast call in the source is commented out, so this example does " ..
+    "not send that message to other players."
 
 function modInit()
   -- chat:send displays a message for the local player.

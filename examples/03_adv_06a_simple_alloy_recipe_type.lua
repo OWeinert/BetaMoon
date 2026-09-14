@@ -6,7 +6,16 @@
 
 name = "Simple Alloy Recipe Type Example"
 version = "1.0.0"
-description = "Declares a simple named-slot alloy recipe type; advanced example 06c supplies the machine."
+description = "Defines the Alloying recipe type used by the three-part Simple Alloy example. It separates a " ..
+    "base ingredient, additive, optional reusable mold, main result, optional slag, and processing " ..
+    "duration into named roles.\n\n" ..
+    "Load advanced examples 06a, 06b, and 06c together to try the Alloy Furnace. This file alone " ..
+    "adds no machine or processable recipe. In the companion machine, gold ore plus coal or " ..
+    "charcoal and a retained stick mold produces three gold ingots and cobblestone; a separate " ..
+    "recipe compresses four dirt or cobblestone with coal into stone.\n\n" ..
+    "Compare these roles with the concrete recipes in 06b and their physical inventory-slot " ..
+    "bindings in 06c. A mold is optional for the type, but a recipe that declares one still " ..
+    "requires it. Duration is recipe data that the machine interprets as ticks."
 
 function modInit()
   local public = {}

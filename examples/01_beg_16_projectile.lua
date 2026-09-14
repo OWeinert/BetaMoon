@@ -5,7 +5,14 @@
 
 name = "Projectile Item Example"
 version = "1.0.0"
-description = "Craft two iron ingots with a snowball for a launcher. Carry snowballs and right-click to fire."
+description = "Adds the Snowball Launcher, a reusable item that fires vanilla snowballs using ammunition " ..
+    "from your inventory. Craft it by combining two iron ingots and one snowball in any " ..
+    "arrangement.\n\n" ..
+    "Keep additional snowballs in your inventory, select the launcher, and right-click to fire. " ..
+    "Each shot consumes one ammunition snowball, while the launcher remains in your hand. " ..
+    "Successful shots have a 10-tick cooldown, about half a second at normal game speed. Try again " ..
+    "with no snowballs to see the ammunition requirement. Compare the projectile, consumption, and " ..
+    "cooldown settings in the source."
 
 function modInit()
   local snowball = betamoon.items:getRequired(332)

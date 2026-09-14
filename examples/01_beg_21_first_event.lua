@@ -4,7 +4,12 @@
 
 name = "First Event Example"
 version = "1.0.0"
-description = "Sends a chat message whenever the player breaks a block."
+description = "Demonstrates a single global block-broken event subscription. When you break a block, the " ..
+    "callback sends its display name and world coordinates to your chat.\n\n" ..
+    "Run Minecraft with BetaMoon's instrumentation agent enabled, enter a world, and break a few " ..
+    "different blocks. Compare each chat message with the block and position you just mined. The " ..
+    "script adds no custom content. Its subscription is cleaned up when the script unloads or " ..
+    "reloads, so reloading should not accumulate duplicate listeners."
 
 function modInit()
   -- events:on returns a subscription owned by this script. BetaMoon removes it

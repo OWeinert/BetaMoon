@@ -5,7 +5,13 @@
 
 name = "Custom Biome From Default Example"
 version = "2.0.0"
-description = "Copies and adjusts a vanilla biome."
+description = "Adds Example Desert Copy by starting with Minecraft's Desert biome and changing selected " ..
+    "properties. The new biome has a gravel surface, no trees, and no rain or snow, and is " ..
+    "eligible in a hot, dry climate range.\n\n" ..
+    "Explore newly generated terrain or create a new world to look for the gravel-covered desert " ..
+    "variant. Existing chunks and the original Desert definition are not rewritten, and the new " ..
+    "biome is not guaranteed near spawn. Compare the inherited desert properties with the explicit " ..
+    "surface, climate, tree, and weather settings in the script."
 
 function modInit()
   -- basedOn starts with a copy of an existing Minecraft biome.

@@ -6,7 +6,14 @@
 
 name = "Events Example"
 version = "2.0.0"
-description = "Subscribes to every event and demonstrates event fields."
+description = "Demonstrates subscribing to a broad selection of game events, including world entry and exit, " ..
+    "player and GUI updates, keyboard and mouse input, block actions, item use, and dimension " ..
+    "changes. Most callbacks read event fields without displaying anything.\n\n" ..
+    "Enter a world, open and close screens, press keys, use items, and break blocks while " ..
+    "comparing those actions with the corresponding callbacks in the source. The block-broken " ..
+    "callback is the visible example: it prints the block name and coordinates in chat. Enable " ..
+    "BetaMoon's instrumentation agent for the global block hooks. No new items, blocks, or recipes " ..
+    "are added."
 
 function modInit()
   -- Available events:

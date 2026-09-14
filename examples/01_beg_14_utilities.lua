@@ -5,7 +5,13 @@
 
 name = "Utility API Examples"
 version = "2.0.0"
-description = "Shows stack and position helpers."
+description = "Demonstrates constructing item-stack values and block positions, including the difference " ..
+    "between integer block coordinates and fractional positions. It checks the count and damage of " ..
+    "a stone stack and reads the components of both kinds of position.\n\n" ..
+    "This utility example adds no blocks, items, recipes, or controls. The stack is a value for " ..
+    "other API calls, not an inventory grant, and creating a position does not move the player. " ..
+    "Successful initialization checks are silent; follow the assertions in the source to see which " ..
+    "values each helper produces."
 
 function modInit()
   -- stack describes an item or block, its amount, and its damage value.

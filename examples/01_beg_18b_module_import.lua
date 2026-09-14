@@ -5,7 +5,14 @@
 
 name = "Script Import Example"
 version = "2.0.0"
-description = "Imports a resource reference from another script."
+description = "Uses the block exported by beginner example 18a, Script Export Example, and adds natural " ..
+    "generation for it. Both files must be loaded; this script imports the existing block rather " ..
+    "than registering a second copy.\n\n" ..
+    "Start a new world or enter newly generated Overworld chunks and search for Exported Block " ..
+    "underground. Generation replaces stone, with twelve vein attempts per chunk, a configured " ..
+    "vein size of six, and a height range from Y=0 through Y=64. Existing terrain is unchanged. " ..
+    "Compare the dependency and module import with the generation rule to see how two scripts " ..
+    "cooperate."
 -- This makes sure the export example loads first.
 dependencies = {
   "Script Export Example"

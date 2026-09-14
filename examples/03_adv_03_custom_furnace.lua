@@ -8,7 +8,18 @@
 
 name = "Custom Furnace Example"
 version = "1.0.0"
-description = "Creates a fast fuel-burning furnace using vanilla smelting recipes."
+description = "Adds Fast Furnace, a custom furnace that processes vanilla smelting recipes in 100 ticks, " ..
+    "about five seconds per item at normal game speed. Craft it by surrounding a vanilla furnace " ..
+    "with eight iron ingots.\n\n" ..
+    "Place it and right-click to open its screen. Put a smeltable item, such as iron ore, in the " ..
+    "upper-left input slot and normal furnace fuel in the lower-left slot. Take the result from " ..
+    "the slot on the right. The flame shows remaining fuel, the arrow shows cooking progress, and " ..
+    "the front changes appearance while fuel is burning.\n\n" ..
+    "Compare it with a vanilla furnace to see the shorter cooking time. Try removing the input or " ..
+    "blocking the output to follow the progress checks; fuel that is already burning continues to " ..
+    "burn. Inventory and machine data are saved with the placed block. Compare the processing " ..
+    "callback, recipe binding, and GUI values, and restart Minecraft after structural machine " ..
+    "edits."
 function modInit()
 
   -- This is the time the furnace needs to cook in ticks. For example a vanilla furnace uses 200.

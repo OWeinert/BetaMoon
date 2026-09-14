@@ -4,7 +4,16 @@
 
 name = "Basic Storage Layout Example"
 version = "1.0.0"
-description = "Defines the container slots and GUI layout used by the basic storage block."
+description = "Provides the container and screen layout for the three-part Basic Storage example. It " ..
+    "arranges the nine storage slots in a 3x3 grid above your inventory and displays an 'Occupied " ..
+    "slots' counter.\n\n" ..
+    "Load advanced examples 02a, 02b, and 02c together. This file exports layout definitions and " ..
+    "does not create a block by itself. Craft a chest surrounded by eight wooden plank blocks, " ..
+    "place Basic Storage, and right-click it. Move items between your inventory and the grid to " ..
+    "compare the live screen with the slot coordinates and counter label in this file.\n\n" ..
+    "The counter counts nonempty slots, not the number of individual items. The data definition is " ..
+    "in 02a and the block and inventory-change callback are in 02c. Restart after structural " ..
+    "layout changes."
 
 function modInit()
   local public = {

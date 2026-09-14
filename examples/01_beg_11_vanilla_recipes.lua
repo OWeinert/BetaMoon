@@ -6,7 +6,12 @@
 
 name = "Custom Recipe Examples"
 version = "2.0.0"
-description = "Declares shaped, shapeless, and smelting recipes."
+description = "Adds Example Dust and three ways to produce it using vanilla crafting and smelting. This " ..
+    "example is self-contained and demonstrates shaped, shapeless, and furnace recipes.\n\n" ..
+    "Arrange four iron ingots in a 2x2 square to craft four dust. Combine one diamond and one coal " ..
+    "in any arrangement to craft two dust. Alternatively, put dirt into a furnace with normal fuel " ..
+    "to smelt one dust per dirt block. Compare the ingredient arrangement, output quantity, and " ..
+    "recipe type with each declaration. The dust itself has no special use action."
 
 function modInit()
   local dust = betamoon.items:add {

@@ -5,7 +5,16 @@
 
 name = "Basic Storage Block Example"
 version = "1.0.0"
-description = "Combines a saved tile inventory, container, GUI, and block into a small storage machine."
+description = "Adds Basic Storage, a persistent nine-slot storage block assembled from the definitions in " ..
+    "advanced examples 02a and 02b. Load all three files. In a crafting table, surround one chest " ..
+    "with eight wooden plank blocks to craft it.\n\n" ..
+    "Place the block and right-click to open its 3x3 storage grid. Move items into and out of the " ..
+    "grid and watch 'Occupied slots' change from zero through nine. A stack of many items counts " ..
+    "as one occupied slot; splitting that stack across several slots increases the count.\n\n" ..
+    "Close and reopen the screen, then save and rejoin the world with the block still placed to " ..
+    "check that its stored items persist. Compare the inventory-change callback here with the data " ..
+    "definition and GUI layout in the companion scripts. Restart Minecraft after changes to this " ..
+    "structural block, inventory, or GUI."
 dependencies = { "Basic Storage Data Example", "Basic Storage Layout Example" }
 
 function modInit()

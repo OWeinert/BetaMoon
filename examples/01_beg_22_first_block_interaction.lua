@@ -4,7 +4,13 @@
 
 name = "First Block Interaction Example"
 version = "1.0.0"
-description = "Creates a block that responds when the player activates it."
+description = "Adds Greeting Block, a first example of a block with a right-click action. Combine one " ..
+    "cobblestone and one stick in any arrangement to craft it, then place it in the world.\n\n" ..
+    "Right-click the block to hear a click and receive a chat message containing its coordinates. " ..
+    "It has no inventory, mode switch, or saved interaction state; the callback simply responds to " ..
+    "activation. Compare the message with the block position and the onActivate function. " ..
+    "Intermediate example 08 uses the same crafting ingredients, so test these two examples " ..
+    "separately if crafting selects the other block."
 
 function modInit()
   local interactiveBlock = betamoon.blocks:add {

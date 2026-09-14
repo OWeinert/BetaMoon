@@ -5,7 +5,12 @@
 
 name = "Block Shapes Example"
 version = "1.0.0"
-description = "Craft planks with a stick for narrow climbing posts with matching physical and visual shapes."
+description = "Adds Climbing Post, a narrow wooden column with matching visible, selection, and collision " ..
+    "shapes. Combine one wooden plank block and one stick in any arrangement to craft four posts.\n\n" ..
+    "Place posts vertically and move against them to climb, much like using a ladder. Look at the " ..
+    "thin outline and walk around a post to compare its shape with a full block. No right-click " ..
+    "activation is needed. The post blocks piston movement. Compare the shared box dimensions, " ..
+    "climbable setting, and piston reaction with what happens in the world."
 
 function modInit()
   -- min/max are opposite {x, y, z} corners, not a position and a size.

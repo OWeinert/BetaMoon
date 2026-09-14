@@ -3,7 +3,15 @@
 
 name = "Contextual Recipes Example"
 version = "1.0.0"
-description = "Adds cold and hot recipes with explicit heat and power conditions."
+description = "Adds two Thermal Processing recipes with different heat and power requirements. Load advanced " ..
+    "example 07a for the recipe type and 07c for the Contextual Processor that runs them.\n\n" ..
+    "With no redstone power and heat at 100 or below, one dirt produces four clay balls after 60 " ..
+    "ticks, about three seconds. No fuel is needed for this cold recipe. With redstone power on " ..
+    "and heat at 400 or above, one sand produces two glass after 100 ticks, about five seconds.\n\n" ..
+    "Use the processor's fuel slot to heat it for glass, and watch its heat and Powered " ..
+    "indicators. Removing power immediately invalidates the glass recipe. For clay after a hot " ..
+    "run, let existing fuel finish burning and wait for heat to fall to 100 or below. Compare the " ..
+    "exact thresholds and durations here with the machine's visible state."
 dependencies = { "Contextual Recipe Type Example" }
 
 function modInit()

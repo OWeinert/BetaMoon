@@ -5,7 +5,13 @@
 
 name = "Block Registry Query Examples"
 version = "2.0.0"
-description = "Shows block lookup, criteria, and result helpers."
+description = "Demonstrates searching the block registry by ID, key, display name, and owning mod, then " ..
+    "reading the first, last, or complete set of matching blocks. The searches use existing " ..
+    "vanilla blocks such as stone.\n\n" ..
+    "This is a registry-reading example and adds no in-game content or controls. Its assertions " ..
+    "run when the script loads; successful checks are silent. Compare each query with the " ..
+    "properties of the corresponding vanilla block, or edit a search and inspect its result while " ..
+    "learning the query API."
 
 function modInit()
   -- Find a block by its ID or internal key.

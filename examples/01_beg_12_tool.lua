@@ -5,7 +5,12 @@
 
 name = "Custom Tool Example"
 version = "2.1.0"
-description = "Declares a custom tool material and every supported tool type."
+description = "Adds an Example sword, shovel, pickaxe, axe, and hoe that share a custom tool material. The " ..
+    "material supplies their harvesting level, durability, mining efficiency, and damage settings.\n\n" ..
+    "No crafting recipes are included. Obtain item IDs 5002 through 5006 with an inventory editor " ..
+    "or item-spawning tool. Try the sword in combat, the shovel on dirt, the pickaxe on stone and " ..
+    "ores, the axe on wood, and the hoe on grass or dirt. Compare the shared material settings " ..
+    "with the distinct behavior supplied by each tool type."
 
 function modInit()
   -- Create one material, then use it for every tool in the set. harvestLevel

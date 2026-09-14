@@ -5,7 +5,16 @@
 
 name = "Basic Storage Data Example"
 version = "1.0.0"
-description = "Defines the persistent inventory and data schema used by the basic storage block."
+description = "Provides the saved inventory and data definition for the three-part Basic Storage example. It " ..
+    "defines nine named storage slots and an occupied-slot counter, then exports that definition " ..
+    "for the other scripts.\n\n" ..
+    "Load advanced examples 02a, 02b, and 02c together. This file alone adds no placeable block or " ..
+    "crafting recipe. With all three loaded, craft a chest surrounded by eight wooden plank " ..
+    "blocks, place the resulting Basic Storage block, and right-click to store items. Add and " ..
+    "remove stacks to see the occupied-slot count update.\n\n" ..
+    "Compare the named slots and saved counter here with the screen layout in 02b and the tile " ..
+    "entity and inventory-change callback in 02c. Restart Minecraft after changing the resulting " ..
+    "machine's inventory structure."
 
 function modInit()
   local public = {

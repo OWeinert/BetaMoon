@@ -4,7 +4,13 @@
 
 name = "Resource References Example"
 version = "1.0.0"
-description = "Shows safe resource lookup, reference properties, and stack descriptions."
+description = "Demonstrates finding vanilla and custom resources by ID or registry key, inspecting their " ..
+    "names and owners, and handling an optional lookup that returns no result. It also registers " ..
+    "Reference Token as a small visible custom item.\n\n" ..
+    "The lookup checks run during initialization and normally produce no chat messages. To inspect " ..
+    "the token, obtain item ID 5024 with an inventory editor or item-spawning tool; no recipe or " ..
+    "special use action is included. The iron stack created in the script is only a Lua stack " ..
+    "value and is not placed in your inventory."
 
 function modInit()
   -- Numeric IDs and registered names both work. The minecraft namespace makes

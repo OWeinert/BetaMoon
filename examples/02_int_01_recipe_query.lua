@@ -5,7 +5,14 @@
 
 name = "Recipe Registry Query Examples"
 version = "2.0.0"
-description = "Shows recipe lookup, filtering, and reversible changes."
+description = "Demonstrates finding shaped, shapeless, and smelting recipes by their output and inspecting " ..
+    "the matching recipe handles. Load beginner example 11, Custom Recipe Examples, alongside this " ..
+    "file so its Example Dust recipes are available.\n\n" ..
+    "During initialization, the script temporarily changes a recipe's output and temporarily " ..
+    "disables it, then removes both changes. These checks are silent and leave the original " ..
+    "recipes available. Try the companion script's iron-square, diamond-and-coal, and " ..
+    "dirt-smelting recipes to confirm their normal results. Compare the queries, handles, and " ..
+    "removal calls with the unchanged crafting behavior."
 dependencies = {
   "Custom Recipe Examples"
 }

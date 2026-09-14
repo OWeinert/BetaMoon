@@ -4,7 +4,14 @@
 
 name = "Dynamic Tool Callbacks Example"
 version = "1.0.0"
-description = "Customizes harvesting and mining speed per target block."
+description = "Adds Adaptive Pick, a tool combining ordinary pickaxe properties with callbacks for special " ..
+    "harvesting, mining speed, crafting, and combat. In a crafting table, place one diamond above " ..
+    "two sticks in a vertical line to make it.\n\n" ..
+    "Mine common stone and then ores to compare its base efficiency with the higher speed selected " ..
+    "for the listed ore blocks. The custom harvest callback also permits harvesting obsidian. " ..
+    "Crafting plays an orb sound, successfully mining a block creates particles, and striking an " ..
+    "entity pushes it upward. Watch its durability as you mine and fight, then compare each result " ..
+    "with the tool settings and callbacks in the source."
 
 function modInit()
   local oreIds = {

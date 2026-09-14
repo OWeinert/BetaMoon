@@ -5,7 +5,13 @@
 
 name = "Item Registry Query Examples"
 version = "2.0.0"
-description = "Shows item, tool, and armor registry queries."
+description = "Demonstrates looking up items and filtering the item registry by properties such as ID, " ..
+    "display name, damage, and ownership. It includes searches for existing iron items, pickaxes, " ..
+    "and helmets.\n\n" ..
+    "No items, recipes, or interactions are added. The script checks its query results during " ..
+    "initialization and stays silent when they are correct. Read the individual queries alongside " ..
+    "the vanilla items they find to see how a single lookup differs from a filtered collection and " ..
+    "its first or last result."
 
 function modInit()
   local iron = betamoon.items:getRequired(265)

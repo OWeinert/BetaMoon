@@ -4,7 +4,16 @@
 
 name = "Matcher Cookbook Type Example"
 version = "1.0.0"
-description = "Defines a custom preferred-slot matcher and its recipe type."
+description = "Defines a custom matcher that takes an entire batch from one material slot, prefers a slot " ..
+    "selected by the machine, and otherwise chooses the largest eligible stack. It also supports a " ..
+    "reusable die and leaves other occupied material slots untouched.\n\n" ..
+    "Load advanced example 09b to craft and operate the Focused Press; this file alone adds no " ..
+    "machine or recipes. Compare four cobblestone in one material slot with two cobblestone in " ..
+    "each of two slots: only the single complete stack qualifies for a batch.\n\n" ..
+    "Try eligible stacks in slots 1 and 5, then switch redstone power to change the preferred " ..
+    "slot. Compare the selected stack with the scoring and allocation code here. Unlike a pooled " ..
+    "quantity requirement, this matcher deliberately does not combine smaller stacks to fill a " ..
+    "batch."
 
 function modInit()
   local function ingredientMatches(stack, ingredient)

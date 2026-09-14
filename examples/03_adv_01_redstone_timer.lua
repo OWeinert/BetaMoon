@@ -6,7 +6,16 @@
 
 name = "Redstone Timer Example"
 version = "1.0.0"
-description = "Craft cobblestone with redstone. Power its north side to produce a one-second pulse southward."
+description = "Adds Pulse Timer, a redstone block that turns an incoming signal into a short pulse. Craft it " ..
+    "from one cobblestone and one redstone dust in any arrangement. Enable BetaMoon's " ..
+    "instrumentation agent for custom solid-block redstone behavior.\n\n" ..
+    "Place the timer with an input wire and lever on its north side and an output wire on its " ..
+    "south side. These are fixed world directions, independent of your facing when placing it. " ..
+    "Turn the input on: the south output powers for twenty ticks, about one second. Leaving the " ..
+    "input on does not produce repeated pulses; turn it off and on to trigger again.\n\n" ..
+    "A new trigger while a pulse is pending keeps the earliest scheduled end time rather than " ..
+    "extending it. Compare the input-edge callback, saved powered state, and scheduled callback " ..
+    "that turns the output off."
 
 function modInit()
   local timer = betamoon.blocks:add {

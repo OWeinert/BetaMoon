@@ -6,7 +6,14 @@
 
 name = "Custom Textures Example"
 version = "2.0.0"
-description = "Uses custom textures for blocks, block sides, and items."
+description = "Adds Textured Block, Sided Block, and Textured Item to compare a custom PNG with Minecraft's " ..
+    "built-in texture atlas. Copy example_block.png into the scripts folder alongside this script " ..
+    "before starting the game.\n\n" ..
+    "No recipes are included. Obtain block IDs 201 and 202 and item ID 5015 with an inventory " ..
+    "editor or item-spawning tool. Place both blocks where you can view their tops, bottoms, and " ..
+    "sides: Textured Block uses the PNG on every face, while Sided Block combines custom sides " ..
+    "with vanilla top and bottom textures. Select Textured Item to compare its icon with the same " ..
+    "source image."
 
 function modInit()
   -- A file name loads a custom image from the lua_scripts folder.
