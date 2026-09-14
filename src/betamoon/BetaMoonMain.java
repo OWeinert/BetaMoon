@@ -12,6 +12,8 @@ import betamoon.luamodloader.LuaModLoader;
 import betamoon.luamodloader.LuaScriptErrors;
 import betamoon.recipes.RecipeModificationHandler;
 import betamoon.worldgen.WorldGenRegistry;
+import betamoon.update.UpdateChecker;
+import betamoon.update.UpdateRelease;
 import java.util.Random;
 import java.util.logging.Formatter;
 import java.util.logging.Handler;
@@ -31,7 +33,7 @@ import org.lwjgl.input.Keyboard;
 public final class BetaMoonMain {
     private static BetaMoonMain instance;
 
-    private static final String VERSION = "0.6.0";
+    private static final String VERSION = "0.6.1";
     public static final String LUA_SCRIPTS_DIR = "lua_scripts";
     public static final Logger LOGGER = Logger.getLogger("BetaMoon");
     static {
@@ -43,6 +45,8 @@ public final class BetaMoonMain {
     private final LuaModLoader luaModLoader;
     private final BaseMod betaMoonBaseMod;
     private final boolean agentRegistered;
+    private final UpdateChecker updateChecker = new UpdateChecker(LOGGER);
+    private boolean updateNotifiedInWorld;
 
     private boolean finishedLoading = false;
     private boolean loadedScripts = false;
@@ -91,6 +95,13 @@ public final class BetaMoonMain {
 
     public void modsLoaded() {
         finishedLoading = true;
+        if (config.getCheckForUpdates().getValue()) {
+            updateChecker.startOnce(version());
+        }
+    }
+
+    public UpdateRelease getAvailableUpdate() {
+        return updateChecker.getAvailableUpdate();
     }
 
     public boolean onTickInGUI(net.minecraft.client.Minecraft mc, GuiScreen current) {
@@ -98,6 +109,7 @@ public final class BetaMoonMain {
             luaModLoader.pollForChanges();
         }
         eventHandler.handleGuiEvents(mc, current);
+        updateJoinNotification(mc);
         addBetamoonMenues(mc, current);
         return true;
     }
@@ -108,11 +120,29 @@ public final class BetaMoonMain {
         }
         ChatApi.flushPendingMessages();
         eventHandler.handleGameEvents(mc);
+        updateJoinNotification(mc);
         return true;
     }
 
     public void reloadLuaScripts() {
         luaModLoader.reloadAll();
+    }
+
+    private void updateJoinNotification(net.minecraft.client.Minecraft mc) {
+        if (mc.theWorld == null) {
+            updateNotifiedInWorld = false;
+            return;
+        }
+        UpdateRelease release = getAvailableUpdate();
+        if (updateNotifiedInWorld || release == null || mc.thePlayer == null || mc.ingameGUI == null
+                || !config.getNotifyUpdatesOnWorldJoin().getValue()) {
+            return;
+        }
+        mc.thePlayer.addChatMessage(
+                "\u00a76[BetaMoon] Update available: \u00a7f" + version() + " -> " + release.getVersion());
+        mc.thePlayer.addChatMessage(
+                "\u00a77[BetaMoon] Download via View on " + release.getSourceName() + " in the main menu.");
+        updateNotifiedInWorld = true;
     }
 
     /**

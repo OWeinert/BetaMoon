@@ -10,6 +10,8 @@ import java.util.Optional;
 public final class BetaMoonConfig {
     private Configuration config;
     private ConfigField<Boolean> showPopupOnWarnings;
+    private ConfigField<Boolean> checkForUpdates;
+    private ConfigField<Boolean> notifyUpdatesOnWorldJoin;
 
     public BetaMoonConfig(String configFileName) {
         loadFileIntoConfig(configFileName);
@@ -22,12 +24,24 @@ public final class BetaMoonConfig {
         // Assign config fields
         showPopupOnWarnings = getOrCreateBooleanProperty("showPopupOnWarnings", Configuration.GENERAL_PROPERTY,
                 Optional.of(true));
+        checkForUpdates = getOrCreateBooleanProperty("checkForUpdates", Configuration.GENERAL_PROPERTY,
+                Optional.of(true));
+        notifyUpdatesOnWorldJoin = getOrCreateBooleanProperty("notifyUpdatesOnWorldJoin",
+                Configuration.GENERAL_PROPERTY, Optional.of(true));
 
         config.save();
     }
 
     public ConfigField<Boolean> getShowPopupWarnings() {
         return showPopupOnWarnings;
+    }
+
+    public ConfigField<Boolean> getCheckForUpdates() {
+        return checkForUpdates;
+    }
+
+    public ConfigField<Boolean> getNotifyUpdatesOnWorldJoin() {
+        return notifyUpdatesOnWorldJoin;
     }
 
     private void loadFileIntoConfig(String configFileName) {

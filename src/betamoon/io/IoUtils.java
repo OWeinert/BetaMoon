@@ -5,6 +5,7 @@ import java.awt.Desktop;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.util.Locale;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -16,6 +17,22 @@ public final class IoUtils {
     private static final Logger LOGGER = BetaMoonMain.LOGGER;
 
     private IoUtils() {
+    }
+
+    /** Opens an HTTPS page using the platform browser, if one is available. */
+    public static boolean openWebPage(URI uri) {
+        if (uri == null || !"https".equals(uri.getScheme()) || uri.getHost() == null) {
+            return false;
+        }
+        try {
+            if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
+                return false;
+            }
+            Desktop.getDesktop().browse(uri);
+            return true;
+        } catch (Exception unavailable) {
+            return false;
+        }
     }
 
     /**

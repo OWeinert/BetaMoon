@@ -1,5 +1,6 @@
 package betamoon.gui;
 
+import betamoon.BetaMoonMain;
 import betamoon.gui.framework.GuiContainer;
 import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiGeometry.Rect;
@@ -9,7 +10,9 @@ import net.minecraft.src.GuiMainMenu;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 
-/** Minecraft main menu with BetaMoon's retained Scripts button layered on top. */
+/**
+ * Minecraft main menu with BetaMoon's retained Scripts button layered on top.
+ */
 public final class GuiBetaMoonMainMenu extends GuiMainMenu {
     private final GuiScene betaMoonScene = new GuiScene();
     private final MainMenuActions betaMoonActions = new MainMenuActions();
@@ -19,6 +22,7 @@ public final class GuiBetaMoonMainMenu extends GuiMainMenu {
         super.initGui();
         updateSceneEnvironment();
         betaMoonScene.setContent(betaMoonActions);
+        betaMoonActions.updateNotice();
     }
 
     @Override
@@ -31,6 +35,7 @@ public final class GuiBetaMoonMainMenu extends GuiMainMenu {
     @Override
     public void updateScreen() {
         super.updateScreen();
+        betaMoonActions.updateNotice();
         betaMoonScene.update();
     }
 
@@ -80,10 +85,19 @@ public final class GuiBetaMoonMainMenu extends GuiMainMenu {
     private final class MainMenuActions extends GuiContainer {
         private final GuiButton scriptsButton = add(new GuiButton("Scripts", 90,
                 () -> mc.displayGuiScreen(new GuiScreenScripts(GuiBetaMoonMainMenu.this))));
+        private final GuiUpdateNotice updateNotice = add(
+                new GuiUpdateNotice(GuiBetaMoonMainMenu.this, BetaMoonMain.getInstance().version()));
+
+        private void updateNotice() {
+            updateNotice.setRelease(BetaMoonMain.getInstance().getAvailableUpdate());
+        }
 
         @Override
         protected void arrangeChildren(GuiContext context) {
             scriptsButton.arrange(context, Rect.fromPositionAndSize(getLeft() + 10, getBottom() - 40, 90, 20));
+            Rect notice = GuiUpdateNotice.noticeBounds(getWidth(), getHeight());
+            updateNotice.setCompact(notice.getWidth() < GuiUpdateNotice.CARD_WIDTH);
+            updateNotice.arrange(context, notice);
         }
     }
 }
