@@ -439,6 +439,18 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
     }
 
     @Override
+    public boolean shouldSideBeRendered(IBlockAccess world, int x, int y, int z, int side) {
+        BlockDefinition definition = BlockCallbackRegistry.get(blockID);
+        if (!isOpaqueCube() && definition != null
+                && definition.visual.renderType == 0
+                && (definition.visual.bounds == null || definition.visual.bounds.isFullCube())
+                && world.getBlockId(x, y, z) == blockID) {
+            return false;
+        }
+        return super.shouldSideBeRendered(world, x, y, z, side);
+    }
+
+    @Override
     public boolean renderAsNormalBlock() {
         BlockDefinition definition = BlockCallbackRegistry.get(blockID);
         // Vanilla uses this flag for suffocation, player push-out and solid support.
@@ -573,6 +585,15 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
 
     @Override
     public void setBlockBoundsBasedOnState(IBlockAccess world, int x, int y, int z) {
+        applyRenderBounds();
+    }
+
+    @Override
+    public void setBlockBoundsForItemRender() {
+        applyRenderBounds();
+    }
+
+    private void applyRenderBounds() {
         BlockDefinition definition = BlockCallbackRegistry.get(blockID);
         if (definition != null && definition.visual.bounds != null) {
             BlockBox bounds = definition.visual.bounds;
