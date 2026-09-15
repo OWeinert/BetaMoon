@@ -203,7 +203,7 @@ public final class InstrumentationTransformTest {
                 require(diagnostic.getStatus() != HookStatus.FAILED, "Content callback transform failed");
                 continue;
             }
-            HookStatus expected = (diagnostic.getHookId().equals("betamoon:lua_texture_resource")
+            HookStatus expected = (diagnostic.getHookId().startsWith("betamoon:lua_texture_resource")
                     || diagnostic.getHookId().equals("betamoon:block_break_guard")
                     || diagnostic.getHookId().equals("betamoon:block_power")
                     || diagnostic.getHookId().equals("betamoon:block_display_tick")
@@ -260,14 +260,12 @@ public final class InstrumentationTransformTest {
         byte[] renderEngineTransformed = transformer.transform(null, renderEngineOwner, null, null,
                 renderEngineOriginal);
         require(renderEngineTransformed != null, "Runtime RenderEngine was not transformed");
-        require(countCallbackCalls(renderEngineTransformed, "findLuaTexture") == 1,
-                "Runtime RenderEngine is missing the Lua texture lookup callback");
-        int textureReturns = countReturns(renderEngineOriginal,
-                mappings.resolveMethod(
-                        new betamoon.instrumentation.api.MethodRef(renderEngine, "getTexture", "(Ljava/lang/String;)I"),
-                        RuntimeNamespace.CLIENT));
-        require(countCallbackCalls(renderEngineTransformed, "uploadLuaTexture") == textureReturns,
-                "Runtime RenderEngine must upload Lua textures on every return path");
+        require(countCallbackCalls(renderEngineTransformed, "openTexture") >= 12,
+                "Runtime RenderEngine must resolve virtual resources in initial loads and refresh paths");
+        require(countCallbackCalls(renderEngineTransformed, "beforeRefresh") == 1,
+                "Runtime RenderEngine is missing the asset refresh entry callback");
+        require(countCallbackCalls(renderEngineTransformed, "uploadLuaTexture") == 0,
+                "Cached texture lookups must not upload Lua textures again");
 
         String survivalOwner = mappings.resolveClass(
                 new betamoon.instrumentation.api.ClassRef("net/minecraft/src/PlayerControllerSP"),

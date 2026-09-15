@@ -1,5 +1,8 @@
 package betamoon.luaapi.item;
 
+import betamoon.client.assets.AssetLocation;
+import betamoon.luaapi.asset.AssetInputs;
+
 import betamoon.luaapi.material.ArmorMaterialApi.ArmorMaterial;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
@@ -10,7 +13,7 @@ final class ArmorDeclaration {
     final int material;
     final int initialRenderIndex;
     final int slot;
-    final String modelTexture;
+    final AssetLocation modelTexture;
     final Integer renderIndex;
 
     ArmorDeclaration(LuaValue definition) {
@@ -29,7 +32,7 @@ final class ArmorDeclaration {
         if (!texture.isnil() && !render.isnil()) {
             throw new LuaError("Armor definition cannot use modelTexture and renderIndex together.");
         }
-        modelTexture = texture.isnil() ? null : texture.checkjstring();
+        modelTexture = texture.isnil() ? null : AssetInputs.texture(texture);
         renderIndex = render.isnil() ? null : Integer.valueOf(resolveVanillaRenderIndex(render));
     }
 

@@ -1,5 +1,8 @@
 package betamoon.luaapi.block;
 
+import betamoon.client.assets.AssetLocation;
+import betamoon.luaapi.asset.AssetInputs;
+
 import betamoon.minecraft.MinecraftBuiltins;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -143,9 +146,9 @@ final class BlockDeclaration {
 
     static final class Texture {
         final Integer index;
-        final String path;
+        final AssetLocation path;
 
-        private Texture(Integer index, String path) {
+        private Texture(Integer index, AssetLocation path) {
             this.index = index;
             this.path = path;
         }
@@ -157,10 +160,7 @@ final class BlockDeclaration {
             if (value.isnumber()) {
                 return new Texture(value.checkint(), null);
             }
-            if (value.isstring()) {
-                return new Texture(null, value.checkjstring());
-            }
-            throw new LuaError("Block: texture must be a number or string.");
+            return new Texture(null, AssetInputs.texture(value));
         }
     }
 

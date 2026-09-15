@@ -1,95 +1,85 @@
 package betamoon.resources;
 
-import betamoon.io.ImageIo;
-import betamoon.io.IoUtils;
+import betamoon.client.assets.AssetLocation;
+import betamoon.client.assets.ClientAssets;
+import betamoon.client.assets.TextureAsset;
+import betamoon.client.assets.TextureImage;
+import betamoon.luaapi.asset.AssetInputs;
 import java.awt.image.BufferedImage;
-import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.RenderEngine;
 import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaValue;
 
 /**
- * Provides immutable virtual resource names for standalone textures stored with
- * Lua scripts.
+ * Virtual PNG resources consumed by Minecraft's ordinary texture cache and
+ * refresh path.
  */
 public final class LuaTextureResources {
     public static final String PREFIX = "/betamoon-lua-texture/";
     private static final Map<String, Entry> ENTRIES = new HashMap<>();
-    private static final Map<String, String> RESOURCES_BY_SIGNATURE = new HashMap<>();
+    private static final Map<String, String> RESOURCES_BY_KEY = new HashMap<>();
+    private static final TextureImage MISSING = TextureImage.missing();
     private static long nextId;
 
     private LuaTextureResources() {
     }
 
-    /**
-     * Validates and publishes a texture file under a fresh resource name. A fresh
-     * name ensures Minecraft does not reuse an image cached before a script reload.
-     *
-     * @param relativePath
-     *            path relative to the Lua scripts directory
-     * @return virtual resource path understood by the texture-pack hook
-     */
-    public static synchronized String register(String relativePath) {
-        File root = IoUtils.resolveLuaModsDir(LuaTextureResources.class, false);
-        if (root == null) {
-            throw new LuaError("Texture: Lua scripts directory not found.");
-        }
-        File file = resolveContainedFile(root, relativePath);
-        if (!file.isFile()) {
-            throw new LuaError("Texture file not found: " + file.getAbsolutePath());
-        }
-        BufferedImage image;
-        try {
-            image = ImageIo.loadImage(file);
-            if (image == null) {
-                throw new LuaError("Texture could not be decoded: " + file.getAbsolutePath());
-            }
-        } catch (IOException e) {
-            throw new LuaError("Failed to read texture: " + file.getAbsolutePath());
-        }
-        String signature = file.getAbsolutePath().toLowerCase() + "\n" + file.lastModified() + "\n" + file.length();
-        String resource = RESOURCES_BY_SIGNATURE.get(signature);
+    public static String register(String path) {
+        return register(AssetInputs.texture(LuaValue.valueOf(path)));
+    }
+
+    public static synchronized String register(AssetLocation location) {
+        ClientAssets.requestRefresh();
+        String key = location.getCacheKey();
+        String resource = RESOURCES_BY_KEY.get(key);
         if (resource != null) {
             ENTRIES.get(resource).references++;
             return resource;
         }
-        resource = PREFIX + (++nextId) + ".png";
-        ENTRIES.put(resource, new Entry(file, signature, image));
-        RESOURCES_BY_SIGNATURE.put(signature, resource);
-        return resource;
+        try {
+            TextureAsset texture = ClientAssets.acquireTexture(location);
+            resource = PREFIX + (++nextId) + ".png";
+            ENTRIES.put(resource, new Entry(key, texture));
+            RESOURCES_BY_KEY.put(key, resource);
+            return resource;
+        } catch (IOException error) {
+            throw new LuaError("Texture: " + error.getMessage());
+        }
     }
 
-    /**
-     * Loads a BetaMoon virtual resource, or returns null for an ordinary Minecraft
-     * resource.
-     */
-    public static synchronized BufferedImage load(String resourcePath) {
-        Entry entry = ENTRIES.get(resourcePath);
-        if (entry == null) {
+    public static synchronized InputStream open(String resource) {
+        if (!resource.startsWith(PREFIX)) {
             return null;
         }
-        return entry.image;
+        Entry entry = ENTRIES.get(resource);
+        return (entry == null ? MISSING : entry.texture.getContent().getValue()).open();
     }
 
-    /** Returns the decoded dimensions of a registered Lua texture. */
-    public static synchronized int[] dimensions(String resourcePath) {
-        Entry entry = ENTRIES.get(resourcePath);
-        return entry == null ? null : new int[]{entry.image.getWidth(), entry.image.getHeight()};
+    public static synchronized BufferedImage load(String resource) {
+        Entry entry = ENTRIES.get(resource);
+        return entry == null ? null : entry.texture.getContent().getValue().getImage();
     }
 
-    /** Releases a texture name after an armor item stops using it. */
-    public static synchronized void release(String resourcePath) {
-        Entry entry = ENTRIES.get(resourcePath);
+    public static synchronized int[] dimensions(String resource) {
+        BufferedImage image = load(resource);
+        return image == null ? null : new int[]{image.getWidth(), image.getHeight()};
+    }
+
+    public static synchronized void release(String resource) {
+        Entry entry = ENTRIES.get(resource);
         if (entry == null || --entry.references > 0) {
             return;
         }
-        ENTRIES.remove(resourcePath);
-        RESOURCES_BY_SIGNATURE.remove(entry.signature);
-        removeMinecraftTexture(resourcePath);
+        ENTRIES.remove(resource);
+        RESOURCES_BY_KEY.remove(entry.key);
+        entry.texture.close();
+        removeMinecraftTexture(resource);
     }
 
     private static void removeMinecraftTexture(String resourcePath) {
@@ -113,42 +103,14 @@ public final class LuaTextureResources {
         }
     }
 
-    private static File resolveContainedFile(File root, String relativePath) {
-        if (relativePath == null || relativePath.trim().length() == 0) {
-            throw new LuaError("Texture path must not be empty.");
-        }
-        try {
-            File canonicalRoot = root.getCanonicalFile();
-            File candidate = new File(canonicalRoot, stripLeadingSeparators(relativePath)).getCanonicalFile();
-            String rootPath = canonicalRoot.getPath();
-            String candidatePath = candidate.getPath();
-            if (!candidatePath.equals(rootPath) && !candidatePath.startsWith(rootPath + File.separator)) {
-                throw new LuaError("Texture must stay inside the Lua scripts directory.");
-            }
-            return candidate;
-        } catch (IOException e) {
-            throw new LuaError("Invalid texture path: " + relativePath);
-        }
-    }
-
-    private static String stripLeadingSeparators(String value) {
-        String result = value.trim();
-        while (result.startsWith("/") || result.startsWith("\\")) {
-            result = result.substring(1);
-        }
-        return result;
-    }
-
     private static final class Entry {
-        private final File file;
-        private final String signature;
-        private final BufferedImage image;
+        private final String key;
+        private final TextureAsset texture;
         private int references = 1;
 
-        private Entry(File file, String signature, BufferedImage image) {
-            this.file = file;
-            this.signature = signature;
-            this.image = image;
+        private Entry(String key, TextureAsset texture) {
+            this.key = key;
+            this.texture = texture;
         }
     }
 }
