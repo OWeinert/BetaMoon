@@ -1,6 +1,8 @@
 package betamoon.luaapi.resource;
 
 import betamoon.luaapi.LuaApiUtils;
+import betamoon.luaapi.asset.AssetInputs;
+import betamoon.luaapi.asset.AssetReference;
 import betamoon.luaapi.block.BlockCallbackOverrides;
 import betamoon.luaapi.block.BlockApi;
 import betamoon.luaapi.block.BlockDisplayOverrideDefinition;
@@ -672,8 +674,8 @@ public final class ResourceApi {
         if (value.isnumber()) {
             return value.checkint();
         }
-        if (value.isstring()) {
-            return LuaApiUtils.registerTexture(atlas, value.checkjstring());
+        if (value.isstring() || value instanceof AssetReference) {
+            return LuaApiUtils.registerTexture(atlas, AssetInputs.texture(value));
         }
         if (value.istable()) {
             LuaValue all = value.get("all");

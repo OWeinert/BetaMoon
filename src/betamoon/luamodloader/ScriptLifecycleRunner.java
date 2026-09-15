@@ -1,6 +1,7 @@
 package betamoon.luamodloader;
 
 import betamoon.luaapi.module.ModuleRegistry;
+import betamoon.luaapi.audio.SoundEvents;
 import betamoon.tileentity.TileEntityRegistry;
 import java.util.List;
 import org.luaj.vm2.LuaError;
@@ -28,12 +29,15 @@ final class ScriptLifecycleRunner {
                 continue;
             }
 
-            try (ScriptExecutionScope ignored = ScriptExecutionScope.open(mod.sourceFileName)) {
+            try (ScriptExecutionScope ignored = ScriptExecutionScope.open(mod.sourceFileName);
+                    ScriptAssetScope assets = ScriptAssetScope.open(mod.sourceFileName)) {
                 mod.modInit.call();
                 if (hotReload && mod.modReload != null && mod.modReload.isfunction()) {
                     mod.modReload.call();
                 }
                 ModuleRegistry.publish(mod.sourceFileName);
+                assets.publish();
+                SoundEvents.publish(mod.sourceFileName);
                 LuaScriptRegistry.markLoadedByFile(mod.sourceFileName);
                 retainedScripts.rememberIfStructural(mod);
             } catch (LuaError error) {

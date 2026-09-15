@@ -1,6 +1,8 @@
 package betamoon.luaapi;
 
 import betamoon.luaapi.chat.ChatApi;
+import betamoon.luaapi.asset.AssetsApi;
+import betamoon.luaapi.audio.AudioApi;
 import betamoon.luaapi.event.EventsApi;
 import betamoon.luaapi.material.ArmorMaterialApi;
 import betamoon.luaapi.material.ToolMaterialApi;
@@ -35,6 +37,8 @@ public final class BetaMoonModule extends TwoArgFunction {
     public LuaValue call(LuaValue modname, LuaValue env) {
         LuaTable module = new LuaTable();
         EventsApi.attach(module);
+        AssetsApi.attach(module);
+        AudioApi.attach(module);
 
         LuaTable materials = new LuaTable();
         ToolMaterialApi.attach(materials);

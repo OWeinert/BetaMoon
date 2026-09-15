@@ -1,19 +1,18 @@
 package betamoon.instrumentation.hooks.texture;
 
 import betamoon.instrumentation.api.AroundHookDefinition;
+import betamoon.instrumentation.api.CallRedirectHookDefinition;
 import betamoon.instrumentation.api.ClassRef;
 import betamoon.instrumentation.api.HandlerRef;
 import betamoon.instrumentation.api.HookModule;
 import betamoon.instrumentation.api.HookRegistrar;
 import betamoon.instrumentation.api.MethodRef;
-import betamoon.instrumentation.api.ValueBinding;
 
-/** Uploads standalone Lua images through Minecraft's common texture cache. */
+/** Feeds virtual PNG bytes through native caching, including native refresh. */
 public final class TextureResourceHook implements HookModule {
     public static final String ID = "betamoon:lua_texture_resource";
-    private static final MethodRef TARGET = new MethodRef(new ClassRef("net/minecraft/src/RenderEngine"), "getTexture",
-            "(Ljava/lang/String;)I");
-    private static final String CALLBACK_OWNER = "betamoon/instrumentation/hooks/texture/TextureResourceCallbacks";
+    private static final ClassRef ENGINE = new ClassRef("net/minecraft/src/RenderEngine");
+    private static final String CALLBACK = "betamoon/instrumentation/hooks/texture/TextureResourceCallbacks";
 
     @Override
     public String getId() {
@@ -22,13 +21,16 @@ public final class TextureResourceHook implements HookModule {
 
     @Override
     public void register(HookRegistrar registrar) {
-        registrar.register(AroundHookDefinition.builder(ID, TARGET)
-                .capture(HandlerRef.of(CALLBACK_OWNER, "findLuaTexture",
-                        "(Ljava/lang/String;)Ljava/awt/image/BufferedImage;"), ValueBinding.argument(0))
-                .onReturn(
-                        HandlerRef.of(CALLBACK_OWNER, "uploadLuaTexture",
-                                "(Lnet/minecraft/src/RenderEngine;ILjava/awt/image/BufferedImage;)I"),
-                        ValueBinding.thisValue(), ValueBinding.returnValue(), ValueBinding.capturedValue())
-                .build());
+        registrar.register(
+                new CallRedirectHookDefinition(ID, new MethodRef(ENGINE, "getTexture", "(Ljava/lang/String;)I"),
+                        new MethodRef(new ClassRef("net/minecraft/src/TexturePackBase"), "getResourceAsStream",
+                                "(Ljava/lang/String;)Ljava/io/InputStream;"),
+                        HandlerRef.of(CALLBACK, "openTexture",
+                                "(Lnet/minecraft/src/TexturePackBase;Ljava/lang/String;)Ljava/io/InputStream;"))
+                        .inAllMethods());
+        registrar
+                .register(AroundHookDefinition.builder(ID + ":refresh", new MethodRef(ENGINE, "refreshTextures", "()V"))
+                        .capture(HandlerRef.of(CALLBACK, "beforeRefresh", "()I"))
+                        .onReturn(HandlerRef.of(CALLBACK, "afterRefresh", "()V")).build());
     }
 }

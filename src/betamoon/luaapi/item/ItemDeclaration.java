@@ -1,5 +1,8 @@
 package betamoon.luaapi.item;
 
+import betamoon.client.assets.AssetLocation;
+import betamoon.luaapi.asset.AssetInputs;
+
 import net.minecraft.src.Item;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
@@ -25,7 +28,7 @@ final class ItemDeclaration {
     final boolean full3D;
     final Integer iconX;
     final Integer iconY;
-    final String texture;
+    final AssetLocation texture;
 
     ItemDeclaration(LuaValue definition) {
         callbacks = new ItemDefinition(definition);
@@ -59,7 +62,7 @@ final class ItemDeclaration {
         iconX = icon.istable() ? Integer.valueOf(icon.get("x").checkint()) : null;
         iconY = icon.istable() ? Integer.valueOf(icon.get("y").checkint()) : null;
         LuaValue image = definition.get("texture");
-        texture = image.isstring() ? image.checkjstring() : null;
+        texture = image.isnil() ? null : AssetInputs.texture(image);
         validateCapabilities();
     }
 

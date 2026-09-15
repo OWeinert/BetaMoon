@@ -1,30 +1,21 @@
 package betamoon.luaapi;
 
 import betamoon.BetaMoonMain;
-import betamoon.io.ImageIo;
-import betamoon.io.IoUtils;
+import betamoon.client.assets.AssetLocation;
+import betamoon.client.assets.AtlasTextures;
+import betamoon.luaapi.asset.AssetInputs;
 import betamoon.luamodloader.LuaScriptErrors;
 import betamoon.luamodloader.LuaScriptRegistry;
-import betamoon.resources.BetaMoonTextureStatic;
 import betamoon.resources.EnumTexAtlas;
-import java.awt.image.BufferedImage;
-import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.Method;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.logging.Logger;
 import net.minecraft.src.ItemStack;
-import net.minecraft.src.ModLoader;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
 public final class LuaApiUtils {
     private static final Logger LOGGER = BetaMoonMain.LOGGER;
-    private static final Map<String, Integer> TEXTURE_INDICES = new HashMap<>();
-    private static final String[] TEXTURE_FX_METHOD_NAMES = new String[]{"registerTextureFX", "RegisterTextureFX", "a",
-            "func_78387_a"};
     /**
      * Utility class for extracting typed arguments from Lua varargs.
      */
@@ -176,45 +167,15 @@ public final class LuaApiUtils {
      * @return allocated texture index on the atlas
      */
     public static int registerTexture(EnumTexAtlas atlas, String relativePath) {
-        File luaModsDir = IoUtils.resolveLuaModsDir(LuaApiUtils.class, false);
-        if (luaModsDir == null) {
-            throw new LuaError("LuaApi: lua mods directory not found.");
-        }
-        String trimmed = relativePath;
-        while (trimmed.startsWith("/") || trimmed.startsWith("\\")) {
-            trimmed = trimmed.substring(1);
-        }
-        File textureFile = new File(luaModsDir, trimmed);
-        if (!textureFile.isFile()) {
-            return warnMissingTexture(atlas, "Texture file not found: " + textureFile.getAbsolutePath());
-        }
-        BufferedImage image;
-        try {
-            image = ImageIo.loadImage(textureFile);
-        } catch (IOException e) {
-            return warnMissingTexture(atlas, "Failed to read texture: " + textureFile.getAbsolutePath());
-        }
-        if (image == null) {
-            return warnMissingTexture(atlas, "Texture could not be decoded: " + textureFile.getAbsolutePath());
-        }
-        String textureKey = atlas.getAtlasPath() + "\n" + textureFile.getAbsolutePath().toLowerCase();
-        Integer cachedIndex = TEXTURE_INDICES.get(textureKey);
-        int index = cachedIndex == null ? ModLoader.getUniqueSpriteIndex(atlas.getAtlasPath()) : cachedIndex.intValue();
-        if (cachedIndex == null) {
-            TEXTURE_INDICES.put(textureKey, Integer.valueOf(index));
-        }
-        Object textureFx = createTextureFx(index, atlas.getAtlasId(), image);
-        registerTextureFx(textureFx);
-        return index;
+        return registerTexture(atlas, AssetInputs.texture(LuaValue.valueOf(relativePath)));
     }
 
-    /**
-     * Resolves the luamods directory based on the mod jar location.
-     *
-     * @return the luamods directory or null when it cannot be resolved
-     */
-    private static Object createTextureFx(int index, int atlasId, BufferedImage image) {
-        return new BetaMoonTextureStatic(index, atlasId, image);
+    public static int registerTexture(EnumTexAtlas atlas, AssetLocation location) {
+        try {
+            return AtlasTextures.register(atlas, location);
+        } catch (IOException error) {
+            return warnMissingTexture(atlas, error.getMessage());
+        }
     }
 
     private static int warnMissingTexture(EnumTexAtlas atlas, String detail) {
@@ -229,92 +190,4 @@ public final class LuaApiUtils {
         return 223;
     }
 
-    private static void registerTextureFx(Object textureFx) {
-        try {
-            Object renderEngine = ModLoader.getMinecraftInstance().renderEngine;
-            if (renderEngine != null) {
-                Method method = findTextureFxMethod(renderEngine.getClass(), textureFx);
-                if (method != null) {
-                    if (!method.isAccessible()) {
-                        method.setAccessible(true);
-                    }
-                    method.invoke(renderEngine, new Object[]{textureFx});
-                    return;
-                }
-            }
-            Method modLoaderMethod = findTextureFxMethod(ModLoader.class, textureFx);
-            if (modLoaderMethod != null) {
-                if (!modLoaderMethod.isAccessible()) {
-                    modLoaderMethod.setAccessible(true);
-                }
-                modLoaderMethod.invoke(null, new Object[]{textureFx});
-                return;
-            }
-        } catch (Exception e) {
-            throw new LuaError("LuaApi: registerTextureFX not available.");
-        }
-        throw new LuaError("LuaApi: registerTextureFX not available.");
-    }
-
-    private static Method findTextureFxMethod(Class<?> targetClass, Object textureFx) {
-        Method method = findTextureFxMethod(targetClass.getDeclaredMethods(), textureFx);
-        if (method != null) {
-            return method;
-        }
-        return findTextureFxMethod(targetClass.getMethods(), textureFx);
-    }
-
-    private static Method findTextureFxMethod(Method[] methods, Object textureFx) {
-        if (methods == null || textureFx == null) {
-            return null;
-        }
-        Class<?> textureFxClass = textureFx.getClass();
-        for (int i = 0; i < TEXTURE_FX_METHOD_NAMES.length; i++) {
-            String expected = TEXTURE_FX_METHOD_NAMES[i];
-            Method named = findTextureFxMethodByName(methods, textureFxClass, expected);
-            if (named != null) {
-                return named;
-            }
-        }
-        for (int i = 0; i < methods.length; i++) {
-            Method method = methods[i];
-            String name = method.getName();
-            if (name == null) {
-                continue;
-            }
-            String lower = name.toLowerCase();
-            if (lower.indexOf("texturefx") == -1) {
-                continue;
-            }
-            if (matchesTextureFxSignature(method, textureFxClass)) {
-                return method;
-            }
-        }
-        return null;
-    }
-
-    private static Method findTextureFxMethodByName(Method[] methods, Class<?> textureFxClass, String name) {
-        for (int i = 0; i < methods.length; i++) {
-            Method method = methods[i];
-            if (!name.equals(method.getName())) {
-                continue;
-            }
-            if (matchesTextureFxSignature(method, textureFxClass)) {
-                return method;
-            }
-        }
-        return null;
-    }
-
-    private static boolean matchesTextureFxSignature(Method method, Class<?> textureFxClass) {
-        Class<?>[] params = method.getParameterTypes();
-        if (params.length != 1) {
-            return false;
-        }
-        Class<?> param = params[0];
-        if (param.isAssignableFrom(textureFxClass)) {
-            return true;
-        }
-        return param.getName().endsWith("TextureFX");
-    }
 }

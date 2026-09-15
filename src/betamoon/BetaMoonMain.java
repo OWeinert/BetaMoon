@@ -1,5 +1,8 @@
 package betamoon;
 
+import betamoon.client.assets.ClientAssets;
+import betamoon.client.audio.ClientAudio;
+
 import betamoon.config.BetaMoonConfig;
 import betamoon.gui.GuiBetaMoonIngameMenu;
 import betamoon.gui.GuiBetaMoonMainMenu;
@@ -33,7 +36,7 @@ import org.lwjgl.input.Keyboard;
 public final class BetaMoonMain {
     private static BetaMoonMain instance;
 
-    private static final String VERSION = "0.6.1";
+    private static final String VERSION = "0.6.2";
     public static final String LUA_SCRIPTS_DIR = "lua_scripts";
     public static final Logger LOGGER = Logger.getLogger("BetaMoon");
     static {
@@ -107,7 +110,9 @@ public final class BetaMoonMain {
     public boolean onTickInGUI(net.minecraft.client.Minecraft mc, GuiScreen current) {
         if (loadedScripts) {
             luaModLoader.pollForChanges();
+            ClientAssets.poll();
         }
+        ClientAudio.tick();
         eventHandler.handleGuiEvents(mc, current);
         updateJoinNotification(mc);
         addBetamoonMenues(mc, current);
@@ -117,7 +122,9 @@ public final class BetaMoonMain {
     public boolean onTickInGame(net.minecraft.client.Minecraft mc) {
         if (loadedScripts) {
             luaModLoader.pollForChanges();
+            ClientAssets.poll();
         }
+        ClientAudio.tick();
         ChatApi.flushPendingMessages();
         eventHandler.handleGameEvents(mc);
         updateJoinNotification(mc);

@@ -1,6 +1,8 @@
 package betamoon.luaapi.tileentity;
 
 import betamoon.luaapi.LuaApiUtils;
+import betamoon.luaapi.asset.AssetInputs;
+import betamoon.luamodloader.ScriptResourceTracker;
 import betamoon.resources.LuaTextureResources;
 import betamoon.tileentity.ContainerGuiDefinition;
 import betamoon.tileentity.GuiAnchor;
@@ -27,7 +29,7 @@ final class ContainerGuiParser {
         String builtinName = value.get("builtin").optjstring(null);
         ContainerGuiDefinition.Texture texture = null;
         if (!value.get("image").isnil()) {
-            texture = customTexture(value.get("image").checkjstring());
+            texture = customTexture(value.get("image"));
         } else if (builtinName != null) {
             texture = builtinBackground(builtinName, rows);
         } else if (style == null) {
@@ -136,17 +138,17 @@ final class ContainerGuiParser {
                     readStates(stateDefs, states);
                 }
                 if (!value.get("whenTrue").isnil()) {
-                    states.put("true", customTexture(value.get("whenTrue").checkjstring()));
+                    states.put("true", customTexture(value.get("whenTrue")));
                 }
                 if (!value.get("whenFalse").isnil()) {
-                    states.put("false", customTexture(value.get("whenFalse").checkjstring()));
+                    states.put("false", customTexture(value.get("whenFalse")));
                 }
                 if (states.isEmpty()) {
                     throw new LuaError("state_image requires states or whenTrue/whenFalse.");
                 }
                 ContainerGuiDefinition.Texture fallback = value.get("default").isnil()
                         ? null
-                        : customTexture(value.get("default").checkjstring());
+                        : customTexture(value.get("default"));
                 output.add(new ContainerGuiDefinition.StateImageElement(x, y, layer, anchor, condition, tooltip, field,
                         states, fallback));
             } else if ("rectangle".equals(type)) {
@@ -258,7 +260,7 @@ final class ContainerGuiParser {
             if (key.isnil()) {
                 return;
             }
-            states.put(key.tojstring(), customTexture(next.arg(2).checkjstring()));
+            states.put(key.tojstring(), customTexture(next.arg(2)));
         }
     }
 
@@ -345,7 +347,7 @@ final class ContainerGuiParser {
             throw new LuaError("Use either " + field + " or " + builtinName + ".");
         }
         if (!path.isnil()) {
-            return customTexture(path.checkjstring());
+            return customTexture(path);
         }
         if (!builtin.isnil()) {
             return builtinSprite(builtin.checkjstring());
@@ -356,11 +358,9 @@ final class ContainerGuiParser {
         throw new LuaError("GUI element requires '" + field + "' or '" + builtinName + "'.");
     }
 
-    private static ContainerGuiDefinition.Texture customTexture(String path) {
-        if (path.startsWith("/")) {
-            throw new LuaError("Use a Lua asset path or a named built-in sprite for an element image.");
-        }
-        String resource = LuaTextureResources.register(path);
+    private static ContainerGuiDefinition.Texture customTexture(LuaValue path) {
+        String resource = LuaTextureResources.register(AssetInputs.texture(path));
+        ScriptResourceTracker.track(() -> LuaTextureResources.release(resource));
         int[] dimensions = LuaTextureResources.dimensions(resource);
         return new ContainerGuiDefinition.Texture(resource, 0, 0, dimensions[0], dimensions[1], dimensions[0],
                 dimensions[1]);

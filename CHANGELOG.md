@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.6.1 (development)
+
+- Add headless asset identity, path, definition, and registry foundations with atomic
+  script-owned publication and generation-specific cleanup.
+- Integrate asset declaration scopes with script initialization, failure, and reload
+  cleanup.
+- Add `betamoon.assets.textures` and `betamoon.assets.sounds` registration, lookup,
+  source inspection, and deferred refresh, with PNG/OGG/WAV loading and texture-pack
+  overrides beneath `betamoon/`.
+- Accept registered texture references and keys in block/item textures, worn armor,
+  texture overrides, and container GUI images. Static block/item textures retain
+  atlas slots and upload only when their content, atlas, or display settings change.
+- Add weighted `betamoon.soundEvents` and local one-shot `betamoon.audio:play`, with
+  independent volume/range settings and script/world cleanup. This does not add
+  multiplayer sound delivery.
+- Preserve usable asset content when replacements fail and report the selected pack
+  entry/default in asset diagnostics.
+
 ## 0.6.0
 
 Compared with **0.5.0 at the previous `main` tip, `cf8ab67`**, through the 0.6.0 development
