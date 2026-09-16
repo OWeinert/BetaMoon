@@ -159,14 +159,14 @@ public final class CustomRecipeTest {
             }
         });
         try {
-            for (String file : new String[]{"03_adv_02a_basic_storage_data.lua", "03_adv_02b_basic_storage_layout.lua",
-                    "03_adv_02c_basic_storage_block.lua", "03_adv_03_custom_furnace.lua",
-                    "03_adv_04_tile_redstone_controller.lua", "03_adv_06a_simple_alloy_recipe_type.lua",
-                    "03_adv_06c_simple_alloy_furnace.lua", "03_adv_06b_simple_alloy_recipes.lua",
-                    "03_adv_07a_contextual_recipe_type.lua", "03_adv_07b_contextual_recipes.lua",
-                    "03_adv_07c_contextual_processor.lua", "03_adv_08a_advanced_fabrication_types.lua",
-                    "03_adv_08b_advanced_fabrication_recipes.lua", "03_adv_08c_advanced_fabricator.lua",
-                    "03_adv_09a_matcher_cookbook_type.lua", "03_adv_09b_matcher_cookbook_press.lua"}) {
+            for (String file : new String[]{"03_adv_03a_basic_storage_data.lua", "03_adv_03b_basic_storage_layout.lua",
+                    "03_adv_03c_basic_storage_block.lua", "03_adv_04_custom_furnace.lua",
+                    "03_adv_05_tile_redstone_controller.lua", "03_adv_08a_simple_alloy_recipe_type.lua",
+                    "03_adv_08c_simple_alloy_furnace.lua", "03_adv_08b_simple_alloy_recipes.lua",
+                    "03_adv_09a_contextual_recipe_type.lua", "03_adv_09b_contextual_recipes.lua",
+                    "03_adv_09c_contextual_processor.lua", "03_adv_10a_advanced_fabrication_types.lua",
+                    "03_adv_10b_advanced_fabrication_recipes.lua", "03_adv_10c_advanced_fabricator.lua",
+                    "03_adv_11a_matcher_cookbook_type.lua", "03_adv_11b_matcher_cookbook_press.lua"}) {
                 example(globals, owner, new File(directory, file));
             }
             require(blocks.size() == 7, "Examples did not declare all seven tested machines");
@@ -186,10 +186,10 @@ public final class CustomRecipeTest {
             }
             world.blockId = 204;
             world.metadata = 1;
-            require(betamoon.luamodloader.NonReloadableScriptRegistry.contains("03_adv_03_custom_furnace.lua"),
+            require(betamoon.luamodloader.NonReloadableScriptRegistry.contains("03_adv_04_custom_furnace.lua"),
                     "Machine callback was not pinned");
             require(!betamoon.luamodloader.NonReloadableScriptRegistry
-                    .contains("03_adv_06a_simple_alloy_recipe_type.lua"), "Type-only script was pinned");
+                    .contains("03_adv_08a_simple_alloy_recipe_type.lua"), "Type-only script was pinned");
             world.tile = tileFor(blocks, 204);
             world.tile.worldObj = world;
             world.tile.setInventorySlotContents(0, new ItemStack(12, 1, 0));
@@ -206,10 +206,10 @@ public final class CustomRecipeTest {
             require(world.renderUpdates == 1, "Burning furnace requested redundant redraws");
             LuaValue retained = globals.get("betamoon").get("recipeTypes").get("getRequired")
                     .call(LuaValue.valueOf("example:alloying"));
-            ScriptResourceTracker.unload("03_adv_06b_simple_alloy_recipes.lua");
-            ScriptResourceTracker.unload("03_adv_06a_simple_alloy_recipe_type.lua");
-            example(globals, owner, new File(directory, "03_adv_06a_simple_alloy_recipe_type.lua"));
-            example(globals, owner, new File(directory, "03_adv_06b_simple_alloy_recipes.lua"));
+            ScriptResourceTracker.unload("03_adv_08b_simple_alloy_recipes.lua");
+            ScriptResourceTracker.unload("03_adv_08a_simple_alloy_recipe_type.lua");
+            example(globals, owner, new File(directory, "03_adv_08a_simple_alloy_recipe_type.lua"));
+            example(globals, owner, new File(directory, "03_adv_08b_simple_alloy_recipes.lua"));
             require(retained == globals.get("betamoon").get("recipeTypes").get("getRequired")
                     .call(LuaValue.valueOf("example:alloying")), "Type handle changed on reload");
             world.tile.setInventorySlotContents(0, new ItemStack(14, 1, 0));
@@ -388,19 +388,19 @@ public final class CustomRecipeTest {
     private static String ownerForBlock(int id) {
         switch (id) {
             case 204:
-                return "03_adv_03_custom_furnace.lua";
+                return "03_adv_04_custom_furnace.lua";
             case 209:
-                return "03_adv_06c_simple_alloy_furnace.lua";
+                return "03_adv_08c_simple_alloy_furnace.lua";
             case 216:
-                return "03_adv_08c_advanced_fabricator.lua";
+                return "03_adv_10c_advanced_fabricator.lua";
             case 224:
-                return "03_adv_02c_basic_storage_block.lua";
+                return "03_adv_03c_basic_storage_block.lua";
             case 225:
-                return "03_adv_04_tile_redstone_controller.lua";
+                return "03_adv_05_tile_redstone_controller.lua";
             case 226:
-                return "03_adv_07c_contextual_processor.lua";
+                return "03_adv_09c_contextual_processor.lua";
             case 227:
-                return "03_adv_09b_matcher_cookbook_press.lua";
+                return "03_adv_11b_matcher_cookbook_press.lua";
             default:
                 throw new AssertionError("Unknown example block " + id);
         }

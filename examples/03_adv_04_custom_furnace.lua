@@ -164,7 +164,7 @@ function modInit()
   -- looks. The container above still controls all real item slots.
   --
   -- The GUI showcase explains most of the ContainerGUI API
-  -- -> 03_adv_05_gui_showcase.lua
+  -- -> 03_adv_06_gui_showcase.lua
   local fastFurnaceGui = betamoon.containerGuis:add {
     name = "fast_furnace",
     container = fastFurnaceContainer,

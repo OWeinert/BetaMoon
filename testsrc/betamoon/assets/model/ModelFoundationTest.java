@@ -2,6 +2,8 @@ package betamoon.assets.model;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Collections;
 
 /**
@@ -94,8 +96,31 @@ public final class ModelFoundationTest {
         reject(() -> ModelJson.read(bytes("{\"a\":1,\"a\":2}")), "Duplicate");
         reject(() -> ModelJson.read(bytes("{\"a\":01}")), "number");
         reject(() -> clip.validate(geometry(GEOMETRY.replace("head", "other"))), "missing");
+        verifyExampleModels();
         System.out.println(
-                "Model foundations passed: hierarchy, pivots, UVs, independent poses, numeric clips, blending and strict input.");
+                "Model foundations passed: hierarchy, pivots, UVs, independent poses, numeric clips, examples and strict input.");
+    }
+
+    private static void verifyExampleModels() throws IOException {
+        ModelGeometry lamp = BedrockGeometry.decode(Files.readAllBytes(
+                Paths.get("examples/blockbench_model_item/desk_lamp.json")));
+        require(lamp.hasPart("shade"), "Blockbench example must expose its named shade");
+
+        ModelGeometry bird = BedrockGeometry.decode(Files.readAllBytes(
+                Paths.get("examples/animated_model_item/clockwork_bird.json")));
+        ModelAnimations birdClips = BedrockAnimations.decode(Files.readAllBytes(
+                Paths.get("examples/animated_model_item/clockwork_bird.animation.json")));
+        birdClips.clip("animation.bird.idle").validate(bird);
+
+        ModelGeometry machine = BedrockGeometry.decode(Files.readAllBytes(
+                Paths.get("examples/animated_machine/machine.json")));
+        ModelAnimations machineClips = BedrockAnimations.decode(Files.readAllBytes(
+                Paths.get("examples/animated_machine/machine.animation.json")));
+        machineClips.clip("animation.machine.spin").validate(machine);
+
+        ModelGeometry glow = BedrockGeometry.decode(Files.readAllBytes(
+                Paths.get("examples/animated_machine/machine_glow.json")));
+        require(glow.hasPart("glow"), "Machine glow layer must expose renderable geometry");
     }
 
     private static void verifyInterpolation(ModelPose pose) throws IOException {
