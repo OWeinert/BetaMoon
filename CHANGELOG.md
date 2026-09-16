@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.7.0 (development)
+
+- Provide `minecraft:block/*` built-in Beta 1.7.3 models for stairs, fences,
+  trapdoors, doors, beds, levers, torches, rails, ladders, slabs, buttons, snow,
+  and pressure plates. Directional shapes use one south-facing model and
+  appearance rotation; fence connections retain distinct geometry. Built-ins
+  and texture-pack replacements use the same Bedrock geometry JSON importer.
+- Change the texture-pack asset root from `betamoon/` to `bm_assets/` for registered
+  assets and direct paths. Move existing pack overrides into the new directory.
+- Add model and animation asset registration with a bounded Bedrock/GeckoLib-style
+  cuboid and numeric-clip import subset, shared caches, and compatible pack fallback.
+- Add independent poses, named-part Lua positioning/rotation/scaling, clip sampling,
+  weighted blending, bone masks, and locator inspection.
+- Add metadata-dependent appearances with default inheritance and explicit ordinary-rendering fallback.
+- Keep blocks with any dynamic appearance dynamic in every state; all-static blocks
+  use chunk rendering. Hot reload rebuilds visual data without altering world state.
+- Add block/item model appearances with materials, layers, display transforms, and
+  scoped procedural pose callbacks. Static blocks use chunk geometry; dynamic blocks
+  use a client-only draw index without world tile entities. Items support GUI, held, and dropped presentation.
+- Validate required rendering hooks before model content registration; isolate pose
+  callback failures and restore graphics state after rendering errors.
+- Add headless import/API/adapter checks and off-screen OpenGL rendering verification.
+
 ## 0.6.1 (development)
 
 - Add headless asset identity, path, definition, and registry foundations with atomic

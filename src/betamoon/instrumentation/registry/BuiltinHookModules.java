@@ -9,6 +9,7 @@ import betamoon.instrumentation.hooks.block.ContentCallbackOverrideHook;
 import betamoon.instrumentation.hooks.item.ItemHarvestHook;
 import betamoon.instrumentation.hooks.item.ItemInteractionHook;
 import betamoon.instrumentation.hooks.texture.TextureResourceHook;
+import betamoon.instrumentation.hooks.model.ModelRenderHook;
 
 /** Registers the hooks shipped in the BetaMoon JAR. */
 public final class BuiltinHookModules {
@@ -25,5 +26,6 @@ public final class BuiltinHookModules {
         registry.registerModule(new ItemInteractionHook());
         registry.registerModule(new BlockPlacedHook());
         registry.registerModule(new TextureResourceHook());
+        registry.registerModule(new ModelRenderHook());
     }
 }

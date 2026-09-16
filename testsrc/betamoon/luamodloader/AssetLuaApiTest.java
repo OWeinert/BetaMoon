@@ -57,7 +57,7 @@ public final class AssetLuaApiTest {
                     + "function modInit()\n"
                     + " local t=betamoon.assets.textures:add{key='mymod:guard',path='guard.png'}\n"
                     + " assert(t:getKey()=='mymod:guard' and t:getKind()=='textures')\n"
-                    + " assert(t:getPath()=='guard.png' and t:getOverridePath()=='betamoon/mymod/textures/guard.png')\n"
+                    + " assert(t:getPath()=='guard.png' and t:getOverridePath()=='bm_assets/mymod/textures/guard.png')\n"
                     + " assert(t:getSource().kind=='script')\n"
                     + " assert(betamoon.assets.textures:get('mymod:guard')~=nil)\n"
                     + " assert(betamoon.assets.textures:get('other:guard')==nil)\n"

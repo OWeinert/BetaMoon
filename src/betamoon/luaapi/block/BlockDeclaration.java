@@ -2,6 +2,7 @@ package betamoon.luaapi.block;
 
 import betamoon.client.assets.AssetLocation;
 import betamoon.luaapi.asset.AssetInputs;
+import betamoon.luaapi.asset.ModelAppearanceDeclaration;
 
 import betamoon.minecraft.MinecraftBuiltins;
 import java.util.ArrayList;
@@ -23,6 +24,7 @@ import static betamoon.luaapi.utils.LuaDeclarationValues.internalName;
  * Reads block properties without allocating a block or installing resources.
  */
 final class BlockDeclaration {
+    final ModelAppearanceDeclaration appearance;
     final int id;
     final String name;
     final String displayName;
@@ -44,6 +46,13 @@ final class BlockDeclaration {
 
     BlockDeclaration(LuaValue definition) {
         callbacks = new BlockDefinition(definition);
+        appearance = callbacks.visual.appearance;
+        if (!callbacks.visual.isDynamic()) {
+            BlockModelRegistry.validate(appearance);
+            for (ModelAppearanceDeclaration variant : callbacks.visual.appearances().values()) {
+                BlockModelRegistry.validate(variant);
+            }
+        }
         id = required(definition, "id").checkint();
         if (id < 0 || id > 255) {
             throw new LuaError("Block: id outside allowed range (0-255): " + id);

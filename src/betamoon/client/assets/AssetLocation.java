@@ -15,8 +15,10 @@ public final class AssetLocation {
     private final AssetId id;
     private final AssetPath fallback;
     private final AssetPath override;
+    private final boolean builtin;
 
     public AssetLocation(AssetDefinition definition) {
+        builtin = definition.isBuiltin();
         kind = definition.getId().getKind();
         id = definition.getId();
         fallback = definition.getFallbackPath();
@@ -24,6 +26,7 @@ public final class AssetLocation {
     }
 
     public AssetLocation(AssetKind kind, AssetPath path) {
+        builtin = false;
         this.kind = kind;
         id = null;
         fallback = path;
@@ -32,6 +35,10 @@ public final class AssetLocation {
 
     public AssetKind getKind() {
         return kind;
+    }
+
+    public boolean isBuiltin() {
+        return builtin;
     }
 
     public AssetPath getFallback() {

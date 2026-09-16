@@ -1,6 +1,7 @@
 package betamoon.wrappers;
 
 import betamoon.luaapi.block.BlockBox;
+import betamoon.luaapi.block.BlockModelRegistry;
 import betamoon.luaapi.block.BlockCallbackRegistry;
 import betamoon.luaapi.block.BlockCallback;
 import betamoon.luaapi.utils.InteractionOutcome;
@@ -441,7 +442,7 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
     @Override
     public boolean shouldSideBeRendered(IBlockAccess world, int x, int y, int z, int side) {
         BlockDefinition definition = BlockCallbackRegistry.get(blockID);
-        if (!isOpaqueCube() && definition != null
+        if (!BlockModelRegistry.hasModels(blockID) && !isOpaqueCube() && definition != null
                 && definition.visual.renderType == 0
                 && (definition.visual.bounds == null || definition.visual.bounds.isFullCube())
                 && world.getBlockId(x, y, z) == blockID) {
@@ -541,6 +542,9 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
 
     @Override
     public int getRenderType() {
+        if (BlockModelRegistry.hasModels(blockID) && !BlockModelRegistry.isOrdinaryRendering(blockID)) {
+            return BlockModelRegistry.renderType();
+        }
         BlockDefinition definition = BlockCallbackRegistry.get(blockID);
         return definition == null ? super.getRenderType() : definition.visual.renderType;
     }

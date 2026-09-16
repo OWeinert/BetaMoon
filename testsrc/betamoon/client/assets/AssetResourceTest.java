@@ -59,7 +59,7 @@ public final class AssetResourceTest {
     private static void verifyProviders(Path root) throws Exception {
         Files.write(root.resolve("Guard.png"), png(0xffff0000, 16));
         Path pack = root.resolve("pack.zip");
-        zip(pack, "betamoon/Guard.png", png(0xff00ff00, 16));
+        zip(pack, "bm_assets/Guard.png", png(0xff00ff00, 16));
         List<String> warnings = new ArrayList<>();
         AssetResolver resolver = new AssetResolver(new FileAssetProvider(root.toFile()),
                 new ZipAssetProvider(pack.toFile()), warnings::add);
@@ -68,16 +68,20 @@ public final class AssetResourceTest {
                 100000, TextureImage::decode);
         require(selected.getSourceKind().equals("pack") && pixel(selected.getValue()) == 0xff00ff00,
                 "Pack overrides default");
-        zip(pack, "betamoon/Guard.png", new byte[]{1, 2, 3});
+        zip(pack, "betamoon/Guard.png", png(0xff0000ff, 16));
+        selected = resolver.resolve("guard", fallback, fallback.getDirectOverridePath(), 100000, TextureImage::decode);
+        require(selected.getSourceKind().equals("script") && pixel(selected.getValue()) == 0xffff0000,
+                "Entries outside bm_assets must not override script assets");
+        zip(pack, "bm_assets/Guard.png", new byte[]{1, 2, 3});
         selected = resolver.resolve("guard", fallback, fallback.getDirectOverridePath(), 100000, TextureImage::decode);
         require(pixel(selected.getValue()) == 0xffff0000 && warnings.size() == 1,
                 "Corrupt overrides fall back with diagnostics");
-        require(warnings.get(0).contains("pack.zip") && warnings.get(0).contains("betamoon/Guard.png"),
+        require(warnings.get(0).contains("pack.zip") && warnings.get(0).contains("bm_assets/Guard.png"),
                 "Diagnostics identify pack and path");
-        zip(pack, "betamoon/guard.png", png(0xff0000ff, 16));
+        zip(pack, "bm_assets/guard.png", png(0xff0000ff, 16));
         selected = resolver.resolve("guard", fallback, fallback.getDirectOverridePath(), 100000, TextureImage::decode);
         require(selected.getSourceKind().equals("script"), "ZIP lookup preserves case");
-        expectIo(() -> new ZipAssetProvider(pack.toFile()).read(AssetPath.parse("betamoon/guard.png"), 4));
+        expectIo(() -> new ZipAssetProvider(pack.toFile()).read(AssetPath.parse("bm_assets/guard.png"), 4));
         expectIo(() -> TextureImage.decode(png(0, 1024)));
         expectIo(() -> new FileAssetProvider(root.toFile()).read(fallback, 4));
         Path outside = Files.createTempFile("betamoon-outside-", ".png");
@@ -163,7 +167,7 @@ public final class AssetResourceTest {
         Path pack = root.resolve("sound-pack.zip");
         byte[] changed = wav();
         changed[changed.length - 2] = 64;
-        zip(pack, "betamoon/hit.wav", changed);
+        zip(pack, "bm_assets/hit.wav", changed);
         List<String> warnings = new ArrayList<>();
         ClientAssets.useProviders(new FileAssetProvider(root.toFile()), new ZipAssetProvider(pack.toFile()),
                 warnings::add);
@@ -171,7 +175,7 @@ public final class AssetResourceTest {
         try (SoundAsset sound = ClientSounds.acquire(location)) {
             SoundClip original = sound.getContent().getValue();
             require(sound.getContent().getSourceKind().equals("pack"), "Sound overrides must use pack bytes");
-            zip(pack, "betamoon/hit.wav", new byte[]{1, 2, 3});
+            zip(pack, "bm_assets/hit.wav", new byte[]{1, 2, 3});
             ClientAssets.refresh();
             require(sound.getContent().getSourceKind().equals("script") && !warnings.isEmpty(),
                     "Invalid sound overrides must fall back with diagnostics");

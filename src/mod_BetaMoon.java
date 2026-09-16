@@ -1,4 +1,8 @@
 import betamoon.BetaMoonMain;
+import betamoon.luaapi.block.BlockModelRegistry;
+import net.minecraft.src.Block;
+import net.minecraft.src.IBlockAccess;
+import net.minecraft.src.RenderBlocks;
 import java.util.Random;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.BaseMod;
@@ -50,6 +54,17 @@ public class mod_BetaMoon extends BaseMod {
     @Override
     public void GenerateNether(World world, Random random, int chunkX, int chunkZ) {
         this.betaMoon.generateNether(world, random, chunkX, chunkZ);
+    }
+
+    @Override
+    public void RenderInvBlock(RenderBlocks renderer, Block block, int metadata, int type) {
+        BlockModelRegistry.renderOrdinaryInventory(renderer, block, metadata);
+    }
+
+    @Override
+    public boolean RenderWorldBlock(RenderBlocks renderer, IBlockAccess world, int x, int y, int z, Block block,
+            int type) {
+        return BlockModelRegistry.renderWorld(renderer, world, x, y, z, block);
     }
 
     @Override

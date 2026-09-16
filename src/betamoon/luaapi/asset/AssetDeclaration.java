@@ -32,6 +32,9 @@ final class AssetDeclaration {
             if (kind == AssetKind.SOUND && !extension.equals("ogg") && !extension.equals("wav")) {
                 throw new LuaError("Sound assets require an .ogg or .wav file");
             }
+            if (kind == AssetKind.MODEL || kind == AssetKind.ANIMATION) {
+                extension = kind == AssetKind.MODEL ? "json" : "animation.json";
+            }
             return new AssetDefinition(id, path, extension);
         } catch (IllegalArgumentException error) {
             throw new LuaError("Asset: " + error.getMessage());

@@ -1,6 +1,8 @@
 package betamoon.client.assets;
 
 import betamoon.assets.io.AssetProvider;
+import betamoon.client.render.ModelAppearance;
+import betamoon.luaapi.block.BlockModelRegistry;
 import betamoon.client.audio.ClientSounds;
 import betamoon.assets.io.AssetResolver;
 import betamoon.assets.io.FileAssetProvider;
@@ -73,6 +75,7 @@ public final class ClientAssets {
                 installNativeProviders();
             }
             ClientSounds.refresh(diagnostics);
+            ClientModelAssets.refresh(diagnostics);
             for (TextureAsset asset : new ArrayList<>(TEXTURES.values())) {
                 try {
                     asset.replace(resolveTexture(asset.getLocation()));
@@ -81,6 +84,7 @@ public final class ClientAssets {
                             + "; keeping the previous usable texture");
                 }
             }
+            ModelAppearance.refreshAll();
         } catch (IOException error) {
             diagnostics.accept("Asset refresh failed: " + error.getMessage());
         }
@@ -91,6 +95,7 @@ public final class ClientAssets {
     }
 
     public static void onNativeRefreshFinished() {
+        ModelAppearance.preloadTextures();
         if (!preparedRefresh) {
             AtlasTextures.refresh();
         }
@@ -125,7 +130,9 @@ public final class ClientAssets {
                 preparedRefresh = false;
             }
         }
+        ModelAppearance.preloadTextures();
         AtlasTextures.uploadChanged();
+        BlockModelRegistry.flushInvalidation();
     }
 
     private static void ensureProviders() throws IOException {

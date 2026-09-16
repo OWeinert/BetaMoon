@@ -37,22 +37,27 @@ public final class AssetFoundationTest {
             expectFailure(IllegalArgumentException.class, () -> AssetPath.parse(value));
         }
         require(AssetPath.parse("mymod\\Textures\\Guard.png").getDirectOverridePath().toString()
-                .equals("betamoon/mymod/Textures/Guard.png"), "Direct paths preserve case and normalize separators");
-        require(AssetPath.parse("dummy.png").getDirectOverridePath().toString().equals("betamoon/dummy.png"),
-                "Bare texture paths must resolve immediately under betamoon");
+                .equals("bm_assets/mymod/Textures/Guard.png"), "Direct paths preserve case and normalize separators");
+        require(AssetPath.parse("dummy.png").getDirectOverridePath().toString().equals("bm_assets/dummy.png"),
+                "Bare texture paths must resolve immediately under bm_assets");
         AssetDefinition uppercaseTexture = new AssetDefinition(texture, AssetPath.parse("Guard.PNG"), "png");
         require(uppercaseTexture.getFallbackPath().toString().equals("Guard.PNG"),
                 "Registered fallback paths retain their exact case, including the extension");
-        AssetDefinition original = new AssetDefinition(model, AssetPath.parse("author/guard.geo.json"), "geo.json");
-        AssetDefinition relocated = new AssetDefinition(model, AssetPath.parse("renamed/guard.geo.json"), "geo.json");
-        require(original.getOverridePath().toString().equals("betamoon/mymod/models/entities/guard.geo.json"),
-                "Registered paths must retain the complete model format suffix");
+        AssetDefinition original = new AssetDefinition(model, AssetPath.parse("author/guard.json"), "json");
+        AssetDefinition relocated = new AssetDefinition(model, AssetPath.parse("renamed/guard.json"), "json");
+        require(original.getOverridePath().toString().equals("bm_assets/mymod/models/entities/guard.json"),
+                "Registered models must use the JSON suffix");
         require(original.getOverridePath().equals(relocated.getOverridePath()),
                 "Moving a fallback must not change a registered override path");
+        AssetDefinition animation = new AssetDefinition(new AssetId(AssetKind.ANIMATION, key),
+                AssetPath.parse("author/guard.animation.json"), "animation.json");
+        require(animation.getOverridePath().toString()
+                .equals("bm_assets/mymod/animations/entities/guard.animation.json"),
+                "Registered animations must retain their compound suffix");
         expectFailure(IllegalArgumentException.class,
-                () -> new AssetDefinition(model, AssetPath.parse("guard.geo.json"), "../json"));
+                () -> new AssetDefinition(model, AssetPath.parse("guard.json"), "../json"));
         expectFailure(IllegalArgumentException.class,
-                () -> new AssetDefinition(model, AssetPath.parse("guard.png"), "geo.json"));
+                () -> new AssetDefinition(model, AssetPath.parse("guard.png"), "json"));
     }
 
     private static void verifyAtomicPublicationAndOwnership() {
@@ -88,7 +93,7 @@ public final class AssetFoundationTest {
 
         try (AssetRegistry.Batch batch = registry.begin("owner.lua")) {
             AssetDefinition model = new AssetDefinition(new AssetId(AssetKind.MODEL, texture.getId().getKey()),
-                    AssetPath.parse("guard.geo.json"), "geo.json");
+                    AssetPath.parse("guard.json"), "json");
             batch.add(model);
             batch.commit();
             require(registry.find(texture.getId()) == null, "Replacement removes omitted declarations");

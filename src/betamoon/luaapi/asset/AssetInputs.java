@@ -5,6 +5,7 @@ import betamoon.assets.AssetId;
 import betamoon.assets.AssetKey;
 import betamoon.assets.AssetKind;
 import betamoon.assets.AssetPath;
+import betamoon.assets.BuiltinAssets;
 import betamoon.client.assets.AssetLocation;
 import betamoon.luamodloader.ScriptAssetScope;
 import org.luaj.vm2.LuaError;
@@ -43,6 +44,9 @@ public final class AssetInputs {
                 throw new LuaError("Asset must be a registered reference, namespaced key, or relative file path");
             }
             AssetDefinition definition = ScriptAssetScope.findVisible(id);
+            if (definition == null) {
+                definition = BuiltinAssets.find(id);
+            }
             if (definition == null) {
                 throw new LuaError("Asset not registered: " + id);
             }

@@ -4,7 +4,9 @@ import betamoon.assets.AssetDefinition;
 import betamoon.assets.AssetId;
 import betamoon.assets.AssetKey;
 import betamoon.assets.AssetKind;
+import betamoon.assets.BuiltinAssets;
 import betamoon.client.assets.AssetLocation;
+import betamoon.client.assets.ClientModelAssets;
 import betamoon.client.assets.ClientAssets;
 import betamoon.client.assets.TextureAsset;
 import betamoon.client.audio.ClientSounds;
@@ -31,6 +33,8 @@ public final class AssetsApi {
         LuaTable assets = new LuaTable();
         assets.set("textures", registry(AssetKind.TEXTURE));
         assets.set("sounds", registry(AssetKind.SOUND));
+        assets.set("models", registry(AssetKind.MODEL));
+        assets.set("animations", registry(AssetKind.ANIMATION));
         assets.set("refresh", new ZeroArgFunction() {
             public LuaValue call() {
                 ClientAssets.requestRefresh();
@@ -51,6 +55,10 @@ public final class AssetsApi {
                     if (kind == AssetKind.TEXTURE) {
                         TextureAsset texture = ClientAssets.acquireTexture(location);
                         ScriptResourceTracker.track(texture::close);
+                    } else if (kind == AssetKind.MODEL) {
+                        ScriptResourceTracker.track(ClientModelAssets.model(location)::close);
+                    } else if (kind == AssetKind.ANIMATION) {
+                        ScriptResourceTracker.track(ClientModelAssets.animations(location)::close);
                     } else {
                         SoundAsset sound = ClientSounds.acquire(location);
                         ScriptResourceTracker.track(sound::close);
@@ -74,7 +82,7 @@ public final class AssetsApi {
                 try {
                     AssetId id = new AssetId(kind,
                             AssetKey.parse(args.arg(args.arg1() == registry ? 2 : 1).checkjstring()));
-                    if (ScriptAssetScope.findVisible(id) == null) {
+                    if (ScriptAssetScope.findVisible(id) == null && BuiltinAssets.find(id) == null) {
                         if (required) {
                             throw new LuaError("Asset not registered: " + id);
                         }
