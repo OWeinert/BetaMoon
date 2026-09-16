@@ -150,7 +150,7 @@ public final class BetaMoonMain {
         mc.thePlayer.addChatMessage(
                 "\u00a76[BetaMoon] Update available: \u00a7f" + version() + " -> " + release.getVersion());
         mc.thePlayer.addChatMessage(
-                "\u00a77[BetaMoon] Download via View on " + release.getSourceName() + " in the main menu.");
+                "\u00a77[BetaMoon] Download via \"View on " + release.getSourceName() + "\" in the main menu.");
         updateNotifiedInWorld = true;
     }
 
