@@ -11,35 +11,35 @@ description = "Adds a decorative animated machine (234). Copy animated_machine/ 
 
 function modInit()
   local model = betamoon.assets.models:add {
-    key = "mymod:lessons/machine",
+    key = "example:block/machine",
     path = "animated_machine/machine.json"
   }
   local glowModel = betamoon.assets.models:add {
-    key = "mymod:lessons/machine_glow",
+    key = "example:block/machine_glow",
     path = "animated_machine/machine_glow.json"
   }
   local animation = betamoon.assets.animations:add {
-    key = "mymod:lessons/machine",
+    key = "example:block/machine",
     path = "animated_machine/machine.animation.json"
   }
   local casing = betamoon.assets.textures:add {
-    key = "mymod:lessons/machine_casing",
+    key = "example:block/machine_casing",
     path = "animated_machine/machine_casing.png"
   }
   local rotor = betamoon.assets.textures:add {
-    key = "mymod:lessons/machine_rotor",
+    key = "example:block/machine_rotor",
     path = "animated_machine/machine_rotor.png"
   }
   local glow = betamoon.assets.textures:add {
-    key = "mymod:lessons/machine_glow",
+    key = "example:block/machine_glow",
     path = "animated_machine/machine_glow.png"
   }
   local click = betamoon.assets.sounds:add {
-    key = "mymod:lessons/machine_click",
+    key = "example:block/machine_click",
     path = "animated_machine/machine_click.wav"
   }
   local toggle = betamoon.soundEvents:add {
-    key = "mymod:lessons/machine_toggle", sound = click,
+    key = "example:block/machine_toggle", sound = click,
     volume = 0.6, pitch = { min = 0.95, max = 1.05 }
   }
 
