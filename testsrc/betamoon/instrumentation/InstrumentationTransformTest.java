@@ -204,6 +204,7 @@ public final class InstrumentationTransformTest {
                 continue;
             }
             HookStatus expected = (diagnostic.getHookId().startsWith("betamoon:lua_texture_resource")
+                    || diagnostic.getHookId().startsWith("betamoon:model_render")
                     || diagnostic.getHookId().equals("betamoon:block_break_guard")
                     || diagnostic.getHookId().equals("betamoon:block_power")
                     || diagnostic.getHookId().equals("betamoon:block_display_tick")
@@ -276,13 +277,24 @@ public final class InstrumentationTransformTest {
         require(transformer.transform(null, survivalOwner, null, null, survival) == null,
                 "Survival guard must be idempotent");
 
-        String[][] additionalTargets = {{"net/minecraft/src/World", "emission"}, {"forge/ForgeHooks", "permission"}};
+        String[][] additionalTargets = {{"net/minecraft/src/World", "emission"}, {"forge/ForgeHooks", "permission"},
+                {"net/minecraft/src/ItemRenderer", "held"}, {"net/minecraft/src/RenderItem", "gui"},
+                {"net/minecraft/src/EntityRenderer", "frame"}, {"net/minecraft/src/Chunk", "chunkLoaded"},
+                {"net/minecraft/src/RenderGlobal", "worldModels"}};
         for (String[] target : additionalTargets) {
             String targetOwner = mappings.resolveClass(new betamoon.instrumentation.api.ClassRef(target[0]),
                     RuntimeNamespace.CLIENT);
             byte[] result = transformer.transform(null, targetOwner, null, null, readClass(clientJarPath, targetOwner));
-            require(result != null && countCallbackCalls(result, target[1]) == 1,
+            require(result != null && countCallbackCalls(result,
+                    target[1]) == (target[0].equals("net/minecraft/src/RenderGlobal") ? 2 : 1),
                     "Missing runtime hook for " + target[0]);
+            if (target[0].equals("net/minecraft/src/Chunk")) {
+                require(countCallbackCalls(result, "chunkUnloaded") == 1, "Missing chunk unload bridge");
+                require(countCallbackCalls(result, "chunkChanged") >= 2, "Missing chunk edit bridges");
+            }
+            if (target[0].equals("net/minecraft/src/RenderItem")) {
+                require(countCallbackCalls(result, "ground") == 1, "Missing dropped model render callback");
+            }
             if (target[0].equals("net/minecraft/src/World")) {
                 ClassNode world = new ClassNode();
                 new ClassReader(result).accept(world, 0);

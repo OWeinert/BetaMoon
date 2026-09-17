@@ -1,4 +1,4 @@
--- Load this together with 01_beg_18b_module_import.lua to share a block reference between scripts.
+-- Load this together with 01_beg_19b_module_import.lua to share a block reference between scripts.
 -- The export table is created, populated and registered during modInit.
 -- The public export key below is a chosen string; it need not match this file's number.
 

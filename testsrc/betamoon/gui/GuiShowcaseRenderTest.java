@@ -83,7 +83,7 @@ public final class GuiShowcaseRenderTest {
         registered.setBoolean(null, true);
         Method owner = LuaScriptRegistry.class.getDeclaredMethod("setCurrentScriptFile", String.class);
         owner.setAccessible(true);
-        owner.invoke(null, "03_adv_05_gui_showcase.lua");
+        owner.invoke(null, "03_adv_06_gui_showcase.lua");
         Globals globals = JsePlatform.standardGlobals();
         LuaTable api = new LuaTable();
         TileEntityApi.attach(api);
@@ -96,9 +96,9 @@ public final class GuiShowcaseRenderTest {
                 + "betamoon.items = {getRequired=betamoon.blocks.getRequired}; "
                 + "betamoon.recipes = {add=function(_, def) betamoon.recipe=def end}; "
                 + "betamoon.stack=function(item, count) return {id=item.id, count=count} end").call();
-        FileReader reader = new FileReader(new File(examples, "03_adv_05_gui_showcase.lua"));
+        FileReader reader = new FileReader(new File(examples, "03_adv_06_gui_showcase.lua"));
         try {
-            globals.load(reader, "03_adv_05_gui_showcase.lua").call();
+            globals.load(reader, "03_adv_06_gui_showcase.lua").call();
         } finally {
             reader.close();
         }

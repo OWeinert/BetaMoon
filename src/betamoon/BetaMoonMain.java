@@ -2,6 +2,7 @@ package betamoon;
 
 import betamoon.client.assets.ClientAssets;
 import betamoon.client.audio.ClientAudio;
+import betamoon.luaapi.block.BlockModelRegistry;
 
 import betamoon.config.BetaMoonConfig;
 import betamoon.gui.GuiBetaMoonIngameMenu;
@@ -36,7 +37,7 @@ import org.lwjgl.input.Keyboard;
 public final class BetaMoonMain {
     private static BetaMoonMain instance;
 
-    private static final String VERSION = "0.6.2";
+    private static final String VERSION = "0.7.0";
     public static final String LUA_SCRIPTS_DIR = "lua_scripts";
     public static final Logger LOGGER = Logger.getLogger("BetaMoon");
     static {
@@ -57,6 +58,7 @@ public final class BetaMoonMain {
 
     private BetaMoonMain(BaseMod baseMod) {
         this.betaMoonBaseMod = baseMod;
+        BlockModelRegistry.initialize(baseMod);
         this.agentRegistered = BetaMoonAgent.isRegistered();
         if (!this.agentRegistered) {
             String failure = BetaMoonAgent.getFailureMessage();
@@ -148,7 +150,7 @@ public final class BetaMoonMain {
         mc.thePlayer.addChatMessage(
                 "\u00a76[BetaMoon] Update available: \u00a7f" + version() + " -> " + release.getVersion());
         mc.thePlayer.addChatMessage(
-                "\u00a77[BetaMoon] Download via View on " + release.getSourceName() + " in the main menu.");
+                "\u00a77[BetaMoon] Download via \"View on " + release.getSourceName() + "\" in the main menu.");
         updateNotifiedInWorld = true;
     }
 

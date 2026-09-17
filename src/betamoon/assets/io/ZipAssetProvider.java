@@ -19,6 +19,14 @@ public final class ZipAssetProvider implements AssetProvider {
     }
 
     @Override
+    public boolean exists(AssetPath path) throws IOException {
+        try (ZipFile zip = new ZipFile(archive)) {
+            ZipEntry entry = zip.getEntry(path.toString());
+            return entry != null && !entry.isDirectory();
+        }
+    }
+
+    @Override
     public byte[] read(AssetPath path, int maxBytes) throws IOException {
         try (ZipFile zip = new ZipFile(archive)) {
             ZipEntry entry = zip.getEntry(path.toString());

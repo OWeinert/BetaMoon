@@ -7,6 +7,8 @@ import java.util.Objects;
  * access.
  */
 public final class AssetPath {
+    static final String PACK_ROOT = "bm_assets/";
+
     private final String value;
 
     private AssetPath(String value) {
@@ -35,7 +37,7 @@ public final class AssetPath {
      * Direct paths retain their directory structure and case beneath the pack root.
      */
     public AssetPath getDirectOverridePath() {
-        return parse("betamoon/" + value);
+        return parse(PACK_ROOT + value);
     }
 
     @Override

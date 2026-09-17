@@ -4,6 +4,7 @@ import betamoon.assets.AssetDefinition;
 import betamoon.assets.AssetId;
 import betamoon.assets.AssetRegistration;
 import betamoon.assets.AssetRegistry;
+import betamoon.assets.BuiltinAssets;
 
 /**
  * Bridges script initialization to the headless asset registry; it does not
@@ -58,6 +59,9 @@ public final class ScriptAssetScope implements AutoCloseable {
             throw new IllegalStateException("Assets must be declared during script initialization");
         }
         scope.requireOwner();
+        if (BuiltinAssets.find(definition.getId()) != null) {
+            throw new IllegalArgumentException("Built-in asset cannot be redeclared: " + definition.getId());
+        }
         AssetRegistration existing = REGISTRY.find(definition.getId());
         if (existing != null && !scope.owner.equals(existing.getOwner())) {
             throw new IllegalArgumentException(
@@ -76,6 +80,10 @@ public final class ScriptAssetScope implements AutoCloseable {
 
     /** Resolves private declarations only for the currently initializing owner. */
     public static AssetDefinition findVisible(AssetId id) {
+        AssetDefinition builtin = BuiltinAssets.find(id);
+        if (builtin != null) {
+            return builtin;
+        }
         ScriptAssetScope scope = CURRENT.get();
         if (scope != null && !scope.closed && !scope.published) {
             scope.requireOwner();

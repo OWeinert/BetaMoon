@@ -2,6 +2,7 @@ package betamoon.luaapi.item;
 
 import betamoon.client.assets.AssetLocation;
 import betamoon.luaapi.asset.AssetInputs;
+import betamoon.luaapi.asset.ModelAppearanceDeclaration;
 
 import net.minecraft.src.Item;
 import org.luaj.vm2.LuaError;
@@ -11,6 +12,7 @@ import static betamoon.luaapi.utils.LuaDeclarationValues.internalName;
 
 /** Complete item declaration, read before changing native item state. */
 final class ItemDeclaration {
+    final ModelAppearanceDeclaration appearance;
     final int id;
     final String name;
     final String displayName;
@@ -32,6 +34,7 @@ final class ItemDeclaration {
 
     ItemDeclaration(LuaValue definition) {
         callbacks = new ItemDefinition(definition);
+        appearance = ModelAppearanceDeclaration.optional(definition.get("appearance"));
         id = required(definition, "id").checkint();
         name = internalName(definition);
         kind = ItemKind.parse(definition.get("type").optjstring("item"));

@@ -1,5 +1,7 @@
 package betamoon.luaapi.item;
 
+import betamoon.luaapi.asset.ModelAppearanceDeclaration;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import org.luaj.vm2.LuaValue;
@@ -12,6 +14,7 @@ import static betamoon.luaapi.utils.LuaDeclarationValues.integer;
  */
 public final class ItemVisualDefinition {
     private final Map<Integer, Variant> variants = new HashMap<Integer, Variant>();
+    private final Map<Integer, ModelAppearanceDeclaration> appearances = new HashMap<>();
 
     public ItemVisualDefinition(LuaValue render) {
         if (render.isnil()) {
@@ -27,7 +30,11 @@ public final class ItemVisualDefinition {
         while (!(key = declarations.next(key).arg1()).isnil()) {
             int metadata = integer(key, "render.variants metadata", 0, 32767);
             LuaValue declaration = declarations.get(key);
-            fields(declaration, "render.variant", "icon", "color");
+            fields(declaration, "render.variant", "icon", "color", "appearance");
+            LuaValue appearance = declaration.get("appearance");
+            if (!appearance.isnil()) {
+                appearances.put(metadata, ModelAppearanceDeclaration.optional(appearance));
+            }
             int icon = declaration.get("icon").isnil()
                     ? -1
                     : integer(declaration.get("icon"), "render.variant.icon", 0, 255);
@@ -36,6 +43,14 @@ public final class ItemVisualDefinition {
                     : integer(declaration.get("color"), "render.variant.color", 0, 0xFFFFFF);
             variants.put(metadata, new Variant(icon, color));
         }
+    }
+
+    public Map<Integer, ModelAppearanceDeclaration> appearances() {
+        return Collections.unmodifiableMap(appearances);
+    }
+
+    public boolean hasModels() {
+        return appearances.values().stream().anyMatch(value -> value != null);
     }
 
     public int icon(int metadata, int fallback) {

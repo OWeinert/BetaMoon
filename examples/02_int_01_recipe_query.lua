@@ -1,4 +1,4 @@
--- Copy 01_beg_11_vanilla_recipes.lua too: it creates the dust and recipes queried here.
+-- Copy 01_beg_12_vanilla_recipes.lua too: it creates the dust and recipes queried here.
 -- dependencies contains the other script's declared name, not its filename.
 -- The temporary changes below are removed immediately, so recipes finish unchanged.
 -- Use these queries to inspect or adjust recipes without registering duplicate content.

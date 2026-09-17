@@ -1,6 +1,14 @@
 package betamoon.assets;
 
+import betamoon.assets.io.AssetDefaultPaths;
+import betamoon.assets.io.AssetResolver;
+import betamoon.assets.io.FileAssetProvider;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Stream;
 
 /**
  * Runs with only project class directories on the classpath, without Lua or
@@ -10,11 +18,67 @@ public final class AssetFoundationTest {
     private AssetFoundationTest() {
     }
 
-    public static void main(String[] arguments) {
+    public static void main(String[] arguments) throws Exception {
         verifyIdentitiesAndPaths();
+        verifyInferredPaths();
         verifyAtomicPublicationAndOwnership();
         verifyGenerationLifetime();
         System.out.println("Asset foundations passed: identity, paths, ownership, atomic publication and lifetime.");
+    }
+
+    private static void verifyInferredPaths() throws Exception {
+        Path root = Files.createTempDirectory("betamoon-paths-");
+        try {
+            AssetResolver resolver = new AssetResolver(new FileAssetProvider(root.toFile()), null, message -> { });
+            require(AssetDefaultPaths.resolve(new AssetId(AssetKind.TEXTURE, AssetKey.parse("mymod:blocks/slate")),
+                    resolver).getFallbackPath().toString().equals("mymod/textures/blocks/slate.png"),
+                    "Key-only textures use their category directory");
+            require(AssetDefaultPaths.resolve(new AssetId(AssetKind.MODEL, AssetKey.parse("mymod:machine")),
+                    resolver).getOverridePath().toString().equals("bm_assets/mymod/models/machine.json"),
+                    "Key-only models mirror their conventional path into packs");
+            require(AssetDefaultPaths.resolve(new AssetId(AssetKind.ANIMATION, AssetKey.parse("mymod:machine")),
+                    resolver).getFallbackPath().toString().equals("mymod/animations/machine.animation.json"),
+                    "Key-only animations use their compound suffix");
+            expectFailure(IllegalArgumentException.class, () -> {
+                try {
+                    AssetDefaultPaths.resolve(new AssetId(AssetKind.TEXTURE, AssetKey.parse("mymod:slate.png")),
+                            resolver);
+                } catch (IOException error) {
+                    throw new AssertionError(error);
+                }
+            });
+
+            AssetId sound = new AssetId(AssetKind.SOUND, AssetKey.parse("mymod:machine/click"));
+            Path sounds = root.resolve("mymod/sounds/machine");
+            Files.createDirectories(sounds);
+            try {
+                AssetDefaultPaths.resolve(sound, resolver);
+                throw new AssertionError("Missing sound default must fail");
+            } catch (IOException expected) {
+                require(expected.getMessage().contains("click.ogg") && expected.getMessage().contains("click.wav"),
+                        "Missing sound error names both candidates");
+            }
+            Path wav = sounds.resolve("click.wav");
+            Path ogg = sounds.resolve("click.ogg");
+            Files.write(wav, new byte[0]);
+            require(AssetDefaultPaths.resolve(sound, resolver).getExtension().equals("wav"),
+                    "A WAV script default selects WAV independently of packs");
+            Files.write(ogg, new byte[0]);
+            try {
+                AssetDefaultPaths.resolve(sound, resolver);
+                throw new AssertionError("Ambiguous sound defaults must fail");
+            } catch (IllegalArgumentException expected) {
+                require(expected.getMessage().contains("click.ogg") && expected.getMessage().contains("click.wav"),
+                        "Ambiguous sound error names both candidates");
+            }
+            Files.delete(wav);
+            require(AssetDefaultPaths.resolve(sound, resolver).getExtension().equals("ogg"),
+                    "An OGG script default selects OGG");
+        } finally {
+            try (Stream<Path> paths = Files.walk(root)) {
+                paths.sorted(Comparator.reverseOrder()).forEach(path -> path.toFile().delete());
+            }
+        }
     }
 
     private static void verifyIdentitiesAndPaths() {
@@ -37,22 +101,27 @@ public final class AssetFoundationTest {
             expectFailure(IllegalArgumentException.class, () -> AssetPath.parse(value));
         }
         require(AssetPath.parse("mymod\\Textures\\Guard.png").getDirectOverridePath().toString()
-                .equals("betamoon/mymod/Textures/Guard.png"), "Direct paths preserve case and normalize separators");
-        require(AssetPath.parse("dummy.png").getDirectOverridePath().toString().equals("betamoon/dummy.png"),
-                "Bare texture paths must resolve immediately under betamoon");
+                .equals("bm_assets/mymod/Textures/Guard.png"), "Direct paths preserve case and normalize separators");
+        require(AssetPath.parse("dummy.png").getDirectOverridePath().toString().equals("bm_assets/dummy.png"),
+                "Bare texture paths must resolve immediately under bm_assets");
         AssetDefinition uppercaseTexture = new AssetDefinition(texture, AssetPath.parse("Guard.PNG"), "png");
         require(uppercaseTexture.getFallbackPath().toString().equals("Guard.PNG"),
                 "Registered fallback paths retain their exact case, including the extension");
-        AssetDefinition original = new AssetDefinition(model, AssetPath.parse("author/guard.geo.json"), "geo.json");
-        AssetDefinition relocated = new AssetDefinition(model, AssetPath.parse("renamed/guard.geo.json"), "geo.json");
-        require(original.getOverridePath().toString().equals("betamoon/mymod/models/entities/guard.geo.json"),
-                "Registered paths must retain the complete model format suffix");
-        require(original.getOverridePath().equals(relocated.getOverridePath()),
-                "Moving a fallback must not change a registered override path");
+        AssetDefinition original = new AssetDefinition(model, AssetPath.parse("author/guard.json"), "json");
+        AssetDefinition relocated = new AssetDefinition(model, AssetPath.parse("renamed/guard.json"), "json");
+        require(original.getOverridePath().toString().equals("bm_assets/author/guard.json"),
+                "Registered models must mirror the script-relative default path");
+        require(!original.getOverridePath().equals(relocated.getOverridePath()),
+                "Moving a fallback must move its registered override path");
+        AssetDefinition animation = new AssetDefinition(new AssetId(AssetKind.ANIMATION, key),
+                AssetPath.parse("author/guard.animation.json"), "animation.json");
+        require(animation.getOverridePath().toString()
+                .equals("bm_assets/author/guard.animation.json"),
+                "Registered animations must retain their compound suffix");
         expectFailure(IllegalArgumentException.class,
-                () -> new AssetDefinition(model, AssetPath.parse("guard.geo.json"), "../json"));
+                () -> new AssetDefinition(model, AssetPath.parse("guard.json"), "../json"));
         expectFailure(IllegalArgumentException.class,
-                () -> new AssetDefinition(model, AssetPath.parse("guard.png"), "geo.json"));
+                () -> new AssetDefinition(model, AssetPath.parse("guard.png"), "json"));
     }
 
     private static void verifyAtomicPublicationAndOwnership() {
@@ -88,7 +157,7 @@ public final class AssetFoundationTest {
 
         try (AssetRegistry.Batch batch = registry.begin("owner.lua")) {
             AssetDefinition model = new AssetDefinition(new AssetId(AssetKind.MODEL, texture.getId().getKey()),
-                    AssetPath.parse("guard.geo.json"), "geo.json");
+                    AssetPath.parse("guard.json"), "json");
             batch.add(model);
             batch.commit();
             require(registry.find(texture.getId()) == null, "Replacement removes omitted declarations");

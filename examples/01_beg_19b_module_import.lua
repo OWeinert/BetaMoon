@@ -1,4 +1,4 @@
--- Copy 01_beg_18a_module_export.lua alongside this file. Its declared script name is the dependency.
+-- Copy 01_beg_19a_module_export.lua alongside this file. Its declared script name is the dependency.
 -- The dependency ensures initialization order; import then retrieves its exported table.
 -- Importing does not run the other file again or create a second copy of its block.
 -- This example uses that block in ore generation, so inspect newly generated terrain.

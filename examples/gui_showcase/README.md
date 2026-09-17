@@ -1,6 +1,6 @@
 # GUI Showcase assets
 
-Copy `03_adv_05_gui_showcase.lua` and this entire `gui_showcase` folder into
+Copy `03_adv_06_gui_showcase.lua` and this entire `gui_showcase` folder into
 `.minecraft/lua_scripts`, then restart Minecraft with the updated BetaMoon JAR.
 
 Craft a chest with one redstone dust in any arrangement to obtain the GUI
