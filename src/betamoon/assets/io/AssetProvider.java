@@ -8,6 +8,8 @@ import java.io.IOException;
  * remain explicit.
  */
 public interface AssetProvider {
+    boolean exists(AssetPath path) throws IOException;
+
     byte[] read(AssetPath path, int maxBytes) throws IOException;
 
     String getName();

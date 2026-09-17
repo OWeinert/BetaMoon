@@ -31,6 +31,10 @@ public final class AssetResolver {
         return new AssetResolver(provider, pack, diagnostics, sourceKind);
     }
 
+    public boolean defaultExists(AssetPath path) throws IOException {
+        return defaults.exists(path);
+    }
+
     public <T> ResolvedAsset<T> resolve(String identity, AssetPath fallback, AssetPath override, int byteLimit,
             AssetDecoder<T> decoder) throws IOException {
         return resolve(identity, fallback, override, byteLimit, decoder, decoder);

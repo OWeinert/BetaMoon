@@ -18,11 +18,13 @@ public final class FileAssetProvider implements AssetProvider {
     }
 
     @Override
+    public boolean exists(AssetPath path) throws IOException {
+        return fileFor(path).isFile();
+    }
+
+    @Override
     public byte[] read(AssetPath path, int maxBytes) throws IOException {
-        File file = new File(root, path.toString()).getCanonicalFile();
-        if (!file.toPath().startsWith(root.toPath()) || file.equals(root)) {
-            throw new IOException("Asset escapes the script root: " + path);
-        }
+        File file = fileFor(path);
         if (!file.isFile()) {
             return null;
         }
@@ -32,6 +34,14 @@ public final class FileAssetProvider implements AssetProvider {
         try (InputStream input = new FileInputStream(file)) {
             return AssetStreams.read(input, maxBytes);
         }
+    }
+
+    private File fileFor(AssetPath path) throws IOException {
+        File file = new File(root, path.toString()).getCanonicalFile();
+        if (!file.toPath().startsWith(root.toPath()) || file.equals(root)) {
+            throw new IOException("Asset escapes the script root: " + path);
+        }
+        return file;
     }
 
     @Override

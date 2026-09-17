@@ -57,11 +57,11 @@ public final class AssetDefinition {
         return extension;
     }
 
-    /**
-     * Registered override locations depend on identity, not the fallback file
-     * location.
-     */
+    /** Script assets mirror their default path; built-ins retain their catalog key. */
     public AssetPath getOverridePath() {
+        if (!builtin) {
+            return fallbackPath.getDirectOverridePath();
+        }
         AssetKey key = id.getKey();
         return AssetPath.parse(AssetPath.PACK_ROOT + key.getNamespace() + "/" + id.getKind().getDirectory() + "/"
                 + key.getPath() + "." + extension);

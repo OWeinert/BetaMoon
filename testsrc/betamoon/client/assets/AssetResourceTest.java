@@ -90,6 +90,7 @@ public final class AssetResourceTest {
             try {
                 Files.createSymbolicLink(link, outside);
                 expectIo(() -> new FileAssetProvider(root.toFile()).read(AssetPath.parse("outside.png"), 100));
+                expectIo(() -> new FileAssetProvider(root.toFile()).exists(AssetPath.parse("outside.png")));
             } catch (UnsupportedOperationException | FileSystemException unavailable) {
                 System.out.println("Symbolic-link containment fixture unavailable on this filesystem.");
             }
@@ -257,6 +258,10 @@ public final class AssetResourceTest {
         private int reads;
         private CountingProvider(AssetProvider delegate) {
             this.delegate = delegate;
+        }
+
+        public boolean exists(AssetPath path) throws IOException {
+            return delegate.exists(path);
         }
 
         public byte[] read(AssetPath path, int limit) throws IOException {

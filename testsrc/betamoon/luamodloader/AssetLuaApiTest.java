@@ -1,6 +1,7 @@
 package betamoon.luamodloader;
 
 import betamoon.assets.io.FileAssetProvider;
+import betamoon.assets.io.ZipAssetProvider;
 import betamoon.client.assets.ClientAssets;
 import betamoon.client.assets.AtlasTextures;
 import betamoon.resources.EnumTexAtlas;
@@ -11,9 +12,12 @@ import net.minecraft.src.Session;
 import net.minecraft.src.ModLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 /**
  * Runs the public API inside the real parser/lifecycle, including recoverable
@@ -29,8 +33,21 @@ public final class AssetLuaApiTest {
             Files.write(root.resolve("guard.png"), AssetResourceTest.png(0xff00ff00, 16));
             Files.write(root.resolve("hit.wav"), AssetResourceTest.wav());
             Files.write(root.resolve("broken.png"), new byte[]{0});
+            Path textureFolder = root.resolve("mymod/textures/lessons");
+            Files.createDirectories(textureFolder);
+            Files.write(textureFolder.resolve("mosaic.png"), AssetResourceTest.png(0xff00ff00, 16));
+            Path soundFolder = root.resolve("mymod/sounds/machine");
+            Files.createDirectories(soundFolder);
+            Files.write(soundFolder.resolve("click.wav"), AssetResourceTest.wav());
+            Path packFile = root.resolve("alternate-sound.zip");
+            try (ZipOutputStream pack = new ZipOutputStream(Files.newOutputStream(packFile))) {
+                pack.putNextEntry(new ZipEntry("bm_assets/mymod/sounds/machine/click.ogg"));
+                pack.write(Files.readAllBytes(Paths.get("testsrc/betamoon/assets/fixtures/tone.ogg")));
+                pack.closeEntry();
+            }
             List<String> warnings = new ArrayList<>();
-            ClientAssets.useProviders(new FileAssetProvider(root.toFile()), null, warnings::add);
+            ClientAssets.useProviders(new FileAssetProvider(root.toFile()), new ZipAssetProvider(packFile.toFile()),
+                    warnings::add);
             AtlasTextures.useBackend(new AtlasTextures.Backend() {
                 public int allocate(EnumTexAtlas atlas) {
                     return 200;
@@ -57,7 +74,11 @@ public final class AssetLuaApiTest {
                     + "function modInit()\n"
                     + " local t=betamoon.assets.textures:add{key='mymod:guard',path='guard.png'}\n"
                     + " assert(t:getKey()=='mymod:guard' and t:getKind()=='textures')\n"
-                    + " assert(t:getPath()=='guard.png' and t:getOverridePath()=='bm_assets/mymod/textures/guard.png')\n"
+                    + " assert(t:getPath()=='guard.png' and t:getOverridePath()=='bm_assets/guard.png')\n"
+                    + " local inferred=betamoon.assets.textures:add{key='mymod:lessons/mosaic'}\n"
+                    + " assert(inferred:getPath()=='mymod/textures/lessons/mosaic.png')\n"
+                    + " assert(inferred:getOverridePath()=='bm_assets/mymod/textures/lessons/mosaic.png')\n"
+                    + " assert(not pcall(function() betamoon.assets.textures:add{key='mymod:slate.png'} end))\n"
                     + " assert(t:getSource().kind=='script')\n"
                     + " assert(betamoon.assets.textures:get('mymod:guard')~=nil)\n"
                     + " assert(betamoon.assets.textures:get('other:guard')==nil)\n"
@@ -70,6 +91,10 @@ public final class AssetLuaApiTest {
                     + " betamoon.items:add{id=29001,key='asset_item',texture=t}\n"
                     + " betamoon.items:getRequired(29001):override{texture=t}\n"
                     + " local s=betamoon.assets.sounds:add{key='mymod:guard',path='hit.wav'}\n"
+                    + " local click=betamoon.assets.sounds:add{key='mymod:machine/click'}\n"
+                    + " assert(click:getPath()=='mymod/sounds/machine/click.wav')\n"
+                    + " assert(click:getOverridePath()=='bm_assets/mymod/sounds/machine/click.wav')\n"
+                    + " assert(click:getSource().kind=='script')\n"
                     + " assert(s:getKind()=='sounds' and s:getSource().kind=='script')\n"
                     + " local event=betamoon.soundEvents:add{key='mymod:hit',clips={{sound=s,weight=2},{sound='hit.wav'}},pitch={min=0.9,max=1.1}}\n"
                     + " assert(event:getKey()=='mymod:hit' and betamoon.soundEvents:get('mymod:hit')~=nil)\n"

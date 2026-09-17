@@ -48,8 +48,10 @@ public final class AssetsApi {
         LuaTable registry = new LuaTable();
         registry.set("add", new VarArgFunction() {
             public Varargs invoke(Varargs args) {
-                AssetDefinition definition = AssetDeclaration.read(kind, args.arg(args.arg1() == registry ? 2 : 1));
+                AssetDeclaration declaration = AssetDeclaration.read(kind, args.arg(args.arg1() == registry ? 2 : 1));
+                AssetDefinition definition = null;
                 try {
+                    definition = declaration.resolve(ClientAssets.getResolver());
                     ScriptAssetScope.stage(definition);
                     AssetLocation location = new AssetLocation(definition);
                     if (kind == AssetKind.TEXTURE) {
@@ -66,7 +68,9 @@ public final class AssetsApi {
                     ClientAssets.requestRefresh();
                     return new AssetReference(definition.getId());
                 } catch (IOException | IllegalArgumentException | IllegalStateException error) {
-                    ScriptAssetScope.discardPending(definition);
+                    if (definition != null) {
+                        ScriptAssetScope.discardPending(definition);
+                    }
                     throw new LuaError("Asset: " + error.getMessage());
                 }
             }

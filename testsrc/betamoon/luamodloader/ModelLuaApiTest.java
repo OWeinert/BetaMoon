@@ -46,6 +46,9 @@ public final class ModelLuaApiTest {
         Memory pack = new Memory();
         defaults.files.put("test.json", ModelFoundationTest.GEOMETRY.getBytes(StandardCharsets.UTF_8));
         defaults.files.put("test.animation.json", ModelFoundationTest.ANIMATIONS.getBytes(StandardCharsets.UTF_8));
+        defaults.files.put("mymod/models/inferred.json", ModelFoundationTest.GEOMETRY.getBytes(StandardCharsets.UTF_8));
+        defaults.files.put("mymod/animations/inferred.animation.json",
+                ModelFoundationTest.ANIMATIONS.getBytes(StandardCharsets.UTF_8));
         ByteArrayOutputStream image = new ByteArrayOutputStream();
         ImageIO.write(new BufferedImage(64, 32, BufferedImage.TYPE_INT_ARGB), "png", image);
         defaults.files.put("test.png", image.toByteArray());
@@ -119,7 +122,13 @@ public final class ModelLuaApiTest {
                     + "assert(not pcall(function() betamoon.assets.models:add{key='minecraft:block/torch',"
                     + "path='test.json'} end)); "
                     + "animation=betamoon.assets.animations:add{key='mymod:test',path='test.animation.json'}; "
-                    + "assert(model:getKind()=='models'); assert(model:getOverridePath()=='bm_assets/mymod/models/test.json'); "
+                    + "local alias=betamoon.assets.models:add{key='mymod:alias',path='test.json'}; "
+                    + "assert(alias:getOverridePath()==model:getOverridePath()); "
+                    + "local inferredModel=betamoon.assets.models:add{key='mymod:inferred'}; "
+                    + "local inferredAnimation=betamoon.assets.animations:add{key='mymod:inferred'}; "
+                    + "assert(inferredModel:getPath()=='mymod/models/inferred.json'); "
+                    + "assert(inferredAnimation:getOverridePath()=='bm_assets/mymod/animations/inferred.animation.json'); "
+                    + "assert(model:getKind()=='models'); assert(model:getOverridePath()=='bm_assets/test.json'); "
                     + "assert(animation:getClips().wave.duration==2); assert(animation:getSource().kind=='script'); "
                     + "assert(not pcall(function() betamoon.assets.models:add{key='mymod:bad',path='test.png'} end)); "
                     + "pose=model:createPose(); other=model:createPose(); "
@@ -141,18 +150,24 @@ public final class ModelLuaApiTest {
                     "Pose evaluations must start from rest");
             require(defaults.reads + pack.reads == reads, "Drawing must not read providers");
             lua.load("assert(not pcall(function() remembered:translate('head',{x=1,y=0,z=0}) end))").call();
-            pack.files.put("bm_assets/mymod/models/test.json",
+            pack.files.put("bm_assets/mymod/models/test.json", ModelFoundationTest.GEOMETRY
+                    .replace("\"bones\":[", "\"bones\":[{\"name\":\"legacy\"},")
+                    .getBytes(StandardCharsets.UTF_8));
+            ClientAssets.refresh();
+            require(!appearance.geometry().hasPart("legacy"),
+                    "An old key-derived pack entry must not override an explicit script path");
+            pack.files.put("bm_assets/test.json",
                     ModelFoundationTest.GEOMETRY.replace("head", "different").getBytes(StandardCharsets.UTF_8));
             ClientAssets.refresh();
             require(appearance.geometry().hasPart("head"), "Incompatible geometry override must fall back");
             require(!warnings.isEmpty(), "Rejected pack must be diagnosed");
-            pack.files.put("bm_assets/mymod/animations/test.animation.json",
+            pack.files.put("bm_assets/test.animation.json",
                     ModelFoundationTest.ANIMATIONS.replace("90", "180").getBytes(StandardCharsets.UTF_8));
             ClientAssets.refresh();
             require(Math.abs(appearance.evaluate("held", 10, 0, 0, 0, 0).getRotation("head").toEuler().z - 90) < 0.001,
                     "Compatible clip replacement must reach later poses");
             lua.load("assert(other:getPosition('head').x==0)").call();
-            pack.files.put("bm_assets/mymod/models/test.json", ModelFoundationTest.GEOMETRY
+            pack.files.put("bm_assets/test.json", ModelFoundationTest.GEOMETRY
                     .replace("\"bones\":[", "\"bones\":[{\"name\":\"extra\"},").getBytes(StandardCharsets.UTF_8));
             ClientAssets.refresh();
             require(appearance.geometry().hasPart("extra"), "Compatible packs may add optional parts");
@@ -205,6 +220,9 @@ public final class ModelLuaApiTest {
     private static final class Memory implements AssetProvider {
         private final Map<String, byte[]> files = new HashMap<>();
         private int reads;
+        public boolean exists(AssetPath path) {
+            return files.containsKey(path.toString());
+        }
         public String getName() {
             return "fixture";
         }

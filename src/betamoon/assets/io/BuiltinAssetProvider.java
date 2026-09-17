@@ -12,7 +12,20 @@ public final class BuiltinAssetProvider implements AssetProvider {
     }
 
     @Override
+    public boolean exists(AssetPath path) throws IOException {
+        try (InputStream input = resource(path)) {
+            return input != null;
+        }
+    }
+
+    @Override
     public byte[] read(AssetPath path, int maxBytes) throws IOException {
+        try (InputStream input = resource(path)) {
+            return input == null ? null : AssetStreams.read(input, maxBytes);
+        }
+    }
+
+    private InputStream resource(AssetPath path) throws IOException {
         if (!path.toString().startsWith("builtin/minecraft/models/block/") || !path.toString().endsWith(".json")) {
             throw new IOException("Unsupported built-in model resource: " + path);
         }
@@ -20,9 +33,7 @@ public final class BuiltinAssetProvider implements AssetProvider {
         if (resource == null) {
             resource = BuiltinAssetProvider.class.getResourceAsStream("/" + path);
         }
-        try (InputStream input = resource) {
-            return input == null ? null : AssetStreams.read(input, maxBytes);
-        }
+        return resource;
     }
 
     @Override

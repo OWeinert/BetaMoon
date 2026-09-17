@@ -36,6 +36,10 @@ public final class ModelVariantTest {
         ByteArrayOutputStream png = new ByteArrayOutputStream();
         ImageIO.write(new BufferedImage(64, 32, BufferedImage.TYPE_INT_ARGB), "png", png);
         ClientAssets.useProviders(new AssetProvider() {
+            public boolean exists(AssetPath path) {
+                return !path.toString().equals("missing.json");
+            }
+
             public String getName() {
                 return "variant fixture";
             }
