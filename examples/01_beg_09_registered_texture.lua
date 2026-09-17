@@ -1,17 +1,16 @@
--- Copy registered_texture/ beside this script in lua_scripts.
+-- Copy mymod/textures/lessons/mosaic.png into lua_scripts with its folders.
 -- One registered PNG can be reused by both a block and an item.
 
 name = "Registered Texture Example"
 version = "1.0.0"
 description = "Adds a blue mosaic block (232) and matching item (5030). Copy the " ..
-    "registered_texture folder beside this script, then obtain both IDs through a creative " ..
+    "mymod folder beside this script, then obtain both IDs through a creative " ..
     "inventory. The asset reference is shared; its override path tells texture-pack authors " ..
     "exactly where a replacement PNG belongs."
 
 function modInit()
   local mosaic = betamoon.assets.textures:add {
-    key = "mymod:lessons/mosaic",
-    path = "registered_texture/mosaic.png"
+    key = "mymod:lessons/mosaic"
   }
 
   betamoon.blocks:add {

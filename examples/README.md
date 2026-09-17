@@ -186,7 +186,7 @@ together and read its dependency comments before loading it.
 
 ## Assets
 
-- For each new asset lesson, copy its matching folder beside the Lua script: `registered_texture/`,
+- For each new asset lesson, copy its matching folder beside the Lua script: `mymod/` for Beginner 09,
   `builtin_model_item/`, `click_sound/`, `blockbench_model_item/`,
   `facing_model_block/`, `animated_model_item/`, or `animated_machine/`.
   Keep the folder name and contents unchanged.
