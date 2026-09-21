@@ -17,7 +17,7 @@ still under development.
   Set `hotReloadOnFileChange=true` in BetaMoon's configuration to restore that workflow;
   manual reload remains available from the Scripts screen.
 - Asset registration paths are now optional. A key-only asset uses its conventional
-  `<namespace>/<category>/<key-path>` location. When `path` is supplied, both the script
+  `<namespace>:<category>/<key-path>` location. When `path` is supplied, both the script
   default and its texture-pack override preserve that path beneath `lua_scripts/` and
   `bm_assets/` respectively.
 
