@@ -32,6 +32,7 @@ import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.PathEntity;
 import net.minecraft.src.Vec3D;
+import net.minecraft.src.World;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
@@ -490,6 +491,13 @@ public final class LuaEntityActionAccess {
                     scope.requireActive();
                     Entity owner = ((LuaProjectileEntity) entity).getOwner();
                     return owner == null ? NIL : create(scope, null, owner);
+                }
+            });
+            api.set("getOwnerIdentity", new VarArgFunction() {
+                public Varargs invoke(Varargs a) {
+                    scope.requireActive();
+                    String identity = ((LuaProjectileEntity) entity).getOwnerIdentity();
+                    return identity == null ? NIL : valueOf(identity);
                 }
             });
         }
@@ -1122,8 +1130,12 @@ public final class LuaEntityActionAccess {
     }
 
     public static Entity target(LuaValue value, Entity source, String method) {
+        return target(value, source.worldObj, method);
+    }
+
+    public static Entity target(LuaValue value, World world, String method) {
         Entity candidate = entityHandle(value, method);
-        return candidate.isDead || candidate.worldObj != source.worldObj ? null : candidate;
+        return candidate.isDead || candidate.worldObj != world ? null : candidate;
     }
 
     static Entity entityHandle(LuaValue value, String method) {

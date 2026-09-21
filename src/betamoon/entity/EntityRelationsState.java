@@ -8,53 +8,19 @@ import net.minecraft.src.World;
 
 /** Saved stable owner token and optional per-instance team override. */
 public final class EntityRelationsState {
-    private String ownerKind = "";
-    private String ownerIdentity = "";
+    private final StableEntityReference owner = new StableEntityReference();
     private String teamOverride;
 
-    public boolean setOwner(Entity owner) {
-        if (owner == null) {
-            ownerKind = "";
-            ownerIdentity = "";
-            return true;
-        }
-        if (owner instanceof EntityPlayer) {
-            String username = ((EntityPlayer) owner).username;
-            if (username == null || username.isEmpty()) {
-                return false;
-            }
-            ownerKind = "player";
-            ownerIdentity = username;
-            return true;
-        }
-        if (owner instanceof TypedEntity && !(owner instanceof LuaEntityPart)) {
-            ownerKind = "entity";
-            ownerIdentity = ((TypedEntity) owner).entityState().identity();
-            return true;
-        }
-        return false;
+    public boolean setOwner(Entity entity) {
+        return owner.set(entity);
     }
 
     public Entity owner(World world) {
-        if (world == null || ownerIdentity.isEmpty()) {
-            return null;
-        }
-        if ("player".equals(ownerKind)) {
-            return world.getPlayerEntityByName(ownerIdentity);
-        }
-        if ("entity".equals(ownerKind)) {
-            for (Object value : world.loadedEntityList) {
-                if (value instanceof TypedEntity && !(value instanceof LuaEntityPart)
-                        && ownerIdentity.equals(((TypedEntity) value).entityState().identity())) {
-                    return (Entity) value;
-                }
-            }
-        }
-        return null;
+        return owner.resolve(world);
     }
 
     public String ownerIdentity() {
-        return ownerIdentity.isEmpty() ? null : ownerKind + ":" + ownerIdentity;
+        return owner.token();
     }
 
     public String team(EntityRelationsDefinition definition) {
@@ -99,10 +65,7 @@ public final class EntityRelationsState {
     }
 
     public void write(NBTTagCompound tag) {
-        if (!ownerIdentity.isEmpty()) {
-            tag.setString("BetaMoonOwnerKind", ownerKind);
-            tag.setString("BetaMoonOwner", ownerIdentity);
-        }
+        owner.write(tag, "BetaMoonOwnerKind", "BetaMoonOwner");
         if (teamOverride != null) {
             tag.setBoolean("BetaMoonTeamOverride", true);
             tag.setString("BetaMoonTeam", teamOverride);
@@ -110,13 +73,7 @@ public final class EntityRelationsState {
     }
 
     public void read(NBTTagCompound tag) {
-        ownerKind = tag.getString("BetaMoonOwnerKind");
-        ownerIdentity = tag.getString("BetaMoonOwner");
-        if (!("player".equals(ownerKind) || "entity".equals(ownerKind))
-                || ownerIdentity.isEmpty() || ownerIdentity.length() > 128) {
-            ownerKind = "";
-            ownerIdentity = "";
-        }
+        owner.read(tag, "BetaMoonOwnerKind", "BetaMoonOwner");
         teamOverride = null;
         if (tag.getBoolean("BetaMoonTeamOverride")) {
             try {

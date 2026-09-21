@@ -18,8 +18,8 @@ public final class LuaProjectileEntity extends Entity implements MultipartEntity
 
     private final EntityInstanceState state = new EntityInstanceState(EntityKind.PROJECTILE);
     private final EntityPartManager parts = new EntityPartManager(this);
+    private final StableEntityReference stableOwner = new StableEntityReference();
     private Entity owner;
-    private String ownerName = "";
     private boolean stuck;
 
     public LuaProjectileEntity(World world) {
@@ -48,14 +48,21 @@ public final class LuaProjectileEntity extends Entity implements MultipartEntity
 
     public void setOwner(Entity owner) {
         this.owner = owner;
-        ownerName = owner instanceof EntityPlayer ? ((EntityPlayer) owner).username : "";
+        stableOwner.set(owner);
     }
 
     public Entity getOwner() {
-        if (owner == null && !ownerName.isEmpty() && worldObj != null) {
-            owner = worldObj.getPlayerEntityByName(ownerName);
+        if (owner != null && (owner.isDead || owner.worldObj != worldObj)) {
+            owner = null;
+        }
+        if (owner == null) {
+            owner = stableOwner.resolve(worldObj);
         }
         return owner;
+    }
+
+    public String getOwnerIdentity() {
+        return stableOwner.token();
     }
 
     @Override
@@ -249,7 +256,11 @@ public final class LuaProjectileEntity extends Entity implements MultipartEntity
     @Override
     protected void readEntityFromNBT(NBTTagCompound tag) {
         state.read(tag);
-        ownerName = tag.getString("BetaMoonOwnerName");
+        owner = null;
+        stableOwner.read(tag, "BetaMoonProjectileOwnerKind", "BetaMoonProjectileOwner");
+        if (stableOwner.token() == null) {
+            stableOwner.set("player", tag.getString("BetaMoonOwnerName"));
+        }
         stuck = tag.getBoolean("BetaMoonStuck");
         ticksExisted = tag.getInteger("BetaMoonAge");
     }
@@ -257,7 +268,7 @@ public final class LuaProjectileEntity extends Entity implements MultipartEntity
     @Override
     protected void writeEntityToNBT(NBTTagCompound tag) {
         state.write(tag);
-        tag.setString("BetaMoonOwnerName", ownerName);
+        stableOwner.write(tag, "BetaMoonProjectileOwnerKind", "BetaMoonProjectileOwner");
         tag.setBoolean("BetaMoonStuck", stuck);
         tag.setInteger("BetaMoonAge", ticksExisted);
     }

@@ -2,6 +2,10 @@ package betamoon.luaapi.world;
 
 import betamoon.assets.AssetKey;
 import betamoon.entity.EntitySpawner;
+import betamoon.entity.EntityKind;
+import betamoon.entity.EntityTypeDefinition;
+import betamoon.entity.EntityTypeRegistry;
+import betamoon.entity.LuaEntityPart;
 import betamoon.luaapi.entity.EntityTypeReference;
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
@@ -243,7 +247,7 @@ public final class LuaWorldActionAccess {
                     throw new LuaError("spawnEntity.type: " + error.getMessage());
                 }
                 LuaValue options = argument(a, api, 2);
-                fields(options, "spawnEntity.options", "position", "rotation");
+                fields(options, "spawnEntity.options", "position", "rotation", "owner");
                 LuaValue position = required(options, "position");
                 fields(position, "spawnEntity.position", "x", "y", "z");
                 double px = number(required(position, "x"), "spawnEntity.position.x");
@@ -265,7 +269,24 @@ public final class LuaWorldActionAccess {
                         throw LuaDeclarationValues.error("spawnEntity.rotation", "angles exceed the supported range");
                     }
                 }
-                EntitySpawner.Result result = EntitySpawner.spawn(world, key, px, py, pz, yaw, pitch);
+                Entity owner = null;
+                LuaValue ownerValue = options.get("owner");
+                if (!ownerValue.isnil()) {
+                    EntityTypeDefinition definition = EntityTypeRegistry.find(key);
+                    if (definition == null) {
+                        throw LuaDeclarationValues.error("spawnEntity.type", "entity type is not registered");
+                    }
+                    if (definition.kind != EntityKind.PROJECTILE) {
+                        throw LuaDeclarationValues.error("spawnEntity.options.owner",
+                                "owner is supported only for projectile types");
+                    }
+                    owner = LuaEntityActionAccess.target(ownerValue, world, "spawnEntity.options.owner");
+                    if (owner == null || owner instanceof LuaEntityPart) {
+                        throw LuaDeclarationValues.error("spawnEntity.options.owner",
+                                "expected a live non-part entity in the same world");
+                    }
+                }
+                EntitySpawner.Result result = EntitySpawner.spawn(world, key, px, py, pz, yaw, pitch, owner);
                 if (result.entity == null) {
                     return varargsOf(new LuaValue[]{NIL, valueOf(result.reason)});
                 }

@@ -1156,7 +1156,95 @@ public final class EntityLuaApiTest {
                     new org.luaj.vm2.LuaValue[]{movingHandle, org.luaj.vm2.LuaValue.valueOf(5),
                             org.luaj.vm2.LuaValue.valueOf(64), org.luaj.vm2.LuaValue.valueOf(3)}))
                     .arg1().toboolean(), "Lua must steer an entity toward a waypoint");
+            LuaTable projectileOwner = LuaEntityActionAccess.create(worldScope, null, collector);
+            LuaTable projectilePosition = new LuaTable();
+            projectilePosition.set("x", 12.0);
+            projectilePosition.set("y", 70.0);
+            projectilePosition.set("z", 12.0);
+            LuaTable projectileOptions = new LuaTable();
+            projectileOptions.set("position", projectilePosition);
+            projectileOptions.set("owner", projectileOwner);
+            LuaValue spawnedProjectileHandle = worldHandle.get("spawnEntity").invoke(
+                    LuaValue.varargsOf(new LuaValue[]{worldHandle, LuaValue.valueOf("mymod:default_shot"),
+                            projectileOptions})).arg1();
+            require(!spawnedProjectileHandle.isnil(), "Lua must spawn a projectile with a live same-world owner");
+            LuaValue resolvedProjectileOwner = spawnedProjectileHandle.get("getOwner")
+                    .call(spawnedProjectileHandle);
+            require("collector".equals(resolvedProjectileOwner.get("getName").call(resolvedProjectileOwner)
+                    .tojstring()) && "player:collector".equals(spawnedProjectileHandle.get("getOwnerIdentity")
+                            .call(spawnedProjectileHandle).tojstring()),
+                    "Lua projectile spawning must expose its launch owner and stable identity");
+            LuaTable invalidOwnerOptions = new LuaTable();
+            invalidOwnerOptions.set("position", projectilePosition);
+            invalidOwnerOptions.set("owner", projectileOwner);
+            boolean rejectedPropOwner = false;
+            try {
+                worldHandle.get("spawnEntity").invoke(LuaValue.varargsOf(new LuaValue[]{worldHandle,
+                        LuaValue.valueOf("mymod:lamp"), invalidOwnerOptions}));
+            } catch (org.luaj.vm2.LuaError expected) {
+                rejectedPropOwner = true;
+            }
+            require(rejectedPropOwner, "Spawn owners must be rejected for non-projectile types");
             worldScope.close();
+
+            LuaProjectileEntity luaOwnedProjectile = null;
+            for (Object candidate : world.loadedEntityList) {
+                if (candidate instanceof LuaProjectileEntity && ((Entity) candidate).posX == 12.0
+                        && ((Entity) candidate).posY == 70.0 && ((Entity) candidate).posZ == 12.0) {
+                    luaOwnedProjectile = (LuaProjectileEntity) candidate;
+                    break;
+                }
+            }
+            require(luaOwnedProjectile != null, "The owner-aware Lua spawn must join the native world");
+            NBTTagCompound ownedProjectileTag = new NBTTagCompound();
+            require(luaOwnedProjectile.addEntityID(ownedProjectileTag),
+                    "An owner-aware projectile must retain its native save ID");
+            LuaProjectileEntity restoredOwnedProjectile = (LuaProjectileEntity) EntityList.createEntityFromNBT(
+                    ownedProjectileTag, world);
+            require(restoredOwnedProjectile != null && restoredOwnedProjectile.getOwner() == collector
+                    && "player:collector".equals(restoredOwnedProjectile.getOwnerIdentity()),
+                    "A player projectile owner must resolve from its stable identity after save/load");
+
+            LuaProjectileEntity entityOwnedProjectile = (LuaProjectileEntity) EntitySpawner.spawn(world,
+                    AssetKey.parse("mymod:default_shot"), 13, 70, 13, 0, 0, capable).entity;
+            require(entityOwnedProjectile != null
+                    && ("entity:" + capable.entityState().identity()).equals(entityOwnedProjectile.getOwnerIdentity()),
+                    "A BetaMoon entity must be accepted as a stable projectile owner");
+            NBTTagCompound entityOwnedProjectileTag = new NBTTagCompound();
+            require(entityOwnedProjectile.addEntityID(entityOwnedProjectileTag),
+                    "A BetaMoon-owned projectile must serialize");
+            LuaProjectileEntity restoredEntityOwnedProjectile = (LuaProjectileEntity) EntityList.createEntityFromNBT(
+                    entityOwnedProjectileTag, world);
+            require(restoredEntityOwnedProjectile != null && restoredEntityOwnedProjectile.getOwner() == capable,
+                    "A loaded BetaMoon projectile owner must resolve by stable instance identity");
+
+            EntityItem transientOwner = new EntityItem(world, 11, 70, 11, new ItemStack(1, 1, 0));
+            require(world.entityJoinedWorld(transientOwner), "A native runtime-only projectile owner must join");
+            LuaProjectileEntity transientOwnedProjectile = (LuaProjectileEntity) EntitySpawner.spawn(world,
+                    AssetKey.parse("mymod:default_shot"), 14, 70, 14, 0, 0, transientOwner).entity;
+            require(transientOwnedProjectile != null && transientOwnedProjectile.getOwner() == transientOwner
+                    && transientOwnedProjectile.getOwnerIdentity() == null,
+                    "A native entity owner must work at runtime without claiming a stable identity");
+            NBTTagCompound transientOwnedProjectileTag = new NBTTagCompound();
+            require(transientOwnedProjectile.addEntityID(transientOwnedProjectileTag),
+                    "A runtime-owned projectile must serialize without its transient owner");
+            LuaProjectileEntity restoredTransientProjectile = (LuaProjectileEntity) EntityList.createEntityFromNBT(
+                    transientOwnedProjectileTag, world);
+            require(restoredTransientProjectile != null && restoredTransientProjectile.getOwner() == null,
+                    "An arbitrary native projectile owner must not be reconstructed unsafely after save/load");
+
+            LuaProjectileEntity legacyOwnedProjectile = new LuaProjectileEntity(world);
+            legacyOwnedProjectile.entityState().attach(EntityTypeRegistry.find(
+                    AssetKey.parse("mymod:default_shot")));
+            NBTTagCompound legacyOwnedProjectileTag = new NBTTagCompound();
+            require(legacyOwnedProjectile.addEntityID(legacyOwnedProjectileTag),
+                    "A legacy owner fixture must retain its projectile save ID");
+            legacyOwnedProjectileTag.setString("BetaMoonOwnerName", "collector");
+            LuaProjectileEntity restoredLegacyProjectile = (LuaProjectileEntity) EntityList.createEntityFromNBT(
+                    legacyOwnedProjectileTag, world);
+            require(restoredLegacyProjectile != null && restoredLegacyProjectile.getOwner() == collector
+                    && "player:collector".equals(restoredLegacyProjectile.getOwnerIdentity()),
+                    "Legacy player owner saves must remain readable");
             ItemUseDefinition launcher = new ItemUseDefinition(lua.load("return {use={projectile='mymod:shot'}}")
                     .call());
             require(AssetKey.parse("mymod:shot").equals(launcher.customProjectile),
