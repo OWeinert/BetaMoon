@@ -22,7 +22,6 @@ import betamoon.entity.TypedEntity;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.audio.SoundEvents;
 import betamoon.luaapi.utils.LuaCallbackScope;
-import java.util.List;
 import net.minecraft.src.Entity;
 import net.minecraft.src.EntityCreature;
 import net.minecraft.src.EntityList;
