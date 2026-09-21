@@ -12,6 +12,7 @@ import betamoon.client.render.ModelAppearance;
 import betamoon.entity.EntityBootstrap;
 import betamoon.entity.EntityDataDelta;
 import betamoon.entity.EntityLifecycleEvents;
+import betamoon.entity.EntityLoot;
 import betamoon.entity.EntityPresentationEvents;
 import betamoon.entity.EntitySpawner;
 import betamoon.entity.EntityTypeDefinition;
@@ -57,6 +58,7 @@ import net.minecraft.src.EntityList;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.IChunkProvider;
 import net.minecraft.src.IProgressUpdate;
+import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.NBTTagCompound;
 import net.minecraft.src.PathEntity;
@@ -205,6 +207,10 @@ public final class EntityLuaApiTest {
                         + "manualLootAccepted=ctx.entity:dropLoot() and ctx.entity:dropLoot() "
                         + "and ctx.entity:dropItem({id=331,count=3}); ctx.entity:remove(); return 0 end,"
                         + "onDeath=function(ctx) manualLootDeaths=manualLootDeaths+1 end}")
+                        .call();
+                lua.load("betamoon.entities:add{key='mymod:stack_limited_loot',kind='prop',"
+                        + "appearance={model='minecraft:block/torch',texture='test.png'},"
+                        + "drops={{item=" + Item.swordSteel.shiftedIndex + ",min=3,max=3}}}")
                         .call();
                 lua.load("local shot=betamoon.entities:add{key='mymod:shot',kind='projectile',"
                         + "appearance={model='minecraft:block/torch',texture='test.png'},"
@@ -693,6 +699,17 @@ public final class EntityLuaApiTest {
                     && countItemEntities(world, 331) == redstoneBeforeManualLoot + 1
                     && hasItemEntity(world, 331, 3),
                     "Each dropLoot call must resample declared loot and dropItem must emit its requested stack");
+            int swordId = Item.swordSteel.shiftedIndex;
+            int swordEntitiesBefore = countItemEntities(world, swordId);
+            int swordQuantityBefore = countItemQuantity(world, swordId);
+            LuaPropEntity stackLimitedLoot = (LuaPropEntity) EntitySpawner.spawn(world,
+                    AssetKey.parse("mymod:stack_limited_loot"), 12, 64, 5, 0, 0).entity;
+            require(stackLimitedLoot != null && EntityLoot.dropLoot(stackLimitedLoot),
+                    "A stack-limited declared drop must execute");
+            require(countItemEntities(world, swordId) == swordEntitiesBefore + 3
+                    && countItemQuantity(world, swordId) == swordQuantityBefore + 3
+                    && hasItemEntity(world, swordId, 1),
+                    "Declared loot totals must split into legal native stack sizes");
             LuaPropEntity failedDamage = (LuaPropEntity) EntitySpawner.spawn(world,
                     AssetKey.parse("mymod:failed_damage"), 13, 64, 2, 0, 0).entity;
             require(failedDamage != null && !failedDamage.attackEntityFrom(null, 2)
@@ -1437,6 +1454,16 @@ public final class EntityLuaApiTest {
             }
         }
         return false;
+    }
+
+    private static int countItemQuantity(World world, int itemId) {
+        int count = 0;
+        for (Object value : world.loadedEntityList) {
+            if (value instanceof EntityItem && ((EntityItem) value).item.itemID == itemId) {
+                count += ((EntityItem) value).item.stackSize;
+            }
+        }
+        return count;
     }
 
     private static void verifyDiskWorldSave(EntityTypeDefinition definition) throws IOException {

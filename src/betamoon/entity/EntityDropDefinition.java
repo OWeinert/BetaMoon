@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.src.Entity;
 import net.minecraft.src.Item;
-import net.minecraft.src.ItemStack;
 import org.luaj.vm2.LuaValue;
 import static betamoon.luaapi.utils.LuaDeclarationValues.error;
 import static betamoon.luaapi.utils.LuaDeclarationValues.fields;
@@ -50,10 +49,7 @@ public final class EntityDropDefinition {
                 continue;
             }
             int count = entry.minimum + entity.worldObj.rand.nextInt(entry.maximum - entry.minimum + 1);
-            if (count > 0 && entry.item > 0 && entry.item < Item.itemsList.length
-                    && Item.itemsList[entry.item] != null) {
-                entity.entityDropItem(new ItemStack(entry.item, count, entry.damage), entity.height * 0.5F);
-            }
+            EntityLoot.dropCount(entity, entry.item, count, entry.damage);
         }
     }
 
