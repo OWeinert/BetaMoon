@@ -8,7 +8,6 @@ import betamoon.luaapi.utils.LuaDeclarationValues;
 import net.minecraft.src.Entity;
 import net.minecraft.src.World;
 import org.luaj.vm2.LuaTable;
-import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 

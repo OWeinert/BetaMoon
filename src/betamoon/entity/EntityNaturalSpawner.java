@@ -10,7 +10,6 @@ import java.util.Map;
 import java.util.Set;
 import net.minecraft.src.ChunkCoordIntPair;
 import net.minecraft.src.ChunkCoordinates;
-import net.minecraft.src.Entity;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.Material;
 import net.minecraft.src.MathHelper;
