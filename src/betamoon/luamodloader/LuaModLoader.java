@@ -1,11 +1,14 @@
 package betamoon.luamodloader;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonCommon;
+
 import betamoon.io.FileIo;
 import betamoon.io.IoUtils;
 import betamoon.luaapi.module.ModuleRegistry;
 import betamoon.recipes.RecipeModificationHandler;
 import betamoon.tileentity.TileEntityRegistry;
+import betamoon.entity.EntityTypeRegistry;
+import betamoon.entity.EntityPresentationResources;
 import betamoon.wrappers.BlockWrapper;
 import betamoon.worldgen.BiomeGenRegistry;
 import betamoon.worldgen.WorldGenRegistry;
@@ -17,20 +20,28 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.logging.Logger;
-import net.minecraft.src.ModLoader;
 
 public final class LuaModLoader {
-    private static final Logger LOGGER = BetaMoonMain.LOGGER;
+    private static final Logger LOGGER = BetaMoonCommon.LOGGER;
     private final LuaScriptFiles scriptFiles = new LuaScriptFiles();
     private final ScriptModParser scriptParser = new ScriptModParser();
     private final ScriptDependencyResolver dependencyResolver = new ScriptDependencyResolver();
     private final RetainedScriptCatalog retainedScripts = new RetainedScriptCatalog();
     private final ScriptLifecycleRunner lifecycleRunner = new ScriptLifecycleRunner(retainedScripts, this::reportError);
+    private final File scriptsDirectory;
     private long lastScanTime;
     private long knownFingerprint = Long.MIN_VALUE;
     private long pendingFingerprint = Long.MIN_VALUE;
     private long pendingSince;
     private LoaderPhase phase = LoaderPhase.IDLE;
+
+    public LuaModLoader() {
+        this(resolveLuaModsDir(true));
+    }
+
+    public LuaModLoader(File scriptsDirectory) {
+        this.scriptsDirectory = IoUtils.ensureDirectory(scriptsDirectory);
+    }
 
     /**
      * Loads Lua mods, validates dependencies, and executes each modInit in order.
@@ -63,11 +74,18 @@ public final class LuaModLoader {
         }
         List<String> failedMods = new ArrayList<>();
         runModsInOrder(ordered, failedMods);
+        Set<String> presentScripts = new HashSet<>();
+        for (ScriptMod mod : mods) {
+            presentScripts.add(mod.sourceFileName);
+        }
+        EntityTypeRegistry.retainOwners(presentScripts);
+        EntityPresentationResources.prune();
         reportFailedMods(failedMods);
         reportLoadSummary(ordered, failedMods);
         BiomeGenRegistry.applyBiomeGenerators();
         List<String> dropErrors = new ArrayList<>();
         BlockWrapper.validatePendingDrops(dropErrors);
+        EntityTypeRegistry.validateDrops(dropErrors);
         if (!dropErrors.isEmpty()) {
             for (int i = 0; i < dropErrors.size(); i++) {
                 LuaScriptErrors.add("Block drops", dropErrors.get(i));
@@ -166,7 +184,7 @@ public final class LuaModLoader {
 
     /** Compiles every script before active resources are touched. */
     private boolean preflightScripts() {
-        List<LuaScriptFiles.PreflightFailure> failures = scriptFiles.preflight(getLuaModsDir());
+        List<LuaScriptFiles.PreflightFailure> failures = scriptFiles.preflight(scriptsDirectory);
         for (int i = 0; i < failures.size(); i++) {
             LuaScriptFiles.PreflightFailure failure = failures.get(i);
             String message = "Reload kept the active scripts because " + failure.getFileName() + " did not compile: "
@@ -178,7 +196,7 @@ public final class LuaModLoader {
     }
 
     private long calculateFingerprint() {
-        return scriptFiles.fingerprint(getLuaModsDir());
+        return scriptFiles.fingerprint(scriptsDirectory);
     }
 
     /**
@@ -187,7 +205,7 @@ public final class LuaModLoader {
      * @return the luamods directory or null if it cannot be resolved
      */
     File getOrCreateLuaModsDir() {
-        return resolveLuaModsDir(true);
+        return scriptsDirectory;
     }
 
     /**
@@ -217,7 +235,7 @@ public final class LuaModLoader {
     List<ScriptMod> loadLuaMods(List<String> errors) {
         List<ScriptMod> mods = new ArrayList<>();
         Set<String> seenFiles = new HashSet<>();
-        File scriptsDir = getOrCreateLuaModsDir();
+        File scriptsDir = scriptsDirectory;
         if (scriptsDir == null || !scriptsDir.isDirectory()) {
             return mods;
         }
@@ -353,68 +371,12 @@ public final class LuaModLoader {
      * popup.
      */
     private void reportIssuesInChat() {
-        try {
-            net.minecraft.client.Minecraft mc = ModLoader.getMinecraftInstance();
-            if (mc != null && mc.thePlayer != null) {
-                List<LuaScriptErrors.ScriptIssue> issues = LuaScriptErrors.getEntries();
-                for (int i = 0; i < issues.size(); i++) {
-                    LuaScriptErrors.ScriptIssue issue = issues.get(i);
-                    String color = issue.isWarning() ? "\u00a76" : "\u00a7c";
-                    addColoredChatMessage(mc, issue.getMessage(), color);
-                }
-            }
-        } catch (Throwable t) {
-            // Ignore chat errors and keep logging to stderr.
-        }
-    }
-
-    /**
-     * Wraps a message before vanilla chat processes it and reapplies the color to
-     * every line. Minecraft Beta's own wrapper does not preserve formatting codes
-     * when it moves overflowing text onto the next line.
-     */
-    private void addColoredChatMessage(net.minecraft.client.Minecraft mc, String message, String color) {
-        String[] logicalLines = message.replace("\r", "").split("\n", -1);
-        for (int i = 0; i < logicalLines.length; i++) {
-            String remaining = logicalLines[i];
-            if (remaining.length() == 0) {
-                mc.thePlayer.addChatMessage(color + "\u00a7r");
-                continue;
-            }
-            while (mc.fontRenderer.getStringWidth(remaining) > 320) {
-                int end = 1;
-                while (end < remaining.length()
-                        && mc.fontRenderer.getStringWidth(remaining.substring(0, end + 1)) <= 320) {
-                    end++;
-                }
-                int space = remaining.lastIndexOf(' ', end - 1);
-                int split = space > 0 ? space : end;
-                mc.thePlayer.addChatMessage(color + remaining.substring(0, split) + "\u00a7r");
-                remaining = remaining.substring(split);
-                while (remaining.startsWith(" ")) {
-                    remaining = remaining.substring(1);
-                }
-            }
-            if (remaining.length() > 0) {
-                mc.thePlayer.addChatMessage(color + remaining + "\u00a7r");
-            }
-        }
+        LuaLoaderFeedback.reportIssues();
     }
 
     /** Displays the final error count after a reload attempt finishes. */
     private void reportReloadSummaryInChat() {
-        try {
-            net.minecraft.client.Minecraft mc = ModLoader.getMinecraftInstance();
-            if (mc == null || mc.thePlayer == null) {
-                return;
-            }
-            int errorCount = LuaScriptErrors.getErrorCount();
-            String countColor = errorCount == 0 ? "\u00a7f" : "\u00a7c";
-            mc.thePlayer
-                    .addChatMessage("\u00a7fBetaMoon reloaded with: " + countColor + errorCount + " Error/s\u00a7r");
-        } catch (Throwable t) {
-            // Reload completion must not fail when chat is unavailable.
-        }
+        LuaLoaderFeedback.reportReloadSummary();
     }
 
     /**

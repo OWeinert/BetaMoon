@@ -1,6 +1,7 @@
 package betamoon.tileentity;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonCommon;
+
 import betamoon.luamodloader.NonReloadableScriptRegistry;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -126,7 +127,7 @@ public final class TileEntityRegistry {
             binding.redstone.neighborActionEnabled = false;
             String message = "redstone onNeighborChanged was disabled after an error: " + error.getMessage();
             betamoon.luamodloader.LuaScriptErrors.add(binding.tile.owner, message);
-            BetaMoonMain.LOGGER.warning(binding.tile.owner + ": " + message);
+            BetaMoonCommon.LOGGER.warning(binding.tile.owner + ": " + message);
         }
     }
 
@@ -181,7 +182,7 @@ public final class TileEntityRegistry {
             ModLoader.OpenGUI(player, new GuiLuaContainer(player.inventory, entity, binding.gui));
             return true;
         } catch (Throwable error) {
-            BetaMoonMain.LOGGER.warning("Could not open Lua container GUI: " + error.getMessage());
+            BetaMoonCommon.LOGGER.warning("Could not open Lua container GUI: " + error.getMessage());
             return false;
         }
     }

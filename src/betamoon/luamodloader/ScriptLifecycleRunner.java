@@ -30,13 +30,15 @@ final class ScriptLifecycleRunner {
             }
 
             try (ScriptExecutionScope ignored = ScriptExecutionScope.open(mod.sourceFileName);
-                    ScriptAssetScope assets = ScriptAssetScope.open(mod.sourceFileName)) {
+                    ScriptAssetScope assets = ScriptAssetScope.open(mod.sourceFileName);
+                    ScriptEntityScope entities = ScriptEntityScope.open(mod.sourceFileName)) {
                 mod.modInit.call();
                 if (hotReload && mod.modReload != null && mod.modReload.isfunction()) {
                     mod.modReload.call();
                 }
                 ModuleRegistry.publish(mod.sourceFileName);
                 assets.publish();
+                entities.publish();
                 SoundEvents.publish(mod.sourceFileName);
                 LuaScriptRegistry.markLoadedByFile(mod.sourceFileName);
                 retainedScripts.rememberIfStructural(mod);

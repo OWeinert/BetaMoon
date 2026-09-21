@@ -1,15 +1,16 @@
 package betamoon.client.assets;
 
-import betamoon.assets.io.AssetProvider;
-import betamoon.client.render.ModelAppearance;
-import betamoon.luaapi.block.BlockModelRegistry;
-import betamoon.client.audio.ClientSounds;
 import betamoon.assets.io.AssetResolver;
+import betamoon.assets.io.AssetProvider;
 import betamoon.assets.io.FileAssetProvider;
 import betamoon.assets.io.ResolvedAsset;
 import betamoon.assets.io.ZipAssetProvider;
+import betamoon.client.audio.ClientSounds;
+import betamoon.client.render.ModelAppearance;
+import betamoon.client.render.EntityVisuals;
 import betamoon.io.IoUtils;
 import betamoon.luaapi.LuaApiUtils;
+import betamoon.luaapi.block.BlockModelRegistry;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -85,6 +86,7 @@ public final class ClientAssets {
                 }
             }
             ModelAppearance.refreshAll();
+            EntityVisuals.retryFailed();
         } catch (IOException error) {
             diagnostics.accept("Asset refresh failed: " + error.getMessage());
         }

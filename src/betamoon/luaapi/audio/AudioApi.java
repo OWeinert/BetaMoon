@@ -13,7 +13,6 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
-import org.luaj.vm2.lib.ZeroArgFunction;
 
 /**
  * Local sound events and one-shot playback; networking and controllable voices
@@ -34,7 +33,7 @@ public final class AudioApi {
                 } catch (IllegalStateException error) {
                     throw new LuaError("Sound event: " + error.getMessage());
                 }
-                return new EventReference(definition.key);
+                return new SoundEventReference(definition.key);
             }
         });
         events.set("get", lookup(events, false));
@@ -61,7 +60,7 @@ public final class AudioApi {
                     }
                     return NIL;
                 }
-                return new EventReference(key);
+                return new SoundEventReference(key);
             }
         };
     }
@@ -78,8 +77,8 @@ public final class AudioApi {
         LuaTable settings = options.isnil() ? new LuaTable() : options.checktable();
         SoundEventParser.checkFields(settings, "position", "volume", "pitch", "range");
         SoundEventDefinition event = null;
-        if (sound instanceof EventReference) {
-            AssetKey key = ((EventReference) sound).key;
+        if (sound instanceof SoundEventReference) {
+            AssetKey key = ((SoundEventReference) sound).key();
             event = SoundEvents.find(key);
             if (event == null) {
                 throw new LuaError("Sound event is no longer registered: " + key);
@@ -129,15 +128,4 @@ public final class AudioApi {
         return SoundEventParser.number(value, 0, -32000000, 32000000, "position." + name);
     }
 
-    private static final class EventReference extends LuaTable {
-        private final AssetKey key;
-        private EventReference(AssetKey key) {
-            this.key = key;
-            set("getKey", new ZeroArgFunction() {
-                public LuaValue call() {
-                    return valueOf(key.toString());
-                }
-            });
-        }
-    }
 }

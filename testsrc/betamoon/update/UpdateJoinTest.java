@@ -1,6 +1,6 @@
 package betamoon.update;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonClient;
 import betamoon.config.BetaMoonConfig;
 import betamoon.config.ConfigField;
 import java.lang.reflect.Field;
@@ -25,7 +25,7 @@ public final class UpdateJoinTest {
         Field unsafeField = Unsafe.class.getDeclaredField("theUnsafe");
         unsafeField.setAccessible(true);
         Unsafe unsafe = (Unsafe) unsafeField.get(null);
-        BetaMoonMain main = (BetaMoonMain) unsafe.allocateInstance(BetaMoonMain.class);
+        BetaMoonClient main = (BetaMoonClient) unsafe.allocateInstance(BetaMoonClient.class);
         BetaMoonConfig config = (BetaMoonConfig) unsafe.allocateInstance(BetaMoonConfig.class);
         set(config, "checkForUpdates", new ConfigField<Boolean>("checkForUpdates", false));
         set(config, "notifyUpdatesOnWorldJoin", new ConfigField<Boolean>("notifyUpdatesOnWorldJoin", true));
@@ -42,7 +42,7 @@ public final class UpdateJoinTest {
         World otherWorld = (World) unsafe.allocateInstance(World.class);
         RecordingPlayer player = (RecordingPlayer) unsafe.allocateInstance(RecordingPlayer.class);
         player.messages = new ArrayList<>();
-        Method notify = BetaMoonMain.class.getDeclaredMethod("updateJoinNotification", Minecraft.class);
+        Method notify = BetaMoonClient.class.getDeclaredMethod("updateJoinNotification", Minecraft.class);
         notify.setAccessible(true);
 
         minecraft.theWorld = firstWorld;

@@ -1,6 +1,7 @@
 package betamoon.debug;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonCommon;
+
 import betamoon.io.IoUtils;
 import betamoon.recipes.custom.RecipeTypes;
 import java.io.BufferedWriter;
@@ -17,7 +18,7 @@ import java.util.logging.Level;
  * Exports recipe type schemas into their own debug file.
  */
 final class DebugRecipeTypeExporter {
-    private static final java.util.logging.Logger LOGGER = BetaMoonMain.LOGGER;
+    private static final java.util.logging.Logger LOGGER = BetaMoonCommon.LOGGER;
 
     private DebugRecipeTypeExporter() {
     }

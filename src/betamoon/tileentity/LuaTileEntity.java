@@ -1,6 +1,7 @@
 package betamoon.tileentity;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonCommon;
+
 import betamoon.luaapi.block.BlockCallbackRegistry;
 import betamoon.luaapi.block.LuaBlockActionContext;
 import betamoon.luaapi.tileentity.LuaTileDataAccess;
@@ -325,7 +326,7 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
         String detail = error.getMessage() == null ? error.toString() : error.getMessage();
         String message = "tile entity " + callback + " was disabled after an error: " + detail;
         LuaScriptErrors.add(definition.owner, message);
-        BetaMoonMain.LOGGER.warning(definition.owner + ": " + message);
+        BetaMoonCommon.LOGGER.warning(definition.owner + ": " + message);
     }
 
     private static final class TickContext extends LuaTable {

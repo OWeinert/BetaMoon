@@ -96,7 +96,7 @@ public final class ModelAppearanceDeclaration {
         Map<String, Transform> contexts = new LinkedHashMap<>();
         LuaValue displays = value.get("display");
         if (!displays.isnil()) {
-            fields(displays, "appearance.display", "gui", "held", "ground", "block");
+            fields(displays, "appearance.display", "gui", "held", "ground", "block", "entity");
             for (LuaValue name : displays.checktable().keys()) {
                 LuaValue entry = displays.get(name);
                 fields(entry, "appearance.display." + name, "position", "rotation", "scale");

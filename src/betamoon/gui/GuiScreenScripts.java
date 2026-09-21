@@ -1,6 +1,6 @@
 package betamoon.gui;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonClient;
 import betamoon.gui.framework.GuiComponentScreen;
 import betamoon.gui.framework.GuiContainer;
 import betamoon.gui.framework.GuiContext;
@@ -98,7 +98,7 @@ public final class GuiScreenScripts extends GuiComponentScreen {
     }
 
     private void reloadScripts() {
-        BetaMoonMain main = BetaMoonMain.getInstance();
+        BetaMoonClient main = BetaMoonClient.getInstance();
         if (main != null) {
             main.reloadLuaScripts();
         }

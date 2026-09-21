@@ -1,6 +1,6 @@
 package betamoon.config;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonCommon;
 import betamoon.io.IoUtils;
 import forge.Configuration;
 import forge.Property;
@@ -12,9 +12,25 @@ public final class BetaMoonConfig {
     private ConfigField<Boolean> showPopupOnWarnings;
     private ConfigField<Boolean> checkForUpdates;
     private ConfigField<Boolean> notifyUpdatesOnWorldJoin;
+    private ConfigField<Boolean> hotReloadOnFileChange;
 
     public BetaMoonConfig(String configFileName) {
-        loadFileIntoConfig(configFileName);
+        this(resolveDefaultConfigDirectory(), configFileName);
+    }
+
+    public BetaMoonConfig(File configDirectory, String configFileName) {
+        if (configDirectory == null) {
+            throw new IllegalArgumentException("configDirectory cannot be null");
+        }
+        if (configFileName == null || configFileName.trim().isEmpty()) {
+            throw new IllegalArgumentException("configFileName cannot be empty");
+        }
+
+        File directory = IoUtils.ensureDirectory(configDirectory);
+        if (directory == null) {
+            throw new IllegalStateException("Unable to create BetaMoon config directory: " + configDirectory);
+        }
+        config = new Configuration(new File(directory, configFileName));
         updateConfigFields();
     }
 
@@ -28,6 +44,8 @@ public final class BetaMoonConfig {
                 Optional.of(true));
         notifyUpdatesOnWorldJoin = getOrCreateBooleanProperty("notifyUpdatesOnWorldJoin",
                 Configuration.GENERAL_PROPERTY, Optional.of(true));
+        hotReloadOnFileChange = getOrCreateBooleanProperty("hotReloadOnFileChange",
+                Configuration.GENERAL_PROPERTY, Optional.of(false));
 
         config.save();
     }
@@ -44,15 +62,16 @@ public final class BetaMoonConfig {
         return notifyUpdatesOnWorldJoin;
     }
 
-    private void loadFileIntoConfig(String configFileName) {
-        File minecraftDir = IoUtils.resolveMinecraftDirFromCodeSource(BetaMoonMain.class);
+    public ConfigField<Boolean> getHotReloadOnFileChange() {
+        return hotReloadOnFileChange;
+    }
+
+    private static File resolveDefaultConfigDirectory() {
+        File minecraftDir = IoUtils.resolveMinecraftDirFromCodeSource(BetaMoonCommon.class);
         if (minecraftDir == null) {
             throw new IllegalStateException("Unable to resolve Minecraft directory for config.");
         }
-        File configDir = new File(minecraftDir, "config");
-        IoUtils.ensureDirectory(configDir);
-        File configFile = new File(configDir, configFileName);
-        config = new Configuration(configFile);
+        return new File(minecraftDir, "config");
     }
 
     private ConfigField<String> getOrCreateStringProperty(String name, int type, Optional<String> defaultValue) {

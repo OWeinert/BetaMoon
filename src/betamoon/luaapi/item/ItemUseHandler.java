@@ -1,5 +1,6 @@
 package betamoon.luaapi.item;
 
+import betamoon.entity.EntitySpawner;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.WeakHashMap;
@@ -34,12 +35,15 @@ public final class ItemUseHandler {
             return after;
         }
         boolean used = after != before || after != null && after.stackSize != oldCount;
-        if (def.use.projectile != null) {
-            if (def.use.ammunition >= 0) {
-                int slot = ammunitionSlot(def, before, player);
-                if (slot < 0) {
-                    return after;
-                }
+        if (def.use.hasProjectile()) {
+            int slot = def.use.ammunition < 0 ? -1 : ammunitionSlot(def, before, player);
+            if (def.use.ammunition >= 0 && slot < 0) {
+                return after;
+            }
+            if (!launch(def, world, player)) {
+                return after;
+            }
+            if (slot >= 0) {
                 ItemStack ammunition = player.inventory.mainInventory[slot];
                 if (ammunition == before) {
                     oldCount--;
@@ -49,8 +53,6 @@ public final class ItemUseHandler {
                     player.inventory.mainInventory[slot] = null;
                 }
             }
-            Entity projectile = def.use.projectile.create(world, player);
-            world.entityJoinedWorld(projectile);
             world.playSoundAtEntity(player, "random.bow", 1, 1);
             used = true;
         }
@@ -73,6 +75,24 @@ public final class ItemUseHandler {
             }
         }
         return after;
+    }
+
+    private static boolean launch(ItemDefinition definition, World world, EntityPlayer player) {
+        if (definition.use.customProjectile != null) {
+            float yaw = player.rotationYaw;
+            float pitch = player.rotationPitch;
+            double x = player.posX - Math.cos(Math.toRadians(yaw)) * 0.16;
+            double y = player.posY + player.getEyeHeight() - 0.1;
+            double z = player.posZ - Math.sin(Math.toRadians(yaw)) * 0.16;
+            try {
+                return EntitySpawner.spawn(world, definition.use.customProjectile, x, y, z, yaw, pitch, player)
+                        .entity != null;
+            } catch (IllegalArgumentException missingType) {
+                return false;
+            }
+        }
+        Entity projectile = definition.use.projectile.create(world, player);
+        return world.entityJoinedWorld(projectile);
     }
 
     /**

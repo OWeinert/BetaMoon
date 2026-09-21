@@ -1,6 +1,7 @@
 package betamoon.debug;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonCommon;
+
 import betamoon.io.IoUtils;
 import betamoon.recipes.RecipeModificationHandler;
 import betamoon.recipes.custom.CustomRecipes;
@@ -16,7 +17,7 @@ import net.minecraft.src.IRecipe;
  * Exports recipe data into the debug recipes file.
  */
 final class DebugRecipeExporter {
-    private static final java.util.logging.Logger LOGGER = BetaMoonMain.LOGGER;
+    private static final java.util.logging.Logger LOGGER = BetaMoonCommon.LOGGER;
 
     private DebugRecipeExporter() {
     }

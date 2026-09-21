@@ -1,6 +1,6 @@
 package betamoon.gui;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonClient;
 import betamoon.gui.framework.GuiContainer;
 import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiGeometry.Rect;
@@ -86,10 +86,10 @@ public final class GuiBetaMoonMainMenu extends GuiMainMenu {
         private final GuiButton scriptsButton = add(new GuiButton("Scripts", 90,
                 () -> mc.displayGuiScreen(new GuiScreenScripts(GuiBetaMoonMainMenu.this))));
         private final GuiUpdateNotice updateNotice = add(
-                new GuiUpdateNotice(GuiBetaMoonMainMenu.this, BetaMoonMain.getInstance().version()));
+                new GuiUpdateNotice(GuiBetaMoonMainMenu.this, BetaMoonClient.getInstance().version()));
 
         private void updateNotice() {
-            updateNotice.setRelease(BetaMoonMain.getInstance().getAvailableUpdate());
+            updateNotice.setRelease(BetaMoonClient.getInstance().getAvailableUpdate());
         }
 
         @Override

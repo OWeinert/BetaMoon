@@ -1,6 +1,7 @@
 package betamoon.luaapi;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonCommon;
+
 import betamoon.client.assets.AssetLocation;
 import betamoon.client.assets.AtlasTextures;
 import betamoon.luaapi.asset.AssetInputs;
@@ -15,7 +16,7 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
 public final class LuaApiUtils {
-    private static final Logger LOGGER = BetaMoonMain.LOGGER;
+    private static final Logger LOGGER = BetaMoonCommon.LOGGER;
     /**
      * Utility class for extracting typed arguments from Lua varargs.
      */

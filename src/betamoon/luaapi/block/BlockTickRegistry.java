@@ -1,6 +1,7 @@
 package betamoon.luaapi.block;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonCommon;
+
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.utils.LuaOverrideCallback;
 import betamoon.luaapi.utils.PositionI;
@@ -515,6 +516,6 @@ public final class BlockTickRegistry {
         String message = callback + " was disabled after an error: "
                 + (error.getMessage() == null ? error.toString() : error.getMessage());
         LuaScriptErrors.add(owner, message);
-        BetaMoonMain.LOGGER.warning((owner == null ? "Lua script" : owner) + ": " + message);
+        BetaMoonCommon.LOGGER.warning((owner == null ? "Lua script" : owner) + ": " + message);
     }
 }

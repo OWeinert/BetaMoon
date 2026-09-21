@@ -1,6 +1,7 @@
 package betamoon.luaapi.item;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonCommon;
+
 import betamoon.client.render.ModelAppearanceSet;
 import betamoon.client.render.ModelRenderingSupport;
 import java.io.IOException;
@@ -60,7 +61,7 @@ final class ItemRegistration {
         item = finishFood(item, entry, definition);
         if (entry.registered && (definition.kind.isTool() || definition.kind == ItemKind.ARMOR)) {
             String label = definition.kind.isTool() ? "tool" : "armor";
-            BetaMoonMain.LOGGER.warning("Ignored duplicate " + label + " register: id=" + definition.id);
+            BetaMoonCommon.LOGGER.warning("Ignored duplicate " + label + " register: id=" + definition.id);
         } else {
             ModLoader.AddName(item, definition.displayName);
             entry.registered = true;

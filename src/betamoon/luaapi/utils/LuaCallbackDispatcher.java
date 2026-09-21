@@ -1,6 +1,7 @@
 package betamoon.luaapi.utils;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonCommon;
+
 import betamoon.luamodloader.LuaScriptErrors;
 import java.util.EnumSet;
 import java.util.Set;
@@ -81,6 +82,6 @@ public final class LuaCallbackDispatcher<K extends Enum<K> & LuaCallbackKey> {
         }
         String message = declarations.resource + "." + key.luaName() + " disabled after error: " + error.getMessage();
         LuaScriptErrors.add(declarations.owner, message);
-        BetaMoonMain.LOGGER.warning(declarations.owner + ": " + message);
+        BetaMoonCommon.LOGGER.warning(declarations.owner + ": " + message);
     }
 }

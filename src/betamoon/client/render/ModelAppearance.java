@@ -8,18 +8,22 @@ import betamoon.assets.model.ModelVector;
 import betamoon.client.assets.ClientAssets;
 import betamoon.client.assets.ClientModelAssets;
 import betamoon.client.assets.ModelAsset;
+import betamoon.entity.EntityPresentationState;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.asset.ModelAppearanceDeclaration;
 import betamoon.luaapi.asset.PoseReference;
 import betamoon.resources.LuaTextureResources;
-import net.minecraft.client.Minecraft;
-import net.minecraft.src.ModLoader;
-import org.lwjgl.opengl.GL11;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import net.minecraft.client.Minecraft;
+import net.minecraft.src.ModLoader;
+import org.lwjgl.opengl.GL11;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
@@ -40,6 +44,8 @@ public final class ModelAppearance implements AutoCloseable {
     private ModelAnimations.Clip clip;
     private boolean closed;
     private boolean failed;
+    private final Map<String, ModelAnimations.Clip> selectedClips = new HashMap<>();
+    private final Set<String> missingClips = new HashSet<>();
     private Runnable changed = () -> {
     };
 
@@ -145,6 +151,8 @@ public final class ModelAppearance implements AutoCloseable {
         }
         geometry = candidate;
         clip = candidateClip;
+        selectedClips.clear();
+        missingClips.clear();
         failed = false;
     }
 
@@ -162,9 +170,40 @@ public final class ModelAppearance implements AutoCloseable {
     }
 
     public ModelPose evaluate(String display, double ageTicks, int metadata, double x, double y, double z) {
+        return evaluate(display, ageTicks, metadata, x, y, z, null, true);
+    }
+
+    public ModelPose evaluate(String display, double ageTicks, int metadata, double x, double y, double z,
+            EntityPresentationState.Animation playback) {
+        return evaluate(display, ageTicks, metadata, x, y, z, playback, true);
+    }
+
+    ModelPose evaluate(String display, double ageTicks, int metadata, double x, double y, double z,
+            EntityPresentationState.Animation playback, boolean warnMissing) {
         ModelPose pose = new ModelPose(geometry);
-        if (clip != null) {
-            clip.apply(pose, Math.max(0, ageTicks) / 20 * definition.speed, 1, null);
+        ModelAnimations.Clip selected = clip;
+        double seconds = Math.max(0, ageTicks) / 20 * definition.speed;
+        if (playback != null && animations != null) {
+            if (!missingClips.contains(playback.clip)) {
+                try {
+                    selected = selectedClips.get(playback.clip);
+                    if (selected == null) {
+                        selected = animations.getContent().getValue().clip(playback.clip);
+                        selected.validate(geometry);
+                        selectedClips.put(playback.clip, selected);
+                    }
+                    seconds = playback.seconds(ageTicks);
+                } catch (IOException | IllegalArgumentException error) {
+                    selected = clip;
+                    if (missingClips.add(playback.clip) && warnMissing) {
+                        LuaApiUtils.warn("Entities", definition.model.getCacheKey() + ": animation '"
+                                + playback.clip + "' unavailable; using the default clip");
+                    }
+                }
+            }
+        }
+        if (selected != null) {
+            selected.apply(pose, seconds, 1, null);
         }
         if (definition.callbacks.has(ModelAppearanceDeclaration.Callback.POSE)) {
             PoseReference writer = new PoseReference(pose, true);

@@ -56,9 +56,8 @@ final class AroundMethodInjector {
             throw failure(definition, "Capture handler must return a value: " + captureHandler);
         }
         Type targetReturnType = Type.getReturnType(targetMatch.target.getDescriptor());
-        if (definition.skipsWhenCapturedNonZero() && (captureType.getSort() != Type.INT
-                || (targetReturnType.getSort() != Type.BOOLEAN && targetReturnType.getSort() != Type.VOID))) {
-            throw failure(definition, "Early return requires an integer capture and a boolean or void target");
+        if (definition.skipsWhenCapturedNonZero() && captureType.getSort() != Type.INT) {
+            throw failure(definition, "Early return requires an integer capture");
         }
         Type returnHandlerType = Type.getReturnType(returnHandler.getDescriptor());
         if (returnHandlerType.getSort() != Type.VOID && !returnHandlerType.equals(targetReturnType)) {
@@ -104,11 +103,8 @@ final class AroundMethodInjector {
             LabelNode continueOriginal = new LabelNode();
             entry.add(new VarInsnNode(Opcodes.ILOAD, captureLocal));
             entry.add(new JumpInsnNode(Opcodes.IFEQ, continueOriginal));
-            if (targetReturnType.getSort() == Type.BOOLEAN) {
-                entry.add(new InsnNode(Opcodes.ICONST_0));
-            }
-            InsnNode earlyReturn = new InsnNode(
-                    targetReturnType.getSort() == Type.VOID ? Opcodes.RETURN : Opcodes.IRETURN);
+            emitDefaultValue(entry, targetReturnType);
+            InsnNode earlyReturn = new InsnNode(targetReturnType.getOpcode(Opcodes.IRETURN));
             entry.add(earlyReturn);
             returns.add(earlyReturn);
             entry.add(continueOriginal);
@@ -166,10 +162,44 @@ final class AroundMethodInjector {
         for (int i = 0; i < handlerArguments.length; i++) {
             Type bindingType = bindingType(definition, bindings.get(i), targetMatch, returnType, captureType,
                     returnPhase);
-            if (!handlerArguments[i].equals(bindingType)) {
+            if (!handlerArguments[i].equals(bindingType) && !acceptsObject(handlerArguments[i], bindingType)) {
                 throw failure(definition, "Binding " + i + " for " + handler + " produces " + bindingType
                         + " but the handler expects " + handlerArguments[i]);
             }
+        }
+    }
+
+    private static boolean acceptsObject(Type handlerArgument, Type bindingType) {
+        return "Ljava/lang/Object;".equals(handlerArgument.getDescriptor())
+                && (bindingType.getSort() == Type.OBJECT || bindingType.getSort() == Type.ARRAY);
+    }
+
+    private static void emitDefaultValue(InsnList output, Type type) {
+        switch (type.getSort()) {
+            case Type.VOID:
+                return;
+            case Type.BOOLEAN:
+            case Type.BYTE:
+            case Type.CHAR:
+            case Type.SHORT:
+            case Type.INT:
+                output.add(new InsnNode(Opcodes.ICONST_0));
+                return;
+            case Type.FLOAT:
+                output.add(new InsnNode(Opcodes.FCONST_0));
+                return;
+            case Type.LONG:
+                output.add(new InsnNode(Opcodes.LCONST_0));
+                return;
+            case Type.DOUBLE:
+                output.add(new InsnNode(Opcodes.DCONST_0));
+                return;
+            case Type.ARRAY:
+            case Type.OBJECT:
+                output.add(new InsnNode(Opcodes.ACONST_NULL));
+                return;
+            default:
+                throw new IllegalArgumentException("Unsupported return type: " + type);
         }
     }
 

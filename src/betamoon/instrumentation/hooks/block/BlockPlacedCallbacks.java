@@ -1,6 +1,7 @@
 package betamoon.instrumentation.hooks.block;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonCommon;
+
 import betamoon.event.Events;
 import betamoon.event.context.BlockEventCtx;
 import net.minecraft.client.Minecraft;
@@ -21,7 +22,7 @@ public final class BlockPlacedCallbacks {
                     world.getBlockId(target[0], target[1], target[2]),
                     world.getBlockMetadata(target[0], target[1], target[2]));
         } catch (RuntimeException error) {
-            BetaMoonMain.LOGGER.warning("Block-placement capture failed: " + error);
+            BetaMoonCommon.LOGGER.warning("Block-placement capture failed: " + error);
             return null;
         }
     }
@@ -40,7 +41,7 @@ public final class BlockPlacedCallbacks {
             Events.BLOCK_PLACED.publish(new BlockEventCtx(snapshot.getMinecraft(), world, snapshot.getX(),
                     snapshot.getY(), snapshot.getZ(), snapshot.getSide(), blockId, blockMeta));
         } catch (RuntimeException error) {
-            BetaMoonMain.LOGGER.warning("Block-placed hook listener failed: " + error);
+            BetaMoonCommon.LOGGER.warning("Block-placed hook listener failed: " + error);
         }
     }
 
