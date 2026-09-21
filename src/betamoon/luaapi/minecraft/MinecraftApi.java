@@ -2,13 +2,13 @@ package betamoon.luaapi.minecraft;
 
 import betamoon.luaapi.block.BlockFace;
 import betamoon.luaapi.item.ProjectileType;
+import betamoon.luaapi.utils.LuaConstantTable;
 import betamoon.minecraft.MinecraftBuiltins;
 import betamoon.worldgen.BiomeSpawnGroup;
 import betamoon.worldgen.BiomeTreeMode;
 import betamoon.worldgen.GenerationDimension;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
@@ -53,7 +53,7 @@ public final class MinecraftApi {
         }
     }
 
-    private static StrictReadOnlyTable dimensions() {
+    private static LuaConstantTable dimensions() {
         Map<String, String> values = new LinkedHashMap<>();
         for (GenerationDimension dimension : GenerationDimension.values()) {
             values.put(dimension.getLuaName(), dimension.getLuaName());
@@ -61,7 +61,7 @@ public final class MinecraftApi {
         return constants("betamoon.mc.world.dimensions", values);
     }
 
-    private static StrictReadOnlyTable spawnGroups() {
+    private static LuaConstantTable spawnGroups() {
         Map<String, String> values = new LinkedHashMap<>();
         for (BiomeSpawnGroup group : BiomeSpawnGroup.values()) {
             values.put(group.getLuaName(), group.getLuaName());
@@ -69,7 +69,7 @@ public final class MinecraftApi {
         return constants("betamoon.mc.world.spawnGroups", values);
     }
 
-    private static StrictReadOnlyTable blockFaces() {
+    private static LuaConstantTable blockFaces() {
         Map<String, String> values = new LinkedHashMap<>();
         for (BlockFace face : BlockFace.values()) {
             values.put(face.luaName, face.luaName);
@@ -77,7 +77,7 @@ public final class MinecraftApi {
         return constants("betamoon.mc.blockFaces", values);
     }
 
-    private static StrictReadOnlyTable projectiles() {
+    private static LuaConstantTable projectiles() {
         Map<String, String> values = new LinkedHashMap<>();
         for (ProjectileType projectile : ProjectileType.values()) {
             values.put(projectile.getLuaName(), projectile.getLuaName());
@@ -85,7 +85,7 @@ public final class MinecraftApi {
         return constants("betamoon.mc.projectiles", values);
     }
 
-    private static StrictReadOnlyTable treeModes() {
+    private static LuaConstantTable treeModes() {
         Map<String, String> values = new LinkedHashMap<>();
         for (BiomeTreeMode mode : BiomeTreeMode.values()) {
             values.put(mode.getLuaName(), mode.getLuaName());
@@ -93,7 +93,7 @@ public final class MinecraftApi {
         return constants("betamoon.worldgen.treeModes", values);
     }
 
-    private static StrictReadOnlyTable constants(String path, Map<String, String> values) {
+    private static LuaConstantTable constants(String path, Map<String, String> values) {
         Map<String, LuaValue> luaValues = new LinkedHashMap<>();
         for (Map.Entry<String, String> entry : values.entrySet()) {
             luaValues.put(entry.getKey(), LuaValue.valueOf(entry.getValue()));
@@ -101,90 +101,7 @@ public final class MinecraftApi {
         return table(path, luaValues);
     }
 
-    private static StrictReadOnlyTable table(String path, Map<String, LuaValue> values) {
-        return new StrictReadOnlyTable(path, values);
-    }
-
-    /** LuaTable with real enumerable entries and no writable access path. */
-    private static final class StrictReadOnlyTable extends LuaTable {
-        private final String path;
-
-        private StrictReadOnlyTable(String path, Map<String, LuaValue> values) {
-            this.path = path;
-            for (Map.Entry<String, LuaValue> entry : values.entrySet()) {
-                super.rawset(LuaValue.valueOf(entry.getKey()), entry.getValue());
-            }
-        }
-
-        @Override
-        public LuaValue get(int key) {
-            return requireKnown(LuaValue.valueOf(key), super.rawget(key));
-        }
-
-        @Override
-        public LuaValue get(LuaValue key) {
-            return requireKnown(key, super.rawget(key));
-        }
-
-        @Override
-        public LuaValue rawget(int key) {
-            return requireKnown(LuaValue.valueOf(key), super.rawget(key));
-        }
-
-        @Override
-        public LuaValue rawget(LuaValue key) {
-            return requireKnown(key, super.rawget(key));
-        }
-
-        @Override
-        public void set(int key, LuaValue value) {
-            readOnly();
-        }
-
-        @Override
-        public void set(LuaValue key, LuaValue value) {
-            readOnly();
-        }
-
-        @Override
-        public void rawset(int key, LuaValue value) {
-            readOnly();
-        }
-
-        @Override
-        public void rawset(LuaValue key, LuaValue value) {
-            readOnly();
-        }
-
-        @Override
-        public LuaValue remove(int position) {
-            return readOnly();
-        }
-
-        @Override
-        public void insert(int position, LuaValue value) {
-            readOnly();
-        }
-
-        @Override
-        public void sort(LuaValue comparator) {
-            readOnly();
-        }
-
-        @Override
-        public LuaValue setmetatable(LuaValue metatable) {
-            return readOnly();
-        }
-
-        private LuaValue requireKnown(LuaValue key, LuaValue value) {
-            if (value.isnil()) {
-                throw new LuaError(path + " has no constant named '" + key.tojstring() + "'.");
-            }
-            return value;
-        }
-
-        private LuaValue readOnly() {
-            throw new LuaError(path + " is read-only.");
-        }
+    private static LuaConstantTable table(String path, Map<String, LuaValue> values) {
+        return new LuaConstantTable(path, values);
     }
 }

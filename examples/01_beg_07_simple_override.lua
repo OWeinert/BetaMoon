@@ -4,7 +4,12 @@
 
 name = "Simple Override Example"
 version = "1.0.0"
-description = "Changes one property of an existing Minecraft block."
+description = "Renames vanilla stone to Polished Stone using a tracked display-name override. The example " ..
+    "shows how to change an existing resource without registering a replacement block.\n\n" ..
+    "Inspect a stone block item in your inventory to see the new name. Use stone itself, not the " ..
+    "cobblestone normally dropped when stone is mined. Its texture and other gameplay properties " ..
+    "are unchanged. Unloading the script removes the override so the original name can be " ..
+    "restored."
 
 function modInit()
   -- getRequired stops the script with a clear error if the requested block is unavailable.

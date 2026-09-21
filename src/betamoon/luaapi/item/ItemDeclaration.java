@@ -1,5 +1,9 @@
 package betamoon.luaapi.item;
 
+import betamoon.client.assets.AssetLocation;
+import betamoon.luaapi.asset.AssetInputs;
+import betamoon.luaapi.asset.ModelAppearanceDeclaration;
+
 import net.minecraft.src.Item;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
@@ -8,6 +12,7 @@ import static betamoon.luaapi.utils.LuaDeclarationValues.internalName;
 
 /** Complete item declaration, read before changing native item state. */
 final class ItemDeclaration {
+    final ModelAppearanceDeclaration appearance;
     final int id;
     final String name;
     final String displayName;
@@ -25,10 +30,11 @@ final class ItemDeclaration {
     final boolean full3D;
     final Integer iconX;
     final Integer iconY;
-    final String texture;
+    final AssetLocation texture;
 
     ItemDeclaration(LuaValue definition) {
         callbacks = new ItemDefinition(definition);
+        appearance = ModelAppearanceDeclaration.optional(definition.get("appearance"));
         id = required(definition, "id").checkint();
         name = internalName(definition);
         kind = ItemKind.parse(definition.get("type").optjstring("item"));
@@ -59,7 +65,7 @@ final class ItemDeclaration {
         iconX = icon.istable() ? Integer.valueOf(icon.get("x").checkint()) : null;
         iconY = icon.istable() ? Integer.valueOf(icon.get("y").checkint()) : null;
         LuaValue image = definition.get("texture");
-        texture = image.isstring() ? image.checkjstring() : null;
+        texture = image.isnil() ? null : AssetInputs.texture(image);
         validateCapabilities();
     }
 

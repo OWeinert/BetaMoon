@@ -5,7 +5,14 @@
 
 name = "Display Override Example"
 version = "1.0.0"
-description = "Adds a visual effect to lit furnaces while preserving their vanilla display tick."
+description = "Adds an extra flame effect to the vanilla lit furnace through a display-tick override. The " ..
+    "callback preserves Minecraft's original furnace effects by calling the base implementation " ..
+    "before occasionally spawning another flame above the block.\n\n" ..
+    "Enable BetaMoon's instrumentation agent, place a normal furnace, and start smelting with " ..
+    "suitable input and fuel. Watch its top while it is burning; the extra particle is random and " ..
+    "does not appear on every display tick. This example adds no block or recipe and does not " ..
+    "change smelting speed. Compare the extra flame's position and chance with the override " ..
+    "callback."
 
 function modInit()
   local litFurnace = betamoon.blocks:getRequired(62)

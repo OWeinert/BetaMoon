@@ -1,6 +1,10 @@
 package betamoon.luaapi.item;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonCommon;
+
+import betamoon.client.render.ModelAppearanceSet;
+import betamoon.client.render.ModelRenderingSupport;
+import java.io.IOException;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luamodloader.LuaContentRegistry;
 import betamoon.resources.EnumTexAtlas;
@@ -19,6 +23,28 @@ final class ItemRegistration {
     }
 
     static Item register(ItemDeclaration definition) {
+        if (definition.appearance != null || definition.callbacks.visual.hasModels()) {
+            ModelRenderingSupport.requireAvailable();
+        }
+        ModelAppearanceSet appearance;
+        try {
+            appearance = (definition.appearance != null || definition.callbacks.visual.hasModels())
+                    ? new ModelAppearanceSet(definition.appearance, definition.callbacks.visual.appearances())
+                    : null;
+        } catch (IOException error) {
+            throw new LuaError("Item appearance: " + error.getMessage());
+        }
+        try {
+            return registerPrepared(definition, appearance);
+        } catch (RuntimeException error) {
+            if (appearance != null) {
+                appearance.close();
+            }
+            throw error;
+        }
+    }
+
+    private static Item registerPrepared(ItemDeclaration definition, ModelAppearanceSet appearance) {
         Item item = createOrRetain(definition);
         LuaContentRegistry.Entry entry = LuaContentRegistry.find("item", definition.id);
         prepareFood(item, entry, definition);
@@ -35,11 +61,12 @@ final class ItemRegistration {
         item = finishFood(item, entry, definition);
         if (entry.registered && (definition.kind.isTool() || definition.kind == ItemKind.ARMOR)) {
             String label = definition.kind.isTool() ? "tool" : "armor";
-            BetaMoonMain.LOGGER.warning("Ignored duplicate " + label + " register: id=" + definition.id);
+            BetaMoonCommon.LOGGER.warning("Ignored duplicate " + label + " register: id=" + definition.id);
         } else {
             ModLoader.AddName(item, definition.displayName);
             entry.registered = true;
         }
+        ItemModelRegistry.install(definition.id, appearance);
         ItemCallbackRegistry.install(definition.id, definition.callbacks);
         return item;
     }

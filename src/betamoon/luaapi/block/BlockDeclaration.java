@@ -1,5 +1,9 @@
 package betamoon.luaapi.block;
 
+import betamoon.client.assets.AssetLocation;
+import betamoon.luaapi.asset.AssetInputs;
+import betamoon.luaapi.asset.ModelAppearanceDeclaration;
+
 import betamoon.minecraft.MinecraftBuiltins;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -20,6 +24,7 @@ import static betamoon.luaapi.utils.LuaDeclarationValues.internalName;
  * Reads block properties without allocating a block or installing resources.
  */
 final class BlockDeclaration {
+    final ModelAppearanceDeclaration appearance;
     final int id;
     final String name;
     final String displayName;
@@ -41,6 +46,13 @@ final class BlockDeclaration {
 
     BlockDeclaration(LuaValue definition) {
         callbacks = new BlockDefinition(definition);
+        appearance = callbacks.visual.appearance;
+        if (!callbacks.visual.isDynamic()) {
+            BlockModelRegistry.validate(appearance);
+            for (ModelAppearanceDeclaration variant : callbacks.visual.appearances().values()) {
+                BlockModelRegistry.validate(variant);
+            }
+        }
         id = required(definition, "id").checkint();
         if (id < 0 || id > 255) {
             throw new LuaError("Block: id outside allowed range (0-255): " + id);
@@ -143,9 +155,9 @@ final class BlockDeclaration {
 
     static final class Texture {
         final Integer index;
-        final String path;
+        final AssetLocation path;
 
-        private Texture(Integer index, String path) {
+        private Texture(Integer index, AssetLocation path) {
             this.index = index;
             this.path = path;
         }
@@ -157,10 +169,7 @@ final class BlockDeclaration {
             if (value.isnumber()) {
                 return new Texture(value.checkint(), null);
             }
-            if (value.isstring()) {
-                return new Texture(null, value.checkjstring());
-            }
-            throw new LuaError("Block: texture must be a number or string.");
+            return new Texture(null, AssetInputs.texture(value));
         }
     }
 

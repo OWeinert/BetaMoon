@@ -1,6 +1,8 @@
 package betamoon.luaapi.block;
 
+import betamoon.luaapi.asset.ModelAppearanceDeclaration;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import org.luaj.vm2.LuaValue;
@@ -16,8 +18,11 @@ public final class BlockVisualDefinition {
     public final BlockBox bounds;
     public final int renderPass;
     private final Map<Integer, Variant> variants = new HashMap<Integer, Variant>();
+    public final ModelAppearanceDeclaration appearance;
+    private final Map<Integer, ModelAppearanceDeclaration> appearances = new HashMap<>();
 
     public BlockVisualDefinition(LuaValue definition) {
+        appearance = ModelAppearanceDeclaration.optional(definition.get("appearance"));
         BlockBox shape = null;
         int type = 0;
         int pass = 0;
@@ -43,12 +48,29 @@ public final class BlockVisualDefinition {
                 while (!(key = declared.next(key).arg1()).isnil()) {
                     int metadata = integer(key, "render.variants metadata", 0, 15);
                     variants.put(metadata, new Variant(declared.get(key)));
+                    LuaValue appearanceValue = declared.get(key).get("appearance");
+                    if (!appearanceValue.isnil()) {
+                        appearances.put(metadata, ModelAppearanceDeclaration.optional(appearanceValue));
+                    }
                 }
             }
         }
         bounds = shape;
         renderType = type;
         renderPass = pass;
+    }
+
+    public Map<Integer, ModelAppearanceDeclaration> appearances() {
+        return Collections.unmodifiableMap(appearances);
+    }
+
+    public boolean hasModels() {
+        return appearance != null || appearances.values().stream().anyMatch(value -> value != null);
+    }
+
+    public boolean isDynamic() {
+        return appearance != null && appearance.isDynamic()
+                || appearances.values().stream().anyMatch(value -> value != null && value.isDynamic());
     }
 
     public int texture(int metadata, int side, int fallback) {
@@ -66,7 +88,7 @@ public final class BlockVisualDefinition {
         private final int color;
 
         private Variant(LuaValue definition) {
-            fields(definition, "render.variant", "texture", "textures", "color");
+            fields(definition, "render.variant", "texture", "textures", "color", "appearance");
             if (!definition.get("texture").isnil()) {
                 Arrays.fill(textures, integer(definition.get("texture"), "render.variant.texture", 0, 255));
             }

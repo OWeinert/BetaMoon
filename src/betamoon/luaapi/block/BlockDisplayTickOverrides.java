@@ -1,6 +1,7 @@
 package betamoon.luaapi.block;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonCommon;
+
 import betamoon.luaapi.resource.OverrideManager;
 import betamoon.luamodloader.LuaScriptErrors;
 import java.util.Map;
@@ -55,7 +56,7 @@ public final class BlockDisplayTickOverrides {
             callback.disabled = true;
             String message = "onDisplayTick override disabled after an error: " + error;
             LuaScriptErrors.add(callback.definition.owner, message);
-            BetaMoonMain.LOGGER.warning(callback.definition.owner + ": " + message);
+            BetaMoonCommon.LOGGER.warning(callback.definition.owner + ": " + message);
             // Keep vanilla effects after a Lua failure, without repeating an already
             // invoked base call.
             if (!base.called) {

@@ -62,6 +62,7 @@ public final class DeclarativeDomainTest {
             lua.load("assert(betamoon.modules:import('quality_module')==value); "
                     + "assert(require('quality_module')==value)").call();
             verifyMinecraftConstants(lua);
+            verifyCallbackResults(lua);
             verifyItems(lua);
             verifyBlocks(lua);
             verifyWorldGeneration(lua);
@@ -103,6 +104,15 @@ public final class DeclarativeDomainTest {
         for (String entity : MinecraftBuiltins.entities().values()) {
             require(MinecraftBuiltins.resolveEntity(entity) != null, "Exposed entity resolves: " + entity);
         }
+    }
+
+    private static void verifyCallbackResults(Globals lua) {
+        lua.load("local results=betamoon.callbackResults; "
+                + "assert(results.pass=='pass' and results.deny=='deny' and results.handled=='handled'); "
+                + "local found=0; for _,value in pairs(results) do if type(value)=='string' then found=found+1 end end; "
+                + "assert(found==3); "
+                + "assert(not pcall(function() results.pass='handled' end)); "
+                + "assert(not pcall(function() return results.handeled end))").call();
     }
 
     private static void verifyItems(Globals lua) {

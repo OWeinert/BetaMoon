@@ -19,12 +19,15 @@ import betamoon.tileentity.ContainerGuiDefinition;
 import betamoon.tileentity.GuiLuaContainer;
 import betamoon.tileentity.LuaTileEntity;
 import betamoon.tileentity.TileEntityRegistry;
+import betamoon.update.SemanticVersion;
+import betamoon.update.UpdateRelease;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileReader;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.URL;
+import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
@@ -80,7 +83,7 @@ public final class GuiShowcaseRenderTest {
         registered.setBoolean(null, true);
         Method owner = LuaScriptRegistry.class.getDeclaredMethod("setCurrentScriptFile", String.class);
         owner.setAccessible(true);
-        owner.invoke(null, "03_adv_05_gui_showcase.lua");
+        owner.invoke(null, "03_adv_06_gui_showcase.lua");
         Globals globals = JsePlatform.standardGlobals();
         LuaTable api = new LuaTable();
         TileEntityApi.attach(api);
@@ -93,9 +96,9 @@ public final class GuiShowcaseRenderTest {
                 + "betamoon.items = {getRequired=betamoon.blocks.getRequired}; "
                 + "betamoon.recipes = {add=function(_, def) betamoon.recipe=def end}; "
                 + "betamoon.stack=function(item, count) return {id=item.id, count=count} end").call();
-        FileReader reader = new FileReader(new File(examples, "03_adv_05_gui_showcase.lua"));
+        FileReader reader = new FileReader(new File(examples, "03_adv_06_gui_showcase.lua"));
         try {
-            globals.load(reader, "03_adv_05_gui_showcase.lua").call();
+            globals.load(reader, "03_adv_06_gui_showcase.lua").call();
         } finally {
             reader.close();
         }
@@ -133,6 +136,7 @@ public final class GuiShowcaseRenderTest {
             verifyIssueLayout(font);
             verifyTextureRenderState(minecraft, font);
             renderFrameworkScreens(minecraft, font, output);
+            renderUpdateNotice(minecraft, font, output);
             setupFrame();
             GL11.glEnable(GL11.GL_LIGHTING);
             GL11.glEnable(GL11.GL_DEPTH_TEST);
@@ -237,14 +241,37 @@ public final class GuiShowcaseRenderTest {
                 "Texture rendering leaked OpenGL state");
     }
 
+    private static void renderUpdateNotice(Minecraft minecraft, FontRenderer font, File output) throws Exception {
+        UpdateRelease release = new UpdateRelease(SemanticVersion.parse("0.7.0-alpha.2"), "Modrinth",
+                URI.create("https://modrinth.com/mod/betamoon/version/Test"));
+        GuiUpdateNotice notice = new GuiUpdateNotice(null, "0.6.0");
+        notice.setRelease(release);
+        GuiContainer panel = new GuiContainer() {
+            @Override
+            protected void arrangeChildren(GuiContext context) {
+                notice.arrange(context, Rect.fromPositionAndSize(10, 194 - GuiUpdateNotice.CARD_HEIGHT,
+                        GuiUpdateNotice.CARD_WIDTH, GuiUpdateNotice.CARD_HEIGHT));
+            }
+        };
+        panel.add(notice);
+        GuiScene scene = new GuiScene();
+        scene.setContent(panel);
+        scene.updateEnvironment(minecraft, font, 320, 240, 320, 240);
+        setupFrame();
+        scene.render(0, 0, 0);
+        require(GL11.glGetError() == GL11.GL_NO_ERROR, "Update notice render state");
+        ImageIO.write(capture(), "png", new File(output, "update-notice.png"));
+        renderScreen(new GuiUpdateDetails(null, "0.6.0", release, false), minecraft, output, "update-details.png");
+    }
+
     private static void renderFrameworkScreens(Minecraft minecraft, FontRenderer font, File output) throws Exception {
         LuaScriptErrors.clear();
         LuaScriptRegistry.clear();
         String restartFile = "broken.lua";
         try {
             LuaScriptRegistry.updateParsed("loaded.lua", "Advanced Fabrication Recipes Example",
-                    Collections.<String>emptyList(),
-                    LuaValue.NIL, LuaValue.NIL, LuaValue.NIL, "A successfully loaded script.", "1.2.3", null);
+                    Collections.<String>emptyList(), LuaValue.NIL, LuaValue.NIL, LuaValue.NIL,
+                    "A successfully loaded script.", "1.2.3", null);
             ScriptMod failed = LuaScriptRegistry.updateParsed(restartFile, "Broken Example",
                     Collections.singletonList("missing_dependency"), LuaValue.NIL, LuaValue.NIL, LuaValue.NIL,
                     "This script demonstrates failure and restart-required states.", "0.4.0", null);
@@ -273,8 +300,8 @@ public final class GuiShowcaseRenderTest {
         renderScreen(screen, minecraft, output, fileName, 0, 0);
     }
 
-    private static void renderScreen(GuiScreen screen, Minecraft minecraft, File output, String fileName,
-            int mouseX, int mouseY) throws Exception {
+    private static void renderScreen(GuiScreen screen, Minecraft minecraft, File output, String fileName, int mouseX,
+            int mouseY) throws Exception {
         screen.setWorldAndResolution(minecraft, 320, 240);
         setupFrame();
         screen.drawScreen(mouseX, mouseY, 0.0F);
@@ -282,7 +309,10 @@ public final class GuiShowcaseRenderTest {
         ImageIO.write(capture(), "png", new File(output, fileName));
     }
 
-    /** Recreates the old rectangle helper's leaked state for the regression setup above. */
+    /**
+     * Recreates the old rectangle helper's leaked state for the regression setup
+     * above.
+     */
     private static void drawLegacyStateLeakingRect(int left, int top, int right, int bottom, int color) {
         float alpha = (float) (color >> 24 & 255) / 255.0F;
         float red = (float) (color >> 16 & 255) / 255.0F;

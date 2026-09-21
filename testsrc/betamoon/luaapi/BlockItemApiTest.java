@@ -356,6 +356,48 @@ public final class BlockItemApiTest {
                     "A block without horizontal placement had its item textures reoriented");
             id--;
         }
+        verifyFacingShapes(lua, world, id);
+    }
+
+    private static void verifyFacingShapes(Globals lua, TestWorld world, int id) {
+        require(Block.blocksList[id] == null, "Expected unused facing-shape test block");
+        BlockWrapper block = new BlockWrapper(id, 1, Material.rock, "facing_shape");
+        LuaValue declaration = lua.load("return {"
+                + "state={facing={type='enum',values={'north','east','south','west'}}},"
+                + "placement={facing='horizontal',facingFrom='player'},"
+                + "collision={boxes={"
+                + "{min={0,0,0},max={1,0.5,1}},"
+                + "{min={0,0.5,0.5},max={1,1,1}}"
+                + "}},selection={min={0,0.5,0.5},max={1,1,1}}}").call();
+        BlockDefinition definition = new BlockDefinition(declaration);
+        BlockCallbackRegistry.install(id, definition);
+        world.chunk.blocks[64] = (byte) id;
+
+        String[] directions = {"north", "east", "south", "west"};
+        double[][] expectedUpperBounds = {
+                {0, 0.5, 1, 1},
+                {0, 0, 0.5, 1},
+                {0, 0, 1, 0.5},
+                {0.5, 0, 1, 1}
+        };
+        for (int i = 0; i < directions.length; i++) {
+            int metadata = definition.state.set(definition.state.defaults, "facing", LuaValue.valueOf(directions[i]));
+            world.setBlockMetadataWithNotify(0, 64, 0, metadata);
+            ArrayList boxes = new ArrayList();
+            block.getCollidingBoundingBoxes(world, 0, 64, 0,
+                    AxisAlignedBB.getBoundingBoxFromPool(-1, 63, -1, 2, 66, 2), boxes);
+            require(boxes.size() == 2, "Facing stair collision did not retain both boxes");
+            AxisAlignedBB upper = (AxisAlignedBB) boxes.get(1);
+            double[] expected = expectedUpperBounds[i];
+            require(upper.minX == expected[0] && upper.minZ == expected[1]
+                    && upper.maxX == expected[2] && upper.maxZ == expected[3],
+                    "Facing stair collision did not rotate toward " + directions[i]);
+
+            AxisAlignedBB selection = block.getSelectedBoundingBoxFromPool(world, 0, 64, 0);
+            require(selection.minX == expected[0] && selection.minZ == expected[1]
+                    && selection.maxX == expected[2] && selection.maxZ == expected[3],
+                    "Facing selection did not rotate toward " + directions[i]);
+        }
     }
 
     private static void verifyItemBehavior(Globals lua, TestWorld world, EntityPlayer player) {
@@ -411,7 +453,10 @@ public final class BlockItemApiTest {
                 LuaValue declaration = arguments.arg(arguments.arg1() == blocks ? 2 : 1);
                 int id = declaration.get("id").checkint();
                 BlockDefinition definition = new BlockDefinition(declaration);
-                BlockWrapper block = new BlockWrapper(id, 1, Material.rock, declaration.get("key").checkjstring());
+                Material material = declaration.get("material").optjstring("").equals("glass")
+                        ? Material.glass
+                        : Material.rock;
+                BlockWrapper block = new BlockWrapper(id, 1, material, declaration.get("key").checkjstring());
                 new ItemBlock(id - 256);
                 BlockCallbackRegistry.install(id, definition);
                 BlockTickRegistry.register(block, declaration.get("onTick"), declaration.get("onDisplayTick"));
@@ -429,13 +474,13 @@ public final class BlockItemApiTest {
             }
         });
         int recipesBefore = CraftingManager.getInstance().getRecipeList().size();
-        String[] files = {"01_beg_16_projectile.lua", "01_beg_22_first_block_interaction.lua",
-                "01_beg_23_first_item_use.lua", "02_int_08_block_interactions.lua", "02_int_09_attached_blocks.lua",
+        String[] files = {"01_beg_17_projectile.lua", "01_beg_24_first_block_interaction.lua",
+                "01_beg_25_first_item_use.lua", "02_int_08_block_interactions.lua", "02_int_09_attached_blocks.lua",
                 "02_int_10_block_lifecycle.lua", "02_int_11_item_interactions.lua",
-                "02_int_12_targeted_item_actions.lua", "02_int_13_tool_interactions.lua",
-                "02_int_14_dynamic_tool_callbacks.lua", "02_int_15_block_shapes.lua", "02_int_16_launch_pad.lua",
-                "02_int_17_special_blocks.lua", "02_int_18_random_and_continuous_ticks.lua",
-                "02_int_20_redstone_switch.lua", "03_adv_01_redstone_timer.lua"};
+                "02_int_13_targeted_item_actions.lua", "02_int_14_tool_interactions.lua",
+                "02_int_15_dynamic_tool_callbacks.lua", "02_int_16_block_shapes.lua", "02_int_18_launch_pad.lua",
+                "02_int_19_special_blocks.lua", "02_int_20_random_and_continuous_ticks.lua",
+                "02_int_22_redstone_switch.lua", "03_adv_02_redstone_timer.lua"};
         for (String file : files) {
             owner.invoke(null, file);
             FileReader reader = new FileReader(new File("examples", file));
@@ -448,6 +493,7 @@ public final class BlockItemApiTest {
         }
         require(CraftingManager.getInstance().getRecipeList().size() == recipesBefore + 16,
                 "Customization examples did not register their sixteen crafting recipes");
+        verifyExampleRendering(examples, world);
 
         world.chunk.blocks[64] = (byte) 213;
         world.setBlockMetadataWithNotify(0, 64, 0, 0);
@@ -493,6 +539,45 @@ public final class BlockItemApiTest {
         verifyPartialBlockSolidity(world);
         System.out.println(
                 "Loaded sixteen customization examples; verified declarations, recipes, timer, wrench, launch and solidity.");
+    }
+
+    private static void verifyExampleRendering(Globals lua, TestWorld world) {
+        for (int id : new int[]{214, 215}) {
+            Block block = Block.blocksList[id];
+            block.setBlockBoundsForItemRender();
+            double inset = id == 215 ? 0.375 : 0;
+            double height = id == 214 ? 0.25 : 1;
+            require(block.minX == inset && block.minZ == inset && block.minY == 0 && block.maxX == 1 - inset
+                    && block.maxZ == 1 - inset && block.maxY == height,
+                    "Inventory bounds require world placement for example block " + id);
+            block.setBlockBoundsBasedOnState(world, 0, 64, 0);
+            block.setBlockBoundsForItemRender();
+            require(block.minX == inset && block.maxY == height,
+                    "World rendering changed inventory bounds for example block " + id);
+        }
+
+        Block glass = Block.blocksList[220];
+        BlockDefinition original = BlockCallbackRegistry.get(220);
+        try {
+            for (int neighbor : new int[]{0, 1, 20, 220}) {
+                world.chunk.blocks[64] = (byte) neighbor;
+                for (int side = 0; side < 6; side++) {
+                    require(glass.shouldSideBeRendered(world, 0, 64, 0, side) == (neighbor == 0 || neighbor == 20),
+                            "Incorrect glass face culling for neighbor " + neighbor + " side " + side);
+                }
+            }
+            BlockCallbackRegistry.install(220, new BlockDefinition(
+                    lua.load("return {opaque=false,render={bounds={min={0.25,0,0.25},max={0.75,1,0.75}}}}").call()));
+            glass.setBlockBoundsBasedOnState(world, 0, 64, 0);
+            require(glass.shouldSideBeRendered(world, 0, 64, 0, 2),
+                    "Partial glass lost an exposed inset face beside the same block");
+        } finally {
+            BlockCallbackRegistry.install(220, original);
+            glass.setBlockBoundsForItemRender();
+            world.chunk.blocks[64] = 0;
+        }
+        require(glass.minX == 0 && glass.maxX == 1 && glass.maxY == 1,
+                "Inventory rendering retained bounds from an older declaration");
     }
 
     private static void verifyLaunchPad(TestWorld world, EntityPlayer player) {

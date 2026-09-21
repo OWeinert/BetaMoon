@@ -1,6 +1,7 @@
 package betamoon.wrappers;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonCommon;
+
 import betamoon.luaapi.item.ItemBehavior;
 import betamoon.luaapi.item.ItemCallback;
 import betamoon.luaapi.item.ItemCallbackRegistry;
@@ -21,7 +22,7 @@ import net.minecraft.src.RenderPlayer;
 import net.minecraft.src.World;
 
 public class ItemArmorWrapper extends ItemArmor implements IArmorTextureProvider {
-    private static final Logger LOGGER = BetaMoonMain.LOGGER;
+    private static final Logger LOGGER = BetaMoonCommon.LOGGER;
     private static Field RENDER_INDEX_FIELD = resolveRenderIndexField();
     private int armorRenderIndex;
     private String customArmorTexture;

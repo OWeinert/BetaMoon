@@ -1,6 +1,7 @@
 package betamoon.query;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonCommon;
+
 import betamoon.recipes.NativeRecipeRegistries;
 import betamoon.recipes.RecipeModificationHandler;
 import betamoon.recipes.SmeltingRecipe;
@@ -16,7 +17,7 @@ import net.minecraft.src.ShapedRecipes;
 import net.minecraft.src.ShapelessRecipes;
 
 public final class ContentQueryRecipe extends ContentQuery<RecipeEntry> {
-    private static final java.util.logging.Logger LOGGER = BetaMoonMain.LOGGER;
+    private static final java.util.logging.Logger LOGGER = BetaMoonCommon.LOGGER;
 
     @Override
     protected List<RecipeEntry> createInitialState() {

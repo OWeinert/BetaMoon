@@ -19,7 +19,9 @@ import java.util.Arrays;
 import java.util.List;
 import org.lwjgl.input.Keyboard;
 
-/** Headless regression checks for retained GUI layout, routing, and ordering. */
+/**
+ * Headless regression checks for retained GUI layout, routing, and ordering.
+ */
 public final class GuiCollectionsTest {
     private GuiCollectionsTest() {
     }
@@ -31,7 +33,23 @@ public final class GuiCollectionsTest {
         verifyScrollbarRouting();
         verifyDialogGeometry();
         verifyScriptOrdering();
+        verifyUpdateNoticeLayout();
         System.out.println("GUI collections passed: routing, layout, focus, capture and script ordering.");
+    }
+
+    private static void verifyUpdateNoticeLayout() {
+        for (int width : new int[]{320, 427, 640, 854, 1280}) {
+            for (int height : new int[]{240, 360, 480, 720}) {
+                Rect notice = GuiUpdateNotice.noticeBounds(width, height);
+                Rect vanilla = Rect.fromPositionAndSize(width / 2 - 100, height / 4 + 48, 200, 104);
+                require(notice.intersect(vanilla).isEmpty(), "Update notice must not intercept vanilla clicks");
+                require(notice.getLeft() == 10 && notice.getBottom() == height - 46,
+                        "Notice aligned six units above Scripts");
+                require(notice.getTop() >= 0 && notice.getRight() <= width, "Notice inside viewport");
+            }
+        }
+        GuiUpdateNotice hidden = new GuiUpdateNotice(null, "0.6.0");
+        require(!hidden.isVisible(), "No update means no visible card");
     }
 
     private static void verifyInputRouting() {

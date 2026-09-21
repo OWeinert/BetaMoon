@@ -15,7 +15,13 @@ image = "basic.png"
 version = "2.0.0"
 
 -- Optional: A short explanation of what your script does.
-description = "Base script template with optional metadata."
+description = "A starting template for your own BetaMoon script. It shows how the name, version, " ..
+    "description, and optional preview image appear in the Scripts screen, and provides empty " ..
+    "initialization, reload, and unload functions.\n\n" ..
+    "This example deliberately adds no blocks, items, recipes, or interactions. Open the file and " ..
+    "add declarations inside modInit to begin experimenting. Change its metadata to see how your " ..
+    "script is presented in-game; provide the optional basic.png image or remove that image " ..
+    "setting."
 
 -- Optional: Scripts that must load before this one.
 dependencies = {}

@@ -1,10 +1,12 @@
 package betamoon.io;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonCommon;
+
 import java.awt.Desktop;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
 import java.util.Locale;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -13,9 +15,25 @@ import java.util.logging.Logger;
  * Shared I/O helpers.
  */
 public final class IoUtils {
-    private static final Logger LOGGER = BetaMoonMain.LOGGER;
+    private static final Logger LOGGER = BetaMoonCommon.LOGGER;
 
     private IoUtils() {
+    }
+
+    /** Opens an HTTPS page using the platform browser, if one is available. */
+    public static boolean openWebPage(URI uri) {
+        if (uri == null || !"https".equals(uri.getScheme()) || uri.getHost() == null) {
+            return false;
+        }
+        try {
+            if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
+                return false;
+            }
+            Desktop.getDesktop().browse(uri);
+            return true;
+        } catch (Exception unavailable) {
+            return false;
+        }
     }
 
     /**
@@ -109,7 +127,7 @@ public final class IoUtils {
         if (minecraftDir == null) {
             return null;
         }
-        File luaModsDir = new File(minecraftDir, BetaMoonMain.LUA_SCRIPTS_DIR);
+        File luaModsDir = new File(minecraftDir, BetaMoonCommon.LUA_SCRIPTS_DIR);
         if (create) {
             return ensureDirectory(luaModsDir);
         }

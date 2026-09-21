@@ -1,6 +1,10 @@
 package betamoon.luaapi.block;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonCommon;
+
+import betamoon.client.render.ModelAppearanceSet;
+import betamoon.client.render.ModelRenderingSupport;
+import java.io.IOException;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luamodloader.LuaContentRegistry;
 import betamoon.resources.EnumTexAtlas;
@@ -20,6 +24,28 @@ final class BlockRegistration {
     }
 
     static BlockWrapper register(BlockDeclaration definition) {
+        if (definition.callbacks.visual.hasModels()) {
+            ModelRenderingSupport.requireAvailable();
+        }
+        ModelAppearanceSet appearance;
+        try {
+            appearance = definition.callbacks.visual.hasModels()
+                    ? new ModelAppearanceSet(definition.appearance, definition.callbacks.visual.appearances())
+                    : null;
+        } catch (IOException error) {
+            throw new LuaError("Block appearance: " + error.getMessage());
+        }
+        try {
+            return registerPrepared(definition, appearance);
+        } catch (RuntimeException error) {
+            if (appearance != null) {
+                appearance.close();
+            }
+            throw error;
+        }
+    }
+
+    private static BlockWrapper registerPrepared(BlockDeclaration definition, ModelAppearanceSet appearance) {
         BlockWrapper block = createOrRetain(definition);
         applyProperties(block, definition);
         applyTextures(block, definition);
@@ -32,7 +58,7 @@ final class BlockRegistration {
 
         LuaContentRegistry.Entry entry = LuaContentRegistry.find("block", definition.id);
         if (entry.registered) {
-            BetaMoonMain.LOGGER.warning("Ignored duplicate block register: id=" + definition.id);
+            BetaMoonCommon.LOGGER.warning("Ignored duplicate block register: id=" + definition.id);
         } else {
             ModLoader.RegisterBlock(block);
             ModLoader.AddName(block, definition.displayName);
@@ -46,6 +72,7 @@ final class BlockRegistration {
                     components.redstone);
             block.enableTileEntity();
         }
+        BlockModelRegistry.install(definition.id, appearance);
         BlockCallbackRegistry.install(definition.id, definition.callbacks);
         return block;
     }

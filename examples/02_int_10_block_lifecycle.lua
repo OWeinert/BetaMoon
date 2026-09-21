@@ -4,12 +4,19 @@
 
 name = "Block Lifecycle Example"
 version = "1.0.0"
-description = "Demonstrates placement queries and the main block lifecycle callbacks."
+description = "Adds Lifecycle Observer, a block for testing placement, clicking, neighboring changes, " ..
+    "collisions, removal, harvesting, and explosions. Craft it from one stone block and one paper " ..
+    "in any arrangement. Place it above a non-air block; unsupported placement is rejected.\n\n" ..
+    "Placement plays a click and reports that the block was added. Left-click it for a metadata " ..
+    "message, change an adjacent block for a neighbor message, and walk through it to receive an " ..
+    "upward push: its full selection outline has no solid collision box. Mine it and compare the " ..
+    "removal and harvest messages; you can also test an explosion in a suitable test area. Match " ..
+    "each visible response to its named callback in the source."
 
 function modInit()
   local observer = betamoon.blocks:add {
     id = 218,
-    key = "lifecycle_observer",
+    key = "example:block/lifecycle_observer",
     displayName = "Lifecycle Observer",
     -- blockMaterials supplies the canonical glass material name.
     material = betamoon.mc.blockMaterials.glass,

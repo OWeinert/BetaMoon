@@ -6,7 +6,13 @@
 
 name = "Custom Block Example"
 version = "2.0.0"
-description = "Declares a block with harvesting and custom drops."
+description = "Adds Example Block, a stone-like building block with its own name, hardness, blast " ..
+    "resistance, sound, and mining requirement. It demonstrates the smallest complete custom block " ..
+    "declaration.\n\n" ..
+    "No crafting recipe is included. Obtain block ID 200 with an inventory editor or item-spawning " ..
+    "tool, place it, and mine it with a wooden pickaxe or better. It drops one cobblestone rather " ..
+    "than another Example Block. Compare the placed block and its drop with the material, harvest, " ..
+    "and drops settings in the script."
 
 function modInit()
   -- blocks:add creates a block from the settings inside this table.
@@ -17,8 +23,13 @@ function modInit()
     -- Minecraft normally associates with it. Pick another built-in value from
     -- betamoon.mc.blockMaterials; writing the same string directly also works.
     material = betamoon.mc.blockMaterials.rock,
-    -- The key is the block's name inside your scripts. Keep it unique.
-    key = "example_block",
+    -- The key is the block's unique identifier inside your scripts.
+    -- There are will be more use-cases for keys in the future.
+    -- A key always has the structure "namespace:type/name"
+    -- Where: - "namespace" is an identifier for the mod it belongs to, like "mymod" or in this case "example"
+    --        - "type" is the type of content that the key is. In this case "block".
+    --        - "name" is the internal name of your block. That one is completely up to you.
+    key = "example:block/example_block",
     -- This is the name players see in the game.
     displayName = "Example Block",
     -- hardness controls mining time. resistance controls explosion strength.

@@ -1,6 +1,7 @@
 package betamoon.recipes.custom;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonCommon;
+
 import betamoon.luaapi.resource.RecipeTarget;
 import betamoon.luamodloader.ScriptResourceTracker;
 import java.util.ArrayList;
@@ -49,7 +50,7 @@ public final class CustomRecipes {
                     && canonical(old.effective.getValue().get("ingredients"))
                             .equals(canonical(entry.effective.getValue().get("ingredients")))
                     && canonical(old.effective.getConditions()).equals(canonical(entry.effective.getConditions()))) {
-                BetaMoonMain.LOGGER
+                BetaMoonCommon.LOGGER
                         .warning("Overlapping recipes " + old.key + " and " + key + "; use explicit recipe priority.");
             }
         }

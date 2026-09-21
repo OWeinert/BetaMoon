@@ -8,7 +8,9 @@ import net.minecraft.src.TextureFX;
  * Fallback texture FX implementation when ModTextureStatic is unavailable.
  */
 public class BetaMoonTextureStatic extends TextureFX {
-    private final BufferedImage source;
+    private BufferedImage source;
+    private boolean lastAnaglyph;
+    private boolean dirty = true;
 
     public BetaMoonTextureStatic(int iconIndex, int atlasId, BufferedImage image) {
         super(iconIndex);
@@ -33,7 +35,18 @@ public class BetaMoonTextureStatic extends TextureFX {
         }
     }
 
+    public void setImage(BufferedImage image) {
+        source = scaleTo16(image);
+        dirty = true;
+        updateImageData();
+    }
+
     private void updateImageData() {
+        if (!dirty && lastAnaglyph == anaglyphEnabled) {
+            return;
+        }
+        dirty = false;
+        lastAnaglyph = anaglyphEnabled;
         if (source == null) {
             return;
         }

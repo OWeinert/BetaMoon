@@ -4,7 +4,14 @@
 
 name = "Hot Reload Lifecycle Example"
 version = "1.0.0"
-description = "Shows initialization, cleanup, and successful hot-reload hooks."
+description = "Demonstrates initialization, world-join handling, unloading, and successful reload callbacks. " ..
+    "While loaded, it renames vanilla dirt to Lifecycle Dirt and reports lifecycle steps through " ..
+    "chat.\n\n" ..
+    "Enter a world, inspect a dirt item, then edit the greeting or display-name text in the source " ..
+    "and reload the script. Watch the unload, initialization, and reload messages to follow the " ..
+    "transition, and inspect dirt again for the updated name. The unload callback explicitly " ..
+    "removes the previous override and event subscription. This example changes a vanilla name but " ..
+    "adds no blocks or items."
 
 local worldJoinSubscription
 local dirtOverride

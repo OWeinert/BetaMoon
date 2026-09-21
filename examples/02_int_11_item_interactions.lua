@@ -6,12 +6,18 @@
 
 name = "Item Interactions Example"
 version = "1.0.0"
-description = "Craft sugar with wheat for healing powder; right-click to heal three hearts."
+description = "Adds Healing Powder, a consumable item with a healing action and an effect while selected. " ..
+    "Combine one sugar and one wheat in any arrangement to craft two powders.\n\n" ..
+    "Lose some health, select the powder, and right-click while aiming into the air. It restores " ..
+    "six health points, equivalent to three hearts, plays a pop, consumes one powder, and starts a " ..
+    "20-tick cooldown, about one second. It can still be consumed at full health. Keep it selected " ..
+    "to see occasional redstone particles, emitted every 40 ticks. Compare the use callback, " ..
+    "declarative consumption, and selected-item tick callback."
 
 function modInit()
   local powder = betamoon.items:add {
     id = 5020,
-    key = "healing_powder",
+    key = "example:item/healing_powder",
     displayName = "Healing Powder",
     icon = { x = 13, y = 3 },
     maxStackSize = 16,
@@ -25,12 +31,12 @@ function modInit()
         -- Some contexts can lack a player. Check optional access before use.
         -- deny exits without performing the healing action below.
         if not ctx.player then
-          return "deny"
+          return betamoon.callbackResults.deny
         end
         ctx.player:heal(6)
         -- sounds.random supplies canonical vanilla sound names.
         ctx.world:playSound(betamoon.mc.sounds.random.pop, 0.4, 1.2)
-        return "handled"
+        return betamoon.callbackResults.handled
       end
     },
     onInventoryTick = {

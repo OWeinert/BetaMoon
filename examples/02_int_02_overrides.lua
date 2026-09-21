@@ -6,7 +6,13 @@
 
 name = "Override Examples"
 version = "2.0.0"
-description = "Shows direct, conditional, prioritized, and bulk overrides."
+description = "Demonstrates direct, conditional, and bulk overrides of existing resources, including a stone " ..
+    "display name, stone hardness and resistance, and stack limits for items that normally stack " ..
+    "to 64. It also shows how priorities and explicit removal are expressed.\n\n" ..
+    "All demonstration overrides are removed again before initialization finishes. No lasting " ..
+    "gameplay changes or custom content are expected from loading this file. Follow the creation " ..
+    "and removal calls in order; to observe one override in-game while experimenting, edit the " ..
+    "corresponding removal call and reload, then inspect stone or an affected item stack."
 
 function modInit()
   local stone = betamoon.blocks:getRequired(1)

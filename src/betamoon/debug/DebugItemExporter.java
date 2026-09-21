@@ -1,6 +1,7 @@
 package betamoon.debug;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonCommon;
+
 import betamoon.io.IoUtils;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -14,7 +15,7 @@ import net.minecraft.src.ItemStack;
  * Exports item ids and names into the debug items file.
  */
 final class DebugItemExporter {
-    private static final java.util.logging.Logger LOGGER = BetaMoonMain.LOGGER;
+    private static final java.util.logging.Logger LOGGER = BetaMoonCommon.LOGGER;
 
     private DebugItemExporter() {
     }

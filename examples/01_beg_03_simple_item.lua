@@ -6,14 +6,19 @@
 
 name = "Custom Item Example"
 version = "2.0.0"
-description = "Declares a normal item with durability and stack settings."
+description = "Adds Example Item to demonstrate an item's name, inventory icon, stack limit, and durability " ..
+    "setting. It can stack up to 16 and declares 32 durability points.\n\n" ..
+    "No crafting recipe is included; obtain item ID 5000 with an inventory editor or item-spawning " ..
+    "tool. Move and split its stacks and select it in your hotbar to inspect its appearance. This " ..
+    "plain item has no special right-click action or automatic durability consumption; those " ..
+    "behaviors are introduced by the later interaction examples."
 
 function modInit()
   -- items:add creates a normal item. Pick an unused item ID of 256 or higher.
   betamoon.items:add {
     -- Keep these identity fields unique, just like a block declaration.
     id = 5000,
-    key = "example_item",
+    key = "example:item/example_item",
     displayName = "Example Item",
     -- maxStackSize limits how many fit in one inventory slot. maxDamage stores
     -- durability, although a plain item needs an action before it spends durability.

@@ -1,6 +1,7 @@
 package betamoon.wrappers;
 
 import betamoon.luaapi.block.BlockBox;
+import betamoon.luaapi.block.BlockModelRegistry;
 import betamoon.luaapi.block.BlockCallbackRegistry;
 import betamoon.luaapi.block.BlockCallback;
 import betamoon.luaapi.utils.InteractionOutcome;
@@ -439,6 +440,18 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
     }
 
     @Override
+    public boolean shouldSideBeRendered(IBlockAccess world, int x, int y, int z, int side) {
+        BlockDefinition definition = BlockCallbackRegistry.get(blockID);
+        if (!BlockModelRegistry.hasModels(blockID) && !isOpaqueCube() && definition != null
+                && definition.visual.renderType == 0
+                && (definition.visual.bounds == null || definition.visual.bounds.isFullCube())
+                && world.getBlockId(x, y, z) == blockID) {
+            return false;
+        }
+        return super.shouldSideBeRendered(world, x, y, z, side);
+    }
+
+    @Override
     public boolean renderAsNormalBlock() {
         BlockDefinition definition = BlockCallbackRegistry.get(blockID);
         // Vanilla uses this flag for suffocation, player push-out and solid support.
@@ -467,7 +480,7 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
     public AxisAlignedBB getSelectedBoundingBoxFromPool(World world, int x, int y, int z) {
         BlockDefinition def = BlockCallbackRegistry.get(blockID);
         return def != null && def.shapes.selection != null
-                ? def.shapes.selection.boundsAt(x, y, z)
+                ? def.orient(def.shapes.selection, world.getBlockMetadata(x, y, z)).boundsAt(x, y, z)
                 : super.getSelectedBoundingBoxFromPool(world, x, y, z);
     }
 
@@ -477,7 +490,8 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
         if (definition == null || definition.shapes.selection == null) {
             return super.collisionRayTrace(world, x, y, z, start, end);
         }
-        AxisAlignedBB selection = definition.shapes.selection.boundsAt(x, y, z);
+        BlockBox oriented = definition.orient(definition.shapes.selection, world.getBlockMetadata(x, y, z));
+        AxisAlignedBB selection = oriented.boundsAt(x, y, z);
         MovingObjectPosition hit = selection.func_1169_a(start, end);
         return hit == null ? null : new MovingObjectPosition(x, y, z, hit.sideHit, hit.hitVec);
     }
@@ -488,7 +502,9 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
         if (def == null || def.shapes.boxes == null) {
             return super.getCollisionBoundingBoxFromPool(world, x, y, z);
         }
-        return def.shapes.boxes.size() == 1 ? def.shapes.boxes.get(0).boundsAt(x, y, z) : null;
+        return def.shapes.boxes.size() == 1
+                ? def.orient(def.shapes.boxes.get(0), world.getBlockMetadata(x, y, z)).boundsAt(x, y, z)
+                : null;
     }
 
     @Override
@@ -500,7 +516,7 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
             return;
         }
         for (BlockBox box : def.shapes.boxes) {
-            AxisAlignedBB bounds = box.boundsAt(x, y, z);
+            AxisAlignedBB bounds = def.orient(box, world.getBlockMetadata(x, y, z)).boundsAt(x, y, z);
             if (bounds.intersectsWith(query)) {
                 output.add(bounds);
             }
@@ -529,6 +545,9 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
 
     @Override
     public int getRenderType() {
+        if (BlockModelRegistry.hasModels(blockID) && !BlockModelRegistry.isOrdinaryRendering(blockID)) {
+            return BlockModelRegistry.renderType();
+        }
         BlockDefinition definition = BlockCallbackRegistry.get(blockID);
         return definition == null ? super.getRenderType() : definition.visual.renderType;
     }
@@ -573,6 +592,15 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
 
     @Override
     public void setBlockBoundsBasedOnState(IBlockAccess world, int x, int y, int z) {
+        applyRenderBounds();
+    }
+
+    @Override
+    public void setBlockBoundsForItemRender() {
+        applyRenderBounds();
+    }
+
+    private void applyRenderBounds() {
         BlockDefinition definition = BlockCallbackRegistry.get(blockID);
         if (definition != null && definition.visual.bounds != null) {
             BlockBox bounds = definition.visual.bounds;

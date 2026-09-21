@@ -1,6 +1,7 @@
 package betamoon.recipes.custom;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonCommon;
+
 import betamoon.luamodloader.LuaScriptErrors;
 import betamoon.luamodloader.ScriptResourceTracker;
 import java.util.LinkedHashMap;
@@ -74,7 +75,7 @@ public final class RecipeMatcherRegistry {
             String detail = failure.getMessage() == null ? failure.toString() : failure.getMessage();
             String message = "recipe matcher '" + matcher.name + "' was disabled after an error: " + detail;
             LuaScriptErrors.add(matcher.owner, message);
-            BetaMoonMain.LOGGER.warning(matcher.owner + ": " + message);
+            BetaMoonCommon.LOGGER.warning(matcher.owner + ": " + message);
             return null;
         } finally {
             matcher.invoking = false;
