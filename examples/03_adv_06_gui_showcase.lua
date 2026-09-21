@@ -39,7 +39,7 @@ local BACKGROUND = "panel" -- Try "custom" or "builtin", then restart.
 function modInit()
   -- First we need a tileEntity to attach our GUI to.
   local showcaseEntity = betamoon.tileEntities:add {
-    name = "gui_showcase",
+    name = "example:block/gui_showcase",
     inventory = {
       name = "GUI Showcase",
       slots = { page = { index = 0 }, sample = { index = 1 } }
@@ -80,7 +80,7 @@ function modInit()
 
   -- This inventory GUI needs a container to connect real slots to the tile entity.
   local showcaseContainer = betamoon.containers:add {
-    name = "gui_showcase",
+    name = "example:block/gui_showcase",
     tileEntity = showcaseEntity,
     slots = {
       { name = "Page", slot = "page", x = 188, y = 158 },
@@ -104,7 +104,7 @@ function modInit()
   -- Here starts the actual GUI creation --
   -----------------------------------------
   local showcaseGui = betamoon.containerGuis:add {
-    name = "gui_showcase",
+    name = "example:block/gui_showcase",
     container = showcaseContainer,
     layout = {
       -- A preset normally supplies size, background, and label positions.
@@ -438,7 +438,8 @@ function modInit()
     id = BLOCK_ID,
     -- blockMaterials and stepSounds keep native block identifiers canonical.
     material = betamoon.mc.blockMaterials.rock,
-    key = "gui_showcase",
+    harvest = { pickaxe = 0 },
+    key = "example:block/gui_showcase",
     displayName = "GUI Showcase",
     hardness = 1.5,
     resistance = 5,

@@ -20,7 +20,7 @@ function modInit()
 
   -- get returns nil when optional content is absent. This lets scripts support
   -- another mod without failing when that mod is not installed.
-  local optional = betamoon.items:get("example:optional_item")
+  local optional = betamoon.items:get("example:item/optional_item")
   assert(optional == nil)
 
   -- Every reference exposes stable identity and display information.
@@ -35,7 +35,7 @@ function modInit()
   -- token reference describes the registered item type.
   local token = betamoon.items:add {
     id = 5024,
-    key = "reference_token",
+    key = "example:item/reference_token",
     displayName = "Reference Token",
     icon = { x = 7, y = 3 }
   }

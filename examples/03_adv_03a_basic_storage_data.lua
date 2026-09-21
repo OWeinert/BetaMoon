@@ -37,5 +37,5 @@ function modInit()
     }
   }
 
-  betamoon.modules:export("basic_storage_data", public)
+  betamoon.modules:export("example:module/basic_storage_data", public)
 end

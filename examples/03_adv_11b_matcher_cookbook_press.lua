@@ -25,10 +25,10 @@ description = "Adds Focused Press, a five-input machine that demonstrates choosi
 dependencies = { "Matcher Cookbook Type Example" }
 
 function modInit()
-  local recipeType = betamoon.modules:import("matcher_cookbook").recipeType
+  local recipeType = betamoon.modules:import("example:module/matcher_cookbook").recipeType
 
   betamoon.recipes:add {
-    key = "example:focused_stone_pressing",
+    key = "example:recipe/focused_stone_pressing",
     type = recipeType,
     ingredients = {
       materials = { { item = betamoon.blocks:getRequired(4), count = 4 } }
@@ -38,7 +38,7 @@ function modInit()
   }
 
   betamoon.recipes:add {
-    key = "example:focused_glass_pressing",
+    key = "example:recipe/focused_glass_pressing",
     type = recipeType,
     ingredients = {
       materials = { { item = betamoon.blocks:getRequired(12), count = 4 } },
@@ -55,7 +55,7 @@ function modInit()
   }
 
   local tileEntity = betamoon.tileEntities:add {
-    name = "focused_press",
+    name = "example:block/focused_press",
     inventory = {
       name = "Focused Press",
       slots = {
@@ -127,7 +127,7 @@ function modInit()
   }
 
   local container = betamoon.containers:add {
-    name = "focused_press",
+    name = "example:block/focused_press",
     tileEntity = tileEntity,
     slots = {
       { name = "Material 1", slot = "material_1", x = 20, y = 35 },
@@ -142,7 +142,7 @@ function modInit()
   }
 
   local gui = betamoon.containerGuis:add {
-    name = "focused_press",
+    name = "example:block/focused_press",
     container = container,
     layout = {
       -- gui.backgrounds and gui.sprites identify the built-in container assets.
@@ -168,20 +168,32 @@ function modInit()
 
   local press = betamoon.blocks:add {
     id = 227,
-    key = "focused_press",
+    key = "example:block/focused_press",
     displayName = "Focused Press",
     -- blockMaterials and stepSounds keep its native block identifiers canonical.
     material = betamoon.mc.blockMaterials.iron,
+    harvest = { pickaxe = 0 },
     hardness = 4,
     resistance = 10,
     texture = 42,
-    textures = { front = 61 },
+    state = {
+      facing = { type = "enum", values = { "north", "east", "south", "west" } }
+    },
+    placement = { facing = "horizontal", facingFrom = "player" },
+    render = {
+      variants = {
+        [0] = { textures = { north = 61 } },
+        [1] = { textures = { east = 61 } },
+        [2] = { textures = { south = 61 } },
+        [3] = { textures = { west = 61 } }
+      }
+    },
     stepSound = betamoon.mc.stepSounds.metal,
     tileEntity = tileEntity,
     container = container,
     gui = gui,
     piston = { reaction = "block" },
-    redstone = { connections = { "north" } },
+    redstone = { connections = { "front" } },
     drops = { { item = 227, damage = 0 } }
   }
 

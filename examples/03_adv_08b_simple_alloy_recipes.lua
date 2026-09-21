@@ -21,7 +21,7 @@ dependencies = { "Simple Alloy Recipe Type Example" }
 function modInit()
   -- bm is only a short local alias for betamoon; it is not a different API.
   local bm = betamoon
-  local types = bm.modules:import("custom_recipe_types")
+  local types = bm.modules:import("example:module/custom_recipe_types")
 
   -- Recipe declarations stay in this separate file so machine callbacks and
   -- persistent inventories remain loaded while these recipes are reloaded.
@@ -29,7 +29,7 @@ function modInit()
   -- Gold processing uses a stick as a reusable mold.
   -- Coal and charcoal both match because this ingredient explicitly ignores damage.
   bm.recipes:add {
-    key = "example:alloy_gold",
+    key = "example:recipe/alloy_gold",
     type = types.alloying,
     ingredients = {
       -- A stack is accepted directly as an exact ingredient. The additive uses
@@ -45,7 +45,7 @@ function modInit()
 
   -- Alternatives belong to one role; their quantity is declared once.
   bm.recipes:add {
-    key = "example:compress_building_material",
+    key = "example:recipe/compress_building_material",
     type = types.alloying,
     ingredients = {
       base = { anyOf = { bm.blocks:getRequired(3), bm.blocks:getRequired(4) }, count = 4 },

@@ -16,7 +16,7 @@ description = "Adds Lifecycle Observer, a block for testing placement, clicking,
 function modInit()
   local observer = betamoon.blocks:add {
     id = 218,
-    key = "lifecycle_observer",
+    key = "example:block/lifecycle_observer",
     displayName = "Lifecycle Observer",
     -- blockMaterials supplies the canonical glass material name.
     material = betamoon.mc.blockMaterials.glass,

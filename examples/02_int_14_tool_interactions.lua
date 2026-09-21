@@ -21,10 +21,11 @@ description = "Adds Wrench Practice Block, Example Wrench, and Example Multi-too
 function modInit()
   local practice = betamoon.blocks:add {
     id = 211,
-    key = "wrench_practice_block",
+    key = "example:block/wrench_practice_block",
     displayName = "Wrench Practice Block",
     -- blockMaterials keeps the native material name explicit and checked.
     material = betamoon.mc.blockMaterials.rock,
+    harvest = { pickaxe = 0 },
     hardness = 1,
     texture = 1,
     state = {
@@ -46,7 +47,7 @@ function modInit()
 
   local wrench = betamoon.items:add {
     id = 5021,
-    key = "example_wrench",
+    key = "example:item/example_wrench",
     displayName = "Example Wrench",
     icon = { x = 2, y = 6 },
     maxStackSize = 1,
@@ -57,25 +58,25 @@ function modInit()
         -- This runs before the target block opens a GUI or activates.
         local target = ctx.target.block
         if not target then
-          return "pass"
+          return betamoon.callbackResults.pass
         end
         local direction = ctx.player and ctx.player:isSneaking() and "counterclockwise" or "clockwise"
         -- rotate returns false when the targeted block has no supported facing.
         -- Passing then preserves normal interaction with unrelated blocks.
         if not target:rotate(direction) then
-          return "pass"
+          return betamoon.callbackResults.pass
         end
         -- This changes the actual held stack. Charge durability only after a
         -- successful rotation so unsuccessful clicks do not wear the wrench.
         ctx.stack:damage(1)
-        return "handled"
+        return betamoon.callbackResults.handled
       end
     }
   }
 
   local multiTool = betamoon.items:add {
     id = 5022,
-    key = "example_multi_tool",
+    key = "example:item/example_multi_tool",
     displayName = "Example Multi-tool",
     icon = { x = 2, y = 6 },
     maxStackSize = 1,

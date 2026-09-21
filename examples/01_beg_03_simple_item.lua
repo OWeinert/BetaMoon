@@ -18,7 +18,7 @@ function modInit()
   betamoon.items:add {
     -- Keep these identity fields unique, just like a block declaration.
     id = 5000,
-    key = "example_item",
+    key = "example:item/example_item",
     displayName = "Example Item",
     -- maxStackSize limits how many fit in one inventory slot. maxDamage stores
     -- durability, although a plain item needs an action before it spends durability.

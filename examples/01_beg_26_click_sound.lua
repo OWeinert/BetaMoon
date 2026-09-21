@@ -9,17 +9,17 @@ description = "Adds a clicker (5032). Copy click_sound/ beside this script, obta
 
 function modInit()
   local click = betamoon.assets.sounds:add {
-    key = "mymod:lessons/click",
+    key = "example:item/click",
     path = "click_sound/click.wav"
   }
 
   betamoon.items:add {
-    id = 5032, key = "lesson_clicker", displayName = "Clicker",
+    id = 5032, key = "example:item/lesson_clicker", displayName = "Clicker",
     icon = { x = 10, y = 3 },
     onUse = {
       action = function(ctx)
         betamoon.audio:play(click, { volume = 0.6 })
-        return "handled"
+        return betamoon.callbackResults.handled
       end
     }
   }

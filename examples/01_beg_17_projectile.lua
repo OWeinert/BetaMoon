@@ -18,7 +18,7 @@ function modInit()
   local snowball = betamoon.items:getRequired(332)
   local launcher = betamoon.items:add {
     id = 5023,
-    key = "example_snowball_launcher",
+    key = "example:item/example_snowball_launcher",
     displayName = "Snowball Launcher",
     icon = { x = 5, y = 1 },
     maxStackSize = 1,

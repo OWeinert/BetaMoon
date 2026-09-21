@@ -19,7 +19,7 @@ function modInit()
   -- protection value reduces more incoming damage.
   -- Create it once, then use the returned material for every piece in the set.
   local exampleMaterial = betamoon.materials.armor:add {
-    key = "EXAMPLE_ARMOR",
+    key = "example:armor_material/example_armor",
     protection = 2
   }
 
@@ -32,7 +32,7 @@ function modInit()
     id = 5008,
     material = exampleMaterial,
     slot = "helmet",
-    key = "example_helmet",
+    key = "example:item/example_helmet",
     displayName = "Example Helmet",
     texture = "example_armor_helmet.png",
     modelTexture = "example_armor_layer_1.png"
@@ -42,7 +42,7 @@ function modInit()
     id = 5009,
     material = exampleMaterial,
     slot = "chestplate",
-    key = "example_chestplate",
+    key = "example:item/example_chestplate",
     displayName = "Example Chestplate",
     texture = "example_armor_chestplate.png",
     modelTexture = "example_armor_layer_1.png"
@@ -53,7 +53,7 @@ function modInit()
     material = exampleMaterial,
     -- Leggings need layer 2 of the worn texture layout even though all pieces share one material.
     slot = "leggings",
-    key = "example_leggings",
+    key = "example:item/example_leggings",
     displayName = "Example Leggings",
     texture = "example_armor_leggings.png",
     modelTexture = "example_armor_layer_2.png"
@@ -63,7 +63,7 @@ function modInit()
     id = 5012,
     material = exampleMaterial,
     slot = "boots",
-    key = "example_boots",
+    key = "example:item/example_boots",
     displayName = "Example Boots",
     texture = "example_armor_boots.png",
     modelTexture = "example_armor_layer_1.png"

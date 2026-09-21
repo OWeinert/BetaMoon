@@ -23,14 +23,14 @@ description = "Adds Contextual Processor, a machine whose recipes depend on both
 dependencies = { "Contextual Recipe Type Example", "Contextual Recipes Example" }
 
 function modInit()
-  local recipeType = betamoon.modules:import("contextual_recipe_types").thermalProcessing
+  local recipeType = betamoon.modules:import("example:module/contextual_recipe_types").thermalProcessing
   local recipeSlots = {
     ingredients = { input = "input" },
     outputs = { result = "output" }
   }
 
   local tileEntity = betamoon.tileEntities:add {
-    name = "contextual_processor",
+    name = "example:block/contextual_processor",
     inventory = {
       name = "Contextual Processor",
       slots = {
@@ -126,7 +126,7 @@ function modInit()
   }
 
   local container = betamoon.containers:add {
-    name = "contextual_processor",
+    name = "example:block/contextual_processor",
     tileEntity = tileEntity,
     slots = {
       { name = "Input", slot = "input", x = 38, y = 35 },
@@ -137,7 +137,7 @@ function modInit()
   }
 
   local gui = betamoon.containerGuis:add {
-    name = "contextual_processor",
+    name = "example:block/contextual_processor",
     container = container,
     layout = {
       -- gui.backgrounds and gui.sprites identify the built-in container assets.
@@ -163,10 +163,11 @@ function modInit()
 
   local processor = betamoon.blocks:add {
     id = 226,
-    key = "contextual_processor",
+    key = "example:block/contextual_processor",
     displayName = "Contextual Processor",
     -- blockMaterials and stepSounds keep its native block identifiers canonical.
     material = betamoon.mc.blockMaterials.rock,
+    harvest = { pickaxe = 0 },
     hardness = 3.5,
     resistance = 5,
     stepSound = betamoon.mc.stepSounds.stone,

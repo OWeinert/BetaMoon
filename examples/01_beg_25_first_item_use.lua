@@ -14,7 +14,7 @@ description = "Adds Signal Bell, a consumable item with a sound, chat message, a
 function modInit()
   local signalBell = betamoon.items:add {
     id = 5028,
-    key = "first_signal_bell",
+    key = "example:item/first_signal_bell",
     displayName = "Signal Bell",
     icon = { x = 10, y = 3 },
     maxStackSize = 16,
@@ -29,7 +29,7 @@ function modInit()
         -- sounds.random contains named vanilla sounds. The matching raw string also works.
         ctx.world:playSound(betamoon.mc.sounds.random.pop, 0.6, 1.2)
         betamoon.chat:send("The signal bell rings")
-        return "handled"
+    return betamoon.callbackResults.handled
       end
     }
   }

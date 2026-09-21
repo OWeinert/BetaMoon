@@ -18,14 +18,14 @@ description = "Adds Basic Storage, a persistent nine-slot storage block assemble
 dependencies = { "Basic Storage Data Example", "Basic Storage Layout Example" }
 
 function modInit()
-  local dataDefinition = betamoon.modules:import("basic_storage_data")
-  local layoutDefinition = betamoon.modules:import("basic_storage_layout")
+  local dataDefinition = betamoon.modules:import("example:module/basic_storage_data")
+  local layoutDefinition = betamoon.modules:import("example:module/basic_storage_layout")
 
   -- The three structural handles and their block are deliberately registered
   -- together in this modInit. Imported modules only provide plain declarations,
   -- so all structural resources have one clear owner.
   local tileEntity = betamoon.tileEntities:add {
-    name = "basic_storage",
+    name = "example:block/basic_storage",
     inventory = dataDefinition.inventory,
     data = dataDefinition.data,
     onInventoryChanged = {
@@ -42,7 +42,7 @@ function modInit()
   }
 
   local container = betamoon.containers:add {
-    name = "basic_storage",
+    name = "example:block/basic_storage",
     tileEntity = tileEntity,
     slots = layoutDefinition.containerSlots,
     playerInventory = layoutDefinition.playerInventory
@@ -50,7 +50,7 @@ function modInit()
 
   local guiDefinition = layoutDefinition.gui
   local gui = betamoon.containerGuis:add {
-    name = "basic_storage",
+    name = "example:block/basic_storage",
     container = container,
     layout = guiDefinition.layout,
     background = guiDefinition.background,
@@ -59,14 +59,27 @@ function modInit()
 
   local storage = betamoon.blocks:add {
     id = 224,
-    key = "basic_storage",
+    key = "example:block/basic_storage",
     displayName = "Basic Storage",
     -- blockMaterials and stepSounds keep the two native block identifiers canonical.
     material = betamoon.mc.blockMaterials.wood,
+    harvest = { axe = 0 },
     hardness = 2.5,
     resistance = 5,
     stepSound = betamoon.mc.stepSounds.wood,
-    textures = { top = 25, bottom = 25, sides = 26, front = 27 },
+    textures = { top = 25, bottom = 25, sides = 26 },
+    state = {
+      facing = { type = "enum", values = { "north", "east", "south", "west" } }
+    },
+    placement = { facing = "horizontal", facingFrom = "player" },
+    render = {
+      variants = {
+        [0] = { textures = { north = 27 } },
+        [1] = { textures = { east = 27 } },
+        [2] = { textures = { south = 27 } },
+        [3] = { textures = { west = 27 } }
+      }
+    },
     tileEntity = tileEntity,
     container = container,
     gui = gui,

@@ -17,7 +17,7 @@ function modInit()
   -- chooses the strongest blocks it can harvest. durability is its number of
   -- uses, efficiency is suitable-block mining speed, and damage adds attack power.
   local exampleMaterial = betamoon.materials.tools:add {
-    key = "EXAMPLE_TOOLS",
+    key = "example:tool_material/example_tools",
     harvestLevel = 3,
     durability = 2048,
     efficiency = 7,
@@ -25,7 +25,7 @@ function modInit()
   }
 
   -- getRequired can find the same material later by its key.
-  assert(betamoon.materials.tools:getRequired("EXAMPLE_TOOLS") == exampleMaterial)
+  assert(betamoon.materials.tools:getRequired("example:tool_material/example_tools") == exampleMaterial)
 
   -- BetaMoon can create axes, pickaxes, shovels, hoes, and swords.
   local toolTypes = {
@@ -43,7 +43,7 @@ function modInit()
       id = 5001 + index,
       type = toolType,
       material = exampleMaterial,
-      key = "example_" .. toolType,
+      key = "example:item/example_" .. toolType,
       displayName = "Example " .. toolType,
       -- full3D makes the item look like a normal tool when held.
       full3D = true,

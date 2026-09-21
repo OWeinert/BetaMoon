@@ -19,10 +19,11 @@ description = "Adds Directional Switch, a manually toggled redstone source whose
 function modInit()
   local switch = betamoon.blocks:add {
     id = 212,
-    key = "example_redstone_switch",
+    key = "example:block/example_redstone_switch",
     displayName = "Directional Switch",
     -- blockMaterials supplies the canonical native material name.
     material = betamoon.mc.blockMaterials.rock,
+    harvest = { pickaxe = 0 },
     hardness = 1,
     texture = 1,
     -- Alphabetical packing: facing occupies bits 0..1, powered occupies bit 2.
@@ -62,7 +63,7 @@ function modInit()
         ctx.state:set("powered", not ctx.state:get("powered"))
         -- sounds.random supplies the canonical vanilla click identifier.
         ctx.world:playSound(betamoon.mc.sounds.random.click, 0.5, 1)
-        return "handled"
+        return betamoon.callbackResults.handled
       end
     }
   }

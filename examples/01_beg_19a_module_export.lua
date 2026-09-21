@@ -23,7 +23,7 @@ function modInit()
     -- blockMaterials contains checked names for Minecraft's built-in materials.
     -- Its values are ordinary strings, so writing "rock" directly remains valid.
     material = betamoon.mc.blockMaterials.rock,
-    key = "exported_block",
+    key = "example:block/exported_block",
     displayName = "Exported Block",
     hardness = 2,
     resistance = 5,
@@ -33,5 +33,5 @@ function modInit()
 
   -- Export only after the public table is complete. export accepts the table but
   -- returns nothing. The key remains stable even when this filename changes.
-  betamoon.modules:export("script_export", public)
+  betamoon.modules:export("example:module/script_export", public)
 end

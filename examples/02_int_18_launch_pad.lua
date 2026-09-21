@@ -16,10 +16,11 @@ function modInit()
   local padBox = { min = { 0, 0, 0 }, max = { 1, 0.25, 1 } }
   local pad = betamoon.blocks:add {
     id = 214,
-    key = "example_launch_pad",
+    key = "example:block/example_launch_pad",
     displayName = "Launch Pad",
     -- blockMaterials supplies the canonical native material name.
     material = betamoon.mc.blockMaterials.wood,
+    harvest = { axe = 0 },
     texture = 4,
     hardness = 0.5,
     opaque = false,

@@ -19,7 +19,7 @@ function modInit()
   local public = {}
 
   public.thermalProcessing = betamoon.recipeTypes:add {
-    name = "example:thermal_processing",
+    name = "example:recipe_type/thermal_processing",
     displayName = "Thermal Processing",
     ingredients = {
       input = { type = "item" }
@@ -36,5 +36,5 @@ function modInit()
     }
   }
 
-  betamoon.modules:export("contextual_recipe_types", public)
+  betamoon.modules:export("example:module/contextual_recipe_types", public)
 end

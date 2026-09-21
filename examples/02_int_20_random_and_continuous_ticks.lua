@@ -17,10 +17,11 @@ description = "Adds Continuous Pulse Block and Weathering Block to compare conti
 function modInit()
   betamoon.blocks:add {
     id = 222,
-    key = "continuous_pulse_block",
+    key = "example:block/continuous_pulse_block",
     displayName = "Continuous Pulse Block",
     -- blockMaterials supplies the canonical native material name.
     material = betamoon.mc.blockMaterials.rock,
+    harvest = { pickaxe = 0 },
     hardness = 1,
     texture = 1,
     state = {
@@ -43,9 +44,10 @@ function modInit()
 
   betamoon.blocks:add {
     id = 223,
-    key = "weathering_block",
+    key = "example:block/weathering_block",
     displayName = "Weathering Block",
     material = betamoon.mc.blockMaterials.rock,
+    harvest = { pickaxe = 0 },
     hardness = 1,
     texture = 4,
     state = {

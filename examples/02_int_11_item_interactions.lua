@@ -17,7 +17,7 @@ description = "Adds Healing Powder, a consumable item with a healing action and 
 function modInit()
   local powder = betamoon.items:add {
     id = 5020,
-    key = "healing_powder",
+    key = "example:item/healing_powder",
     displayName = "Healing Powder",
     icon = { x = 13, y = 3 },
     maxStackSize = 16,
@@ -31,12 +31,12 @@ function modInit()
         -- Some contexts can lack a player. Check optional access before use.
         -- deny exits without performing the healing action below.
         if not ctx.player then
-          return "deny"
+          return betamoon.callbackResults.deny
         end
         ctx.player:heal(6)
         -- sounds.random supplies canonical vanilla sound names.
         ctx.world:playSound(betamoon.mc.sounds.random.pop, 0.4, 1.2)
-        return "handled"
+        return betamoon.callbackResults.handled
       end
     },
     onInventoryTick = {

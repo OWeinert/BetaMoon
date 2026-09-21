@@ -28,7 +28,7 @@ function modInit()
   -- A tile entity stores information for one placed block. Normal blocks only
   -- store an ID and damage value, which is not enough for inventories or timers.
   local fastFurnaceEntity = betamoon.tileEntities:add {
-    name = "fast_furnace",
+    name = "example:block/fast_furnace",
 
     -- These names make the three inventory positions easy to understand in Lua.
     -- Explicit indexes keep the saved inventory layout stable in later versions.
@@ -141,7 +141,7 @@ function modInit()
   -- A container describes the real inventory slots and their screen positions.
   -- It controls item interaction; it does not draw anything by itself.
   local fastFurnaceContainer = betamoon.containers:add {
-    name = "fast_furnace",
+    name = "example:block/fast_furnace",
     tileEntity = fastFurnaceEntity,
 
     slots = {
@@ -166,7 +166,7 @@ function modInit()
   -- The GUI showcase explains most of the ContainerGUI API
   -- -> 03_adv_06_gui_showcase.lua
   local fastFurnaceGui = betamoon.containerGuis:add {
-    name = "fast_furnace",
+    name = "example:block/fast_furnace",
     container = fastFurnaceContainer,
 
     -- A preset supplies the normal furnace size, background, and label positions.
@@ -230,7 +230,8 @@ function modInit()
     id = 204,
     -- blockMaterials and stepSounds keep native block identifiers canonical.
     material = betamoon.mc.blockMaterials.rock,
-    key = "fast_furnace",
+    harvest = { pickaxe = 0 },
+    key = "example:block/fast_furnace",
     displayName = "Fast Furnace",
     hardness = 3.5,
     resistance = 5,

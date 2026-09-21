@@ -85,6 +85,7 @@ state, physical behavior, and event-driven logic.
 | 20 | `02_int_20_random_and_continuous_ticks.lua` | Default and vanilla random block ticks |
 | 21 | `02_int_21_scheduled_and_display_ticks.lua` | Scheduled gameplay ticks and client display ticks |
 | 22 | `02_int_22_redstone_switch.lua` | Directional digital redstone output |
+| 23 | `02_int_23_first_entity.lua` | Model-backed prop declaration and spawning from an item |
 
 ## Advanced
 
@@ -104,6 +105,7 @@ together and read its dependency comments before loading it.
 | 09a–09c | `03_adv_09a_contextual_recipe_type.lua`, `03_adv_09b_contextual_recipes.lua`, `03_adv_09c_contextual_processor.lua` | Heat/power conditions and commit-time context revalidation |
 | 10a–10c | `03_adv_10a_advanced_fabrication_types.lua`, `03_adv_10b_advanced_fabrication_recipes.lua`, `03_adv_10c_advanced_fabricator.lua` | Pools, grids, custom matching, bindings, and atomic processing |
 | 11a–11b | `03_adv_11a_matcher_cookbook_type.lua`, `03_adv_11b_matcher_cookbook_press.lua` | A context-driven custom allocation policy in a working machine |
+| 12 | `03_adv_12_entity_data.lua` | Model-backed entity with persistent interaction data |
 
 ## Trying the interactive examples
 
@@ -111,7 +113,7 @@ together and read its dependency comments before loading it.
 | --- | --- |
 | Beginner 09 | **Mosaic Block** (232) and **Mosaic Token** (5030): compare one registered texture on both. |
 | Beginner 17 | **Snowball Launcher** (5023): two iron ingots + snowball. Carry snowball ammunition and right-click. |
-| Beginner 21 | **Slab Sample** (5031): compare its 3D model in inventory, hand, and on the ground. |
+| Beginner 21 | **Slab Model Item** (5031): compare its 3D model in inventory, hand, and on the ground. |
 | Beginner 24 | **Greeting Block** (228): cobblestone + stick. Place and right-click it to report its position. |
 | Beginner 25 | **Signal Bell** (5028): sugar + redstone makes four. Right-click to play its sound and consume one. |
 | Beginner 26 | **Clicker** (5032): right-click to hear the local WAV. |
@@ -119,17 +121,20 @@ together and read its dependency comments before loading it.
 | Intermediate 09 | **Attached Lamp** (217): stone + glowstone dust makes four. Attach one to any solid face and remove its support. |
 | Intermediate 10 | **Lifecycle Observer** (218): stone + paper. Click it, alter a neighbor, collide with it, then break or explode it. |
 | Intermediate 11 | **Healing Powder** (5020): sugar + wheat makes two. Right-click to heal with a one-second cooldown. |
-| Intermediate 12 | **Desk Lamp** (5033): compare its exported model in three item contexts. |
+| Intermediate 12 | **Desk Lamp Model Item** (5033): compare its exported model in three item contexts. |
 | Intermediate 13 | **Example Surveyor** (5026): iron + redstone. Use it on a block, in the air, or on an entity. |
 | Intermediate 14 | **Wrench**, **Multi-tool**, and **Practice Block** (5021, 5022, 211): craft from iron, stick, and cobblestone. |
 | Intermediate 15 | **Adaptive Pick** (5027): diamond over two sticks. Compare ores, obsidian, and ordinary stone. |
 | Intermediate 16 | **Climbing Post** (215): planks + stick makes four. Stack them and move against their narrow shape. |
-| Intermediate 17 | **Facing Stair Display** (233): place from different directions; collision stays cubic. |
+| Intermediate 17 | **Facing Stair Display** (233): place from different directions and walk over its rotated stair collision. |
 | Intermediate 18 | **Launch Pad** (214): planks + redstone. Walk onto it while moving to see horizontal speed preserved. |
 | Intermediate 19 | Blocks 219–221: obtain the sprout, luminous glass, and sealed casing through a creative/debug inventory. |
 | Intermediate 20 | Blocks 222–223: obtain both through a creative/debug inventory and compare their update timing. |
 | Intermediate 22 | **Directional Switch** (212): stone + redstone. Toggle it and connect wire to its output face. |
-| Advanced 01 | **Clockwork Bird** (5034): observe clip animation with Lua head movement. |
+| Intermediate 23 | **Stone Sample Entity**: obtain Sample Placer (5035), copy `builtin_model_item/`, place it, then punch it to recover the placer. |
+| Intermediate 24 | **Pebble Launcher** (5037): copy `entity_examples/`, carry cobblestone, and fire a custom projectile. |
+| Intermediate 25 | **Gem Dropper** (5038): place a typed pickup and collect its full stack. |
+| Advanced 01 | **Clockwork Bird Model Item** (5034): observe clip animation with Lua head movement. |
 | Advanced 02 | **Pulse Timer** (213): cobblestone + redstone. A rising north input produces a one-second south output. |
 | Advanced 03 | **Basic Storage** (224): chest surrounded by planks. Its screen reports occupied saved slots. |
 | Advanced 04 | **Fast Furnace** (204): vanilla furnace surrounded by iron. It uses normal smelting recipes in 100 ticks. |
@@ -140,16 +145,14 @@ together and read its dependency comments before loading it.
 | Advanced 09 | **Contextual Processor** (226): process dirt cold/unpowered, or heat sand with fuel and redstone. |
 | Advanced 10 | **Advanced Fabricator** (216): see the fabrication table below. |
 | Advanced 11 | **Focused Press** (227): its matcher prefers material slot 1 unpowered and slot 5 powered. |
+| Advanced 12 | **Data Totem**: obtain Data Totem Placer (5036), place and click it to check saved data, then punch it to recover the placer. |
+| Advanced 13 | **Clockwork Watcher** (5039): copy `animated_model_item/`, place a living creature, and test its wandering and retaliation. |
+| Advanced 14 | **Manual Guardian** (5040): copy `animated_model_item/`, place it, and inspect Lua-controlled decisions and optional head/wing hitboxes. |
 
 ## Multi-file lesson details
 
 - Beginner 19 requires both module files. The exporter constructs its local public
   table inside `modInit` and publishes it as the final initialization action.
-
-- Advanced 03 keeps persistent indexes, screen layout, and structural registration
-  separate. The first two scripts export plain declaration tables. The third imports
-  them and registers all structural handles under one owner, preserving BetaMoon's
-  tile/container/GUI compatibility rules.
 
 - Advanced 08 creates these simple alloy recipes:
 
@@ -186,9 +189,9 @@ together and read its dependency comments before loading it.
 
 ## Assets
 
-- For each new asset lesson, copy its matching folder beside the Lua script: `mymod/` for Beginner 09,
+- For each new asset lesson, copy its matching folder beside the Lua script: `example/` for Beginner 09,
   `builtin_model_item/`, `click_sound/`, `blockbench_model_item/`,
-  `facing_model_block/`, `animated_model_item/`, or `animated_machine/`.
+  `facing_model_block/`, `animated_model_item/`, `animated_machine/`, or `entity_examples/`.
   Keep the folder name and contents unchanged.
 
 - Beginner 08 needs `example_block.png`. Beginner 14 needs the six

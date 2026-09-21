@@ -19,7 +19,7 @@ function modInit()
     id = 206,
     -- blockMaterials lists the built-in materials a block can use; "rock" also works.
     material = betamoon.mc.blockMaterials.rock,
-    key = "example_ore",
+    key = "example:block/example_ore",
     displayName = "Example Ore",
     hardness = 3,
     resistance = 5,

@@ -31,7 +31,7 @@ function modInit()
   end
 
   local matcher = betamoon.recipeMatchers:add {
-    name = "example:preferred_single_stack",
+    name = "example:recipe_matcher/preferred_single_stack",
     match = function(recipe, snapshot, context, plan)
       local requirements = recipe.ingredients.materials
       if #requirements ~= 1 then
@@ -81,7 +81,7 @@ function modInit()
   }
 
   local recipeType = betamoon.recipeTypes:add {
-    name = "example:focused_pressing",
+    name = "example:recipe_type/focused_pressing",
     displayName = "Focused Pressing",
     matcher = matcher,
     ingredients = {
@@ -103,5 +103,5 @@ function modInit()
     matcher = matcher,
     recipeType = recipeType
   }
-  betamoon.modules:export("matcher_cookbook", public)
+  betamoon.modules:export("example:module/matcher_cookbook", public)
 end

@@ -20,10 +20,11 @@ description = "Adds Pulse Timer, a redstone block that turns an incoming signal 
 function modInit()
   local timer = betamoon.blocks:add {
     id = 213,
-    key = "example_pulse_timer",
+    key = "example:block/example_pulse_timer",
     displayName = "Pulse Timer",
     -- blockMaterials and blockFaces keep the native material and absolute output face canonical.
     material = betamoon.mc.blockMaterials.rock,
+    harvest = { pickaxe = 0 },
     hardness = 1,
     texture = 1,
     textures = { north = 61, south = 62 },
