@@ -17,7 +17,7 @@ description = "Adds Example Surveyor, a reusable item demonstrating separate blo
 function modInit()
   local surveyor = betamoon.items:add {
     id = 5026,
-    key = "example_surveyor",
+    key = "example:item/example_surveyor",
     displayName = "Example Surveyor",
     icon = { x = 8, y = 3 },
     maxStackSize = 1,
@@ -31,7 +31,7 @@ function modInit()
       action = function(ctx)
         local target = ctx.target
         if target.kind ~= "block" or not target.block or not ctx.position then
-          return "pass"
+          return betamoon.callbackResults.pass
         end
 
         betamoon.chat:send(
@@ -43,7 +43,7 @@ function modInit()
           ctx.face or "unknown"
         )
         ctx.stack:damage(1)
-        return "handled"
+        return betamoon.callbackResults.handled
       end
     },
     onUse = {
@@ -59,22 +59,22 @@ function modInit()
             target.position.z
           )
           ctx.stack:damage(1)
-          return "handled"
+          return betamoon.callbackResults.handled
         end
 
         betamoon.chat:send("No block within 12 blocks")
-        return "pass"
+        return betamoon.callbackResults.pass
       end
     },
     onUseOnEntity = {
       action = function(ctx)
         if not ctx.entity then
-          return "pass"
+          return betamoon.callbackResults.pass
         end
         -- setVelocity replaces all three motion components for the target entity.
         ctx.entity:setVelocity(0, 0.6, 0)
         ctx.stack:damage(2)
-        return "handled"
+        return betamoon.callbackResults.handled
       end
     }
   }

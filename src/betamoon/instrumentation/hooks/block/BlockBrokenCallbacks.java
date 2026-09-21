@@ -1,6 +1,7 @@
 package betamoon.instrumentation.hooks.block;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonCommon;
+
 import betamoon.event.Events;
 import betamoon.event.context.BlockEventCtx;
 import betamoon.luaapi.block.BlockCallbackRegistry;
@@ -29,7 +30,7 @@ public final class BlockBrokenCallbacks {
             }
             return new BlockSnapshot(minecraft, world, x, y, z, side, blockId, world.getBlockMetadata(x, y, z));
         } catch (RuntimeException error) {
-            BetaMoonMain.LOGGER.warning("Block-broken capture failed: " + error);
+            BetaMoonCommon.LOGGER.warning("Block-broken capture failed: " + error);
             return null;
         }
     }
@@ -54,7 +55,7 @@ public final class BlockBrokenCallbacks {
                     new BlockEventCtx(snapshot.getMinecraft(), snapshot.getWorld(), snapshot.getX(), snapshot.getY(),
                             snapshot.getZ(), snapshot.getSide(), snapshot.getBlockId(), snapshot.getBlockMeta()));
         } catch (RuntimeException error) {
-            BetaMoonMain.LOGGER.warning("Block-broken hook listener failed: " + error);
+            BetaMoonCommon.LOGGER.warning("Block-broken hook listener failed: " + error);
         }
     }
 }

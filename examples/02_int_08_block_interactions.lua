@@ -22,10 +22,11 @@ description = "Adds Interaction Block with two saved states: active and locked. 
 function modInit()
   local block = betamoon.blocks:add {
     id = 210,
-    key = "interaction_block",
+    key = "example:block/interaction_block",
     displayName = "Interaction Block",
     -- blockMaterials avoids embedding Minecraft's internal material spelling.
     material = betamoon.mc.blockMaterials.rock,
+    harvest = { pickaxe = 0 },
     hardness = 1,
     texture = 1,
 
@@ -58,7 +59,7 @@ function modInit()
         -- handled stops the normal activation path. pass (or nil) would let it
         -- continue; deny rejects the interaction and its general-use fallback.
         -- Queries such as canBreak use true/false instead of these strings.
-        return "handled"
+        return betamoon.callbackResults.handled
       end
     },
     canBreak = {

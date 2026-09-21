@@ -21,7 +21,7 @@ description = "Adds Tile Redstone Controller, a saved toggle with a control-key 
 
 function modInit()
   local tileEntity = betamoon.tileEntities:add {
-    name = "tile_redstone_controller",
+    name = "example:block/tile_redstone_controller",
     inventory = {
       name = "Redstone Controller",
       slots = { controlKey = { index = 0 } }
@@ -34,7 +34,7 @@ function modInit()
   }
 
   local container = betamoon.containers:add {
-    name = "tile_redstone_controller",
+    name = "example:block/tile_redstone_controller",
     tileEntity = tileEntity,
     slots = {
       { name = "Control Key", slot = "controlKey", x = 80, y = 35 }
@@ -43,7 +43,7 @@ function modInit()
   }
 
   local gui = betamoon.containerGuis:add {
-    name = "tile_redstone_controller",
+    name = "example:block/tile_redstone_controller",
     container = container,
     layout = {
       -- gui.backgrounds identifies the built-in container layout.
@@ -65,10 +65,11 @@ function modInit()
 
   local controller = betamoon.blocks:add {
     id = 225,
-    key = "tile_redstone_controller",
+    key = "example:block/tile_redstone_controller",
     displayName = "Tile Redstone Controller",
     -- blockMaterials supplies the canonical native material identifier.
     material = betamoon.mc.blockMaterials.rock,
+    harvest = { pickaxe = 0 },
     hardness = 1.5,
     resistance = 8,
     texture = 1,

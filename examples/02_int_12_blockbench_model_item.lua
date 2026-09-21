@@ -9,11 +9,11 @@ description = "Adds a modelled desk lamp (5033). Copy blockbench_model_item/ bes
 
 function modInit()
   local lampModel = betamoon.assets.models:add {
-    key = "mymod:lessons/desk_lamp",
+    key = "example:item/desk_lamp",
     path = "blockbench_model_item/desk_lamp.json"
   }
   local lampTexture = betamoon.assets.textures:add {
-    key = "mymod:lessons/desk_lamp",
+    key = "example:item/desk_lamp",
     path = "blockbench_model_item/desk_lamp.png"
   }
 
@@ -21,7 +21,7 @@ function modInit()
   assert(pose:hasPart("shade"), "The model must keep its named shade part")
 
   betamoon.items:add {
-    id = 5033, key = "lesson_desk_lamp", displayName = "Desk Lamp",
+    id = 5033, key = "example:item/lesson_desk_lamp", displayName = "Desk Lamp Model Item",
     appearance = {
       model = lampModel, texture = lampTexture,
       display = {

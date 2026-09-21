@@ -18,10 +18,10 @@ dependencies = { "Advanced Fabrication Types Example" }
 
 function modInit()
   local bm = betamoon
-  local types = bm.modules:import("advanced_fabrication_types")
+  local types = bm.modules:import("example:module/advanced_fabrication_types")
 
   bm.recipes:add {
-    key = "example:coarse_ceramic_mix",
+    key = "example:recipe/coarse_ceramic_mix",
     type = types.bulkMixing,
     ingredients = {
       -- Pool requirements form a list, not named single slots. The exact
@@ -39,7 +39,7 @@ function modInit()
   }
 
   bm.recipes:add {
-    key = "example:reinforced_frame",
+    key = "example:recipe/reinforced_frame",
     type = types.gridAssembly,
     ingredients = {
       work = {
@@ -56,7 +56,7 @@ function modInit()
   }
 
   bm.recipes:add {
-    key = "example:ordered_tempering",
+    key = "example:recipe/ordered_tempering",
     type = types.sequenceAssembly,
     -- Requirement order is meaningful to adjacentSequence: iron must occupy
     -- the cell immediately before coal. Reversing the cells does not match.

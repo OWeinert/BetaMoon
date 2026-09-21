@@ -15,7 +15,7 @@ description = "Adds three visual subtypes of Example Crystal under one item ID, 
 function modInit()
   local crystal = betamoon.items:add {
     id = 5025,
-    key = "example_crystal",
+    key = "example:item/example_crystal",
     displayName = "Example Crystal",
     maxStackSize = 64,
     -- hasSubtypes tells Minecraft that damage selects a kind of crystal instead

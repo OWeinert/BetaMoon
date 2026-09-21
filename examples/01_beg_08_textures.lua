@@ -22,7 +22,8 @@ function modInit()
   betamoon.blocks:add {
     id = 201,
     material = betamoon.mc.blockMaterials.rock,
-    key = "textured_block",
+    harvest = { pickaxe = 0 },
+    key = "example:block/textured_block",
     displayName = "Textured Block",
     texture = "example_block.png"
   }
@@ -32,7 +33,8 @@ function modInit()
   betamoon.blocks:add {
     id = 202,
     material = betamoon.mc.blockMaterials.rock,
-    key = "sided_block",
+    harvest = { pickaxe = 0 },
+    key = "example:block/sided_block",
     displayName = "Sided Block",
     textures = {
       -- Numbers select vanilla block-atlas cells; the file supplies a custom side.
@@ -45,7 +47,7 @@ function modInit()
   -- Custom images work for items too.
   betamoon.items:add {
     id = 5015,
-    key = "textured_item",
+    key = "example:item/textured_item",
     displayName = "Textured Item",
     texture = "example_block.png"
   }

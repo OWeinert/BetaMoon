@@ -7,6 +7,8 @@ import betamoon.instrumentation.registry.BuiltinHookModules;
 import betamoon.instrumentation.registry.ClassTransformPlan;
 import betamoon.instrumentation.registry.HookRegistry;
 import betamoon.instrumentation.transform.BetaMoonTransformer;
+import betamoon.runtime.RuntimeEnvironment;
+import betamoon.runtime.RuntimeSide;
 import java.io.InputStream;
 import java.lang.instrument.Instrumentation;
 import java.util.Map;
@@ -34,14 +36,15 @@ public final class BetaMoonAgent {
             options = AgentOptions.parse(rawOptions);
             TinyMappingResolver mappings = loadMappings();
             HookRegistry registry = new HookRegistry(report);
-            BuiltinHookModules.registerAll(registry);
-            Map<String, ClassTransformPlan> plans = registry.freeze(mappings, RuntimeNamespace.NAMED,
-                    RuntimeNamespace.CLIENT);
+            RuntimeSide side = RuntimeEnvironment.side();
+            BuiltinHookModules.registerForSide(registry, side);
+            Map<String, ClassTransformPlan> plans = freeze(registry, mappings, side);
             instrumentation.addTransformer(
                     new BetaMoonTransformer(plans, mappings, report, options.isStrict(), options.isDebug()), false);
             AgentRuntime.activate();
             System.out
-                    .println("[BetaMoon Agent] Instrumentation active with " + plans.size() + " target class name(s)");
+                    .println("[BetaMoon Agent] Instrumentation active for " + side + " with " + plans.size()
+                            + " target class name(s)");
         } catch (Throwable error) {
             String message = "Agent initialization failed: " + error.getMessage();
             AgentRuntime.fail(message);
@@ -51,6 +54,17 @@ public final class BetaMoonAgent {
                 throw new IllegalStateException(message, error);
             }
         }
+    }
+
+    private static Map<String, ClassTransformPlan> freeze(HookRegistry registry, TinyMappingResolver mappings,
+            RuntimeSide side) {
+        if (side == RuntimeSide.CLIENT) {
+            return registry.freeze(mappings, RuntimeNamespace.NAMED, RuntimeNamespace.CLIENT);
+        }
+        if (side == RuntimeSide.DEDICATED_SERVER) {
+            return registry.freeze(mappings, RuntimeNamespace.NAMED, RuntimeNamespace.SERVER);
+        }
+        return registry.freeze(mappings, RuntimeNamespace.NAMED);
     }
 
     public static boolean isRegistered() {

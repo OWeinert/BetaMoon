@@ -2,29 +2,22 @@ package betamoon;
 
 import betamoon.client.assets.ClientAssets;
 import betamoon.client.audio.ClientAudio;
-import betamoon.luaapi.block.BlockModelRegistry;
-
+import betamoon.client.audio.ClientEntityEffects;
+import betamoon.client.network.ClientNetworkSession;
+import betamoon.client.render.ClientEntityPresentationResources;
+import betamoon.client.LuaLoaderClientFeedback;
 import betamoon.config.BetaMoonConfig;
+import betamoon.luaapi.block.BlockModelRegistry;
 import betamoon.gui.GuiBetaMoonIngameMenu;
 import betamoon.gui.GuiBetaMoonMainMenu;
 import betamoon.gui.GuiPopupAgentWarning;
 import betamoon.gui.GuiPopupScriptErrors;
-import betamoon.instrumentation.agent.AgentStatus;
-import betamoon.instrumentation.agent.BetaMoonAgent;
 import betamoon.luaapi.chat.ChatApi;
-import betamoon.luamodloader.LuaModLoader;
 import betamoon.luamodloader.LuaScriptErrors;
-import betamoon.recipes.RecipeModificationHandler;
-import betamoon.worldgen.WorldGenRegistry;
 import betamoon.update.UpdateChecker;
 import betamoon.update.UpdateRelease;
 import java.util.Random;
-import java.util.logging.Formatter;
-import java.util.logging.Handler;
-import java.util.logging.Level;
-import java.util.logging.LogRecord;
 import java.util.logging.Logger;
-import java.util.logging.StreamHandler;
 import net.minecraft.src.BaseMod;
 import net.minecraft.src.GuiIngameMenu;
 import net.minecraft.src.GuiMainMenu;
@@ -34,52 +27,41 @@ import net.minecraft.src.ModLoader;
 import net.minecraft.src.World;
 import org.lwjgl.input.Keyboard;
 
-public final class BetaMoonMain {
-    private static BetaMoonMain instance;
+/** Client entry point and owner of all Minecraft client integrations. */
+public final class BetaMoonClient {
+    private static BetaMoonClient instance;
 
-    private static final String VERSION = "0.7.0";
-    public static final String LUA_SCRIPTS_DIR = "lua_scripts";
-    public static final Logger LOGGER = Logger.getLogger("BetaMoon");
-    static {
-        configureLogger();
-    }
+    public static final Logger LOGGER = BetaMoonCommon.LOGGER;
 
+    private final BetaMoonCommon common;
     private final BetaMoonEventHandler eventHandler;
     private final BetaMoonConfig config;
-    private final LuaModLoader luaModLoader;
     private final BaseMod betaMoonBaseMod;
     private final boolean agentRegistered;
     private final UpdateChecker updateChecker = new UpdateChecker(LOGGER);
+    private final ClientNetworkSession networkSession;
     private boolean updateNotifiedInWorld;
 
     private boolean finishedLoading = false;
-    private boolean loadedScripts = false;
     private boolean agentWarningShown = false;
 
-    private BetaMoonMain(BaseMod baseMod) {
+    private BetaMoonClient(BaseMod baseMod) {
         this.betaMoonBaseMod = baseMod;
+        this.common = new BetaMoonCommon();
+        ClientEntityEffects.initialize();
+        ClientEntityPresentationResources.initialize();
+        LuaLoaderClientFeedback.initialize();
+        this.networkSession = ClientNetworkSession.initialize();
         BlockModelRegistry.initialize(baseMod);
-        this.agentRegistered = BetaMoonAgent.isRegistered();
-        if (!this.agentRegistered) {
-            String failure = BetaMoonAgent.getFailureMessage();
-            if (BetaMoonAgent.getStatus() == AgentStatus.FAILED && failure != null) {
-                LOGGER.warning("The BetaMoon Java agent failed to initialize: " + failure);
-            } else {
-                LOGGER.warning("The BetaMoon Java agent is not enabled. Some BetaMoon features may be unavailable!");
-            }
-        } else if (BetaMoonAgent.getStatus() == AgentStatus.DEGRADED) {
-            LOGGER.warning(
-                    "The BetaMoon Java agent is active with hook failures: " + BetaMoonAgent.getFailureMessage());
-        }
+        this.agentRegistered = common.isAgentRegistered();
         this.config = new BetaMoonConfig("betamoon.config");
         this.eventHandler = new BetaMoonEventHandler();
-        this.luaModLoader = new LuaModLoader();
         setInitHooks(this.betaMoonBaseMod);
     }
 
-    public static synchronized BetaMoonMain create(BaseMod baseMod) {
+    public static synchronized BetaMoonClient create(BaseMod baseMod) {
         if (instance == null) {
-            instance = new BetaMoonMain(baseMod);
+            instance = new BetaMoonClient(baseMod);
         } else if (baseMod != null) {
             LOGGER.warning(
                     "External source tried to re-initialize BetaMoon from: " + baseMod.getClass().getName() + "!");
@@ -89,7 +71,7 @@ public final class BetaMoonMain {
         return instance;
     }
 
-    public static BetaMoonMain getInstance() {
+    public static BetaMoonClient getInstance() {
         return instance;
     }
 
@@ -110,8 +92,8 @@ public final class BetaMoonMain {
     }
 
     public boolean onTickInGUI(net.minecraft.client.Minecraft mc, GuiScreen current) {
-        if (loadedScripts) {
-            luaModLoader.pollForChanges();
+        if (common.areScriptsLoaded()) {
+            pollScriptChanges();
             ClientAssets.poll();
         }
         ClientAudio.tick();
@@ -122,8 +104,8 @@ public final class BetaMoonMain {
     }
 
     public boolean onTickInGame(net.minecraft.client.Minecraft mc) {
-        if (loadedScripts) {
-            luaModLoader.pollForChanges();
+        if (common.areScriptsLoaded()) {
+            pollScriptChanges();
             ClientAssets.poll();
         }
         ClientAudio.tick();
@@ -134,7 +116,13 @@ public final class BetaMoonMain {
     }
 
     public void reloadLuaScripts() {
-        luaModLoader.reloadAll();
+        common.reloadScripts();
+    }
+
+    private void pollScriptChanges() {
+        if (config.getHotReloadOnFileChange().getValue()) {
+            common.pollScripts();
+        }
     }
 
     private void updateJoinNotification(net.minecraft.client.Minecraft mc) {
@@ -159,7 +147,7 @@ public final class BetaMoonMain {
      */
     public void handleReloadHotkey(KeyBinding key) {
         net.minecraft.client.Minecraft mc = ModLoader.getMinecraftInstance();
-        if (!loadedScripts || mc == null || mc.currentScreen != null) {
+        if (!common.areScriptsLoaded() || mc == null || mc.currentScreen != null) {
             return;
         }
         boolean control = Keyboard.isKeyDown(Keyboard.KEY_LCONTROL) || Keyboard.isKeyDown(Keyboard.KEY_RCONTROL);
@@ -172,15 +160,15 @@ public final class BetaMoonMain {
     }
 
     public void generateSurface(World world, Random random, int chunkX, int chunkZ) {
-        WorldGenRegistry.generateSurface(world, random, chunkX, chunkZ);
+        common.generateSurface(world, random, chunkX, chunkZ);
     }
 
     public void generateNether(World world, Random random, int chunkX, int chunkZ) {
-        WorldGenRegistry.generateNether(world, random, chunkX, chunkZ);
+        common.generateNether(world, random, chunkX, chunkZ);
     }
 
     public String version() {
-        return VERSION;
+        return BetaMoonCommon.VERSION;
     }
 
     private void addBetamoonMenues(net.minecraft.client.Minecraft mc, GuiScreen current) {
@@ -196,12 +184,8 @@ public final class BetaMoonMain {
             // the scripts after every other mod.
             // This makes sure that any content from other mods that might be referenced by
             // scripts is present.
-            if (finishedLoading && !loadedScripts) {
-                // create recipe map before loading scripts to ensure recipe creation/override
-                // is possible
-                RecipeModificationHandler.createRecipeMap();
-                luaModLoader.loadAndRun();
-                loadedScripts = true;
+            if (finishedLoading && !common.areScriptsLoaded()) {
+                common.loadScripts();
             }
 
             // Render custom Main Menu
@@ -224,38 +208,4 @@ public final class BetaMoonMain {
         }
     }
 
-    private static void configureLogger() {
-        LOGGER.setUseParentHandlers(false);
-        LOGGER.setLevel(Level.INFO);
-        for (Handler handler : LOGGER.getHandlers()) {
-            LOGGER.removeHandler(handler);
-        }
-        Formatter formatter = new Formatter() {
-            @Override
-            public String format(LogRecord record) {
-                String level = record.getLevel().getName();
-                return "[BetaMoon] " + level + ": " + record.getMessage() + System.lineSeparator();
-            }
-        };
-        Handler outHandler = new StreamHandler(System.out, formatter) {
-            @Override
-            public synchronized void publish(LogRecord record) {
-                super.publish(record);
-                flush();
-            }
-        };
-        outHandler.setLevel(Level.INFO);
-        outHandler.setFilter(record -> record.getLevel().intValue() < Level.WARNING.intValue());
-        Handler errHandler = new StreamHandler(System.err, formatter) {
-            @Override
-            public synchronized void publish(LogRecord record) {
-                super.publish(record);
-                flush();
-            }
-        };
-        errHandler.setLevel(Level.WARNING);
-        errHandler.setFilter(record -> record.getLevel().intValue() >= Level.WARNING.intValue());
-        LOGGER.addHandler(outHandler);
-        LOGGER.addHandler(errHandler);
-    }
 }

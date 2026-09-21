@@ -21,7 +21,7 @@ dependencies = { "Advanced Fabrication Types Example", "Advanced Fabrication Rec
 
 function modInit()
   local bm = betamoon
-  local types = bm.modules:import("advanced_fabrication_types")
+  local types = bm.modules:import("example:module/advanced_fabrication_types")
 
   -- Binding helpers create reusable, immutable descriptions of physical slots.
   -- Generated grid names are prefixROW_COLUMN, using one-based coordinates.
@@ -62,7 +62,7 @@ function modInit()
   end
 
   local tileEntity = bm.tileEntities:add {
-    name = "advanced_fabricator",
+    name = "example:block/advanced_fabricator",
     inventory = {
       name = "Advanced Fabricator",
       slots = {
@@ -102,7 +102,7 @@ function modInit()
   }
 
   local container = bm.containers:add {
-    name = "advanced_fabricator", tileEntity = tileEntity,
+    name = "example:block/advanced_fabricator", tileEntity = tileEntity,
     slots = {
       { name = "Work 1", slot = "work_1_1", x = 26, y = 26 },
       { name = "Work 2", slot = "work_1_2", x = 44, y = 26 },
@@ -122,7 +122,7 @@ function modInit()
   }
 
   local gui = bm.containerGuis:add {
-    name = "advanced_fabricator", container = container,
+    name = "example:block/advanced_fabricator", container = container,
     layout = {
       -- gui.backgrounds identifies the built-in container layout.
       preset = betamoon.mc.gui.backgrounds.container, width = 184, height = 182,
@@ -139,9 +139,10 @@ function modInit()
   }
 
   local fabricator = bm.blocks:add {
-    id = 216, key = "advanced_fabricator", displayName = "Advanced Fabricator",
+    id = 216, key = "example:block/advanced_fabricator", displayName = "Advanced Fabricator",
     -- blockMaterials and stepSounds keep its native block identifiers canonical.
     material = betamoon.mc.blockMaterials.rock, hardness = 3.5, resistance = 5, stepSound = betamoon.mc.stepSounds.stone,
+    harvest = { pickaxe = 0 },
     texture = 45, tileEntity = tileEntity, container = container, gui = gui,
     drops = { { item = 216 } }
   }

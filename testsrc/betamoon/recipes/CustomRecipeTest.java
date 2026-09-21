@@ -205,13 +205,13 @@ public final class CustomRecipeTest {
                     "Advanced example 02 GUI duration did not synchronize");
             require(world.renderUpdates == 1, "Burning furnace requested redundant redraws");
             LuaValue retained = globals.get("betamoon").get("recipeTypes").get("getRequired")
-                    .call(LuaValue.valueOf("example:alloying"));
+                    .call(LuaValue.valueOf("example:recipe_type/alloying"));
             ScriptResourceTracker.unload("03_adv_08b_simple_alloy_recipes.lua");
             ScriptResourceTracker.unload("03_adv_08a_simple_alloy_recipe_type.lua");
             example(globals, owner, new File(directory, "03_adv_08a_simple_alloy_recipe_type.lua"));
             example(globals, owner, new File(directory, "03_adv_08b_simple_alloy_recipes.lua"));
             require(retained == globals.get("betamoon").get("recipeTypes").get("getRequired")
-                    .call(LuaValue.valueOf("example:alloying")), "Type handle changed on reload");
+                    .call(LuaValue.valueOf("example:recipe_type/alloying")), "Type handle changed on reload");
             world.tile.setInventorySlotContents(0, new ItemStack(14, 1, 0));
             world.tile.setInventorySlotContents(2, null);
             for (int i = 0; i < 100; i++) {

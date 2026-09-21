@@ -1,6 +1,7 @@
 package betamoon.io;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonCommon;
+
 import java.awt.Desktop;
 import java.io.Closeable;
 import java.io.File;
@@ -14,7 +15,7 @@ import java.util.logging.Logger;
  * Shared I/O helpers.
  */
 public final class IoUtils {
-    private static final Logger LOGGER = BetaMoonMain.LOGGER;
+    private static final Logger LOGGER = BetaMoonCommon.LOGGER;
 
     private IoUtils() {
     }
@@ -126,7 +127,7 @@ public final class IoUtils {
         if (minecraftDir == null) {
             return null;
         }
-        File luaModsDir = new File(minecraftDir, BetaMoonMain.LUA_SCRIPTS_DIR);
+        File luaModsDir = new File(minecraftDir, BetaMoonCommon.LUA_SCRIPTS_DIR);
         if (create) {
             return ensureDirectory(luaModsDir);
         }

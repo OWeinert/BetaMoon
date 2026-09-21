@@ -22,7 +22,8 @@ function modInit()
     id = 203,
     -- blockMaterials supplies the canonical native material name.
     material = betamoon.mc.blockMaterials.rock,
-    key = "ticking_block",
+    harvest = { pickaxe = 0 },
+    key = "example:block/ticking_block",
     displayName = "Ticking Block",
     texture = 61,
 

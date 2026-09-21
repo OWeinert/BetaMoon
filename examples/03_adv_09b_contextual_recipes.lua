@@ -15,11 +15,11 @@ description = "Adds two Thermal Processing recipes with different heat and power
 dependencies = { "Contextual Recipe Type Example" }
 
 function modInit()
-  local recipeType = betamoon.modules:import("contextual_recipe_types").thermalProcessing
+  local recipeType = betamoon.modules:import("example:module/contextual_recipe_types").thermalProcessing
 
   -- Dirt becomes clay only while the machine is cool and unpowered.
   betamoon.recipes:add {
-    key = "example:cold_clay_forming",
+    key = "example:recipe/cold_clay_forming",
     type = recipeType,
     ingredients = { input = betamoon.blocks:getRequired(3) },
     output = betamoon.stack(betamoon.items:getRequired(337), 4),
@@ -32,7 +32,7 @@ function modInit()
 
   -- Sand needs both sustained heat and an active redstone input.
   betamoon.recipes:add {
-    key = "example:powered_glass_fusing",
+    key = "example:recipe/powered_glass_fusing",
     type = recipeType,
     ingredients = { input = betamoon.blocks:getRequired(12) },
     output = betamoon.stack(betamoon.blocks:getRequired(20), 2),

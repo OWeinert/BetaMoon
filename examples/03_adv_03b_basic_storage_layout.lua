@@ -51,5 +51,5 @@ function modInit()
     }
   }
 
-  betamoon.modules:export("basic_storage_layout", public)
+  betamoon.modules:export("example:module/basic_storage_layout", public)
 end

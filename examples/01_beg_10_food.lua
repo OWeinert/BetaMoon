@@ -18,7 +18,7 @@ function modInit()
   betamoon.items:add {
     id = 5001,
     type = "food",
-    key = "example_food",
+    key = "example:item/example_food",
     displayName = "Example Food",
     icon = { x = 11, y = 0 },
     -- This food heals four points and cannot be fed to wolves.

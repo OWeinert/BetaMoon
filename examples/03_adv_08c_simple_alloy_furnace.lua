@@ -26,7 +26,7 @@ dependencies = { "Simple Alloy Recipe Type Example" }
 -- defined in the companion type file.
 function modInit()
   local bm = betamoon
-  local alloying = bm.modules:import("custom_recipe_types").alloying
+  local alloying = bm.modules:import("example:module/custom_recipe_types").alloying
   -- Map the recipe's logical role names to physical inventory slot names.
   -- They happen to match here, but the machine could call its slot "leftInput"
   -- and still bind base = "leftInput" without changing the recipe type.
@@ -39,7 +39,7 @@ function modInit()
   -- TILE ENTITY
   --------------------------------------
   local tileEntity = bm.tileEntities:add {
-    name = "alloy_furnace",
+    name = "example:block/alloy_furnace",
     inventory = {
       name = "Alloy Furnace",
       slots = {
@@ -101,7 +101,7 @@ function modInit()
   -- CONTAINER
   --------------------------------------
   local container = bm.containers:add {
-    name = "alloy_furnace", tileEntity = tileEntity,
+    name = "example:block/alloy_furnace", tileEntity = tileEntity,
     -- slot selects a tile inventory name; name is only the player-facing label.
     -- x/y place its interactive slot. outputOnly stops players inserting into
     -- results while the processing code can still produce items there.
@@ -119,7 +119,7 @@ function modInit()
   -- GUI
   --------------------------------------
   local gui = bm.containerGuis:add {
-    name = "alloy_furnace", container = container,
+    name = "example:block/alloy_furnace", container = container,
     layout = {
       -- gui.backgrounds and gui.sprites identify the built-in container assets.
       preset = betamoon.mc.gui.backgrounds.container, width = 184, height = 180,
@@ -146,10 +146,11 @@ function modInit()
   --------------------------------------
   local alloyFurnaceBlock = bm.blocks:add {
     id = 209,
-    key = "alloy_furnace",
+    key = "example:block/alloy_furnace",
     displayName = "Alloy Furnace",
     -- blockMaterials and stepSounds keep its native block identifiers canonical.
     material = betamoon.mc.blockMaterials.rock,
+    harvest = { pickaxe = 0 },
     hardness = 3.5,
     resistance = 5,
     stepSound = betamoon.mc.stepSounds.stone,

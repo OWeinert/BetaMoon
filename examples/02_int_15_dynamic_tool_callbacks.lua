@@ -26,7 +26,7 @@ function modInit()
 
   local pick = betamoon.items:add {
     id = 5027,
-    key = "adaptive_pick",
+    key = "example:item/adaptive_pick",
     displayName = "Adaptive Pick",
     icon = { x = 2, y = 6 },
     maxStackSize = 1,

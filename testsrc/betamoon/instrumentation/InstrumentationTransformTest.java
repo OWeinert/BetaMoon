@@ -46,8 +46,9 @@ public final class InstrumentationTransformTest {
     }
 
     public static void main(String[] args) throws Exception {
-        if (args.length != 2) {
-            throw new IllegalArgumentException("Expected paths to mappings.tiny and the runtime client JAR");
+        if (args.length != 3) {
+            throw new IllegalArgumentException(
+                    "Expected paths to mappings.tiny, runtime client JAR, and runtime server JAR");
         }
         TinyMappingResolver mappings;
         FileInputStream input = new FileInputStream(args[0]);
@@ -60,6 +61,7 @@ public final class InstrumentationTransformTest {
         verifyNamespace(mappings, RuntimeNamespace.NAMED);
         verifyNamespace(mappings, RuntimeNamespace.CLIENT);
         verifyRuntimeClient(mappings, args[1]);
+        verifyRuntimeServer(mappings, args[2]);
         verifyEarlyReturnExecution(mappings);
         verifyFrozenRedirectAndNoMatch(mappings);
         System.out.println("BetaMoon instrumentation transformation tests passed.");
@@ -71,6 +73,10 @@ public final class InstrumentationTransformTest {
 
     public static boolean completeDecision(boolean original, int decision) {
         return decision == 0 ? original : decision > 0;
+    }
+
+    public static String completeObjectDecision(Object original, int decision) {
+        return decision == 0 ? (String) original : "replacement";
     }
 
     private static void verifyEarlyReturnExecution(TinyMappingResolver mappings) throws Exception {
@@ -120,6 +126,55 @@ public final class InstrumentationTransformTest {
         require(transformer.transform(null, targetName, null, null, transformed) == null, "Guard was not idempotent");
         require(report.snapshot().get(0).getStatus() == HookStatus.ALREADY_APPLIED,
                 "An idempotent transform must be reported separately from a new application");
+        verifyObjectEarlyReturn(mappings);
+    }
+
+    private static void verifyObjectEarlyReturn(TinyMappingResolver mappings) throws Exception {
+        String targetName = "fixture/GuardedObjectAction";
+        String callbackOwner = "betamoon/instrumentation/InstrumentationTransformTest";
+        TransformationReport report = new TransformationReport();
+        HookRegistry registry = new HookRegistry(report);
+        registry.register(betamoon.instrumentation.api.AroundHookDefinition
+                .builder("test:object_guard",
+                        new betamoon.instrumentation.api.MethodRef(
+                                new betamoon.instrumentation.api.ClassRef(targetName), "run",
+                                "(I)Ljava/lang/String;"))
+                .capture(betamoon.instrumentation.api.HandlerRef.of(callbackOwner, "captureDecision", "(I)I"),
+                        betamoon.instrumentation.api.ValueBinding.argument(0))
+                .onReturn(betamoon.instrumentation.api.HandlerRef.of(callbackOwner, "completeObjectDecision",
+                                "(Ljava/lang/Object;I)Ljava/lang/String;"),
+                        betamoon.instrumentation.api.ValueBinding.returnValue(),
+                        betamoon.instrumentation.api.ValueBinding.capturedValue())
+                .skipWhenCapturedNonZero().build());
+        BetaMoonTransformer transformer = new BetaMoonTransformer(registry.freeze(mappings, RuntimeNamespace.NAMED),
+                mappings, report, true, false);
+        ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
+        writer.visit(Opcodes.V1_6, Opcodes.ACC_PUBLIC, targetName, null, "java/lang/Object", null);
+        writer.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "calls", "I", null, null).visitEnd();
+        org.objectweb.asm.MethodVisitor method = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "run",
+                "(I)Ljava/lang/String;", null, null);
+        method.visitCode();
+        method.visitFieldInsn(Opcodes.GETSTATIC, targetName, "calls", "I");
+        method.visitInsn(Opcodes.ICONST_1);
+        method.visitInsn(Opcodes.IADD);
+        method.visitFieldInsn(Opcodes.PUTSTATIC, targetName, "calls", "I");
+        method.visitLdcInsn("original");
+        method.visitInsn(Opcodes.ARETURN);
+        method.visitMaxs(0, 0);
+        method.visitEnd();
+        writer.visitEnd();
+        final byte[] transformed = transformer.transform(null, targetName, null, null, writer.toByteArray());
+        class Loader extends ClassLoader {
+            Class<?> loadFixture() {
+                return defineClass("fixture.GuardedObjectAction", transformed, 0, transformed.length);
+            }
+        }
+        Class<?> fixture = new Loader().loadFixture();
+        java.lang.reflect.Method run = fixture.getMethod("run", int.class);
+        require("original".equals(run.invoke(null, 0)), "Object pass did not execute original method");
+        require("replacement".equals(run.invoke(null, 1)), "Object early return was not replaced");
+        require(fixture.getField("calls").getInt(null) == 1,
+                "An object-return interception executed original side effects");
     }
 
     private static void verifyFrozenRedirectAndNoMatch(TinyMappingResolver mappings) throws Exception {
@@ -205,6 +260,8 @@ public final class InstrumentationTransformTest {
             }
             HookStatus expected = (diagnostic.getHookId().startsWith("betamoon:lua_texture_resource")
                     || diagnostic.getHookId().startsWith("betamoon:model_render")
+                    || diagnostic.getHookId().startsWith("betamoon:entity_lifecycle")
+                    || diagnostic.getHookId().startsWith("betamoon:entity_natural_spawn")
                     || diagnostic.getHookId().equals("betamoon:block_break_guard")
                     || diagnostic.getHookId().equals("betamoon:block_power")
                     || diagnostic.getHookId().equals("betamoon:block_display_tick")
@@ -280,16 +337,21 @@ public final class InstrumentationTransformTest {
         String[][] additionalTargets = {{"net/minecraft/src/World", "emission"}, {"forge/ForgeHooks", "permission"},
                 {"net/minecraft/src/ItemRenderer", "held"}, {"net/minecraft/src/RenderItem", "gui"},
                 {"net/minecraft/src/EntityRenderer", "frame"}, {"net/minecraft/src/Chunk", "chunkLoaded"},
-                {"net/minecraft/src/RenderGlobal", "worldModels"}};
+                {"net/minecraft/src/RenderGlobal", "worldModels"},
+                {"net/minecraft/src/SpawnerAnimals", "after"}};
         for (String[] target : additionalTargets) {
             String targetOwner = mappings.resolveClass(new betamoon.instrumentation.api.ClassRef(target[0]),
                     RuntimeNamespace.CLIENT);
             byte[] result = transformer.transform(null, targetOwner, null, null, readClass(clientJarPath, targetOwner));
-            require(result != null && countCallbackCalls(result,
-                    target[1]) == (target[0].equals("net/minecraft/src/RenderGlobal") ? 2 : 1),
-                    "Missing runtime hook for " + target[0]);
+            int expectedCallbacks = target[0].equals("net/minecraft/src/RenderGlobal") ? 2
+                    : target[0].equals("net/minecraft/src/SpawnerAnimals") ? 3 : 1;
+            int callbackCount = result == null ? 0 : countCallbackCalls(result, target[1]);
+            require(result != null && callbackCount == expectedCallbacks,
+                    "Missing runtime hook for " + target[0] + " (transformed=" + (result != null)
+                            + ", callbacks=" + callbackCount + ")");
             if (target[0].equals("net/minecraft/src/Chunk")) {
-                require(countCallbackCalls(result, "chunkUnloaded") == 1, "Missing chunk unload bridge");
+                require(countCallbackCalls(result, "chunkUnloaded") == 2,
+                        "Missing model or entity chunk unload bridge");
                 require(countCallbackCalls(result, "chunkChanged") >= 2, "Missing chunk edit bridges");
             }
             if (target[0].equals("net/minecraft/src/RenderItem")) {
@@ -332,11 +394,35 @@ public final class InstrumentationTransformTest {
         }
     }
 
+    private static void verifyRuntimeServer(TinyMappingResolver mappings, String serverJarPath) throws Exception {
+        TransformationReport report = new TransformationReport();
+        HookRegistry registry = new HookRegistry(report);
+        BuiltinHookModules.registerForSide(registry, betamoon.runtime.RuntimeSide.DEDICATED_SERVER);
+        Map<String, ClassTransformPlan> plans = registry.freeze(mappings, RuntimeNamespace.NAMED,
+                RuntimeNamespace.SERVER);
+        BetaMoonTransformer transformer = new BetaMoonTransformer(plans, mappings, report, true, false);
+
+        String tracker = mappings.resolveClass(new ClassRef("net/minecraft/src/EntityTracker"),
+                RuntimeNamespace.SERVER);
+        byte[] transformedTracker = transformer.transform(null, tracker, null, null,
+                readClass(serverJarPath, tracker));
+        require(transformedTracker != null && countCallbackCalls(transformedTracker, "track") == 1,
+                "Runtime server EntityTracker is missing custom registration");
+
+        String entry = mappings.resolveClass(new ClassRef("net/minecraft/src/EntityTrackerEntry"),
+                RuntimeNamespace.SERVER);
+        byte[] transformedEntry = transformer.transform(null, entry, null, null,
+                readClass(serverJarPath, entry));
+        require(transformedEntry != null && countCallbackCalls(transformedEntry, "custom") == 1
+                && countCallbackCalls(transformedEntry, "spawn") >= 2,
+                "Runtime server EntityTrackerEntry is missing custom spawn selection");
+    }
+
     private static byte[] readClass(String jarPath, String owner) throws Exception {
         ZipFile jar = new ZipFile(jarPath);
         try {
             ZipEntry entry = jar.getEntry(owner + ".class");
-            require(entry != null, "Runtime client does not contain " + owner + ".class");
+            require(entry != null, "Runtime JAR does not contain " + owner + ".class");
             InputStream input = jar.getInputStream(entry);
             try {
                 return readFully(input, (int) entry.getSize());

@@ -69,10 +69,7 @@ public final class AroundHookDefinition implements HookDefinition {
         return matchRequirement;
     }
 
-    /**
-     * An integer capture can stop boolean/void methods before they change the
-     * world.
-     */
+    /** An integer capture can stop the original method before it changes the world. */
     public boolean skipsWhenCapturedNonZero() {
         return skipWhenCapturedNonZero;
     }

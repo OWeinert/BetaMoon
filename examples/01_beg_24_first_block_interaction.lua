@@ -15,11 +15,12 @@ description = "Adds Greeting Block, a first example of a block with a right-clic
 function modInit()
   local interactiveBlock = betamoon.blocks:add {
     id = 228,
-    key = "first_interactive_block",
+    key = "example:block/first_interactive_block",
     displayName = "Greeting Block",
     -- blockMaterials contains the built-in material choices accepted by blocks.
     -- The equivalent string "rock" can still be supplied directly.
     material = betamoon.mc.blockMaterials.rock,
+    harvest = { pickaxe = 0 },
     hardness = 1.5,
     texture = 1,
     onActivate = {
@@ -28,7 +29,7 @@ function modInit()
         -- sounds.random contains named vanilla sounds. Raw sound names remain valid too.
         ctx.world:playSound(betamoon.mc.sounds.random.click, 0.5, 1)
         -- handled tells Minecraft that this interaction has been dealt with.
-        return "handled"
+        return betamoon.callbackResults.handled
       end
     }
   }

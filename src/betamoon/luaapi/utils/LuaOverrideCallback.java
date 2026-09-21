@@ -1,6 +1,7 @@
 package betamoon.luaapi.utils;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonCommon;
+
 import betamoon.luamodloader.LuaScriptErrors;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -52,7 +53,7 @@ public final class LuaOverrideCallback {
             disabled = true;
             String message = definition.name + " override disabled after error: " + error.getMessage();
             LuaScriptErrors.add(definition.owner, message);
-            BetaMoonMain.LOGGER.warning(definition.owner + ": " + message);
+            BetaMoonCommon.LOGGER.warning(definition.owner + ": " + message);
             return base.originalResult();
         } finally {
             base.active = false;

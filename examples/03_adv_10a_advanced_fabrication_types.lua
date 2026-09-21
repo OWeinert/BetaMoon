@@ -30,7 +30,7 @@ function modInit()
   end
 
   public.adjacentSequence = bm.recipeMatchers:add {
-    name = "example:adjacent_sequence",
+    name = "example:recipe_matcher/adjacent_sequence",
     match = function(recipe, snapshot, context, plan)
       local requirements = recipe.ingredients.lane
       local cells = snapshot.lane
@@ -64,7 +64,7 @@ function modInit()
   }
 
   public.bulkMixing = bm.recipeTypes:add {
-    name = "example:bulk_mixing",
+    name = "example:recipe_type/bulk_mixing",
     displayName = "Bulk Mixing",
     ingredients = {
       -- Requirements may be distributed across any of the bound pool slots.
@@ -82,7 +82,7 @@ function modInit()
   }
 
   public.gridAssembly = bm.recipeTypes:add {
-    name = "example:grid_assembly",
+    name = "example:recipe_type/grid_assembly",
     displayName = "Grid Assembly",
     ingredients = {
       work = {
@@ -98,12 +98,12 @@ function modInit()
   }
 
   public.sequenceAssembly = bm.recipeTypes:add {
-    name = "example:sequence_assembly",
+    name = "example:recipe_type/sequence_assembly",
     displayName = "Sequence Assembly",
     matcher = public.adjacentSequence,
     ingredients = { lane = { type = "item_pool", allowExtra = false } },
     outputs = { result = { type = "item" } }
   }
 
-  bm.modules:export("advanced_fabrication_types", public)
+  bm.modules:export("example:module/advanced_fabrication_types", public)
 end

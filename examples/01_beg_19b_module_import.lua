@@ -22,7 +22,7 @@ function modInit()
   -- modules:import gets the table shared by the other script.
   -- The argument matches modules:export's key exactly. It is a stable public
   -- name, not a path to a Lua file.
-  local imported = betamoon.modules:import("script_export")
+  local imported = betamoon.modules:import("example:module/script_export")
 
   -- The imported block reference can be passed anywhere a block ID or reference
   -- is accepted. This generation rule places it in newly created chunks.

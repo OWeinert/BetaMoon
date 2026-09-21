@@ -1,6 +1,7 @@
 package betamoon.luaapi.audio;
 
 import betamoon.assets.AssetKey;
+import betamoon.client.audio.ClientAudio;
 import betamoon.client.audio.ClientSounds;
 import betamoon.client.audio.SoundAsset;
 import betamoon.luamodloader.LuaScriptRegistry;
@@ -11,7 +12,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaValue;
 
 /**
  * Pending and published event metadata; generation-specific cleanup follows
@@ -20,6 +23,7 @@ import org.luaj.vm2.LuaError;
 public final class SoundEvents {
     private static final Map<AssetKey, Entry> PENDING = new LinkedHashMap<>();
     private static final Map<AssetKey, Entry> PUBLISHED = new LinkedHashMap<>();
+    private static final Random RANDOM = new Random();
 
     private SoundEvents() {
     }
@@ -69,6 +73,43 @@ public final class SoundEvents {
         }
         Entry entry = PUBLISHED.get(key);
         return entry == null ? null : entry.definition;
+    }
+
+    public static AssetKey requireKey(LuaValue value, String path) {
+        AssetKey key;
+        if (value instanceof SoundEventReference) {
+            key = ((SoundEventReference) value).key();
+        } else {
+            try {
+                key = AssetKey.parse(value.checkjstring());
+            } catch (IllegalArgumentException error) {
+                throw new LuaError(path + ": " + error.getMessage());
+            }
+        }
+        if (find(key) == null) {
+            throw new LuaError(path + ": sound event is not registered: " + key);
+        }
+        return key;
+    }
+
+    public static void play(AssetKey key, double x, double y, double z,
+            float volumeOverride, float pitchOverride, float rangeOverride) throws IOException {
+        SoundEventDefinition event = find(key);
+        if (event == null) {
+            throw new IOException("Sound event is no longer registered: " + key);
+        }
+        float volume = Float.isNaN(volumeOverride) ? event.volume : volumeOverride;
+        float pitch = Float.isNaN(pitchOverride)
+                ? event.pitchMin + RANDOM.nextFloat() * (event.pitchMax - event.pitchMin)
+                : pitchOverride;
+        float range = Float.isNaN(rangeOverride) ? event.range : rangeOverride;
+        try (SoundAsset clip = ClientSounds.acquire(event.choose(RANDOM))) {
+            if (clip.getContent().getValue().getFormat().getChannels() != 1) {
+                throw new IOException("Positional sounds require a mono clip");
+            }
+            ClientAudio.play(clip.getContent().getValue(), (float) x, (float) y, (float) z,
+                    true, volume, pitch, range);
+        }
     }
 
     private static final class Entry {

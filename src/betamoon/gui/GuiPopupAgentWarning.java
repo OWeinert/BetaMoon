@@ -1,6 +1,6 @@
 package betamoon.gui;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonClient;
 import betamoon.gui.framework.GuiContainer;
 import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiDialogScreen;
@@ -34,7 +34,7 @@ public final class GuiPopupAgentWarning extends GuiDialogScreen {
 
     private static String getAgentArgument() {
         try {
-            URL location = BetaMoonMain.class.getProtectionDomain().getCodeSource().getLocation();
+            URL location = BetaMoonClient.class.getProtectionDomain().getCodeSource().getLocation();
             if (location != null && "file".equalsIgnoreCase(location.getProtocol())) {
                 File jarFile = new File(location.toURI());
                 if (jarFile.isFile() && jarFile.getName().toLowerCase().endsWith(".jar")) {

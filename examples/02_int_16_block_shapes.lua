@@ -18,10 +18,11 @@ function modInit()
   local postBox = { min = { 0.375, 0, 0.375 }, max = { 0.625, 1, 0.625 } }
   local post = betamoon.blocks:add {
     id = 215,
-    key = "example_climbing_post",
+    key = "example:block/example_climbing_post",
     displayName = "Climbing Post",
     -- blockMaterials supplies the canonical native material name.
     material = betamoon.mc.blockMaterials.wood,
+    harvest = { axe = 0 },
     texture = 4,
     hardness = 0.5,
     opaque = false,

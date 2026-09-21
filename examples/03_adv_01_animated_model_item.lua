@@ -9,20 +9,20 @@ description = "Adds a clockwork bird (5034). Copy animated_model_item/ beside th
 
 function modInit()
   local model = betamoon.assets.models:add {
-    key = "mymod:lessons/clockwork_bird",
+    key = "example:item/clockwork_bird",
     path = "animated_model_item/clockwork_bird.json"
   }
   local animation = betamoon.assets.animations:add {
-    key = "mymod:lessons/clockwork_bird",
+    key = "example:item/clockwork_bird",
     path = "animated_model_item/clockwork_bird.animation.json"
   }
   local texture = betamoon.assets.textures:add {
-    key = "mymod:lessons/clockwork_bird",
+    key = "example:item/clockwork_bird",
     path = "animated_model_item/clockwork_bird.png"
   }
 
   betamoon.items:add {
-    id = 5034, key = "lesson_clockwork_bird", displayName = "Clockwork Bird",
+    id = 5034, key = "example:item/lesson_clockwork_bird", displayName = "Clockwork Bird Model Item",
     appearance = {
       model = model, texture = texture,
       animation = { asset = animation, clip = "animation.bird.idle" },

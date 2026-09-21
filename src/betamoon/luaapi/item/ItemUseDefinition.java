@@ -1,5 +1,10 @@
 package betamoon.luaapi.item;
 
+import betamoon.assets.AssetKey;
+import betamoon.entity.EntityKind;
+import betamoon.entity.EntityTypeDefinition;
+import betamoon.luaapi.entity.EntityTypeReference;
+import betamoon.luamodloader.ScriptEntityScope;
 import net.minecraft.src.Item;
 import org.luaj.vm2.LuaValue;
 import static betamoon.luaapi.utils.LuaDeclarationValues.error;
@@ -18,6 +23,7 @@ public final class ItemUseDefinition {
     public final int remainder;
     public final int cooldown;
     public final ProjectileType projectile;
+    public final AssetKey customProjectile;
     public final int ammunition;
 
     public ItemUseDefinition(LuaValue def) {
@@ -28,6 +34,7 @@ public final class ItemUseDefinition {
         int delay = 0;
         int ammo = -1;
         ProjectileType shot = null;
+        AssetKey customShot = null;
         if (!use.isnil()) {
             fields(use, "use", "consume", "remainder", "cooldown", "projectile", "ammunition");
             count = use.get("consume").isnil() ? 0 : integer(use.get("consume"), "use.consume", 0, 64);
@@ -42,15 +49,31 @@ public final class ItemUseDefinition {
             }
             delay = use.get("cooldown").isnil() ? 0 : integer(use.get("cooldown"), "use.cooldown", 0, 1000000);
             if (!use.get("projectile").isnil()) {
-                shot = ProjectileType.parse(string(use.get("projectile"), "use.projectile"));
+                LuaValue choice = use.get("projectile");
+                if (choice instanceof EntityTypeReference) {
+                    customShot = ((EntityTypeReference) choice).key();
+                } else {
+                    String name = string(choice, "use.projectile");
+                    if (name.indexOf(':') >= 0) {
+                        customShot = AssetKey.parse(name);
+                    } else {
+                        shot = ProjectileType.parse(name);
+                    }
+                }
                 if (food) {
                     throw error("use.projectile", "food cannot also fire a projectile");
+                }
+                if (customShot != null) {
+                    EntityTypeDefinition type = ScriptEntityScope.findVisible(customShot);
+                    if (type == null || type.kind != EntityKind.PROJECTILE) {
+                        throw error("use.projectile", "expected a registered projectile entity type");
+                    }
                 }
             }
             if (!use.get("ammunition").isnil()) {
                 ammo = id(use.get("ammunition"), "use.ammunition");
             }
-            if (ammo >= 0 && shot == null) {
+            if (ammo >= 0 && shot == null && customShot == null) {
                 throw error("use.ammunition", "requires projectile");
             }
             if (rem >= 0 && count == 0 && !food) {
@@ -61,9 +84,14 @@ public final class ItemUseDefinition {
         remainder = rem;
         cooldown = delay;
         projectile = shot;
+        customProjectile = customShot;
         ammunition = ammo;
         validateItem(remainder, "use.remainder");
         validateItem(ammunition, "use.ammunition");
+    }
+
+    public boolean hasProjectile() {
+        return projectile != null || customProjectile != null;
     }
 
     private static void validateItem(int id, String path) {

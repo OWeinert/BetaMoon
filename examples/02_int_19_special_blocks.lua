@@ -20,7 +20,7 @@ function modInit()
   -- passable, while replaceable lets another placed block take its position.
   betamoon.blocks:add {
     id = 219,
-    key = "replaceable_sprout",
+    key = "example:block/replaceable_sprout",
     displayName = "Replaceable Sprout",
     -- blockMaterials and stepSounds expose the native names used by block declarations.
     material = betamoon.mc.blockMaterials.plants,
@@ -39,7 +39,7 @@ function modInit()
   -- normalCube is false so Minecraft does not treat it as opaque solid support.
   betamoon.blocks:add {
     id = 220,
-    key = "luminous_glass",
+    key = "example:block/luminous_glass",
     displayName = "Luminous Glass",
     material = betamoon.mc.blockMaterials.glass,
     texture = 49,
@@ -55,9 +55,10 @@ function modInit()
   -- The piston rule independently prevents the casing from being moved.
   betamoon.blocks:add {
     id = 221,
-    key = "sealed_casing",
+    key = "example:block/sealed_casing",
     displayName = "Sealed Casing",
     material = betamoon.mc.blockMaterials.iron,
+    harvest = { pickaxe = 0 },
     texture = 42,
     resistance = 2000,
     stepSound = betamoon.mc.stepSounds.metal,

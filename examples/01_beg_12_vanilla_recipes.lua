@@ -16,7 +16,7 @@ description = "Adds Example Dust and three ways to produce it using vanilla craf
 function modInit()
   local dust = betamoon.items:add {
     id = 5014,
-    key = "example_dust",
+    key = "example:item/example_dust",
     displayName = "Example Dust",
     icon = { x = 8, y = 3 }
   }

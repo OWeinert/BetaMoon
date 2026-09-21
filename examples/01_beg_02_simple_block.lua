@@ -23,8 +23,13 @@ function modInit()
     -- Minecraft normally associates with it. Pick another built-in value from
     -- betamoon.mc.blockMaterials; writing the same string directly also works.
     material = betamoon.mc.blockMaterials.rock,
-    -- The key is the block's name inside your scripts. Keep it unique.
-    key = "example_block",
+    -- The key is the block's unique identifier inside your scripts.
+    -- There are will be more use-cases for keys in the future.
+    -- A key always has the structure "namespace:type/name"
+    -- Where: - "namespace" is an identifier for the mod it belongs to, like "mymod" or in this case "example"
+    --        - "type" is the type of content that the key is. In this case "block".
+    --        - "name" is the internal name of your block. That one is completely up to you.
+    key = "example:block/example_block",
     -- This is the name players see in the game.
     displayName = "Example Block",
     -- hardness controls mining time. resistance controls explosion strength.

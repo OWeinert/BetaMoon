@@ -9,12 +9,12 @@ description = "Adds a small stone sample (5031) using BetaMoon's built-in Beta 1
 
 function modInit()
   local stone = betamoon.assets.textures:add {
-    key = "mymod:lessons/slab_stone",
+    key = "example:item/slab_stone",
     path = "builtin_model_item/slab_stone.png"
   }
 
   betamoon.items:add {
-    id = 5031, key = "lesson_slab_sample", displayName = "Slab Sample",
+    id = 5031, key = "example:item/lesson_slab_sample", displayName = "Slab Model Item",
     appearance = {
       model = "minecraft:block/slab",
       texture = stone,

@@ -19,7 +19,7 @@ function modInit()
   local lampBox = { min = { 0.25, 0.25, 0.25 }, max = { 0.75, 0.75, 0.75 } }
   local lamp = betamoon.blocks:add {
     id = 217,
-    key = "attached_lamp",
+    key = "example:block/attached_lamp",
     displayName = "Attached Lamp",
     -- blockMaterials supplies the canonical glass material name.
     material = betamoon.mc.blockMaterials.glass,

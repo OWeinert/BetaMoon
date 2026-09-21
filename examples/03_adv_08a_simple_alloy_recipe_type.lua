@@ -24,7 +24,7 @@ function modInit()
   -- Equivalent declarations reuse the same type after reload. Schema changes
   -- require a restart, but this callback-free script remains reloadable.
   public.alloying = betamoon.recipeTypes:add {
-    name = "example:alloying",
+    name = "example:recipe_type/alloying",
     displayName = "Alloying",
     ingredients = {
       base = { type = "item" },
@@ -43,5 +43,5 @@ function modInit()
     data = { duration = { type = "integer", default = 160, min = 1 } }
   }
 
-  betamoon.modules:export("custom_recipe_types", public)
+  betamoon.modules:export("example:module/custom_recipe_types", public)
 end

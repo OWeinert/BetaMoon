@@ -121,6 +121,10 @@ public final class ModelFoundationTest {
         ModelGeometry glow = BedrockGeometry.decode(Files.readAllBytes(
                 Paths.get("examples/animated_machine/machine_glow.json")));
         require(glow.hasPart("glow"), "Machine glow layer must expose renderable geometry");
+
+        ModelGeometry pebble = BedrockGeometry.decode(Files.readAllBytes(
+                Paths.get("examples/entity_examples/pebble.json")));
+        require(pebble.hasPart("body"), "Projectile example must expose its model body");
     }
 
     private static void verifyInterpolation(ModelPose pose) throws IOException {

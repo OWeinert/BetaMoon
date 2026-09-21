@@ -3,6 +3,7 @@ package betamoon.client.render;
 import betamoon.assets.model.ModelGeometry;
 import betamoon.assets.model.ModelPose;
 import betamoon.assets.model.ModelVector;
+import betamoon.entity.EntityPresentationState;
 import betamoon.luaapi.asset.ModelAppearanceDeclaration;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,12 +25,23 @@ public final class ModelRenderer {
 
     public static void render(ModelAppearance appearance, String context, double ageTicks, int metadata, double x,
             double y, double z, float brightness) {
-        render(appearance, context, ageTicks, metadata, x, y, z, brightness, resource -> GL11
+        render(appearance, context, ageTicks, metadata, x, y, z, brightness, null, resource -> GL11
+                .glBindTexture(GL11.GL_TEXTURE_2D, ModLoader.getMinecraftInstance().renderEngine.getTexture(resource)));
+    }
+
+    public static void render(ModelAppearance appearance, String context, double ageTicks, int metadata, double x,
+            double y, double z, float brightness, EntityPresentationState.Animation animation) {
+        render(appearance, context, ageTicks, metadata, x, y, z, brightness, animation, resource -> GL11
                 .glBindTexture(GL11.GL_TEXTURE_2D, ModLoader.getMinecraftInstance().renderEngine.getTexture(resource)));
     }
 
     static void render(ModelAppearance appearance, String context, double ageTicks, int metadata, double x, double y,
             double z, float brightness, TextureBinder binder) {
+        render(appearance, context, ageTicks, metadata, x, y, z, brightness, null, binder);
+    }
+
+    static void render(ModelAppearance appearance, String context, double ageTicks, int metadata, double x, double y,
+            double z, float brightness, EntityPresentationState.Animation animation, TextureBinder binder) {
         if (appearance.isFailed()) {
             return;
         }
@@ -45,8 +57,8 @@ public final class ModelRenderer {
             layers.addAll(appearance.layers);
             // Finish solid/cutout faces across every layer before translucent faces.
             List<ModelPose> poses = new ArrayList<>();
-            for (ModelAppearance layer : layers) {
-                poses.add(layer.evaluate(context, ageTicks, metadata, x, y, z));
+            for (int i = 0; i < layers.size(); i++) {
+                poses.add(layers.get(i).evaluate(context, ageTicks, metadata, x, y, z, animation, i == 0));
             }
             for (int pass = 0; pass < 2; pass++) {
                 for (int i = 0; i < layers.size(); i++) {

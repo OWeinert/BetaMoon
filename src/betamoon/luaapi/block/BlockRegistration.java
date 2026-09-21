@@ -1,6 +1,7 @@
 package betamoon.luaapi.block;
 
-import betamoon.BetaMoonMain;
+import betamoon.BetaMoonCommon;
+
 import betamoon.client.render.ModelAppearanceSet;
 import betamoon.client.render.ModelRenderingSupport;
 import java.io.IOException;
@@ -57,7 +58,7 @@ final class BlockRegistration {
 
         LuaContentRegistry.Entry entry = LuaContentRegistry.find("block", definition.id);
         if (entry.registered) {
-            BetaMoonMain.LOGGER.warning("Ignored duplicate block register: id=" + definition.id);
+            BetaMoonCommon.LOGGER.warning("Ignored duplicate block register: id=" + definition.id);
         } else {
             ModLoader.RegisterBlock(block);
             ModLoader.AddName(block, definition.displayName);

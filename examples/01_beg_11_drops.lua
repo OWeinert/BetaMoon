@@ -19,7 +19,7 @@ function modInit()
   betamoon.blocks:add {
     id = 205,
     material = betamoon.mc.blockMaterials.rock,
-    key = "example_block2",
+    key = "example:block/example_block2",
     displayName = "Example Block 2",
     hardness = 3,
     texture = 50,

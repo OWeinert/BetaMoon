@@ -63,4 +63,33 @@ public final class BlockDefinition {
         return placement.horizontal ? BlockFaces.side(state.get(metadata, "facing").tojstring(), -1) : -1;
     }
 
+    /**
+     * Rotates a declared shape from the default facing into the block's current
+     * facing. This keeps collision and selection aligned with directional visuals.
+     */
+    public BlockBox orient(BlockBox box, int metadata) {
+        if (!placement.horizontal) {
+            return box;
+        }
+
+        int defaultFacing = facing(state.defaults);
+        int currentFacing = facing(metadata);
+        return box.rotateClockwise(horizontalIndex(currentFacing) - horizontalIndex(defaultFacing));
+    }
+
+    private static int horizontalIndex(int nativeSide) {
+        switch (nativeSide) {
+            case 2:
+                return 0;
+            case 5:
+                return 1;
+            case 3:
+                return 2;
+            case 4:
+                return 3;
+            default:
+                throw new IllegalArgumentException("Expected a horizontal block face: " + nativeSide);
+        }
+    }
+
 }

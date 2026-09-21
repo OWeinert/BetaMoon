@@ -60,8 +60,9 @@ function modInit()
   }
 
   betamoon.blocks:add {
-    id = 234, key = "lesson_animated_machine", displayName = "Animated Machine",
+    id = 234, key = "example:block/lesson_animated_machine", displayName = "Animated Machine",
     material = betamoon.mc.blockMaterials.rock, texture = 1,
+    harvest = { pickaxe = 0 },
     opaque = false, normalCube = false, lightOpacity = 0,
     state = { running = { type = "boolean", default = false } },
     appearance = idle,
@@ -70,7 +71,7 @@ function modInit()
       action = function(ctx)
         ctx.state:set("running", not ctx.state:get("running"))
         betamoon.audio:play(toggle)
-        return "handled"
+        return betamoon.callbackResults.handled
       end
     }
   }
