@@ -39,6 +39,17 @@ public final class BlockBox {
         return AxisAlignedBB.getBoundingBoxFromPool(x + minX, y + minY, z + minZ, x + maxX, y + maxY, z + maxZ);
     }
 
+    /** Returns this box rotated clockwise around the center of its block. */
+    public BlockBox rotateClockwise(int quarterTurns) {
+        int turns = ((quarterTurns % 4) + 4) % 4;
+        BlockBox rotated = this;
+        for (int i = 0; i < turns; i++) {
+            rotated = new BlockBox(1 - rotated.maxZ, rotated.minY, rotated.minX, 1 - rotated.minZ,
+                    rotated.maxY, rotated.maxX);
+        }
+        return rotated;
+    }
+
     private static void validateAxis(double min, double max) {
         if (!(min >= 0 && max <= 1 && min < max)) {
             throw new IllegalArgumentException("Block bounds require 0 <= min < max <= 1");

@@ -480,7 +480,7 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
     public AxisAlignedBB getSelectedBoundingBoxFromPool(World world, int x, int y, int z) {
         BlockDefinition def = BlockCallbackRegistry.get(blockID);
         return def != null && def.shapes.selection != null
-                ? def.shapes.selection.boundsAt(x, y, z)
+                ? def.orient(def.shapes.selection, world.getBlockMetadata(x, y, z)).boundsAt(x, y, z)
                 : super.getSelectedBoundingBoxFromPool(world, x, y, z);
     }
 
@@ -490,7 +490,8 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
         if (definition == null || definition.shapes.selection == null) {
             return super.collisionRayTrace(world, x, y, z, start, end);
         }
-        AxisAlignedBB selection = definition.shapes.selection.boundsAt(x, y, z);
+        BlockBox oriented = definition.orient(definition.shapes.selection, world.getBlockMetadata(x, y, z));
+        AxisAlignedBB selection = oriented.boundsAt(x, y, z);
         MovingObjectPosition hit = selection.func_1169_a(start, end);
         return hit == null ? null : new MovingObjectPosition(x, y, z, hit.sideHit, hit.hitVec);
     }
@@ -501,7 +502,9 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
         if (def == null || def.shapes.boxes == null) {
             return super.getCollisionBoundingBoxFromPool(world, x, y, z);
         }
-        return def.shapes.boxes.size() == 1 ? def.shapes.boxes.get(0).boundsAt(x, y, z) : null;
+        return def.shapes.boxes.size() == 1
+                ? def.orient(def.shapes.boxes.get(0), world.getBlockMetadata(x, y, z)).boundsAt(x, y, z)
+                : null;
     }
 
     @Override
@@ -513,7 +516,7 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
             return;
         }
         for (BlockBox box : def.shapes.boxes) {
-            AxisAlignedBB bounds = box.boundsAt(x, y, z);
+            AxisAlignedBB bounds = def.orient(box, world.getBlockMetadata(x, y, z)).boundsAt(x, y, z);
             if (bounds.intersectsWith(query)) {
                 output.add(bounds);
             }

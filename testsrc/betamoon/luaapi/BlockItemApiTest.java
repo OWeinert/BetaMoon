@@ -356,6 +356,48 @@ public final class BlockItemApiTest {
                     "A block without horizontal placement had its item textures reoriented");
             id--;
         }
+        verifyFacingShapes(lua, world, id);
+    }
+
+    private static void verifyFacingShapes(Globals lua, TestWorld world, int id) {
+        require(Block.blocksList[id] == null, "Expected unused facing-shape test block");
+        BlockWrapper block = new BlockWrapper(id, 1, Material.rock, "facing_shape");
+        LuaValue declaration = lua.load("return {"
+                + "state={facing={type='enum',values={'north','east','south','west'}}},"
+                + "placement={facing='horizontal',facingFrom='player'},"
+                + "collision={boxes={"
+                + "{min={0,0,0},max={1,0.5,1}},"
+                + "{min={0,0.5,0.5},max={1,1,1}}"
+                + "}},selection={min={0,0.5,0.5},max={1,1,1}}}").call();
+        BlockDefinition definition = new BlockDefinition(declaration);
+        BlockCallbackRegistry.install(id, definition);
+        world.chunk.blocks[64] = (byte) id;
+
+        String[] directions = {"north", "east", "south", "west"};
+        double[][] expectedUpperBounds = {
+                {0, 0.5, 1, 1},
+                {0, 0, 0.5, 1},
+                {0, 0, 1, 0.5},
+                {0.5, 0, 1, 1}
+        };
+        for (int i = 0; i < directions.length; i++) {
+            int metadata = definition.state.set(definition.state.defaults, "facing", LuaValue.valueOf(directions[i]));
+            world.setBlockMetadataWithNotify(0, 64, 0, metadata);
+            ArrayList boxes = new ArrayList();
+            block.getCollidingBoundingBoxes(world, 0, 64, 0,
+                    AxisAlignedBB.getBoundingBoxFromPool(-1, 63, -1, 2, 66, 2), boxes);
+            require(boxes.size() == 2, "Facing stair collision did not retain both boxes");
+            AxisAlignedBB upper = (AxisAlignedBB) boxes.get(1);
+            double[] expected = expectedUpperBounds[i];
+            require(upper.minX == expected[0] && upper.minZ == expected[1]
+                    && upper.maxX == expected[2] && upper.maxZ == expected[3],
+                    "Facing stair collision did not rotate toward " + directions[i]);
+
+            AxisAlignedBB selection = block.getSelectedBoundingBoxFromPool(world, 0, 64, 0);
+            require(selection.minX == expected[0] && selection.minZ == expected[1]
+                    && selection.maxX == expected[2] && selection.maxZ == expected[3],
+                    "Facing selection did not rotate toward " + directions[i]);
+        }
     }
 
     private static void verifyItemBehavior(Globals lua, TestWorld world, EntityPlayer player) {
