@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.7.0 (development)
+## 0.7.0
 
 BetaMoon 0.7.0 adds a model, animation, audio, and custom-entity foundation. Scripts can
 now define anything from a static prop or dropped pickup to a multipart living creature
