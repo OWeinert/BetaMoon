@@ -193,8 +193,11 @@ public final class LuaWorldActionAccess {
             public Varargs invoke(Varargs a) {
                 scope.requireActive();
                 int bx = coordinate(argument(a, api, 1));
-                int by = coordinate(argument(a, api, 2));
+                int by = integer(argument(a, api, 2), "getBlock.y", 0, 127);
                 int bz = coordinate(argument(a, api, 3));
+                if (!world.blockExists(bx, by, bz)) {
+                    return NIL;
+                }
                 LuaTable value = new LuaTable();
                 value.set("id", world.getBlockId(bx, by, bz));
                 value.set("damage", world.getBlockMetadata(bx, by, bz));

@@ -1163,6 +1163,23 @@ public final class EntityLuaApiTest {
                     "AI world access must report native difficulty");
             require(worldHandle.get("getSpawnPoint").call(worldHandle).get("y").isnumber(),
                     "AI world access must expose spawn coordinates");
+            LuaValue loadedBlock = worldHandle.get("getBlock").invoke(LuaValue.varargsOf(new LuaValue[]{worldHandle,
+                    LuaValue.valueOf(2), LuaValue.valueOf(64), LuaValue.valueOf(2)})).arg1();
+            require(loadedBlock.istable() && loadedBlock.get("id").toint() == 0,
+                    "Block reads must return a snapshot for loaded positions");
+            world.chunksAvailable = false;
+            LuaValue unloadedBlock = worldHandle.get("getBlock").invoke(LuaValue.varargsOf(new LuaValue[]{worldHandle,
+                    LuaValue.valueOf(2), LuaValue.valueOf(64), LuaValue.valueOf(2)})).arg1();
+            require(unloadedBlock.isnil(), "Block reads must not load or inspect unavailable chunks");
+            world.chunksAvailable = true;
+            boolean rejectedBlockY = false;
+            try {
+                worldHandle.get("getBlock").invoke(LuaValue.varargsOf(new LuaValue[]{worldHandle,
+                        LuaValue.valueOf(2), LuaValue.valueOf(128), LuaValue.valueOf(2)}));
+            } catch (org.luaj.vm2.LuaError expected) {
+                rejectedBlockY = true;
+            }
+            require(rejectedBlockY, "Block reads must reject positions outside the build height");
             LuaTable movingHandle = LuaEntityActionAccess.create(worldScope, null, movingCrate);
             require(movingHandle.get("setPosition").invoke(org.luaj.vm2.LuaValue.varargsOf(
                     new org.luaj.vm2.LuaValue[]{movingHandle, org.luaj.vm2.LuaValue.valueOf(3),
@@ -1551,6 +1568,7 @@ public final class EntityLuaApiTest {
 
     private static class TestWorld extends World {
         private Chunk chunk;
+        private boolean chunksAvailable = true;
 
         private TestWorld() {
             super(null, "entity_api_test", new WorldProvider() {
@@ -1563,7 +1581,7 @@ public final class EntityLuaApiTest {
         protected IChunkProvider getChunkProvider() {
             return new IChunkProvider() {
                 public boolean chunkExists(int x, int z) {
-                    return true;
+                    return chunksAvailable;
                 }
 
                 public Chunk provideChunk(int x, int z) {
