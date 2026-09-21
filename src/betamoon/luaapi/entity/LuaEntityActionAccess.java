@@ -11,6 +11,7 @@ import betamoon.entity.EntityLoot;
 import betamoon.entity.EntityMounts;
 import betamoon.entity.EntityPresentationEvents;
 import betamoon.entity.EntityPresentationState;
+import betamoon.entity.EntitySpatialQueries;
 import betamoon.entity.EntityTypeDefinition;
 import betamoon.entity.LuaEntityPart;
 import betamoon.entity.LuaLivingEntity;
@@ -22,7 +23,6 @@ import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.audio.SoundEvents;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import java.util.List;
-import net.minecraft.src.AxisAlignedBB;
 import net.minecraft.src.Entity;
 import net.minecraft.src.EntityCreature;
 import net.minecraft.src.EntityList;
@@ -752,16 +752,11 @@ public final class LuaEntityActionAccess {
                     throw betamoon.luaapi.utils.LuaDeclarationValues.error("getNearbyEntities.radius",
                             "expected a radius > 0 and <= 32");
                 }
-                AxisAlignedBB area = entity.boundingBox.expand(radius, radius, radius);
-                List nearby = entity.worldObj.getEntitiesWithinAABBExcludingEntity(entity, area);
                 LuaTable found = new LuaTable();
-                int count = 0;
-                for (Object value : nearby) {
-                    Entity candidate = (Entity) value;
-                    if (!candidate.isDead && entity.getDistanceSqToEntity(candidate) <= radius * radius
-                            && count < 256) {
-                        found.set(++count, create(scope, null, candidate));
-                    }
+                int index = 0;
+                for (Entity candidate : EntitySpatialQueries.nearby(entity.worldObj, entity,
+                        entity.posX, entity.posY, entity.posZ, radius, 256)) {
+                    found.set(++index, create(scope, null, candidate));
                 }
                 return found;
             }

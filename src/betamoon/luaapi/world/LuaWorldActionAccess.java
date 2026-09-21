@@ -1,8 +1,9 @@
 package betamoon.luaapi.world;
 
 import betamoon.assets.AssetKey;
-import betamoon.entity.EntitySpawner;
 import betamoon.entity.EntityKind;
+import betamoon.entity.EntitySpawner;
+import betamoon.entity.EntitySpatialQueries;
 import betamoon.entity.EntityTypeDefinition;
 import betamoon.entity.EntityTypeRegistry;
 import betamoon.entity.LuaEntityPart;
@@ -12,12 +13,10 @@ import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.utils.LuaDeclarationValues;
 import net.minecraft.src.Block;
 import net.minecraft.src.ChunkCoordinates;
-import net.minecraft.src.AxisAlignedBB;
 import net.minecraft.src.Entity;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.EnumSkyBlock;
 import net.minecraft.src.Material;
-import java.util.List;
 import net.minecraft.src.World;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -300,16 +299,11 @@ public final class LuaWorldActionAccess {
                 if (radius <= 0 || radius > 32) {
                     throw LuaDeclarationValues.error("getNearbyEntities.radius", "expected a radius > 0 and <= 32");
                 }
-                AxisAlignedBB area = AxisAlignedBB.getBoundingBox(x + 0.5 - radius, y + 0.5 - radius,
-                        z + 0.5 - radius, x + 0.5 + radius, y + 0.5 + radius, z + 0.5 + radius);
-                List nearby = world.getEntitiesWithinAABB(Entity.class, area);
                 LuaTable result = new LuaTable();
-                int count = 0;
-                for (Object value : nearby) {
-                    Entity entity = (Entity) value;
-                    if (!entity.isDead && count < 256) {
-                        result.set(++count, LuaEntityActionAccess.create(scope, null, entity));
-                    }
+                int index = 0;
+                for (Entity entity : EntitySpatialQueries.nearby(world, null,
+                        x + 0.5, y + 0.5, z + 0.5, radius, 256)) {
+                    result.set(++index, LuaEntityActionAccess.create(scope, null, entity));
                 }
                 return result;
             }

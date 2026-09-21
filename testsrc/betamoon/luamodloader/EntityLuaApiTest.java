@@ -1262,6 +1262,31 @@ public final class EntityLuaApiTest {
             require(restoredLegacyProjectile != null && restoredLegacyProjectile.getOwner() == collector
                     && "player:collector".equals(restoredLegacyProjectile.getOwnerIdentity()),
                     "Legacy player owner saves must remain readable");
+
+            TestWorld queryWorld = new TestWorld();
+            LuaPropEntity queryCenter = (LuaPropEntity) EntitySpawner.spawn(queryWorld, lamp.key,
+                    8.5, 70.5, 8.5, 0, 0).entity;
+            LuaPropEntity radialNeighbor = (LuaPropEntity) EntitySpawner.spawn(queryWorld, lamp.key,
+                    11.5, 70.5, 8.5, 0, 0).entity;
+            LuaPropEntity boxCorner = (LuaPropEntity) EntitySpawner.spawn(queryWorld, lamp.key,
+                    11.4, 73.4, 11.4, 0, 0).entity;
+            require(queryCenter != null && radialNeighbor != null && boxCorner != null,
+                    "Nearby-query fixtures must join the isolated world");
+            try (LuaCallbackScope queryScope = new LuaCallbackScope(true)) {
+                LuaTable queryWorldHandle = LuaWorldActionAccess.create(queryScope, queryWorld, 8, 70, 8);
+                LuaTable worldNearby = queryWorldHandle.get("getNearbyEntities")
+                        .call(queryWorldHandle, LuaValue.valueOf(4)).checktable();
+                require(worldNearby.length() == 2,
+                        "World nearby queries must exclude broad-phase box corners outside the radius: "
+                                + worldNearby.length());
+                LuaTable queryCenterHandle = LuaEntityActionAccess.create(queryScope, null, queryCenter);
+                LuaTable entityNearby = queryCenterHandle.get("getNearbyEntities")
+                        .call(queryCenterHandle, LuaValue.valueOf(4)).checktable();
+                require(entityNearby.length() == 1
+                        && entityNearby.get(1).get("getPosition").call(entityNearby.get(1))
+                                .get("x").todouble() == radialNeighbor.posX,
+                        "World and entity nearby queries must share spherical distance semantics");
+            }
             ItemUseDefinition launcher = new ItemUseDefinition(lua.load("return {use={projectile='mymod:shot'}}")
                     .call());
             require(AssetKey.parse("mymod:shot").equals(launcher.customProjectile),
