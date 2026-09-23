@@ -15,20 +15,23 @@ public final class AssetDefinition {
     private final AssetPath fallbackPath;
     private final String extension;
     private final boolean builtin;
+    private final boolean pathDerived;
 
     /**
      * Extension includes compound suffixes such as animation.json, without a
      * leading dot.
      */
     public AssetDefinition(AssetId id, AssetPath fallbackPath, String extension) {
-        this(id, fallbackPath, extension, false);
+        this(id, fallbackPath, extension, false, false);
     }
 
-    private AssetDefinition(AssetId id, AssetPath fallbackPath, String extension, boolean builtin) {
+    private AssetDefinition(AssetId id, AssetPath fallbackPath, String extension, boolean builtin,
+            boolean pathDerived) {
         this.id = Objects.requireNonNull(id, "Asset identity");
         this.fallbackPath = Objects.requireNonNull(fallbackPath, "Asset fallback path");
         this.extension = Objects.requireNonNull(extension, "Asset extension");
         this.builtin = builtin;
+        this.pathDerived = pathDerived;
         if (!EXTENSION.matcher(extension).matches()) {
             throw new IllegalArgumentException("Invalid lowercase asset extension: " + extension);
         }
@@ -38,11 +41,20 @@ public final class AssetDefinition {
     }
 
     static AssetDefinition builtinModel(AssetKey key, AssetPath resource) {
-        return new AssetDefinition(new AssetId(AssetKind.MODEL, key), resource, "json", true);
+        return new AssetDefinition(new AssetId(AssetKind.MODEL, key), resource, "json", true, false);
+    }
+
+    /** Creates a declaration whose fallback path was resolved from its key. */
+    public static AssetDefinition derived(AssetId id, AssetPath fallbackPath, String extension) {
+        return new AssetDefinition(id, fallbackPath, extension, false, true);
     }
 
     public boolean isBuiltin() {
         return builtin;
+    }
+
+    public boolean isPathDerived() {
+        return pathDerived;
     }
 
     public AssetId getId() {

@@ -25,6 +25,18 @@ function modInit()
   -- This is the time the furnace needs to cook in ticks. For example a vanilla furnace uses 200.
   local cookDuration = 100
 
+  -- This machine accepts every normal furnace fuel plus one private addition.
+  -- Including a set keeps its live policy instead of copying its registrations.
+  local fastFurnaceFuels = betamoon.fuels.sets:add {
+    key = "example:fuel/fast_furnace",
+    include = { betamoon.mc.fuels.furnace }
+  }
+  betamoon.fuels:add {
+    set = fastFurnaceFuels,
+    item = betamoon.items:getRequired(331), -- Redstone dust
+    burnTime = 200
+  }
+
   -- A tile entity stores information for one placed block. Normal blocks only
   -- store an ID and damage value, which is not enough for inventories or timers.
   local fastFurnaceEntity = betamoon.tileEntities:add {
@@ -106,7 +118,7 @@ function modInit()
         -- consumeFuel removes one fuel item and returns how many ticks it burns.
         -- It also preserves container items, such as the bucket from lava fuel.
         if burnTime == 0 and canCook then
-          burnTime = inventory:consumeFuel("fuel")
+          burnTime = inventory:consumeFuel("fuel", fastFurnaceFuels)
           if burnTime > 0 then
             data:set("burnTime", burnTime)
             data:set("totalBurnTime", burnTime)
@@ -146,7 +158,8 @@ function modInit()
 
     slots = {
       { name = "Input", slot = "input", x = 56, y = 17 },
-      { name = "Fuel", slot = "fuel", x = 56, y = 53 },
+      -- The same set filters manual insertion and shift-click movement.
+      { name = "Fuel", slot = "fuel", x = 56, y = 53, acceptsFuel = fastFurnaceFuels },
 
       -- outputOnly prevents the player from placing an item into this slot.
       { name = "Output", slot = "output", x = 116, y = 35, outputOnly = true }

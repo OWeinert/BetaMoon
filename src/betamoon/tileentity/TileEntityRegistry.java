@@ -4,7 +4,11 @@ import betamoon.BetaMoonCommon;
 
 import betamoon.luamodloader.NonReloadableScriptRegistry;
 import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import net.minecraft.src.Block;
 import net.minecraft.src.EntityPlayer;
@@ -25,6 +29,183 @@ public final class TileEntityRegistry {
     private static boolean minecraftTypeRegistered;
 
     private TileEntityRegistry() {
+    }
+
+    /** Immutable block-to-machine association for diagnostics. */
+    public static final class BlockBindingDescription {
+        public final int blockId;
+        public final String tileEntity;
+        public final String container;
+        public final String gui;
+        public final boolean redstone;
+
+        private BlockBindingDescription(int blockId, BlockBinding binding) {
+            this.blockId = blockId;
+            tileEntity = binding.tile.name;
+            container = binding.container == null ? null : binding.container.name;
+            gui = binding.gui == null ? null : binding.gui.name;
+            redstone = binding.redstone != null;
+        }
+    }
+
+    public static final class TileDescription {
+        public final String name;
+        public final String owner;
+        public final String inventoryName;
+        public final Map<String, Integer> slots;
+        public final List<FieldDescription> fields;
+        public final int initialTickDelay;
+        public final int repeatTickDelay;
+        public final boolean randomTicks;
+        public final double randomTickChance;
+
+        private TileDescription(TileEntityDefinition definition) {
+            name = definition.name;
+            owner = definition.owner;
+            inventoryName = definition.inventoryName;
+            slots = Collections.unmodifiableMap(new LinkedHashMap<String, Integer>(definition.slots));
+            List<FieldDescription> values = new ArrayList<FieldDescription>();
+            for (TileEntityDefinition.Field field : definition.fields.values()) {
+                values.add(new FieldDescription(field));
+            }
+            fields = Collections.unmodifiableList(values);
+            initialTickDelay = definition.initialTickDelay;
+            repeatTickDelay = definition.repeatTickDelay;
+            randomTicks = definition.randomTicks;
+            randomTickChance = definition.randomTickChance;
+        }
+    }
+
+    public static final class FieldDescription {
+        public final String name;
+        public final String type;
+        public final String defaultValue;
+        public final boolean synchronizedToClient;
+
+        private FieldDescription(TileEntityDefinition.Field field) {
+            name = field.name;
+            type = field.type.getLuaName();
+            defaultValue = String.valueOf(field.defaultValue);
+            synchronizedToClient = field.sync;
+        }
+    }
+
+    public static final class ContainerDescription {
+        public final String name;
+        public final String owner;
+        public final String tileEntity;
+        public final List<SlotDescription> slots;
+        public final int playerX;
+        public final int playerY;
+        public final boolean includeHotbar;
+
+        private ContainerDescription(ContainerDefinition definition) {
+            name = definition.name;
+            owner = definition.owner;
+            tileEntity = definition.tileEntity.name;
+            List<SlotDescription> values = new ArrayList<SlotDescription>();
+            for (ContainerDefinition.SlotDefinition slot : definition.slots) {
+                values.add(new SlotDescription(slot));
+            }
+            slots = Collections.unmodifiableList(values);
+            playerX = definition.playerX;
+            playerY = definition.playerY;
+            includeHotbar = definition.includeHotbar;
+        }
+    }
+
+    public static final class SlotDescription {
+        public final String name;
+        public final int index;
+        public final int x;
+        public final int y;
+        public final boolean outputOnly;
+        public final String acceptedFuelSet;
+
+        private SlotDescription(ContainerDefinition.SlotDefinition slot) {
+            name = slot.name;
+            index = slot.index;
+            x = slot.x;
+            y = slot.y;
+            outputOnly = slot.outputOnly;
+            acceptedFuelSet = slot.acceptedFuelSet == null ? null : slot.acceptedFuelSet.toString();
+        }
+    }
+
+    public static final class GuiDescription {
+        public final String name;
+        public final String owner;
+        public final String container;
+        public final int width;
+        public final int height;
+        public final boolean pauseGame;
+        public final String backgroundStyle;
+        public final boolean drawSlotFrames;
+        public final List<ElementDescription> elements;
+
+        private GuiDescription(ContainerGuiDefinition definition) {
+            name = definition.name;
+            owner = definition.owner;
+            container = definition.container.name;
+            width = definition.width;
+            height = definition.height;
+            pauseGame = definition.pauseGame;
+            backgroundStyle = definition.background.style;
+            drawSlotFrames = definition.background.drawSlotFrames;
+            List<ElementDescription> values = new ArrayList<ElementDescription>();
+            for (ContainerGuiDefinition.Element element : definition.elements) {
+                values.add(new ElementDescription(element));
+            }
+            elements = Collections.unmodifiableList(values);
+        }
+    }
+
+    public static final class ElementDescription {
+        public final String type;
+        public final int x;
+        public final int y;
+        public final int layer;
+        public final String anchor;
+
+        private ElementDescription(ContainerGuiDefinition.Element element) {
+            type = element.getClass().getSimpleName();
+            x = element.x;
+            y = element.y;
+            layer = element.layer;
+            anchor = element.anchor.name().toLowerCase(java.util.Locale.ROOT);
+        }
+    }
+
+    public static synchronized List<TileDescription> tileEntityDescriptions() {
+        List<TileDescription> result = new ArrayList<TileDescription>();
+        for (TileEntityDefinition definition : TILE_ENTITIES.values()) {
+            result.add(new TileDescription(definition));
+        }
+        return Collections.unmodifiableList(result);
+    }
+
+    public static synchronized List<ContainerDescription> containerDescriptions() {
+        List<ContainerDescription> result = new ArrayList<ContainerDescription>();
+        for (ContainerDefinition definition : CONTAINERS.values()) {
+            result.add(new ContainerDescription(definition));
+        }
+        return Collections.unmodifiableList(result);
+    }
+
+    public static synchronized List<GuiDescription> guiDescriptions() {
+        List<GuiDescription> result = new ArrayList<GuiDescription>();
+        for (ContainerGuiDefinition definition : GUIS.values()) {
+            result.add(new GuiDescription(definition));
+        }
+        return Collections.unmodifiableList(result);
+    }
+
+    public static synchronized List<BlockBindingDescription> blockBindings() {
+        List<BlockBindingDescription> result = new ArrayList<BlockBindingDescription>();
+        for (Map.Entry<Integer, BlockBinding> entry : BLOCKS.entrySet()) {
+            result.add(new BlockBindingDescription(entry.getKey().intValue(), entry.getValue()));
+        }
+        return Collections.unmodifiableList(result);
     }
 
     public static synchronized void register(TileEntityDefinition definition) {
@@ -118,8 +299,7 @@ public final class TileEntityRegistry {
         if (!(entity instanceof LuaTileEntity)) {
             return;
         }
-        try {
-            LuaTable context = ((LuaTileEntity) entity).createContext();
+        try (LuaTileEntity.Context context = ((LuaTileEntity) entity).createScopedContext()) {
             context.set("neighborId", neighborId);
             context.set("powered", org.luaj.vm2.LuaValue.valueOf(world.isBlockIndirectlyGettingPowered(x, y, z)));
             binding.redstone.neighborAction.call(context);

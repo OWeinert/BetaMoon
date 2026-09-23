@@ -25,6 +25,14 @@ public final class MatchRequirement {
         return count >= minimum && count <= maximum;
     }
 
+    public int getMinimum() {
+        return minimum;
+    }
+
+    public int getMaximum() {
+        return maximum;
+    }
+
     @Override
     public String toString() {
         return minimum == maximum ? String.valueOf(minimum) : minimum + ".." + maximum;

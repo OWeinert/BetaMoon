@@ -4,8 +4,11 @@ import betamoon.BetaMoonCommon;
 
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
+import betamoon.luaapi.world.LuaExplosionApi;
 import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.world.explosion.ExplosionExecution;
+import betamoon.world.explosion.ExplosionRequest;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
@@ -160,8 +163,12 @@ public final class EntityDamageEvents {
         LuaTable context = new LuaTable();
         context.set("entity", LuaEntityActionAccess.create(scope, null, target));
         context.set("world", LuaWorldActionAccess.create(scope, target.worldObj,
-                (int) Math.floor(target.posX), (int) Math.floor(target.posY), (int) Math.floor(target.posZ)));
+                (int) Math.floor(target.posX), (int) Math.floor(target.posY), (int) Math.floor(target.posZ), target));
         context.set("cause", cause);
+        ExplosionRequest explosion = ExplosionExecution.current();
+        if (explosion != null) {
+            context.set("explosion", LuaExplosionApi.context(scope, target.worldObj, explosion));
+        }
         if (attacker != null && attacker.worldObj == target.worldObj) {
             context.set("attacker", LuaEntityActionAccess.create(scope, null, attacker));
         }

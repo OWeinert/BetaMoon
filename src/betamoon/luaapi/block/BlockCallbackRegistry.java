@@ -35,6 +35,10 @@ public final class BlockCallbackRegistry {
         return DEFINITIONS.get(Integer.valueOf(id));
     }
 
+    public static int registeredCount() {
+        return DEFINITIONS.size();
+    }
+
     public static void validateIdentity(int id, BlockDefinition definition) {
         String old = SAVED_SCHEMAS.get(id);
         if (old != null && !old.equals(definition.state.signature)) {

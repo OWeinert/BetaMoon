@@ -1,5 +1,7 @@
 package betamoon.tileentity;
 
+import betamoon.assets.AssetKey;
+import betamoon.fuel.FuelRegistry;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -28,7 +30,9 @@ public final class LuaContainer extends Container {
             ContainerDefinition.SlotDefinition slot = definition.slots.get(i);
             addSlot(slot.outputOnly
                     ? new OutputSlot(entity, slot.index, slot.x, slot.y)
-                    : new Slot(entity, slot.index, slot.x, slot.y));
+                    : slot.acceptedFuelSet == null
+                            ? new Slot(entity, slot.index, slot.x, slot.y)
+                            : new FuelSlot(entity, slot.index, slot.x, slot.y, slot.acceptedFuelSet));
         }
         tileSlotCount = definition.slots.size();
         for (int row = 0; row < 3; row++) {
@@ -145,6 +149,20 @@ public final class LuaContainer extends Container {
         @Override
         public boolean isItemValid(ItemStack stack) {
             return false;
+        }
+    }
+
+    private static final class FuelSlot extends Slot {
+        private final AssetKey fuelSet;
+
+        private FuelSlot(LuaTileEntity inventory, int index, int x, int y, AssetKey fuelSet) {
+            super(inventory, index, x, y);
+            this.fuelSet = fuelSet;
+        }
+
+        @Override
+        public boolean isItemValid(ItemStack stack) {
+            return FuelRegistry.resolve(stack, fuelSet).isFuel();
         }
     }
 }

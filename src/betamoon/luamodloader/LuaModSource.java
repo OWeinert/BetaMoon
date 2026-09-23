@@ -88,6 +88,10 @@ final class LuaModSource {
         return entrypointRelative;
     }
 
+    String entrypointPath() {
+        return entrypointPath;
+    }
+
     String modulePathPrefix() {
         return modulePathPrefix;
     }

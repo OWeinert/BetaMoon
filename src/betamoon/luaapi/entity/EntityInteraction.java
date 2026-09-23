@@ -54,7 +54,7 @@ public final class EntityInteraction {
             }
             if (entity.worldObj != null) {
                 context.set("world", LuaWorldActionAccess.create(scope, entity.worldObj, (int) Math.floor(entity.posX),
-                        (int) Math.floor(entity.posY), (int) Math.floor(entity.posZ)));
+                        (int) Math.floor(entity.posY), (int) Math.floor(entity.posZ), entity));
             }
             LuaValue result = definition.onInteract.call(context);
             return InteractionOutcome.fromLua(result, "entity.onInteract");

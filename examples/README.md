@@ -55,6 +55,7 @@ used by later examples.
 | 24 | `01_beg_24_first_block_interaction.lua` | Handling a block activation |
 | 25 | `01_beg_25_first_item_use.lua` | Handling a consumable item's right-click action |
 | 26 | `01_beg_26_click_sound.lua` | Registered WAV and local playback from item use |
+| 27 | `01_beg_27_custom_fuel.lua` | Registering an item as vanilla furnace fuel |
 
 ## Intermediate
 
@@ -86,6 +87,9 @@ state, physical behavior, and event-driven logic.
 | 21 | `02_int_21_scheduled_and_display_ticks.lua` | Scheduled gameplay ticks and client display ticks |
 | 22 | `02_int_22_redstone_switch.lua` | Directional digital redstone output |
 | 23 | `02_int_23_first_entity.lua` | Model-backed prop declaration and spawning from an item |
+| 24 | `02_int_24_custom_projectile.lua` | Model-backed projectile behavior, ammunition, and impact handling |
+| 25 | `02_int_25_pickup_entity.lua` | Typed pickup entities and inventory collection |
+| 26 | `02_int_26_configurable_explosion.lua` | Selective explosion effects, attribution, and result snapshots |
 
 ## Advanced
 
@@ -97,7 +101,7 @@ together and read its dependency comments before loading it.
 | 01 | `03_adv_01_animated_model_item.lua` | Animation JSON combined with Lua pose control |
 | 02 | `03_adv_02_redstone_timer.lua` | Input-edge observation and scheduled output pulses |
 | 03a–03c | `03_adv_03a_basic_storage_data.lua`, `03_adv_03b_basic_storage_layout.lua`, `03_adv_03c_basic_storage_block.lua` | Modular declarations combined into saved storage, a container, and a GUI |
-| 04 | `03_adv_04_custom_furnace.lua` | A complete fuel-burning vanilla-smelting machine |
+| 04 | `03_adv_04_custom_furnace.lua` | A complete smelting machine with a composed private fuel set |
 | 05 | `03_adv_05_tile_redstone_controller.lua` | Persistent tile data controlling redstone output |
 | 06 | `03_adv_06_gui_showcase.lua` | Container GUI elements and synchronized presentation |
 | 07 | `03_adv_07_animated_machine.lua` | Animated block variants, material slots, glow, and sound |
@@ -117,6 +121,7 @@ together and read its dependency comments before loading it.
 | Beginner 24 | **Greeting Block** (228): cobblestone + stick. Place and right-click it to report its position. |
 | Beginner 25 | **Signal Bell** (5028): sugar + redstone makes four. Right-click to play its sound and consume one. |
 | Beginner 26 | **Clicker** (5032): right-click to hear the local WAV. |
+| Beginner 27 | **Compressed Coal** (5041): eight coal around clay; burns for 12,800 ticks in a vanilla furnace. |
 | Intermediate 08 | **Interaction Block** (210): cobblestone + stick. Right-click toggles activity; sneak-right-click locks mining. |
 | Intermediate 09 | **Attached Lamp** (217): stone + glowstone dust makes four. Attach one to any solid face and remove its support. |
 | Intermediate 10 | **Lifecycle Observer** (218): stone + paper. Click it, alter a neighbor, collide with it, then break or explode it. |
@@ -134,10 +139,11 @@ together and read its dependency comments before loading it.
 | Intermediate 23 | **Stone Sample Entity**: obtain Sample Placer (5035), copy `builtin_model_item/`, place it, then punch it to recover the placer. |
 | Intermediate 24 | **Pebble Launcher** (5037): copy `entity_examples/`, carry cobblestone, and fire a custom projectile. |
 | Intermediate 25 | **Gem Dropper** (5038): place a typed pickup and collect its full stack. |
+| Intermediate 26 | **Configurable Charge** (5042): right-click for a concussive blast or sneak-right-click for demolition. |
 | Advanced 01 | **Clockwork Bird Model Item** (5034): observe clip animation with Lua head movement. |
 | Advanced 02 | **Pulse Timer** (213): cobblestone + redstone. A rising north input produces a one-second south output. |
 | Advanced 03 | **Basic Storage** (224): chest surrounded by planks. Its screen reports occupied saved slots. |
-| Advanced 04 | **Fast Furnace** (204): vanilla furnace surrounded by iron. It uses normal smelting recipes in 100 ticks. |
+| Advanced 04 | **Fast Furnace** (204): vanilla furnace surrounded by iron. It smelts in 100 ticks and also accepts redstone as its private fuel. |
 | Advanced 05 | **Tile Redstone Controller** (225): insert a control key, then use input edges to toggle persistent output. |
 | Advanced 06 | **GUI Showcase** (208): chest + redstone. Use its Page and Sample slots to explore the gallery. |
 | Advanced 07 | **Animated Machine** (234): right-click to toggle its rotor, glow, and click. |

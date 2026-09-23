@@ -5,6 +5,7 @@ import betamoon.assets.AssetId;
 import betamoon.assets.AssetRegistration;
 import betamoon.assets.AssetRegistry;
 import betamoon.assets.BuiltinAssets;
+import java.util.List;
 
 /**
  * Bridges script initialization to the headless asset registry; it does not
@@ -76,6 +77,11 @@ public final class ScriptAssetScope implements AutoCloseable {
      */
     public static AssetRegistration find(AssetId id) {
         return REGISTRY.find(id);
+    }
+
+    /** Returns published script assets as an immutable point-in-time snapshot. */
+    public static List<AssetRegistration> snapshot() {
+        return REGISTRY.snapshot();
     }
 
     /** Resolves private declarations only for the currently initializing owner. */

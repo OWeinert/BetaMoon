@@ -5,6 +5,7 @@ import betamoon.BetaMoonCommon;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.utils.LuaOverrideCallback;
 import betamoon.luaapi.utils.PositionI;
+import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptErrors;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptResourceTracker;
@@ -34,6 +35,18 @@ public final class BlockTickRegistry {
     private static final Map<World, Map<String, ScheduledRun>> SCHEDULED = new WeakHashMap<World, Map<String, ScheduledRun>>();
 
     private BlockTickRegistry() {
+    }
+
+    public static synchronized int registeredDefinitionCount() {
+        return DEFINITIONS.size();
+    }
+
+    public static synchronized int scheduledRunCount() {
+        int count = 0;
+        for (Map<String, ScheduledRun> worldRuns : SCHEDULED.values()) {
+            count += worldRuns.size();
+        }
+        return count;
     }
 
     /**
@@ -331,7 +344,8 @@ public final class BlockTickRegistry {
             set("position", new PositionI(x, y, z));
             set("id", blockId);
             set("damage", world.getBlockMetadata(x, y, z));
-            set("world", new WorldAccess(actionContext.callbackScope(), world, gameplay));
+            set("world", LuaWorldActionAccess.create(
+                    actionContext.callbackScope(), world, x, y, z, null, true));
             set("random", new RandomNumber(actionContext.callbackScope(), random));
             if (gameplay) {
                 set("schedule", new Schedule(this));
@@ -341,100 +355,6 @@ public final class BlockTickRegistry {
         @Override
         public void close() {
             actionContext.close();
-        }
-    }
-
-    /** Small safe world facade used by tick actions. */
-    private static final class WorldAccess extends LuaTable {
-        private final LuaCallbackScope scope;
-        private final World world;
-
-        private WorldAccess(LuaCallbackScope scope, World world, boolean gameplay) {
-            this.scope = scope;
-            this.world = world;
-            set("getBlock", new GetBlock(this));
-            if (gameplay) {
-                set("setBlock", new SetBlock(this));
-            }
-            set("spawnParticle", new SpawnParticle(this));
-            set("playSound", new PlaySound(this));
-        }
-    }
-
-    private static final class GetBlock extends VarArgFunction {
-        private final WorldAccess owner;
-        private GetBlock(WorldAccess owner) {
-            this.owner = owner;
-        }
-
-        public Varargs invoke(Varargs args) {
-            owner.scope.requireActive();
-            int offset = args.arg1() == owner ? 1 : 0;
-            int x = args.arg(1 + offset).checkint();
-            int y = args.arg(2 + offset).checkint();
-            int z = args.arg(3 + offset).checkint();
-            LuaTable result = new LuaTable();
-            result.set("id", owner.world.getBlockId(x, y, z));
-            result.set("damage", owner.world.getBlockMetadata(x, y, z));
-            return result;
-        }
-    }
-
-    private static final class SetBlock extends VarArgFunction {
-        private final WorldAccess owner;
-        private SetBlock(WorldAccess owner) {
-            this.owner = owner;
-        }
-
-        public Varargs invoke(Varargs args) {
-            owner.scope.requireMutable();
-            int offset = args.arg1() == owner ? 1 : 0;
-            int x = args.arg(1 + offset).checkint();
-            int y = args.arg(2 + offset).checkint();
-            int z = args.arg(3 + offset).checkint();
-            int id = resourceId(args.arg(4 + offset));
-            LuaValue damage = args.arg(5 + offset);
-            boolean changed = damage.isnil()
-                    ? owner.world.setBlockWithNotify(x, y, z, id)
-                    : owner.world.setBlockAndMetadataWithNotify(x, y, z, id, damage.checkint());
-            return LuaValue.valueOf(changed);
-        }
-    }
-
-    private static final class SpawnParticle extends VarArgFunction {
-        private final WorldAccess owner;
-        private SpawnParticle(WorldAccess owner) {
-            this.owner = owner;
-        }
-
-        public Varargs invoke(Varargs args) {
-            owner.scope.requireActive();
-            int offset = args.arg1() == owner ? 1 : 0;
-            String name = args.arg(1 + offset).checkjstring();
-            LuaValue def = args.arg(2 + offset);
-            requireTable(def, "particle");
-            owner.world.spawnParticle(name, requiredNumber(def, "x"), requiredNumber(def, "y"),
-                    requiredNumber(def, "z"), def.get("velocityX").optdouble(0.0D),
-                    def.get("velocityY").optdouble(0.0D), def.get("velocityZ").optdouble(0.0D));
-            return LuaValue.NIL;
-        }
-    }
-
-    private static final class PlaySound extends VarArgFunction {
-        private final WorldAccess owner;
-        private PlaySound(WorldAccess owner) {
-            this.owner = owner;
-        }
-
-        public Varargs invoke(Varargs args) {
-            owner.scope.requireActive();
-            int offset = args.arg1() == owner ? 1 : 0;
-            String name = args.arg(1 + offset).checkjstring();
-            LuaValue def = args.arg(2 + offset);
-            requireTable(def, "sound");
-            owner.world.playSoundEffect(requiredNumber(def, "x"), requiredNumber(def, "y"), requiredNumber(def, "z"),
-                    name, (float) def.get("volume").optdouble(1.0D), (float) def.get("pitch").optdouble(1.0D));
-            return LuaValue.NIL;
         }
     }
 
@@ -468,17 +388,6 @@ public final class BlockTickRegistry {
         }
     }
 
-    private static int resourceId(LuaValue value) {
-        if (value.isnumber()) {
-            return value.checkint();
-        }
-        LuaValue id = value.get("id");
-        if (id.isnil()) {
-            throw new LuaError("Expected a block reference or numeric block ID.");
-        }
-        return id.checkint();
-    }
-
     private static void requireTable(LuaValue value, String name) {
         if (!value.istable()) {
             throw new LuaError(name + " must be a table.");
@@ -502,14 +411,6 @@ public final class BlockTickRegistry {
             throw new LuaError(name + " must be a positive whole number.");
         }
         return result;
-    }
-
-    private static double requiredNumber(LuaValue table, String key) {
-        LuaValue value = table.get(key);
-        if (value.isnil()) {
-            throw new LuaError("Definition requires '" + key + "'.");
-        }
-        return value.checkdouble();
     }
 
     private static void report(String owner, String callback, Throwable error) {

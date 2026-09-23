@@ -1,79 +1,68 @@
 package betamoon.debug;
 
-import betamoon.BetaMoonCommon;
-
-import betamoon.io.IoUtils;
 import betamoon.recipes.RecipeModificationHandler;
 import betamoon.recipes.custom.CustomRecipes;
 import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
-import java.util.logging.Level;
 import net.minecraft.src.IRecipe;
 
 /**
  * Exports recipe data into the debug recipes file.
  */
 final class DebugRecipeExporter {
-    private static final java.util.logging.Logger LOGGER = BetaMoonCommon.LOGGER;
-
     private DebugRecipeExporter() {
     }
 
-    /**
-     * Exports recipe data into the debug recipes file.
-     *
-     * @return exception when export fails, otherwise null
-     */
-    static Exception exportRecipes() {
-        try {
-            ensureRecipeMap();
-        } catch (Exception e) {
-            return e;
-        }
-        File outputFile;
-        try {
-            outputFile = DebugExportPaths.resolveDebugFile("recipes.txt");
-        } catch (IOException e) {
-            return e;
-        }
-        BufferedWriter writer = null;
-        try {
-            writer = new BufferedWriter(new FileWriter(outputFile));
-            Map<String, IRecipe> recipeMap = RecipeModificationHandler.getRecipeMap();
-            boolean wroteRecipe = false;
-            // Iterate deterministically in map order so keys line up with the handler
-            // output.
-            for (java.util.Iterator<Map.Entry<String, IRecipe>> it = recipeMap.entrySet().iterator(); it.hasNext();) {
-                Map.Entry<String, IRecipe> entry = it.next();
-                String name = (String) entry.getKey();
-                Object recipe = entry.getValue();
-                // Each entry produces a single formatted line unless skipped.
-                String line = DebugRecipeFormatter.formatRecipeLine(name, recipe);
-                if (line != null) {
-                    writer.write(line);
+    static void export(final DebugExportSession session) throws Exception {
+        ensureRecipeMap();
+        session.writeTextFile("recipes.txt", new DebugExportSession.TextContent() {
+            @Override
+            public int write(BufferedWriter writer) throws IOException {
+                Map<String, IRecipe> recipeMap = RecipeModificationHandler.getRecipeMap();
+                List<Map.Entry<String, IRecipe>> nativeRecipes = new ArrayList<Map.Entry<String, IRecipe>>(
+                        recipeMap.entrySet());
+                Collections.sort(nativeRecipes, new Comparator<Map.Entry<String, IRecipe>>() {
+                    @Override
+                    public int compare(Map.Entry<String, IRecipe> left, Map.Entry<String, IRecipe> right) {
+                        return left.getKey().compareTo(right.getKey());
+                    }
+                });
+                int records = 0;
+                boolean wroteRecipe = false;
+                for (Map.Entry<String, IRecipe> entry : nativeRecipes) {
+                    String line = DebugRecipeFormatter.formatRecipeLine(entry.getKey(), entry.getValue());
+                    if (line != null) {
+                        writer.write(line);
+                        writer.newLine();
+                        wroteRecipe = true;
+                        records++;
+                    }
+                }
+                List<CustomRecipes.Entry> customRecipes = new ArrayList<CustomRecipes.Entry>(CustomRecipes.all());
+                Collections.sort(customRecipes, new Comparator<CustomRecipes.Entry>() {
+                    @Override
+                    public int compare(CustomRecipes.Entry left, CustomRecipes.Entry right) {
+                        return left.key.compareTo(right.key);
+                    }
+                });
+                DebugCustomRecipeFormatter customFormatter = new DebugCustomRecipeFormatter();
+                for (CustomRecipes.Entry entry : customRecipes) {
+                    if (wroteRecipe) {
+                        writer.newLine();
+                    }
+                    writer.write(customFormatter.format(entry));
                     writer.newLine();
                     wroteRecipe = true;
+                    records++;
                 }
+                return records;
             }
-            DebugCustomRecipeFormatter customFormatter = new DebugCustomRecipeFormatter();
-            for (CustomRecipes.Entry entry : CustomRecipes.all()) {
-                if (wroteRecipe) {
-                    writer.newLine();
-                }
-                writer.write(customFormatter.format(entry));
-                writer.newLine();
-                wroteRecipe = true;
-            }
-        } catch (IOException e) {
-            LOGGER.log(Level.WARNING, "Debug export failed: recipes", e);
-            return e;
-        } finally {
-            IoUtils.closeQuietly(writer, "debug recipes");
-        }
-        return null;
+        });
     }
 
     /**

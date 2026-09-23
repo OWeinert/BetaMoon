@@ -37,7 +37,8 @@ final class EntityAiStageEvents {
             LuaTable context = new LuaTable();
             context.set("entity", LuaEntityActionAccess.create(scope, null, entity));
             context.set("world", LuaWorldActionAccess.create(scope, entity.worldObj,
-                    (int) Math.floor(entity.posX), (int) Math.floor(entity.posY), (int) Math.floor(entity.posZ)));
+                    (int) Math.floor(entity.posX), (int) Math.floor(entity.posY), (int) Math.floor(entity.posZ),
+                    entity));
             context.set("age", entity.ticksExisted);
             context.set("navigationStatus", navigationStatus);
             Entity target = entity.getTarget();

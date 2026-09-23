@@ -21,8 +21,8 @@ final class DebugItemStackFormatter {
             return "[item = [unknown / 0 / \"Unknown\"], amount = 0]";
         }
         int id = stack.itemID;
-        String internalName = DebugExportNames.resolveInternalName(id, stack);
-        String displayName = DebugExportNames.resolveDisplayName(id, stack);
+        String internalName = DebugExportNames.safeString(DebugExportNames.resolveInternalName(id, stack));
+        String displayName = DebugExportNames.safeString(DebugExportNames.resolveDisplayName(id, stack));
         String idText = anyDamage ? id + ":*" : DebugExportNames.formatIdWithDamage(id, stack.getItemDamage());
         return "[item = [" + internalName + " / " + idText + " / \"" + displayName + "\"], amount = " + amount + "]";
     }
@@ -31,7 +31,7 @@ final class DebugItemStackFormatter {
         if (stack == null) {
             return "unknown";
         }
-        String name = DebugExportNames.resolveInternalName(stack.itemID, stack);
+        String name = DebugExportNames.safeString(DebugExportNames.resolveInternalName(stack.itemID, stack));
         if ("unknown".equals(name)) {
             name = String.valueOf(stack.itemID);
         }
