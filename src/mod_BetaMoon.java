@@ -7,6 +7,7 @@ import betamoon.entity.LuaLivingEntity;
 import betamoon.entity.LuaPickupEntity;
 import betamoon.entity.LuaProjectileEntity;
 import betamoon.entity.LuaPropEntity;
+import betamoon.fuel.FuelRegistry;
 import betamoon.luaapi.block.BlockModelRegistry;
 import java.util.Map;
 import java.util.Random;
@@ -68,6 +69,11 @@ public class mod_BetaMoon extends BaseMod {
     @Override
     public void RenderInvBlock(RenderBlocks renderer, Block block, int metadata, int type) {
         BlockModelRegistry.renderOrdinaryInventory(renderer, block, metadata);
+    }
+
+    @Override
+    public int AddFuel(int itemId) {
+        return FuelRegistry.getLegacyFurnaceBurnTime(itemId);
     }
 
     @Override

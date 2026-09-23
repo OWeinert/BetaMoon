@@ -2,18 +2,19 @@ package betamoon.tileentity;
 
 import betamoon.BetaMoonCommon;
 
+import betamoon.assets.AssetKey;
+import betamoon.fuel.FuelConsumption;
+import betamoon.fuel.FuelRegistry;
 import betamoon.luaapi.block.BlockCallbackRegistry;
 import betamoon.luaapi.block.LuaBlockActionContext;
+import betamoon.luaapi.fuel.FuelsApi;
 import betamoon.luaapi.tileentity.LuaTileDataAccess;
 import betamoon.luamodloader.LuaScriptErrors;
-import net.minecraft.src.Block;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.FurnaceRecipes;
 import net.minecraft.src.IInventory;
 import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
-import net.minecraft.src.Material;
-import net.minecraft.src.ModLoader;
 import net.minecraft.src.NBTTagCompound;
 import net.minecraft.src.NBTTagList;
 import net.minecraft.src.TileEntity;
@@ -476,17 +477,8 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
 
         public Varargs invoke(Varargs args) {
             int slot = access.entity.slot(LuaTileEntity.arg(args, access, 1).checkjstring());
-            ItemStack fuel = access.entity.getStackInSlot(slot);
-            int time = fuelTime(fuel);
-            if (time <= 0) {
-                return LuaValue.ZERO;
-            }
-            if (fuel.getItem().hasContainerItem()) {
-                access.entity.setInventorySlotContents(slot, new ItemStack(fuel.getItem().getContainerItem()));
-            } else {
-                access.entity.decrStackSize(slot, 1);
-            }
-            return LuaValue.valueOf(time);
+            AssetKey setKey = FuelsApi.optionalSetKey(LuaTileEntity.arg(args, access, 2), "consumeFuel set");
+            return LuaValue.valueOf(FuelConsumption.consume(access.entity, slot, setKey));
         }
     }
     private static final class MarkDirty extends VarArgFunction {
@@ -535,24 +527,10 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
         }
 
         public Varargs invoke(Varargs args) {
-            return LuaValue.valueOf(fuelTime(luaToStack(LuaTileEntity.arg(args, access, 1))));
+            ItemStack stack = luaToStack(LuaTileEntity.arg(args, access, 1));
+            AssetKey setKey = FuelsApi.optionalSetKey(LuaTileEntity.arg(args, access, 2), "getBurnTime set");
+            return LuaValue.valueOf(FuelRegistry.resolve(stack, setKey).burnTime);
         }
-    }
-
-    private static int fuelTime(ItemStack stack) {
-        if (stack == null) {
-            return 0;
-        }
-        int id = stack.getItem().shiftedIndex;
-        return id < 256 && Block.blocksList[id] != null && Block.blocksList[id].blockMaterial == Material.wood
-                ? 300
-                : id == Item.stick.shiftedIndex
-                        ? 100
-                        : id == Item.coal.shiftedIndex
-                                ? 1600
-                                : id == Item.bucketLava.shiftedIndex
-                                        ? 20000
-                                        : id == Block.sapling.blockID ? 100 : ModLoader.AddAllFuel(id);
     }
 
     private static LuaValue arg(Varargs args, LuaValue receiver, int index) {

@@ -265,7 +265,8 @@ public final class InstrumentationTransformTest {
                     || diagnostic.getHookId().equals("betamoon:block_break_guard")
                     || diagnostic.getHookId().equals("betamoon:block_power")
                     || diagnostic.getHookId().equals("betamoon:block_display_tick")
-                    || diagnostic.getHookId().equals("betamoon:item_harvest"))
+                    || diagnostic.getHookId().equals("betamoon:item_harvest")
+                    || diagnostic.getHookId().equals("betamoon:furnace_fuel"))
                             ? HookStatus.WAITING_FOR_TARGET
                             : HookStatus.APPLIED;
             require(diagnostic.getStatus() == expected,
@@ -338,13 +339,15 @@ public final class InstrumentationTransformTest {
                 {"net/minecraft/src/ItemRenderer", "held"}, {"net/minecraft/src/RenderItem", "gui"},
                 {"net/minecraft/src/EntityRenderer", "frame"}, {"net/minecraft/src/Chunk", "chunkLoaded"},
                 {"net/minecraft/src/RenderGlobal", "worldModels"},
+                {"net/minecraft/src/TileEntityFurnace", "result"},
                 {"net/minecraft/src/SpawnerAnimals", "after"}};
         for (String[] target : additionalTargets) {
             String targetOwner = mappings.resolveClass(new betamoon.instrumentation.api.ClassRef(target[0]),
                     RuntimeNamespace.CLIENT);
             byte[] result = transformer.transform(null, targetOwner, null, null, readClass(clientJarPath, targetOwner));
             int expectedCallbacks = target[0].equals("net/minecraft/src/RenderGlobal") ? 2
-                    : target[0].equals("net/minecraft/src/SpawnerAnimals") ? 3 : 1;
+                    : target[0].equals("net/minecraft/src/SpawnerAnimals") ? 3
+                            : target[0].equals("net/minecraft/src/TileEntityFurnace") ? 7 : 1;
             int callbackCount = result == null ? 0 : countCallbackCalls(result, target[1]);
             require(result != null && callbackCount == expectedCallbacks,
                     "Missing runtime hook for " + target[0] + " (transformed=" + (result != null)

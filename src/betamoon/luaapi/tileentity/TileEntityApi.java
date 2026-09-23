@@ -1,5 +1,7 @@
 package betamoon.luaapi.tileentity;
 
+import betamoon.assets.AssetKey;
+import betamoon.luaapi.fuel.FuelsApi;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.tileentity.ContainerDefinition;
 import betamoon.tileentity.ContainerGuiDefinition;
@@ -212,9 +214,16 @@ public final class TileEntityApi {
             if (!visibleSlots.add(slotIndex)) {
                 throw new LuaError("Container lists tile slot '" + slotName + "' more than once.");
             }
-            slots.add(
-                    new ContainerDefinition.SlotDefinition(slot.get("name").optjstring(slotName), slotIndex.intValue(),
-                            requiredInt(slot, "x"), requiredInt(slot, "y"), slot.get("outputOnly").toboolean()));
+            boolean outputOnly = slot.get("outputOnly").toboolean();
+            AssetKey acceptedFuelSet = slot.get("acceptsFuel").isnil()
+                    ? null
+                    : FuelsApi.requireSetKey(slot.get("acceptsFuel"), "container slot acceptsFuel");
+            if (outputOnly && acceptedFuelSet != null) {
+                throw new LuaError("A container slot cannot be outputOnly and accept fuel.");
+            }
+            slots.add(new ContainerDefinition.SlotDefinition(slot.get("name").optjstring(slotName),
+                    slotIndex.intValue(), requiredInt(slot, "x"), requiredInt(slot, "y"), outputOnly,
+                    acceptedFuelSet));
         }
         LuaValue player = requiredTable(def, "playerInventory");
         ContainerDefinition definition = new ContainerDefinition(name, owner, tile, slots, requiredInt(player, "x"),

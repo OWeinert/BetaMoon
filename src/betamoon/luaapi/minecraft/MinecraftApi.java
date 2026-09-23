@@ -30,6 +30,9 @@ public final class MinecraftApi {
         guiValues.put("backgrounds", constants("betamoon.mc.gui.backgrounds", MinecraftBuiltins.guiBackgrounds()));
         guiValues.put("sprites", constants("betamoon.mc.gui.sprites", MinecraftBuiltins.guiSprites()));
 
+        Map<String, LuaValue> fuelValues = new LinkedHashMap<>();
+        fuelValues.put("furnace", LuaValue.valueOf("minecraft:fuel/furnace"));
+
         Map<String, LuaValue> minecraftValues = new LinkedHashMap<>();
         minecraftValues.put("world", table("betamoon.mc.world", worldValues));
         minecraftValues.put("blockMaterials",
@@ -45,6 +48,7 @@ public final class MinecraftApi {
         minecraftValues.put("particles", constants("betamoon.mc.particles", MinecraftBuiltins.particles()));
         minecraftValues.put("sounds", table("betamoon.mc.sounds", soundValues));
         minecraftValues.put("gui", table("betamoon.mc.gui", guiValues));
+        minecraftValues.put("fuels", table("betamoon.mc.fuels", fuelValues));
         module.set("mc", table("betamoon.mc", minecraftValues));
 
         LuaValue worldgen = module.get("worldgen");

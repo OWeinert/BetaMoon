@@ -23,7 +23,7 @@ public final class LoaderCollectionsTest {
     private LoaderCollectionsTest() {
     }
 
-    public static void main(String[] arguments) {
+    public static void main(String[] arguments) throws Exception {
         try {
             verifyRegistrySnapshots();
             verifyCleanupOrderAndFailures();
@@ -39,6 +39,7 @@ public final class LoaderCollectionsTest {
             verifySourcePreflight();
             verifyRetainedScripts();
             verifyLoaderPhases();
+            FuelSystemTest.main(arguments);
             System.out.println("Loader collections passed: snapshots, cleanup, dependencies, lifecycle and sources.");
         } finally {
             ScriptResourceTracker.unloadAll();
