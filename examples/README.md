@@ -87,6 +87,9 @@ state, physical behavior, and event-driven logic.
 | 21 | `02_int_21_scheduled_and_display_ticks.lua` | Scheduled gameplay ticks and client display ticks |
 | 22 | `02_int_22_redstone_switch.lua` | Directional digital redstone output |
 | 23 | `02_int_23_first_entity.lua` | Model-backed prop declaration and spawning from an item |
+| 24 | `02_int_24_custom_projectile.lua` | Model-backed projectile behavior, ammunition, and impact handling |
+| 25 | `02_int_25_pickup_entity.lua` | Typed pickup entities and inventory collection |
+| 26 | `02_int_26_configurable_explosion.lua` | Selective explosion effects, attribution, and result snapshots |
 
 ## Advanced
 
@@ -136,6 +139,7 @@ together and read its dependency comments before loading it.
 | Intermediate 23 | **Stone Sample Entity**: obtain Sample Placer (5035), copy `builtin_model_item/`, place it, then punch it to recover the placer. |
 | Intermediate 24 | **Pebble Launcher** (5037): copy `entity_examples/`, carry cobblestone, and fire a custom projectile. |
 | Intermediate 25 | **Gem Dropper** (5038): place a typed pickup and collect its full stack. |
+| Intermediate 26 | **Configurable Charge** (5042): right-click for a concussive blast or sneak-right-click for demolition. |
 | Advanced 01 | **Clockwork Bird Model Item** (5034): observe clip animation with Lua head movement. |
 | Advanced 02 | **Pulse Timer** (213): cobblestone + redstone. A rising north input produces a one-second south output. |
 | Advanced 03 | **Basic Storage** (224): chest surrounded by planks. Its screen reports occupied saved slots. |
