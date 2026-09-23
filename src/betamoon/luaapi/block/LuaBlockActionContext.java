@@ -5,8 +5,11 @@ import betamoon.luaapi.item.LuaItemStackAccess;
 import betamoon.luaapi.tileentity.LuaTileDataAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.utils.LuaDeclarationValues;
+import betamoon.luaapi.world.LuaExplosionApi;
 import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.tileentity.LuaTileEntity;
+import betamoon.world.explosion.ExplosionExecution;
+import betamoon.world.explosion.ExplosionRequest;
 import net.minecraft.src.Entity;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.ItemStack;
@@ -66,6 +69,10 @@ public final class LuaBlockActionContext extends LuaTable implements AutoCloseab
             set("tileEntity", tileAccess);
         }
         set("world", LuaWorldActionAccess.create(scope, world, x, y, z));
+        ExplosionRequest explosion = ExplosionExecution.current();
+        if (explosion != null) {
+            set("explosion", LuaExplosionApi.context(scope, world, explosion));
+        }
         set("state", stateAccess());
         set("redstone", redstoneAccess());
         LuaTable target = new LuaTable();

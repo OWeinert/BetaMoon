@@ -97,7 +97,8 @@ final class EntityPartEvents {
         context.set("part", target.partName());
         context.set("hitbox", LuaEntityActionAccess.create(scope, null, target));
         context.set("world", LuaWorldActionAccess.create(scope, target.worldObj,
-                (int) Math.floor(target.posX), (int) Math.floor(target.posY), (int) Math.floor(target.posZ)));
+                (int) Math.floor(target.posX), (int) Math.floor(target.posY), (int) Math.floor(target.posZ),
+                target.parent()));
         return context;
     }
 

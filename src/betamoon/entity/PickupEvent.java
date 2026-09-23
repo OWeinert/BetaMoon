@@ -30,7 +30,7 @@ final class PickupEvent {
             context.set("entity", LuaEntityActionAccess.create(scope, player, pickup));
             context.set("player", LuaEntityActionAccess.create(scope, player, player));
             context.set("world", LuaWorldActionAccess.create(scope, pickup.worldObj, (int) Math.floor(pickup.posX),
-                    (int) Math.floor(pickup.posY), (int) Math.floor(pickup.posZ)));
+                    (int) Math.floor(pickup.posY), (int) Math.floor(pickup.posZ), pickup));
             definition.onPickup.call(context);
         } catch (RuntimeException error) {
             if (DISABLED.add(definition)) {

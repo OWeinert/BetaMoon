@@ -36,7 +36,15 @@ public final class LuaWorldActionAccess {
     }
 
     public static LuaTable create(LuaCallbackScope scope, World world, int x, int y, int z) {
+        return create(scope, world, x, y, z, null, false);
+    }
 
+    public static LuaTable create(LuaCallbackScope scope, World world, int x, int y, int z, Entity defaultSource) {
+        return create(scope, world, x, y, z, defaultSource, false);
+    }
+
+    public static LuaTable create(LuaCallbackScope scope, World world, int x, int y, int z, Entity defaultSource,
+            boolean allowPresentation) {
         final LuaTable api = new LuaTable();
         api.set("getTime", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -171,10 +179,12 @@ public final class LuaWorldActionAccess {
         api.set("isPowered", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 scope.requireActive();
-                int bx = coordinate(argument(a, api, 1));
-                int by = integer(argument(a, api, 2), "isPowered.y", 0, 127);
-                int bz = coordinate(argument(a, api, 3));
-                return valueOf(world.blockExists(bx, by, bz)
+                boolean origin = argument(a, api, 1).isnil();
+                int bx = origin ? x : coordinate(argument(a, api, 1));
+                int by = origin ? y
+                        : integer(argument(a, api, 2), "isPowered.y", 0, 127);
+                int bz = origin ? z : coordinate(argument(a, api, 3));
+                return valueOf((origin || world.blockExists(bx, by, bz))
                         && world.isBlockIndirectlyGettingPowered(bx, by, bz));
             }
         });
@@ -220,20 +230,68 @@ public final class LuaWorldActionAccess {
         });
         api.set("playSound", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                scope.requireMutable();
+                presentation(scope, allowPresentation);
                 String sound = string(argument(a, api, 1), "sound");
-                float volume = argument(a, api, 2).isnil() ? 1 : (float) number(argument(a, api, 2), "volume");
-                float pitch = argument(a, api, 3).isnil() ? 1 : (float) number(argument(a, api, 3), "pitch");
-                world.playSoundEffect(x + .5, y + .5, z + .5, sound, volume, pitch);
+                LuaValue second = argument(a, api, 2);
+                double sx = x + 0.5D;
+                double sy = y + 0.5D;
+                double sz = z + 0.5D;
+                float volume;
+                float pitch;
+                if (second.istable()) {
+                    fields(second, "playSound.options", "x", "y", "z", "volume", "pitch");
+                    sx = optionalNumber(second.get("x"), sx, "playSound.options.x");
+                    sy = optionalNumber(second.get("y"), sy, "playSound.options.y");
+                    sz = optionalNumber(second.get("z"), sz, "playSound.options.z");
+                    volume = (float) optionalNumber(second.get("volume"), 1.0D, "playSound.options.volume");
+                    pitch = (float) optionalNumber(second.get("pitch"), 1.0D, "playSound.options.pitch");
+                } else {
+                    volume = second.isnil() ? 1.0F : (float) number(second, "playSound.volume");
+                    pitch = argument(a, api, 3).isnil()
+                            ? 1.0F : (float) number(argument(a, api, 3), "playSound.pitch");
+                }
+                world.playSoundEffect(sx, sy, sz, sound, volume, pitch);
                 return NIL;
             }
         });
         api.set("spawnParticle", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
-                scope.requireMutable();
+                presentation(scope, allowPresentation);
                 String name = string(argument(a, api, 1), "particle");
-                world.spawnParticle(name, x + .5, y + .5, z + .5, 0, 0, 0);
+                LuaValue options = argument(a, api, 2);
+                double px = x + 0.5D;
+                double py = y + 0.5D;
+                double pz = z + 0.5D;
+                double velocityX = 0.0D;
+                double velocityY = 0.0D;
+                double velocityZ = 0.0D;
+                if (!options.isnil()) {
+                    fields(options, "spawnParticle.options", "x", "y", "z", "velocityX", "velocityY",
+                            "velocityZ");
+                    px = optionalNumber(options.get("x"), px, "spawnParticle.options.x");
+                    py = optionalNumber(options.get("y"), py, "spawnParticle.options.y");
+                    pz = optionalNumber(options.get("z"), pz, "spawnParticle.options.z");
+                    velocityX = optionalNumber(options.get("velocityX"), 0.0D, "spawnParticle.options.velocityX");
+                    velocityY = optionalNumber(options.get("velocityY"), 0.0D, "spawnParticle.options.velocityY");
+                    velocityZ = optionalNumber(options.get("velocityZ"), 0.0D, "spawnParticle.options.velocityZ");
+                }
+                world.spawnParticle(name, px, py, pz, velocityX, velocityY, velocityZ);
                 return NIL;
+            }
+        });
+        api.set("notifyNeighbors", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                scope.requireMutable();
+                boolean origin = argument(a, api, 1).isnil();
+                int bx = origin ? x : coordinate(argument(a, api, 1));
+                int by = origin ? y
+                        : integer(argument(a, api, 2), "notifyNeighbors.y", 0, 127);
+                int bz = origin ? z : coordinate(argument(a, api, 3));
+                if (!origin && !world.blockExists(bx, by, bz)) {
+                    return FALSE;
+                }
+                world.notifyBlocksOfNeighborChange(bx, by, bz, world.getBlockId(bx, by, bz));
+                return TRUE;
             }
         });
         api.set("spawnEntity", new VarArgFunction() {
@@ -311,6 +369,10 @@ public final class LuaWorldActionAccess {
                 return result;
             }
         });
+        double explosionX = defaultSource == null ? x + 0.5D : defaultSource.posX;
+        double explosionY = defaultSource == null ? y + 0.5D : defaultSource.posY;
+        double explosionZ = defaultSource == null ? z + 0.5D : defaultSource.posZ;
+        LuaExplosionApi.install(api, scope, world, explosionX, explosionY, explosionZ, defaultSource);
         return api;
 
     }
@@ -321,5 +383,17 @@ public final class LuaWorldActionAccess {
 
     private static int coordinate(LuaValue value) {
         return integer(value, "coordinate", -30000000, 30000000);
+    }
+
+    private static double optionalNumber(LuaValue value, double fallback, String path) {
+        return value.isnil() ? fallback : number(value, path);
+    }
+
+    private static void presentation(LuaCallbackScope scope, boolean allowed) {
+        if (allowed) {
+            scope.requireActive();
+        } else {
+            scope.requireMutable();
+        }
     }
 }

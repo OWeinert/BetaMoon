@@ -9,6 +9,8 @@ import betamoon.luaapi.block.BlockCallbackRegistry;
 import betamoon.luaapi.block.LuaBlockActionContext;
 import betamoon.luaapi.fuel.FuelsApi;
 import betamoon.luaapi.tileentity.LuaTileDataAccess;
+import betamoon.luaapi.utils.LuaCallbackScope;
+import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptErrors;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.FurnaceRecipes;
@@ -86,16 +88,16 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
     }
 
     private void invokeTick(TileEntityDefinition definition) {
-        LuaTable context = createContext();
-        int blockId = worldObj.getBlockId(xCoord, yCoord, zCoord);
-        if (BlockCallbackRegistry.get(blockId) == null) {
-            definition.tickAction.call(context);
-            return;
-        }
-
-        try (LuaBlockActionContext blockContext = new LuaBlockActionContext(worldObj, xCoord, yCoord, zCoord, null,
-                null, -1, true)) {
-            context.set("state", blockContext.get("state"));
+        try (Context context = createScopedContext()) {
+            int blockId = worldObj.getBlockId(xCoord, yCoord, zCoord);
+            if (BlockCallbackRegistry.get(blockId) != null) {
+                try (LuaBlockActionContext blockContext = new LuaBlockActionContext(
+                        worldObj, xCoord, yCoord, zCoord, null, null, -1, true)) {
+                    context.set("state", blockContext.get("state"));
+                    definition.tickAction.call(context);
+                }
+                return;
+            }
             definition.tickAction.call(context);
         }
     }
@@ -194,8 +196,8 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
             return;
         }
         notifyingInventory = true;
-        try {
-            definition.inventoryChangedAction.call(createContext());
+        try (Context context = createScopedContext()) {
+            definition.inventoryChangedAction.call(context);
         } catch (Throwable error) {
             inventoryActionEnabled = false;
             reportCallbackError(definition, "onInventoryChanged", error);
@@ -306,7 +308,11 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
 
     /** Creates the safe Lua view shared by tick and neighbor callbacks. */
     public LuaTable createContext() {
-        return new TickContext(this);
+        return createScopedContext();
+    }
+
+    public Context createScopedContext() {
+        return new Context(this);
     }
 
     private int slot(String name) {
@@ -330,8 +336,11 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
         BetaMoonCommon.LOGGER.warning(definition.owner + ": " + message);
     }
 
-    private static final class TickContext extends LuaTable {
-        private TickContext(LuaTileEntity entity) {
+    public static final class Context extends LuaTable implements AutoCloseable {
+        private final LuaCallbackScope scope;
+
+        private Context(LuaTileEntity entity) {
+            scope = new LuaCallbackScope(entity.worldObj != null && !entity.worldObj.multiplayerWorld);
             LuaTable entityValue = new LuaTable();
             entityValue.set("data", LuaTileDataAccess.create(entity));
             entityValue.set("inventory", new InventoryAccess(entity));
@@ -340,45 +349,15 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
             set("x", entity.xCoord);
             set("y", entity.yCoord);
             set("z", entity.zCoord);
-            set("world", new WorldAccess(entity));
+            set("world", LuaWorldActionAccess.create(
+                    scope, entity.worldObj, entity.xCoord, entity.yCoord, entity.zCoord));
             set("recipes", new RecipeAccess(entity));
             set("fuels", new FuelAccess());
         }
-    }
 
-    private static final class WorldAccess extends LuaTable {
-        private final LuaTileEntity entity;
-        private WorldAccess(LuaTileEntity entity) {
-            this.entity = entity;
-            set("isPowered", new IsPowered(this));
-            set("notifyNeighbors", new NotifyNeighbors(this));
-        }
-    }
-    private static final class IsPowered extends VarArgFunction {
-        private final WorldAccess access;
-        private IsPowered(WorldAccess access) {
-            this.access = access;
-        }
-
-        public Varargs invoke(Varargs args) {
-            return LuaValue.valueOf(access.entity.worldObj != null && access.entity.worldObj
-                    .isBlockIndirectlyGettingPowered(access.entity.xCoord, access.entity.yCoord, access.entity.zCoord));
-        }
-    }
-    private static final class NotifyNeighbors extends VarArgFunction {
-        private final WorldAccess access;
-        private NotifyNeighbors(WorldAccess access) {
-            this.access = access;
-        }
-
-        public Varargs invoke(Varargs args) {
-            if (access.entity.worldObj != null && !access.entity.worldObj.multiplayerWorld) {
-                int id = access.entity.worldObj.getBlockId(access.entity.xCoord, access.entity.yCoord,
-                        access.entity.zCoord);
-                access.entity.worldObj.notifyBlocksOfNeighborChange(access.entity.xCoord, access.entity.yCoord,
-                        access.entity.zCoord, id);
-            }
-            return LuaValue.NIL;
+        @Override
+        public void close() {
+            scope.close();
         }
     }
 

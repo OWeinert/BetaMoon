@@ -128,7 +128,8 @@ public final class EntityLifecycleEvents {
             LuaTable context = new LuaTable();
             context.set("entity", LuaEntityActionAccess.create(scope, null, entity));
             context.set("world", LuaWorldActionAccess.create(scope, entity.worldObj,
-                    (int) Math.floor(entity.posX), (int) Math.floor(entity.posY), (int) Math.floor(entity.posZ)));
+                    (int) Math.floor(entity.posX), (int) Math.floor(entity.posY), (int) Math.floor(entity.posZ),
+                    entity));
             context.set("age", entity.ticksExisted);
             if (reason != null) {
                 context.set("reason", reason);
