@@ -328,8 +328,12 @@ public final class TileEntityApi {
                     acceptedFuelSet));
         }
         LuaValue player = requiredTable(def, "playerInventory");
+        Map<String, ContainerDefinition.SessionField> session = ContainerControlParser.parseSession(def.get("session"));
+        Map<String, betamoon.tileentity.ContainerControlDefinition> controls = ContainerControlParser.parseControls(
+                def.get("controls"), tile, session);
         ContainerDefinition definition = new ContainerDefinition(name, owner, tile, slots, requiredInt(player, "x"),
-                requiredInt(player, "y"), player.get("includeHotbar").optboolean(true));
+                requiredInt(player, "y"), player.get("includeHotbar").optboolean(true), session, controls,
+                callback(def.get("onClose"), "container.onClose"));
         TileEntityRegistry.register(definition);
         return new ContainerHandle(definition);
     }
@@ -381,7 +385,7 @@ public final class TileEntityApi {
         List<ContainerGuiDefinition.Element> elements = new ArrayList<>();
         LuaValue elementDefs = def.get("elements");
         if (!elementDefs.isnil()) {
-            ContainerGuiParser.parseElements(elementDefs, container.tileEntity, elements, 0, 0, null);
+            ContainerGuiParser.parseElements(elementDefs, container, elements, 0, 0, null);
         }
         ContainerGuiParser.validateBounds(elements, width, height);
         ContainerGuiDefinition definition = new ContainerGuiDefinition(name, owner, container, width, height, title,
@@ -476,6 +480,13 @@ public final class TileEntityApi {
             throw new LuaError(name + ".action must be a function.");
         }
         return action;
+    }
+
+    private static LuaValue callback(LuaValue value, String path) {
+        if (!value.isnil() && !value.isfunction()) {
+            throw new LuaError(path + " must be a function.");
+        }
+        return value;
     }
 
     private static LuaValue required(LuaValue table, String key) {

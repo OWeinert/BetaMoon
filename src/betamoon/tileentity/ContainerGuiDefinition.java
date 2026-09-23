@@ -82,7 +82,12 @@ public final class ContainerGuiDefinition {
         public final int height;
         public final int textureWidth;
         public final int textureHeight;
+        public final int border;
         public Texture(String resource, int u, int v, int width, int height, int textureWidth, int textureHeight) {
+            this(resource, u, v, width, height, textureWidth, textureHeight, 0);
+        }
+        public Texture(String resource, int u, int v, int width, int height, int textureWidth, int textureHeight,
+                int border) {
             this.resource = resource;
             this.u = u;
             this.v = v;
@@ -90,6 +95,7 @@ public final class ContainerGuiDefinition {
             this.height = height;
             this.textureWidth = textureWidth;
             this.textureHeight = textureHeight;
+            this.border = border;
         }
     }
 
@@ -226,13 +232,52 @@ public final class ContainerGuiDefinition {
         }
     }
 
+    /** Interactive view bound to one container-owned control. */
+    public static final class ControlElement extends Element {
+        public final String control;
+        public final ContainerControlDefinition.Type type;
+        public final int width;
+        public final int height;
+        public final String text;
+        public final String orientation;
+        public final boolean focusable;
+        public final boolean captureDrag;
+        public final Map<String, Texture> visuals;
+
+        public ControlElement(int x, int y, int layer, GuiAnchor anchor, Condition condition, List<String> tooltip,
+                String control, ContainerControlDefinition.Type type, int width, int height, String text,
+                String orientation, boolean focusable, boolean captureDrag, Map<String, Texture> visuals) {
+            super(x, y, layer, anchor, condition, tooltip);
+            this.control = control;
+            this.type = type;
+            this.width = width;
+            this.height = height;
+            this.text = text;
+            this.orientation = orientation;
+            this.focusable = focusable;
+            this.captureDrag = captureDrag;
+            this.visuals = Collections.unmodifiableMap(new LinkedHashMap<String, Texture>(visuals));
+        }
+    }
+
     /** Recursive comparison tree used by visibleWhen. */
     public static final class Condition {
+        public enum Source {
+            DATA,
+            SESSION
+        }
+
+        public final Source source;
         public final String field;
         public final GuiConditionOperator operator;
         public final Object expected;
         public final List<Condition> children;
         public Condition(String field, GuiConditionOperator operator, Object expected, List<Condition> children) {
+            this(Source.DATA, field, operator, expected, children);
+        }
+        public Condition(Source source, String field, GuiConditionOperator operator, Object expected,
+                List<Condition> children) {
+            this.source = source;
             this.field = field;
             this.operator = operator;
             this.expected = expected;

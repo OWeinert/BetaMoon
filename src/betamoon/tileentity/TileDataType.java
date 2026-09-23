@@ -28,7 +28,7 @@ public enum TileDataType {
             return Integer.valueOf(value);
         }
 
-        boolean accepts(Object value) {
+        public boolean accepts(Object value) {
             return value instanceof Integer;
         }
     },
@@ -53,7 +53,7 @@ public enum TileDataType {
             throw new IllegalStateException("Number fields cannot be synchronized as integers");
         }
 
-        boolean accepts(Object value) {
+        public boolean accepts(Object value) {
             return value instanceof Number;
         }
     },
@@ -78,7 +78,7 @@ public enum TileDataType {
             return Boolean.valueOf(value != 0);
         }
 
-        boolean accepts(Object value) {
+        public boolean accepts(Object value) {
             return value instanceof Boolean;
         }
     },
@@ -103,7 +103,7 @@ public enum TileDataType {
             throw new IllegalStateException("String fields cannot be synchronized as integers");
         }
 
-        boolean accepts(Object value) {
+        public boolean accepts(Object value) {
             return value instanceof String;
         }
     };
@@ -147,5 +147,5 @@ public enum TileDataType {
 
     abstract Object fromSyncValue(int value);
 
-    abstract boolean accepts(Object value);
+    public abstract boolean accepts(Object value);
 }
