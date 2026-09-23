@@ -36,6 +36,18 @@ public final class BlockTickRegistry {
     private BlockTickRegistry() {
     }
 
+    public static synchronized int registeredDefinitionCount() {
+        return DEFINITIONS.size();
+    }
+
+    public static synchronized int scheduledRunCount() {
+        int count = 0;
+        for (Map<String, ScheduledRun> worldRuns : SCHEDULED.values()) {
+            count += worldRuns.size();
+        }
+        return count;
+    }
+
     /**
      * Validates and installs the tick definitions declared by the current script.
      */

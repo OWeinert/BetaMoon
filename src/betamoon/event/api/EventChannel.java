@@ -20,4 +20,9 @@ public class EventChannel<TContext extends EventContext> {
             listener.invoke(context);
         }
     }
+
+    /** Returns the current listener count for diagnostics. */
+    public int listenerCount() {
+        return listeners.size();
+    }
 }

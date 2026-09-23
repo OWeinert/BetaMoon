@@ -27,7 +27,7 @@ public final class AssetDefaultPaths {
             if (!hasOgg && !hasWav) {
                 throw new IOException("No sound default for " + id.getKey() + "; expected " + ogg + " or " + wav);
             }
-            return new AssetDefinition(id, hasOgg ? ogg : wav, hasOgg ? "ogg" : "wav");
+            return AssetDefinition.derived(id, hasOgg ? ogg : wav, hasOgg ? "ogg" : "wav");
         }
 
         String extension;
@@ -41,7 +41,7 @@ public final class AssetDefaultPaths {
             throw new IllegalArgumentException("No default path convention for " + id.getKind());
         }
         rejectFileSuffix(id, "." + extension);
-        return new AssetDefinition(id, AssetPath.parse(base + "." + extension), extension);
+        return AssetDefinition.derived(id, AssetPath.parse(base + "." + extension), extension);
     }
 
     private static void rejectFileSuffix(AssetId id, String... suffixes) {

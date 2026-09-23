@@ -3,6 +3,10 @@ package betamoon.luaapi.module;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptResourceTracker;
 import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Iterator;
 import java.util.Map;
 import org.luaj.vm2.LuaError;
@@ -14,6 +18,31 @@ public final class ModuleRegistry {
     private static final Map<String, ExportEntry> publishedExports = new HashMap<>();
 
     private ModuleRegistry() {
+    }
+
+    /** Immutable module identity for diagnostics; exported Lua values stay private. */
+    public static final class Description {
+        public final String name;
+        public final String owner;
+
+        private Description(ExportEntry entry) {
+            name = entry.name;
+            owner = entry.owner;
+        }
+    }
+
+    public static synchronized List<Description> snapshot() {
+        List<Description> result = new ArrayList<Description>();
+        for (ExportEntry entry : publishedExports.values()) {
+            result.add(new Description(entry));
+        }
+        Collections.sort(result, new Comparator<Description>() {
+            @Override
+            public int compare(Description left, Description right) {
+                return left.name.compareTo(right.name);
+            }
+        });
+        return Collections.unmodifiableList(result);
     }
 
     static void stage(String name, LuaTable value) {

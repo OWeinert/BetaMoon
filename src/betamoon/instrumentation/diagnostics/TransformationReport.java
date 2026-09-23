@@ -15,24 +15,36 @@ public final class TransformationReport {
         diagnostics.put(hookId, new HookDiagnostic(hookId, HookStatus.REGISTERED, "Registered"));
     }
 
+    public void registered(String hookId, String target, String matchRequirement, boolean required) {
+        diagnostics.put(hookId, new HookDiagnostic(hookId, HookStatus.REGISTERED, "Registered", target,
+                matchRequirement, required));
+    }
+
     public void waiting(String hookId, String target) {
-        diagnostics.put(hookId, new HookDiagnostic(hookId, HookStatus.WAITING_FOR_TARGET, "Waiting for " + target));
+        update(hookId, HookStatus.WAITING_FOR_TARGET, "Waiting for " + target, target);
     }
 
     public void applied(String hookId, String target) {
-        diagnostics.put(hookId, new HookDiagnostic(hookId, HookStatus.APPLIED, "Applied to " + target));
+        update(hookId, HookStatus.APPLIED, "Applied to " + target, target);
     }
 
     public void alreadyApplied(String hookId, String target) {
-        diagnostics.put(hookId, new HookDiagnostic(hookId, HookStatus.ALREADY_APPLIED, "Already applied to " + target));
+        update(hookId, HookStatus.ALREADY_APPLIED, "Already applied to " + target, target);
     }
 
     public void noMatch(String hookId, String target) {
-        diagnostics.put(hookId, new HookDiagnostic(hookId, HookStatus.NO_MATCH, "No call site found in " + target));
+        update(hookId, HookStatus.NO_MATCH, "No call site found in " + target, target);
     }
 
     public void failed(String hookId, String message) {
-        diagnostics.put(hookId, new HookDiagnostic(hookId, HookStatus.FAILED, message));
+        update(hookId, HookStatus.FAILED, message, null);
+    }
+
+    private void update(String hookId, HookStatus status, String message, String target) {
+        HookDiagnostic previous = diagnostics.get(hookId);
+        diagnostics.put(hookId, new HookDiagnostic(hookId, status, message,
+                target == null && previous != null ? previous.getTarget() : target,
+                previous == null ? null : previous.getMatchRequirement(), previous != null && previous.isRequired()));
     }
 
     public boolean hasFailures() {

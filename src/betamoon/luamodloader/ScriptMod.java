@@ -181,6 +181,29 @@ public class ScriptMod {
         return source == null ? 0L : source.storageRevision();
     }
 
+    /** Returns single_file, directory, zip, or unknown without exposing disk paths. */
+    public String getPackageLayout() {
+        return source == null ? "unknown" : source.layout().name().toLowerCase(java.util.Locale.ROOT);
+    }
+
+    /** Returns the package-relative entrypoint used by the loader. */
+    public String getEntrypointPath() {
+        return source == null ? sourceFileName : source.entrypointPath();
+    }
+
+    /** Returns package-relative Lua source paths as an immutable snapshot. */
+    public List<String> getSourcePaths() {
+        return source == null ? java.util.Collections.singletonList(sourceFileName) : source.sourcePaths();
+    }
+
+    public boolean supportsReload() {
+        return modReload != null && !modReload.isnil();
+    }
+
+    public boolean supportsUnload() {
+        return modUnload != null && !modUnload.isnil();
+    }
+
     /**
      * Returns the most recent failure reason, if any.
      *

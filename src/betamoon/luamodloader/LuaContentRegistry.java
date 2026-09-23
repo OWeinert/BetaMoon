@@ -1,6 +1,8 @@
 package betamoon.luamodloader;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +27,25 @@ public final class LuaContentRegistry {
             this.owner = owner;
             this.namespace = namespace;
             this.id = id;
+        }
+    }
+
+    /** Immutable diagnostic description that does not expose the registered object. */
+    public static final class ContentDescription {
+        public final String owner;
+        public final String namespace;
+        public final int id;
+        public final String kind;
+        public final boolean registered;
+        public final boolean retained;
+
+        private ContentDescription(Entry entry) {
+            owner = entry.owner;
+            namespace = entry.namespace;
+            id = entry.id;
+            kind = entry.kind;
+            registered = entry.registered;
+            retained = !entry.seen;
         }
     }
 
@@ -77,6 +98,26 @@ public final class LuaContentRegistry {
             }
         }
         return null;
+    }
+
+    /** Returns stable diagnostic metadata without retaining wrapper instances. */
+    public static synchronized List<ContentDescription> snapshot() {
+        List<ContentDescription> result = new ArrayList<ContentDescription>();
+        for (Entry entry : CONTENT.values()) {
+            result.add(new ContentDescription(entry));
+        }
+        Collections.sort(result, new Comparator<ContentDescription>() {
+            @Override
+            public int compare(ContentDescription left, ContentDescription right) {
+                int namespace = left.namespace.compareTo(right.namespace);
+                if (namespace != 0) {
+                    return namespace;
+                }
+                int id = Integer.compare(left.id, right.id);
+                return id != 0 ? id : left.owner.compareTo(right.owner);
+            }
+        });
+        return Collections.unmodifiableList(result);
     }
 
     public static synchronized void beginLoadPass() {

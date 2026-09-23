@@ -63,7 +63,8 @@ public final class HookRegistry implements HookRegistrar {
             throw new IllegalArgumentException("Duplicate hook id: " + hookId);
         }
         definitions.put(hookId, definition);
-        report.registered(hookId);
+        report.registered(hookId, definition.getTarget().toString(), definition.getMatchRequirement().toString(),
+                definition.getMatchRequirement().getMinimum() > 0);
     }
 
     public Map<String, ClassTransformPlan> freeze(MappingResolver mappings, RuntimeNamespace... namespaces) {

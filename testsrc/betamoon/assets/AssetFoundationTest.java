@@ -30,9 +30,11 @@ public final class AssetFoundationTest {
         Path root = Files.createTempDirectory("betamoon-paths-");
         try {
             AssetResolver resolver = new AssetResolver(new FileAssetProvider(root.toFile()), null, message -> { });
-            require(AssetDefaultPaths.resolve(new AssetId(AssetKind.TEXTURE, AssetKey.parse("mymod:blocks/slate")),
-                    resolver).getFallbackPath().toString().equals("mymod/textures/blocks/slate.png"),
+            AssetDefinition inferredTexture = AssetDefaultPaths.resolve(
+                    new AssetId(AssetKind.TEXTURE, AssetKey.parse("mymod:blocks/slate")), resolver);
+            require(inferredTexture.getFallbackPath().toString().equals("mymod/textures/blocks/slate.png"),
                     "Key-only textures use their category directory");
+            require(inferredTexture.isPathDerived(), "Key-only assets retain their derived-path provenance");
             require(AssetDefaultPaths.resolve(new AssetId(AssetKind.MODEL, AssetKey.parse("mymod:machine")),
                     resolver).getOverridePath().toString().equals("bm_assets/mymod/models/machine.json"),
                     "Key-only models mirror their conventional path into packs");
@@ -113,6 +115,7 @@ public final class AssetFoundationTest {
                 "Registered models must mirror the script-relative default path");
         require(!original.getOverridePath().equals(relocated.getOverridePath()),
                 "Moving a fallback must move its registered override path");
+        require(!original.isPathDerived(), "Explicit asset paths retain their explicit-path provenance");
         AssetDefinition animation = new AssetDefinition(new AssetId(AssetKind.ANIMATION, key),
                 AssetPath.parse("author/guard.animation.json"), "animation.json");
         require(animation.getOverridePath().toString()
