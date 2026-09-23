@@ -61,9 +61,9 @@ final class BlockRegistration {
             BetaMoonCommon.LOGGER.warning("Ignored duplicate block register: id=" + definition.id);
         } else {
             ModLoader.RegisterBlock(block);
-            ModLoader.AddName(block, definition.displayName);
             entry.registered = true;
         }
+        ModLoader.AddName(block, definition.displayName);
 
         BlockTickRegistry.register(block, definition.ticks);
         BlockComponents components = definition.components;
