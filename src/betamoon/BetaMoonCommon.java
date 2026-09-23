@@ -23,7 +23,7 @@ import net.minecraft.src.World;
  * <p>This class must remain free of client-only and dedicated-server-only types.
  */
 public final class BetaMoonCommon {
-    public static final String VERSION = "0.7.1";
+    public static final String VERSION = "0.7.2";
     public static final String LUA_SCRIPTS_DIR = "lua_scripts";
     public static final Logger LOGGER = Logger.getLogger("BetaMoon");
 
