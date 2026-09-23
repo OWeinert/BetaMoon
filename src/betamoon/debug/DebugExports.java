@@ -1,5 +1,8 @@
 package betamoon.debug;
 
+import java.io.File;
+import java.util.Collections;
+
 /**
  * Entry point for debug exports.
  */
@@ -7,61 +10,25 @@ public final class DebugExports {
     private DebugExports() {
     }
 
-    /**
-     * Exports recipe types, recipes, blocks, and items in sequence.
-     *
-     * @return first exception encountered or null on success
-     */
-    public static Exception exportAll() {
-        Exception error = DebugRecipeTypeExporter.exportRecipeTypes();
-        if (error != null) {
-            return error;
+    /** Exports every catalog category while preserving independent successes. */
+    public static DebugExportResult exportAll() {
+        File root = DebugExportPaths.resolveDebugDir();
+        if (root == null) {
+            return DebugExportResult.failed(null, "Debug export directory could not be created.", 0L);
         }
-        error = DebugRecipeExporter.exportRecipes();
-        if (error != null) {
-            return error;
+        return DebugExportSession.run(root, "complete", DebugExportCatalog.completeDefinitions());
+    }
+
+    /** Exports one catalog category. */
+    public static DebugExportResult export(DebugExportDefinition definition) {
+        if (definition == null || DebugExportCatalog.find(definition.getId()) != definition) {
+            return DebugExportResult.failed(null, "Unknown debug export category.", 0L);
         }
-        error = DebugBlockExporter.exportBlocks();
-        if (error != null) {
-            return error;
+        File root = DebugExportPaths.resolveDebugDir();
+        if (root == null) {
+            return DebugExportResult.failed(null, "Debug export directory could not be created.", 0L);
         }
-        return DebugItemExporter.exportItems();
-    }
-
-    /**
-     * Exports recipe type schemas into the debug recipe types file.
-     *
-     * @return exception when export fails, otherwise null
-     */
-    public static Exception exportRecipeTypes() {
-        return DebugRecipeTypeExporter.exportRecipeTypes();
-    }
-
-    /**
-     * Exports recipes into the debug recipes file.
-     *
-     * @return exception when export fails, otherwise null
-     */
-    public static Exception exportRecipes() {
-        return DebugRecipeExporter.exportRecipes();
-    }
-
-    /**
-     * Exports blocks into the debug blocks file.
-     *
-     * @return exception when export fails, otherwise null
-     */
-    public static Exception exportBlocks() {
-        return DebugBlockExporter.exportBlocks();
-    }
-
-    /**
-     * Exports items into the debug items file.
-     *
-     * @return exception when export fails, otherwise null
-     */
-    public static Exception exportItems() {
-        return DebugItemExporter.exportItems();
+        return DebugExportSession.run(root, definition.getId(), Collections.singletonList(definition));
     }
 
     /**

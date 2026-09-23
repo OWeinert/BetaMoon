@@ -31,12 +31,12 @@ final class DebugExportNames {
             // Prefer per-stack unlocalized names when available (subtypes).
             String name = stack == null ? item.getItemName() : item.getItemNameIS(stack);
             if (name != null) {
-                return escapeText(name);
+                return name;
             }
         }
         Block block = id >= 0 && id < Block.blocksList.length ? Block.blocksList[id] : null;
         if (block != null && block.getBlockName() != null) {
-            return escapeText(block.getBlockName());
+            return block.getBlockName();
         }
         return "unknown";
     }
@@ -50,12 +50,12 @@ final class DebugExportNames {
             // Prefer stack-aware localization for subtypes (dyes, wool, etc.).
             String key = stack == null ? item.getItemName() : item.getItemNameIS(stack);
             if (key != null) {
-                return escapeText(StatCollector.translateToLocal(key + ".name"));
+                return StatCollector.translateToLocal(key + ".name");
             }
         }
         Block block = id >= 0 && id < Block.blocksList.length ? Block.blocksList[id] : null;
         if (block != null) {
-            return escapeText(block.translateBlockName());
+            return block.translateBlockName();
         }
         return "Unknown";
     }
@@ -108,10 +108,39 @@ final class DebugExportNames {
         return mapped == null ? name : mapped;
     }
 
-    /**
-     * Escapes quotes in exported strings.
-     */
+    /** Escapes text so one value cannot alter the surrounding export structure. */
     static String escapeText(String value) {
-        return value.replace("\"", "\\\"");
+        if (value == null) {
+            return "";
+        }
+        StringBuilder escaped = new StringBuilder(value.length());
+        for (int index = 0; index < value.length(); index++) {
+            char character = value.charAt(index);
+            switch (character) {
+                case '\\':
+                    escaped.append("\\\\");
+                    break;
+                case '\"':
+                    escaped.append("\\\"");
+                    break;
+                case '\n':
+                    escaped.append("\\n");
+                    break;
+                case '\r':
+                    escaped.append("\\r");
+                    break;
+                case '\t':
+                    escaped.append("\\t");
+                    break;
+                default:
+                    if (Character.isISOControl(character)) {
+                        escaped.append(String.format("\\u%04x", Integer.valueOf(character)));
+                    } else {
+                        escaped.append(character);
+                    }
+                    break;
+            }
+        }
+        return escaped.toString();
     }
 }

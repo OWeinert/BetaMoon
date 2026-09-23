@@ -3,6 +3,7 @@ package betamoon.debug;
 import betamoon.luaapi.BetaMoonModule;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptResourceTracker;
+import betamoon.recipes.RecipeModificationHandler;
 import betamoon.recipes.custom.CustomRecipes;
 import betamoon.recipes.custom.RecipeTypes;
 import java.lang.reflect.Method;
@@ -29,10 +30,13 @@ public final class DebugExportFormatterTest {
             verifyRecipeFormatting();
             verifyRecipeTypeFormatting();
             verifyBuiltInTypeFormatting();
+            RecipeModificationHandler.createRecipeMap();
+            DebugExportSystemTest.verifyLiveCatalogRun();
         } finally {
             ScriptResourceTracker.unload(OWNER);
             setOwner.invoke(null, new Object[]{null});
         }
+        DebugExportSystemTest.main(new String[0]);
         System.out.println("Recipe and recipe-type debug formatting checks passed.");
     }
 
@@ -45,7 +49,8 @@ public final class DebugExportFormatterTest {
                 + "        base = { type = 'item' },\n" + "        additive = { type = 'item' },\n"
                 + "        mold = { type = 'item', optional = true, consume = false }\n" + "    },\n"
                 + "    outputs = {\n" + "        result = { type = 'item' },\n"
-                + "        slag = { type = 'item', optional = true }\n" + "    },\n" + "    primaryOutput = 'result',\n"
+                + "        slag = { type = 'item', optional = true }\n"
+                + "    },\n" + "    primaryOutput = 'result',\n"
                 + "    data = {\n" + "        duration = { type = 'integer', default = 160, min = 1 },\n"
                 + "        label = { type = 'string' }\n" + "    },\n" + "    context = {\n"
                 + "        heat = { type = 'number', min = 0, max = 10 },\n"
@@ -123,7 +128,8 @@ public final class DebugExportFormatterTest {
         require(text.contains("\"result\": item [required, primary]"), "Primary output is not marked on its role");
         require(count(text, "primary") == 1, "Primary output is marked more than once");
         require(!text.contains("primary output"), "A duplicate primary-output field was emitted");
-        require(text.contains("duration: integer [default = 160, min = 1]"), "Data defaults and bounds are incomplete");
+        require(text.contains("duration: integer [default = 160, min = 1]"),
+                "Data defaults and bounds are incomplete");
         require(text.contains("label: string [required]"), "Required data field is not marked");
         require(text.contains("heat: number [min = 0, max = 10]"), "Context bounds are incomplete");
         require(!text.contains("built-in"), "Implementation origin leaked into the type export");

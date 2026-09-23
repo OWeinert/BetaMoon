@@ -1,54 +1,37 @@
 package betamoon.debug;
 
-import betamoon.BetaMoonCommon;
-
-import betamoon.io.IoUtils;
 import betamoon.recipes.custom.RecipeTypes;
 import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.logging.Level;
 
 /**
  * Exports recipe type schemas into their own debug file.
  */
 final class DebugRecipeTypeExporter {
-    private static final java.util.logging.Logger LOGGER = BetaMoonCommon.LOGGER;
-
     private DebugRecipeTypeExporter() {
     }
 
-    static Exception exportRecipeTypes() {
-        File outputFile;
-        try {
-            outputFile = DebugExportPaths.resolveDebugFile("recipe_types.txt");
-        } catch (IOException e) {
-            return e;
-        }
-        BufferedWriter writer = null;
-        try {
-            writer = new BufferedWriter(new FileWriter(outputFile));
-            List<RecipeTypes.Type> builtInTypes = new ArrayList<RecipeTypes.Type>();
-            List<RecipeTypes.Type> customTypes = new ArrayList<RecipeTypes.Type>();
-            partitionTypes(builtInTypes, customTypes);
-            sortByName(customTypes);
-            writeTypes(writer, builtInTypes);
-            if (!builtInTypes.isEmpty() && !customTypes.isEmpty()) {
-                writer.newLine();
+    static void export(final DebugExportSession session) throws Exception {
+        session.writeTextFile("recipe_types.txt", new DebugExportSession.TextContent() {
+            @Override
+            public int write(BufferedWriter writer) throws IOException {
+                List<RecipeTypes.Type> builtInTypes = new ArrayList<RecipeTypes.Type>();
+                List<RecipeTypes.Type> customTypes = new ArrayList<RecipeTypes.Type>();
+                partitionTypes(builtInTypes, customTypes);
+                sortByName(builtInTypes);
+                sortByName(customTypes);
+                writeTypes(writer, builtInTypes);
+                if (!builtInTypes.isEmpty() && !customTypes.isEmpty()) {
+                    writer.newLine();
+                }
+                writeTypes(writer, customTypes);
+                return builtInTypes.size() + customTypes.size();
             }
-            writeTypes(writer, customTypes);
-        } catch (IOException e) {
-            LOGGER.log(Level.WARNING, "Debug export failed: recipe types", e);
-            return e;
-        } finally {
-            IoUtils.closeQuietly(writer, "debug recipe types");
-        }
-        return null;
+        });
     }
 
     private static void partitionTypes(List<RecipeTypes.Type> builtInTypes, List<RecipeTypes.Type> customTypes) {
