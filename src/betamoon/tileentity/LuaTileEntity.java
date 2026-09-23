@@ -256,6 +256,12 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
         return data.get(getDefinition(), name);
     }
 
+    /** Applies a prevalidated primitive value from a declarative container control. */
+    public void setDataValue(String name, Object value) {
+        data.set(getDefinition(), name, value);
+        super.onInventoryChanged();
+    }
+
     /** Returns the item in a named slot for a visual item element. */
     public ItemStack getStackInNamedSlot(String name) {
         return getStackInSlot(slot(name));
