@@ -1,6 +1,36 @@
 # Changelog
 
-## 0.7.0 (development)
+## 0.7.2 (development)
+
+BetaMoon 0.7.2 expands the Lua engine with reusable fuel rules, persistent capabilities,
+connected and wireless logical networks, interactive container controls, configurable
+explosions, and broader debug exports.
+
+### Gameplay systems
+
+- Add custom fuel rules with item and metadata matching, configurable burn times,
+  priorities, predicates, and machine scopes. Vanilla furnaces and custom machines can
+  share rules or accept different fuel sets.
+- Add typed, persistent capabilities for blocks, items, tile entities, entities, players,
+  worlds, and scripts. Capability values support validation, lifecycle callbacks, and
+  controlled mutation through Lua handles.
+- Add persistent world services and logical networks for connected or wireless systems.
+  Scripts can model producers, consumers, storage, relays, channels, remote triggers,
+  and other shared systems without requiring adjacent cable blocks.
+- Add container controls for buttons, toggles, sliders, text fields, progress indicators,
+  and script-defined controls. Container state and GUI presentation remain separate, and
+  declarations can use built-in visuals or registered assets.
+- Add configurable world explosions with source attribution, fire and terrain policies,
+  affected-block inspection, and before/after callbacks.
+
+### Tools and fixes
+
+- Expand debug exports with script ownership, expected asset paths, fuels, capabilities,
+  systems, logical networks, container controls, and explosion-related information.
+- Fix hot reload so changing a registered block, tool, or armor `displayName` immediately
+  replaces its localization while preserving the native object and existing world state.
+
+## 0.7.0
 
 BetaMoon 0.7.0 adds a model, animation, audio, and custom-entity foundation. Scripts can
 now define anything from a static prop or dropped pickup to a multipart living creature
