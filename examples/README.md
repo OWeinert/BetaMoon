@@ -106,6 +106,12 @@ together and read its dependency comments before loading it.
 | 10a–10c | `03_adv_10a_advanced_fabrication_types.lua`, `03_adv_10b_advanced_fabrication_recipes.lua`, `03_adv_10c_advanced_fabricator.lua` | Pools, grids, custom matching, bindings, and atomic processing |
 | 11a–11b | `03_adv_11a_matcher_cookbook_type.lua`, `03_adv_11b_matcher_cookbook_press.lua` | A context-driven custom allocation policy in a working machine |
 | 12 | `03_adv_12_entity_data.lua` | Model-backed entity with persistent interaction data |
+| 13 | `03_adv_13_native_living_ai.lua` | Native living behavior composed with custom Lua AI |
+| 14 | `03_adv_14_manual_multipart_ai.lua` | Fully manual multipart creature behavior and hit regions |
+| 15 | `03_adv_15_energy_network.lua` | Capability operations, persistent energy, adjacent topology, and simulated/committed transfer |
+| 16 | `03_adv_16_wireless_trigger.lua` | Wireless channels, transmitter/receiver roles, retained state, and pulses |
+| 17 | `03_adv_17_hybrid_network.lua` | Adjacent local segments bridged by wireless gateways |
+| 18 | `03_adv_18_world_service_and_data.lua` | Persistent per-world services and detached world, chunk, and player views |
 
 ## Trying the interactive examples
 
