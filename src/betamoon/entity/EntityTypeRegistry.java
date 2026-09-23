@@ -1,5 +1,6 @@
 package betamoon.entity;
 
+import betamoon.data.DataField;
 import betamoon.assets.AssetKey;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -71,8 +72,8 @@ public final class EntityTypeRegistry {
             throw new IllegalArgumentException("Changing equipment slots for " + definition.key
                     + " requires an explicit equipment conversion");
         }
-        for (EntityDataField field : definition.data.values()) {
-            EntityDataField previous = old.definition.data.get(field.name);
+        for (DataField field : definition.data.values()) {
+            DataField previous = old.definition.data.get(field.name);
             if (previous != null && !field.isCompatibleWith(previous)) {
                 throw new IllegalArgumentException("Changing data." + field.name + " from "
                         + previous.describeType() + " to " + field.describeType() + " on " + definition.key

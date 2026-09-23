@@ -1,5 +1,6 @@
 package betamoon.entity;
 
+import betamoon.data.DataField;
 import betamoon.assets.AssetKey;
 import betamoon.luaapi.asset.ModelAppearanceDeclaration;
 import java.util.Collections;
@@ -31,7 +32,7 @@ public final class EntityTypeDefinition {
     public final EntityPhysicsDefinition physics;
     public final EntityHealthDefinition health;
     public final EntityDropDefinition drops;
-    public final Map<String, EntityDataField> data;
+    public final Map<String, DataField> data;
     public final Map<String, EntityPartDefinition> parts;
     public final Map<String, EntitySensorDefinition> sensors;
     public final LuaValue onInteract;
@@ -57,7 +58,7 @@ public final class EntityTypeDefinition {
             ModelAppearanceDeclaration appearance, ProjectileDefinition projectile, LivingDefinition living,
             PickupDefinition pickup, EntityPhysicsDefinition physics, EntityHealthDefinition health,
             EntityDropDefinition drops,
-            Map<String, EntityDataField> data, Map<String, EntityPartDefinition> parts,
+            Map<String, DataField> data, Map<String, EntityPartDefinition> parts,
             Map<String, EntitySensorDefinition> sensors,
             LuaValue onInteract, LuaValue onImpact, LuaValue onTick, LuaValue onPickup,
             LuaValue onSpawn, LuaValue onLoad, LuaValue onDeath, LuaValue onRemove,

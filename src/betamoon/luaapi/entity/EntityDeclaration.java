@@ -3,7 +3,7 @@ package betamoon.luaapi.entity;
 import betamoon.assets.AssetKey;
 import betamoon.entity.EntityBodyDefinition;
 import betamoon.entity.EntityBehaviorDefinition;
-import betamoon.entity.EntityDataField;
+import betamoon.data.DataField;
 import betamoon.entity.EntityDropDefinition;
 import betamoon.entity.EntityEquipmentDefinition;
 import betamoon.entity.EntityHealthDefinition;
@@ -168,7 +168,7 @@ final class EntityDeclaration {
                 sensors.put(sensorName, new EntitySensorDefinition(sensorName, sensorTable.get(name)));
             }
         }
-        Map<String, EntityDataField> data = new LinkedHashMap<>();
+        Map<String, DataField> data = new LinkedHashMap<>();
         LuaValue dataTable = value.get("data");
         if (!dataTable.isnil()) {
             if (!dataTable.istable() || dataTable.checktable().keys().length > 64) {
@@ -180,10 +180,10 @@ final class EntityDeclaration {
                     throw error("entity.data", "field names must be lowercase identifiers of at most 64 characters");
                 }
                 LuaValue field = dataTable.get(name);
-                data.put(fieldName, EntityDataField.parse(fieldName, field, "entity.data." + fieldName));
+                data.put(fieldName, DataField.parse(fieldName, field, "entity.data." + fieldName));
             }
             int maximumNodes = 0;
-            for (EntityDataField field : data.values()) {
+            for (DataField field : data.values()) {
                 maximumNodes += field.maximumNodes();
                 if (maximumNodes > 16384) {
                     throw error("entity.data", "schemas may contain at most 16384 stored values per entity");
