@@ -1,11 +1,15 @@
 package betamoon.luaapi.tileentity;
 
+import betamoon.capability.CapabilityAttachmentDefinition;
+import betamoon.capability.CapabilityDefinition;
+import betamoon.data.DataRecords;
+import betamoon.data.DataField;
+import betamoon.luaapi.capability.CapabilitiesApi;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.tileentity.ContainerDefinition;
 import betamoon.tileentity.ContainerGuiDefinition;
 import betamoon.tileentity.TileEntityDefinition;
 import betamoon.tileentity.TileEntityRegistry;
-import betamoon.tileentity.TileDataType;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -70,8 +74,18 @@ public final class TileEntityApi {
             return new TileEntityHandle(existing);
         }
 
-        LuaValue inventory = requiredTable(def, "inventory");
-        LuaValue slotDefs = requiredTable(inventory, "slots");
+        LuaValue inventory = def.get("inventory");
+        if (inventory.isnil()) {
+            inventory = new LuaTable();
+        } else if (!inventory.istable()) {
+            throw new LuaError("inventory must be a table.");
+        }
+        LuaValue slotDefs = inventory.get("slots");
+        if (slotDefs.isnil()) {
+            slotDefs = new LuaTable();
+        } else if (!slotDefs.istable()) {
+            throw new LuaError("inventory.slots must be a table.");
+        }
         Map<String, Integer> slots = new LinkedHashMap<>();
         Map<String, LuaValue> slotTables = new HashMap<>();
         List<String> slotNames = new ArrayList<>();
@@ -87,9 +101,6 @@ public final class TileEntityApi {
             }
             slotNames.add(key.checkjstring());
             slotTables.put(key.checkjstring(), next.arg(2));
-        }
-        if (slotNames.isEmpty()) {
-            throw new LuaError("A tile entity inventory requires at least one slot.");
         }
         Collections.sort(slotNames);
         Set<Integer> usedIndexes = new HashSet<>();
@@ -134,14 +145,28 @@ public final class TileEntityApi {
                 if (!fieldDef.istable()) {
                     throw new LuaError("Data field '" + fieldName + "' must be a table.");
                 }
-                TileDataType type = TileDataType.parse(requiredString(fieldDef, "type"));
-                LuaValue defaultValue = fieldDef.get("default");
-                Object value = type.defaultValue(defaultValue);
+                LuaTable schemaDefinition = new LuaTable();
+                LuaValue fieldKey = LuaValue.NIL;
+                while (true) {
+                    Varargs fieldNext = fieldDef.next(fieldKey);
+                    fieldKey = fieldNext.arg1();
+                    if (fieldKey.isnil()) {
+                        break;
+                    }
+                    if (!"sync".equals(fieldKey.tojstring())) {
+                        schemaDefinition.set(fieldKey, fieldNext.arg(2));
+                    }
+                }
+                DataField schema = DataField.parse(fieldName, schemaDefinition, "tileEntity.data." + fieldName);
+                if (schema.containsEntityReference()) {
+                    throw new LuaError("tileEntity.data." + fieldName
+                            + ": entity_reference is currently supported only by entity data.");
+                }
                 boolean sync = fieldDef.get("sync").toboolean();
-                if (sync && !type.canSynchronize()) {
+                if (sync && !(schema.type == DataField.Type.INTEGER || schema.type == DataField.Type.BOOLEAN)) {
                     throw new LuaError("Only integer and boolean data fields can use sync = true.");
                 }
-                fields.put(fieldName, new TileEntityDefinition.Field(fieldName, type, value, sync));
+                fields.put(fieldName, new TileEntityDefinition.Field(fieldName, schema, sync));
             }
         }
 
@@ -181,10 +206,87 @@ public final class TileEntityApi {
             }
         }
         LuaValue inventoryChanged = callbackAction(def.get("onInventoryChanged"), "onInventoryChanged");
+        List<CapabilityAttachmentDefinition> capabilities = parseCapabilities(def.get("capabilities"));
         TileEntityDefinition definition = new TileEntityDefinition(name, owner, inventory.get("name").optjstring(name),
-                slots, fields, action, inventoryChanged, initialDelay, repeatDelay, randomTicks, randomChance);
+                slots, fields, capabilities, action, inventoryChanged, initialDelay, repeatDelay, randomTicks,
+                randomChance);
         TileEntityRegistry.register(definition);
         return new TileEntityHandle(definition);
+    }
+
+    private static List<CapabilityAttachmentDefinition> parseCapabilities(LuaValue declarations) {
+        if (declarations.isnil()) {
+            return Collections.emptyList();
+        }
+        if (!declarations.istable()) {
+            throw new LuaError("tile entity capabilities must be an array.");
+        }
+        int count = declarations.length();
+        if (count > 32) {
+            throw new LuaError("A tile entity may implement at most 32 capabilities.");
+        }
+        List<CapabilityAttachmentDefinition> result = new ArrayList<>();
+        Set<String> used = new HashSet<>();
+        for (int index = 1; index <= count; index++) {
+            String path = "tileEntity.capabilities[" + index + "]";
+            LuaValue declaration = declarations.get(index);
+            betamoon.luaapi.utils.LuaDeclarationValues.fields(
+                    declaration, path, "capability", "config", "operations", "ports");
+            CapabilityDefinition capability = CapabilitiesApi.definition(required(declaration, "capability"),
+                    path + ".capability");
+            if (!used.add(capability.key.toString())) {
+                throw new LuaError(path + ": capability is attached more than once: " + capability.key);
+            }
+            Map<String, Object> config = DataRecords.read(
+                    capability.config, declaration.get("config"), path + ".config", true);
+            LuaValue operationValues = declaration.get("operations");
+            if (operationValues.isnil()) {
+                operationValues = new LuaTable();
+            } else if (!operationValues.istable()) {
+                throw new LuaError(path + ".operations must be a table.");
+            }
+            betamoon.luaapi.utils.LuaDeclarationValues.fields(operationValues, path + ".operations",
+                    capability.operations.keySet().toArray(new String[0]));
+            Map<String, LuaValue> operations = new LinkedHashMap<>();
+            for (String operation : capability.operations.keySet()) {
+                LuaValue callback = operationValues.get(operation);
+                if (!callback.isfunction()) {
+                    throw new LuaError(path + ".operations." + operation + " must be a function.");
+                }
+                operations.put(operation, callback);
+            }
+            Map<String, Object> ports = parsePorts(declaration.get("ports"), path + ".ports");
+            result.add(new CapabilityAttachmentDefinition(capability, config, operations, ports));
+        }
+        return result;
+    }
+
+    private static Map<String, Object> parsePorts(LuaValue declaration, String path) {
+        if (declaration.isnil()) {
+            return Collections.emptyMap();
+        }
+        betamoon.luaapi.utils.LuaDeclarationValues.fields(declaration, path,
+                "north", "south", "east", "west", "up", "down", "front", "back", "left", "right");
+        Map<String, Object> result = new LinkedHashMap<>();
+        String[] faces = {"north", "south", "east", "west", "up", "down", "front", "back", "left", "right"};
+        for (String face : faces) {
+            LuaValue value = declaration.get(face);
+            if (value.isnil()) {
+                continue;
+            }
+            if (value.isboolean() && !value.toboolean()) {
+                result.put(face, Boolean.FALSE);
+            } else if (value.isstring()) {
+                String port = value.checkjstring();
+                if (port.isEmpty() || port.length() > 64) {
+                    throw new LuaError(path + "." + face + " must contain 1 to 64 characters.");
+                }
+                result.put(face, port);
+            } else {
+                throw new LuaError(path + "." + face + " must be a string or false.");
+            }
+        }
+        return result;
     }
 
     private static ContainerHandle addContainer(LuaValue def) {

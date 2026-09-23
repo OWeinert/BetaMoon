@@ -118,8 +118,7 @@ public final class TileEntityRegistry {
         if (!(entity instanceof LuaTileEntity)) {
             return;
         }
-        try {
-            LuaTable context = ((LuaTileEntity) entity).createContext();
+        try (LuaTileEntity.Context context = ((LuaTileEntity) entity).createScopedContext()) {
             context.set("neighborId", neighborId);
             context.set("powered", org.luaj.vm2.LuaValue.valueOf(world.isBlockIndirectlyGettingPowered(x, y, z)));
             binding.redstone.neighborAction.call(context);

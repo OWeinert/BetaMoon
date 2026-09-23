@@ -8,6 +8,7 @@ import betamoon.luaapi.utils.InteractionOutcome;
 import betamoon.luaapi.block.BlockDefinition;
 import betamoon.luaapi.block.BlockFace;
 import betamoon.luaapi.block.BlockTickRegistry;
+import betamoon.networking.LogicalNetworkRuntime;
 import betamoon.tileentity.LuaTileEntity;
 import betamoon.tileentity.TileEntityRegistry;
 import java.util.ArrayList;
@@ -269,6 +270,7 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
         TileEntity entity = world.getBlockTileEntity(x, y, z);
         if (entity instanceof LuaTileEntity && !world.multiplayerWorld) {
             LuaTileEntity lua = (LuaTileEntity) entity;
+            LogicalNetworkRuntime.destroyed(lua);
             for (int slot = 0; slot < lua.getSizeInventory(); slot++) {
                 ItemStack stack = lua.getStackInSlot(slot);
                 if (stack == null) {
@@ -400,6 +402,7 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
                         LuaValue.valueOf(BlockFace.fromNative(side).luaName));
             }
             world.setBlockMetadataWithNotify(x, y, z, metadata);
+            LogicalNetworkRuntime.dirtyAt(world, x, y, z);
         }
     }
 

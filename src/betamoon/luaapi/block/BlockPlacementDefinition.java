@@ -1,5 +1,6 @@
 package betamoon.luaapi.block;
 
+import betamoon.networking.LogicalNetworkRuntime;
 import net.minecraft.src.EntityLiving;
 import net.minecraft.src.MathHelper;
 import net.minecraft.src.World;
@@ -100,6 +101,7 @@ public final class BlockPlacementDefinition {
             int index = (MathHelper.floor_double(placer.rotationYaw * 4D / 360D + .5D) & 3);
             world.setBlockMetadataWithNotify(x, y, z,
                     state.set(world.getBlockMetadata(x, y, z), "facing", LuaValue.valueOf(facing[index])));
+            LogicalNetworkRuntime.dirtyAt(world, x, y, z);
         }
     }
 

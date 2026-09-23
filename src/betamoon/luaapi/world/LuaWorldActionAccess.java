@@ -9,6 +9,7 @@ import betamoon.entity.EntityTypeRegistry;
 import betamoon.entity.LuaEntityPart;
 import betamoon.luaapi.entity.EntityTypeReference;
 import betamoon.luaapi.entity.LuaEntityActionAccess;
+import betamoon.luaapi.capability.LuaCapabilityAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.utils.LuaDeclarationValues;
 import net.minecraft.src.Block;
@@ -171,10 +172,11 @@ public final class LuaWorldActionAccess {
         api.set("isPowered", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 scope.requireActive();
-                int bx = coordinate(argument(a, api, 1));
-                int by = integer(argument(a, api, 2), "isPowered.y", 0, 127);
-                int bz = coordinate(argument(a, api, 3));
-                return valueOf(world.blockExists(bx, by, bz)
+                boolean origin = argument(a, api, 1).isnil();
+                int bx = origin ? x : coordinate(argument(a, api, 1));
+                int by = origin ? y : integer(argument(a, api, 2), "isPowered.y", 0, 127);
+                int bz = origin ? z : coordinate(argument(a, api, 3));
+                return valueOf((origin || world.blockExists(bx, by, bz))
                         && world.isBlockIndirectlyGettingPowered(bx, by, bz));
             }
         });
@@ -311,6 +313,22 @@ public final class LuaWorldActionAccess {
                 return result;
             }
         });
+        api.set("notifyNeighbors", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                scope.requireMutable();
+                boolean origin = argument(a, api, 1).isnil();
+                int bx = origin ? x : coordinate(argument(a, api, 1));
+                int by = origin ? y : integer(argument(a, api, 2), "notifyNeighbors.y", 0, 127);
+                int bz = origin ? z : coordinate(argument(a, api, 3));
+                if (!origin && !world.blockExists(bx, by, bz)) {
+                    return FALSE;
+                }
+                world.notifyBlocksOfNeighborChange(bx, by, bz, world.getBlockId(bx, by, bz));
+                return TRUE;
+            }
+        });
+        LuaWorldDataAccess.install(api, scope, world, x, y, z);
+        LuaCapabilityAccess.installWorld(api, scope, world);
         return api;
 
     }
