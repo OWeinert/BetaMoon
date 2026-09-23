@@ -23,6 +23,7 @@ Thumbs.db
 out/
 bin/
 build/
+*.code-workspace
 
 # MCP / RetroMCP / Forge
 runtime/
