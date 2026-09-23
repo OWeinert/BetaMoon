@@ -55,7 +55,7 @@ public final class BetaMoonModule extends TwoArgFunction {
         MinecraftApi.attach(module);
 
         ChatApi.attach(module);
-        ModuleApi.attach(module, env);
+        ModuleApi.attach(module);
 
         LuaTable positions = new LuaTable();
         PositionI.attach(positions);

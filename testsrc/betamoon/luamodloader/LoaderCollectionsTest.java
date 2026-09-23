@@ -239,7 +239,8 @@ public final class LoaderCollectionsTest {
         String exportingSource = "local public = { answer = 1 }\n"
                 + "assert(select('#', betamoon.modules:export('lifecycle_export', public)) == 0)\n"
                 + "assert(not pcall(function() betamoon.modules:export('missing_table') end))\n"
-                + "name = 'module exporter'\n" + "function modInit() public.answer = 42 end\n";
+                + "name = 'module exporter'\n"
+                + "function modInit() assert(package.loaded.lifecycle_export == nil) public.answer = 42 end\n";
         ScriptMod exporter = new ScriptModParser().parse(new File("module_exporter.lua"), exportingSource, errors);
         require(exporter != null && errors.isEmpty(), "A valid module export must parse as pending");
 

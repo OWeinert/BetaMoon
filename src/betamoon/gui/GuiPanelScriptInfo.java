@@ -186,7 +186,7 @@ final class GuiPanelScriptInfo extends GuiContainer {
                     selected.getSourceFileName());
             errorIssues = GuiIssueLayout.prepare(context.getFont(), filterIssues(issues, false), contentWidth, 0);
             warningIssues = GuiIssueLayout.prepare(context.getFont(), filterIssues(issues, true), contentWidth, 0);
-            image = resolveImageTexture(selected.getImagePath());
+            image = resolveImageTexture(selected);
             imageSize = IMAGE_FIXED_SIZE;
             hasDescription = hasText(description);
             hasErrors = !errorIssues.getEntries().isEmpty() || (selected.isFailed() && hasText(failure));
@@ -266,15 +266,24 @@ final class GuiPanelScriptInfo extends GuiContainer {
                 context.getRenderer().getTheme().textPrimary, scale, false);
     }
 
-    private static GuiTextureCache.Texture resolveImageTexture(String imagePath) {
-        if (!hasText(imagePath) || LuaModLoader.getLuaModsDir() == null) {
+    private static GuiTextureCache.Texture resolveImageTexture(ScriptMod mod) {
+        if (!hasText(mod.getImagePath()) || LuaModLoader.getLuaModsDir() == null) {
             return null;
         }
-        String relative = imagePath.trim();
-        while (relative.startsWith("/") || relative.startsWith("\\")) {
-            relative = relative.substring(1);
+        try {
+            byte[] archived = mod.readArchivedImage(8 * 1024 * 1024);
+            if (archived != null) {
+                GuiTextureCache.Texture texture = GuiTextureCache.shared().get(mod.getImageCacheKey(), archived,
+                        mod.getStorageRevision());
+                return texture != null && texture.getWidth() == texture.getHeight() ? texture : null;
+            }
+        } catch (java.io.IOException ignored) {
+            return null;
         }
-        File imageFile = new File(LuaModLoader.getLuaModsDir(), relative);
+        File imageFile = mod.resolveImageFile(LuaModLoader.getLuaModsDir());
+        if (imageFile == null) {
+            return null;
+        }
         GuiTextureCache.Texture texture = GuiTextureCache.shared().get(imageFile);
         return texture != null && texture.getWidth() == texture.getHeight() ? texture : null;
     }
