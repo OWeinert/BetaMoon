@@ -1,5 +1,6 @@
 package betamoon.luaapi.tileentity;
 
+import betamoon.data.DataField;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.asset.AssetInputs;
 import betamoon.luamodloader.ScriptResourceTracker;
@@ -9,7 +10,6 @@ import betamoon.tileentity.GuiAnchor;
 import betamoon.tileentity.GuiConditionOperator;
 import betamoon.tileentity.ProgressDirection;
 import betamoon.tileentity.TileEntityDefinition;
-import betamoon.tileentity.TileDataType;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -308,7 +308,7 @@ final class ContainerGuiParser {
         GuiConditionOperator operator = GuiConditionOperator.fromLua(found);
         if (operator.isOrdered()) {
             TileEntityDefinition.Field definition = tile.fields.get(field);
-            if (!(expected instanceof Number) || definition.type != TileDataType.INTEGER) {
+            if (!(expected instanceof Number) || definition.schema.type != DataField.Type.INTEGER) {
                 throw new LuaError("Ordered GUI comparisons require a synced integer field and a number.");
             }
         }

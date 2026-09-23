@@ -26,6 +26,11 @@ public final class LuaCallbackScope implements AutoCloseable {
         }
     }
 
+    public boolean isMutable() {
+        requireActive();
+        return mutable;
+    }
+
     @Override
     public void close() {
         active = false;

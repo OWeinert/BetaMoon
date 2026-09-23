@@ -9,6 +9,7 @@ import betamoon.event.context.ItemUseEventCtx;
 import betamoon.event.context.PlayerEventCtx;
 import betamoon.event.context.PressAction;
 import betamoon.event.context.WorldEventCtx;
+import betamoon.system.WorldServiceRuntime;
 import betamoon.utils.KeyInputMapper;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.EntityPlayer;
@@ -48,6 +49,7 @@ public final class BetaMoonEventHandler {
         // triggered from the esc GUI)
         World worldForLeave = lastWorld;
         if (mc.theWorld == null && worldForLeave != null) {
+            WorldServiceRuntime.unload(worldForLeave);
             Events.WORLD_LEAVE.publish(new WorldEventCtx(mc, worldForLeave));
             lastWorld = null;
         }
@@ -79,9 +81,11 @@ public final class BetaMoonEventHandler {
             // The world can be left unintentionally (server disconnect, etc.), so publish
             // WORLD_LEAVE here as well.
             if (previousWorld != null) {
+                WorldServiceRuntime.unload(previousWorld);
                 Events.WORLD_LEAVE.publish(new WorldEventCtx(mc, previousWorld));
             }
             if (currentWorld != null) {
+                WorldServiceRuntime.load(currentWorld);
                 Events.WORLD_JOIN.publish(new WorldEventCtx(mc, currentWorld));
             }
             lastWorld = currentWorld;
@@ -111,6 +115,7 @@ public final class BetaMoonEventHandler {
         publishKeyInputEvents(mc);
         publishMouseInputEvents(mc, currentWorld);
         // tick event
+        WorldServiceRuntime.tick(currentWorld);
         Events.GAME_TICK.publish(new GameEventCtx(mc, currentWorld));
     }
 

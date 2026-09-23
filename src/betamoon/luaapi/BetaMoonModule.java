@@ -1,6 +1,7 @@
 package betamoon.luaapi;
 
 import betamoon.luaapi.chat.ChatApi;
+import betamoon.luaapi.capability.CapabilitiesApi;
 import betamoon.luaapi.asset.AssetsApi;
 import betamoon.luaapi.audio.AudioApi;
 import betamoon.luaapi.event.EventsApi;
@@ -9,11 +10,13 @@ import betamoon.luaapi.fuel.FuelsApi;
 import betamoon.luaapi.material.ArmorMaterialApi;
 import betamoon.luaapi.material.ToolMaterialApi;
 import betamoon.luaapi.minecraft.MinecraftApi;
+import betamoon.luaapi.networking.LogicalNetworksApi;
 import betamoon.luaapi.module.ModuleApi;
 import betamoon.luaapi.recipe.RecipeApi;
 import betamoon.luaapi.recipe.RecipeTypesApi;
 import betamoon.luaapi.resource.RecipeRegistryApi;
 import betamoon.luaapi.resource.ResourceApi;
+import betamoon.luaapi.system.SystemsApi;
 import betamoon.luaapi.tileentity.TileEntityApi;
 import betamoon.luaapi.utils.PositionF;
 import betamoon.luaapi.utils.PositionI;
@@ -44,6 +47,9 @@ public final class BetaMoonModule extends TwoArgFunction {
         EntitiesApi.attach(module);
         FuelsApi.attach(module);
         AudioApi.attach(module);
+        CapabilitiesApi.attach(module);
+        SystemsApi.attach(module);
+        LogicalNetworksApi.attach(module);
 
         LuaTable materials = new LuaTable();
         ToolMaterialApi.attach(materials);

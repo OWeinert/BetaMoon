@@ -1,6 +1,7 @@
 package betamoon.tileentity;
 
 import betamoon.assets.AssetKey;
+import betamoon.data.DataField;
 import betamoon.fuel.FuelRegistry;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -49,7 +50,8 @@ public final class LuaContainer extends Container {
         Iterator<TileEntityDefinition.Field> fields = definition.tileEntity.fields.values().iterator();
         while (fields.hasNext()) {
             TileEntityDefinition.Field field = fields.next();
-            if (field.sync && field.type.canSynchronize()) {
+            if (field.sync && (field.schema.type == DataField.Type.INTEGER
+                    || field.schema.type == DataField.Type.BOOLEAN)) {
                 syncedFields.add(field.name);
                 lastValues.add(Integer.valueOf(Integer.MIN_VALUE));
             }

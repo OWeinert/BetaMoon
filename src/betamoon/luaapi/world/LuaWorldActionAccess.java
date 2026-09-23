@@ -9,6 +9,7 @@ import betamoon.entity.EntityTypeRegistry;
 import betamoon.entity.LuaEntityPart;
 import betamoon.luaapi.entity.EntityTypeReference;
 import betamoon.luaapi.entity.LuaEntityActionAccess;
+import betamoon.luaapi.capability.LuaCapabilityAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.utils.LuaDeclarationValues;
 import net.minecraft.src.Block;
@@ -369,6 +370,22 @@ public final class LuaWorldActionAccess {
                 return result;
             }
         });
+        api.set("notifyNeighbors", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                scope.requireMutable();
+                boolean origin = argument(a, api, 1).isnil();
+                int bx = origin ? x : coordinate(argument(a, api, 1));
+                int by = origin ? y : integer(argument(a, api, 2), "notifyNeighbors.y", 0, 127);
+                int bz = origin ? z : coordinate(argument(a, api, 3));
+                if (!origin && !world.blockExists(bx, by, bz)) {
+                    return FALSE;
+                }
+                world.notifyBlocksOfNeighborChange(bx, by, bz, world.getBlockId(bx, by, bz));
+                return TRUE;
+            }
+        });
+        LuaWorldDataAccess.install(api, scope, world, x, y, z);
+        LuaCapabilityAccess.installWorld(api, scope, world);
         double explosionX = defaultSource == null ? x + 0.5D : defaultSource.posX;
         double explosionY = defaultSource == null ? y + 0.5D : defaultSource.posY;
         double explosionZ = defaultSource == null ? z + 0.5D : defaultSource.posZ;

@@ -1,5 +1,6 @@
 package betamoon.entity;
 
+import betamoon.data.DataField;
 import betamoon.assets.AssetKey;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -57,7 +58,7 @@ public final class EntityTypeRegistry {
                     ? null : definition.living.aggression.name().toLowerCase(java.util.Locale.ROOT);
             spawning = definition.spawning == null ? null : new SpawnDescription(definition.spawning);
             List<DataDescription> dataValues = new ArrayList<DataDescription>();
-            for (EntityDataField field : definition.data.values()) {
+            for (DataField field : definition.data.values()) {
                 dataValues.add(new DataDescription(field));
             }
             data = Collections.unmodifiableList(dataValues);
@@ -133,7 +134,7 @@ public final class EntityTypeRegistry {
         public final String type;
         public final String defaultValue;
 
-        private DataDescription(EntityDataField field) {
+        private DataDescription(DataField field) {
             name = field.name;
             type = field.describeType();
             defaultValue = String.valueOf(field.defaultValue);
@@ -254,8 +255,8 @@ public final class EntityTypeRegistry {
             throw new IllegalArgumentException("Changing equipment slots for " + definition.key
                     + " requires an explicit equipment conversion");
         }
-        for (EntityDataField field : definition.data.values()) {
-            EntityDataField previous = old.definition.data.get(field.name);
+        for (DataField field : definition.data.values()) {
+            DataField previous = old.definition.data.get(field.name);
             if (previous != null && !field.isCompatibleWith(previous)) {
                 throw new IllegalArgumentException("Changing data." + field.name + " from "
                         + previous.describeType() + " to " + field.describeType() + " on " + definition.key

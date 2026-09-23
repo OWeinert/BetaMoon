@@ -1,6 +1,6 @@
 package betamoon.luaapi.entity;
 
-import betamoon.entity.EntityDataField;
+import betamoon.data.DataField;
 import betamoon.entity.LuaEntityPart;
 import betamoon.entity.TypedEntity;
 import betamoon.luaapi.utils.LuaCallbackScope;
@@ -15,9 +15,9 @@ import org.luaj.vm2.lib.VarArgFunction;
 final class EntityDataReference extends LuaTable {
     private final LuaCallbackScope scope;
     private final World world;
-    private final EntityDataField.ReferenceValue value;
+    private final DataField.ReferenceValue value;
 
-    EntityDataReference(LuaCallbackScope scope, World world, EntityDataField.ReferenceValue value) {
+    EntityDataReference(LuaCallbackScope scope, World world, DataField.ReferenceValue value) {
         this.scope = scope;
         this.world = world;
         this.value = value;
@@ -41,7 +41,7 @@ final class EntityDataReference extends LuaTable {
         });
     }
 
-    EntityDataField.ReferenceValue value(LuaCallbackScope expectedScope) {
+    DataField.ReferenceValue value(LuaCallbackScope expectedScope) {
         if (scope != expectedScope) {
             throw LuaDeclarationValues.error("entity.data", "reference belongs to another callback");
         }

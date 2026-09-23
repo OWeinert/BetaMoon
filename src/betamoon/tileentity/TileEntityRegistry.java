@@ -84,7 +84,7 @@ public final class TileEntityRegistry {
 
         private FieldDescription(TileEntityDefinition.Field field) {
             name = field.name;
-            type = field.type.getLuaName();
+            type = field.schema.describeType();
             defaultValue = String.valueOf(field.defaultValue);
             synchronizedToClient = field.sync;
         }

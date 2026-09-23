@@ -1,5 +1,6 @@
 package betamoon.entity;
 
+import betamoon.data.DataField;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -13,14 +14,14 @@ import org.luaj.vm2.LuaValue;
 
 /** Preserves the complete NBT payload, including fields whose definition is currently unavailable. */
 public final class EntityDataStore {
-    private static final EntityDataField.LuaContext NO_REFERENCES = new EntityDataField.LuaContext() {
+    private static final DataField.LuaContext NO_REFERENCES = new DataField.LuaContext() {
         @Override
-        public EntityDataField.ReferenceValue readReference(LuaValue value, String path) {
+        public DataField.ReferenceValue readReference(LuaValue value, String path) {
             throw new LuaError(path + ": a live entity callback is required for entity references");
         }
 
         @Override
-        public LuaValue writeReference(EntityDataField.ReferenceValue value) {
+        public LuaValue writeReference(DataField.ReferenceValue value) {
             throw new LuaError("A live entity callback is required for entity references");
         }
     };
@@ -57,7 +58,7 @@ public final class EntityDataStore {
             tags.put(tag.getKey(), tag);
         }
         Map<String, Object> selected = new HashMap<>();
-        for (EntityDataField field : definition.data.values()) {
+        for (DataField field : definition.data.values()) {
             NBTBase tag = tags.get(field.name);
             if (tag != null && !field.matches(tag)) {
                 error = "Saved field '" + field.name + "' has an incompatible NBT type";
@@ -76,7 +77,7 @@ public final class EntityDataStore {
         }
         values.clear();
         values.putAll(selected);
-        for (EntityDataField field : definition.data.values()) {
+        for (DataField field : definition.data.values()) {
             if (!tags.containsKey(field.name)) {
                 field.write(raw, values.get(field.name));
             }
@@ -94,7 +95,7 @@ public final class EntityDataStore {
         return get(definition, name, NO_REFERENCES);
     }
 
-    public LuaValue get(EntityTypeDefinition definition, String name, EntityDataField.LuaContext context) {
+    public LuaValue get(EntityTypeDefinition definition, String name, DataField.LuaContext context) {
         requireField(definition, name);
         return definition.data.get(name).toLua(values.get(name), context);
     }
@@ -104,9 +105,9 @@ public final class EntityDataStore {
     }
 
     public void set(EntityTypeDefinition definition, String name, LuaValue value,
-            EntityDataField.LuaContext context) {
+            DataField.LuaContext context) {
         requireField(definition, name);
-        EntityDataField field = definition.data.get(name);
+        DataField field = definition.data.get(name);
         Object parsed = field.fromLua(value, context, "data." + name);
         values.put(name, parsed);
         field.write(raw, parsed);
@@ -120,7 +121,7 @@ public final class EntityDataStore {
     public Map<String, WireValue> networkSnapshot(EntityTypeDefinition definition) {
         requireBound(definition);
         Map<String, WireValue> snapshot = new LinkedHashMap<>();
-        for (EntityDataField field : definition.data.values()) {
+        for (DataField field : definition.data.values()) {
             snapshot.put(field.name, field.toWire(values.get(field.name)));
         }
         return snapshot;
@@ -133,7 +134,7 @@ public final class EntityDataStore {
         }
         Map<String, WireValue> changed = new LinkedHashMap<>();
         for (String name : dirtyFields) {
-            EntityDataField field = definition.data.get(name);
+            DataField field = definition.data.get(name);
             changed.put(name, field.toWire(values.get(name)));
         }
         EntityDataDelta delta = new EntityDataDelta(dirtyBaseRevision, revision, changed);
@@ -212,7 +213,7 @@ public final class EntityDataStore {
     private void replaceNetworkValues(EntityTypeDefinition definition, Map<String, Object> replacement) {
         values.clear();
         values.putAll(replacement);
-        for (EntityDataField field : definition.data.values()) {
+        for (DataField field : definition.data.values()) {
             field.write(raw, values.get(field.name));
         }
     }

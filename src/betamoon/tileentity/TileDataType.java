@@ -1,5 +1,6 @@
 package betamoon.tileentity;
 
+import betamoon.data.DataField;
 import net.minecraft.src.NBTTagCompound;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
@@ -130,6 +131,10 @@ public enum TileDataType {
             }
         }
         throw new LuaError("Unsupported tile entity data type: " + name);
+    }
+
+    DataField schema(String name, Object defaultValue) {
+        return DataField.primitive(name, DataField.Type.valueOf(name().toUpperCase()), defaultValue);
     }
 
     public abstract Object defaultValue(LuaValue value);

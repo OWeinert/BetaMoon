@@ -2,7 +2,6 @@ package betamoon.luaapi.tileentity;
 
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.tileentity.LuaTileEntity;
-import betamoon.tileentity.TileEntityDefinition;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -27,7 +26,7 @@ public final class LuaTileDataAccess {
             public Varargs invoke(Varargs arguments) {
                 requireActive(scope);
                 LuaValue name = arguments.arg(arguments.arg1() == data ? 2 : 1);
-                return toLua(tile.getDataValue(name.checkjstring()));
+                return tile.getDataLua(name.checkjstring());
             }
         });
         data.set("set", new VarArgFunction() {
@@ -35,12 +34,14 @@ public final class LuaTileDataAccess {
                 requireMutable(scope);
                 int offset = arguments.arg1() == data ? 1 : 0;
                 String name = arguments.arg(offset + 1).checkjstring();
-                TileEntityDefinition.Field field = tile.getDefinition().fields.get(name);
-                if (field == null) {
-                    throw new LuaError("Unknown tile entity data field: " + name);
-                }
-                tile.setDataValue(name, field.type.fromLua(arguments.arg(offset + 2)));
+                tile.setDataLua(name, arguments.arg(offset + 2));
                 return LuaValue.NIL;
+            }
+        });
+        data.set("snapshot", new VarArgFunction() {
+            public Varargs invoke(Varargs arguments) {
+                requireActive(scope);
+                return tile.snapshotData();
             }
         });
         return data;
@@ -58,19 +59,4 @@ public final class LuaTileDataAccess {
         }
     }
 
-    private static LuaValue toLua(Object value) {
-        if (value == null) {
-            return LuaValue.NIL;
-        }
-        if (value instanceof Boolean) {
-            return LuaValue.valueOf(((Boolean) value).booleanValue());
-        }
-        if (value instanceof Integer) {
-            return LuaValue.valueOf(((Integer) value).intValue());
-        }
-        if (value instanceof Number) {
-            return LuaValue.valueOf(((Number) value).doubleValue());
-        }
-        return LuaValue.valueOf(String.valueOf(value));
-    }
 }

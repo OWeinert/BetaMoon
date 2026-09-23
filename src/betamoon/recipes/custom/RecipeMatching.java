@@ -1,6 +1,7 @@
 package betamoon.recipes.custom;
 
 import betamoon.luaapi.resource.RecipeRegistryApi;
+import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.tileentity.LuaTileEntity;
 import betamoon.tileentity.RecipeCommitResult;
 import java.util.ArrayList;
@@ -24,14 +25,25 @@ public final class RecipeMatching {
     }
 
     public static void attach(final LuaTable service, final LuaTileEntity entity) {
+        attach(service, entity, null);
+    }
+
+    public static void attach(final LuaTable service, final LuaTileEntity entity, final LuaCallbackScope scope) {
         service.set("match", new VarArgFunction() {
             public Varargs invoke(Varargs args) {
-                return match(args.arg(args.arg1() == service ? 2 : 1), entity);
+                if (scope != null) {
+                    scope.requireActive();
+                }
+                return match(args.arg(args.arg1() == service ? 2 : 1), entity, scope);
             }
         });
     }
 
     public static LuaValue match(LuaValue query, LuaTileEntity entity) {
+        return match(query, entity, null);
+    }
+
+    private static LuaValue match(LuaValue query, LuaTileEntity entity, LuaCallbackScope scope) {
         fields(query, "recipes:match",
                 entity == null
                         ? new String[]{"type", "ingredients", "context"}
@@ -88,7 +100,7 @@ public final class RecipeMatching {
             return LuaValue.NIL;
         }
         return new Match(new Plan(type, entry, definition, selection, entity, source.inputs, source.outputs,
-                nativeInput, nativeOutput));
+                nativeInput, nativeOutput), scope);
     }
 
     private static RecipePlanner.Selection select(String recipeKey, RecipeDefinition definition, ItemStack[] inventory,
@@ -556,7 +568,7 @@ public final class RecipeMatching {
     }
 
     private static final class Match extends LuaTable {
-        Match(final Plan plan) {
+        Match(final Plan plan, final LuaCallbackScope scope) {
             set("recipe",
                     plan.entry == null
                             ? RecipeRegistryApi.referenceForSmelting(plan.nativeInput)
@@ -572,11 +584,13 @@ public final class RecipeMatching {
             if (plan.entity != null) {
                 set("canApply", new VarArgFunction() {
                     public Varargs invoke(Varargs args) {
+                        scope.requireActive();
                         return check(plan, args, false);
                     }
                 });
                 set("apply", new VarArgFunction() {
                     public Varargs invoke(Varargs args) {
+                        scope.requireMutable();
                         return check(plan, args, true);
                     }
                 });

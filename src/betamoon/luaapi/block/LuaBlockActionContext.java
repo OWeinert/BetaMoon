@@ -7,6 +7,7 @@ import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.utils.LuaDeclarationValues;
 import betamoon.luaapi.world.LuaExplosionApi;
 import betamoon.luaapi.world.LuaWorldActionAccess;
+import betamoon.networking.LogicalNetworkRuntime;
 import betamoon.tileentity.LuaTileEntity;
 import betamoon.world.explosion.ExplosionExecution;
 import betamoon.world.explosion.ExplosionRequest;
@@ -156,6 +157,7 @@ public final class LuaBlockActionContext extends LuaTable implements AutoCloseab
                 int next = schema.set(old, string(argument(a, api, 1), "state.set"), argument(a, api, 2));
                 if (next != old) {
                     world.setBlockMetadataWithNotify(x, y, z, next);
+                    LogicalNetworkRuntime.dirtyAt(world, x, y, z);
                 }
                 return NIL;
             }
@@ -186,6 +188,7 @@ public final class LuaBlockActionContext extends LuaTable implements AutoCloseab
                         int next = def.state.set(world.getBlockMetadata(x, y, z), "facing",
                                 valueOf(order[(i + (direction.equals("clockwise") ? 1 : 3)) % 4]));
                         world.setBlockMetadataWithNotify(x, y, z, next);
+                        LogicalNetworkRuntime.dirtyAt(world, x, y, z);
                         return TRUE;
                     }
                 }
