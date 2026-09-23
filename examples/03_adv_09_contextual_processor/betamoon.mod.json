@@ -1,0 +1,5 @@
+{
+  "entrypoint": "main.lua",
+  "name": "Contextual Processor Example",
+  "version": "1.0.0"
+}

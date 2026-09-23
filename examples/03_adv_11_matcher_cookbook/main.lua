@@ -1,4 +1,5 @@
--- Load 09a with this file. Craft pistons + iron + redstone for a focused press.
+-- This manifested package keeps the custom matcher and recipe type in a private
+-- module. Craft pistons + iron + redstone for a focused press.
 -- Put four matching items in one material slot. Without power the matcher prefers
 -- slot 1; with power it prefers slot 5. If that slot cannot satisfy the recipe,
 -- the largest eligible stack wins. Other occupied material slots remain untouched.
@@ -7,8 +8,9 @@
 name = "Matcher Cookbook Press Example"
 version = "1.0.0"
 description = "Adds Focused Press, a five-input machine that demonstrates choosing which stack a recipe " ..
-    "consumes. Load advanced example 09a as well. Craft it with pistons in the four corners, " ..
-    "redstone dust in the center, and iron ingots in the four remaining cells.\n\n" ..
+    "consumes. Copy the complete 03_adv_11_matcher_cookbook folder into lua_scripts. Craft it with " ..
+    "pistons in the four corners, redstone dust in the center, and iron ingots in the four remaining " ..
+    "cells.\n\n" ..
     "Place it and right-click. The five Material slots run left to right. Put at least four " ..
     "cobblestone in one slot and leave Die empty to make one stone in about three seconds. For " ..
     "glass, put at least four sand in one material slot and a stick in Die; a batch makes two " ..
@@ -21,11 +23,10 @@ description = "Adds Focused Press, a five-input machine that demonstrates choosi
     "No fuel is needed. Redstone selects a preference rather than enabling processing. Watch the " ..
     "preferred-slot label, progress arrow, and output-blocked message. Remove output to resume " ..
     "blocked work. Inventory and data persist with the placed block; restart after structural " ..
-    "edits."
-dependencies = { "Matcher Cookbook Type Example" }
+    "package edits."
 
 function modInit()
-  local recipeType = betamoon.modules:import("example:module/matcher_cookbook").recipeType
+  local recipeType = require("recipe_type")().recipeType
 
   betamoon.recipes:add {
     key = "example:recipe/focused_stone_pressing",

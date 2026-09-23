@@ -27,6 +27,9 @@ explosions, and broader debug exports.
 
 - Expand debug exports with script ownership, expected asset paths, fuels, capabilities,
   systems, logical networks, container controls, and explosion-related information.
+- Package the multi-script Advanced 03 and 08-11 examples as manifested mods that use
+  private `require` modules. The Beginner 19 export/import lesson remains two separate
+  mods to demonstrate deliberate cross-mod sharing.
 - Fix hot reload so changing a registered block, tool, or armor `displayName` immediately
   replaces its localization while preserving the native object and existing world state.
 

@@ -1,21 +1,7 @@
--- This matcher demonstrates a policy the built-in pool allocator intentionally does
--- not impose: take an entire batch from one slot, prefer a machine-selected slot,
--- and otherwise choose the largest eligible stack. Other occupied pool slots are kept.
+-- Private registration module for the Matcher Cookbook type.
+-- Returning a function keeps registration inside the package modInit lifecycle.
 
-name = "Matcher Cookbook Type Example"
-version = "1.0.0"
-description = "Defines a custom matcher that takes an entire batch from one material slot, prefers a slot " ..
-    "selected by the machine, and otherwise chooses the largest eligible stack. It also supports a " ..
-    "reusable die and leaves other occupied material slots untouched.\n\n" ..
-    "Load advanced example 09b to craft and operate the Focused Press; this file alone adds no " ..
-    "machine or recipes. Compare four cobblestone in one material slot with two cobblestone in " ..
-    "each of two slots: only the single complete stack qualifies for a batch.\n\n" ..
-    "Try eligible stacks in slots 1 and 5, then switch redstone power to change the preferred " ..
-    "slot. Compare the selected stack with the scoring and allocation code here. Unlike a pooled " ..
-    "quantity requirement, this matcher deliberately does not combine smaller stacks to fill a " ..
-    "batch."
-
-function modInit()
+return function()
   local function ingredientMatches(stack, ingredient)
     if stack == nil or stack.count < ingredient.count then
       return false
@@ -103,5 +89,5 @@ function modInit()
     matcher = matcher,
     recipeType = recipeType
   }
-  betamoon.modules:export("example:module/matcher_cookbook", public)
+  return public
 end

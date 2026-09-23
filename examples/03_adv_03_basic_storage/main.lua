@@ -1,28 +1,26 @@
--- Load 02a and 02b with this file. Craft a chest surrounded by planks, place the
--- storage block, and right-click it. Items live in a real saved tile inventory;
--- the occupied counter is recomputed whenever that inventory changes.
--- Structural content cannot hot reload, so restart Minecraft after editing this file.
+-- This manifested package keeps persistent data and GUI layout declarations in
+-- private modules. Craft a chest surrounded by planks, place the storage block,
+-- and right-click it. Structural changes require a Minecraft restart.
 
 name = "Basic Storage Block Example"
 version = "1.0.0"
-description = "Adds Basic Storage, a persistent nine-slot storage block assembled from the definitions in " ..
-    "advanced examples 02a and 02b. Load all three files. In a crafting table, surround one chest " ..
-    "with eight wooden plank blocks to craft it.\n\n" ..
+description = "Adds Basic Storage, a persistent nine-slot storage block assembled from private data and " ..
+    "layout modules. Copy the complete 03_adv_03_basic_storage folder into lua_scripts. In a crafting " ..
+    "table, surround one chest with eight wooden plank blocks to craft it.\n\n" ..
     "Place the block and right-click to open its 3x3 storage grid. Move items into and out of the " ..
     "grid and watch 'Occupied slots' change from zero through nine. A stack of many items counts " ..
     "as one occupied slot; splitting that stack across several slots increases the count.\n\n" ..
     "Close and reopen the screen, then save and rejoin the world with the block still placed to " ..
-    "check that its stored items persist. Compare the inventory-change callback here with the data " ..
-    "definition and GUI layout in the companion scripts. Restart Minecraft after changes to this " ..
+    "check that its stored items persist. Compare the inventory-change callback here with data.lua " ..
+    "and layout.lua. Restart Minecraft after changes to this " ..
     "structural block, inventory, or GUI."
-dependencies = { "Basic Storage Data Example", "Basic Storage Layout Example" }
 
 function modInit()
-  local dataDefinition = betamoon.modules:import("example:module/basic_storage_data")
-  local layoutDefinition = betamoon.modules:import("example:module/basic_storage_layout")
+  local dataDefinition = require("data")
+  local layoutDefinition = require("layout")
 
   -- The three structural handles and their block are deliberately registered
-  -- together in this modInit. Imported modules only provide plain declarations,
+  -- together in this modInit. Private modules only provide plain declarations,
   -- so all structural resources have one clear owner.
   local tileEntity = betamoon.tileEntities:add {
     name = "example:block/basic_storage",

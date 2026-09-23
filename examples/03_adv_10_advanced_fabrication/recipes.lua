@@ -1,24 +1,8 @@
--- Load the companion type file first and the fabricator file for an in-game machine.
+-- Private recipe module for Advanced Fabrication.
+-- The entrypoint supplies the handles registered by its private type module.
 
-name = "Advanced Fabrication Recipes Example"
-version = "1.0.0"
-description = "Adds three recipes for the Advanced Fabricator. Load advanced examples 08a and 08c with this " ..
-    "file; these recipes run inside that machine rather than a crafting table.\n\n" ..
-    "For bulk mixing, distribute two sand and two gravel across the 3x3 work area, leave Catalyst " ..
-    "empty, and remove unrelated inputs. The result is four clay balls plus one flint and one " ..
-    "cobblestone in the byproduct slots.\n\n" ..
-    "For grid assembly, put one iron ingot in each of the four corners and one stick in the " ..
-    "center, leaving the other cells empty. This produces one iron block. For sequence assembly, " ..
-    "use only an iron ingot immediately followed by coal in work-slot order, for example the " ..
-    "top-left and top-middle cells. This produces one gold ingot; reversing them does not match.\n\n" ..
-    "The fabricator processes valid arrangements automatically without fuel or a progress delay. " ..
-    "Clear previous ingredients and outputs when switching experiments. Compare these recipes with " ..
-    "the pool, grid, and custom sequence rules in 08a."
-dependencies = { "Advanced Fabrication Types Example" }
-
-function modInit()
+return function(types)
   local bm = betamoon
-  local types = bm.modules:import("example:module/advanced_fabrication_types")
 
   bm.recipes:add {
     key = "example:recipe/coarse_ceramic_mix",

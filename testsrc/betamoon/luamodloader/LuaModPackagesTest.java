@@ -27,6 +27,7 @@ public final class LuaModPackagesTest {
     public static void main(String[] arguments) throws Exception {
         File root = Files.createTempDirectory("betamoon-mod-packages").toFile();
         try {
+            verifyDistributedExamples(new File("examples"));
             verifyDiscoveryAndManifestMetadata(root);
             verifyRequireCachingAndInitModules(root);
             verifyPrivateModuleIsolation(root);
@@ -43,6 +44,37 @@ public final class LuaModPackagesTest {
             LuaScriptErrors.clear();
             deleteTree(root);
         }
+    }
+
+    private static void verifyDistributedExamples(File examples) throws IOException {
+        LuaScriptFiles files = new LuaScriptFiles();
+        List<LuaScriptFiles.PreflightFailure> failures = files.preflight(examples);
+        require(failures.isEmpty(), "Distributed example package preflight failed: " + failures);
+
+        List<LuaScriptFiles.PreflightFailure> discoveryFailures = new ArrayList<>();
+        List<LuaModSource> sources = files.discover(examples, discoveryFailures);
+        require(discoveryFailures.isEmpty(), "Distributed example discovery failed: " + discoveryFailures);
+        List<String> expected = new ArrayList<>();
+        expected.add("03_adv_03_basic_storage");
+        expected.add("03_adv_08_simple_alloy");
+        expected.add("03_adv_09_contextual_processor");
+        expected.add("03_adv_10_advanced_fabrication");
+        expected.add("03_adv_11_matcher_cookbook");
+        LuaScriptRegistry.clear();
+        for (int i = 0; i < sources.size(); i++) {
+            LuaModSource source = sources.get(i);
+            if (!expected.remove(source.ownerId())) {
+                continue;
+            }
+            require(source.layout() == LuaModSource.Layout.DIRECTORY && "main.lua".equals(source.entrypointPath()),
+                    "Distributed multi-script example is not a main.lua directory package: " + source.ownerId());
+            List<String> parseErrors = new ArrayList<>();
+            ScriptMod parsed = new ScriptModParser().parse(source, source.readEntrypoint(), parseErrors);
+            require(parsed != null && parseErrors.isEmpty(),
+                    "Distributed example manifest metadata did not parse: " + source.ownerId() + " " + parseErrors);
+        }
+        LuaScriptRegistry.clear();
+        require(expected.isEmpty(), "Missing distributed example packages: " + expected);
     }
 
     private static void verifyDiscoveryAndManifestMetadata(File root) throws IOException {

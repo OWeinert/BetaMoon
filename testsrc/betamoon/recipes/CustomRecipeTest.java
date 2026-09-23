@@ -14,6 +14,8 @@ import betamoon.wrappers.BlockWrapper;
 import java.io.File;
 import java.io.FileInputStream;
 import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.Comparator;
 import net.minecraft.src.Block;
 import net.minecraft.src.IChunkProvider;
 import net.minecraft.src.ItemStack;
@@ -159,16 +161,13 @@ public final class CustomRecipeTest {
             }
         });
         try {
-            for (String file : new String[]{"03_adv_03a_basic_storage_data.lua", "03_adv_03b_basic_storage_layout.lua",
-                    "03_adv_03c_basic_storage_block.lua", "03_adv_04_custom_furnace.lua",
-                    "03_adv_05_tile_redstone_controller.lua", "03_adv_08a_simple_alloy_recipe_type.lua",
-                    "03_adv_08c_simple_alloy_furnace.lua", "03_adv_08b_simple_alloy_recipes.lua",
-                    "03_adv_09a_contextual_recipe_type.lua", "03_adv_09b_contextual_recipes.lua",
-                    "03_adv_09c_contextual_processor.lua", "03_adv_10a_advanced_fabrication_types.lua",
-                    "03_adv_10b_advanced_fabrication_recipes.lua", "03_adv_10c_advanced_fabricator.lua",
-                    "03_adv_11a_matcher_cookbook_type.lua", "03_adv_11b_matcher_cookbook_press.lua"}) {
-                example(globals, owner, new File(directory, file));
-            }
+            packageExample(globals, owner, new File(directory, "03_adv_03_basic_storage"));
+            example(globals, owner, new File(directory, "03_adv_04_custom_furnace.lua"));
+            example(globals, owner, new File(directory, "03_adv_05_tile_redstone_controller.lua"));
+            packageExample(globals, owner, new File(directory, "03_adv_08_simple_alloy"));
+            packageExample(globals, owner, new File(directory, "03_adv_09_contextual_processor"));
+            packageExample(globals, owner, new File(directory, "03_adv_10_advanced_fabrication"));
+            packageExample(globals, owner, new File(directory, "03_adv_11_matcher_cookbook"));
             require(blocks.size() == 7, "Examples did not declare all seven tested machines");
             for (LuaValue declaration : blocks) {
                 int id = declaration.get("id").checkint();
@@ -188,8 +187,8 @@ public final class CustomRecipeTest {
             world.metadata = 1;
             require(betamoon.luamodloader.NonReloadableScriptRegistry.contains("03_adv_04_custom_furnace.lua"),
                     "Machine callback was not pinned");
-            require(!betamoon.luamodloader.NonReloadableScriptRegistry
-                    .contains("03_adv_08a_simple_alloy_recipe_type.lua"), "Type-only script was pinned");
+            require(betamoon.luamodloader.NonReloadableScriptRegistry
+                    .contains("03_adv_08_simple_alloy/main.lua"), "Packaged machine owner was not pinned");
             world.tile = tileFor(blocks, 204);
             world.tile.worldObj = world;
             world.tile.setInventorySlotContents(0, new ItemStack(12, 1, 0));
@@ -204,14 +203,6 @@ public final class CustomRecipeTest {
             require(world.tile.getDataInt("cookDuration") == 100,
                     "Advanced example 02 GUI duration did not synchronize");
             require(world.renderUpdates == 1, "Burning furnace requested redundant redraws");
-            LuaValue retained = globals.get("betamoon").get("recipeTypes").get("getRequired")
-                    .call(LuaValue.valueOf("example:recipe_type/alloying"));
-            ScriptResourceTracker.unload("03_adv_08b_simple_alloy_recipes.lua");
-            ScriptResourceTracker.unload("03_adv_08a_simple_alloy_recipe_type.lua");
-            example(globals, owner, new File(directory, "03_adv_08a_simple_alloy_recipe_type.lua"));
-            example(globals, owner, new File(directory, "03_adv_08b_simple_alloy_recipes.lua"));
-            require(retained == globals.get("betamoon").get("recipeTypes").get("getRequired")
-                    .call(LuaValue.valueOf("example:recipe_type/alloying")), "Type handle changed on reload");
             world.tile.setInventorySlotContents(0, new ItemStack(14, 1, 0));
             world.tile.setInventorySlotContents(2, null);
             for (int i = 0; i < 100; i++) {
@@ -282,7 +273,8 @@ public final class CustomRecipeTest {
             verifyContextualRecipeExample(blocks, world);
             verifyMatcherCookbookExample(blocks, world);
             System.out.println("Advanced examples executed: storage, tile redstone, contextual matching, timing, "
-                    + "simple roles, pools, grids, custom allocation, pooled outputs and reload passed.");
+                    + "private package modules, simple roles, pools, grids, custom allocation and pooled outputs "
+                    + "passed.");
         } finally {
             blockRegistry.set("add", originalAdd);
         }
@@ -390,17 +382,17 @@ public final class CustomRecipeTest {
             case 204:
                 return "03_adv_04_custom_furnace.lua";
             case 209:
-                return "03_adv_08c_simple_alloy_furnace.lua";
+                return "03_adv_08_simple_alloy/main.lua";
             case 216:
-                return "03_adv_10c_advanced_fabricator.lua";
+                return "03_adv_10_advanced_fabrication/main.lua";
             case 224:
-                return "03_adv_03c_basic_storage_block.lua";
+                return "03_adv_03_basic_storage/main.lua";
             case 225:
                 return "03_adv_05_tile_redstone_controller.lua";
             case 226:
-                return "03_adv_09c_contextual_processor.lua";
+                return "03_adv_09_contextual_processor/main.lua";
             case 227:
-                return "03_adv_11b_matcher_cookbook_press.lua";
+                return "03_adv_11_matcher_cookbook/main.lua";
             default:
                 throw new AssertionError("Unknown example block " + id);
         }
@@ -450,12 +442,38 @@ public final class CustomRecipeTest {
     }
 
     private static void example(Globals globals, Method owner, File file) throws Exception {
-        owner.invoke(null, file.getName());
+        example(globals, owner, file, file.getName());
+    }
+
+    private static void packageExample(Globals globals, Method owner, File directory) throws Exception {
+        File[] files = directory.listFiles((parent, name) -> name.endsWith(".lua"));
+        if (files == null) {
+            throw new AssertionError("Missing example package " + directory.getName());
+        }
+        Arrays.sort(files, Comparator.comparing(File::getName));
+        LuaValue packageTable = globals.get("package");
+        LuaValue loaded = packageTable.get("loaded");
+        String previousPath = packageTable.get("path").checkjstring();
+        String packagePath = new File(directory, "?.lua").getAbsolutePath().replace('\\', '/');
+        packageTable.set("path", LuaValue.valueOf(packagePath + ";" + previousPath));
+        try {
+            for (File file : files) {
+                String module = file.getName().substring(0, file.getName().length() - ".lua".length());
+                loaded.set(module, LuaValue.NIL);
+            }
+            example(globals, owner, new File(directory, "main.lua"), directory.getName() + "/main.lua");
+        } finally {
+            packageTable.set("path", LuaValue.valueOf(previousPath));
+        }
+    }
+
+    private static void example(Globals globals, Method owner, File file, String sourceName) throws Exception {
+        owner.invoke(null, sourceName);
         FileInputStream input = new FileInputStream(file);
         try {
-            globals.load(input, file.getName(), "t", globals).call();
+            globals.load(input, sourceName, "t", globals).call();
             globals.get("modInit").call();
-            ModuleRegistry.publish(file.getName());
+            ModuleRegistry.publish(sourceName);
         } finally {
             input.close();
         }

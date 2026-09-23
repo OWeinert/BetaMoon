@@ -1,4 +1,5 @@
--- Load 07a and 07b. Craft furnace + redstone + iron, place the processor, and open it.
+-- This manifested package loads its contextual recipe type and recipes privately.
+-- Craft furnace + redstone + iron, place the processor, and open it.
 -- Dirt processes below 100 heat while unpowered. For sand, add fuel and hold a redstone
 -- signal until heat reaches 400. Removing power invalidates that hot match immediately.
 -- Structural content cannot hot reload, so restart Minecraft after machine edits.
@@ -6,8 +7,9 @@
 name = "Contextual Processor Example"
 version = "1.0.0"
 description = "Adds Contextual Processor, a machine whose recipes depend on both heat and redstone power. " ..
-    "Load advanced examples 07a and 07b with it. Combine a vanilla furnace, one redstone dust, and " ..
-    "one iron ingot in any arrangement to craft it, then place and right-click it.\n\n" ..
+    "Copy the complete 03_adv_09_contextual_processor folder into lua_scripts. Combine a vanilla " ..
+    "furnace, one redstone dust, and one iron ingot in any arrangement to craft it, then place and " ..
+    "right-click it.\n\n" ..
     "First leave it unpowered and cool. Put dirt in the left input slot; at heat 100 or below, " ..
     "each dirt makes four clay balls in about three seconds. Results appear in the right output " ..
     "slot.\n\n" ..
@@ -19,11 +21,11 @@ description = "Adds Contextual Processor, a machine whose recipes depend on both
     "The flame and arrow show fuel and processing progress. A blocked output pauses valid work; " ..
     "losing the required conditions resets progress. Compare the displayed values with the context " ..
     "checks in the tick callback. Inventory and data persist with the placed machine; restart " ..
-    "after structural edits."
-dependencies = { "Contextual Recipe Type Example", "Contextual Recipes Example" }
+    "after package edits."
 
 function modInit()
-  local recipeType = betamoon.modules:import("example:module/contextual_recipe_types").thermalProcessing
+  local recipeType = require("recipe_type")().thermalProcessing
+  require("recipes")(recipeType)
   local recipeSlots = {
     ingredients = { input = "input" },
     outputs = { result = "output" }

@@ -78,9 +78,16 @@ Update the argument whenever you move or rename the JAR, including after a versi
 
 ## Installing scripts
 
-Place scripts directly inside the active instance's `.minecraft/lua_scripts` folder. BetaMoon creates this folder when it starts. Use the lowercase `.lua` extension and copy required assets while preserving their directory structure. Texture paths resolve from `lua_scripts`.
+Place loose scripts, manifested mod folders, or packaged mod ZIPs directly inside
+the active instance's `.minecraft/lua_scripts` folder. BetaMoon creates this
+folder when it starts. Use the lowercase `.lua` extension and copy complete
+folders and required assets without changing their directory structure. Texture
+paths resolve from `lua_scripts` or the owning package root.
 
-Keep dependency scripts together. The [example index](examples/README.md) explains which example files belong to the same lesson, required assets and how to try the content. Check numeric content IDs when combining scripts with other mods.
+Keep dependency scripts together and copy manifested example folders as complete
+units. The [example index](examples/README.md) explains which files belong to the
+same lesson, required assets and how to try the content. Check numeric content
+IDs when combining scripts with other mods.
 
 Saved script changes trigger hot reload after the save settles. You can also use **Reload** on the Scripts screen. Changes to persistent structural definitions, including tile entities, containers and GUIs, require a Minecraft restart. See [installing scripts](https://github.com/OWeinert/BetaMoon/wiki/Install-Scripts) and [reload and compatibility](https://github.com/OWeinert/BetaMoon/wiki/Hot-Reload-and-Compatibility).
 

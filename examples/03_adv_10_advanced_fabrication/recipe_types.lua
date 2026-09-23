@@ -1,20 +1,7 @@
--- This file defines three fabrication contracts. The companion recipe file supplies
--- instances, and the machine file supplies the required slot layout.
+-- Private registration module for the Advanced Fabrication recipe types.
+-- Returning a function keeps registration inside the package modInit lifecycle.
 
-name = "Advanced Fabrication Types Example"
-version = "1.0.0"
-description = "Defines three fabrication recipe types and a custom matcher for the Advanced Fabricator " ..
-    "examples. They demonstrate unordered ingredient pools, shaped grids with allowed " ..
-    "transformations, multiple byproduct slots, and an ordered pair of neighboring inputs.\n\n" ..
-    "Load advanced examples 08a, 08b, and 08c together to try them. This file alone supplies " ..
-    "matching rules, not a machine or recipes. In the fabricator, compare sand and gravel " ..
-    "distributed across slots, iron around a central stick, and an iron ingot immediately followed " ..
-    "by coal.\n\n" ..
-    "The custom sequence matcher requires exactly two occupied work slots in order; reversing the " ..
-    "ingredients prevents that match. The pool recipe can combine quantities across slots. Compare " ..
-    "these rules with the concrete recipes in 08b and the shared 3x3 work area bound by 08c."
-
-function modInit()
+return function()
   local bm = betamoon
   local public = {}
 
@@ -105,5 +92,5 @@ function modInit()
     outputs = { result = { type = "item" } }
   }
 
-  bm.modules:export("example:module/advanced_fabrication_types", public)
+  return public
 end

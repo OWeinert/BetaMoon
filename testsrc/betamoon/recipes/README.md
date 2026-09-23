@@ -2,9 +2,9 @@
 
 Run `gradlew.bat customRecipeTest` (also included in the local `check` task).
 `CustomRecipeTest` loads `custom_recipes.lua` through the real BetaMoon module,
-then executes advanced examples 02a-02c, 03, 04, 06a-06c, 07a-07c,
-08a-08c, and 09a-09b. It uses Java 8, LuaJ, and the deobfuscated Minecraft
-classes already configured in the local Gradle build.
+then executes the manifested advanced example packages 03 and 08-11 alongside
+examples 04 and 05, using Java 8, LuaJ, and the deobfuscated Minecraft classes
+already configured in the local Gradle build.
 
 The in-memory World owns real LuaTileEntity inventories and NBT. ModLoader's
 tile registration hook is initialized as it is during client startup. Recipe
@@ -19,5 +19,5 @@ Assertions cover quantities, alternatives, metadata, optional/retained inputs,
 conditions, multiple outputs, remainders, rollback on failure, notification
 coalescing/reentrancy, stale plans, priorities, query/reference identity,
 overrides and cleanup, native/opaque recipes, out-of-order native smelting
-owner cleanup, NBT, pinned callbacks after recipe reload, and both example
-machines' complete timed operations.
+owner cleanup, NBT, pinned callbacks after recipe reload, private `require`
+modules, and the example machines' complete operations.

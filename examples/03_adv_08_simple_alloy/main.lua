@@ -1,15 +1,15 @@
--- Load the companion type and recipe files alongside this machine.
+-- This manifested package loads its recipe type and recipes as private modules.
 -- Craft SSS / FOF / SSS, where S is cobblestone, F a vanilla furnace, and O stone.
 -- Gold recipe: one gold ore + coal/charcoal + a retained stick mold gives three gold
 -- ingots and one cobblestone. Compression: four dirt or cobblestone + coal gives stone.
 -- Coal is a consumed ingredient, not a separate fuel timer. No redstone is required.
 -- Compared with the custom furnace, this machine delegates timing to match.data.duration and
--- has several outputs. Restart after machine edits; recipe-only edits can reload.
+-- has several outputs. Its structural content requires a restart after package edits.
 
 name = "Simple Alloy Furnace Example"
 version = "1.0.0"
 description = "Adds Alloy Furnace, a machine with Base, Coal, and Mold inputs plus Result and Slag outputs. " ..
-    "Load advanced examples 06a and 06b alongside it. Craft it with three cobblestone across the " ..
+    "Copy the complete 03_adv_08_simple_alloy folder into lua_scripts. Craft it with three cobblestone across the " ..
     "top and bottom rows and furnace, stone, furnace across the middle row.\n\n" ..
     "Place it and right-click. Put one gold ore in Base, coal or charcoal in Coal, and a stick in " ..
     "Mold. After about ten seconds, take three gold ingots and one cobblestone from the two output " ..
@@ -18,15 +18,14 @@ description = "Adds Alloy Furnace, a machine with Base, Coal, and Mold inputs pl
     "There is no separate fuel timer or redstone requirement. The arrow shows progress and the " ..
     "front changes while processing. Full outputs pause valid work and show 'Output full'; remove " ..
     "results to resume. Changing to a different recipe resets progress. The placed machine saves " ..
-    "its inventory and progress. Compare slot bindings and the processing callback with the " ..
-    "companion recipes. Recipe-only edits can reload; structural machine edits require a restart."
-dependencies = { "Simple Alloy Recipe Type Example" }
+    "its inventory and progress. Compare slot bindings and the processing callback in main.lua with " ..
+    "recipe_type.lua and recipes.lua. This structural package requires a restart after edits."
 
--- This example contains an alloy furnace block which uses the custom recipe type
--- defined in the companion type file.
 function modInit()
   local bm = betamoon
-  local alloying = bm.modules:import("example:module/custom_recipe_types").alloying
+  local types = require("recipe_type")()
+  require("recipes")(types)
+  local alloying = types.alloying
   -- Map the recipe's logical role names to physical inventory slot names.
   -- They happen to match here, but the machine could call its slot "leftInput"
   -- and still bind base = "leftInput" without changing the recipe type.

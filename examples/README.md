@@ -1,15 +1,16 @@
 # BetaMoon Examples
 
 These examples form a tutorial as well as a capability reference. Copy the Lua
-files you want into `.minecraft/lua_scripts/`. Scripts hot reload after a file
-save settles, or through **Reload** on BetaMoon's Scripts screen. Structural
-tile-entity content is kept loaded for world safety and requires a Minecraft
-restart after changes.
+files you want, or a complete manifested example folder, into
+`.minecraft/lua_scripts/`. Scripts hot reload after a file save settles, or
+through **Reload** on BetaMoon's Scripts screen. Structural tile-entity content
+is kept loaded for world safety and requires a Minecraft restart after changes.
 
 Read files in name order. `01_beg`, `02_int`, and `03_adv` sort the beginner,
 intermediate, and advanced categories correctly in normal file explorers.
-Letters after a lesson number identify files that belong to one lesson. Unless
-the comments say otherwise, each unlettered example can be loaded independently.
+Beginner 19 uses letters for two independent mods that demonstrate cross-mod
+exports. Advanced multi-script lessons are self-contained folders with one
+`betamoon.mod.json`; copy each complete folder without rearranging its files.
 
 Most examples use the vanilla texture atlas. Choose different numeric block and
 item IDs when another installed mod already owns an example ID. Engine callbacks
@@ -93,22 +94,22 @@ state, physical behavior, and event-driven logic.
 
 ## Advanced
 
-Advanced lessons build complete systems. Keep every file from a lettered lesson
-together and read its dependency comments before loading it.
+Advanced lessons build complete systems. Lessons 03 and 08 through 11 are
+manifested packages whose entrypoints organize private modules with `require`.
 
 | Lesson | File | Topic |
 | --- | --- | --- |
 | 01 | `03_adv_01_animated_model_item.lua` | Animation JSON combined with Lua pose control |
 | 02 | `03_adv_02_redstone_timer.lua` | Input-edge observation and scheduled output pulses |
-| 03a–03c | `03_adv_03a_basic_storage_data.lua`, `03_adv_03b_basic_storage_layout.lua`, `03_adv_03c_basic_storage_block.lua` | Modular declarations combined into saved storage, a container, and a GUI |
+| 03 | `03_adv_03_basic_storage/` (`betamoon.mod.json`, `main.lua`, `data.lua`, `layout.lua`) | Private declaration modules combined into saved storage, a container, and a GUI |
 | 04 | `03_adv_04_custom_furnace.lua` | A complete smelting machine with a composed private fuel set |
 | 05 | `03_adv_05_tile_redstone_controller.lua` | Persistent tile data controlling redstone output |
 | 06 | `03_adv_06_gui_showcase.lua` | Container GUI elements and synchronized presentation |
 | 07 | `03_adv_07_animated_machine.lua` | Animated block variants, material slots, glow, and sound |
-| 08a–08c | `03_adv_08a_simple_alloy_recipe_type.lua`, `03_adv_08b_simple_alloy_recipes.lua`, `03_adv_08c_simple_alloy_furnace.lua` | Simple named-slot recipe types, recipes, and a processing machine |
-| 09a–09c | `03_adv_09a_contextual_recipe_type.lua`, `03_adv_09b_contextual_recipes.lua`, `03_adv_09c_contextual_processor.lua` | Heat/power conditions and commit-time context revalidation |
-| 10a–10c | `03_adv_10a_advanced_fabrication_types.lua`, `03_adv_10b_advanced_fabrication_recipes.lua`, `03_adv_10c_advanced_fabricator.lua` | Pools, grids, custom matching, bindings, and atomic processing |
-| 11a–11b | `03_adv_11a_matcher_cookbook_type.lua`, `03_adv_11b_matcher_cookbook_press.lua` | A context-driven custom allocation policy in a working machine |
+| 08 | `03_adv_08_simple_alloy/` (`betamoon.mod.json`, `main.lua`, `recipe_type.lua`, `recipes.lua`) | Simple named-slot recipe types, recipes, and a processing machine |
+| 09 | `03_adv_09_contextual_processor/` (`betamoon.mod.json`, `main.lua`, `recipe_type.lua`, `recipes.lua`) | Heat/power conditions and commit-time context revalidation |
+| 10 | `03_adv_10_advanced_fabrication/` (`betamoon.mod.json`, `main.lua`, `recipe_types.lua`, `recipes.lua`) | Pools, grids, custom matching, bindings, and atomic processing |
+| 11 | `03_adv_11_matcher_cookbook/` (`betamoon.mod.json`, `main.lua`, `recipe_type.lua`) | A context-driven custom allocation policy in a working machine |
 | 12 | `03_adv_12_entity_data.lua` | Model-backed entity with persistent interaction data |
 | 13 | `03_adv_13_native_living_ai.lua` | Native living behavior composed with custom Lua AI |
 | 14 | `03_adv_14_manual_multipart_ai.lua` | Fully manual multipart creature behavior and hit regions |
@@ -165,8 +166,19 @@ together and read its dependency comments before loading it.
 
 ## Multi-file lesson details
 
-- Beginner 19 requires both module files. The exporter constructs its local public
-  table inside `modInit` and publishes it as the final initialization action.
+- Beginner 19 requires both loose scripts and deliberately treats them as separate
+  mods. The exporter publishes a public table through `betamoon.modules`; the
+  importer declares a dependency and reads that cross-mod export.
+
+- Advanced 03 and 08 through 11 each demonstrate one multi-script mod. Their
+  manifests select `main.lua`, while `require` loads private declarations and
+  registration functions from neighboring files. Every file shares the package's
+  lifecycle and resource owner. Copy the whole folder into `lua_scripts`; because
+  these packages register structural machine content, restart after edits.
+
+- Advanced 03 keeps its persistent inventory/data schema in `data.lua` and its
+  container/GUI layout in `layout.lua`. `main.lua` composes both declarations and
+  owns every registered resource.
 
 - Advanced 08 creates these simple alloy recipes:
 
@@ -193,8 +205,8 @@ together and read its dependency comments before loading it.
   | Transformable grid | Iron in four corners and a stick in the center | 1 iron block |
   | Custom sequence | Iron immediately followed by coal in flattened slot order | 1 gold ingot |
 
-  Its type file explains detached matcher snapshots and validated `plan:use`
-  allocations. Its machine file explains bindings, candidate order, signatures,
+  `recipe_types.lua` explains detached matcher snapshots and validated `plan:use`
+  allocations. `main.lua` explains bindings, candidate order, signatures,
   preflight checks, and atomic application.
 
 - Advanced 11 narrows custom matching to one clear policy. One recipe consumes
