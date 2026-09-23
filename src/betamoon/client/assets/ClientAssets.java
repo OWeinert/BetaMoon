@@ -2,7 +2,7 @@ package betamoon.client.assets;
 
 import betamoon.assets.io.AssetResolver;
 import betamoon.assets.io.AssetProvider;
-import betamoon.assets.io.FileAssetProvider;
+import betamoon.assets.io.PackageAssetProvider;
 import betamoon.assets.io.ResolvedAsset;
 import betamoon.assets.io.ZipAssetProvider;
 import betamoon.client.audio.ClientSounds;
@@ -169,7 +169,7 @@ public final class ClientAssets {
                 throw new IOException("Selected texture pack file is unavailable");
             }
         }
-        resolver = new AssetResolver(new FileAssetProvider(root), pack, diagnostics);
+        resolver = new AssetResolver(new PackageAssetProvider(root), pack, diagnostics);
     }
 
     /**

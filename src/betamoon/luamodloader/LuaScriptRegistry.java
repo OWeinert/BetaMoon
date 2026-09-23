@@ -43,6 +43,12 @@ public final class LuaScriptRegistry {
         return entry;
     }
 
+    static synchronized ScriptMod registerSource(LuaModSource source) {
+        ScriptMod entry = registerFile(source.entrypointRelative());
+        entry.source = source;
+        return entry;
+    }
+
     /**
      * Updates a script entry with parsed metadata and returns the tracked entry.
      *
@@ -89,6 +95,20 @@ public final class LuaScriptRegistry {
             byName.put(name, entry);
         }
         return entry;
+    }
+
+    static synchronized ScriptMod updateParsed(LuaModSource source, String name, List<String> dependencies,
+            LuaValue modInit, LuaValue modReload, LuaValue modUnload, String description, String version,
+            String imagePath) {
+        registerSource(source);
+        ScriptMod entry = updateParsed(source.entrypointRelative(), name, dependencies, modInit, modReload, modUnload,
+                description, version, imagePath);
+        entry.source = source;
+        return entry;
+    }
+
+    static synchronized ScriptMod findByFile(String fileName) {
+        return byFile.get(fileName);
     }
 
     /**

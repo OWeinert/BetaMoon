@@ -16,7 +16,11 @@ public final class FileIo {
      * Reads a UTF-8 text file, strips a BOM, and normalizes line endings to LF.
      */
     public static String readUtf8Normalized(File file) throws IOException {
-        byte[] data = Files.readAllBytes(file.toPath());
+        return decodeUtf8Normalized(Files.readAllBytes(file.toPath()));
+    }
+
+    /** Decodes UTF-8 bytes, strips a BOM, and normalizes line endings to LF. */
+    public static String decodeUtf8Normalized(byte[] data) {
         String text = new String(data, StandardCharsets.UTF_8);
         if (!text.isEmpty() && text.charAt(0) == '\uFEFF') {
             text = text.substring(1);

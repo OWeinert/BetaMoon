@@ -60,7 +60,8 @@ public final class DeclarativeDomainTest {
                     + "and api.createArmor==nil and api.exportModule==nil and api.PositionI==nil)").call();
             ModuleRegistry.publish("quality_domains.lua");
             lua.load("assert(betamoon.modules:import('quality_module')==value); "
-                    + "assert(require('quality_module')==value)").call();
+                    + "assert(package.loaded.quality_module==nil); "
+                    + "assert(not pcall(function() require('quality_module') end))").call();
             verifyMinecraftConstants(lua);
             verifyCallbackResults(lua);
             verifyItems(lua);

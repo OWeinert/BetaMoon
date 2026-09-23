@@ -10,25 +10,17 @@ public final class ModuleApi {
     private ModuleApi() {
     }
 
-    public static void attach(LuaTable module, LuaValue env) {
+    public static void attach(LuaTable module) {
         LuaTable api = new LuaTable();
-        api.set("export", new ExportModule(api, env));
+        api.set("export", new ExportModule(api));
         api.set("import", new ImportModule(api));
         module.set("modules", api);
     }
 
     private static final class ExportModule extends VarArgFunction {
         private final LuaTable receiver;
-        private final LuaValue packageLoaded;
-
-        private ExportModule(LuaTable receiver, LuaValue env) {
+        private ExportModule(LuaTable receiver) {
             this.receiver = receiver;
-            LuaValue packageTable = env.get("package");
-            if (packageTable.istable()) {
-                packageLoaded = packageTable.get("loaded");
-            } else {
-                packageLoaded = LuaValue.NIL;
-            }
         }
 
         @Override
@@ -40,7 +32,7 @@ public final class ModuleApi {
                 throw new LuaError("Module: export(name, table) requires a table to export.");
             }
 
-            ModuleRegistry.stage(name, (LuaTable) moduleValue, packageLoaded);
+            ModuleRegistry.stage(name, (LuaTable) moduleValue);
             return NONE;
         }
     }

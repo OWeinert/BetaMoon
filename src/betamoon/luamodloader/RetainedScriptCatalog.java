@@ -29,29 +29,51 @@ final class RetainedScriptCatalog {
         return true;
     }
 
+    boolean appendActiveSource(LuaModSource source, List<ScriptMod> mods) {
+        ScriptMod active = activeScripts.get(source.ownerId());
+        if (active == null || !NonReloadableScriptRegistry.contains(active.sourceFileName)) {
+            return false;
+        }
+        restoreRegistryEntry(active.sourceFileName, active);
+        mods.add(active);
+        LuaScriptErrors.addWarning(active.sourceFileName, "Skipped '" + source.entrypointRelative()
+                + "': this mod registers " + NonReloadableScriptRegistry.reason(active.sourceFileName)
+                + ". Restart Minecraft to reload it.");
+        return true;
+    }
+
     void appendMissingScripts(Set<String> seenFiles, List<ScriptMod> mods) {
         for (Map.Entry<String, ScriptMod> entry : activeScripts.entrySet()) {
-            String fileName = entry.getKey();
-            if (seenFiles.contains(fileName)) {
+            String ownerId = entry.getKey();
+            if (seenFiles.contains(ownerId)) {
                 continue;
             }
 
-            restoreRegistryEntry(fileName, entry.getValue());
-            mods.add(entry.getValue());
-            LuaScriptErrors.addWarning(fileName, "Kept '" + fileName
+            ScriptMod active = entry.getValue();
+            restoreRegistryEntry(active.sourceFileName, active);
+            mods.add(active);
+            LuaScriptErrors.addWarning(active.sourceFileName, "Kept '" + active.sourceFileName
                     + "' active because structural content cannot be unloaded. Restart Minecraft to remove it.");
         }
     }
 
     void rememberIfStructural(ScriptMod mod) {
         if (NonReloadableScriptRegistry.contains(mod.sourceFileName)) {
-            activeScripts.put(mod.sourceFileName, mod);
+            activeScripts.put(ownerId(mod), mod);
         }
+    }
+
+    private String ownerId(ScriptMod mod) {
+        return mod.source == null ? mod.sourceFileName : mod.source.ownerId();
     }
 
     private void restoreRegistryEntry(String fileName, ScriptMod active) {
         LuaScriptRegistry.updateParsed(fileName, active.name, active.dependencies, active.modInit, active.modReload,
                 active.modUnload, active.description, active.version, active.imagePath);
+        ScriptMod restored = LuaScriptRegistry.findByFile(fileName);
+        if (restored != null) {
+            restored.source = active.source;
+        }
         LuaScriptRegistry.markLoadedByFile(fileName);
     }
 }
