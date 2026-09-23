@@ -20,10 +20,12 @@ public final class LuaContainer extends Container {
     private final List<String> syncedFields = new ArrayList<>();
     private final List<Integer> lastValues = new ArrayList<>();
     private final int tileSlotCount;
+    private final ContainerControlRuntime controls;
 
     public LuaContainer(InventoryPlayer player, LuaTileEntity entity, ContainerDefinition definition) {
         this.entity = entity;
         this.definition = definition;
+        this.controls = new ContainerControlRuntime(definition, entity, player.player);
         for (int i = 0; i < definition.slots.size(); i++) {
             ContainerDefinition.SlotDefinition slot = definition.slots.get(i);
             addSlot(slot.outputOnly
@@ -50,6 +52,10 @@ public final class LuaContainer extends Container {
                 lastValues.add(Integer.valueOf(Integer.MIN_VALUE));
             }
         }
+    }
+
+    public ContainerControlRuntime controls() {
+        return controls;
     }
 
     @Override
