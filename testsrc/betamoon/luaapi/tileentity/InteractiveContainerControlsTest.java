@@ -54,13 +54,15 @@ public final class InteractiveContainerControlsTest {
                 + "dial={type='custom',onInput=function(ctx) ctx.session:set('tab',1) return 'handled' end}}};"
                 + "local gui=betamoon.containerGuis:add{name='controls',container=container,elements={"
                 + "{type='button',control='start',x=8,y=8,width=40,text='Start'},"
-                + "{type='toggle',control='enabled',x=8,y=32},"
+                + "{type='checkbox',control='enabled',x=8,y=32},"
                 + "{type='slider',control='speed',x=34,y=32,width=80},"
                 + "{type='choice',control='mode',x=8,y=56,width=70},"
                 + "{type='text_box',control='label',x=82,y=56,width=80},"
                 + "{type='slider',control='tab',x=8,y=80,width=80,visibleWhen={session='tab',greaterOrEqual=1}},"
                 + "{type='interactive',control='dial',x=100,y=80,width=32,height=14},"
-                + "{type='choice',control='ratio',x=136,y=80,width=32,height=14}}};"
+                + "{type='choice',control='ratio',x=136,y=80,width=32,height=14},"
+                + "{type='icon_button',control='start',x=8,y=100,iconBuiltin='confirm'},"
+                + "{type='toggle_button',control='enabled',x=32,y=100,width=60,text='Power'}}};"
                 + "return container,gui end")
                 .call();
         globals.set("activations", 0);
@@ -71,8 +73,16 @@ public final class InteractiveContainerControlsTest {
 
         require(definition.controls.size() == 8 && definition.session.size() == 3,
                 "Control or session declarations were lost");
-        require(gui.elements.size() == 8 && gui.elements.get(0) instanceof ContainerGuiDefinition.ControlElement,
+        require(gui.elements.size() == 10 && gui.elements.get(0) instanceof ContainerGuiDefinition.ControlElement,
                 "Interactive GUI elements were not compiled");
+        ContainerGuiDefinition.ControlElement checkbox = (ContainerGuiDefinition.ControlElement) gui.elements.get(1);
+        ContainerGuiDefinition.ControlElement iconButton = (ContainerGuiDefinition.ControlElement) gui.elements.get(8);
+        require(checkbox.presentation == ContainerGuiDefinition.ControlElement.Presentation.CHECKBOX
+                        && checkbox.width == 12 && checkbox.height == 12,
+                "Checkbox presentation defaults changed");
+        require(iconButton.presentation == ContainerGuiDefinition.ControlElement.Presentation.ICON_BUTTON
+                        && iconButton.icon != null && "betamoon:classic".equals(iconButton.style),
+                "Icon button presentation or default style was not compiled");
         LuaTileEntity tile = new LuaTileEntity(definition.tileEntity.name);
         tile.readFromNBT(saved(definition.tileEntity.name));
         ContainerControlRuntime runtime = new ContainerControlRuntime(definition, tile, null);
@@ -102,7 +112,8 @@ public final class InteractiveContainerControlsTest {
         expectLuaError(() -> session.get("tab"));
         expectLuaError(() -> runtime.activate(control(definition, "enabled"), input));
         expectLuaError(() -> runtime.custom(control(definition, "dial"), input));
-        System.out.println("Interactive container controls passed: parsing, bindings, validation, callbacks, and expiry.");
+        System.out.println("Interactive container controls passed: parsing, bindings, validation, callbacks, "
+                + "and expiry.");
     }
 
     private static NBTTagCompound saved(String type) {
