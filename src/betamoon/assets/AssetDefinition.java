@@ -42,8 +42,8 @@ public final class AssetDefinition {
         }
     }
 
-    static AssetDefinition builtinModel(AssetKey key, AssetPath resource) {
-        return new AssetDefinition(new AssetId(AssetKind.MODEL, key), resource, "json", true, false, null);
+    static AssetDefinition builtin(AssetKind kind, AssetKey key, AssetPath resource, String extension) {
+        return new AssetDefinition(new AssetId(kind, key), resource, extension, true, false, null);
     }
 
     /** Creates a declaration whose fallback path was resolved from its key. */

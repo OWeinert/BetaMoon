@@ -4,7 +4,7 @@ import betamoon.assets.AssetPath;
 import java.io.IOException;
 import java.io.InputStream;
 
-/** Reads only packaged model data through validated, relative asset paths. */
+/** Reads packaged BetaMoon assets through validated, relative asset paths. */
 public final class BuiltinAssetProvider implements AssetProvider {
     public static final BuiltinAssetProvider INSTANCE = new BuiltinAssetProvider();
 
@@ -26,8 +26,11 @@ public final class BuiltinAssetProvider implements AssetProvider {
     }
 
     private InputStream resource(AssetPath path) throws IOException {
-        if (!path.toString().startsWith("builtin/minecraft/models/block/") || !path.toString().endsWith(".json")) {
-            throw new IOException("Unsupported built-in model resource: " + path);
+        String value = path.toString();
+        boolean model = value.startsWith("builtin/minecraft/models/block/") && value.endsWith(".json");
+        boolean texture = value.startsWith("builtin/betamoon/textures/gui/controls/") && value.endsWith(".png");
+        if (!model && !texture) {
+            throw new IOException("Unsupported built-in asset resource: " + path);
         }
         InputStream resource = BuiltinAssetProvider.class.getResourceAsStream("/resources/" + path);
         if (resource == null) {

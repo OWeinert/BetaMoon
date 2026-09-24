@@ -1,7 +1,11 @@
 package betamoon.client.assets;
 
 import betamoon.assets.AssetKind;
+import betamoon.assets.AssetDefinition;
+import betamoon.assets.AssetId;
+import betamoon.assets.AssetKey;
 import betamoon.assets.AssetPath;
+import betamoon.assets.BuiltinAssets;
 import betamoon.assets.io.AssetProvider;
 import betamoon.assets.io.AssetResolver;
 import betamoon.assets.io.FileAssetProvider;
@@ -47,6 +51,7 @@ public final class AssetResourceTest {
         Path root = Files.createTempDirectory("betamoon-asset-test-");
         try {
             verifyProviders(root);
+            verifyBuiltinControlTextures(root);
             verifyRefreshAndVirtualStreams(root);
             verifyAudio();
             verifySoundOverrides(root);
@@ -54,6 +59,40 @@ public final class AssetResourceTest {
         } finally {
             deleteTree(root);
         }
+    }
+
+    private static void verifyBuiltinControlTextures(Path root) throws Exception {
+        require(BuiltinAssets.textures().size() == 94,
+                "The complete implemented and reserved control sprite catalog must be present");
+        require(BuiltinAssets.find(new AssetId(AssetKind.TEXTURE,
+                        AssetKey.parse("betamoon:gui/controls/radio/on_focused"))) != null
+                        && BuiltinAssets.find(new AssetId(AssetKind.TEXTURE,
+                                AssetKey.parse("betamoon:gui/controls/tab/selected_hovered"))) != null,
+                "Reserved radio and tab sprite states must remain available for later controls");
+        AssetDefinition definition = BuiltinAssets.find(new AssetId(AssetKind.TEXTURE,
+                AssetKey.parse("betamoon:gui/controls/button/normal")));
+        require(definition != null
+                        && definition.getOverridePath().toString().equals(
+                                "bm_assets/betamoon/textures/gui/controls/button/normal.png"),
+                "Built-in control textures must have stable texture-pack override paths");
+
+        ClientAssets.useProviders(new FileAssetProvider(root.toFile()), null, message -> { });
+        for (AssetDefinition builtinDefinition : BuiltinAssets.textures().values()) {
+            TextureImage image = ClientAssets.resolveTexture(new AssetLocation(builtinDefinition)).getValue();
+            require(image.getImage().getWidth() > 0 && image.getImage().getHeight() > 0,
+                    "Every built-in control sprite must decode");
+        }
+        ResolvedAsset<TextureImage> builtin = ClientAssets.resolveTexture(new AssetLocation(definition));
+        require("builtin".equals(builtin.getSourceKind()) && builtin.getValue().getImage().getWidth() == 10,
+                "Built-in control textures must resolve from packaged resources");
+
+        Path pack = root.resolve("control-pack.zip");
+        zip(pack, definition.getOverridePath().toString(), png(0xff00ff00, 10));
+        ClientAssets.useProviders(new FileAssetProvider(root.toFile()), new ZipAssetProvider(pack.toFile()),
+                message -> { });
+        ResolvedAsset<TextureImage> overridden = ClientAssets.resolveTexture(new AssetLocation(definition));
+        require("pack".equals(overridden.getSourceKind()) && pixel(overridden.getValue()) == 0xff00ff00,
+                "Texture packs must override built-in controls through bm_assets");
     }
 
     private static void verifyProviders(Path root) throws Exception {
