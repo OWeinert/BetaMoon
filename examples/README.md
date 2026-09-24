@@ -162,7 +162,7 @@ manifested packages whose entrypoints organize private modules with `require`.
 | Advanced 12 | **Data Totem**: obtain Data Totem Placer (5036), place and click it to check saved data, then punch it to recover the placer. |
 | Advanced 13 | **Clockwork Watcher** (5039): copy `animated_model_item/`, place a living creature, and test its wandering and retaliation. |
 | Advanced 14 | **Manual Guardian** (5040): copy `animated_model_item/`, place it, and inspect Lua-controlled decisions and optional head/wing hitboxes. |
-| Advanced 19 | **Control Console** (235): use built-in controls, keyboard focus, a dragged custom control, and temporary session state. |
+| Advanced 19 | **Control Console** (244): use built-in controls, keyboard focus, a dragged custom control, and temporary session state. |
 
 ## Multi-file lesson details
 
