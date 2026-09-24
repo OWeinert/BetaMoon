@@ -31,6 +31,11 @@ public final class AssetResolver {
         return new AssetResolver(provider, pack, diagnostics, sourceKind);
     }
 
+    /** Selects the package-local default root associated with a Lua source. */
+    public AssetResolver forSource(String source) throws IOException {
+        return new AssetResolver(defaults.forSource(source), pack, diagnostics, defaultKind);
+    }
+
     public boolean defaultExists(AssetPath path) throws IOException {
         return defaults.exists(path);
     }

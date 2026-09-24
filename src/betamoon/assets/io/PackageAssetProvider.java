@@ -1,37 +1,52 @@
 package betamoon.assets.io;
 
 import betamoon.assets.AssetPath;
-import betamoon.io.ZipArchiveIndex;
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
 
-/** Resolves legacy root assets and assets inside manifested directory or ZIP mods. */
+/**
+ * Selects the default asset root belonging to a loose script or manifested
+ * directory/ZIP package.
+ */
 public final class PackageAssetProvider implements AssetProvider {
     private static final String MANIFEST = "betamoon.mod.json";
+    private static final String ASSET_ROOT = "assets";
 
     private final File root;
-    private final AssetProvider rootProvider;
-    private final List<AssetProvider> packages;
+    private final AssetProvider looseAssets;
 
     public PackageAssetProvider(File root) throws IOException {
         this.root = root.getCanonicalFile();
-        rootProvider = new FileAssetProvider(this.root);
-        packages = discoverPackages(this.root);
+        looseAssets = new FileAssetProvider(this.root);
+    }
+
+    @Override
+    public AssetProvider forSource(String source) throws IOException {
+        if (source == null || source.isEmpty()) {
+            return looseAssets;
+        }
+
+        String normalized = source.replace('\\', '/');
+        int archiveSeparator = normalized.indexOf("!/");
+        if (archiveSeparator >= 0) {
+            return archiveAssets(normalized.substring(0, archiveSeparator));
+        }
+
+        int pathSeparator = normalized.indexOf('/');
+        if (pathSeparator < 0) {
+            return looseAssets;
+        }
+        return directoryAssets(normalized.substring(0, pathSeparator));
     }
 
     @Override
     public boolean exists(AssetPath path) throws IOException {
-        return resolve(path) != null;
+        return looseAssets.exists(path);
     }
 
     @Override
     public byte[] read(AssetPath path, int maxBytes) throws IOException {
-        AssetProvider provider = resolve(path);
-        return provider == null ? null : provider.read(path, maxBytes);
+        return looseAssets.read(path, maxBytes);
     }
 
     @Override
@@ -39,72 +54,60 @@ public final class PackageAssetProvider implements AssetProvider {
         return root.toString();
     }
 
-    private AssetProvider resolve(AssetPath path) throws IOException {
-        AssetProvider selected = rootProvider.exists(path) ? rootProvider : null;
-        for (int i = 0; i < packages.size(); i++) {
-            AssetProvider candidate = packages.get(i);
-            if (!candidate.exists(path)) {
-                continue;
-            }
-            if (selected != null) {
-                throw new IOException("Asset path is provided by both '" + selected.getName() + "' and '"
-                        + candidate.getName() + "': " + path);
-            }
-            selected = candidate;
+    private AssetProvider directoryAssets(String directoryName) throws IOException {
+        File packageRoot = containedChild(directoryName);
+        if (!packageRoot.isDirectory() || !new File(packageRoot, MANIFEST).isFile()) {
+            throw new IOException("Lua package source is unavailable: " + directoryName);
         }
-        return selected;
+        return new FileAssetProvider(new File(packageRoot, ASSET_ROOT));
     }
 
-    private static List<AssetProvider> discoverPackages(File root) throws IOException {
-        List<AssetProvider> result = new ArrayList<>();
-        File[] children = root.listFiles();
-        if (children == null) {
-            return result;
+    private AssetProvider archiveAssets(String archiveName) throws IOException {
+        File archive = containedChild(archiveName);
+        if (!archive.isFile()) {
+            throw new IOException("Lua package archive is unavailable: " + archiveName);
         }
-        Arrays.sort(children, new Comparator<File>() {
-            @Override
-            public int compare(File left, File right) {
-                return left.getName().compareToIgnoreCase(right.getName());
-            }
-        });
-        for (int i = 0; i < children.length; i++) {
-            File child = children[i];
-            if (child.isDirectory() && new File(child, MANIFEST).isFile()) {
-                result.add(new FileAssetProvider(child));
-            } else if (child.isFile() && child.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".zip")) {
-                try {
-                    ZipArchiveIndex archive = ZipArchiveIndex.open(child);
-                    if (archive.containsFile(MANIFEST)) {
-                        result.add(new ArchiveProvider(archive));
-                    }
-                } catch (IOException ignored) {
-                    // The Lua loader reports invalid packages; keep unrelated assets available.
-                }
-            }
-        }
-        return result;
+        return new PrefixedAssetProvider(new ZipAssetProvider(archive), ASSET_ROOT + "/");
     }
 
-    private static final class ArchiveProvider implements AssetProvider {
-        private final ZipArchiveIndex archive;
+    private File containedChild(String name) throws IOException {
+        if (name.isEmpty() || name.indexOf('/') >= 0 || name.indexOf('\\') >= 0 || name.equals(".")
+                || name.equals("..")) {
+            throw new IOException("Invalid Lua package source: " + name);
+        }
+        File child = new File(root, name).getCanonicalFile();
+        if (!child.getParentFile().equals(root)) {
+            throw new IOException("Lua package source escapes the scripts directory: " + name);
+        }
+        return child;
+    }
 
-        private ArchiveProvider(ZipArchiveIndex archive) {
-            this.archive = archive;
+    private static final class PrefixedAssetProvider implements AssetProvider {
+        private final AssetProvider delegate;
+        private final String prefix;
+
+        private PrefixedAssetProvider(AssetProvider delegate, String prefix) {
+            this.delegate = delegate;
+            this.prefix = prefix;
         }
 
         @Override
-        public boolean exists(AssetPath path) {
-            return archive.containsFile(path.toString());
+        public boolean exists(AssetPath path) throws IOException {
+            return delegate.exists(prefixed(path));
         }
 
         @Override
         public byte[] read(AssetPath path, int maxBytes) throws IOException {
-            return archive.read(path.toString(), maxBytes);
+            return delegate.read(prefixed(path), maxBytes);
         }
 
         @Override
         public String getName() {
-            return archive.getArchive().getName();
+            return delegate.getName() + "!/" + ASSET_ROOT;
+        }
+
+        private AssetPath prefixed(AssetPath path) {
+            return AssetPath.parse(prefix + path);
         }
     }
 }

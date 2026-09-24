@@ -4,6 +4,7 @@ import betamoon.assets.AssetDefinition;
 import betamoon.assets.AssetId;
 import betamoon.assets.AssetKind;
 import betamoon.assets.AssetPath;
+import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptAssetScope;
 
 /**
@@ -16,6 +17,7 @@ public final class AssetLocation {
     private final AssetPath fallback;
     private final AssetPath override;
     private final boolean builtin;
+    private final String defaultSource;
 
     public AssetLocation(AssetDefinition definition) {
         builtin = definition.isBuiltin();
@@ -23,6 +25,7 @@ public final class AssetLocation {
         id = definition.getId();
         fallback = definition.getFallbackPath();
         override = definition.getOverridePath();
+        defaultSource = definition.getDefaultSource();
     }
 
     public AssetLocation(AssetKind kind, AssetPath path) {
@@ -31,6 +34,7 @@ public final class AssetLocation {
         id = null;
         fallback = path;
         override = path.getDirectOverridePath();
+        defaultSource = LuaScriptRegistry.getCurrentScriptFile();
     }
 
     public AssetKind getKind() {
@@ -51,7 +55,15 @@ public final class AssetLocation {
         return current == null ? override : current.getOverridePath();
     }
 
+    public String getDefaultSource() {
+        AssetDefinition current = id == null ? null : ScriptAssetScope.findVisible(id);
+        return current == null ? defaultSource : current.getDefaultSource();
+    }
+
     public String getCacheKey() {
-        return id == null ? kind.getDirectory() + ":path:" + fallback : kind.getDirectory() + ":key:" + id.getKey();
+        if (id != null) {
+            return kind.getDirectory() + ":key:" + id.getKey();
+        }
+        return kind.getDirectory() + ":path:" + (defaultSource == null ? "" : defaultSource + ":") + fallback;
     }
 }

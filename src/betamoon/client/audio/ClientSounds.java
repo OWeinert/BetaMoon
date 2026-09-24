@@ -77,7 +77,7 @@ public final class ClientSounds {
     private static ResolvedAsset<SoundClip> resolve(AssetLocation location) throws IOException {
         String path = location.getFallback().toString().toLowerCase(Locale.ROOT);
         String extension = path.substring(path.lastIndexOf('.') + 1);
-        return ClientAssets.getResolver().resolve(location.getCacheKey(), location.getFallback(),
+        return ClientAssets.getResolver(location).resolve(location.getCacheKey(), location.getFallback(),
                 location.getOverride(), 8 * 1024 * 1024, bytes -> SoundClip.decode(bytes, extension));
     }
 }

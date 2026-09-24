@@ -51,7 +51,7 @@ public final class ClientModelAssets {
         if (current != null) {
             return current.retain();
         }
-        ModelAnimations contract = ClientAssets.getResolver().resolveDefault(location.getCacheKey(),
+        ModelAnimations contract = ClientAssets.getResolver(location).resolveDefault(location.getCacheKey(),
                 location.getFallback(), MAX_JSON_BYTES, BedrockAnimations::decode).getValue();
         ModelAsset<ModelAnimations> created = new ModelAsset<>(location, resolveAnimations(location, contract),
                 contract);
@@ -60,7 +60,7 @@ public final class ClientModelAssets {
     }
 
     private static <T> ResolvedAsset<T> resolve(AssetLocation location, AssetDecoder<T> decoder) throws IOException {
-        return ClientAssets.getResolver().resolve(location.getCacheKey(), location.getFallback(),
+        return ClientAssets.getResolver(location).resolve(location.getCacheKey(), location.getFallback(),
                 location.getOverride(), MAX_JSON_BYTES, decoder);
     }
 
@@ -119,7 +119,7 @@ public final class ClientModelAssets {
     }
 
     private static AssetResolver modelResolver(AssetLocation location) throws IOException {
-        AssetResolver resolver = ClientAssets.getResolver();
+        AssetResolver resolver = ClientAssets.getResolver(location);
         return location.isBuiltin() ? resolver.withDefaults(BuiltinAssetProvider.INSTANCE, "builtin") : resolver;
     }
 
