@@ -15,8 +15,8 @@ function modInit()
     data = {
       enabled = { type = "boolean", default = false, sync = true },
       speed = { type = "integer", default = 20, sync = true },
-      mode = { type = "string", default = "idle", sync = true },
-      label = { type = "string", default = "Console", sync = true }
+      mode = { type = "string", default = "idle" },
+      label = { type = "string", default = "Console" }
     }
   }
 
