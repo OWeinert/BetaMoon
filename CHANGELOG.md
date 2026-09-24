@@ -42,3 +42,5 @@ explosions, manifest-based multi-file mods, and broader debug exports.
   mods to demonstrate deliberate cross-mod sharing.
 - Fix hot reload so changing a registered block, tool, or armor `displayName` immediately
   replaces its localization while preserving the native object and existing world state.
+- Fix enriched `ctx.world:getInfo()` snapshots so world-service and item callbacks can
+  read day, time, light-cycle, difficulty, and height data without disabling themselves.
