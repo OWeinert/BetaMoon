@@ -41,6 +41,7 @@ public final class GuiLuaContainer extends GuiContainer {
     private int lastPointerY;
     private int currentMouseX;
     private int currentMouseY;
+    private int pressedChoiceDirection;
 
     public GuiLuaContainer(InventoryPlayer player, LuaTileEntity entity, ContainerGuiDefinition definition) {
         this(player, entity, definition, new LuaContainer(player, entity, definition.container));
@@ -109,6 +110,9 @@ public final class GuiLuaContainer extends GuiContainer {
             placeTextCaret(element, mouseX);
         }
         pressed = element;
+        pressedChoiceDirection = control(element).type == ContainerControlDefinition.Type.CHOICE
+                ? choiceDirection(element, mouseX)
+                : 0;
         captured = element.captureDrag && button == 0 ? element : null;
         lastPointerX = mouseX;
         lastPointerY = mouseY;
@@ -142,8 +146,10 @@ public final class GuiLuaContainer extends GuiContainer {
         if (control.type == ContainerControlDefinition.Type.NUMBER && button == 0) {
             changeSlider(target, mouseX, mouseY, input);
         } else if (control.type == ContainerControlDefinition.Type.CHOICE && inside) {
-            changed = recordResult(control,
-                    luaContainer.controls().cycle(control, button == 1 ? -1 : 1, input));
+            int direction = button == 1 ? -1 : pressedChoiceDirection;
+            if (direction != 0 && (button == 1 || direction == choiceDirection(target, mouseX))) {
+                changed = recordResult(control, luaContainer.controls().cycle(control, direction, input));
+            }
         } else if ((control.type == ContainerControlDefinition.Type.ACTION
                 || control.type == ContainerControlDefinition.Type.TOGGLE) && button == 0 && inside) {
             changed = recordResult(control, luaContainer.controls().activate(control, input));
@@ -155,6 +161,7 @@ public final class GuiLuaContainer extends GuiContainer {
         }
         pressed = null;
         captured = null;
+        pressedChoiceDirection = 0;
     }
 
     @Override
@@ -347,28 +354,62 @@ public final class GuiLuaContainer extends GuiContainer {
         boolean enabled = enabled(element);
         boolean hovered = containsLocal(element, currentMouseX, currentMouseY);
         boolean invalid = invalid(element);
-        String state = !enabled ? "disabled" : invalid ? "invalid" : pressed == element ? "pressed"
-                : focused == element ? "focused" : hovered ? "hovered" : "normal";
-        ContainerGuiDefinition.Texture image = element.visuals.get(state);
-        if (image == null && control.type == ContainerControlDefinition.Type.TOGGLE
-                && Boolean.TRUE.equals(luaContainer.controls().value(control))) {
-            image = element.visuals.get("selected");
-        }
+        String state = interactionState(element, enabled, hovered, invalid);
+        boolean selected = control.type == ContainerControlDefinition.Type.TOGGLE
+                && Boolean.TRUE.equals(luaContainer.controls().value(control));
+        ContainerGuiDefinition.Texture image = customControlTexture(element, state, selected);
         if (image != null) {
-            drawTexture(image, x, y, element.width, element.height);
+            if (element.presentation == ContainerGuiDefinition.ControlElement.Presentation.CHECKBOX) {
+                drawTexture(image, x, y + (element.height - 12) / 2, 12, 12);
+            } else {
+                drawTexture(image, x, y, element.width, element.height);
+            }
         } else {
-            drawDefaultControl(element, control, x, y, enabled, hovered, invalid);
+            drawStyledControl(element, control, x, y, state, selected);
         }
         if (control.type == ContainerControlDefinition.Type.TEXT) {
             drawTextControl(element, control, x, y, enabled);
             return;
         }
+        if (element.presentation == ContainerGuiDefinition.ControlElement.Presentation.ICON_BUTTON
+                && element.icon != null) {
+            int iconX = x + (element.width - element.icon.width) / 2;
+            int iconY = y + (element.height - element.icon.height) / 2;
+            drawTexture(element.icon, iconX, iconY, element.icon.width, element.icon.height);
+        }
         String text = controlText(element, control);
         if (text != null && control.type != ContainerControlDefinition.Type.NUMBER) {
             int color = enabled ? 0xFFFFFF : 0xA0A0A0;
-            drawAlignedText(text, x + 4, y + (element.height - 8) / 2,
-                    Math.max(0, element.width - 8), "center", color, true);
+            int textX = x + 4;
+            int textWidth = Math.max(0, element.width - 8);
+            String alignment = "center";
+            if (element.presentation == ContainerGuiDefinition.ControlElement.Presentation.CHECKBOX) {
+                textX = x + 16;
+                textWidth = Math.max(0, element.width - 16);
+                alignment = "left";
+            } else if (element.presentation == ContainerGuiDefinition.ControlElement.Presentation.CHOICE) {
+                textX = x + choiceArrowWidth(element);
+                textWidth = Math.max(0, element.width - choiceArrowWidth(element) * 2);
+            }
+            drawAlignedText(text, textX, y + (element.height - 8) / 2, textWidth, alignment, color, true);
         }
+    }
+
+    private String interactionState(ContainerGuiDefinition.ControlElement element, boolean enabled, boolean hovered,
+            boolean invalid) {
+        return !enabled ? "disabled" : invalid ? "invalid" : pressed == element ? "pressed"
+                : focused == element ? "focused" : hovered ? "hovered" : "normal";
+    }
+
+    private ContainerGuiDefinition.Texture customControlTexture(ContainerGuiDefinition.ControlElement element,
+            String state, boolean selected) {
+        ContainerGuiDefinition.Texture image = selected
+                ? element.visuals.get("normal".equals(state) ? "selected" : "selected_" + state)
+                : null;
+        if (image == null) {
+            image = element.visuals.get(state);
+        }
+        return image;
     }
 
     private void drawTextControl(ContainerGuiDefinition.ControlElement element, ContainerControlDefinition control,
@@ -397,36 +438,61 @@ public final class GuiLuaContainer extends GuiContainer {
         }
     }
 
-    private void drawDefaultControl(ContainerGuiDefinition.ControlElement element, ContainerControlDefinition control,
-            int x, int y, boolean enabled, boolean hovered, boolean invalid) {
-        if (control.type == ContainerControlDefinition.Type.NUMBER) {
+    private void drawStyledControl(ContainerGuiDefinition.ControlElement element, ContainerControlDefinition control,
+            int x, int y, String state, boolean selected) {
+        if (element.presentation == ContainerGuiDefinition.ControlElement.Presentation.SLIDER) {
+            drawSlider(element, control, x, y, state);
+            return;
+        }
+        if (element.presentation == ContainerGuiDefinition.ControlElement.Presentation.CHECKBOX) {
+            drawTexture(element.styleTextures.get((selected ? "on." : "off.") + state),
+                    x, y + (element.height - 12) / 2, 12, 12);
+            return;
+        }
+        if (element.presentation == ContainerGuiDefinition.ControlElement.Presentation.TOGGLE_BUTTON) {
+            drawTexture(element.styleTextures.get((selected ? "on." : "off.") + state),
+                    x, y, element.width, element.height);
+            return;
+        }
+        ContainerGuiDefinition.Texture frame = element.styleTextures.get("frame." + state);
+        if (frame != null) {
+            drawTexture(frame, x, y, element.width, element.height);
+        }
+        if (element.presentation == ContainerGuiDefinition.ControlElement.Presentation.CHOICE) {
+            drawChoiceArrows(element, x, y, state);
+        }
+    }
+
+    private void drawSlider(ContainerGuiDefinition.ControlElement element, ContainerControlDefinition control,
+            int x, int y, String state) {
             double current = ((Number) luaContainer.controls().value(control)).doubleValue();
             double ratio = (current - control.minimum) / (control.maximum - control.minimum);
             ratio = Math.max(0.0D, Math.min(1.0D, ratio));
             if ("vertical".equals(element.orientation)) {
-                drawRect(x + element.width / 2 - 1, y, x + element.width / 2 + 2, y + element.height, 0xFF555555);
-                int position = (int) Math.round((1.0D - ratio) * (element.height - 8));
-                drawRect(x + 2, y + position, x + element.width - 2, y + position + 8,
-                        !enabled ? 0xFF777777 : invalid ? 0xFFFF5555 : 0xFFC6C6C6);
+                ContainerGuiDefinition.Texture track = element.styleTextures.get("track." + state);
+                ContainerGuiDefinition.Texture handle = element.styleTextures.get("vertical." + state);
+                drawTexture(track, x + (element.width - 6) / 2, y + 4, 6, Math.max(1, element.height - 8));
+                int position = (int) Math.round((1.0D - ratio) * Math.max(0, element.height - 8));
+                drawTexture(handle, x + (element.width - 12) / 2, y + position, 12, 8);
             } else {
-                drawRect(x, y + element.height / 2 - 1, x + element.width, y + element.height / 2 + 2,
-                        0xFF555555);
-                int position = (int) Math.round(ratio * (element.width - 8));
-                drawRect(x + position, y + 2, x + position + 8, y + element.height - 2,
-                        !enabled ? 0xFF777777 : invalid ? 0xFFFF5555 : 0xFFC6C6C6);
+                ContainerGuiDefinition.Texture track = element.styleTextures.get("track." + state);
+                ContainerGuiDefinition.Texture handle = element.styleTextures.get("horizontal." + state);
+                drawTexture(track, x + 4, y + (element.height - 6) / 2, Math.max(1, element.width - 8), 6);
+                int position = (int) Math.round(ratio * Math.max(0, element.width - 8));
+                drawTexture(handle, x + position, y + (element.height - 12) / 2, 8, 12);
             }
-            return;
-        }
-        int outer = !enabled ? 0xFF555555 : invalid ? 0xFFAA0000
-                : pressed == element ? 0xFFFFFFFF : 0xFF373737;
-        int inner = !enabled ? 0xFF777777 : invalid ? 0xFFFF5555
-                : hovered || focused == element ? 0xFF7A8FC0 : 0xFF8B8B8B;
-        drawRect(x, y, x + element.width, y + element.height, outer);
-        drawRect(x + 1, y + 1, x + element.width - 1, y + element.height - 1, inner);
-        if (control.type == ContainerControlDefinition.Type.TOGGLE
-                && Boolean.TRUE.equals(luaContainer.controls().value(control))) {
-            drawRect(x + 4, y + 4, x + element.width - 4, y + element.height - 4, 0xFF55FF55);
-        }
+    }
+
+    private void drawChoiceArrows(ContainerGuiDefinition.ControlElement element, int x, int y, String state) {
+        ContainerGuiDefinition.Texture left = element.styleTextures.get("left." + state);
+        ContainerGuiDefinition.Texture right = element.styleTextures.get("right." + state);
+        drawTexture(left, x + 5, y + (element.height - left.height) / 2, left.width, left.height);
+        drawTexture(right, x + element.width - right.width - 5,
+                y + (element.height - right.height) / 2, right.width, right.height);
+        int arrowWidth = choiceArrowWidth(element);
+        drawRect(x + arrowWidth, y + 3, x + arrowWidth + 1, y + element.height - 3, 0xFF555555);
+        drawRect(x + element.width - arrowWidth - 1, y + 3,
+                x + element.width - arrowWidth, y + element.height - 3, 0xFF555555);
     }
 
     private void drawProgress(ContainerGuiDefinition.ProgressElement progress, int x, int y) {
@@ -621,6 +687,23 @@ public final class GuiLuaContainer extends GuiContainer {
         return contains(element, mouseX, mouseY);
     }
 
+    private int choiceDirection(ContainerGuiDefinition.ControlElement element, int mouseX) {
+        int originX = (width - xSize) / 2 + anchoredX(element.anchor, element.x, element.width);
+        int localX = mouseX - originX;
+        int arrowWidth = choiceArrowWidth(element);
+        if (localX >= 0 && localX < arrowWidth) {
+            return -1;
+        }
+        if (localX >= element.width - arrowWidth && localX < element.width) {
+            return 1;
+        }
+        return 0;
+    }
+
+    private static int choiceArrowWidth(ContainerGuiDefinition.ControlElement element) {
+        return Math.min(16, Math.max(1, element.width / 3));
+    }
+
     private void focus(ContainerGuiDefinition.ControlElement element) {
         focused = element;
         ContainerControlDefinition control = control(element);
@@ -665,6 +748,7 @@ public final class GuiLuaContainer extends GuiContainer {
         focused = null;
         pressed = null;
         captured = null;
+        pressedChoiceDirection = 0;
     }
 
     private void releaseUnavailableOwnership() {
@@ -676,6 +760,7 @@ public final class GuiLuaContainer extends GuiContainer {
         }
         if (pressed != null && !enabled(pressed)) {
             pressed = null;
+            pressedChoiceDirection = 0;
         }
         if (captured != null && !enabled(captured)) {
             captured = null;

@@ -3,7 +3,7 @@
 
 name = "Interactive Machine Controls Example"
 version = "1.0.0"
-description = "Adds a Control Console with a button, toggle, slider, choice, text box, and custom dial area. " ..
+description = "Adds a Control Console with the seven built-in interactive GUI elements and a custom dial area. " ..
   "Use it to compare persistent tile data, temporary container-session data, keyboard focus, and mouse dragging."
 
 local BLOCK_ID = 235
@@ -15,8 +15,8 @@ function modInit()
     data = {
       enabled = { type = "boolean", default = false, sync = true },
       speed = { type = "integer", default = 20, sync = true },
-      mode = { type = "string", default = "idle" },
-      label = { type = "string", default = "Console" }
+      mode = { type = "string", default = "idle", sync = true },
+      label = { type = "string", default = "Console", sync = true }
     }
   }
 
@@ -101,11 +101,14 @@ function modInit()
     elements = {
       { type = "button", control = "reset", x = 8, y = 18, width = 52, text = "Reset",
         tooltip = "Action control: no bound value" },
-      { type = "toggle", control = "enabled", x = 66, y = 18, width = 72, text = "Enabled" },
-      { type = "slider", control = "speed", x = 8, y = 44, width = 130,
+      { type = "icon_button", control = "reset", x = 62, y = 18, iconBuiltin = "confirm",
+        tooltip = "Icon button: the same action in a compact 20x20 control" },
+      { type = "checkbox", control = "enabled", x = 88, y = 22, width = 80, text = "Enabled" },
+      { type = "toggle_button", control = "enabled", x = 8, y = 44, width = 70, text = "Power" },
+      { type = "slider", control = "speed", x = 84, y = 44, width = 84,
         tooltip = "Drag, use arrows, or use Page Up/Down" },
       { type = "choice", control = "mode", x = 8, y = 70, width = 72,
-        tooltip = "Left-click forward; right-click backward" },
+        tooltip = "Use the left and right arrow regions or the keyboard arrows" },
       { type = "text_box", control = "label", x = 86, y = 70, width = 82,
         tooltip = "Enter commits; Escape reverts" },
       { type = "interactive", control = "dial", x = 8, y = 94, width = 64, height = 8,

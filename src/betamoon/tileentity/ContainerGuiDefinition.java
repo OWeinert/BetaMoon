@@ -234,29 +234,49 @@ public final class ContainerGuiDefinition {
 
     /** Interactive view bound to one container-owned control. */
     public static final class ControlElement extends Element {
+        public enum Presentation {
+            BUTTON,
+            ICON_BUTTON,
+            CHECKBOX,
+            TOGGLE_BUTTON,
+            SLIDER,
+            TEXT_BOX,
+            CHOICE,
+            INTERACTIVE
+        }
+
         public final String control;
         public final ContainerControlDefinition.Type type;
+        public final Presentation presentation;
         public final int width;
         public final int height;
         public final String text;
         public final String orientation;
         public final boolean focusable;
         public final boolean captureDrag;
+        public final String style;
+        public final Texture icon;
         public final Map<String, Texture> visuals;
+        public final Map<String, Texture> styleTextures;
 
         public ControlElement(int x, int y, int layer, GuiAnchor anchor, Condition condition, List<String> tooltip,
-                String control, ContainerControlDefinition.Type type, int width, int height, String text,
-                String orientation, boolean focusable, boolean captureDrag, Map<String, Texture> visuals) {
+                String control, ContainerControlDefinition.Type type, Presentation presentation, int width, int height,
+                String text, String orientation, boolean focusable, boolean captureDrag, String style, Texture icon,
+                Map<String, Texture> visuals, Map<String, Texture> styleTextures) {
             super(x, y, layer, anchor, condition, tooltip);
             this.control = control;
             this.type = type;
+            this.presentation = presentation;
             this.width = width;
             this.height = height;
             this.text = text;
             this.orientation = orientation;
             this.focusable = focusable;
             this.captureDrag = captureDrag;
+            this.style = style;
+            this.icon = icon;
             this.visuals = Collections.unmodifiableMap(new LinkedHashMap<String, Texture>(visuals));
+            this.styleTextures = Collections.unmodifiableMap(new LinkedHashMap<String, Texture>(styleTextures));
         }
     }
 

@@ -1,6 +1,7 @@
 package betamoon.client.assets;
 
 import betamoon.assets.io.AssetResolver;
+import betamoon.assets.io.BuiltinAssetProvider;
 import betamoon.assets.io.AssetProvider;
 import betamoon.assets.io.PackageAssetProvider;
 import betamoon.assets.io.ResolvedAsset;
@@ -56,7 +57,11 @@ public final class ClientAssets {
     }
 
     public static ResolvedAsset<TextureImage> resolveTexture(AssetLocation location) throws IOException {
-        return getResolver(location).resolve(location.getCacheKey(), location.getFallback(), location.getOverride(),
+        AssetResolver textureResolver = getResolver(location);
+        if (location.isBuiltin()) {
+            textureResolver = textureResolver.withDefaults(BuiltinAssetProvider.INSTANCE, "builtin");
+        }
+        return textureResolver.resolve(location.getCacheKey(), location.getFallback(), location.getOverride(),
                 MAX_TEXTURE_BYTES, TextureImage::decode);
     }
 
