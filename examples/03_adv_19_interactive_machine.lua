@@ -6,7 +6,7 @@ version = "1.0.0"
 description = "Adds a Control Console with the seven built-in interactive GUI elements and a custom dial area. " ..
   "Use it to compare persistent tile data, temporary container-session data, keyboard focus, and mouse dragging."
 
-local BLOCK_ID = 235
+local BLOCK_ID = 244
 
 function modInit()
   local tile = betamoon.tileEntities:add {

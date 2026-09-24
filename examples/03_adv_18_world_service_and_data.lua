@@ -25,7 +25,7 @@ function modInit()
   }
 
   betamoon.items:add {
-    id = 5041,
+    id = 5043,
     key = "example:item/world_inspector",
     displayName = "World Inspector",
     icon = { x = 1, y = 4 },
