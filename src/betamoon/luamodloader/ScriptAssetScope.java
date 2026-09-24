@@ -54,21 +54,35 @@ public final class ScriptAssetScope implements AutoCloseable {
         scope.requireOwner();
     }
 
+    /** Returns the source identity used to resolve this mod's default assets. */
+    public static String currentOwner() {
+        ScriptAssetScope scope = CURRENT.get();
+        if (scope == null || scope.closed || scope.published) {
+            throw new IllegalStateException("Asset declarations require modInit or modReload");
+        }
+        scope.requireOwner();
+        return scope.owner;
+    }
+
     public static void stage(AssetDefinition definition) {
         ScriptAssetScope scope = CURRENT.get();
         if (scope == null || scope.closed || scope.published) {
             throw new IllegalStateException("Assets must be declared during script initialization");
         }
         scope.requireOwner();
-        if (BuiltinAssets.find(definition.getId()) != null) {
-            throw new IllegalArgumentException("Built-in asset cannot be redeclared: " + definition.getId());
+        AssetDefinition owned = definition.getDefaultSource() == null ? definition.fromSource(scope.owner) : definition;
+        if (!scope.owner.equals(owned.getDefaultSource())) {
+            throw new IllegalArgumentException("Asset default source does not match the declaring script");
         }
-        AssetRegistration existing = REGISTRY.find(definition.getId());
+        if (BuiltinAssets.find(owned.getId()) != null) {
+            throw new IllegalArgumentException("Built-in asset cannot be redeclared: " + owned.getId());
+        }
+        AssetRegistration existing = REGISTRY.find(owned.getId());
         if (existing != null && !scope.owner.equals(existing.getOwner())) {
             throw new IllegalArgumentException(
-                    "Asset " + definition.getId() + " belongs to script " + existing.getOwner());
+                    "Asset " + owned.getId() + " belongs to script " + existing.getOwner());
         }
-        scope.batch.add(definition);
+        scope.batch.add(owned);
     }
 
     /**

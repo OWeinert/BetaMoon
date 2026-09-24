@@ -8,6 +8,14 @@ import java.io.IOException;
  * remain explicit.
  */
 public interface AssetProvider {
+    /**
+     * Selects the default asset root for one Lua source. Providers without
+     * source-specific roots retain their current behavior.
+     */
+    default AssetProvider forSource(String source) throws IOException {
+        return this;
+    }
+
     boolean exists(AssetPath path) throws IOException;
 
     byte[] read(AssetPath path, int maxBytes) throws IOException;

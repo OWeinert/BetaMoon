@@ -143,7 +143,7 @@ public final class ModelAppearance implements AutoCloseable {
             candidate = ClientModelAssets.defaultModel(definition.model).getValue();
             candidateClip = animations == null
                     ? null
-                    : ClientAssets.getResolver()
+                    : ClientAssets.getResolver(definition.animation)
                             .resolveDefault(definition.animation.getCacheKey(), definition.animation.getFallback(),
                                     ClientModelAssets.MAX_JSON_BYTES, BedrockAnimations::decode)
                             .getValue().clip(definition.clip);

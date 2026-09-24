@@ -56,14 +56,21 @@ public final class ClientAssets {
     }
 
     public static ResolvedAsset<TextureImage> resolveTexture(AssetLocation location) throws IOException {
-        ensureProviders();
-        return resolver.resolve(location.getCacheKey(), location.getFallback(), location.getOverride(),
+        return getResolver(location).resolve(location.getCacheKey(), location.getFallback(), location.getOverride(),
                 MAX_TEXTURE_BYTES, TextureImage::decode);
     }
 
     public static AssetResolver getResolver() throws IOException {
         ensureProviders();
         return resolver;
+    }
+
+    public static AssetResolver getResolver(String source) throws IOException {
+        return getResolver().forSource(source);
+    }
+
+    public static AssetResolver getResolver(AssetLocation location) throws IOException {
+        return getResolver(location.getDefaultSource());
     }
 
     /**

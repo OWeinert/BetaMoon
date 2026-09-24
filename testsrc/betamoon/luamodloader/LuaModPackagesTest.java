@@ -35,6 +35,7 @@ public final class LuaModPackagesTest {
             verifyContainmentAndCollisions(root);
             verifyRecursivePreflightAndFingerprint(root);
             verifyStableStructuralRetention(root);
+            verifyDirectoryAssetIsolation(root);
             verifyZipPackages(root);
             System.out.println("Lua mod packages passed: directories, ZIPs, require isolation, metadata and reload.");
         } finally {
@@ -44,6 +45,31 @@ public final class LuaModPackagesTest {
             LuaScriptErrors.clear();
             deleteTree(root);
         }
+    }
+
+    private static void verifyDirectoryAssetIsolation(File root) throws IOException {
+        File scripts = directory(root, "package_assets");
+        File first = directory(scripts, "first");
+        write(new File(first, "betamoon.mod.json"), "{\"entrypoint\":\"main.lua\"}\n");
+        write(new File(first, "main.lua"), "name='First'\nfunction modInit() end\n");
+        writeBytes(new File(first, "assets/shared/icon.png"), new byte[]{1, 2, 3});
+        writeBytes(new File(first, "shared/outside.png"), new byte[]{7, 7, 7});
+
+        File second = directory(scripts, "second");
+        write(new File(second, "betamoon.mod.json"), "{\"entrypoint\":\"src/main.lua\"}\n");
+        write(new File(second, "src/main.lua"), "name='Second'\nfunction modInit() end\n");
+        writeBytes(new File(second, "assets/shared/icon.png"), new byte[]{4, 5, 6});
+
+        PackageAssetProvider assets = new PackageAssetProvider(scripts);
+        AssetPath path = AssetPath.parse("shared/icon.png");
+        require(java.util.Arrays.equals(new byte[]{1, 2, 3},
+                assets.forSource("first/main.lua").read(path, 1024)),
+                "A directory package must read defaults beneath its own assets root");
+        require(java.util.Arrays.equals(new byte[]{4, 5, 6},
+                assets.forSource("second/src/main.lua").read(path, 1024)),
+                "Identical relative paths in different package asset roots must remain isolated");
+        require(assets.forSource("first/main.lua").read(AssetPath.parse("shared/outside.png"), 1024) == null,
+                "Files outside a package's assets directory must not be exposed as game assets");
     }
 
     private static void verifyDistributedExamples(File examples) throws IOException {
@@ -270,7 +296,7 @@ public final class LuaModPackagesTest {
                 + "function modInit() assert(value==42) end\n"));
         entries.put("content/value.lua", utf8("return 42\n"));
         entries.put("icon.png", new byte[]{1, 2, 3, 4});
-        entries.put("mymod/textures/archive.png", new byte[]{5, 6, 7});
+        entries.put("assets/mymod/textures/archive.png", new byte[]{5, 6, 7});
         writeZip(archive, entries);
 
         LuaScriptFiles files = new LuaScriptFiles();
@@ -292,16 +318,19 @@ public final class LuaModPackagesTest {
                 "A manifest image must be readable from its ZIP package");
 
         PackageAssetProvider assets = new PackageAssetProvider(scripts);
-        byte[] packagedAsset = assets.read(AssetPath.parse("mymod/textures/archive.png"), 1024);
+        AssetResolver packageResolver = new AssetResolver(assets, null, warning -> {
+        }).forSource("clockwork.zip!/main.lua");
+        byte[] packagedAsset = packageResolver.resolveDefault("archive texture",
+                AssetPath.parse("mymod/textures/archive.png"), 1024, bytes -> bytes).getValue();
         require(java.util.Arrays.equals(new byte[]{5, 6, 7}, packagedAsset),
-                "Registered asset fallback paths must resolve inside ZIP packages");
+                "Registered asset fallback paths must resolve beneath a ZIP package's assets root");
         File texturePack = new File(root, "texture_pack.zip");
         Map<String, byte[]> packEntries = new LinkedHashMap<>();
         packEntries.put("bm_assets/mymod/textures/archive.png", new byte[]{9, 8, 7});
         writeZip(texturePack, packEntries);
         AssetPath fallback = AssetPath.parse("mymod/textures/archive.png");
         AssetResolver resolver = new AssetResolver(assets, new ZipAssetProvider(texturePack), warning -> {
-        });
+        }).forSource("clockwork.zip!/main.lua");
         ResolvedAsset<byte[]> overridden = resolver.resolve("archive texture", fallback,
                 fallback.getDirectOverridePath(), 1024, bytes -> bytes);
         require(java.util.Arrays.equals(new byte[]{9, 8, 7}, overridden.getValue())
@@ -391,11 +420,15 @@ public final class LuaModPackagesTest {
     }
 
     private static void write(File file, String source) throws IOException {
+        writeBytes(file, source.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static void writeBytes(File file, byte[] contents) throws IOException {
         File parent = file.getParentFile();
         if (!parent.mkdirs() && !parent.isDirectory()) {
             throw new IOException("Could not create " + parent);
         }
-        Files.write(file.toPath(), source.getBytes(StandardCharsets.UTF_8));
+        Files.write(file.toPath(), contents);
     }
 
     private static byte[] utf8(String value) {

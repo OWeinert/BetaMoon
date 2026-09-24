@@ -17,7 +17,7 @@ final class LuaModEnvironment {
 
     static Globals create(LuaModSource source) throws IOException {
         Globals globals = JsePlatform.standardGlobals();
-        globals.load(new BetaMoonModule());
+        globals.load(new BetaMoonModule(source.entrypointRelative()));
 
         String prefix = source.modulePathPrefix();
         globals.package_.setLuaPath(prefix + "?.lua;" + prefix + "?/init.lua");
