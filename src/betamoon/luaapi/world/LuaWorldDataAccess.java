@@ -125,15 +125,7 @@ public final class LuaWorldDataAccess {
     }
 
     private static LuaTable worldInfo(World world) {
-        LuaTable result = new LuaWorldInfo(world.getWorldInfo());
-        long time = world.getWorldTime();
-        result.set("day", LuaValue.valueOf(Math.floorDiv(time, 24000L)));
-        result.set("timeOfDay", LuaValue.valueOf(Math.floorMod(time, 24000L)));
-        result.set("celestialAngle", LuaValue.valueOf(world.getCelestialAngle(1.0F)));
-        result.set("daytime", LuaValue.valueOf(world.isDaytime()));
-        result.set("difficulty", LuaValue.valueOf(world.difficultySetting));
-        result.set("height", 128);
-        return result;
+        return LuaWorldInfo.fromWorld(world);
     }
 
     private static LuaValue block(World world, Position position) {

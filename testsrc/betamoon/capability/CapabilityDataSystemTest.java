@@ -129,7 +129,12 @@ public final class CapabilityDataSystemTest {
             LuaTable worldApi = LuaWorldActionAccess.create(scope, world, 0, 64, 0);
             globals.set("worldApi", worldApi);
             globals.load("local data=worldApi:getSystemData(powerSystem)\n"
-                    + "assert(data.loads == 1 and data.ticks == 1)").call();
+                    + "assert(data.loads == 1 and data.ticks == 1)\n"
+                    + "local info=worldApi:getInfo()\n"
+                    + "assert(info.day == 0 and info.timeOfDay == 0 and info.height == 128)\n"
+                    + "assert(type(info.celestialAngle) == 'number' and type(info.daytime) == 'boolean')\n"
+                    + "assert(not pcall(function() info.day=4 end))\n"
+                    + "assert(not pcall(function() rawset(info,'day',4) end))").call();
         }
 
         try (LuaCallbackScope scope = new LuaCallbackScope(true)) {
