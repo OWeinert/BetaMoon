@@ -16,9 +16,9 @@ public final class OreGenApi {
             @Override
             public Varargs invoke(Varargs args) {
                 OreDeclaration declaration = new OreDeclaration(args.arg(args.arg1() == ores ? 2 : 1));
-                WorldGenRegistry.addOreGen(declaration.blockId, declaration.veinsPerChunk, declaration.veinSize,
-                        declaration.minY, declaration.maxY, declaration.dimension, declaration.targetBlockId,
-                        declaration.getAllowedBiomes());
+                WorldGenRegistry.addOreGen(declaration.key, declaration.blockId, declaration.veinsPerChunk,
+                        declaration.veinSize, declaration.minY, declaration.maxY, declaration.dimension,
+                        declaration.targetBlockId, declaration.getAllowedBiomes(), declaration.salt);
                 return NIL;
             }
         });

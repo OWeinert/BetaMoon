@@ -251,4 +251,14 @@ public final class LuaScriptRegistry {
     public static String getCurrentScriptFile() {
         return currentScriptFile.get();
     }
+
+    /** Returns the declared package name for the executing script, with a file fallback. */
+    public static synchronized String getCurrentScriptIdentity() {
+        String file = currentScriptFile.get();
+        if (file == null) {
+            return null;
+        }
+        ScriptMod script = byFile.get(file);
+        return script == null ? file : script.getDisplayName();
+    }
 }
