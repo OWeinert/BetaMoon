@@ -61,12 +61,7 @@ final class DebugWorldExporter implements DebugExporter {
         Collections.sort(generators, new Comparator<WorldGenRegistry.Description>() {
             @Override
             public int compare(WorldGenRegistry.Description left, WorldGenRegistry.Description right) {
-                int block = Integer.compare(left.blockId, right.blockId);
-                if (block != 0) {
-                    return block;
-                }
-                int dimension = left.dimension.compareTo(right.dimension);
-                return dimension != 0 ? dimension : Integer.compare(left.minY, right.minY);
+                return left.key.compareTo(right.key);
             }
         });
         session.writeTextFile("world_generation.txt", new DebugExportSession.TextContent() {
@@ -77,8 +72,13 @@ final class DebugWorldExporter implements DebugExporter {
                         writer.newLine();
                     }
                     WorldGenRegistry.Description generator = generators.get(index);
-                    writer.write("owner: " + safe(generator.owner) + " | placed block ID: " + generator.blockId
-                            + " | dimension: " + generator.dimension);
+                    writer.write("key: " + generator.key + " | feature: " + generator.featureKey + " | owner: "
+                            + safe(generator.owner));
+                    writer.newLine();
+                    writer.write("stage: " + generator.stage + " | source: " + safe(generator.sourceLocation)
+                            + " | salt: " + generator.salt);
+                    writer.newLine();
+                    writer.write("placed block ID: " + generator.blockId + " | dimension: " + generator.dimension);
                     writer.newLine();
                     writer.write("veins per chunk: " + generator.veinsPerChunk + " | vein size: "
                             + generator.veinSize + " | height: " + generator.minY + ".." + generator.maxY);
