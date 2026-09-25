@@ -17,6 +17,9 @@ explosions, manifest-based multi-file mods, and broader debug exports.
 - Add reusable vanilla-adapter, procedural, and structure-backed trees plus bounded local JSON structures with
   palettes, deterministic variants and decay, rotation and mirroring, vanilla/custom metadata transforms, typed
   tile initialization, safe replacement policies, real-plan previews, cuboid export, and structure diagnostics.
+- Add keyed biomes, biome tags and placement-backed decorators; compiled layered surfaces at the native overworld
+  surface boundary; fixed and vanilla-climate biome sources with coverage diagnostics; and key/tag filtering for
+  world-generation placements and BetaMoon natural entity spawns, while retaining legacy range declarations.
 - Add custom fuel rules with item and metadata matching, configurable burn times,
   priorities, predicates, and machine scopes. Vanilla furnaces and custom machines can
   share rules or accept different fuel sets.

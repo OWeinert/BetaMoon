@@ -13,6 +13,8 @@ public final class WorldGenApi {
         StructureGenApi.attach(worldgen);
         TreeGenApi.attach(worldgen);
         OreGenApi.attach(worldgen);
+        SurfaceGenApi.attach(worldgen);
+        BiomeSourceApi.attach(worldgen);
         BiomeGenApi.attach(worldgen);
         module.set("worldgen", worldgen);
     }

@@ -19,14 +19,19 @@ import org.luaj.vm2.LuaError;
 final class FeaturePlacementRegistry {
     private static final String ACTUAL_STAGE = "after_vanilla_population";
     private static volatile Snapshot active = Snapshot.empty();
+    private static volatile Set<WorldGenKey> decoratorTemplates = Collections.emptySet();
     private static final Map<String, MutableDiagnostics> diagnostics = new LinkedHashMap<String, MutableDiagnostics>();
     private static final Set<WorldGenKey> disabled = new HashSet<WorldGenKey>();
+    private static final Map<String, Set<WorldGenKey>> decoratorTemplatesByOwner =
+            new LinkedHashMap<String, Set<WorldGenKey>>();
 
     private FeaturePlacementRegistry() {
     }
 
     static synchronized void clear() {
         active = Snapshot.empty();
+        decoratorTemplates = Collections.emptySet();
+        decoratorTemplatesByOwner.clear();
         diagnostics.clear();
         disabled.clear();
     }
@@ -45,9 +50,30 @@ final class FeaturePlacementRegistry {
             }
         }
         active = Snapshot.compile(features, placements);
+        decoratorTemplatesByOwner.keySet().retainAll(owners);
+        rebuildDecoratorTemplates();
     }
 
     static synchronized void publishOwner(String resourceOwner, List<FeatureDefinition> ownerFeatures,
+            List<PlacementDefinition> ownerPlacements, Set<WorldGenKey> ownerDecoratorTemplates) {
+        active = ownerSnapshot(resourceOwner, ownerFeatures, ownerPlacements);
+        decoratorTemplatesByOwner.put(resourceOwner,
+                Collections.unmodifiableSet(new HashSet<WorldGenKey>(ownerDecoratorTemplates)));
+        rebuildDecoratorTemplates();
+        disabled.removeAll(keys(ownerPlacements));
+    }
+
+    static synchronized void validateOwner(String resourceOwner, List<FeatureDefinition> ownerFeatures,
+            List<PlacementDefinition> ownerPlacements, Set<WorldGenKey> ownerDecoratorTemplates) {
+        Snapshot candidate = ownerSnapshot(resourceOwner, ownerFeatures, ownerPlacements);
+        for (WorldGenKey key : ownerDecoratorTemplates) {
+            if (!candidate.placementsByKey.containsKey(key)) {
+                throw new LuaError("Biome decorator references unknown placement " + key);
+            }
+        }
+    }
+
+    private static Snapshot ownerSnapshot(String resourceOwner, List<FeatureDefinition> ownerFeatures,
             List<PlacementDefinition> ownerPlacements) {
         List<FeatureDefinition> features = new ArrayList<FeatureDefinition>();
         List<PlacementDefinition> placements = new ArrayList<PlacementDefinition>();
@@ -63,8 +89,7 @@ final class FeaturePlacementRegistry {
         }
         features.addAll(ownerFeatures);
         placements.addAll(ownerPlacements);
-        active = Snapshot.compile(features, placements);
-        disabled.removeAll(keys(ownerPlacements));
+        return Snapshot.compile(features, placements);
     }
 
     static synchronized void publishAddition(FeatureDefinition feature, PlacementDefinition placement) {
@@ -117,7 +142,7 @@ final class FeaturePlacementRegistry {
         int logicalChunkZ = Math.floorDiv(chunkZ, 16);
         for (PlacementDefinition placement : snapshot.placements) {
             if (!placement.dimensions.isEmpty() && !placement.dimensions.contains(dimension)
-                    || isDisabled(placement.key)) {
+                    || isDisabled(placement.key) || decoratorTemplates.contains(placement.key)) {
                 continue;
             }
             FeatureDefinition feature = snapshot.features.get(placement.featureKey);
@@ -176,7 +201,7 @@ final class FeaturePlacementRegistry {
             synchronized (FeaturePlacementRegistry.class) {
                 values = diagnostics.get(definition.key.toString());
             }
-            result.add(new PlacementDescription(definition, values));
+            result.add(new PlacementDescription(definition, values, decoratorTemplates.contains(definition.key)));
         }
         return Collections.unmodifiableList(result);
     }
@@ -235,6 +260,18 @@ final class FeaturePlacementRegistry {
 
     private static synchronized boolean isDisabled(WorldGenKey key) {
         return disabled.contains(key);
+    }
+
+    private static void rebuildDecoratorTemplates() {
+        Set<WorldGenKey> values = new HashSet<WorldGenKey>();
+        for (Set<WorldGenKey> ownerValues : decoratorTemplatesByOwner.values()) {
+            for (WorldGenKey key : ownerValues) {
+                if (active.placementsByKey.containsKey(key)) {
+                    values.add(key);
+                }
+            }
+        }
+        decoratorTemplates = Collections.unmodifiableSet(values);
     }
 
     private static synchronized void disable(PlacementDefinition placement, Throwable error) {
@@ -470,8 +507,9 @@ final class FeaturePlacementRegistry {
         final long blocksChanged;
         final Map<String, Integer> rejectionReasons;
         final boolean disabled;
+        final boolean template;
 
-        private PlacementDescription(PlacementDefinition definition, MutableDiagnostics values) {
+        private PlacementDescription(PlacementDefinition definition, MutableDiagnostics values, boolean template) {
             key = definition.key.toString();
             feature = definition.featureKey.toString();
             owner = definition.owner;
@@ -486,6 +524,7 @@ final class FeaturePlacementRegistry {
             rejectionReasons = values == null ? Collections.<String, Integer>emptyMap()
                     : Collections.unmodifiableMap(new LinkedHashMap<String, Integer>(values.reasons));
             disabled = isDisabled(definition.key);
+            this.template = template;
         }
     }
 

@@ -65,6 +65,60 @@ public final class FeaturePlacementApi {
         worldgen.set("placements", placements);
     }
 
+    static void addBiomeDecorators(WorldGenKey biome, LuaValue decorators) {
+        if (decorators.isnil()) {
+            return;
+        }
+        table(decorators, "Biome.decorators");
+        String biomePath = biome.getPath();
+        int separator = biomePath.indexOf('/');
+        String suffix = separator < 0 ? biomePath : biomePath.substring(separator + 1);
+        for (int index = 1; index <= decorators.length(); index++) {
+            String path = "Biome.decorators[" + index + "]";
+            LuaValue source = decorators.get(index);
+            String derivedKey = biome.getNamespace() + ":biome_decorators/" + suffix + "/"
+                    + String.format(Locale.ROOT, "%02d", index);
+            if (source instanceof PlacementReference || source.isstring()) {
+                WorldGenKey placement = source instanceof PlacementReference
+                        ? ((PlacementReference) source).key()
+                        : key(source.checkjstring(), WorldGenKind.PLACEMENT, path);
+                WorldGenRegistry.addBiomePlacement(derivedKey, placement, biome.toString());
+                continue;
+            }
+            table(source, path);
+            LuaTable definition = copy(source);
+            if (definition.get("key").isnil()) {
+                definition.set("key", derivedKey);
+            }
+            if (definition.get("stage").isnil()) {
+                definition.set("stage", "surface_features");
+            }
+            LuaTable include = new LuaTable();
+            include.set(1, biome.toString());
+            LuaTable selectors = new LuaTable();
+            selectors.set("include", include);
+            definition.set("biomes", selectors);
+            ParsedPlacement parsed = placement(definition);
+            WorldGenRegistry.addPlacement(parsed.key, parsed.feature, parsed.stage, parsed.dimensions,
+                    parsed.attempts, parsed.extraChance, parsed.probability, parsed.height, parsed.conditions,
+                    parsed.before, parsed.after, parsed.priority, parsed.salt, parsed.successLimit,
+                    parsed.horizontal, parsed.gridSpacing);
+        }
+    }
+
+    private static LuaTable copy(LuaValue source) {
+        LuaTable result = new LuaTable();
+        LuaValue key = LuaValue.NIL;
+        while (true) {
+            Varargs entry = source.next(key);
+            key = entry.arg1();
+            if (key.isnil()) {
+                return result;
+            }
+            result.set(key, entry.arg(2));
+        }
+    }
+
     private static VarArgFunction lookup(final LuaTable receiver, final WorldGenKind kind, final boolean required) {
         return new VarArgFunction() {
             @Override
@@ -283,6 +337,8 @@ public final class FeaturePlacementApi {
             LuaValue includes = biomes.get("include").isnil() ? biomes : biomes.get("include");
             addStrings(include, includes, "Placement.biomes.include");
             addStrings(exclude, biomes.get("exclude"), "Placement.biomes.exclude");
+            addTags(include, biomes.get("includeTags"), "Placement.biomes.includeTags");
+            addTags(exclude, biomes.get("excludeTags"), "Placement.biomes.excludeTags");
         } else if (!biomes.isnil()) {
             throw new LuaError("Placement.biomes: expected a table");
         }
@@ -462,6 +518,20 @@ public final class FeaturePlacementApi {
         table(value, path);
         for (int index = 1; index <= value.length(); index++) {
             output.add(value.get(index).checkjstring().trim().toLowerCase(Locale.ROOT));
+        }
+    }
+
+    private static void addTags(Set<String> output, LuaValue value, String path) {
+        if (value.isnil()) {
+            return;
+        }
+        table(value, path);
+        for (int index = 1; index <= value.length(); index++) {
+            String tag = value.get(index).checkjstring().trim().toLowerCase(Locale.ROOT);
+            if (tag.isEmpty() || tag.equals("#") || tag.length() > 128) {
+                throw new LuaError(path + "[" + index + "]: expected a tag with 1..128 characters");
+            }
+            output.add(tag.startsWith("#") ? tag : "#" + tag);
         }
     }
 

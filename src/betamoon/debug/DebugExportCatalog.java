@@ -51,7 +51,8 @@ public final class DebugExportCatalog {
         values.add(new DebugExportDefinition("world", "World content",
                 "Biome lookup names, Lua climate overlays, and world-generation declarations.", true,
                 new DebugWorldExporter(), "biomes.txt", "world_generation.txt", "worldgen_features.txt",
-                "worldgen_placements.txt", "worldgen_structures.txt"));
+                "worldgen_placements.txt", "worldgen_structures.txt", "worldgen_surfaces.txt",
+                "worldgen_biome_sources.txt"));
         values.add(new DebugExportDefinition("scripts", "Scripts and modules",
                 "Package layouts, entrypoints, private modules, cross-mod exports, and load issues.", true,
                 new DebugScriptExporter(), "scripts.txt", "modules.txt", "script_issues.txt"));

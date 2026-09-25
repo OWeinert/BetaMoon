@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import net.minecraft.src.Block;
+import net.minecraft.src.BiomeGenBase;
 import net.minecraft.src.Material;
 
 /** Immutable predicates evaluated once per sampled placement origin. */
@@ -68,12 +69,11 @@ public final class PlacementConditions {
         if (light < minLight || light > maxLight) {
             return FeatureResult.BLOCKED;
         }
-        String biome = context.world().getWorldChunkManager().getBiomeGenAt(origin.x, origin.z).biomeName;
-        String normalized = biome == null ? "" : biome.toLowerCase(java.util.Locale.ROOT);
-        if (!includeBiomes.isEmpty() && !includeBiomes.contains(normalized)) {
+        BiomeGenBase biome = context.world().getWorldChunkManager().getBiomeGenAt(origin.x, origin.z);
+        if (!includeBiomes.isEmpty() && !BiomeGenRegistry.matchesSelectors(biome, includeBiomes)) {
             return FeatureResult.BLOCKED;
         }
-        if (excludeBiomes.contains(normalized)) {
+        if (BiomeGenRegistry.matchesSelectors(biome, excludeBiomes)) {
             return FeatureResult.BLOCKED;
         }
         return null;

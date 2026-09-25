@@ -21,6 +21,8 @@ final class DebugWorldExporter implements DebugExporter {
         exportFeatures(session);
         exportPlacements(session);
         exportStructures(session);
+        exportSurfaces(session);
+        exportBiomeSources(session);
     }
 
     private static void exportBiomes(DebugExportSession session) throws Exception {
@@ -40,8 +42,11 @@ final class DebugWorldExporter implements DebugExporter {
             }
         }
         for (BiomeGenRegistry.Description biome : BiomeGenRegistry.snapshot()) {
-            rows.add("origin: Lua overlay | owner: " + safe(biome.owner) + " | biome name: " + safe(biome.name)
-                    + " | implementation: " + safe(biome.implementation) + " | temperature: "
+            rows.add("origin: Lua overlay | key: " + biome.key + " | owner: " + safe(biome.owner)
+                    + " | biome name: " + safe(biome.name) + " | implementation: " + safe(biome.implementation)
+                    + " | tags: " + biome.tags + " | surface: " + safe(biome.surface) + " | decorators: "
+                    + biome.decorators + " | top/filler: " + biome.topBlock + "/" + biome.fillerBlock
+                    + " | legacy climate range: " + biome.legacyClimateRange + " | temperature: "
                     + biome.minTemperature + ".." + biome.maxTemperature + " | humidity: " + biome.minHumidity
                     + ".." + biome.maxHumidity);
         }
@@ -135,7 +140,8 @@ final class DebugWorldExporter implements DebugExporter {
                     writer.newLine();
                     writer.write("accepted: " + placement.accepted + " | rejected: " + placement.rejected
                             + " | blocks changed: " + placement.blocksChanged + " | disabled: "
-                            + placement.disabled + " | rejection reasons: " + placement.rejectionReasons);
+                            + placement.disabled + " | biome decorator template: " + placement.template
+                            + " | rejection reasons: " + placement.rejectionReasons);
                     writer.newLine();
                 }
                 return placements.size();
@@ -164,6 +170,39 @@ final class DebugWorldExporter implements DebugExporter {
                     writer.newLine();
                 }
                 return structures.size();
+            }
+        });
+    }
+
+    private static void exportSurfaces(DebugExportSession session) throws Exception {
+        final List<BiomeGenRegistry.SurfaceDescription> surfaces = BiomeGenRegistry.surfaceSnapshot();
+        session.writeTextFile("worldgen_surfaces.txt", new DebugExportSession.TextContent() {
+            @Override
+            public int write(BufferedWriter writer) throws IOException {
+                for (BiomeGenRegistry.SurfaceDescription surface : surfaces) {
+                    writer.write("key: " + surface.key + " | owner: " + safe(surface.owner) + " | layers: "
+                            + surface.layers + " | sea level: " + surface.seaLevel + " | underwater block: "
+                            + (surface.underwaterBlock == null ? "none" : surface.underwaterBlock));
+                    writer.newLine();
+                }
+                return surfaces.size();
+            }
+        });
+    }
+
+    private static void exportBiomeSources(DebugExportSession session) throws Exception {
+        final List<BiomeGenRegistry.SourceDescription> sources = BiomeGenRegistry.sourceSnapshot();
+        session.writeTextFile("worldgen_biome_sources.txt", new DebugExportSession.TextContent() {
+            @Override
+            public int write(BufferedWriter writer) throws IOException {
+                for (BiomeGenRegistry.SourceDescription source : sources) {
+                    writer.write("key: " + source.key + " | owner: " + safe(source.owner) + " | type: "
+                            + source.type + " | active: " + source.active + " | priority: " + source.priority
+                            + " | entries: " + source.entries + " | overlap cells: " + source.overlapCells
+                            + " | uncovered cells: " + source.uncoveredCells);
+                    writer.newLine();
+                }
+                return sources.size();
             }
         });
     }

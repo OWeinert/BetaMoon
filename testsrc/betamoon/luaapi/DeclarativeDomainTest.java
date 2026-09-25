@@ -191,12 +191,12 @@ public final class DeclarativeDomainTest {
                     "Default replacement is selected for the active dimension");
             require(GenerationDimension.BOTH.includes(false) && GenerationDimension.BOTH.includes(true),
                     "Both-dimensions entries run in the overworld and nether");
-            List<?> biomes = entries(BiomeGenRegistry.class, "ENTRIES");
+            List<BiomeGenRegistry.Description> biomes = BiomeGenRegistry.snapshot();
             require(biomes.size() == 1, "Invalid biome declarations must not install overlays");
-            BiomeGenBase biome = (BiomeGenBase) field(biomes.get(0), "biome");
-            require("quality_biome".equals(biome.biomeName), "Custom biome name");
+            BiomeGenRegistry.Description biome = biomes.get(0);
+            require("quality_biome".equals(biome.name), "Custom biome name");
             require(biome.topBlock == Block.stone.blockID, "Surface override");
-            require(biome.fillerBlock == BiomeGenBase.desert.fillerBlock, "Inherited surface");
+            require(biome.fillerBlock == (BiomeGenBase.desert.fillerBlock & 255), "Inherited surface");
             require(BiomeGenBase.desert.topBlock != Block.stone.blockID, "Source biome must remain unchanged");
         } finally {
             WorldGenRegistry.clear();
@@ -211,18 +211,6 @@ public final class DeclarativeDomainTest {
             }
         }
         return false;
-    }
-
-    private static List<?> entries(Class<?> type, String name) throws Exception {
-        Field field = type.getDeclaredField(name);
-        field.setAccessible(true);
-        return (List<?>) field.get(null);
-    }
-
-    private static Object field(Object target, String name) throws Exception {
-        Field field = target.getClass().getDeclaredField(name);
-        field.setAccessible(true);
-        return field.get(target);
     }
 
     private static void require(boolean condition, String message) {

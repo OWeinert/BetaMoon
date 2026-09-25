@@ -136,6 +136,7 @@ public final class WorldGenRegistry {
         private final List<OreGenEntry> ores = new ArrayList<OreGenEntry>();
         private final List<FeatureDefinition> features = new ArrayList<FeatureDefinition>();
         private final List<PlacementDefinition> placements = new ArrayList<PlacementDefinition>();
+        private final Set<WorldGenKey> biomeDecoratorTemplates = new HashSet<WorldGenKey>();
         private int declarationIndex;
         private boolean published;
         private boolean closed;
@@ -148,9 +149,15 @@ public final class WorldGenRegistry {
         public void publish() {
             ensureOpen();
             validateBatchKeys(ores);
-            FeaturePlacementRegistry.publishOwner(resourceOwner, features, placements);
+            FeaturePlacementRegistry.publishOwner(resourceOwner, features, placements, biomeDecoratorTemplates);
             publishBatch(this);
             published = true;
+        }
+
+        public void validate() {
+            ensureOpen();
+            validateBatchKeys(ores);
+            FeaturePlacementRegistry.validateOwner(resourceOwner, features, placements, biomeDecoratorTemplates);
         }
 
         private void add(String key, int blockId, int veinsPerChunk, int veinSize, int minY, int maxY,
@@ -348,6 +355,7 @@ public final class WorldGenRegistry {
         public final long blocksChanged;
         public final Map<String, Integer> rejectionReasons;
         public final boolean disabled;
+        public final boolean template;
 
         private PlacementDescription(FeaturePlacementRegistry.PlacementDescription description) {
             key = description.key;
@@ -363,6 +371,7 @@ public final class WorldGenRegistry {
             blocksChanged = description.blocksChanged;
             rejectionReasons = description.rejectionReasons;
             disabled = description.disabled;
+            template = description.template;
         }
     }
 
@@ -445,6 +454,25 @@ public final class WorldGenRegistry {
         return typedKey;
     }
 
+    public static WorldGenKey addBiomePlacement(String key, WorldGenKey sourceKey, String biomeSelector) {
+        PlacementDefinition source = placementDefinition(sourceKey);
+        if (source == null) {
+            throw new LuaError("Biome decorator references unknown placement " + sourceKey);
+        }
+        PublicationBatch batch = CURRENT_BATCH.get();
+        if (batch == null) {
+            throw new LuaError("Biome decorators may only be declared while a Lua package is loading");
+        }
+        batch.biomeDecoratorTemplates.add(sourceKey);
+        PlacementConditions original = source.conditions;
+        PlacementConditions conditions = new PlacementConditions(original.ground, original.requireSky,
+                original.requireAir, original.requireWater, original.requireLava, original.minLight,
+                original.maxLight, Collections.singleton(biomeSelector), original.excludeBiomes);
+        return addPlacement(key, source.featureKey, source.stage, source.dimensions, source.attempts,
+                source.extraChance, source.probability, source.height, conditions, source.before, source.after,
+                source.priority, source.salt, source.successLimit, source.horizontal, source.gridSpacing);
+    }
+
     public static boolean hasFeature(WorldGenKey key) {
         PublicationBatch batch = CURRENT_BATCH.get();
         if (batch != null) {
@@ -470,6 +498,11 @@ public final class WorldGenRegistry {
     }
 
     public static WorldGenKey featureKeyForPlacement(WorldGenKey placementKey) {
+        PlacementDefinition definition = placementDefinition(placementKey);
+        return definition == null ? null : definition.featureKey;
+    }
+
+    private static PlacementDefinition placementDefinition(WorldGenKey placementKey) {
         PlacementDefinition definition = FeaturePlacementRegistry.findPlacement(placementKey);
         PublicationBatch batch = CURRENT_BATCH.get();
         if (definition == null && batch != null) {
@@ -480,7 +513,7 @@ public final class WorldGenRegistry {
                 }
             }
         }
-        return definition == null ? null : definition.featureKey;
+        return definition;
     }
 
     public static FeatureResult placeFeature(WorldGenKey key, World world, BlockPosition origin, long seed) {
