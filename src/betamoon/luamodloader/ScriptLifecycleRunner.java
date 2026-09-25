@@ -3,6 +3,7 @@ package betamoon.luamodloader;
 import betamoon.luaapi.module.ModuleRegistry;
 import betamoon.luaapi.audio.SoundEvents;
 import betamoon.tileentity.TileEntityRegistry;
+import betamoon.worldgen.WorldGenRegistry;
 import java.util.List;
 import org.luaj.vm2.LuaError;
 
@@ -31,7 +32,9 @@ final class ScriptLifecycleRunner {
 
             try (ScriptExecutionScope ignored = ScriptExecutionScope.open(mod.sourceFileName);
                     ScriptAssetScope assets = ScriptAssetScope.open(mod.sourceFileName);
-                    ScriptEntityScope entities = ScriptEntityScope.open(mod.sourceFileName)) {
+                    ScriptEntityScope entities = ScriptEntityScope.open(mod.sourceFileName);
+                    WorldGenRegistry.PublicationBatch worldgen = WorldGenRegistry.beginPublication(
+                            mod.sourceFileName, mod.getDisplayName())) {
                 mod.modInit.call();
                 if (hotReload && mod.modReload != null && mod.modReload.isfunction()) {
                     mod.modReload.call();
@@ -39,6 +42,7 @@ final class ScriptLifecycleRunner {
                 ModuleRegistry.publish(mod.sourceFileName);
                 assets.publish();
                 entities.publish();
+                worldgen.publish();
                 SoundEvents.publish(mod.sourceFileName);
                 LuaScriptRegistry.markLoadedByFile(mod.sourceFileName);
                 retainedScripts.rememberIfStructural(mod);

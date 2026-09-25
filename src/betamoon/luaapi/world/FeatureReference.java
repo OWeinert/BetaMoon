@@ -1,0 +1,87 @@
+package betamoon.luaapi.world;
+
+import betamoon.worldgen.BlockPosition;
+import betamoon.worldgen.FeatureResult;
+import betamoon.worldgen.SeedMixer;
+import betamoon.worldgen.WorldGenKey;
+import betamoon.worldgen.WorldGenRegistry;
+import net.minecraft.src.World;
+import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaTable;
+import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
+import org.luaj.vm2.lib.VarArgFunction;
+import org.luaj.vm2.lib.ZeroArgFunction;
+
+/** Stable key handle for a reusable compiled world feature. */
+public final class FeatureReference extends LuaTable {
+    private final WorldGenKey key;
+
+    public FeatureReference(WorldGenKey key) {
+        this.key = key;
+        set("getKey", new ZeroArgFunction() {
+            @Override
+            public LuaValue call() {
+                return valueOf(FeatureReference.this.key.toString());
+            }
+        });
+        set("place", new VarArgFunction() {
+            @Override
+            public Varargs invoke(Varargs arguments) {
+                int offset = arguments.arg1() == FeatureReference.this ? 1 : 0;
+                World world = LuaWorldActionAccess.requireMutableWorld(arguments.arg(1 + offset));
+                int x = coordinate(arguments.arg(2 + offset), "feature.place.x");
+                int y = integer(arguments.arg(3 + offset), "feature.place.y", 0, 127);
+                int z = coordinate(arguments.arg(4 + offset), "feature.place.z");
+                LuaValue options = arguments.arg(5 + offset);
+                long salt = options.istable() && !options.get("seed").isnil() ? options.get("seed").checklong() : 0L;
+                String dimension = world.worldProvider.worldType == -1 ? "minecraft:nether" : "minecraft:overworld";
+                long seed = SeedMixer.generationSeed(world.getRandomSeed(), dimension, "direct", x >> 4, z >> 4,
+                        FeatureReference.this.key, salt ^ (((long) x) << 32) ^ z ^ y);
+                return result(WorldGenRegistry.placeFeature(FeatureReference.this.key, world,
+                        new BlockPosition(x, y, z), seed));
+            }
+        });
+    }
+
+    public WorldGenKey key() {
+        return key;
+    }
+
+    private static LuaTable result(FeatureResult result) {
+        LuaTable value = new LuaTable();
+        value.set("placed", valueOf(result.placed));
+        value.set("reason", result.reason == null ? NIL : valueOf(result.reason));
+        value.set("blocksChanged", result.blocksChanged);
+        if (result.min != null && result.max != null) {
+            LuaTable bounds = new LuaTable();
+            bounds.set("min", position(result.min));
+            bounds.set("max", position(result.max));
+            value.set("bounds", bounds);
+        }
+        return value;
+    }
+
+    private static LuaTable position(BlockPosition position) {
+        LuaTable value = new LuaTable();
+        value.set("x", position.x);
+        value.set("y", position.y);
+        value.set("z", position.z);
+        return value;
+    }
+
+    private static int coordinate(LuaValue value, String path) {
+        return integer(value, path, -30000000, 30000000);
+    }
+
+    private static int integer(LuaValue value, String path, int min, int max) {
+        if (!value.isint()) {
+            throw new LuaError(path + ": expected an integer");
+        }
+        int result = value.toint();
+        if (result < min || result > max) {
+            throw new LuaError(path + ": expected " + min + ".." + max);
+        }
+        return result;
+    }
+}

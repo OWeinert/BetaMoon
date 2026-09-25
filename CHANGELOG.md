@@ -8,6 +8,12 @@ explosions, manifest-based multi-file mods, and broader debug exports.
 
 ### Gameplay systems
 
+- Publish keyed world-generation declarations atomically per Lua package, derive independent deterministic random
+  streams for each placement, enforce Beta-height and generation-budget limits, and expose the actual population
+  stage and declaration source in diagnostics.
+- Add reusable ore-vein, patch, column, disk, weighted, sequence, and no-op features; compiled placement counts,
+  height providers, filters, dependency ordering, scoped direct placement, atomic commits, and rejection diagnostics;
+  retain `worldgen.ores:add` as a compatibility facade over the same feature engine.
 - Add custom fuel rules with item and metadata matching, configurable burn times,
   priorities, predicates, and machine scopes. Vanilla furnaces and custom machines can
   share rules or accept different fuel sets.

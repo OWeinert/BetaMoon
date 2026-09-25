@@ -168,7 +168,8 @@ public final class DeclarativeDomainTest {
         try {
             lua.load("local ores=betamoon.worldgen.ores; "
                     + "local def={block=1,veinsPerChunk=3,veinSize=7,height={min=4,max=12}}; "
-                    + "assert(ores:add(def)==nil); def.dimension='hell'; ores.add(def); "
+                    + "local ore=ores:add(def); assert(ore:getKey() and ore:getFeature():getKey()); "
+                    + "def.dimension='hell'; ores.add(def); "
                     + "def.dimension='both'; ores:add(def); def.height.min=13; "
                     + "assert(not pcall(function() ores:add(def) end)); "
                     + "assert(not pcall(function() ores:add({block=1,veinsPerChunk=1,veinSize=1,"
@@ -180,13 +181,13 @@ public final class DeclarativeDomainTest {
                     + "assert(not pcall(function() biomes:add({name='bad_spawn',spawns={missing={}}}) end)); "
                     + "assert(not pcall(function() biomes:add({name='bad_entity',"
                     + "spawns={creatures={{entity='Item',weight=1}}}}) end))").call();
-            List<?> ores = entries(WorldGenRegistry.class, "ORE_ENTRIES");
+            List<WorldGenRegistry.Description> ores = WorldGenRegistry.snapshot();
             require(ores.size() == 3, "Invalid ore declarations must not install generators");
-            require(GenerationDimension.OVERWORLD.equals(field(ores.get(0), "dimension")), "Default ore dimension");
-            require(GenerationDimension.NETHER.equals(field(ores.get(1), "dimension")), "Nether alias");
-            require(GenerationDimension.BOTH.equals(field(ores.get(2), "dimension")), "Both-dimensions mode");
-            require(field(ores.get(0), "targetBlockId") == null && field(ores.get(1), "targetBlockId") == null
-                    && field(ores.get(2), "targetBlockId") == null,
+            require(hasDimension(ores, "overworld"), "Default ore dimension");
+            require(hasDimension(ores, "nether"), "Nether alias");
+            require(hasDimension(ores, "both"), "Both-dimensions mode");
+            require(ores.get(0).targetBlockId == null && ores.get(1).targetBlockId == null
+                    && ores.get(2).targetBlockId == null,
                     "Default replacement is selected for the active dimension");
             require(GenerationDimension.BOTH.includes(false) && GenerationDimension.BOTH.includes(true),
                     "Both-dimensions entries run in the overworld and nether");
@@ -201,6 +202,15 @@ public final class DeclarativeDomainTest {
             WorldGenRegistry.clear();
             BiomeGenRegistry.clear();
         }
+    }
+
+    private static boolean hasDimension(List<WorldGenRegistry.Description> entries, String dimension) {
+        for (WorldGenRegistry.Description entry : entries) {
+            if (dimension.equals(entry.dimension)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static List<?> entries(Class<?> type, String name) throws Exception {

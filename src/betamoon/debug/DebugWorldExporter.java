@@ -18,6 +18,8 @@ final class DebugWorldExporter implements DebugExporter {
     public void export(DebugExportSession session) throws Exception {
         exportBiomes(session);
         exportWorldGeneration(session);
+        exportFeatures(session);
+        exportPlacements(session);
     }
 
     private static void exportBiomes(DebugExportSession session) throws Exception {
@@ -61,12 +63,7 @@ final class DebugWorldExporter implements DebugExporter {
         Collections.sort(generators, new Comparator<WorldGenRegistry.Description>() {
             @Override
             public int compare(WorldGenRegistry.Description left, WorldGenRegistry.Description right) {
-                int block = Integer.compare(left.blockId, right.blockId);
-                if (block != 0) {
-                    return block;
-                }
-                int dimension = left.dimension.compareTo(right.dimension);
-                return dimension != 0 ? dimension : Integer.compare(left.minY, right.minY);
+                return left.key.compareTo(right.key);
             }
         });
         session.writeTextFile("world_generation.txt", new DebugExportSession.TextContent() {
@@ -77,8 +74,13 @@ final class DebugWorldExporter implements DebugExporter {
                         writer.newLine();
                     }
                     WorldGenRegistry.Description generator = generators.get(index);
-                    writer.write("owner: " + safe(generator.owner) + " | placed block ID: " + generator.blockId
-                            + " | dimension: " + generator.dimension);
+                    writer.write("key: " + generator.key + " | feature: " + generator.featureKey + " | owner: "
+                            + safe(generator.owner));
+                    writer.newLine();
+                    writer.write("stage: " + generator.stage + " | source: " + safe(generator.sourceLocation)
+                            + " | salt: " + generator.salt);
+                    writer.newLine();
+                    writer.write("placed block ID: " + generator.blockId + " | dimension: " + generator.dimension);
                     writer.newLine();
                     writer.write("veins per chunk: " + generator.veinsPerChunk + " | vein size: "
                             + generator.veinSize + " | height: " + generator.minY + ".." + generator.maxY);
@@ -96,5 +98,47 @@ final class DebugWorldExporter implements DebugExporter {
 
     private static String safe(String value) {
         return DebugExportNames.safeString(value == null || value.isEmpty() ? "unavailable" : value);
+    }
+
+    private static void exportFeatures(DebugExportSession session) throws Exception {
+        final List<WorldGenRegistry.FeatureDescription> features = WorldGenRegistry.featureSnapshot();
+        session.writeTextFile("worldgen_features.txt", new DebugExportSession.TextContent() {
+            @Override
+            public int write(BufferedWriter writer) throws IOException {
+                for (WorldGenRegistry.FeatureDescription feature : features) {
+                    writer.write("key: " + feature.key + " | type: " + feature.type + " | owner: "
+                            + safe(feature.owner));
+                    writer.newLine();
+                    writer.write("source: " + safe(feature.source) + " | max blocks: " + feature.maxBlocks
+                            + " | max radius: " + feature.maxRadius + " | dependencies: "
+                            + (feature.dependencies.isEmpty() ? "none" : String.join(", ", feature.dependencies)));
+                    writer.newLine();
+                }
+                return features.size();
+            }
+        });
+    }
+
+    private static void exportPlacements(DebugExportSession session) throws Exception {
+        final List<WorldGenRegistry.PlacementDescription> placements = WorldGenRegistry.placementSnapshot();
+        session.writeTextFile("worldgen_placements.txt", new DebugExportSession.TextContent() {
+            @Override
+            public int write(BufferedWriter writer) throws IOException {
+                for (WorldGenRegistry.PlacementDescription placement : placements) {
+                    writer.write("key: " + placement.key + " | feature: " + placement.feature + " | owner: "
+                            + safe(placement.owner));
+                    writer.newLine();
+                    writer.write("requested stage: " + placement.stage + " | actual stage: " + placement.actualStage
+                            + " | dimensions: " + String.join(", ", placement.dimensions) + " | salt: "
+                            + placement.salt);
+                    writer.newLine();
+                    writer.write("accepted: " + placement.accepted + " | rejected: " + placement.rejected
+                            + " | blocks changed: " + placement.blocksChanged + " | disabled: "
+                            + placement.disabled + " | rejection reasons: " + placement.rejectionReasons);
+                    writer.newLine();
+                }
+                return placements.size();
+            }
+        });
     }
 }
