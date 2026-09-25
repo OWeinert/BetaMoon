@@ -46,7 +46,7 @@ public final class LuaWorldActionAccess {
 
     public static LuaTable create(LuaCallbackScope scope, World world, int x, int y, int z, Entity defaultSource,
             boolean allowPresentation) {
-        final LuaTable api = new LuaTable();
+        final LuaTable api = new ActionTable(scope, world);
         api.set("getTime", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 scope.requireActive();
@@ -392,6 +392,26 @@ public final class LuaWorldActionAccess {
         LuaExplosionApi.install(api, scope, world, explosionX, explosionY, explosionZ, defaultSource);
         return api;
 
+    }
+
+    /** Resolves an authoritative live world without exposing it through ordinary Lua fields. */
+    public static World requireMutableWorld(LuaValue value) {
+        if (!(value instanceof ActionTable)) {
+            throw LuaDeclarationValues.error("world", "expected a live world action handle");
+        }
+        ActionTable action = (ActionTable) value;
+        action.scope.requireMutable();
+        return action.world;
+    }
+
+    private static final class ActionTable extends LuaTable {
+        private final LuaCallbackScope scope;
+        private final World world;
+
+        private ActionTable(LuaCallbackScope scope, World world) {
+            this.scope = scope;
+            this.world = world;
+        }
     }
 
     private static LuaValue argument(Varargs args, LuaValue receiver, int index) {

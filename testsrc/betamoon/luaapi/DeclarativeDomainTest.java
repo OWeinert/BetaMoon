@@ -168,7 +168,8 @@ public final class DeclarativeDomainTest {
         try {
             lua.load("local ores=betamoon.worldgen.ores; "
                     + "local def={block=1,veinsPerChunk=3,veinSize=7,height={min=4,max=12}}; "
-                    + "assert(ores:add(def)==nil); def.dimension='hell'; ores.add(def); "
+                    + "local ore=ores:add(def); assert(ore:getKey() and ore:getFeature():getKey()); "
+                    + "def.dimension='hell'; ores.add(def); "
                     + "def.dimension='both'; ores:add(def); def.height.min=13; "
                     + "assert(not pcall(function() ores:add(def) end)); "
                     + "assert(not pcall(function() ores:add({block=1,veinsPerChunk=1,veinSize=1,"

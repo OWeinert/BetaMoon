@@ -1,6 +1,5 @@
 package betamoon.worldgen;
 
-import betamoon.BetaMoonCommon;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.minecraft.MinecraftBuiltins;
 import java.util.ArrayList;
@@ -14,9 +13,7 @@ import java.util.Random;
 import java.util.Set;
 import net.minecraft.src.BiomeGenBase;
 import net.minecraft.src.Block;
-import net.minecraft.src.MathHelper;
 import net.minecraft.src.World;
-import net.minecraft.src.WorldGenerator;
 import org.luaj.vm2.LuaError;
 
 /** Publishes and executes immutable Lua world-generation snapshots. */
@@ -136,6 +133,8 @@ public final class WorldGenRegistry {
         private final String resourceOwner;
         private final String owner;
         private final List<OreGenEntry> ores = new ArrayList<OreGenEntry>();
+        private final List<FeatureDefinition> features = new ArrayList<FeatureDefinition>();
+        private final List<PlacementDefinition> placements = new ArrayList<PlacementDefinition>();
         private int declarationIndex;
         private boolean published;
         private boolean closed;
@@ -147,6 +146,8 @@ public final class WorldGenRegistry {
 
         public void publish() {
             ensureOpen();
+            validateBatchKeys(ores);
+            FeaturePlacementRegistry.publishOwner(resourceOwner, features, placements);
             publishBatch(this);
             published = true;
         }
@@ -160,6 +161,72 @@ public final class WorldGenRegistry {
                     : parseKey(key, WorldGenKind.PLACEMENT, "OreGen.key");
             ores.add(createOreEntry(typedKey, blockId, veinsPerChunk, veinSize, minY, maxY, dimension, targetBlockId,
                     allowedBiomes, resourceOwner, owner, resourceOwner + ":worldgen[" + (index + 1) + "]", salt));
+            addOreFeature(typedKey, blockId, veinsPerChunk, veinSize, minY, maxY, dimension, targetBlockId,
+                    allowedBiomes, salt, index);
+        }
+
+        private WorldGenKey addFeature(String key, String type, WorldFeature feature, List<WorldGenKey> dependencies,
+                int maxBlocks, int maxRadius) {
+            ensureOpen();
+            int index = declarationIndex++;
+            WorldGenKey typedKey = parseKey(key, WorldGenKind.FEATURE, "Feature.key");
+            features.add(new FeatureDefinition(typedKey, type, resourceOwner, owner, source(index), feature,
+                    dependencies, maxBlocks, maxRadius));
+            return typedKey;
+        }
+
+        private WorldGenKey addPlacement(String key, WorldGenKey featureKey, GenerationStage stage,
+                Set<String> dimensions, IntRange attempts, double extraChance, double probability,
+                HeightProvider height, PlacementConditions conditions, List<WorldGenKey> before,
+                List<WorldGenKey> after, int priority, long salt, int successLimit, String horizontal,
+                int gridSpacing) {
+            ensureOpen();
+            int index = declarationIndex++;
+            WorldGenKey typedKey = parseKey(key, WorldGenKind.PLACEMENT, "Placement.key");
+            placements.add(new PlacementDefinition(typedKey, featureKey, resourceOwner, owner, source(index), stage,
+                    dimensions, attempts, extraChance, probability, height, conditions, before, after, priority, salt,
+                    successLimit, horizontal, gridSpacing));
+            return typedKey;
+        }
+
+        private void addOreFeature(WorldGenKey placementKey, int blockId, int veinsPerChunk, int veinSize, int minY,
+                int maxY, GenerationDimension dimension, Integer targetBlockId, BiomeGenBase[] allowedBiomes,
+                long salt, int index) {
+            String untyped = OreGenEntry.untypedPath(placementKey);
+            WorldGenKey featureKey = WorldGenKey.parse(placementKey.getNamespace() + ":feature/" + untyped,
+                    WorldGenKind.FEATURE);
+            int[] replacements;
+            if (targetBlockId != null) {
+                replacements = new int[]{targetBlockId.intValue()};
+            } else if (dimension == GenerationDimension.OVERWORLD) {
+                replacements = new int[]{Block.stone.blockID};
+            } else if (dimension == GenerationDimension.NETHER) {
+                replacements = new int[]{Block.netherrack.blockID};
+            } else {
+                replacements = new int[]{Block.stone.blockID, Block.netherrack.blockID};
+            }
+            features.add(new FeatureDefinition(featureKey, "ore_vein", resourceOwner, owner, source(index),
+                    BuiltInFeatures.oreVein(blockId, 0, veinSize, new BlockSet(replacements)),
+                    Collections.<WorldGenKey>emptyList(), Math.min(WorldGenLimits.MAX_BLOCK_CHANGES_PER_FEATURE,
+                            Math.max(64, veinSize * 16)), WorldGenLimits.MAX_FEATURE_RADIUS));
+            Set<String> dimensions = dimensionKeys(dimension);
+            Set<String> biomes = new HashSet<String>();
+            if (allowedBiomes != null) {
+                for (BiomeGenBase biome : allowedBiomes) {
+                    biomes.add(biome.biomeName.toLowerCase(java.util.Locale.ROOT));
+                }
+            }
+            PlacementConditions conditions = new PlacementConditions(null, false, null, null, null, 0, 15,
+                    biomes, Collections.<String>emptySet());
+            placements.add(new PlacementDefinition(placementKey, featureKey, resourceOwner, owner, source(index),
+                    GenerationStage.UNDERGROUND_FEATURES, dimensions, new IntRange(veinsPerChunk, veinsPerChunk),
+                    0.0D, 1.0D, HeightProvider.uniform(minY, maxY), conditions,
+                    Collections.<WorldGenKey>emptyList(), Collections.<WorldGenKey>emptyList(), 0, salt,
+                    veinsPerChunk, "chunk", 1));
+        }
+
+        private String source(int index) {
+            return resourceOwner + ":worldgen[" + (index + 1) + "]";
         }
 
         private void ensureOpen() {
@@ -198,6 +265,7 @@ public final class WorldGenRegistry {
     /** Removes all definitions, primarily for complete shutdown and tests. */
     public static synchronized void clear() {
         active = Snapshot.empty();
+        FeaturePlacementRegistry.clear();
     }
 
     /** Removes definitions whose script package no longer exists after a load pass. */
@@ -209,19 +277,21 @@ public final class WorldGenRegistry {
             }
         }
         active = new Snapshot(retained);
+        FeaturePlacementRegistry.retainOwners(resourceOwners);
     }
 
-    public static void addOreGen(int blockId, int veinsPerChunk, int veinSize, int minY, int maxY,
+    public static WorldGenKey addOreGen(int blockId, int veinsPerChunk, int veinSize, int minY, int maxY,
             GenerationDimension dimension, Integer targetBlockId, BiomeGenBase[] allowedBiomes) {
-        addOreGen(null, blockId, veinsPerChunk, veinSize, minY, maxY, dimension, targetBlockId, allowedBiomes, 0L);
+        return addOreGen(null, blockId, veinsPerChunk, veinSize, minY, maxY, dimension, targetBlockId, allowedBiomes,
+                0L);
     }
 
-    public static void addOreGen(String key, int blockId, int veinsPerChunk, int veinSize, int minY, int maxY,
+    public static WorldGenKey addOreGen(String key, int blockId, int veinsPerChunk, int veinSize, int minY, int maxY,
             GenerationDimension dimension, Integer targetBlockId, BiomeGenBase[] allowedBiomes, long salt) {
         PublicationBatch batch = CURRENT_BATCH.get();
         if (batch != null) {
             batch.add(key, blockId, veinsPerChunk, veinSize, minY, maxY, dimension, targetBlockId, allowedBiomes, salt);
-            return;
+            return batch.ores.get(batch.ores.size() - 1).key;
         }
 
         String resourceOwner = requiredOwner(LuaScriptRegistry.getCurrentScriptFile());
@@ -233,13 +303,167 @@ public final class WorldGenRegistry {
         OreGenEntry entry = createOreEntry(typedKey, blockId, veinsPerChunk, veinSize, minY, maxY, dimension,
                 targetBlockId, allowedBiomes, resourceOwner, owner, resourceOwner + ":worldgen[" + (index + 1) + "]",
                 salt);
+        PublicationBatch runtime = new PublicationBatch(resourceOwner, owner);
+        runtime.addOreFeature(typedKey, blockId, veinsPerChunk, veinSize, minY, maxY, dimension, targetBlockId,
+                allowedBiomes, salt, index);
+        FeaturePlacementRegistry.publishAddition(runtime.features.get(0), runtime.placements.get(0));
         publishImmediate(entry);
+        return typedKey;
+    }
+
+    /** Immutable feature description for debug exports and tests. */
+    public static final class FeatureDescription {
+        public final String key;
+        public final String type;
+        public final String owner;
+        public final String source;
+        public final List<String> dependencies;
+        public final int maxBlocks;
+        public final int maxRadius;
+
+        private FeatureDescription(FeaturePlacementRegistry.FeatureDescription description) {
+            key = description.key;
+            type = description.type;
+            owner = description.owner;
+            source = description.source;
+            dependencies = description.dependencies;
+            maxBlocks = description.maxBlocks;
+            maxRadius = description.maxRadius;
+        }
+    }
+
+    /** Immutable placement description including rejection counters. */
+    public static final class PlacementDescription {
+        public final String key;
+        public final String feature;
+        public final String owner;
+        public final String source;
+        public final String stage;
+        public final String actualStage;
+        public final Set<String> dimensions;
+        public final long salt;
+        public final long accepted;
+        public final long rejected;
+        public final long blocksChanged;
+        public final Map<String, Integer> rejectionReasons;
+        public final boolean disabled;
+
+        private PlacementDescription(FeaturePlacementRegistry.PlacementDescription description) {
+            key = description.key;
+            feature = description.feature;
+            owner = description.owner;
+            source = description.source;
+            stage = description.stage;
+            actualStage = description.actualStage;
+            dimensions = description.dimensions;
+            salt = description.salt;
+            accepted = description.accepted;
+            rejected = description.rejected;
+            blocksChanged = description.blocksChanged;
+            rejectionReasons = description.rejectionReasons;
+            disabled = description.disabled;
+        }
+    }
+
+    public static WorldGenKey addFeature(String key, String type, WorldFeature feature,
+            List<WorldGenKey> dependencies, int maxBlocks, int maxRadius) {
+        validateFeatureBudget(maxBlocks, maxRadius);
+        PublicationBatch batch = CURRENT_BATCH.get();
+        if (batch != null) {
+            return batch.addFeature(key, type, feature, dependencies, maxBlocks, maxRadius);
+        }
+        String resourceOwner = requiredOwner(LuaScriptRegistry.getCurrentScriptFile());
+        String owner = requiredOwner(LuaScriptRegistry.getCurrentScriptIdentity());
+        WorldGenKey typedKey = parseKey(key, WorldGenKind.FEATURE, "Feature.key");
+        FeatureDefinition definition = new FeatureDefinition(typedKey, type, resourceOwner, owner,
+                resourceOwner + ":worldgen[feature]", feature, dependencies, maxBlocks, maxRadius);
+        FeaturePlacementRegistry.publishAddition(definition, null);
+        return typedKey;
+    }
+
+    public static WorldGenKey addPlacement(String key, WorldGenKey featureKey, GenerationStage stage,
+            Set<String> dimensions, IntRange attempts, double extraChance, double probability, HeightProvider height,
+            PlacementConditions conditions, List<WorldGenKey> before, List<WorldGenKey> after, int priority, long salt,
+            int successLimit, String horizontal, int gridSpacing) {
+        validatePlacement(attempts, extraChance, probability, successLimit, horizontal, gridSpacing);
+        PublicationBatch batch = CURRENT_BATCH.get();
+        if (batch != null) {
+            return batch.addPlacement(key, featureKey, stage, dimensions, attempts, extraChance, probability, height,
+                    conditions, before, after, priority, salt, successLimit, horizontal, gridSpacing);
+        }
+        String resourceOwner = requiredOwner(LuaScriptRegistry.getCurrentScriptFile());
+        String owner = requiredOwner(LuaScriptRegistry.getCurrentScriptIdentity());
+        WorldGenKey typedKey = parseKey(key, WorldGenKind.PLACEMENT, "Placement.key");
+        PlacementDefinition definition = new PlacementDefinition(typedKey, featureKey, resourceOwner, owner,
+                resourceOwner + ":worldgen[placement]", stage, dimensions, attempts, extraChance, probability, height,
+                conditions, before, after, priority, salt, successLimit, horizontal, gridSpacing);
+        FeaturePlacementRegistry.publishAddition(null, definition);
+        return typedKey;
+    }
+
+    public static boolean hasFeature(WorldGenKey key) {
+        PublicationBatch batch = CURRENT_BATCH.get();
+        if (batch != null) {
+            for (FeatureDefinition definition : batch.features) {
+                if (definition.key.equals(key)) {
+                    return true;
+                }
+            }
+        }
+        return FeaturePlacementRegistry.findFeature(key) != null;
+    }
+
+    public static boolean hasPlacement(WorldGenKey key) {
+        PublicationBatch batch = CURRENT_BATCH.get();
+        if (batch != null) {
+            for (PlacementDefinition definition : batch.placements) {
+                if (definition.key.equals(key)) {
+                    return true;
+                }
+            }
+        }
+        return FeaturePlacementRegistry.findPlacement(key) != null;
+    }
+
+    public static WorldGenKey featureKeyForPlacement(WorldGenKey placementKey) {
+        PlacementDefinition definition = FeaturePlacementRegistry.findPlacement(placementKey);
+        PublicationBatch batch = CURRENT_BATCH.get();
+        if (definition == null && batch != null) {
+            for (PlacementDefinition pending : batch.placements) {
+                if (pending.key.equals(placementKey)) {
+                    definition = pending;
+                    break;
+                }
+            }
+        }
+        return definition == null ? null : definition.featureKey;
+    }
+
+    public static FeatureResult placeFeature(WorldGenKey key, World world, BlockPosition origin, long seed) {
+        return FeaturePlacementRegistry.place(key, world, origin, seed);
     }
 
     public static List<Description> snapshot() {
         List<Description> result = new ArrayList<Description>();
         for (OreGenEntry entry : active.ores) {
             result.add(new Description(entry));
+        }
+        return Collections.unmodifiableList(result);
+    }
+
+    public static List<FeatureDescription> featureSnapshot() {
+        List<FeatureDescription> result = new ArrayList<FeatureDescription>();
+        for (FeaturePlacementRegistry.FeatureDescription description : FeaturePlacementRegistry.featureSnapshot()) {
+            result.add(new FeatureDescription(description));
+        }
+        return Collections.unmodifiableList(result);
+    }
+
+    public static List<PlacementDescription> placementSnapshot() {
+        List<PlacementDescription> result = new ArrayList<PlacementDescription>();
+        for (FeaturePlacementRegistry.PlacementDescription description : FeaturePlacementRegistry
+                .placementSnapshot()) {
+            result.add(new PlacementDescription(description));
         }
         return Collections.unmodifiableList(result);
     }
@@ -253,41 +477,7 @@ public final class WorldGenRegistry {
     }
 
     private static void generate(World world, int chunkX, int chunkZ, boolean nether) {
-        Snapshot snapshot = active;
-        String dimensionKey = nether ? "minecraft:nether" : "minecraft:overworld";
-        int logicalChunkX = Math.floorDiv(chunkX, 16);
-        int logicalChunkZ = Math.floorDiv(chunkZ, 16);
-        for (OreGenEntry entry : snapshot.ores) {
-            if (!entry.dimension.includes(nether)) {
-                continue;
-            }
-            long seed = SeedMixer.generationSeed(world.getRandomSeed(), dimensionKey, POPULATION_STAGE, logicalChunkX,
-                    logicalChunkZ, entry.key, entry.salt);
-            Random random = new Random(seed);
-            try {
-                generateOre(world, random, chunkX, chunkZ, nether, entry);
-            } catch (Throwable error) {
-                BetaMoonCommon.LOGGER.warning("Worldgen placement " + entry.key + " failed in chunk " + logicalChunkX
-                        + "," + logicalChunkZ + ": " + error.getMessage());
-            }
-        }
-    }
-
-    private static void generateOre(World world, Random random, int chunkX, int chunkZ, boolean nether,
-            OreGenEntry entry) {
-        for (int vein = 0; vein < entry.veinsPerChunk; vein++) {
-            int x = chunkX + random.nextInt(16);
-            int y = entry.minY + random.nextInt(entry.maxY - entry.minY + 1);
-            int z = chunkZ + random.nextInt(16);
-            if (!isBiomeAllowed(world, x, z, entry.allowedBiomes)) {
-                continue;
-            }
-            int targetBlockId = entry.targetBlockId == null
-                    ? nether ? Block.netherrack.blockID : Block.stone.blockID
-                    : entry.targetBlockId.intValue();
-            WorldGenerator generator = new ReplaceableMinableGenerator(entry.blockId, entry.veinSize, targetBlockId);
-            generator.generate(world, random, x, y, z);
-        }
+        FeaturePlacementRegistry.generate(world, chunkX, chunkZ, nether);
     }
 
     private static synchronized void publishBatch(PublicationBatch batch) {
@@ -367,22 +557,6 @@ public final class WorldGenRegistry {
                 allowedBiomes, resourceOwner, owner, sourceLocation, salt);
     }
 
-    private static boolean isBiomeAllowed(World world, int x, int z, BiomeGenBase[] allowedBiomes) {
-        if (allowedBiomes.length == 0) {
-            return true;
-        }
-        BiomeGenBase biome = world.getWorldChunkManager().getBiomeGenAt(x, z);
-        if (biome == null) {
-            return false;
-        }
-        for (BiomeGenBase allowed : allowedBiomes) {
-            if (biome == allowed) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     public static BiomeGenBase[] resolveBiomes(String[] names) {
         if (names == null || names.length == 0) {
             return new BiomeGenBase[0];
@@ -409,6 +583,48 @@ public final class WorldGenRegistry {
         }
     }
 
+    private static Set<String> dimensionKeys(GenerationDimension dimension) {
+        Set<String> result = new HashSet<String>();
+        if (dimension.includes(false)) {
+            result.add("minecraft:overworld");
+        }
+        if (dimension.includes(true)) {
+            result.add("minecraft:nether");
+        }
+        return result;
+    }
+
+    private static void validateFeatureBudget(int maxBlocks, int maxRadius) {
+        if (maxBlocks < 1 || maxBlocks > WorldGenLimits.MAX_BLOCK_CHANGES_PER_FEATURE) {
+            throw new LuaError("Feature.maxBlocks: expected 1.." + WorldGenLimits.MAX_BLOCK_CHANGES_PER_FEATURE);
+        }
+        if (maxRadius < 1 || maxRadius > WorldGenLimits.MAX_FEATURE_RADIUS) {
+            throw new LuaError("Feature.maxRadius: expected 1.." + WorldGenLimits.MAX_FEATURE_RADIUS);
+        }
+    }
+
+    private static void validatePlacement(IntRange attempts, double extraChance, double probability,
+            int successLimit, String horizontal, int gridSpacing) {
+        if (attempts.min < 0 || attempts.max > WorldGenLimits.MAX_ATTEMPTS_PER_CHUNK) {
+            throw new LuaError("Placement.attempts: expected 0.." + WorldGenLimits.MAX_ATTEMPTS_PER_CHUNK);
+        }
+        if (!Double.isFinite(extraChance) || extraChance < 0.0D || extraChance >= 1.0D) {
+            throw new LuaError("Placement.extraChance: expected a finite value >= 0 and < 1");
+        }
+        if (!Double.isFinite(probability) || probability < 0.0D || probability > 1.0D) {
+            throw new LuaError("Placement.probability: expected a finite value between 0 and 1");
+        }
+        if (successLimit < 1 || successLimit > WorldGenLimits.MAX_ATTEMPTS_PER_CHUNK) {
+            throw new LuaError("Placement.successLimit: expected 1.." + WorldGenLimits.MAX_ATTEMPTS_PER_CHUNK);
+        }
+        if (!"chunk".equals(horizontal) && !"grid".equals(horizontal)) {
+            throw new LuaError("Placement.position.horizontal: expected 'chunk' or 'grid'");
+        }
+        if (gridSpacing < 1 || gridSpacing > 16) {
+            throw new LuaError("Placement.position.gridSpacing: expected 1..16");
+        }
+    }
+
     private static int countOwnerEntries(String resourceOwner) {
         int count = 0;
         for (OreGenEntry entry : active.ores) {
@@ -426,67 +642,4 @@ public final class WorldGenRegistry {
         return owner;
     }
 
-    /** Ore generator that replaces only one configured base block. */
-    private static final class ReplaceableMinableGenerator extends WorldGenerator {
-        private final int minableBlockId;
-        private final int numberOfBlocks;
-        private final int targetBlockId;
-
-        private ReplaceableMinableGenerator(int blockId, int numberOfBlocks, int targetBlockId) {
-            minableBlockId = blockId;
-            this.numberOfBlocks = numberOfBlocks;
-            this.targetBlockId = targetBlockId;
-        }
-
-        @Override
-        public boolean generate(World world, Random random, int x, int y, int z) {
-            float angle = random.nextFloat() * (float) Math.PI;
-            double x1 = x + 8 + MathHelper.sin(angle) * numberOfBlocks / 8.0F;
-            double x2 = x + 8 - MathHelper.sin(angle) * numberOfBlocks / 8.0F;
-            double z1 = z + 8 + MathHelper.cos(angle) * numberOfBlocks / 8.0F;
-            double z2 = z + 8 - MathHelper.cos(angle) * numberOfBlocks / 8.0F;
-            double y1 = y + random.nextInt(3) + 2;
-            double y2 = y + random.nextInt(3) + 2;
-
-            for (int index = 0; index <= numberOfBlocks; index++) {
-                double xPosition = x1 + (x2 - x1) * index / numberOfBlocks;
-                double yPosition = y1 + (y2 - y1) * index / numberOfBlocks;
-                double zPosition = z1 + (z2 - z1) * index / numberOfBlocks;
-                double size = random.nextDouble() * numberOfBlocks / 16.0D;
-                double horizontalSize = (MathHelper.sin((float) index * (float) Math.PI / numberOfBlocks) + 1.0F)
-                        * size + 1.0D;
-                double verticalSize = (MathHelper.sin((float) index * (float) Math.PI / numberOfBlocks) + 1.0F)
-                        * size + 1.0D;
-                int minX = MathHelper.floor_double(xPosition - horizontalSize / 2.0D);
-                int minY = Math.max(WorldGenLimits.MIN_HEIGHT,
-                        MathHelper.floor_double(yPosition - verticalSize / 2.0D));
-                int minZ = MathHelper.floor_double(zPosition - horizontalSize / 2.0D);
-                int maxX = MathHelper.floor_double(xPosition + horizontalSize / 2.0D);
-                int maxY = Math.min(WorldGenLimits.MAX_HEIGHT,
-                        MathHelper.floor_double(yPosition + verticalSize / 2.0D));
-                int maxZ = MathHelper.floor_double(zPosition + horizontalSize / 2.0D);
-
-                for (int blockX = minX; blockX <= maxX; blockX++) {
-                    double dx = (blockX + 0.5D - xPosition) / (horizontalSize / 2.0D);
-                    if (dx * dx >= 1.0D) {
-                        continue;
-                    }
-                    for (int blockY = minY; blockY <= maxY; blockY++) {
-                        double dy = (blockY + 0.5D - yPosition) / (verticalSize / 2.0D);
-                        if (dx * dx + dy * dy >= 1.0D) {
-                            continue;
-                        }
-                        for (int blockZ = minZ; blockZ <= maxZ; blockZ++) {
-                            double dz = (blockZ + 0.5D - zPosition) / (horizontalSize / 2.0D);
-                            if (dx * dx + dy * dy + dz * dz < 1.0D
-                                    && world.getBlockId(blockX, blockY, blockZ) == targetBlockId) {
-                                world.setBlock(blockX, blockY, blockZ, minableBlockId);
-                            }
-                        }
-                    }
-                }
-            }
-            return true;
-        }
-    }
 }

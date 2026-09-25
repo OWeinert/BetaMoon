@@ -9,6 +9,7 @@ public final class WorldGenApi {
 
     public static void attach(LuaTable module) {
         LuaTable worldgen = new LuaTable();
+        FeaturePlacementApi.attach(worldgen);
         OreGenApi.attach(worldgen);
         BiomeGenApi.attach(worldgen);
         module.set("worldgen", worldgen);
