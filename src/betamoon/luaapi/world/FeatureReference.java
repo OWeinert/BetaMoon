@@ -2,6 +2,7 @@ package betamoon.luaapi.world;
 
 import betamoon.worldgen.BlockPosition;
 import betamoon.worldgen.FeatureResult;
+import betamoon.worldgen.FeatureOptions;
 import betamoon.worldgen.SeedMixer;
 import betamoon.worldgen.WorldGenKey;
 import betamoon.worldgen.WorldGenRegistry;
@@ -25,7 +26,12 @@ public final class FeatureReference extends LuaTable {
                 return valueOf(FeatureReference.this.key.toString());
             }
         });
-        set("place", new VarArgFunction() {
+        set("place", action(false));
+        set("preview", action(true));
+    }
+
+    private VarArgFunction action(final boolean preview) {
+        return new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs arguments) {
                 int offset = arguments.arg1() == FeatureReference.this ? 1 : 0;
@@ -35,17 +41,34 @@ public final class FeatureReference extends LuaTable {
                 int z = coordinate(arguments.arg(4 + offset), "feature.place.z");
                 LuaValue options = arguments.arg(5 + offset);
                 long salt = options.istable() && !options.get("seed").isnil() ? options.get("seed").checklong() : 0L;
+                FeatureOptions featureOptions = parseOptions(options, preview ? "feature.preview" : "feature.place");
                 String dimension = world.worldProvider.worldType == -1 ? "minecraft:nether" : "minecraft:overworld";
                 long seed = SeedMixer.generationSeed(world.getRandomSeed(), dimension, "direct", x >> 4, z >> 4,
                         FeatureReference.this.key, salt ^ (((long) x) << 32) ^ z ^ y);
-                return result(WorldGenRegistry.placeFeature(FeatureReference.this.key, world,
-                        new BlockPosition(x, y, z), seed));
+                FeatureResult outcome = preview
+                        ? WorldGenRegistry.previewFeature(FeatureReference.this.key, world,
+                                new BlockPosition(x, y, z), seed, featureOptions)
+                        : WorldGenRegistry.placeFeature(FeatureReference.this.key, world,
+                                new BlockPosition(x, y, z), seed, featureOptions);
+                return result(outcome);
             }
-        });
+        };
     }
 
     public WorldGenKey key() {
         return key;
+    }
+
+    private static FeatureOptions parseOptions(LuaValue options, String path) {
+        if (options.isnil()) {
+            return FeatureOptions.DEFAULT;
+        }
+        if (!options.istable()) {
+            throw new LuaError(path + ".options: expected a table");
+        }
+        String rotation = options.get("rotation").isnil() ? null : options.get("rotation").checkjstring();
+        String mirror = options.get("mirror").isnil() ? null : options.get("mirror").checkjstring();
+        return new FeatureOptions(rotation, mirror);
     }
 
     private static LuaTable result(FeatureResult result) {

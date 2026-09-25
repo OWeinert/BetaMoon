@@ -14,6 +14,9 @@ explosions, manifest-based multi-file mods, and broader debug exports.
 - Add reusable ore-vein, patch, column, disk, weighted, sequence, and no-op features; compiled placement counts,
   height providers, filters, dependency ordering, scoped direct placement, atomic commits, and rejection diagnostics;
   retain `worldgen.ores:add` as a compatibility facade over the same feature engine.
+- Add reusable vanilla-adapter, procedural, and structure-backed trees plus bounded local JSON structures with
+  palettes, deterministic variants and decay, rotation and mirroring, vanilla/custom metadata transforms, typed
+  tile initialization, safe replacement policies, real-plan previews, cuboid export, and structure diagnostics.
 - Add custom fuel rules with item and metadata matching, configurable burn times,
   priorities, predicates, and machine scopes. Vanilla furnaces and custom machines can
   share rules or accept different fuel sets.

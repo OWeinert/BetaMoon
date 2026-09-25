@@ -1,10 +1,14 @@
 package betamoon.worldgen;
 
+import betamoon.tileentity.LuaTileEntity;
+import betamoon.tileentity.TileEntityRegistry;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import net.minecraft.src.TileEntity;
 import net.minecraft.src.World;
+import org.luaj.vm2.LuaValue;
 
 /** Bounded transactional block changes for one local feature. */
 public final class PlacementPlan {
@@ -21,6 +25,10 @@ public final class PlacementPlan {
     }
 
     public boolean setBlock(int x, int y, int z, int blockId, int metadata) {
+        return setBlock(x, y, z, blockId, metadata, null);
+    }
+
+    public boolean setBlock(int x, int y, int z, int blockId, int metadata, Map<String, LuaValue> tileData) {
         if (failure != null) {
             return false;
         }
@@ -42,7 +50,22 @@ public final class PlacementPlan {
             failure = FeatureResult.BUDGET_EXCEEDED;
             return false;
         }
-        changes.put(position, new Change(position, blockId, metadata));
+        if (tileData != null && !tileData.isEmpty() && !TileEntityRegistry.hasBlock(blockId)) {
+            failure = FeatureResult.BLOCKED;
+            return false;
+        }
+        if (tileData != null && !tileData.isEmpty()) {
+            try {
+                LuaTileEntity probe = TileEntityRegistry.createForBlock(blockId);
+                for (Map.Entry<String, LuaValue> value : tileData.entrySet()) {
+                    probe.setDataLua(value.getKey(), value.getValue());
+                }
+            } catch (RuntimeException error) {
+                failure = FeatureResult.BLOCKED;
+                return false;
+            }
+        }
+        changes.put(position, new Change(position, blockId, metadata, tileData));
         return true;
     }
 
@@ -52,6 +75,10 @@ public final class PlacementPlan {
 
     public int size() {
         return changes.size();
+    }
+
+    public boolean contains(int x, int y, int z) {
+        return changes.containsKey(new BlockPosition(x, y, z));
     }
 
     public FeatureResult commit(FeatureContext context) {
@@ -89,7 +116,49 @@ public final class PlacementPlan {
             }
             committed++;
         }
+        try {
+            for (Change change : changes.values()) {
+                if (change.tileData.isEmpty()) {
+                    continue;
+                }
+                TileEntity tile = world.getBlockTileEntity(change.position.x, change.position.y,
+                        change.position.z);
+                if (!(tile instanceof LuaTileEntity)) {
+                    rollback(world, originals, committed);
+                    return FeatureResult.rejected(FeatureResult.BLOCKED);
+                }
+                for (Map.Entry<String, LuaValue> value : change.tileData.entrySet()) {
+                    ((LuaTileEntity) tile).setDataLua(value.getKey(), value.getValue());
+                }
+            }
+        } catch (RuntimeException error) {
+            rollback(world, originals, committed);
+            return FeatureResult.rejected(FeatureResult.BLOCKED);
+        }
         return FeatureResult.placed(committed, min, max);
+    }
+
+    /** Validates the complete plan and reports its real bounds without mutating the world. */
+    public FeatureResult preview(FeatureContext context) {
+        if (failure != null) {
+            return FeatureResult.rejected(failure);
+        }
+        if (context.failure() != null) {
+            return FeatureResult.rejected(context.failure());
+        }
+        if (changes.isEmpty()) {
+            return FeatureResult.rejected(FeatureResult.NO_CHANGES);
+        }
+        BlockPosition min = null;
+        BlockPosition max = null;
+        for (Change change : changes.values()) {
+            if (!context.world().blockExists(change.position.x, change.position.y, change.position.z)) {
+                return FeatureResult.rejected(FeatureResult.UNLOADED_CHUNK);
+            }
+            min = min(min, change.position);
+            max = max(max, change.position);
+        }
+        return FeatureResult.placed(changes.size(), min, max);
     }
 
     private static void rollback(World world, List<Original> originals, int committed) {
@@ -114,11 +183,14 @@ public final class PlacementPlan {
         private final BlockPosition position;
         private final int blockId;
         private final int metadata;
+        private final Map<String, LuaValue> tileData;
 
-        private Change(BlockPosition position, int blockId, int metadata) {
+        private Change(BlockPosition position, int blockId, int metadata, Map<String, LuaValue> tileData) {
             this.position = position;
             this.blockId = blockId;
             this.metadata = metadata;
+            this.tileData = tileData == null ? java.util.Collections.<String, LuaValue>emptyMap()
+                    : java.util.Collections.unmodifiableMap(new LinkedHashMap<String, LuaValue>(tileData));
         }
     }
 

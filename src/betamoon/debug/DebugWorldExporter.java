@@ -20,6 +20,7 @@ final class DebugWorldExporter implements DebugExporter {
         exportWorldGeneration(session);
         exportFeatures(session);
         exportPlacements(session);
+        exportStructures(session);
     }
 
     private static void exportBiomes(DebugExportSession session) throws Exception {
@@ -138,6 +139,31 @@ final class DebugWorldExporter implements DebugExporter {
                     writer.newLine();
                 }
                 return placements.size();
+            }
+        });
+    }
+
+    private static void exportStructures(DebugExportSession session) throws Exception {
+        final List<WorldGenRegistry.StructureDescription> structures = WorldGenRegistry.structureSnapshot();
+        session.writeTextFile("worldgen_structures.txt", new DebugExportSession.TextContent() {
+            @Override
+            public int write(BufferedWriter writer) throws IOException {
+                for (WorldGenRegistry.StructureDescription structure : structures) {
+                    writer.write("key: " + structure.key + " | owner: " + safe(structure.owner) + " | source: "
+                            + safe(structure.assetSource));
+                    writer.newLine();
+                    writer.write("dimensions: " + structure.dimensions + " | blocks: " + structure.blocks
+                            + " | markers: " + structure.markers + " | palette entries: "
+                            + structure.paletteEntries + " | variants: " + structure.paletteVariants);
+                    writer.newLine();
+                    writer.write("rotation: " + structure.rotation + " | mirror: " + structure.mirror
+                            + " | include air: " + structure.includeAir + " | decay: " + structure.decay
+                            + " | tile collision: " + structure.tileCollision + " | unknown metadata: "
+                            + structure.unknownMetadata + " | custom metadata transforms: "
+                            + structure.customMetadataTransforms);
+                    writer.newLine();
+                }
+                return structures.size();
             }
         });
     }

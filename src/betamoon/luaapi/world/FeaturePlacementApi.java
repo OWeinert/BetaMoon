@@ -318,7 +318,7 @@ public final class FeaturePlacementApi {
         return result;
     }
 
-    private static BlockSet blocks(LuaValue value, String path) {
+    static BlockSet blocks(LuaValue value, String path) {
         if (!value.istable() || value.get("id").isnumber() || !value.get("getId").isnil()) {
             return new BlockSet(blockId(value, path));
         }
@@ -332,7 +332,7 @@ public final class FeaturePlacementApi {
         return new BlockSet(result);
     }
 
-    private static int blockId(LuaValue value, String path) {
+    static int blockId(LuaValue value, String path) {
         if (value.isnumber()) {
             int id = value.checkint();
             if (id < 0 || id >= Block.blocksList.length || id != 0 && Block.blocksList[id] == null) {
@@ -375,14 +375,18 @@ public final class FeaturePlacementApi {
         return result;
     }
 
-    private static WorldGenKey featureKey(LuaValue value, String path) {
+    static WorldGenKey featureKey(LuaValue value, String path) {
         if (value instanceof FeatureReference) {
             return ((FeatureReference) value).key();
         }
         if (!value.isstring()) {
             throw new LuaError(path + ": expected a feature reference or key");
         }
-        return key(value.tojstring(), WorldGenKind.FEATURE, path);
+        try {
+            return WorldGenKey.parseFeature(value.tojstring().trim());
+        } catch (IllegalArgumentException error) {
+            throw new LuaError(path + ": " + error.getMessage());
+        }
     }
 
     private static List<WorldGenKey> placementKeys(LuaValue value, String path) {
@@ -407,7 +411,7 @@ public final class FeaturePlacementApi {
         }
     }
 
-    private static IntRange range(LuaValue value, String path, int minimum, int maximum) {
+    static IntRange range(LuaValue value, String path, int minimum, int maximum) {
         if (value.isnumber()) {
             int fixed = integer(value, path, minimum, maximum);
             return new IntRange(fixed, fixed);
@@ -420,11 +424,11 @@ public final class FeaturePlacementApi {
         return new IntRange(min, max);
     }
 
-    private static int metadata(LuaValue value, String path) {
+    static int metadata(LuaValue value, String path) {
         return value.isnil() ? 0 : integer(value, path, 0, 15);
     }
 
-    private static int optionalInteger(LuaValue value, int fallback, String path, int min, int max) {
+    static int optionalInteger(LuaValue value, int fallback, String path, int min, int max) {
         return value.isnil() ? fallback : integer(value, path, min, max);
     }
 
@@ -439,7 +443,7 @@ public final class FeaturePlacementApi {
         return result;
     }
 
-    private static double optionalNumber(LuaValue value, double fallback, String path, double min, double max) {
+    static double optionalNumber(LuaValue value, double fallback, String path, double min, double max) {
         double result = value.isnil() ? fallback : value.checkdouble();
         if (!Double.isFinite(result) || result < min || result > max) {
             throw new LuaError(path + ": expected a finite value between " + min + " and " + max);
@@ -461,7 +465,7 @@ public final class FeaturePlacementApi {
         }
     }
 
-    private static void table(LuaValue value, String path) {
+    static void table(LuaValue value, String path) {
         if (!value.istable()) {
             throw new LuaError(path + ": expected a table");
         }

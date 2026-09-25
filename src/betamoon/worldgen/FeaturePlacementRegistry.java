@@ -2,6 +2,7 @@ package betamoon.worldgen;
 
 import betamoon.BetaMoonCommon;
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.worldgen.structure.StructureFeature;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -87,12 +88,26 @@ final class FeaturePlacementRegistry {
     }
 
     static FeatureResult place(WorldGenKey key, World world, BlockPosition origin, long seed) {
+        return place(key, world, origin, seed, FeatureOptions.DEFAULT);
+    }
+
+    static FeatureResult place(WorldGenKey key, World world, BlockPosition origin, long seed, FeatureOptions options) {
         Snapshot snapshot = active;
         FeatureDefinition definition = snapshot.features.get(key);
         if (definition == null) {
             return FeatureResult.rejected(FeatureResult.RUNTIME_ERROR);
         }
-        return executeFeature(snapshot, definition, world, origin, new Random(seed));
+        return executeFeature(snapshot, definition, world, origin, new Random(seed), options, true);
+    }
+
+    static FeatureResult preview(WorldGenKey key, World world, BlockPosition origin, long seed,
+            FeatureOptions options) {
+        Snapshot snapshot = active;
+        FeatureDefinition definition = snapshot.features.get(key);
+        if (definition == null) {
+            return FeatureResult.rejected(FeatureResult.RUNTIME_ERROR);
+        }
+        return executeFeature(snapshot, definition, world, origin, new Random(seed), options, false);
     }
 
     static void generate(World world, int chunkX, int chunkZ, boolean nether) {
@@ -168,7 +183,28 @@ final class FeaturePlacementRegistry {
 
     private static FeatureResult executeFeature(Snapshot snapshot, FeatureDefinition definition, World world,
             BlockPosition origin, Random random) {
-        return executeFeature(snapshot, definition, context(snapshot, world, random, definition), origin);
+        return executeFeature(snapshot, definition, world, origin, random, FeatureOptions.DEFAULT, true);
+    }
+
+    static List<StructureDescription> structureSnapshot() {
+        List<StructureDescription> result = new ArrayList<StructureDescription>();
+        for (FeatureDefinition definition : active.features.values()) {
+            if (definition.feature instanceof StructureFeature) {
+                result.add(new StructureDescription(definition, ((StructureFeature) definition.feature).description()));
+            }
+        }
+        return Collections.unmodifiableList(result);
+    }
+
+    private static FeatureResult executeFeature(Snapshot snapshot, FeatureDefinition definition, World world,
+            BlockPosition origin, Random random, FeatureOptions options, boolean commit) {
+        FeatureContext context = context(snapshot, world, random, definition, options);
+        PlacementPlan plan = new PlacementPlan(origin, definition.maxBlocks, definition.maxRadius);
+        FeatureResult planned = definition.feature.plan(context, origin, plan);
+        if (!planned.placed) {
+            return planned;
+        }
+        return commit ? plan.commit(context) : plan.preview(context);
     }
 
     private static FeatureResult executeFeature(Snapshot snapshot, FeatureDefinition definition,
@@ -183,13 +219,18 @@ final class FeaturePlacementRegistry {
 
     private static FeatureContext context(final Snapshot snapshot, World world, Random random,
             FeatureDefinition definition) {
+        return context(snapshot, world, random, definition, FeatureOptions.DEFAULT);
+    }
+
+    private static FeatureContext context(final Snapshot snapshot, World world, Random random,
+            FeatureDefinition definition, FeatureOptions options) {
         return new FeatureContext(world, random, definition.key,
                 Math.max(256, definition.maxBlocks * 32), new FeatureContext.FeatureResolver() {
                     @Override
                     public FeatureDefinition find(WorldGenKey key) {
                         return snapshot.features.get(key);
                     }
-                });
+                }, options);
     }
 
     private static synchronized boolean isDisabled(WorldGenKey key) {
@@ -445,6 +486,18 @@ final class FeaturePlacementRegistry {
             rejectionReasons = values == null ? Collections.<String, Integer>emptyMap()
                     : Collections.unmodifiableMap(new LinkedHashMap<String, Integer>(values.reasons));
             disabled = isDisabled(definition.key);
+        }
+    }
+
+    static final class StructureDescription {
+        final String key;
+        final String owner;
+        final StructureFeature.Description value;
+
+        private StructureDescription(FeatureDefinition definition, StructureFeature.Description value) {
+            key = definition.key.toString();
+            owner = definition.owner;
+            this.value = value;
         }
     }
 }

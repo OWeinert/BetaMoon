@@ -4,6 +4,7 @@ import java.util.Random;
 import java.util.HashSet;
 import java.util.Set;
 import net.minecraft.src.World;
+import net.minecraft.src.TileEntity;
 
 /** Bounded world reads and deterministic random state for one feature attempt. */
 public final class FeatureContext {
@@ -12,16 +13,23 @@ public final class FeatureContext {
     private final WorldGenKey featureKey;
     private final int maxReads;
     private final FeatureResolver resolver;
+    private FeatureOptions options;
     private final Set<WorldGenKey> activeFeatures = new HashSet<WorldGenKey>();
     private int reads;
     private String failure;
 
     public FeatureContext(World world, Random random, WorldGenKey featureKey, int maxReads, FeatureResolver resolver) {
+        this(world, random, featureKey, maxReads, resolver, FeatureOptions.DEFAULT);
+    }
+
+    public FeatureContext(World world, Random random, WorldGenKey featureKey, int maxReads, FeatureResolver resolver,
+            FeatureOptions options) {
         this.world = world;
         this.random = random;
         this.featureKey = featureKey;
         this.maxReads = maxReads;
         this.resolver = resolver;
+        this.options = options == null ? FeatureOptions.DEFAULT : options;
     }
 
     public Random random() {
@@ -30,6 +38,10 @@ public final class FeatureContext {
 
     public WorldGenKey featureKey() {
         return featureKey;
+    }
+
+    public FeatureOptions options() {
+        return options;
     }
 
     public int blockId(int x, int y, int z) {
@@ -57,6 +69,14 @@ public final class FeatureContext {
         return readable(x, y, z) && world.canBlockSeeTheSky(x, y, z);
     }
 
+    public boolean hasTileEntity(int x, int y, int z) {
+        if (!readable(x, y, z)) {
+            return false;
+        }
+        TileEntity tile = world.getBlockTileEntity(x, y, z);
+        return tile != null;
+    }
+
     public String failure() {
         return failure;
     }
@@ -71,6 +91,18 @@ public final class FeatureContext {
                     : definition.feature.plan(this, origin, output);
         } finally {
             activeFeatures.remove(key);
+        }
+    }
+
+    public FeatureResult plan(WorldGenKey key, BlockPosition origin, PlacementPlan output,
+            FeatureOptions defaultOptions) {
+        FeatureOptions previous = options;
+        options = new FeatureOptions(previous.rotation == null ? defaultOptions.rotation : previous.rotation,
+                previous.mirror == null ? defaultOptions.mirror : previous.mirror);
+        try {
+            return plan(key, origin, output);
+        } finally {
+            options = previous;
         }
     }
 

@@ -2,6 +2,7 @@ package betamoon.worldgen;
 
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.minecraft.MinecraftBuiltins;
+import betamoon.worldgen.structure.StructureFeature;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -165,11 +166,11 @@ public final class WorldGenRegistry {
                     allowedBiomes, salt, index);
         }
 
-        private WorldGenKey addFeature(String key, String type, WorldFeature feature, List<WorldGenKey> dependencies,
-                int maxBlocks, int maxRadius) {
+        private WorldGenKey addFeature(String key, WorldGenKind kind, String type, WorldFeature feature,
+                List<WorldGenKey> dependencies, int maxBlocks, int maxRadius) {
             ensureOpen();
             int index = declarationIndex++;
-            WorldGenKey typedKey = parseKey(key, WorldGenKind.FEATURE, "Feature.key");
+            WorldGenKey typedKey = parseKey(key, kind, "Feature.key");
             features.add(new FeatureDefinition(typedKey, type, resourceOwner, owner, source(index), feature,
                     dependencies, maxBlocks, maxRadius));
             return typedKey;
@@ -367,14 +368,57 @@ public final class WorldGenRegistry {
 
     public static WorldGenKey addFeature(String key, String type, WorldFeature feature,
             List<WorldGenKey> dependencies, int maxBlocks, int maxRadius) {
+        return addFeature(key, WorldGenKind.FEATURE, type, feature, dependencies, maxBlocks, maxRadius);
+    }
+
+    /** Immutable local-structure description for diagnostics. */
+    public static final class StructureDescription {
+        public final String key;
+        public final String owner;
+        public final String assetSource;
+        public final String dimensions;
+        public final int paletteEntries;
+        public final int paletteVariants;
+        public final int blocks;
+        public final int markers;
+        public final String rotation;
+        public final String mirror;
+        public final boolean includeAir;
+        public final double decay;
+        public final String tileCollision;
+        public final String unknownMetadata;
+        public final int customMetadataTransforms;
+
+        private StructureDescription(FeaturePlacementRegistry.StructureDescription description) {
+            StructureFeature.Description value = description.value;
+            key = description.key;
+            owner = description.owner;
+            assetSource = value.assetSource;
+            dimensions = value.sizeX + "x" + value.sizeY + "x" + value.sizeZ;
+            paletteEntries = value.paletteEntries;
+            paletteVariants = value.paletteVariants;
+            blocks = value.blocks;
+            markers = value.markers;
+            rotation = value.rotation;
+            mirror = value.mirror;
+            includeAir = value.includeAir;
+            decay = value.decay;
+            tileCollision = value.tileCollision;
+            unknownMetadata = value.unknownMetadata;
+            customMetadataTransforms = value.customMetadataTransforms;
+        }
+    }
+
+    public static WorldGenKey addFeature(String key, WorldGenKind kind, String type, WorldFeature feature,
+            List<WorldGenKey> dependencies, int maxBlocks, int maxRadius) {
         validateFeatureBudget(maxBlocks, maxRadius);
         PublicationBatch batch = CURRENT_BATCH.get();
         if (batch != null) {
-            return batch.addFeature(key, type, feature, dependencies, maxBlocks, maxRadius);
+            return batch.addFeature(key, kind, type, feature, dependencies, maxBlocks, maxRadius);
         }
         String resourceOwner = requiredOwner(LuaScriptRegistry.getCurrentScriptFile());
         String owner = requiredOwner(LuaScriptRegistry.getCurrentScriptIdentity());
-        WorldGenKey typedKey = parseKey(key, WorldGenKind.FEATURE, "Feature.key");
+        WorldGenKey typedKey = parseKey(key, kind, "Feature.key");
         FeatureDefinition definition = new FeatureDefinition(typedKey, type, resourceOwner, owner,
                 resourceOwner + ":worldgen[feature]", feature, dependencies, maxBlocks, maxRadius);
         FeaturePlacementRegistry.publishAddition(definition, null);
@@ -443,6 +487,16 @@ public final class WorldGenRegistry {
         return FeaturePlacementRegistry.place(key, world, origin, seed);
     }
 
+    public static FeatureResult placeFeature(WorldGenKey key, World world, BlockPosition origin, long seed,
+            FeatureOptions options) {
+        return FeaturePlacementRegistry.place(key, world, origin, seed, options);
+    }
+
+    public static FeatureResult previewFeature(WorldGenKey key, World world, BlockPosition origin, long seed,
+            FeatureOptions options) {
+        return FeaturePlacementRegistry.preview(key, world, origin, seed, options);
+    }
+
     public static List<Description> snapshot() {
         List<Description> result = new ArrayList<Description>();
         for (OreGenEntry entry : active.ores) {
@@ -464,6 +518,15 @@ public final class WorldGenRegistry {
         for (FeaturePlacementRegistry.PlacementDescription description : FeaturePlacementRegistry
                 .placementSnapshot()) {
             result.add(new PlacementDescription(description));
+        }
+        return Collections.unmodifiableList(result);
+    }
+
+    public static List<StructureDescription> structureSnapshot() {
+        List<StructureDescription> result = new ArrayList<StructureDescription>();
+        for (FeaturePlacementRegistry.StructureDescription description : FeaturePlacementRegistry
+                .structureSnapshot()) {
+            result.add(new StructureDescription(description));
         }
         return Collections.unmodifiableList(result);
     }

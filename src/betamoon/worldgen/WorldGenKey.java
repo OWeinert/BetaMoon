@@ -26,6 +26,20 @@ public final class WorldGenKey implements Comparable<WorldGenKey> {
         return new WorldGenKey(expectedKind, parsed);
     }
 
+    /** Parses a key accepted wherever a reusable feature reference is allowed. */
+    public static WorldGenKey parseFeature(String value) {
+        AssetKey parsed = AssetKey.parse(value);
+        WorldGenKind supplied = WorldGenKind.fromPath(parsed.getPath());
+        if (supplied == null) {
+            return parse(value, WorldGenKind.FEATURE);
+        }
+        if (supplied != WorldGenKind.FEATURE && supplied != WorldGenKind.TREE
+                && supplied != WorldGenKind.STRUCTURE) {
+            throw new IllegalArgumentException("Expected a feature, tree, or structure key, got " + value);
+        }
+        return new WorldGenKey(supplied, parsed);
+    }
+
     static WorldGenKey privateKey(WorldGenKind kind, String owner, int declarationIndex) {
         long ownerHash = SeedMixer.hash(owner == null ? "unknown" : owner);
         String value = "betamoon:" + kind.getPath() + "/private/" + Long.toHexString(ownerHash) + "/"

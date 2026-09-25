@@ -1,5 +1,6 @@
 package betamoon.luamodloader;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -260,5 +261,21 @@ public final class LuaScriptRegistry {
         }
         ScriptMod script = byFile.get(file);
         return script == null ? file : script.getDisplayName();
+    }
+
+    /** Reads a bounded package-local gameplay-data resource for a published declaration. */
+    public static synchronized byte[] readPackageResource(String sourceFileName, String path, int maxBytes)
+            throws IOException {
+        ScriptMod script = byFile.get(sourceFileName);
+        if (script == null || script.source == null) {
+            throw new IOException("Script package is unavailable: " + sourceFileName);
+        }
+        return script.source.readResource(path, maxBytes);
+    }
+
+    /** Returns a path suitable for diagnostics without exposing the absolute package root. */
+    public static synchronized String packageResourceDisplayPath(String sourceFileName, String path) {
+        ScriptMod script = byFile.get(sourceFileName);
+        return script == null || script.source == null ? path : script.source.sourceDisplayPath(path);
     }
 }
