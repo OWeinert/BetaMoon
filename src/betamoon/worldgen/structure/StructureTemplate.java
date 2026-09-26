@@ -6,12 +6,16 @@ import betamoon.worldgen.WorldGenLimits;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.TreeMap;
 import net.minecraft.src.Block;
 
 /** Strict, bounded BetaMoon local-structure template. */
@@ -19,16 +23,18 @@ public final class StructureTemplate {
     public final int sizeX;
     public final int sizeY;
     public final int sizeZ;
+    public final String contentHash;
     public final BlockPosition origin;
     public final List<PaletteEntry> palette;
     public final List<TemplateBlock> blocks;
     public final List<Marker> markers;
 
-    private StructureTemplate(int sizeX, int sizeY, int sizeZ, BlockPosition origin,
+    private StructureTemplate(int sizeX, int sizeY, int sizeZ, String contentHash, BlockPosition origin,
             List<PaletteEntry> palette, List<TemplateBlock> blocks, List<Marker> markers) {
         this.sizeX = sizeX;
         this.sizeY = sizeY;
         this.sizeZ = sizeZ;
+        this.contentHash = contentHash;
         this.origin = origin;
         this.palette = Collections.unmodifiableList(palette);
         this.blocks = Collections.unmodifiableList(blocks);
@@ -98,7 +104,54 @@ public final class StructureTemplate {
             }
         }
         return new StructureTemplate(size[0], size[1], size[2],
+                sha256(canonical(root).getBytes(StandardCharsets.UTF_8)),
                 new BlockPosition(origin[0], origin[1], origin[2]), palette, blocks, markers);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static String canonical(Object value) {
+        if (value == null) {
+            return "n";
+        }
+        if (value instanceof Boolean) {
+            return ((Boolean) value).booleanValue() ? "b1" : "b0";
+        }
+        if (value instanceof Number) {
+            return "d" + Long.toHexString(Double.doubleToLongBits(((Number) value).doubleValue()));
+        }
+        if (value instanceof String) {
+            String text = (String) value;
+            return "s" + text.length() + ":" + text;
+        }
+        if (value instanceof List) {
+            StringBuilder result = new StringBuilder("l[");
+            for (Object entry : (List<Object>) value) {
+                result.append(canonical(entry)).append(';');
+            }
+            return result.append(']').toString();
+        }
+        if (value instanceof Map) {
+            StringBuilder result = new StringBuilder("m{");
+            for (Map.Entry<String, Object> entry
+                    : new TreeMap<String, Object>((Map<String, Object>) value).entrySet()) {
+                result.append(canonical(entry.getKey())).append('=').append(canonical(entry.getValue())).append(';');
+            }
+            return result.append('}').toString();
+        }
+        throw new IllegalArgumentException("Unsupported structure value: " + value.getClass().getName());
+    }
+
+    private static String sha256(byte[] bytes) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(bytes);
+            StringBuilder result = new StringBuilder(digest.length * 2);
+            for (byte value : digest) {
+                result.append(String.format(java.util.Locale.ROOT, "%02x", value & 0xff));
+            }
+            return result.toString();
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("SHA-256 is unavailable", impossible);
+        }
     }
 
     private static PaletteEntry palette(Map<String, Object> value, String path) throws IOException {

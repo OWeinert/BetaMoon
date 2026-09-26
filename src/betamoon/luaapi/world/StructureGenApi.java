@@ -2,6 +2,7 @@ package betamoon.luaapi.world;
 
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.worldgen.BlockSet;
+import betamoon.worldgen.RegionalStructureDefinition;
 import betamoon.worldgen.WorldGenKey;
 import betamoon.worldgen.WorldGenKind;
 import betamoon.worldgen.WorldGenLimits;
@@ -14,10 +15,14 @@ import betamoon.worldgen.structure.StructureTemplate;
 import betamoon.worldgen.structure.StructureTransform;
 import betamoon.worldgen.structure.WorldGenDataResolver;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import net.minecraft.src.World;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -60,15 +65,79 @@ public final class StructureGenApi {
                     WorldGenRegistry.addFeature(declaredKey, WorldGenKind.STRUCTURE, "local_structure", feature,
                             Collections.<WorldGenKey>emptyList(), Math.max(1, template.blocks.size()), radius);
                     return new FeatureReference(key);
-                } catch (IOException error) {
+                } catch (IOException | IllegalArgumentException error) {
                     throw new LuaError("Structure " + key + ": " + error.getMessage());
                 }
             }
         });
         structures.set("get", lookup(structures, false));
         structures.set("getRequired", lookup(structures, true));
+        structures.set("addRegional", addRegional(structures));
+        structures.set("getRegional", lookupRegional(structures, false));
+        structures.set("getRegionalRequired", lookupRegional(structures, true));
         structures.set("export", exporter(structures));
         worldgen.set("structures", structures);
+    }
+
+    private static VarArgFunction addRegional(final LuaTable structures) {
+        return new VarArgFunction() {
+            @Override
+            public Varargs invoke(Varargs arguments) {
+                LuaValue definition = argument(arguments, structures, 1);
+                FeaturePlacementApi.table(definition, "worldgen.structures:addRegional");
+                String declaredKey = required(definition, "key").checkjstring();
+                WorldGenKey start = structureKey(required(definition, "start"), "RegionalStructure.start");
+                int spacing = integer(definition.get("spacing"), "RegionalStructure.spacing", 2,
+                        WorldGenLimits.MAX_REGIONAL_SPACING, 32);
+                int separation = integer(definition.get("separation"), "RegionalStructure.separation", 0,
+                        spacing - 1, Math.min(8, spacing - 1));
+                long salt = definition.get("salt").isnil() ? 0L : definition.get("salt").checklong();
+                Height height = height(definition.get("height"));
+                int maxDepth = integer(definition.get("maxDepth"), "RegionalStructure.maxDepth", 0,
+                        WorldGenLimits.MAX_REGIONAL_DEPTH, 4);
+                int maxPieces = integer(definition.get("maxPieces"), "RegionalStructure.maxPieces", 1,
+                        WorldGenLimits.MAX_REGIONAL_PIECES, 32);
+                int maxDistance = integer(definition.get("maxDistance"), "RegionalStructure.maxDistance", 16,
+                        WorldGenLimits.MAX_REGIONAL_DISTANCE, 128);
+                double termination = FeaturePlacementApi.optionalNumber(definition.get("terminationChance"), 0.2D,
+                        "RegionalStructure.terminationChance", 0.0D, 1.0D);
+                LuaValue markers = definition.get("markers");
+                boolean entities = false;
+                boolean loot = false;
+                if (!markers.isnil()) {
+                    FeaturePlacementApi.table(markers, "RegionalStructure.markers");
+                    entities = markers.get("entities").optboolean(false);
+                    loot = markers.get("loot").optboolean(false);
+                }
+                WorldGenKey key = WorldGenRegistry.addRegionalStructure(declaredKey, start,
+                        dimensions(definition.get("dimensions")), spacing, separation, salt, height.type,
+                        height.value, maxDepth, maxPieces, maxDistance, termination, entities, loot,
+                        pieces(definition.get("pieces")));
+                return new RegionalStructureReference(key);
+            }
+        };
+    }
+
+    private static VarArgFunction lookupRegional(final LuaTable structures, final boolean required) {
+        return new VarArgFunction() {
+            @Override
+            public Varargs invoke(Varargs arguments) {
+                WorldGenKey key;
+                try {
+                    key = WorldGenKey.parse(argument(arguments, structures, 1).checkjstring(),
+                            WorldGenKind.STRUCTURE);
+                } catch (IllegalArgumentException error) {
+                    throw new LuaError("Structure.getRegional: " + error.getMessage());
+                }
+                if (!WorldGenRegistry.hasRegionalStructure(key)) {
+                    if (required) {
+                        throw new LuaError("Regional structure is not registered: " + key);
+                    }
+                    return NIL;
+                }
+                return new RegionalStructureReference(key);
+            }
+        };
     }
 
     private static VarArgFunction lookup(final LuaTable structures, final boolean required) {
@@ -224,6 +293,99 @@ public final class StructureGenApi {
         }
     }
 
+    private static WorldGenKey structureKey(LuaValue value, String path) {
+        if (value instanceof FeatureReference) {
+            WorldGenKey key = ((FeatureReference) value).key();
+            if (key.getKind() != WorldGenKind.STRUCTURE) {
+                throw new LuaError(path + ": expected a local structure reference");
+            }
+            return key;
+        }
+        try {
+            return WorldGenKey.parse(value.checkjstring(), WorldGenKind.STRUCTURE);
+        } catch (IllegalArgumentException error) {
+            throw new LuaError(path + ": " + error.getMessage());
+        }
+    }
+
+    private static List<RegionalStructureDefinition.PieceChoice> pieces(LuaValue value) {
+        if (value.isnil()) {
+            return Collections.emptyList();
+        }
+        FeaturePlacementApi.table(value, "RegionalStructure.pieces");
+        if (value.length() > 64) {
+            throw new LuaError("RegionalStructure.pieces: at most 64 entries are allowed");
+        }
+        List<RegionalStructureDefinition.PieceChoice> result =
+                new ArrayList<RegionalStructureDefinition.PieceChoice>();
+        for (int index = 1; index <= value.length(); index++) {
+            LuaValue entry = value.get(index);
+            String path = "RegionalStructure.pieces[" + index + "]";
+            FeaturePlacementApi.table(entry, path);
+            String pool = required(entry, "pool").checkjstring();
+            if (!pool.matches("[a-z][a-z0-9_.-]{0,63}")) {
+                throw new LuaError(path + ".pool: expected a lowercase identifier");
+            }
+            WorldGenKey structure = structureKey(required(entry, "structure"), path + ".structure");
+            int weight = integer(entry.get("weight"), path + ".weight", 1, 1000000, 1);
+            result.add(new RegionalStructureDefinition.PieceChoice(pool, structure, weight));
+        }
+        return result;
+    }
+
+    private static Set<String> dimensions(LuaValue value) {
+        Set<String> result = new LinkedHashSet<String>();
+        if (value.isnil()) {
+            result.add("minecraft:overworld");
+            return result;
+        }
+        if (value.isstring()) {
+            result.add(dimension(value.checkjstring()));
+            return result;
+        }
+        FeaturePlacementApi.table(value, "RegionalStructure.dimensions");
+        for (int index = 1; index <= value.length(); index++) {
+            result.add(dimension(value.get(index).checkjstring()));
+        }
+        if (result.isEmpty()) {
+            throw new LuaError("RegionalStructure.dimensions: expected at least one dimension");
+        }
+        return result;
+    }
+
+    private static String dimension(String value) {
+        String normalized = value.trim().toLowerCase(java.util.Locale.ROOT);
+        if (normalized.equals("overworld")) {
+            return "minecraft:overworld";
+        }
+        if (normalized.equals("nether")) {
+            return "minecraft:nether";
+        }
+        if (normalized.equals("minecraft:overworld") || normalized.equals("minecraft:nether")) {
+            return normalized;
+        }
+        throw new LuaError("RegionalStructure.dimensions: unsupported dimension " + value);
+    }
+
+    private static Height height(LuaValue value) {
+        if (value.isnil()) {
+            return new Height("surface", 0);
+        }
+        if (value.isnumber()) {
+            return new Height("fixed", integer(value, "RegionalStructure.height", 0, 127));
+        }
+        FeaturePlacementApi.table(value, "RegionalStructure.height");
+        String type = value.get("type").optjstring("surface");
+        if (type.equals("surface")) {
+            return new Height(type, integer(value.get("offset"), "RegionalStructure.height.offset", -127, 127,
+                    0));
+        }
+        if (type.equals("fixed")) {
+            return new Height(type, integer(required(value, "value"), "RegionalStructure.height.value", 0, 127));
+        }
+        throw new LuaError("RegionalStructure.height.type: expected 'surface' or 'fixed'");
+    }
+
     private static LuaValue argument(Varargs arguments, LuaValue receiver, int index) {
         return arguments.arg(index + (arguments.arg1() == receiver ? 1 : 0));
     }
@@ -241,5 +403,19 @@ public final class StructureGenApi {
             throw new LuaError(path + ": expected " + min + ".." + max);
         }
         return result;
+    }
+
+    private static int integer(LuaValue value, String path, int min, int max, int fallback) {
+        return value.isnil() ? fallback : integer(value, path, min, max);
+    }
+
+    private static final class Height {
+        private final String type;
+        private final int value;
+
+        private Height(String type, int value) {
+            this.type = type;
+            this.value = value;
+        }
     }
 }

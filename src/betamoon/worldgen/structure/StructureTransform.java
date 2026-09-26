@@ -19,6 +19,33 @@ public final class StructureTransform {
         FRONT_BACK
     }
 
+    public enum Direction {
+        NORTH(0, -1),
+        EAST(1, 0),
+        SOUTH(0, 1),
+        WEST(-1, 0);
+
+        public final int x;
+        public final int z;
+
+        Direction(int x, int z) {
+            this.x = x;
+            this.z = z;
+        }
+
+        public Direction opposite() {
+            return values()[(ordinal() + 2) % values().length];
+        }
+
+        public static Direction parse(String value) {
+            try {
+                return valueOf(value.trim().toUpperCase(Locale.ROOT));
+            } catch (RuntimeException error) {
+                throw new IllegalArgumentException("Unknown connector facing: " + value);
+            }
+        }
+    }
+
     public final Rotation rotation;
     public final Mirror mirror;
 
@@ -40,6 +67,47 @@ public final class StructureTransform {
             default:
                 return new BlockPosition(transformedX, y, transformedZ);
         }
+    }
+
+    public Direction apply(Direction direction) {
+        BlockPosition vector = apply(direction.x, 0, direction.z);
+        for (Direction candidate : Direction.values()) {
+            if (candidate.x == vector.x && candidate.z == vector.z) {
+                return candidate;
+            }
+        }
+        throw new IllegalStateException("Structure transform produced a non-cardinal connector direction");
+    }
+
+    public float applyYaw(float yaw) {
+        double radians = Math.toRadians(yaw);
+        double x = -Math.sin(radians);
+        double z = Math.cos(radians);
+        if (mirror == Mirror.FRONT_BACK) {
+            x = -x;
+        } else if (mirror == Mirror.LEFT_RIGHT) {
+            z = -z;
+        }
+        double transformedX;
+        double transformedZ;
+        switch (rotation) {
+            case CLOCKWISE_90:
+                transformedX = -z;
+                transformedZ = x;
+                break;
+            case CLOCKWISE_180:
+                transformedX = -x;
+                transformedZ = -z;
+                break;
+            case COUNTERCLOCKWISE_90:
+                transformedX = z;
+                transformedZ = -x;
+                break;
+            default:
+                transformedX = x;
+                transformedZ = z;
+        }
+        return (float) Math.toDegrees(Math.atan2(-transformedX, transformedZ));
     }
 
     public boolean isIdentity() {

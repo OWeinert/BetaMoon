@@ -1,5 +1,7 @@
 package betamoon.worldgen.structure;
 
+import java.util.Arrays;
+
 /** Validated metadata lookup tables for one custom directional block. */
 public final class CustomMetadataTransform {
     private final int[] clockwise;
@@ -26,5 +28,9 @@ public final class CustomMetadataTransform {
             result = clockwise[result];
         }
         return result;
+    }
+
+    String generationSignature() {
+        return Arrays.toString(clockwise) + Arrays.toString(leftRight) + Arrays.toString(frontBack);
     }
 }

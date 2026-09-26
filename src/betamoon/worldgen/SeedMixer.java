@@ -30,6 +30,11 @@ public final class SeedMixer {
         return mix(result);
     }
 
+    /** Derives a stable child stream without exposing the mixing implementation. */
+    public static long derive(long parent, long discriminator) {
+        return mix(parent ^ mix(discriminator));
+    }
+
     private static long mix(long value) {
         value += 0x9e3779b97f4a7c15L;
         value = (value ^ value >>> 30) * 0xbf58476d1ce4e5b9L;

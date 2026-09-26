@@ -15,6 +15,7 @@ import betamoon.instrumentation.hooks.fuel.FuelBurnTimeHook;
 import betamoon.instrumentation.hooks.texture.TextureResourceHook;
 import betamoon.instrumentation.hooks.model.ModelRenderHook;
 import betamoon.instrumentation.hooks.worldgen.WorldgenSurfaceHook;
+import betamoon.instrumentation.hooks.worldgen.RegionalStructureChunkHook;
 import betamoon.runtime.RuntimeSide;
 
 /** Registers the hooks shipped in the BetaMoon JAR. */
@@ -43,6 +44,7 @@ public final class BuiltinHookModules {
         registry.registerModule(new EntityLifecycleHook());
         registry.registerModule(new EntityNaturalSpawnHook());
         registry.registerModule(new WorldgenSurfaceHook());
+        registry.registerModule(new RegionalStructureChunkHook());
     }
 
     private static void registerClient(HookRegistry registry) {

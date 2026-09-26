@@ -20,6 +20,9 @@ explosions, manifest-based multi-file mods, and broader debug exports.
 - Add keyed biomes, biome tags and placement-backed decorators; compiled layered surfaces at the native overworld
   surface boundary; fixed and vanilla-climate biome sources with coverage diagnostics; and key/tag filtering for
   world-generation placements and BetaMoon natural entity spawns, while retaining legacy range declarations.
+- Add deterministic regional structures with random-spread starts, weighted connector graphs, chunk-clipped atomic
+  placement, persisted completion recovery, bounded location queries, optional entity and inventory markers, and
+  dedicated diagnostics and debug exports.
 - Add custom fuel rules with item and metadata matching, configurable burn times,
   priorities, predicates, and machine scopes. Vanilla furnaces and custom machines can
   share rules or accept different fuel sets.

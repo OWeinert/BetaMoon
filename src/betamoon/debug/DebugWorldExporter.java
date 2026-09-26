@@ -21,6 +21,7 @@ final class DebugWorldExporter implements DebugExporter {
         exportFeatures(session);
         exportPlacements(session);
         exportStructures(session);
+        exportRegionalStructures(session);
         exportSurfaces(session);
         exportBiomeSources(session);
     }
@@ -186,6 +187,36 @@ final class DebugWorldExporter implements DebugExporter {
                     writer.newLine();
                 }
                 return surfaces.size();
+            }
+        });
+    }
+
+    private static void exportRegionalStructures(DebugExportSession session) throws Exception {
+        final List<WorldGenRegistry.RegionalStructureDescription> structures =
+                WorldGenRegistry.regionalStructureSnapshot();
+        session.writeTextFile("worldgen_regional_structures.txt", new DebugExportSession.TextContent() {
+            @Override
+            public int write(BufferedWriter writer) throws IOException {
+                for (WorldGenRegistry.RegionalStructureDescription structure : structures) {
+                    writer.write("key: " + structure.key + " | owner: " + safe(structure.owner) + " | start: "
+                            + structure.start + " | source: " + safe(structure.source));
+                    writer.newLine();
+                    writer.write("spacing/separation: " + structure.spacing + "/" + structure.separation
+                            + " | dimensions: " + String.join(", ", structure.dimensions) + " | salt: "
+                            + structure.salt + " | height: " + structure.height);
+                    writer.newLine();
+                    writer.write("piece choices: " + structure.pieceChoices + " | max depth/pieces/distance: "
+                            + structure.maxDepth + "/" + structure.maxPieces + "/" + structure.maxDistance
+                            + " | termination chance: " + structure.terminationChance);
+                    writer.newLine();
+                    writer.write("starts: " + structure.starts + " | completed chunks: "
+                            + structure.completedChunks + " | recovered chunks: " + structure.recoveredChunks
+                            + " | rejected chunks: " + structure.rejectedChunks + " | blocks changed: "
+                            + structure.blocksChanged + " | disabled: " + structure.disabled
+                            + " | rejection reasons: " + structure.rejectionReasons);
+                    writer.newLine();
+                }
+                return structures.size();
             }
         });
     }

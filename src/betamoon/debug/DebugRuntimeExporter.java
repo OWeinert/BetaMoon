@@ -96,6 +96,8 @@ final class DebugRuntimeExporter implements DebugExporter {
         rows.add("registry: world generators | entries: " + WorldGenRegistry.snapshot().size());
         rows.add("registry: worldgen features | entries: " + WorldGenRegistry.featureSnapshot().size());
         rows.add("registry: worldgen placements | entries: " + WorldGenRegistry.placementSnapshot().size());
+        rows.add("registry: regional structures | entries: "
+                + WorldGenRegistry.regionalStructureSnapshot().size());
         rows.add("registry: biome overlays | entries: " + BiomeGenRegistry.snapshot().size());
         rows.add("registry: cross-mod exports | entries: " + ModuleRegistry.snapshot().size());
         for (FuelSetDefinition set : FuelRegistry.sets()) {

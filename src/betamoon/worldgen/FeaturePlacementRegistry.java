@@ -184,6 +184,7 @@ final class FeaturePlacementRegistry {
                 }
             }
         }
+        RegionalStructureRegistry.generate(world, logicalChunkX, logicalChunkZ, dimension);
     }
 
     static List<FeatureDescription> featureSnapshot() {

@@ -404,6 +404,16 @@ public final class LuaWorldActionAccess {
         return action.world;
     }
 
+    /** Resolves a live world for a read-only operation while preserving callback lifetime checks. */
+    public static World requireWorld(LuaValue value) {
+        if (!(value instanceof ActionTable)) {
+            throw LuaDeclarationValues.error("world", "expected a live world handle");
+        }
+        ActionTable action = (ActionTable) value;
+        action.scope.requireActive();
+        return action.world;
+    }
+
     private static final class ActionTable extends LuaTable {
         private final LuaCallbackScope scope;
         private final World world;

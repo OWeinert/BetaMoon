@@ -4,10 +4,17 @@ import betamoon.worldgen.BlockPosition;
 import betamoon.worldgen.FeatureContext;
 import betamoon.worldgen.FeatureResult;
 import betamoon.worldgen.PlacementPlan;
+import betamoon.worldgen.SeedMixer;
 import betamoon.worldgen.WorldFeature;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
+import java.util.TreeMap;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
@@ -18,6 +25,8 @@ public final class StructureFeature implements WorldFeature {
     private final String defaultRotation;
     private final String defaultMirror;
     private final StructureProcessors processors;
+    private final List<Connector> connectors;
+    private final String generationSignature;
 
     public StructureFeature(StructureTemplate template, String assetSource, String defaultRotation,
             String defaultMirror, StructureProcessors processors) {
@@ -26,6 +35,8 @@ public final class StructureFeature implements WorldFeature {
         this.defaultRotation = defaultRotation;
         this.defaultMirror = defaultMirror;
         this.processors = processors;
+        connectors = Collections.unmodifiableList(parseConnectors(template));
+        generationSignature = generationSignature(template, processors);
     }
 
     @Override
@@ -37,13 +48,36 @@ public final class StructureFeature implements WorldFeature {
         } catch (IllegalArgumentException error) {
             return FeatureResult.rejected(FeatureResult.BLOCKED);
         }
+        return plan(context, origin, output, transform, context.random(), null, false);
+    }
+
+    /** Plans only the part of a deterministic regional piece contained by one chunk. */
+    public FeatureResult planChunk(FeatureContext context, BlockPosition origin, PlacementPlan output,
+            StructureTransform transform, long pieceSeed, int chunkX, int chunkZ, boolean recovery) {
+        return plan(context, origin, output, transform, null, Long.valueOf(pieceSeed), recovery,
+                chunkX << 4, (chunkX << 4) + 15, chunkZ << 4, (chunkZ << 4) + 15);
+    }
+
+    private FeatureResult plan(FeatureContext context, BlockPosition origin, PlacementPlan output,
+            StructureTransform transform, Random sharedRandom, Long deterministicSeed, boolean recovery) {
+        return plan(context, origin, output, transform, sharedRandom, deterministicSeed, recovery,
+                Integer.MIN_VALUE, Integer.MAX_VALUE, Integer.MIN_VALUE, Integer.MAX_VALUE);
+    }
+
+    private FeatureResult plan(FeatureContext context, BlockPosition origin, PlacementPlan output,
+            StructureTransform transform, Random sharedRandom, Long deterministicSeed, boolean recovery,
+            int minX, int maxX, int minZ, int maxZ) {
         Map<BlockPosition, Map<String, LuaValue>> markerData = markerData(transform);
-        for (StructureTemplate.TemplateBlock block : template.blocks) {
-            StructureTemplate.State selected = template.palette.get(block.state).select(context.random());
+        int before = output.size();
+        for (int index = 0; index < template.blocks.size(); index++) {
+            StructureTemplate.TemplateBlock block = template.blocks.get(index);
+            Random random = deterministicSeed == null ? sharedRandom
+                    : new Random(SeedMixer.derive(deterministicSeed.longValue(), index));
+            StructureTemplate.State selected = template.palette.get(block.state).select(random);
             if (selected.blockId == 0 && !processors.includeAir) {
                 continue;
             }
-            if (processors.decay > 0.0D && context.random().nextDouble() < processors.decay) {
+            if (processors.decay > 0.0D && random.nextDouble() < processors.decay) {
                 continue;
             }
             int blockId = selected.blockId;
@@ -56,6 +90,9 @@ public final class StructureFeature implements WorldFeature {
             int x = origin.x + relative.x;
             int y = origin.y + relative.y;
             int z = origin.z + relative.z;
+            if (x < minX || x > maxX || z < minZ || z > maxZ) {
+                continue;
+            }
             int existing = context.blockId(x, y, z);
             if (existing < 0) {
                 return FeatureResult.rejected(context.failure());
@@ -63,7 +100,7 @@ public final class StructureFeature implements WorldFeature {
             if (processors.allowedExisting != null && !processors.allowedExisting.contains(existing)) {
                 return FeatureResult.rejected(FeatureResult.PROTECTED);
             }
-            if (context.hasTileEntity(x, y, z)) {
+            if (context.hasTileEntity(x, y, z) && !(recovery && existing == blockId)) {
                 if (processors.tileCollision.equals("preserve")) {
                     continue;
                 }
@@ -85,8 +122,121 @@ public final class StructureFeature implements WorldFeature {
                 return FeatureResult.rejected(output.failure());
             }
         }
-        return output.size() == 0 ? FeatureResult.rejected(FeatureResult.NO_CHANGES)
-                : FeatureResult.placed(output.size(), null, null);
+        int added = output.size() - before;
+        return added == 0 ? FeatureResult.rejected(FeatureResult.NO_CHANGES)
+                : FeatureResult.placed(added, null, null);
+    }
+
+    public Bounds bounds(BlockPosition origin, StructureTransform transform) {
+        BlockPosition min = null;
+        BlockPosition max = null;
+        int[] xs = new int[]{-template.origin.x, template.sizeX - template.origin.x - 1};
+        int[] ys = new int[]{-template.origin.y, template.sizeY - template.origin.y - 1};
+        int[] zs = new int[]{-template.origin.z, template.sizeZ - template.origin.z - 1};
+        for (int x : xs) {
+            for (int y : ys) {
+                for (int z : zs) {
+                    BlockPosition relative = transform.apply(x, y, z);
+                    BlockPosition position = origin.offset(relative.x, relative.y, relative.z);
+                    min = min == null ? position : new BlockPosition(Math.min(min.x, position.x),
+                            Math.min(min.y, position.y), Math.min(min.z, position.z));
+                    max = max == null ? position : new BlockPosition(Math.max(max.x, position.x),
+                            Math.max(max.y, position.y), Math.max(max.z, position.z));
+                }
+            }
+        }
+        return new Bounds(min, max);
+    }
+
+    public List<Connector> connectors(BlockPosition origin, StructureTransform transform) {
+        List<Connector> result = new ArrayList<Connector>();
+        for (Connector connector : connectors) {
+            BlockPosition relative = transform.apply(connector.position.x, connector.position.y,
+                    connector.position.z);
+            result.add(new Connector(connector.pool, origin.offset(relative.x, relative.y, relative.z),
+                    transform.apply(connector.facing)));
+        }
+        return Collections.unmodifiableList(result);
+    }
+
+    public boolean hasConnectorPool(String pool) {
+        for (Connector connector : connectors) {
+            if (connector.pool.equals(pool)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public String generationSignature() {
+        return generationSignature;
+    }
+
+    public List<PositionedMarker> markers(BlockPosition origin, StructureTransform transform) {
+        List<PositionedMarker> result = new ArrayList<PositionedMarker>();
+        for (StructureTemplate.Marker marker : template.markers) {
+            BlockPosition relative = transform.apply(marker.position.x - template.origin.x,
+                    marker.position.y - template.origin.y, marker.position.z - template.origin.z);
+            result.add(new PositionedMarker(origin.offset(relative.x, relative.y, relative.z), marker.name,
+                    marker.value));
+        }
+        return Collections.unmodifiableList(result);
+    }
+
+    private static List<Connector> parseConnectors(StructureTemplate template) {
+        List<Connector> result = new ArrayList<Connector>();
+        for (StructureTemplate.Marker marker : template.markers) {
+            if (!marker.name.equals("connector")) {
+                continue;
+            }
+            if (!(marker.value instanceof Map)) {
+                throw new IllegalArgumentException("connector marker value must be an object");
+            }
+            Map<?, ?> value = (Map<?, ?>) marker.value;
+            Object poolValue = value.get("pool");
+            Object facingValue = value.get("facing");
+            if (!(poolValue instanceof String) || !((String) poolValue).matches("[a-z][a-z0-9_.-]{0,63}")) {
+                throw new IllegalArgumentException("connector marker pool must be a lowercase identifier");
+            }
+            if (!(facingValue instanceof String)) {
+                throw new IllegalArgumentException("connector marker facing must be north, east, south, or west");
+            }
+            BlockPosition relative = new BlockPosition(marker.position.x - template.origin.x,
+                    marker.position.y - template.origin.y, marker.position.z - template.origin.z);
+            result.add(new Connector((String) poolValue, relative,
+                    StructureTransform.Direction.parse((String) facingValue)));
+            if (result.size() > 64) {
+                throw new IllegalArgumentException("structure contains more than 64 connector markers");
+            }
+        }
+        return result;
+    }
+
+    private static String generationSignature(StructureTemplate template, StructureProcessors processors) {
+        StringBuilder canonical = new StringBuilder(template.contentHash);
+        canonical.append('|').append(processors.includeAir);
+        canonical.append('|').append(Double.doubleToLongBits(processors.decay));
+        canonical.append('|').append(processors.tileCollision).append('|').append(processors.unknownMetadata);
+        canonical.append('|').append(new TreeMap<Integer, Integer>(processors.replacements));
+        canonical.append('|').append(processors.allowedExisting == null ? "*"
+                : java.util.Arrays.toString(processors.allowedExisting.values()));
+        for (Map.Entry<Integer, CustomMetadataTransform> entry
+                : new TreeMap<Integer, CustomMetadataTransform>(processors.metadataTransforms).entrySet()) {
+            canonical.append('|').append(entry.getKey()).append('=').append(entry.getValue().generationSignature());
+        }
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(canonical.toString().getBytes("UTF-8"));
+            StringBuilder result = new StringBuilder(digest.length * 2);
+            for (byte value : digest) {
+                result.append(String.format(java.util.Locale.ROOT, "%02x", value & 0xff));
+            }
+            return result.toString();
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("SHA-256 is unavailable", impossible);
+        } catch (java.io.UnsupportedEncodingException impossible) {
+            throw new IllegalStateException("UTF-8 is unavailable", impossible);
+        }
     }
 
     private Map<BlockPosition, Map<String, LuaValue>> markerData(StructureTransform ignored) {
@@ -196,6 +346,52 @@ public final class StructureFeature implements WorldFeature {
             this.tileCollision = tileCollision;
             this.unknownMetadata = unknownMetadata;
             this.customMetadataTransforms = customMetadataTransforms;
+        }
+    }
+
+    public static final class Bounds {
+        public final BlockPosition min;
+        public final BlockPosition max;
+
+        public Bounds(BlockPosition min, BlockPosition max) {
+            this.min = min;
+            this.max = max;
+        }
+
+        public boolean intersects(Bounds other) {
+            return min.x <= other.max.x && max.x >= other.min.x && min.y <= other.max.y && max.y >= other.min.y
+                    && min.z <= other.max.z && max.z >= other.min.z;
+        }
+
+        public boolean intersectsChunk(int chunkX, int chunkZ) {
+            int minChunkX = chunkX << 4;
+            int minChunkZ = chunkZ << 4;
+            return min.x <= minChunkX + 15 && max.x >= minChunkX && min.z <= minChunkZ + 15
+                    && max.z >= minChunkZ;
+        }
+    }
+
+    public static final class Connector {
+        public final String pool;
+        public final BlockPosition position;
+        public final StructureTransform.Direction facing;
+
+        public Connector(String pool, BlockPosition position, StructureTransform.Direction facing) {
+            this.pool = pool;
+            this.position = position;
+            this.facing = facing;
+        }
+    }
+
+    public static final class PositionedMarker {
+        public final BlockPosition position;
+        public final String name;
+        public final Object value;
+
+        public PositionedMarker(BlockPosition position, String name, Object value) {
+            this.position = position;
+            this.name = name;
+            this.value = value;
         }
     }
 }
