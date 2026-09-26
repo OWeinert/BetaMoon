@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.7.2 (development)
+## 0.7.2
 
 BetaMoon 0.7.2 expands the Lua engine with reusable fuel rules, persistent capabilities,
 connected and wireless logical networks, interactive container controls, configurable
