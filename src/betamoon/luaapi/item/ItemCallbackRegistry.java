@@ -28,6 +28,10 @@ public final class ItemCallbackRegistry {
         return DEFINITIONS.get(id);
     }
 
+    public static int registeredCount() {
+        return DEFINITIONS.size();
+    }
+
     public static void install(final int id, final ItemDefinition def) {
         DEFINITIONS.put(id, def);
         ScriptResourceTracker.track(new ScriptResourceTracker.Cleanup() {

@@ -8,12 +8,17 @@ public final class GuiConditionEvaluator {
     }
 
     public static boolean evaluate(ContainerGuiDefinition.Condition condition, ValueProvider values) {
+        return evaluate(condition, values, field -> null);
+    }
+
+    public static boolean evaluate(ContainerGuiDefinition.Condition condition, ValueProvider data,
+            ValueProvider session) {
         if (condition == null) {
             return true;
         }
         if (condition.operator == GuiConditionOperator.ALL) {
             for (int i = 0; i < condition.children.size(); i++) {
-                if (!evaluate(condition.children.get(i), values)) {
+                if (!evaluate(condition.children.get(i), data, session)) {
                     return false;
                 }
             }
@@ -21,14 +26,15 @@ public final class GuiConditionEvaluator {
         }
         if (condition.operator == GuiConditionOperator.ANY) {
             for (int i = 0; i < condition.children.size(); i++) {
-                if (evaluate(condition.children.get(i), values)) {
+                if (evaluate(condition.children.get(i), data, session)) {
                     return true;
                 }
             }
             return false;
         }
 
-        Object actual = values.get(condition.field);
+        Object actual = (condition.source == ContainerGuiDefinition.Condition.Source.SESSION ? session : data)
+                .get(condition.field);
         if (condition.operator == GuiConditionOperator.EQUALS) {
             return equal(actual, condition.expected);
         }

@@ -2,7 +2,6 @@ package betamoon.luamodloader;
 
 import betamoon.BetaMoonCommon;
 
-import betamoon.io.FileIo;
 import betamoon.io.IoUtils;
 import betamoon.luaapi.module.ModuleRegistry;
 import betamoon.recipes.RecipeModificationHandler;
@@ -187,7 +186,7 @@ public final class LuaModLoader {
         List<LuaScriptFiles.PreflightFailure> failures = scriptFiles.preflight(scriptsDirectory);
         for (int i = 0; i < failures.size(); i++) {
             LuaScriptFiles.PreflightFailure failure = failures.get(i);
-            String message = "Reload kept the active scripts because " + failure.getFileName() + " did not compile: "
+            String message = "Reload kept the active scripts because " + failure.getFileName() + " is invalid: "
                     + failure.getCause();
             reportError(message);
             LuaScriptErrors.add(failure.getFileName(), message);
@@ -225,8 +224,8 @@ public final class LuaModLoader {
     }
 
     /**
-     * Reads all .lua files from the Lua mods directory and parses them into
-     * ScriptMod entries.
+     * Discovers loose scripts and manifest-based mod directories, then parses
+     * each entrypoint into a ScriptMod.
      *
      * @param errors
      *            collector for human-readable load errors
@@ -239,25 +238,45 @@ public final class LuaModLoader {
         if (scriptsDir == null || !scriptsDir.isDirectory()) {
             return mods;
         }
-        List<File> discoveredScripts = scriptFiles.list(scriptsDir);
-        for (int i = 0; i < discoveredScripts.size(); i++) {
-            File scriptFile = discoveredScripts.get(i);
-            String name = scriptFile.getName();
-            seenFiles.add(name);
-            LuaScriptRegistry.registerFile(name);
-            if (phase.isHotReload() && retainedScripts.appendActiveScript(name, mods)) {
+        List<LuaScriptFiles.PreflightFailure> discoveryFailures = new ArrayList<>();
+        List<LuaModSource> discoveredSources = scriptFiles.discover(scriptsDir, discoveryFailures);
+        for (int i = 0; i < discoveryFailures.size(); i++) {
+            LuaScriptFiles.PreflightFailure failure = discoveryFailures.get(i);
+            String message = failure.getFileName() + ": " + failure.getCause();
+            errors.add(message);
+            LuaScriptErrors.add(failure.getFileName(), failure.getCause());
+        }
+        for (int i = 0; i < discoveredSources.size(); i++) {
+            LuaModSource source = discoveredSources.get(i);
+            String sourceName = source.entrypointRelative();
+            seenFiles.add(source.ownerId());
+            LuaScriptRegistry.registerSource(source);
+            if (phase.isHotReload() && retainedScripts.appendActiveSource(source, mods)) {
                 continue;
             }
+            if (!phase.isHotReload()) {
+                List<LuaScriptFiles.PreflightFailure> sourceFailures = scriptFiles.preflight(source);
+                if (!sourceFailures.isEmpty()) {
+                    for (int failureIndex = 0; failureIndex < sourceFailures.size(); failureIndex++) {
+                        LuaScriptFiles.PreflightFailure failure = sourceFailures.get(failureIndex);
+                        String message = failure.getFileName() + " is invalid: " + failure.getCause();
+                        errors.add(message);
+                        LuaScriptErrors.add(sourceName, message);
+                    }
+                    LuaScriptRegistry.markFailedByFile(sourceName, "One or more Lua sources did not compile.");
+                    continue;
+                }
+            }
             try {
-                String scriptText = FileIo.readUtf8Normalized(scriptFile);
-                ScriptMod mod = parseLuaMod(scriptFile, scriptText, errors);
+                String scriptText = source.readEntrypoint();
+                ScriptMod mod = parseLuaMod(source, scriptText, errors);
                 if (mod != null) {
                     mods.add(mod);
                 }
             } catch (IOException e) {
-                errors.add("Failed to read Lua script: " + scriptFile.getName());
-                LuaScriptErrors.add(scriptFile.getName(), "Failed to read Lua script.");
-                LuaScriptRegistry.markFailedByFile(scriptFile.getName(), "Failed to read Lua script.");
+                errors.add("Failed to read Lua script: " + sourceName);
+                LuaScriptErrors.add(sourceName, "Failed to read Lua script.");
+                LuaScriptRegistry.markFailedByFile(sourceName, "Failed to read Lua script.");
             }
         }
         if (phase.isHotReload()) {
@@ -281,6 +300,10 @@ public final class LuaModLoader {
      */
     ScriptMod parseLuaMod(File scriptFile, String scriptText, List<String> errors) {
         return scriptParser.parse(scriptFile, scriptText, errors);
+    }
+
+    private ScriptMod parseLuaMod(LuaModSource source, String scriptText, List<String> errors) {
+        return scriptParser.parse(source, scriptText, errors);
     }
 
     /**

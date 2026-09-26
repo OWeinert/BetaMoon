@@ -1,8 +1,8 @@
 package betamoon.luaapi.block;
 
+import betamoon.data.DataField;
 import betamoon.luaapi.tileentity.TileEntityApi;
 import betamoon.tileentity.LuaTileEntity;
-import betamoon.tileentity.TileDataType;
 import betamoon.tileentity.TileEntityDefinition;
 import net.minecraft.src.IBlockAccess;
 import net.minecraft.src.TileEntity;
@@ -53,7 +53,8 @@ final class BlockPowerSource {
             }
             TileEntityDefinition definition = TileEntityApi.tileHandle(tile).definition;
             TileEntityDefinition.Field field = definition.fields.get(df);
-            if (field == null || !(field.type == TileDataType.INTEGER || field.type == TileDataType.BOOLEAN)) {
+            if (field == null || !(field.schema.type == DataField.Type.INTEGER
+                    || field.schema.type == DataField.Type.BOOLEAN)) {
                 throw error(path, "data must reference an integer or boolean field");
             }
         }

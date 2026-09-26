@@ -1,7 +1,9 @@
 package betamoon.worldgen;
 
 import betamoon.minecraft.MinecraftBuiltins;
+import betamoon.luamodloader.LuaScriptRegistry;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import net.minecraft.src.BiomeGenBase;
@@ -29,6 +31,7 @@ public final class WorldGenRegistry {
         private final GenerationDimension dimension;
         private final Integer targetBlockId;
         private final BiomeGenBase[] allowedBiomes;
+        private final String owner;
 
         private OreGenEntry(int blockId, int veinsPerChunk, int veinSize, int minY, int maxY,
                 GenerationDimension dimension, Integer targetBlockId, BiomeGenBase[] allowedBiomes) {
@@ -40,6 +43,38 @@ public final class WorldGenRegistry {
             this.dimension = dimension;
             this.targetBlockId = targetBlockId;
             this.allowedBiomes = allowedBiomes;
+            this.owner = LuaScriptRegistry.getCurrentScriptFile();
+        }
+    }
+
+    /** Immutable, object-free ore-generator description for diagnostics. */
+    public static final class Description {
+        public final String owner;
+        public final int blockId;
+        public final int veinsPerChunk;
+        public final int veinSize;
+        public final int minY;
+        public final int maxY;
+        public final String dimension;
+        public final Integer targetBlockId;
+        public final List<String> biomes;
+
+        private Description(OreGenEntry entry) {
+            owner = entry.owner;
+            blockId = entry.blockId;
+            veinsPerChunk = entry.veinsPerChunk;
+            veinSize = entry.veinSize;
+            minY = entry.minY;
+            maxY = entry.maxY;
+            dimension = entry.dimension.getLuaName();
+            targetBlockId = entry.targetBlockId;
+            List<String> names = new ArrayList<String>();
+            if (entry.allowedBiomes != null) {
+                for (BiomeGenBase biome : entry.allowedBiomes) {
+                    names.add(biome == null ? "unknown" : biome.biomeName);
+                }
+            }
+            biomes = Collections.unmodifiableList(names);
         }
     }
 
@@ -78,6 +113,14 @@ public final class WorldGenRegistry {
             GenerationDimension dimension, Integer targetBlockId, BiomeGenBase[] allowedBiomes) {
         ORE_ENTRIES.add(
                 new OreGenEntry(blockId, veinsPerChunk, veinSize, minY, maxY, dimension, targetBlockId, allowedBiomes));
+    }
+
+    public static synchronized List<Description> snapshot() {
+        List<Description> result = new ArrayList<Description>();
+        for (OreGenEntry entry : ORE_ENTRIES) {
+            result.add(new Description(entry));
+        }
+        return Collections.unmodifiableList(result);
     }
 
     /**

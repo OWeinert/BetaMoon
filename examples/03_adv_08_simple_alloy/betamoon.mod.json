@@ -1,0 +1,5 @@
+{
+  "entrypoint": "main.lua",
+  "name": "Simple Alloy Furnace Example",
+  "version": "1.0.0"
+}

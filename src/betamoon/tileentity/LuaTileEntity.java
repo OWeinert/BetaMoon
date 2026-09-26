@@ -1,19 +1,26 @@
 package betamoon.tileentity;
 
 import betamoon.BetaMoonCommon;
-
+import betamoon.assets.AssetKey;
+import betamoon.capability.CapabilityInstance;
+import betamoon.capability.TileCapabilityContainer;
+import betamoon.fuel.FuelConsumption;
+import betamoon.fuel.FuelRegistry;
+import betamoon.luaapi.capability.LuaCapabilityAccess;
 import betamoon.luaapi.block.BlockCallbackRegistry;
 import betamoon.luaapi.block.LuaBlockActionContext;
+import betamoon.luaapi.fuel.FuelsApi;
 import betamoon.luaapi.tileentity.LuaTileDataAccess;
+import betamoon.luaapi.utils.LuaCallbackScope;
+import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptErrors;
-import net.minecraft.src.Block;
+import betamoon.networking.LogicalNetworkRuntime;
+import java.util.Arrays;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.FurnaceRecipes;
 import net.minecraft.src.IInventory;
 import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
-import net.minecraft.src.Material;
-import net.minecraft.src.ModLoader;
 import net.minecraft.src.NBTTagCompound;
 import net.minecraft.src.NBTTagList;
 import net.minecraft.src.TileEntity;
@@ -30,6 +37,7 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
     private String typeName;
     private ItemStack[] inventory = new ItemStack[0];
     private final TileDataStore data = new TileDataStore();
+    private final TileCapabilityContainer capabilities = new TileCapabilityContainer(this);
     private int tickCounter;
     private boolean tickEnabled = true;
     private boolean inventoryActionEnabled = true;
@@ -49,6 +57,26 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
         return TileEntityRegistry.getTileEntity(typeName);
     }
 
+    public String getTypeName() {
+        return typeName;
+    }
+
+    public LuaTable snapshotData() {
+        LuaTable result = new LuaTable();
+        TileEntityDefinition definition = getDefinition();
+        if (definition == null || data.error() != null) {
+            return result;
+        }
+        for (String name : definition.fields.keySet()) {
+            result.set(name, data.getLua(definition, name));
+        }
+        return result;
+    }
+
+    public CapabilityInstance getCapability(AssetKey key) {
+        return capabilities.get(key);
+    }
+
     private void initializeDefinition() {
         TileEntityDefinition definition = getDefinition();
         if (definition == null) {
@@ -58,6 +86,7 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
             inventory = new ItemStack[definition.slots.size()];
         }
         data.initialize(definition);
+        capabilities.bind(definition);
     }
 
     @Override
@@ -85,17 +114,18 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
     }
 
     private void invokeTick(TileEntityDefinition definition) {
-        LuaTable context = createContext();
-        int blockId = worldObj.getBlockId(xCoord, yCoord, zCoord);
-        if (BlockCallbackRegistry.get(blockId) == null) {
-            definition.tickAction.call(context);
-            return;
-        }
+        try (Context context = createScopedContext()) {
+            int blockId = worldObj.getBlockId(xCoord, yCoord, zCoord);
+            if (BlockCallbackRegistry.get(blockId) == null) {
+                definition.tickAction.call(context);
+                return;
+            }
 
-        try (LuaBlockActionContext blockContext = new LuaBlockActionContext(worldObj, xCoord, yCoord, zCoord, null,
-                null, -1, true)) {
-            context.set("state", blockContext.get("state"));
-            definition.tickAction.call(context);
+            try (LuaBlockActionContext blockContext = new LuaBlockActionContext(worldObj, xCoord, yCoord, zCoord,
+                    null, null, -1, true)) {
+                context.set("state", blockContext.get("state"));
+                definition.tickAction.call(context);
+            }
         }
     }
 
@@ -105,6 +135,7 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
         typeName = tag.getString("BetaMoonType");
         initializeDefinition();
         tickCounter = tag.getInteger("BetaMoonTicks");
+        Arrays.fill(inventory, null);
         NBTTagList items = tag.getTagList("Items");
         for (int i = 0; i < items.tagCount(); i++) {
             NBTTagCompound itemTag = (NBTTagCompound) items.tagAt(i);
@@ -114,10 +145,9 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
             }
         }
         TileEntityDefinition definition = getDefinition();
-        if (definition == null) {
-            return;
-        }
         data.read(tag, definition);
+        capabilities.load(tag.hasKey("BetaMoonCapabilities")
+                ? tag.getCompoundTag("BetaMoonCapabilities") : new NBTTagCompound(), definition);
     }
 
     @Override
@@ -136,11 +166,8 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
             items.setTag(itemTag);
         }
         tag.setTag("Items", items);
-        TileEntityDefinition definition = getDefinition();
-        if (definition == null) {
-            return;
-        }
-        data.write(tag, definition);
+        data.write(tag, getDefinition());
+        tag.setCompoundTag("BetaMoonCapabilities", capabilities.save());
     }
 
     @Override
@@ -193,8 +220,8 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
             return;
         }
         notifyingInventory = true;
-        try {
-            definition.inventoryChangedAction.call(createContext());
+        try (Context context = createScopedContext()) {
+            definition.inventoryChangedAction.call(context);
         } catch (Throwable error) {
             inventoryActionEnabled = false;
             reportCallbackError(definition, "onInventoryChanged", error);
@@ -221,12 +248,18 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
     }
 
     public int getDataInt(String name) {
-        return data.getSyncValue(name);
+        return data.getSyncValue(getDefinition(), name);
     }
 
     /** Returns a data value for declarative GUI bindings. */
     public Object getDataValue(String name) {
-        return data.get(name);
+        return data.get(getDefinition(), name);
+    }
+
+    /** Applies a prevalidated primitive value from a declarative container control. */
+    public void setDataValue(String name, Object value) {
+        data.set(getDefinition(), name, value);
+        super.onInventoryChanged();
     }
 
     /** Returns the item in a named slot for a visual item element. */
@@ -235,7 +268,8 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
     }
 
     public void setDataInt(String name, int value) {
-        setDataValue(name, Integer.valueOf(value));
+        data.setInteger(getDefinition(), name, value);
+        super.onInventoryChanged();
     }
 
     public void setSyncedData(String name, int value) {
@@ -304,8 +338,23 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
     }
 
     /** Creates the safe Lua view shared by tick and neighbor callbacks. */
-    public LuaTable createContext() {
-        return new TickContext(this);
+    public Context createContext() {
+        return createScopedContext();
+    }
+
+    @Override
+    public void func_31004_j() {
+        super.func_31004_j();
+        LogicalNetworkRuntime.added(this);
+    }
+
+    @Override
+    public void func_31005_i() {
+        LogicalNetworkRuntime.removed(this);
+        super.func_31005_i();
+    }
+    public Context createScopedContext() {
+        return new Context(this);
     }
 
     private int slot(String name) {
@@ -317,8 +366,12 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
         return value.intValue();
     }
 
-    public void setDataValue(String name, Object value) {
-        data.set(getDefinition(), name, value);
+    public LuaValue getDataLua(String name) {
+        return data.getLua(getDefinition(), name);
+    }
+
+    public void setDataLua(String name, LuaValue value) {
+        data.setLua(getDefinition(), name, value);
         super.onInventoryChanged();
     }
 
@@ -329,61 +382,38 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
         BetaMoonCommon.LOGGER.warning(definition.owner + ": " + message);
     }
 
-    private static final class TickContext extends LuaTable {
-        private TickContext(LuaTileEntity entity) {
+    public static final class Context extends LuaTable implements AutoCloseable {
+        private final LuaCallbackScope scope;
+
+        private Context(LuaTileEntity entity) {
+            scope = new LuaCallbackScope(entity.worldObj != null && !entity.worldObj.multiplayerWorld);
             LuaTable entityValue = new LuaTable();
-            entityValue.set("data", LuaTileDataAccess.create(entity));
-            entityValue.set("inventory", new InventoryAccess(entity));
-            entityValue.set("markDirty", new MarkDirty(entity, entityValue));
+            entityValue.set("data", LuaTileDataAccess.create(scope, entity));
+            entityValue.set("inventory", new InventoryAccess(scope, entity));
+            entityValue.set("markDirty", new MarkDirty(scope, entity));
+            entityValue.set("capabilities", LuaCapabilityAccess.local(scope, entity));
+            entityValue.set("networks", LogicalNetworkRuntime.local(scope, entity));
             set("entity", entityValue);
             set("x", entity.xCoord);
             set("y", entity.yCoord);
             set("z", entity.zCoord);
-            set("world", new WorldAccess(entity));
-            set("recipes", new RecipeAccess(entity));
-            set("fuels", new FuelAccess());
-        }
-    }
-
-    private static final class WorldAccess extends LuaTable {
-        private final LuaTileEntity entity;
-        private WorldAccess(LuaTileEntity entity) {
-            this.entity = entity;
-            set("isPowered", new IsPowered(this));
-            set("notifyNeighbors", new NotifyNeighbors(this));
-        }
-    }
-    private static final class IsPowered extends VarArgFunction {
-        private final WorldAccess access;
-        private IsPowered(WorldAccess access) {
-            this.access = access;
+            set("world", LuaWorldActionAccess.create(
+                    scope, entity.worldObj, entity.xCoord, entity.yCoord, entity.zCoord));
+            set("recipes", new RecipeAccess(scope, entity));
+            set("fuels", new FuelAccess(scope));
         }
 
-        public Varargs invoke(Varargs args) {
-            return LuaValue.valueOf(access.entity.worldObj != null && access.entity.worldObj
-                    .isBlockIndirectlyGettingPowered(access.entity.xCoord, access.entity.yCoord, access.entity.zCoord));
-        }
-    }
-    private static final class NotifyNeighbors extends VarArgFunction {
-        private final WorldAccess access;
-        private NotifyNeighbors(WorldAccess access) {
-            this.access = access;
-        }
-
-        public Varargs invoke(Varargs args) {
-            if (access.entity.worldObj != null && !access.entity.worldObj.multiplayerWorld) {
-                int id = access.entity.worldObj.getBlockId(access.entity.xCoord, access.entity.yCoord,
-                        access.entity.zCoord);
-                access.entity.worldObj.notifyBlocksOfNeighborChange(access.entity.xCoord, access.entity.yCoord,
-                        access.entity.zCoord, id);
-            }
-            return LuaValue.NIL;
+        @Override
+        public void close() {
+            scope.close();
         }
     }
 
     private static final class InventoryAccess extends LuaTable {
+        private final LuaCallbackScope scope;
         private final LuaTileEntity entity;
-        private InventoryAccess(LuaTileEntity entity) {
+        private InventoryAccess(LuaCallbackScope scope, LuaTileEntity entity) {
+            this.scope = scope;
             this.entity = entity;
             set("get", new InventoryGet(this));
             set("set", new InventorySet(this));
@@ -400,6 +430,7 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
         }
 
         public Varargs invoke(Varargs args) {
+            access.scope.requireActive();
             return stackToLua(access.entity
                     .getStackInSlot(access.entity.slot(LuaTileEntity.arg(args, access, 1).checkjstring())));
         }
@@ -411,6 +442,7 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
         }
 
         public Varargs invoke(Varargs args) {
+            access.scope.requireMutable();
             int slot = access.entity.slot(LuaTileEntity.arg(args, access, 1).checkjstring());
             access.entity.setInventorySlotContents(slot, luaToStack(LuaTileEntity.arg(args, access, 2)));
             return LuaValue.NIL;
@@ -423,6 +455,7 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
         }
 
         public Varargs invoke(Varargs args) {
+            access.scope.requireMutable();
             return stackToLua(
                     access.entity.decrStackSize(access.entity.slot(LuaTileEntity.arg(args, access, 1).checkjstring()),
                             LuaTileEntity.arg(args, access, 2).optint(1)));
@@ -435,6 +468,7 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
         }
 
         public Varargs invoke(Varargs args) {
+            access.scope.requireActive();
             ItemStack incoming = luaToStack(LuaTileEntity.arg(args, access, 2));
             ItemStack current = access.entity
                     .getStackInSlot(access.entity.slot(LuaTileEntity.arg(args, access, 1).checkjstring()));
@@ -450,6 +484,7 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
         }
 
         public Varargs invoke(Varargs args) {
+            access.scope.requireMutable();
             int slot = access.entity.slot(LuaTileEntity.arg(args, access, 1).checkjstring());
             ItemStack incoming = luaToStack(LuaTileEntity.arg(args, access, 2));
             ItemStack current = access.entity.getStackInSlot(slot);
@@ -475,37 +510,32 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
         }
 
         public Varargs invoke(Varargs args) {
+            access.scope.requireMutable();
             int slot = access.entity.slot(LuaTileEntity.arg(args, access, 1).checkjstring());
-            ItemStack fuel = access.entity.getStackInSlot(slot);
-            int time = fuelTime(fuel);
-            if (time <= 0) {
-                return LuaValue.ZERO;
-            }
-            if (fuel.getItem().hasContainerItem()) {
-                access.entity.setInventorySlotContents(slot, new ItemStack(fuel.getItem().getContainerItem()));
-            } else {
-                access.entity.decrStackSize(slot, 1);
-            }
-            return LuaValue.valueOf(time);
+            AssetKey setKey = FuelsApi.optionalSetKey(LuaTileEntity.arg(args, access, 2), "consumeFuel set");
+            return LuaValue.valueOf(FuelConsumption.consume(access.entity, slot, setKey));
         }
     }
     private static final class MarkDirty extends VarArgFunction {
+        private final LuaCallbackScope scope;
         private final LuaTileEntity entity;
-        private final LuaValue receiver;
-        private MarkDirty(LuaTileEntity entity, LuaValue receiver) {
+        private MarkDirty(LuaCallbackScope scope, LuaTileEntity entity) {
+            this.scope = scope;
             this.entity = entity;
-            this.receiver = receiver;
         }
 
         public Varargs invoke(Varargs args) {
+            scope.requireMutable();
             entity.markDirty();
             return LuaValue.NIL;
         }
     }
     private static final class RecipeAccess extends LuaTable {
-        private RecipeAccess(LuaTileEntity entity) {
+        private final LuaCallbackScope scope;
+        private RecipeAccess(LuaCallbackScope scope, LuaTileEntity entity) {
+            this.scope = scope;
             set("getSmeltingResult", new SmeltingResult(this));
-            betamoon.recipes.custom.RecipeMatching.attach(this, entity);
+            betamoon.recipes.custom.RecipeMatching.attach(this, entity, scope);
         }
     }
     private static final class SmeltingResult extends VarArgFunction {
@@ -515,6 +545,7 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
         }
 
         public Varargs invoke(Varargs args) {
+            access.scope.requireActive();
             ItemStack input = luaToStack(LuaTileEntity.arg(args, access, 1));
             if (input == null) {
                 return LuaValue.NIL;
@@ -524,7 +555,9 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
         }
     }
     private static final class FuelAccess extends LuaTable {
-        private FuelAccess() {
+        private final LuaCallbackScope scope;
+        private FuelAccess(LuaCallbackScope scope) {
+            this.scope = scope;
             set("getBurnTime", new BurnTime(this));
         }
     }
@@ -535,24 +568,11 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
         }
 
         public Varargs invoke(Varargs args) {
-            return LuaValue.valueOf(fuelTime(luaToStack(LuaTileEntity.arg(args, access, 1))));
+            access.scope.requireActive();
+            ItemStack stack = luaToStack(LuaTileEntity.arg(args, access, 1));
+            AssetKey setKey = FuelsApi.optionalSetKey(LuaTileEntity.arg(args, access, 2), "getBurnTime set");
+            return LuaValue.valueOf(FuelRegistry.resolve(stack, setKey).burnTime);
         }
-    }
-
-    private static int fuelTime(ItemStack stack) {
-        if (stack == null) {
-            return 0;
-        }
-        int id = stack.getItem().shiftedIndex;
-        return id < 256 && Block.blocksList[id] != null && Block.blocksList[id].blockMaterial == Material.wood
-                ? 300
-                : id == Item.stick.shiftedIndex
-                        ? 100
-                        : id == Item.coal.shiftedIndex
-                                ? 1600
-                                : id == Item.bucketLava.shiftedIndex
-                                        ? 20000
-                                        : id == Block.sapling.blockID ? 100 : ModLoader.AddAllFuel(id);
     }
 
     private static LuaValue arg(Varargs args, LuaValue receiver, int index) {

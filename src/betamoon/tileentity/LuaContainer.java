@@ -1,5 +1,8 @@
 package betamoon.tileentity;
 
+import betamoon.assets.AssetKey;
+import betamoon.data.DataField;
+import betamoon.fuel.FuelRegistry;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -20,15 +23,19 @@ public final class LuaContainer extends Container {
     private final List<String> syncedFields = new ArrayList<>();
     private final List<Integer> lastValues = new ArrayList<>();
     private final int tileSlotCount;
+    private final ContainerControlRuntime controls;
 
     public LuaContainer(InventoryPlayer player, LuaTileEntity entity, ContainerDefinition definition) {
         this.entity = entity;
         this.definition = definition;
+        this.controls = new ContainerControlRuntime(definition, entity, player.player);
         for (int i = 0; i < definition.slots.size(); i++) {
             ContainerDefinition.SlotDefinition slot = definition.slots.get(i);
             addSlot(slot.outputOnly
                     ? new OutputSlot(entity, slot.index, slot.x, slot.y)
-                    : new Slot(entity, slot.index, slot.x, slot.y));
+                    : slot.acceptedFuelSet == null
+                            ? new Slot(entity, slot.index, slot.x, slot.y)
+                            : new FuelSlot(entity, slot.index, slot.x, slot.y, slot.acceptedFuelSet));
         }
         tileSlotCount = definition.slots.size();
         for (int row = 0; row < 3; row++) {
@@ -45,11 +52,16 @@ public final class LuaContainer extends Container {
         Iterator<TileEntityDefinition.Field> fields = definition.tileEntity.fields.values().iterator();
         while (fields.hasNext()) {
             TileEntityDefinition.Field field = fields.next();
-            if (field.sync && field.type.canSynchronize()) {
+            if (field.sync && (field.schema.type == DataField.Type.INTEGER
+                    || field.schema.type == DataField.Type.BOOLEAN)) {
                 syncedFields.add(field.name);
                 lastValues.add(Integer.valueOf(Integer.MIN_VALUE));
             }
         }
+    }
+
+    public ContainerControlRuntime controls() {
+        return controls;
     }
 
     @Override
@@ -145,6 +157,20 @@ public final class LuaContainer extends Container {
         @Override
         public boolean isItemValid(ItemStack stack) {
             return false;
+        }
+    }
+
+    private static final class FuelSlot extends Slot {
+        private final AssetKey fuelSet;
+
+        private FuelSlot(LuaTileEntity inventory, int index, int x, int y, AssetKey fuelSet) {
+            super(inventory, index, x, y);
+            this.fuelSet = fuelSet;
+        }
+
+        @Override
+        public boolean isItemValid(ItemStack stack) {
+            return FuelRegistry.resolve(stack, fuelSet).isFuel();
         }
     }
 }

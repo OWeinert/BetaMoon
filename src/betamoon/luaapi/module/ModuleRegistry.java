@@ -3,11 +3,14 @@ package betamoon.luaapi.module;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptResourceTracker;
 import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Iterator;
 import java.util.Map;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
-import org.luaj.vm2.LuaValue;
 
 /** Owns pending and published Lua module exports. */
 public final class ModuleRegistry {
@@ -17,8 +20,33 @@ public final class ModuleRegistry {
     private ModuleRegistry() {
     }
 
-    static void stage(String name, LuaTable value, LuaValue packageLoaded) {
-        final ExportEntry entry = stageEntry(name, value, packageLoaded);
+    /** Immutable module identity for diagnostics; exported Lua values stay private. */
+    public static final class Description {
+        public final String name;
+        public final String owner;
+
+        private Description(ExportEntry entry) {
+            name = entry.name;
+            owner = entry.owner;
+        }
+    }
+
+    public static synchronized List<Description> snapshot() {
+        List<Description> result = new ArrayList<Description>();
+        for (ExportEntry entry : publishedExports.values()) {
+            result.add(new Description(entry));
+        }
+        Collections.sort(result, new Comparator<Description>() {
+            @Override
+            public int compare(Description left, Description right) {
+                return left.name.compareTo(right.name);
+            }
+        });
+        return Collections.unmodifiableList(result);
+    }
+
+    static void stage(String name, LuaTable value) {
+        final ExportEntry entry = stageEntry(name, value);
         if (entry == null) {
             return;
         }
@@ -31,7 +59,7 @@ public final class ModuleRegistry {
         });
     }
 
-    private static synchronized ExportEntry stageEntry(String name, LuaTable value, LuaValue packageLoaded) {
+    private static synchronized ExportEntry stageEntry(String name, LuaTable value) {
         String owner = LuaScriptRegistry.getCurrentScriptFile();
         if (owner == null) {
             throw new LuaError("Module: export must be called while a script is loading or initializing.");
@@ -56,7 +84,7 @@ public final class ModuleRegistry {
             return null;
         }
 
-        ExportEntry entry = new ExportEntry(name, owner, value, packageLoaded);
+        ExportEntry entry = new ExportEntry(name, owner, value);
         pendingExports.put(name, entry);
         return entry;
     }
@@ -95,11 +123,7 @@ public final class ModuleRegistry {
                 continue;
             }
 
-            ExportEntry previous = publishedExports.put(entry.name, entry);
-            if (previous != null && previous != entry) {
-                previous.removeFromPackageLoaded();
-            }
-            entry.addToPackageLoaded();
+            publishedExports.put(entry.name, entry);
             iterator.remove();
         }
     }
@@ -120,7 +144,6 @@ public final class ModuleRegistry {
         }
         if (publishedExports.get(entry.name) == entry) {
             publishedExports.remove(entry.name);
-            entry.removeFromPackageLoaded();
         }
     }
 
@@ -132,25 +155,11 @@ public final class ModuleRegistry {
         private final String name;
         private final String owner;
         private final LuaTable value;
-        private final LuaValue packageLoaded;
 
-        private ExportEntry(String name, String owner, LuaTable value, LuaValue packageLoaded) {
+        private ExportEntry(String name, String owner, LuaTable value) {
             this.name = name;
             this.owner = owner;
             this.value = value;
-            this.packageLoaded = packageLoaded;
-        }
-
-        private void addToPackageLoaded() {
-            if (packageLoaded.istable()) {
-                packageLoaded.set(name, value);
-            }
-        }
-
-        private void removeFromPackageLoaded() {
-            if (packageLoaded.istable() && packageLoaded.get(name) == value) {
-                packageLoaded.set(name, LuaValue.NIL);
-            }
         }
     }
 }

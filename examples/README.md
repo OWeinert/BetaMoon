@@ -1,15 +1,16 @@
 # BetaMoon Examples
 
 These examples form a tutorial as well as a capability reference. Copy the Lua
-files you want into `.minecraft/lua_scripts/`. Scripts hot reload after a file
-save settles, or through **Reload** on BetaMoon's Scripts screen. Structural
-tile-entity content is kept loaded for world safety and requires a Minecraft
-restart after changes.
+files you want, or a complete manifested example folder, into
+`.minecraft/lua_scripts/`. Scripts hot reload after a file save settles, or
+through **Reload** on BetaMoon's Scripts screen. Structural tile-entity content
+is kept loaded for world safety and requires a Minecraft restart after changes.
 
 Read files in name order. `01_beg`, `02_int`, and `03_adv` sort the beginner,
 intermediate, and advanced categories correctly in normal file explorers.
-Letters after a lesson number identify files that belong to one lesson. Unless
-the comments say otherwise, each unlettered example can be loaded independently.
+Beginner 19 uses letters for two independent mods that demonstrate cross-mod
+exports. Advanced multi-script lessons are self-contained folders with one
+`betamoon.mod.json`; copy each complete folder without rearranging its files.
 
 Most examples use the vanilla texture atlas. Choose different numeric block and
 item IDs when another installed mod already owns an example ID. Engine callbacks
@@ -55,6 +56,7 @@ used by later examples.
 | 24 | `01_beg_24_first_block_interaction.lua` | Handling a block activation |
 | 25 | `01_beg_25_first_item_use.lua` | Handling a consumable item's right-click action |
 | 26 | `01_beg_26_click_sound.lua` | Registered WAV and local playback from item use |
+| 27 | `01_beg_27_custom_fuel.lua` | Registering an item as vanilla furnace fuel |
 
 ## Intermediate
 
@@ -86,26 +88,36 @@ state, physical behavior, and event-driven logic.
 | 21 | `02_int_21_scheduled_and_display_ticks.lua` | Scheduled gameplay ticks and client display ticks |
 | 22 | `02_int_22_redstone_switch.lua` | Directional digital redstone output |
 | 23 | `02_int_23_first_entity.lua` | Model-backed prop declaration and spawning from an item |
+| 24 | `02_int_24_custom_projectile.lua` | Model-backed projectile behavior, ammunition, and impact handling |
+| 25 | `02_int_25_pickup_entity.lua` | Typed pickup entities and inventory collection |
+| 26 | `02_int_26_configurable_explosion.lua` | Selective explosion effects, attribution, and result snapshots |
 
 ## Advanced
 
-Advanced lessons build complete systems. Keep every file from a lettered lesson
-together and read its dependency comments before loading it.
+Advanced lessons build complete systems. Lessons 03 and 08 through 11 are
+manifested packages whose entrypoints organize private modules with `require`.
 
 | Lesson | File | Topic |
 | --- | --- | --- |
 | 01 | `03_adv_01_animated_model_item.lua` | Animation JSON combined with Lua pose control |
 | 02 | `03_adv_02_redstone_timer.lua` | Input-edge observation and scheduled output pulses |
-| 03a–03c | `03_adv_03a_basic_storage_data.lua`, `03_adv_03b_basic_storage_layout.lua`, `03_adv_03c_basic_storage_block.lua` | Modular declarations combined into saved storage, a container, and a GUI |
-| 04 | `03_adv_04_custom_furnace.lua` | A complete fuel-burning vanilla-smelting machine |
+| 03 | `03_adv_03_basic_storage/` (`betamoon.mod.json`, `main.lua`, `data.lua`, `layout.lua`) | Private declaration modules combined into saved storage, a container, and a GUI |
+| 04 | `03_adv_04_custom_furnace.lua` | A complete smelting machine with a composed private fuel set |
 | 05 | `03_adv_05_tile_redstone_controller.lua` | Persistent tile data controlling redstone output |
 | 06 | `03_adv_06_gui_showcase.lua` | Container GUI elements and synchronized presentation |
 | 07 | `03_adv_07_animated_machine.lua` | Animated block variants, material slots, glow, and sound |
-| 08a–08c | `03_adv_08a_simple_alloy_recipe_type.lua`, `03_adv_08b_simple_alloy_recipes.lua`, `03_adv_08c_simple_alloy_furnace.lua` | Simple named-slot recipe types, recipes, and a processing machine |
-| 09a–09c | `03_adv_09a_contextual_recipe_type.lua`, `03_adv_09b_contextual_recipes.lua`, `03_adv_09c_contextual_processor.lua` | Heat/power conditions and commit-time context revalidation |
-| 10a–10c | `03_adv_10a_advanced_fabrication_types.lua`, `03_adv_10b_advanced_fabrication_recipes.lua`, `03_adv_10c_advanced_fabricator.lua` | Pools, grids, custom matching, bindings, and atomic processing |
-| 11a–11b | `03_adv_11a_matcher_cookbook_type.lua`, `03_adv_11b_matcher_cookbook_press.lua` | A context-driven custom allocation policy in a working machine |
+| 08 | `03_adv_08_simple_alloy/` (`betamoon.mod.json`, `main.lua`, `recipe_type.lua`, `recipes.lua`) | Simple named-slot recipe types, recipes, and a processing machine |
+| 09 | `03_adv_09_contextual_processor/` (`betamoon.mod.json`, `main.lua`, `recipe_type.lua`, `recipes.lua`) | Heat/power conditions and commit-time context revalidation |
+| 10 | `03_adv_10_advanced_fabrication/` (`betamoon.mod.json`, `main.lua`, `recipe_types.lua`, `recipes.lua`) | Pools, grids, custom matching, bindings, and atomic processing |
+| 11 | `03_adv_11_matcher_cookbook/` (`betamoon.mod.json`, `main.lua`, `recipe_type.lua`) | A context-driven custom allocation policy in a working machine |
 | 12 | `03_adv_12_entity_data.lua` | Model-backed entity with persistent interaction data |
+| 13 | `03_adv_13_native_living_ai.lua` | Native living behavior composed with custom Lua AI |
+| 14 | `03_adv_14_manual_multipart_ai.lua` | Fully manual multipart creature behavior and hit regions |
+| 15 | `03_adv_15_energy_network.lua` | Capability operations, persistent energy, adjacent topology, and simulated/committed transfer |
+| 16 | `03_adv_16_wireless_trigger.lua` | Wireless channels, transmitter/receiver roles, retained state, and pulses |
+| 17 | `03_adv_17_hybrid_network.lua` | Adjacent local segments bridged by wireless gateways |
+| 18 | `03_adv_18_world_service_and_data.lua` | Persistent per-world services and detached world, chunk, and player views |
+| 19 | `03_adv_19_interactive_machine.lua` | Container controls, temporary session state, focus, dragging, and custom input |
 
 ## Trying the interactive examples
 
@@ -117,6 +129,7 @@ together and read its dependency comments before loading it.
 | Beginner 24 | **Greeting Block** (228): cobblestone + stick. Place and right-click it to report its position. |
 | Beginner 25 | **Signal Bell** (5028): sugar + redstone makes four. Right-click to play its sound and consume one. |
 | Beginner 26 | **Clicker** (5032): right-click to hear the local WAV. |
+| Beginner 27 | **Compressed Coal** (5041): eight coal around clay; burns for 12,800 ticks in a vanilla furnace. |
 | Intermediate 08 | **Interaction Block** (210): cobblestone + stick. Right-click toggles activity; sneak-right-click locks mining. |
 | Intermediate 09 | **Attached Lamp** (217): stone + glowstone dust makes four. Attach one to any solid face and remove its support. |
 | Intermediate 10 | **Lifecycle Observer** (218): stone + paper. Click it, alter a neighbor, collide with it, then break or explode it. |
@@ -134,10 +147,11 @@ together and read its dependency comments before loading it.
 | Intermediate 23 | **Stone Sample Entity**: obtain Sample Placer (5035), copy `builtin_model_item/`, place it, then punch it to recover the placer. |
 | Intermediate 24 | **Pebble Launcher** (5037): copy `entity_examples/`, carry cobblestone, and fire a custom projectile. |
 | Intermediate 25 | **Gem Dropper** (5038): place a typed pickup and collect its full stack. |
+| Intermediate 26 | **Configurable Charge** (5042): right-click for a concussive blast or sneak-right-click for demolition. |
 | Advanced 01 | **Clockwork Bird Model Item** (5034): observe clip animation with Lua head movement. |
 | Advanced 02 | **Pulse Timer** (213): cobblestone + redstone. A rising north input produces a one-second south output. |
 | Advanced 03 | **Basic Storage** (224): chest surrounded by planks. Its screen reports occupied saved slots. |
-| Advanced 04 | **Fast Furnace** (204): vanilla furnace surrounded by iron. It uses normal smelting recipes in 100 ticks. |
+| Advanced 04 | **Fast Furnace** (204): vanilla furnace surrounded by iron. It smelts in 100 ticks and also accepts redstone as its private fuel. |
 | Advanced 05 | **Tile Redstone Controller** (225): insert a control key, then use input edges to toggle persistent output. |
 | Advanced 06 | **GUI Showcase** (208): chest + redstone. Use its Page and Sample slots to explore the gallery. |
 | Advanced 07 | **Animated Machine** (234): right-click to toggle its rotor, glow, and click. |
@@ -148,11 +162,23 @@ together and read its dependency comments before loading it.
 | Advanced 12 | **Data Totem**: obtain Data Totem Placer (5036), place and click it to check saved data, then punch it to recover the placer. |
 | Advanced 13 | **Clockwork Watcher** (5039): copy `animated_model_item/`, place a living creature, and test its wandering and retaliation. |
 | Advanced 14 | **Manual Guardian** (5040): copy `animated_model_item/`, place it, and inspect Lua-controlled decisions and optional head/wing hitboxes. |
+| Advanced 19 | **Control Console** (244): use built-in controls, keyboard focus, a dragged custom control, and temporary session state. |
 
 ## Multi-file lesson details
 
-- Beginner 19 requires both module files. The exporter constructs its local public
-  table inside `modInit` and publishes it as the final initialization action.
+- Beginner 19 requires both loose scripts and deliberately treats them as separate
+  mods. The exporter publishes a public table through `betamoon.modules`; the
+  importer declares a dependency and reads that cross-mod export.
+
+- Advanced 03 and 08 through 11 each demonstrate one multi-script mod. Their
+  manifests select `main.lua`, while `require` loads private declarations and
+  registration functions from neighboring files. Every file shares the package's
+  lifecycle and resource owner. Copy the whole folder into `lua_scripts`; because
+  these packages register structural machine content, restart after edits.
+
+- Advanced 03 keeps its persistent inventory/data schema in `data.lua` and its
+  container/GUI layout in `layout.lua`. `main.lua` composes both declarations and
+  owns every registered resource.
 
 - Advanced 08 creates these simple alloy recipes:
 
@@ -179,8 +205,8 @@ together and read its dependency comments before loading it.
   | Transformable grid | Iron in four corners and a stick in the center | 1 iron block |
   | Custom sequence | Iron immediately followed by coal in flattened slot order | 1 gold ingot |
 
-  Its type file explains detached matcher snapshots and validated `plan:use`
-  allocations. Its machine file explains bindings, candidate order, signatures,
+  `recipe_types.lua` explains detached matcher snapshots and validated `plan:use`
+  allocations. `main.lua` explains bindings, candidate order, signatures,
   preflight checks, and atomic application.
 
 - Advanced 11 narrows custom matching to one clear policy. One recipe consumes

@@ -1,6 +1,7 @@
 package betamoon.luamodloader;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -13,6 +14,48 @@ public final class LuaScriptRegistry {
     private static final ThreadLocal<String> currentScriptFile = new ThreadLocal<>();
 
     private LuaScriptRegistry() {
+    }
+
+    /** Immutable, callback-free script description for diagnostics and tooling. */
+    public static final class Description {
+        public final String displayName;
+        public final String sourceFileName;
+        public final String version;
+        public final String description;
+        public final String imagePath;
+        public final String packageLayout;
+        public final String entrypointPath;
+        public final List<String> sourcePaths;
+        public final List<String> dependencies;
+        public final List<String> missingDependencies;
+        public final boolean loaded;
+        public final boolean failed;
+        public final String failureReason;
+        public final boolean supportsReload;
+        public final boolean supportsUnload;
+
+        private Description(ScriptMod script) {
+            displayName = script.getDisplayName();
+            sourceFileName = script.getSourceFileName();
+            version = script.getVersion();
+            description = script.getDescription();
+            imagePath = script.getImagePath();
+            packageLayout = script.getPackageLayout();
+            entrypointPath = script.getEntrypointPath();
+            sourcePaths = copy(script.getSourcePaths());
+            dependencies = copy(script.getDependencies());
+            missingDependencies = copy(script.getMissingDependencies());
+            loaded = script.isLoaded();
+            failed = script.isFailed();
+            failureReason = script.getFailureReason();
+            supportsReload = script.supportsReload();
+            supportsUnload = script.supportsUnload();
+        }
+
+        private static List<String> copy(List<String> values) {
+            return values == null ? Collections.<String>emptyList()
+                    : Collections.unmodifiableList(new ArrayList<String>(values));
+        }
     }
 
     /**
@@ -40,6 +83,12 @@ public final class LuaScriptRegistry {
         entry = new ScriptMod(fileName);
         entries.add(entry);
         byFile.put(fileName, entry);
+        return entry;
+    }
+
+    static synchronized ScriptMod registerSource(LuaModSource source) {
+        ScriptMod entry = registerFile(source.entrypointRelative());
+        entry.source = source;
         return entry;
     }
 
@@ -89,6 +138,20 @@ public final class LuaScriptRegistry {
             byName.put(name, entry);
         }
         return entry;
+    }
+
+    static synchronized ScriptMod updateParsed(LuaModSource source, String name, List<String> dependencies,
+            LuaValue modInit, LuaValue modReload, LuaValue modUnload, String description, String version,
+            String imagePath) {
+        registerSource(source);
+        ScriptMod entry = updateParsed(source.entrypointRelative(), name, dependencies, modInit, modReload, modUnload,
+                description, version, imagePath);
+        entry.source = source;
+        return entry;
+    }
+
+    static synchronized ScriptMod findByFile(String fileName) {
+        return byFile.get(fileName);
     }
 
     /**
@@ -147,6 +210,14 @@ public final class LuaScriptRegistry {
      */
     public static synchronized List<ScriptMod> getEntries() {
         return new ArrayList<>(entries);
+    }
+
+    public static synchronized List<Description> snapshot() {
+        List<Description> result = new ArrayList<Description>();
+        for (ScriptMod entry : entries) {
+            result.add(new Description(entry));
+        }
+        return Collections.unmodifiableList(result);
     }
 
     /**

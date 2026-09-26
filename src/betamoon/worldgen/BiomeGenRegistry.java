@@ -1,7 +1,9 @@
 package betamoon.worldgen;
 
+import betamoon.luamodloader.LuaScriptRegistry;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import net.minecraft.src.BiomeGenBase;
 
@@ -28,6 +30,7 @@ public final class BiomeGenRegistry {
         private final double maxTemperature;
         private final double minHumidity;
         private final double maxHumidity;
+        private final String owner;
 
         private BiomeGenEntry(BiomeGenBase biome, double minTemperature, double maxTemperature, double minHumidity,
                 double maxHumidity) {
@@ -36,6 +39,28 @@ public final class BiomeGenRegistry {
             this.maxTemperature = maxTemperature;
             this.minHumidity = minHumidity;
             this.maxHumidity = maxHumidity;
+            this.owner = LuaScriptRegistry.getCurrentScriptFile();
+        }
+    }
+
+    /** Immutable biome-range description for diagnostics. */
+    public static final class Description {
+        public final String owner;
+        public final String name;
+        public final String implementation;
+        public final double minTemperature;
+        public final double maxTemperature;
+        public final double minHumidity;
+        public final double maxHumidity;
+
+        private Description(BiomeGenEntry entry) {
+            owner = entry.owner;
+            name = entry.biome.biomeName;
+            implementation = entry.biome.getClass().getName();
+            minTemperature = entry.minTemperature;
+            maxTemperature = entry.maxTemperature;
+            minHumidity = entry.minHumidity;
+            maxHumidity = entry.maxHumidity;
         }
     }
 
@@ -68,6 +93,14 @@ public final class BiomeGenRegistry {
             return;
         }
         ENTRIES.add(new BiomeGenEntry(biome, minTemperature, maxTemperature, minHumidity, maxHumidity));
+    }
+
+    public static synchronized List<Description> snapshot() {
+        List<Description> result = new ArrayList<Description>();
+        for (BiomeGenEntry entry : ENTRIES) {
+            result.add(new Description(entry));
+        }
+        return Collections.unmodifiableList(result);
     }
 
     /**

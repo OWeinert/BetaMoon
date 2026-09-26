@@ -1,6 +1,7 @@
 package betamoon.io;
 
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import javax.imageio.ImageIO;
@@ -20,5 +21,13 @@ public final class ImageIo {
             return null;
         }
         return ImageIO.read(file);
+    }
+
+    /** Loads an image from in-memory encoded bytes. */
+    public static BufferedImage loadImage(byte[] bytes) throws IOException {
+        if (bytes == null || bytes.length == 0) {
+            return null;
+        }
+        return ImageIO.read(new ByteArrayInputStream(bytes));
     }
 }

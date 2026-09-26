@@ -64,7 +64,7 @@ public final class ProjectileImpact {
             context.set("position", position);
             context.set("world", LuaWorldActionAccess.create(scope, projectile.worldObj,
                     (int) Math.floor(hit.position.xCoord), (int) Math.floor(hit.position.yCoord),
-                    (int) Math.floor(hit.position.zCoord)));
+                    (int) Math.floor(hit.position.zCoord), projectile));
             LuaValue result = definition.onImpact.call(context);
             if (result.isnil() || result.eq_b(LuaValue.valueOf("default"))) {
                 return Action.DEFAULT;

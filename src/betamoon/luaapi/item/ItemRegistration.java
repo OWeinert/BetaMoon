@@ -63,9 +63,9 @@ final class ItemRegistration {
             String label = definition.kind.isTool() ? "tool" : "armor";
             BetaMoonCommon.LOGGER.warning("Ignored duplicate " + label + " register: id=" + definition.id);
         } else {
-            ModLoader.AddName(item, definition.displayName);
             entry.registered = true;
         }
+        ModLoader.AddName(item, definition.displayName);
         ItemModelRegistry.install(definition.id, appearance);
         ItemCallbackRegistry.install(definition.id, definition.callbacks);
         return item;

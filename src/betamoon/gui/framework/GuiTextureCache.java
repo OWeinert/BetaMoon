@@ -5,7 +5,9 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
@@ -40,6 +42,23 @@ public final class GuiTextureCache {
         return texture;
     }
 
+    public synchronized Texture get(String key, byte[] pngBytes, long revision) {
+        if (key == null || pngBytes == null) {
+            return null;
+        }
+        long contentRevision = revision * 31L + Arrays.hashCode(pngBytes);
+        Entry cached = entries.get(key);
+        if (cached != null && cached.modified == contentRevision && cached.length == pngBytes.length) {
+            return cached.texture;
+        }
+        if (cached != null) {
+            delete(cached.texture);
+        }
+        Texture texture = load(pngBytes);
+        entries.put(key, new Entry(contentRevision, pngBytes.length, texture));
+        return texture;
+    }
+
     public synchronized void invalidate(File file) {
         if (file == null) {
             return;
@@ -58,7 +77,7 @@ public final class GuiTextureCache {
     }
 
     private static Texture load(File file) {
-        if (!file.isFile() || !file.getName().toLowerCase().endsWith(".png")) {
+        if (!file.isFile() || !file.getName().toLowerCase(Locale.ROOT).endsWith(".png")) {
             return null;
         }
         BufferedImage image;
@@ -67,6 +86,20 @@ public final class GuiTextureCache {
         } catch (IOException exception) {
             return null;
         }
+        return upload(image);
+    }
+
+    private static Texture load(byte[] pngBytes) {
+        BufferedImage image;
+        try {
+            image = ImageIo.loadImage(pngBytes);
+        } catch (IOException exception) {
+            return null;
+        }
+        return upload(image);
+    }
+
+    private static Texture upload(BufferedImage image) {
         if (image == null || image.getWidth() <= 0 || image.getHeight() <= 0) {
             return null;
         }

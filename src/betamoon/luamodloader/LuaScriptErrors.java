@@ -182,7 +182,7 @@ public final class LuaScriptErrors {
             this.message = scriptName + ": " + detail;
             String file = null;
             int lineValue = -1;
-            if (scriptName != null && scriptName.endsWith(".lua")) {
+            if (scriptName != null && (scriptName.endsWith(".lua") || scriptName.endsWith(".zip"))) {
                 file = scriptName;
             }
             // Extract "file.lua:line" from the detail when present.
@@ -195,6 +195,9 @@ public final class LuaScriptErrors {
                     fileStart += 1;
                 }
                 String fileCandidate = detail.substring(fileStart, luaIndex + 4);
+                while (fileCandidate.startsWith("@") || fileCandidate.startsWith("(")) {
+                    fileCandidate = fileCandidate.substring(1);
+                }
                 int lineStart = luaIndex + 5;
                 int lineEnd = lineStart;
                 while (lineEnd < detail.length()) {

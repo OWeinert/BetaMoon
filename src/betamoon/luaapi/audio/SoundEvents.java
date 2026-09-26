@@ -9,6 +9,8 @@ import betamoon.luamodloader.ScriptAssetScope;
 import betamoon.luamodloader.ScriptResourceTracker;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +30,7 @@ public final class SoundEvents {
     private SoundEvents() {
     }
 
-    static void stage(SoundEventDefinition definition) {
+    static synchronized void stage(SoundEventDefinition definition) {
         ScriptAssetScope.requireInitialization();
         String owner = LuaScriptRegistry.getCurrentScriptFile();
         Entry existing = PUBLISHED.get(definition.key);
@@ -49,15 +51,14 @@ public final class SoundEvents {
         Entry entry = new Entry(owner, definition);
         PENDING.put(definition.key, entry);
         ScriptResourceTracker.track(() -> {
-            PENDING.remove(definition.key, entry);
-            PUBLISHED.remove(definition.key, entry);
+            remove(entry);
             for (SoundAsset sound : retained) {
                 sound.close();
             }
         });
     }
 
-    public static void publish(String owner) {
+    public static synchronized void publish(String owner) {
         for (Entry entry : new ArrayList<>(PENDING.values())) {
             if (owner.equals(entry.owner)) {
                 PUBLISHED.put(entry.definition.key, entry);
@@ -66,7 +67,7 @@ public final class SoundEvents {
         }
     }
 
-    static SoundEventDefinition find(AssetKey key) {
+    static synchronized SoundEventDefinition find(AssetKey key) {
         Entry pending = PENDING.get(key);
         if (pending != null && pending.owner.equals(LuaScriptRegistry.getCurrentScriptFile())) {
             return pending.definition;
@@ -110,6 +111,67 @@ public final class SoundEvents {
             ClientAudio.play(clip.getContent().getValue(), (float) x, (float) y, (float) z,
                     true, volume, pitch, range);
         }
+    }
+
+    private static synchronized void remove(Entry entry) {
+        PENDING.remove(entry.definition.key, entry);
+        PUBLISHED.remove(entry.definition.key, entry);
+    }
+
+    /** Immutable event metadata for diagnostics; decoded sounds stay private. */
+    public static final class Description {
+        public final AssetKey key;
+        public final String owner;
+        public final float volume;
+        public final float pitchMin;
+        public final float pitchMax;
+        public final float range;
+        public final List<ClipDescription> clips;
+
+        private Description(Entry entry) {
+            SoundEventDefinition definition = entry.definition;
+            key = definition.key;
+            owner = entry.owner;
+            volume = definition.volume;
+            pitchMin = definition.pitchMin;
+            pitchMax = definition.pitchMax;
+            range = definition.range;
+            List<ClipDescription> values = new ArrayList<ClipDescription>();
+            for (SoundEventDefinition.Clip clip : definition.clips) {
+                values.add(new ClipDescription(clip));
+            }
+            clips = Collections.unmodifiableList(values);
+        }
+    }
+
+    public static final class ClipDescription {
+        public final String kind;
+        public final String fallbackPath;
+        public final String overridePath;
+        public final boolean builtIn;
+        public final double weight;
+
+        private ClipDescription(SoundEventDefinition.Clip clip) {
+            kind = clip.location.getKind().name().toLowerCase(java.util.Locale.ROOT);
+            fallbackPath = clip.location.getFallback().toString();
+            overridePath = clip.location.getOverride().toString();
+            builtIn = clip.location.isBuiltin();
+            weight = clip.weight;
+        }
+    }
+
+    public static synchronized List<Description> snapshot() {
+        List<Description> result = new ArrayList<Description>();
+        for (Entry entry : PUBLISHED.values()) {
+            result.add(new Description(entry));
+        }
+        Collections.sort(result, new Comparator<Description>() {
+            @Override
+            public int compare(Description left, Description right) {
+                return left.key.toString().compareTo(right.key.toString());
+            }
+        });
+        return Collections.unmodifiableList(result);
     }
 
     private static final class Entry {

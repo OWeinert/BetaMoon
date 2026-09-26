@@ -1,8 +1,9 @@
 package betamoon.client.assets;
 
 import betamoon.assets.io.AssetResolver;
+import betamoon.assets.io.BuiltinAssetProvider;
 import betamoon.assets.io.AssetProvider;
-import betamoon.assets.io.FileAssetProvider;
+import betamoon.assets.io.PackageAssetProvider;
 import betamoon.assets.io.ResolvedAsset;
 import betamoon.assets.io.ZipAssetProvider;
 import betamoon.client.audio.ClientSounds;
@@ -56,14 +57,25 @@ public final class ClientAssets {
     }
 
     public static ResolvedAsset<TextureImage> resolveTexture(AssetLocation location) throws IOException {
-        ensureProviders();
-        return resolver.resolve(location.getCacheKey(), location.getFallback(), location.getOverride(),
+        AssetResolver textureResolver = getResolver(location);
+        if (location.isBuiltin()) {
+            textureResolver = textureResolver.withDefaults(BuiltinAssetProvider.INSTANCE, "builtin");
+        }
+        return textureResolver.resolve(location.getCacheKey(), location.getFallback(), location.getOverride(),
                 MAX_TEXTURE_BYTES, TextureImage::decode);
     }
 
     public static AssetResolver getResolver() throws IOException {
         ensureProviders();
         return resolver;
+    }
+
+    public static AssetResolver getResolver(String source) throws IOException {
+        return getResolver().forSource(source);
+    }
+
+    public static AssetResolver getResolver(AssetLocation location) throws IOException {
+        return getResolver(location.getDefaultSource());
     }
 
     /**
@@ -169,7 +181,7 @@ public final class ClientAssets {
                 throw new IOException("Selected texture pack file is unavailable");
             }
         }
-        resolver = new AssetResolver(new FileAssetProvider(root), pack, diagnostics);
+        resolver = new AssetResolver(new PackageAssetProvider(root), pack, diagnostics);
     }
 
     /**

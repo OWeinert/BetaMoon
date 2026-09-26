@@ -1,6 +1,6 @@
 package betamoon.luaapi.entity;
 
-import betamoon.entity.EntityDataField;
+import betamoon.data.DataField;
 import betamoon.entity.LuaEntityPart;
 import betamoon.entity.TypedEntity;
 import betamoon.luaapi.utils.LuaCallbackScope;
@@ -11,7 +11,7 @@ import net.minecraft.src.World;
 import org.luaj.vm2.LuaValue;
 
 /** Converts stable saved references without coupling the persistence store to live entity handles. */
-final class EntityDataLuaContext implements EntityDataField.LuaContext {
+final class EntityDataLuaContext implements DataField.LuaContext {
     private final LuaCallbackScope scope;
     private final World world;
 
@@ -21,7 +21,7 @@ final class EntityDataLuaContext implements EntityDataField.LuaContext {
     }
 
     @Override
-    public EntityDataField.ReferenceValue readReference(LuaValue value, String path) {
+    public DataField.ReferenceValue readReference(LuaValue value, String path) {
         if (value.isnil()) {
             return null;
         }
@@ -37,10 +37,10 @@ final class EntityDataLuaContext implements EntityDataField.LuaContext {
             if (username == null || username.isEmpty()) {
                 throw LuaDeclarationValues.error(path, "player has no stable name");
             }
-            return new EntityDataField.ReferenceValue("player", username);
+            return new DataField.ReferenceValue("player", username);
         }
         if (entity instanceof TypedEntity && !(entity instanceof LuaEntityPart)) {
-            return new EntityDataField.ReferenceValue("entity",
+            return new DataField.ReferenceValue("entity",
                     ((TypedEntity) entity).entityState().identity());
         }
         throw LuaDeclarationValues.error(path,
@@ -48,7 +48,7 @@ final class EntityDataLuaContext implements EntityDataField.LuaContext {
     }
 
     @Override
-    public LuaValue writeReference(EntityDataField.ReferenceValue value) {
+    public LuaValue writeReference(DataField.ReferenceValue value) {
         return new EntityDataReference(scope, world, value);
     }
 }

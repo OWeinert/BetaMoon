@@ -186,7 +186,8 @@ final class EntitySensorManager {
             context.set("other", LuaEntityActionAccess.create(scope, null, other));
             context.set("sensor", sensor.name);
             context.set("world", LuaWorldActionAccess.create(scope, parent.worldObj,
-                    (int) Math.floor(parent.posX), (int) Math.floor(parent.posY), (int) Math.floor(parent.posZ)));
+                    (int) Math.floor(parent.posX), (int) Math.floor(parent.posY), (int) Math.floor(parent.posZ),
+                    parent));
             if (reason != null) {
                 context.set("reason", reason);
             }

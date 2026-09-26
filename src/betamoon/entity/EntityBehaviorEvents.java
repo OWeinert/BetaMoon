@@ -55,7 +55,8 @@ final class EntityBehaviorEvents {
         try (LuaCallbackScope scope = new LuaCallbackScope(true)) {
             extra.set("entity", LuaEntityActionAccess.create(scope, null, entity));
             extra.set("world", LuaWorldActionAccess.create(scope, entity.worldObj,
-                    (int) Math.floor(entity.posX), (int) Math.floor(entity.posY), (int) Math.floor(entity.posZ)));
+                    (int) Math.floor(entity.posX), (int) Math.floor(entity.posY), (int) Math.floor(entity.posZ),
+                    entity));
             extra.set("age", entity.ticksExisted);
             callback.call(extra);
         } catch (RuntimeException error) {

@@ -51,7 +51,8 @@ public final class AssetsApi {
                 AssetDeclaration declaration = AssetDeclaration.read(kind, args.arg(args.arg1() == registry ? 2 : 1));
                 AssetDefinition definition = null;
                 try {
-                    definition = declaration.resolve(ClientAssets.getResolver());
+                    String owner = ScriptAssetScope.currentOwner();
+                    definition = declaration.resolve(ClientAssets.getResolver(owner)).fromSource(owner);
                     ScriptAssetScope.stage(definition);
                     AssetLocation location = new AssetLocation(definition);
                     if (kind == AssetKind.TEXTURE) {

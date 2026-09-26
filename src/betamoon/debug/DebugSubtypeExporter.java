@@ -16,7 +16,8 @@ final class DebugSubtypeExporter {
     /**
      * Writes subtype entries for items/blocks that rely on metadata.
      */
-    static void writeSubItemEntries(BufferedWriter writer, int exportId, int stackId) throws IOException {
+    static int writeSubItemEntries(BufferedWriter writer, int exportId, int stackId) throws IOException {
+        int records = 0;
         String baseInternal = null;
         String baseDisplay = null;
         Set<String> seen = new HashSet<>();
@@ -55,8 +56,11 @@ final class DebugSubtypeExporter {
                 }
                 seen.add(signature);
                 String idText = DebugExportNames.formatIdWithDamage(exportId, damage);
-                writer.write("    " + idText + " : " + rawInternal + " : \"" + rawDisplay + "\"");
+                writer.write("    identifier: " + idText + " | metadata: " + damage + " | internal name: "
+                        + DebugExportNames.safeString(rawInternal) + " | display name: \""
+                        + DebugExportNames.safeString(rawDisplay) + "\"");
                 writer.newLine();
+                records++;
             } catch (RuntimeException e) {
                 // Some items only define a subset of subtypes; skip invalid metadata.
                 if (e instanceof ArrayIndexOutOfBoundsException) {
@@ -64,5 +68,6 @@ final class DebugSubtypeExporter {
                 }
             }
         }
+        return records;
     }
 }

@@ -284,7 +284,7 @@ public final class GuiShowcaseRenderTest {
             renderScreen(scripts, minecraft, output, "scripts-screen.png");
             renderScreen(scripts, minecraft, output, "scripts-name-tooltip.png", 45, 57);
             renderScreen(new GuiPopupDebugMenu(scripts), minecraft, output, "debug-menu.png");
-            renderScreen(new GuiPopupDebugExport(scripts, null), minecraft, output, "debug-export.png");
+            renderScreen(new GuiPopupDebugExport(scripts, (Exception) null), minecraft, output, "debug-export.png");
             renderScreen(new GuiPopupScriptErrors(scripts), minecraft, output, "script-errors.png");
             renderScreen(new GuiPopupAgentWarning(scripts), minecraft, output, "agent-warning.png");
         } finally {

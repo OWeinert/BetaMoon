@@ -23,7 +23,7 @@ public final class LoaderCollectionsTest {
     private LoaderCollectionsTest() {
     }
 
-    public static void main(String[] arguments) {
+    public static void main(String[] arguments) throws Exception {
         try {
             verifyRegistrySnapshots();
             verifyCleanupOrderAndFailures();
@@ -39,6 +39,7 @@ public final class LoaderCollectionsTest {
             verifySourcePreflight();
             verifyRetainedScripts();
             verifyLoaderPhases();
+            FuelSystemTest.main(arguments);
             System.out.println("Loader collections passed: snapshots, cleanup, dependencies, lifecycle and sources.");
         } finally {
             ScriptResourceTracker.unloadAll();
@@ -239,7 +240,8 @@ public final class LoaderCollectionsTest {
         String exportingSource = "local public = { answer = 1 }\n"
                 + "assert(select('#', betamoon.modules:export('lifecycle_export', public)) == 0)\n"
                 + "assert(not pcall(function() betamoon.modules:export('missing_table') end))\n"
-                + "name = 'module exporter'\n" + "function modInit() public.answer = 42 end\n";
+                + "name = 'module exporter'\n"
+                + "function modInit() assert(package.loaded.lifecycle_export == nil) public.answer = 42 end\n";
         ScriptMod exporter = new ScriptModParser().parse(new File("module_exporter.lua"), exportingSource, errors);
         require(exporter != null && errors.isEmpty(), "A valid module export must parse as pending");
 

@@ -1,5 +1,6 @@
 package betamoon.luamodloader;
 
+import java.io.File;
 import java.util.List;
 import org.luaj.vm2.LuaValue;
 
@@ -17,6 +18,7 @@ public class ScriptMod {
     boolean failed;
     String failureReason;
     List<String> missingDependencies;
+    LuaModSource source;
 
     /**
      * Creates a script entry for a file that has not yet been parsed.
@@ -135,6 +137,71 @@ public class ScriptMod {
      */
     public String getImagePath() {
         return imagePath;
+    }
+
+    /** Resolves the optional image relative to this mod's storage root. */
+    public File resolveImageFile(File scriptsDirectory) {
+        if (imagePath == null || imagePath.trim().isEmpty()) {
+            return null;
+        }
+        if (source != null && source.layout() == LuaModSource.Layout.ZIP) {
+            return null;
+        }
+        File root = source != null && source.layout() == LuaModSource.Layout.DIRECTORY
+                ? source.moduleRoot() : scriptsDirectory;
+        if (root == null) {
+            return null;
+        }
+        try {
+            File canonicalRoot = root.getCanonicalFile();
+            File image = new File(canonicalRoot, imagePath).getCanonicalFile();
+            String rootPath = canonicalRoot.getPath();
+            if (!image.getPath().startsWith(rootPath + File.separator)) {
+                return null;
+            }
+            return image;
+        } catch (java.io.IOException ignored) {
+            return null;
+        }
+    }
+
+    /** Reads a package image stored inside a ZIP, or returns null for file-backed mods. */
+    public byte[] readArchivedImage(int maxBytes) throws java.io.IOException {
+        if (source == null || source.layout() != LuaModSource.Layout.ZIP || imagePath == null) {
+            return null;
+        }
+        return source.readResource(imagePath, maxBytes);
+    }
+
+    public String getImageCacheKey() {
+        return source == null || imagePath == null ? null : source.resourceCacheKey(imagePath);
+    }
+
+    public long getStorageRevision() {
+        return source == null ? 0L : source.storageRevision();
+    }
+
+    /** Returns single_file, directory, zip, or unknown without exposing disk paths. */
+    public String getPackageLayout() {
+        return source == null ? "unknown" : source.layout().name().toLowerCase(java.util.Locale.ROOT);
+    }
+
+    /** Returns the package-relative entrypoint used by the loader. */
+    public String getEntrypointPath() {
+        return source == null ? sourceFileName : source.entrypointPath();
+    }
+
+    /** Returns package-relative Lua source paths as an immutable snapshot. */
+    public List<String> getSourcePaths() {
+        return source == null ? java.util.Collections.singletonList(sourceFileName) : source.sourcePaths();
+    }
+
+    public boolean supportsReload() {
+        return modReload != null && !modReload.isnil();
+    }
+
+    public boolean supportsUnload() {
+        return modUnload != null && !modUnload.isnil();
     }
 
     /**

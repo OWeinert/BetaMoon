@@ -173,7 +173,12 @@ final class GuiIssueLayout {
             if (issue == null || issue.getSourceFile() == null || LuaModLoader.getLuaModsDir() == null) {
                 return null;
             }
-            File file = new File(LuaModLoader.getLuaModsDir(), issue.getSourceFile());
+            String source = issue.getSourceFile();
+            int archiveSeparator = source.indexOf("!/");
+            if (archiveSeparator >= 0) {
+                source = source.substring(0, archiveSeparator);
+            }
+            File file = new File(LuaModLoader.getLuaModsDir(), source);
             return file.isFile() ? file : null;
         }
     }

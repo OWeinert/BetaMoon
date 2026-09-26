@@ -1,5 +1,6 @@
 package betamoon.luaapi;
 
+import betamoon.luaapi.block.BlockApi;
 import betamoon.luaapi.block.BlockCallbackRegistry;
 import betamoon.luaapi.block.BlockCallback;
 import betamoon.luaapi.block.BlockFace;
@@ -20,9 +21,11 @@ import betamoon.luaapi.utils.InteractionOutcome;
 import betamoon.luaapi.utils.LuaCallbackDeclarations;
 import betamoon.luaapi.utils.LuaCallbackDispatcher;
 import betamoon.luaapi.item.ItemDefinition;
+import betamoon.luaapi.item.ItemApi;
 import betamoon.luaapi.item.ItemInteractionRouting;
 import betamoon.luaapi.item.LuaItemActionContext;
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.luamodloader.LuaContentRegistry;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.wrappers.BlockWrapper;
 import betamoon.wrappers.ItemFoodWrapper;
@@ -39,11 +42,13 @@ import net.minecraft.src.Entity;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.EntityPlayerSP;
 import net.minecraft.src.Session;
+import net.minecraft.src.StatCollector;
 import net.minecraft.src.IChunkProvider;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.ItemBlock;
 import net.minecraft.src.Item;
 import net.minecraft.src.Material;
+import net.minecraft.src.ModLoader;
 import net.minecraft.src.World;
 import net.minecraft.src.Vec3D;
 import net.minecraft.src.WorldProvider;
@@ -67,6 +72,7 @@ public final class BlockItemApiTest {
         owner.setAccessible(true);
         owner.invoke(null, "block_item_api_test.lua");
         Globals lua = JsePlatform.standardGlobals();
+        verifyDisplayNameReload(lua);
         verifyTypedCallbackContracts(lua);
         verifyCallbackExecutionState(lua);
         TestWorld world = new TestWorld();
@@ -201,6 +207,36 @@ public final class BlockItemApiTest {
         verifyItemBehavior(lua, world, player);
         System.out.println(
                 "Block/item API checks passed: state, directional power, live access, shapes, use routing and food.");
+    }
+
+    private static void verifyDisplayNameReload(Globals lua) {
+        int blockId = 250;
+        BlockWrapper block = new BlockWrapper(blockId, 1, Material.rock, "reload_name");
+        LuaContentRegistry.Entry blockEntry = LuaContentRegistry.remember("block", blockId, block, "block:rock");
+        blockEntry.registered = true;
+        ModLoader.AddName(block, "Original Block Name");
+        LuaValue reloadedBlock = lua.load("return {id=" + blockId
+                + ",key='test:block/reload_name',material='rock',texture=1,displayName='Reloaded Block Name'}")
+                .call();
+        Block retainedBlock = BlockApi.add(reloadedBlock);
+        require(retainedBlock == block, "Block hot reload replaced its native identity");
+        require("Reloaded Block Name".equals(block.translateBlockName()),
+                "Block hot reload did not replace its translated display name");
+
+        int toolId = 5099;
+        LuaValue firstTool = lua.load("return {id=" + toolId
+                + ",key='test:item/reload_pickaxe',type='pickaxe',material='iron',displayName='Original Tool Name'}")
+                .call();
+        Item tool = ItemApi.add(firstTool);
+        LuaValue reloadedTool = lua.load("return {id=" + toolId
+                + ",key='test:item/reload_pickaxe',type='pickaxe',material='iron',displayName='Reloaded Tool Name'}")
+                .call();
+        Item retainedTool = ItemApi.add(reloadedTool);
+        require(retainedTool == tool, "Tool hot reload replaced its native identity");
+        ItemStack toolStack = new ItemStack(tool);
+        String translatedToolName = StatCollector.translateToLocal(tool.getItemNameIS(toolStack) + ".name");
+        require("Reloaded Tool Name".equals(translatedToolName),
+                "Tool hot reload did not replace its translated display name");
     }
 
     private static void verifyTypedCallbackContracts(Globals lua) {
