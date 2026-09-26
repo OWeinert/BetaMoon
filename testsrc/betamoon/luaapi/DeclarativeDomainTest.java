@@ -168,7 +168,8 @@ public final class DeclarativeDomainTest {
         try {
             lua.load("local ores=betamoon.worldgen.ores; "
                     + "local def={block=1,veinsPerChunk=3,veinSize=7,height={min=4,max=12}}; "
-                    + "assert(ores:add(def)==nil); def.dimension='hell'; ores.add(def); "
+                    + "local ore=ores:add(def); assert(ore:getKey() and ore:getFeature():getKey()); "
+                    + "def.dimension='hell'; ores.add(def); "
                     + "def.dimension='both'; ores:add(def); def.height.min=13; "
                     + "assert(not pcall(function() ores:add(def) end)); "
                     + "assert(not pcall(function() ores:add({block=1,veinsPerChunk=1,veinSize=1,"
@@ -180,22 +181,22 @@ public final class DeclarativeDomainTest {
                     + "assert(not pcall(function() biomes:add({name='bad_spawn',spawns={missing={}}}) end)); "
                     + "assert(not pcall(function() biomes:add({name='bad_entity',"
                     + "spawns={creatures={{entity='Item',weight=1}}}}) end))").call();
-            List<?> ores = entries(WorldGenRegistry.class, "ORE_ENTRIES");
+            List<WorldGenRegistry.Description> ores = WorldGenRegistry.snapshot();
             require(ores.size() == 3, "Invalid ore declarations must not install generators");
-            require(GenerationDimension.OVERWORLD.equals(field(ores.get(0), "dimension")), "Default ore dimension");
-            require(GenerationDimension.NETHER.equals(field(ores.get(1), "dimension")), "Nether alias");
-            require(GenerationDimension.BOTH.equals(field(ores.get(2), "dimension")), "Both-dimensions mode");
-            require(field(ores.get(0), "targetBlockId") == null && field(ores.get(1), "targetBlockId") == null
-                    && field(ores.get(2), "targetBlockId") == null,
+            require(hasDimension(ores, "overworld"), "Default ore dimension");
+            require(hasDimension(ores, "nether"), "Nether alias");
+            require(hasDimension(ores, "both"), "Both-dimensions mode");
+            require(ores.get(0).targetBlockId == null && ores.get(1).targetBlockId == null
+                    && ores.get(2).targetBlockId == null,
                     "Default replacement is selected for the active dimension");
             require(GenerationDimension.BOTH.includes(false) && GenerationDimension.BOTH.includes(true),
                     "Both-dimensions entries run in the overworld and nether");
-            List<?> biomes = entries(BiomeGenRegistry.class, "ENTRIES");
+            List<BiomeGenRegistry.Description> biomes = BiomeGenRegistry.snapshot();
             require(biomes.size() == 1, "Invalid biome declarations must not install overlays");
-            BiomeGenBase biome = (BiomeGenBase) field(biomes.get(0), "biome");
-            require("quality_biome".equals(biome.biomeName), "Custom biome name");
+            BiomeGenRegistry.Description biome = biomes.get(0);
+            require("quality_biome".equals(biome.name), "Custom biome name");
             require(biome.topBlock == Block.stone.blockID, "Surface override");
-            require(biome.fillerBlock == BiomeGenBase.desert.fillerBlock, "Inherited surface");
+            require(biome.fillerBlock == (BiomeGenBase.desert.fillerBlock & 255), "Inherited surface");
             require(BiomeGenBase.desert.topBlock != Block.stone.blockID, "Source biome must remain unchanged");
         } finally {
             WorldGenRegistry.clear();
@@ -203,16 +204,13 @@ public final class DeclarativeDomainTest {
         }
     }
 
-    private static List<?> entries(Class<?> type, String name) throws Exception {
-        Field field = type.getDeclaredField(name);
-        field.setAccessible(true);
-        return (List<?>) field.get(null);
-    }
-
-    private static Object field(Object target, String name) throws Exception {
-        Field field = target.getClass().getDeclaredField(name);
-        field.setAccessible(true);
-        return field.get(target);
+    private static boolean hasDimension(List<WorldGenRegistry.Description> entries, String dimension) {
+        for (WorldGenRegistry.Description entry : entries) {
+            if (dimension.equals(entry.dimension)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void require(boolean condition, String message) {

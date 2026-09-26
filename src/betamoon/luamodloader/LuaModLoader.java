@@ -78,6 +78,8 @@ public final class LuaModLoader {
             presentScripts.add(mod.sourceFileName);
         }
         EntityTypeRegistry.retainOwners(presentScripts);
+        WorldGenRegistry.retainOwners(presentScripts);
+        BiomeGenRegistry.retainOwners(presentScripts);
         EntityPresentationResources.prune();
         reportFailedMods(failedMods);
         reportLoadSummary(ordered, failedMods);
@@ -135,8 +137,6 @@ public final class LuaModLoader {
             }
             lifecycleRunner.unloadReloadableScripts();
             ScriptResourceTracker.unloadReloadable();
-            WorldGenRegistry.clear();
-            BiomeGenRegistry.clear();
             RecipeModificationHandler.createRecipeMap();
             phase = LoaderPhase.HOT_RELOAD;
             loadAndRunInternal();

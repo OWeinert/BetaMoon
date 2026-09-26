@@ -12,7 +12,7 @@ public final class BiomeRegistration {
     private BiomeRegistration() {
     }
 
-    public static BiomeGenWrapper register(BiomeDeclaration definition) {
+    public static WorldGenKey register(BiomeDeclaration definition, WorldGenKey surface, int decoratorCount) {
         BiomeGenWrapper biome;
         if (definition.basedOn == null) {
             biome = new BiomeGenWrapper(definition.name);
@@ -40,6 +40,9 @@ public final class BiomeRegistration {
         if (definition.bigTreeChance != null) {
             biome.applyBigTreeChance(definition.bigTreeChance);
         }
+        if (definition.key != null || decoratorCount > 0) {
+            biome.applyTreeMode(BiomeTreeMode.NONE);
+        }
         switch (definition.weather) {
             case SNOW:
                 biome.applyRainEnabled(false);
@@ -61,8 +64,8 @@ public final class BiomeRegistration {
                 biome.addSpawn(group.getKey(), spawn.entity, spawn.weight);
             }
         }
-        BiomeGenRegistry.registerBiomeGenerator(biome, definition.temperature.min, definition.temperature.max,
-                definition.humidity.min, definition.humidity.max);
-        return biome;
+        return BiomeGenRegistry.registerBiomeGenerator(definition.key, biome, definition.tags, surface,
+                definition.temperature.min, definition.temperature.max, definition.humidity.min,
+                definition.humidity.max, definition.legacyClimateRange, decoratorCount);
     }
 }
