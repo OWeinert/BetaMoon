@@ -104,7 +104,7 @@ manifested packages whose entrypoints organize private modules with `require`.
 | 03 | `03_adv_03_basic_storage/` (`betamoon.mod.json`, `main.lua`, `data.lua`, `layout.lua`) | Private declaration modules combined into saved storage, a container, and a GUI |
 | 04 | `03_adv_04_custom_furnace.lua` | A complete smelting machine with a composed private fuel set |
 | 05 | `03_adv_05_tile_redstone_controller.lua` | Persistent tile data controlling redstone output |
-| 06 | `03_adv_06_gui_showcase.lua` | Container GUI elements and synchronized presentation |
+| 06 | `03_adv_06_gui_showcase.lua` | Container GUI elements, interactive controls, session state, and synchronized presentation |
 | 07 | `03_adv_07_animated_machine.lua` | Animated block variants, material slots, glow, and sound |
 | 08 | `03_adv_08_simple_alloy/` (`betamoon.mod.json`, `main.lua`, `recipe_type.lua`, `recipes.lua`) | Simple named-slot recipe types, recipes, and a processing machine |
 | 09 | `03_adv_09_contextual_processor/` (`betamoon.mod.json`, `main.lua`, `recipe_type.lua`, `recipes.lua`) | Heat/power conditions and commit-time context revalidation |
@@ -114,10 +114,9 @@ manifested packages whose entrypoints organize private modules with `require`.
 | 13 | `03_adv_13_native_living_ai.lua` | Native living behavior composed with custom Lua AI |
 | 14 | `03_adv_14_manual_multipart_ai.lua` | Fully manual multipart creature behavior and hit regions |
 | 15 | `03_adv_15_energy_network.lua` | Capability operations, persistent energy, adjacent topology, and simulated/committed transfer |
-| 16 | `03_adv_16_wireless_trigger.lua` | Wireless channels, transmitter/receiver roles, retained state, and pulses |
-| 17 | `03_adv_17_hybrid_network.lua` | Adjacent local segments bridged by wireless gateways |
+| 16 | `03_adv_16_wireless_trigger.lua` | Editable wireless channels, transmitter/receiver roles, retained state, and pulses |
+| 17 | `03_adv_17_hybrid_network.lua` | Edge-driven adjacent segments bridged by wireless gateways |
 | 18 | `03_adv_18_world_service_and_data.lua` | Persistent per-world services and detached world, chunk, and player views |
-| 19 | `03_adv_19_interactive_machine.lua` | Container controls, temporary session state, focus, dragging, and custom input |
 
 ## Trying the interactive examples
 
@@ -153,7 +152,7 @@ manifested packages whose entrypoints organize private modules with `require`.
 | Advanced 03 | **Basic Storage** (224): chest surrounded by planks. Its screen reports occupied saved slots. |
 | Advanced 04 | **Fast Furnace** (204): vanilla furnace surrounded by iron. It smelts in 100 ticks and also accepts redstone as its private fuel. |
 | Advanced 05 | **Tile Redstone Controller** (225): insert a control key, then use input edges to toggle persistent output. |
-| Advanced 06 | **GUI Showcase** (208): chest + redstone. Use its Page and Sample slots to explore the gallery. |
+| Advanced 06 | **GUI Showcase** (208): chest + redstone. Use its Page and Sample slots to explore five pages, including interactive controls. |
 | Advanced 07 | **Animated Machine** (234): right-click to toggle its rotor, glow, and click. |
 | Advanced 08 | **Alloy Furnace** (209): see the simple-alloy table below. |
 | Advanced 09 | **Contextual Processor** (226): process dirt cold/unpowered, or heat sand with fuel and redstone. |
@@ -162,7 +161,6 @@ manifested packages whose entrypoints organize private modules with `require`.
 | Advanced 12 | **Data Totem**: obtain Data Totem Placer (5036), place and click it to check saved data, then punch it to recover the placer. |
 | Advanced 13 | **Clockwork Watcher** (5039): copy `animated_model_item/`, place a living creature, and test its wandering and retaliation. |
 | Advanced 14 | **Manual Guardian** (5040): copy `animated_model_item/`, place it, and inspect Lua-controlled decisions and optional head/wing hitboxes. |
-| Advanced 19 | **Control Console** (244): use built-in controls, keyboard focus, a dragged custom control, and temporary session state. |
 
 ## Multi-file lesson details
 

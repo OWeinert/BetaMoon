@@ -1,5 +1,6 @@
 -- Build two local segments: Input -> Gateway, then Gateway -> Output. The two
 -- gateways may be separated by up to 128 blocks and bridge the adjacent segments.
+-- Only redstone transitions are forwarded, avoiding repeated capability calls.
 
 name = "Hybrid Network Example"
 version = "1.0.0"
@@ -22,7 +23,10 @@ function modInit()
   local function tile(key, role, channel, kind, operation, tick)
     return betamoon.tileEntities:add {
       name = key,
-      data = { active = { type = "boolean", default = false } },
+      data = {
+        active = { type = "boolean", default = false },
+        previous = { type = "boolean", default = false }
+      },
       capabilities = {{
         capability = trigger,
         config = { role = role, channel = channel, kind = kind },
@@ -36,7 +40,11 @@ function modInit()
   local noOutput = function() return {} end
   local inputTile = tile("example:block/hybrid_input", "transmitter", "local-input", "input", noOutput,
     function(ctx)
-      ctx.entity.networks:getRequired("example:network/hybrid_trigger"):publish(ctx.world:isPowered())
+      local powered = ctx.world:isPowered()
+      if powered ~= ctx.entity.data:get("previous") then
+        ctx.entity.networks:getRequired("example:network/hybrid_trigger"):pulse(powered)
+        ctx.entity.data:set("previous", powered)
+      end
     end)
   local gatewayTile = tile("example:block/hybrid_gateway", "transceiver", "bridge", "gateway", noOutput)
   local outputTile = tile("example:block/hybrid_output", "receiver", "local-output", "output",
@@ -55,11 +63,10 @@ function modInit()
       type = "hybrid", directions = "orthogonal", scope = "dimension", range = 128,
       channelField = "channel", roleField = "role"
     },
-    signal = { mode = "state", value = { type = "boolean", default = false }, aggregate = "any" },
-    tick = { interval = 1 },
-    onTick = function(ctx)
+    signal = { mode = "pulse", value = { type = "boolean", default = false } },
+    onPulse = function(ctx)
       for _, output in ipairs(ctx.nodes:find { config = { kind = "output" } }) do
-        output:call("setOutput", { active = ctx.signal or false })
+        output:call("setOutput", { active = ctx.pulse or false })
       end
     end
   }
