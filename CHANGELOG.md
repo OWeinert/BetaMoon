@@ -22,6 +22,8 @@ and interactive-GUI examples.
 
 ### Examples and documentation
 
+- Add a minimal beginner multi-file mod tutorial with a manifest, entrypoint, and private module, and renumber the
+  later beginner lessons accordingly.
 - Fix the hybrid-network example's capability-call budget usage and clarify how to operate its local and remote
   network paths.
 - Add editable channel controls to the wireless transmitter and receiver example.

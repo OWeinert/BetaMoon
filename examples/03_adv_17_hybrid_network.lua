@@ -1,11 +1,21 @@
--- Build two local segments: Input -> Gateway, then Gateway -> Output. The two
--- gateways may be separated by up to 128 blocks and bridge the adjacent segments.
--- Only redstone transitions are forwarded, avoiding repeated capability calls.
+-- Build two separate adjacent segments: Input -> Gateway A and Gateway B -> Output.
+-- Put the gateways in the same dimension no more than 128 blocks apart. Power or
+-- unpower the Input; each transition crosses the wireless gateway link and makes
+-- the Output emit the matching redstone state. The channels are intentionally
+-- fixed so this example stays focused on hybrid topology; Advanced 16 demonstrates
+-- editable channel GUIs. Only transitions are forwarded, avoiding repeated calls.
 
 name = "Hybrid Network Example"
 version = "1.0.0"
-description = "Adds a hybrid trigger network. Place an input beside one gateway and an output beside another. " ..
-    "The gateways connect wirelessly while the input and output remain local to their adjacent segment."
+description = "Adds three blocks that demonstrate a hybrid trigger network. Obtain them from a creative or " ..
+    "debug inventory, then build two separate adjacent segments: place Hybrid Input directly beside Hybrid " ..
+    "Gateway A, and place Hybrid Output directly beside Hybrid Gateway B. Keep both gateways in the same " ..
+    "dimension and no more than 128 blocks apart; the blocks do not need line of sight.\n\n" ..
+    "Apply redstone power to Hybrid Input. Gateway A carries that transition over the wireless bridge to " ..
+    "Gateway B, and Hybrid Output begins emitting redstone power. Remove the input power to turn the output " ..
+    "off. The network forwards changes rather than continuously repeating the same state, so toggle the input " ..
+    "after assembling the network. Its fixed internal channels keep this lesson focused on adjacent-to-wireless " ..
+    "bridging; Advanced 16 shows editable wireless channel controls."
 
 function modInit()
   local trigger = betamoon.capabilities:add {

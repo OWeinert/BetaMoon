@@ -1,0 +1,7 @@
+{
+  "entrypoint": "main.lua",
+  "name": "Multi-file Base Mod",
+  "version": "1.0.0",
+  "description": "A minimal packaged BetaMoon mod that demonstrates a manifest, an entrypoint, and a private Lua module.",
+  "dependencies": []
+}
