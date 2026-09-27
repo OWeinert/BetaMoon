@@ -6,6 +6,7 @@ import betamoon.capability.CapabilityAttachmentDefinition;
 import betamoon.capability.CapabilityDefinition;
 import betamoon.capability.CapabilityInstance;
 import betamoon.capability.CapabilityOperationDefinition;
+import betamoon.capability.CapabilityOperationOverrides;
 import betamoon.data.DataRecords;
 import betamoon.luaapi.tileentity.LuaTileDataAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
@@ -209,9 +210,10 @@ public final class LuaCapabilityAccess {
         DEPTH.set(Integer.valueOf(depth + 1));
         boolean mutable = operation.mode == CapabilityOperationDefinition.Mode.ACTION && scope.isMutable();
         try (LuaCallbackScope operationScope = new LuaCallbackScope(mutable)) {
-            LuaValue response = instance.attachment.operations.get(operationName).call(
-                    context(operationScope, instance, face, mutable),
-                    DataRecords.write(operation.request, request));
+            LuaTable callbackContext = context(operationScope, instance, face, mutable);
+            LuaValue requestTable = DataRecords.write(operation.request, request);
+            LuaValue response = CapabilityOperationOverrides.invoke(instance, operationName, callbackContext,
+                    requestTable, instance.attachment.operations.get(operationName));
             Map<String, Object> parsed = DataRecords.read(
                     operation.response, response, "capability response", true);
             return DataRecords.write(operation.response, parsed);

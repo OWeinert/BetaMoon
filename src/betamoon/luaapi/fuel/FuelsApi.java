@@ -6,10 +6,14 @@ import betamoon.fuel.FuelRegistration;
 import betamoon.fuel.FuelResolution;
 import betamoon.fuel.FuelSetDefinition;
 import betamoon.luaapi.LuaApiUtils;
+import betamoon.luaapi.resource.LuaResultList;
+import betamoon.luaapi.resource.OverrideManager;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptResourceTracker;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
 import org.luaj.vm2.LuaError;
@@ -21,6 +25,7 @@ import org.luaj.vm2.lib.VarArgFunction;
 /** Installs named fuel sets, registrations, lookup, and machine-facing queries. */
 public final class FuelsApi {
     public static final int MAX_BURN_TIME = FuelRegistry.MAX_BURN_TIME;
+    private static final Map<FuelRegistration, FuelRegistrationReference> REGISTRATION_REFERENCES = new IdentityHashMap<FuelRegistration, FuelRegistrationReference>();
 
     private FuelsApi() {
     }
@@ -30,6 +35,9 @@ public final class FuelsApi {
         service.set("add", new AddFuel(service));
         service.set("getBurnTime", new GetBurnTime(service));
         service.set("isFuel", new IsFuel(service));
+        service.set("find", new FindFuels(service, 0));
+        service.set("first", new FindFuels(service, 1));
+        service.set("one", new FindFuels(service, 2));
         service.set("sets", new FuelSets());
         module.set("fuels", service);
     }
@@ -96,7 +104,49 @@ public final class FuelsApi {
                     FuelRegistry.remove(registration);
                 }
             });
-            return new FuelRegistrationReference(registration);
+            return registrationReference(registration);
+        }
+    }
+
+    private static final class FindFuels extends VarArgFunction {
+        private final FuelService service;
+        private final int mode;
+
+        private FindFuels(FuelService service, int mode) {
+            this.service = service;
+            this.mode = mode;
+        }
+
+        @Override
+        public Varargs invoke(Varargs args) {
+            LuaValue query = argument(args, service, 1);
+            if (query.isnil()) {
+                query = new LuaTable();
+            }
+            if (!query.istable()) {
+                throw new LuaError("fuel query must be a table.");
+            }
+            List<LuaValue> matches = new ArrayList<LuaValue>();
+            for (FuelRegistration registration : FuelRegistry.registrations()) {
+                FuelRegistrationReference reference = registrationReference(registration);
+                if (reference.matches(query)) {
+                    matches.add(reference);
+                }
+            }
+            if (mode == 1) {
+                return matches.isEmpty() ? NIL : matches.get(0);
+            }
+            if (mode == 2) {
+                if (matches.isEmpty()) {
+                    return NIL;
+                }
+                if (matches.size() != 1) {
+                    throw new LuaError("Expected exactly one fuel registration, found " + matches.size() + ".");
+                }
+                return matches.get(0);
+            }
+            return new LuaResultList(matches, (reference, definition, index) ->
+                    ((FuelRegistrationReference) reference).applyOverride(definition));
         }
     }
 
@@ -221,13 +271,86 @@ public final class FuelsApi {
             set("getBurnTime", new SetBurnTime(this));
             set("contains", new SetContains(this));
             set("remove", new RemoveSet(this));
+            set("override", new VarArgFunction() {
+                public Varargs invoke(Varargs args) {
+                    return applyOverride(argument(args, FuelSetReference.this, 1));
+                }
+            });
         }
 
         @Override
         public LuaValue get(LuaValue key) {
-            return key.raweq(EXISTS) ? LuaValue.valueOf(FuelRegistry.contains(definition)) : super.get(key);
+            if (key.raweq(EXISTS)) {
+                return LuaValue.valueOf(FuelRegistry.contains(definition));
+            }
+            if (key.isstring() && key.tojstring().equals("include")) {
+                LuaTable result = new LuaTable();
+                for (int index = 0; index < definition.includes.size(); index++) {
+                    result.set(index + 1, definition.includes.get(index).toString());
+                }
+                return result;
+            }
+            return super.get(key);
+        }
+
+        private LuaValue applyOverride(LuaValue value) {
+            requireLive(this);
+            if (!value.istable()) {
+                throw new LuaError("fuel-set override expects a table.");
+            }
+            LuaValue when = value.get("when");
+            final LuaTable handle = new LuaTable();
+            handle.set("target", this);
+            if (!when.isnil() && !when.get("owner").isnil()
+                    && !definition.owner.equals(when.get("owner").checkjstring())) {
+                handle.set("active", FALSE);
+                handle.set("reason", "target owner did not match");
+                return handle;
+            }
+            LuaValue changes = value.get("changes");
+            if (changes.isnil()) {
+                changes = value;
+            }
+            LuaValue includes = changes.get("include");
+            if (includes.isnil() || !includes.istable()) {
+                throw new LuaError("fuel-set override requires an include list.");
+            }
+            List<AssetKey> parsed = new ArrayList<AssetKey>();
+            for (int index = 1; index <= includes.length(); index++) {
+                parsed.add(requireSetKey(includes.get(index), "fuel-set override.include[" + index + "]"));
+            }
+            final OverrideManager.Layer<FuelSetDefinition, List<AssetKey>> layer = OverrideManager.apply(
+                    "fuelSet:" + definition.key, definition, SET_INCLUDES, parsed,
+                    value.get("priority").optint(0));
+            handle.set("active", TRUE);
+            handle.set("remove", new VarArgFunction() {
+                public Varargs invoke(Varargs args) {
+                    if (handle.get("active").toboolean()) {
+                        layer.remove();
+                        handle.set("active", FALSE);
+                    }
+                    return NIL;
+                }
+            });
+            return handle;
         }
     }
+
+    private static final OverrideManager.Property<FuelSetDefinition, List<AssetKey>> SET_INCLUDES =
+            new OverrideManager.Property<FuelSetDefinition, List<AssetKey>>("include",
+                    new OverrideManager.PropertyAdapter<FuelSetDefinition, List<AssetKey>>() {
+                        public List<AssetKey> read(FuelSetDefinition target) {
+                            return target.includes;
+                        }
+
+                        public void write(FuelSetDefinition target, List<AssetKey> value) {
+                            try {
+                                FuelRegistry.updateIncludes(target, value);
+                            } catch (IllegalArgumentException error) {
+                                throw new LuaError("fuel-set override: " + error.getMessage());
+                            }
+                        }
+                    });
 
     private static final class SetBurnTime extends VarArgFunction {
         private final FuelSetReference set;
@@ -289,13 +412,131 @@ public final class FuelsApi {
             set("owner", registration.owner);
             set("exists", LuaValue.TRUE);
             set("remove", new RemoveRegistration(this));
+            set("override", new VarArgFunction() {
+                @Override
+                public Varargs invoke(Varargs args) {
+                    return applyOverride(argument(args, FuelRegistrationReference.this, 1));
+                }
+            });
         }
 
         @Override
         public LuaValue get(LuaValue key) {
-            return key.raweq(EXISTS) ? LuaValue.valueOf(FuelRegistry.contains(registration)) : super.get(key);
+            if (key.raweq(EXISTS)) {
+                return LuaValue.valueOf(FuelRegistry.contains(registration));
+            }
+            if (key.isstring() && key.tojstring().equals("burnTime")) {
+                return LuaValue.valueOf(registration.burnTime);
+            }
+            if (key.isstring() && key.tojstring().equals("enabled")) {
+                return LuaValue.valueOf(registration.enabled);
+            }
+            return super.get(key);
+        }
+
+        private boolean matches(LuaValue query) {
+            if (!query.get("owner").isnil() && !registration.owner.equals(query.get("owner").checkjstring())) {
+                return false;
+            }
+            if (!query.get("set").isnil()
+                    && !registration.setKey.equals(requireSetKey(query.get("set"), "fuel query.set"))) {
+                return false;
+            }
+            if (!query.get("item").isnil()
+                    && registration.itemId != readItem(query.get("item"), "fuel query.item").itemID) {
+                return false;
+            }
+            if (!query.get("damage").isnil()
+                    && (registration.damage == null
+                    || registration.damage.intValue() != nonnegativeInteger(query.get("damage"),
+                            "fuel query.damage", Short.MAX_VALUE))) {
+                return false;
+            }
+            return query.get("enabled").isnil()
+                    || registration.enabled == query.get("enabled").checkboolean();
+        }
+
+        private LuaValue applyOverride(LuaValue definition) {
+            if (!FuelRegistry.contains(registration)) {
+                throw new LuaError("Fuel registration no longer exists.");
+            }
+            if (!definition.istable()) {
+                throw new LuaError("fuel override expects a table.");
+            }
+            final LuaTable handle = new LuaTable();
+            handle.set("target", this);
+            LuaValue when = definition.get("when");
+            if (!when.isnil() && !when.get("owner").isnil()
+                    && !registration.owner.equals(when.get("owner").checkjstring())) {
+                handle.set("active", FALSE);
+                handle.set("reason", "target owner did not match");
+                return handle;
+            }
+            LuaValue changes = definition.get("changes");
+            if (changes.isnil()) {
+                changes = definition;
+            }
+            int priority = definition.get("priority").optint(0);
+            List<OverrideManager.Request<?, ?>> requests = new ArrayList<OverrideManager.Request<?, ?>>();
+            LuaValue key = NIL;
+            while (!(key = changes.next(key).arg1()).isnil()) {
+                String property = key.checkjstring();
+                if (property.equals("when") || property.equals("priority") || property.equals("target")
+                        || property.equals("changes")) {
+                    continue;
+                }
+                if (property.equals("burnTime")) {
+                    requests.add(OverrideManager.request("fuel:" + registration.id, registration,
+                            BURN_TIME_PROPERTY, Integer.valueOf(positiveInteger(changes.get(key),
+                                    "fuel override.burnTime", MAX_BURN_TIME)), priority));
+                } else if (property.equals("enabled")) {
+                    requests.add(OverrideManager.request("fuel:" + registration.id, registration,
+                            ENABLED_PROPERTY, Boolean.valueOf(changes.get(key).checkboolean()), priority));
+                } else {
+                    throw new LuaError("Property '" + property + "' cannot be overridden on a fuel registration.");
+                }
+            }
+            final List<OverrideManager.Layer<?, ?>> layers = OverrideManager.applyAll(requests);
+            handle.set("active", TRUE);
+            handle.set("remove", new VarArgFunction() {
+                @Override
+                public Varargs invoke(Varargs args) {
+                    if (handle.get("active").toboolean()) {
+                        for (int i = layers.size() - 1; i >= 0; i--) {
+                            layers.get(i).remove();
+                        }
+                        handle.set("active", FALSE);
+                    }
+                    return NIL;
+                }
+            });
+            return handle;
         }
     }
+
+    private static final OverrideManager.Property<FuelRegistration, Integer> BURN_TIME_PROPERTY = new OverrideManager.Property<FuelRegistration, Integer>(
+            "burnTime", new OverrideManager.PropertyAdapter<FuelRegistration, Integer>() {
+                public Integer read(FuelRegistration target) {
+                    return Integer.valueOf(target.burnTime);
+                }
+
+                public void write(FuelRegistration target, Integer value) {
+                    target.burnTime = value.intValue();
+                    FuelRegistry.refresh();
+                }
+            });
+
+    private static final OverrideManager.Property<FuelRegistration, Boolean> ENABLED_PROPERTY = new OverrideManager.Property<FuelRegistration, Boolean>(
+            "enabled", new OverrideManager.PropertyAdapter<FuelRegistration, Boolean>() {
+                public Boolean read(FuelRegistration target) {
+                    return Boolean.valueOf(target.enabled);
+                }
+
+                public void write(FuelRegistration target, Boolean value) {
+                    target.enabled = value.booleanValue();
+                    FuelRegistry.refresh();
+                }
+            });
 
     private static final class RemoveRegistration extends VarArgFunction {
         private final FuelRegistrationReference reference;
@@ -319,6 +560,15 @@ public final class FuelsApi {
             set.set("exists", LuaValue.FALSE);
             throw new LuaError("Fuel set is no longer registered: " + set.definition.key);
         }
+    }
+
+    private static synchronized FuelRegistrationReference registrationReference(FuelRegistration registration) {
+        FuelRegistrationReference reference = REGISTRATION_REFERENCES.get(registration);
+        if (reference == null) {
+            reference = new FuelRegistrationReference(registration);
+            REGISTRATION_REFERENCES.put(registration, reference);
+        }
+        return reference;
     }
 
     private static LuaValue required(LuaValue table, String field, String context) {

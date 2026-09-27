@@ -7,13 +7,29 @@ import net.minecraft.src.BlockFire;
 /**
  * Registers custom burn rates in the vanilla fire block's ID-indexed tables.
  */
-final class BlockFireRegistration {
+public final class BlockFireRegistration {
     private BlockFireRegistration() {
     }
 
     static void apply(int blockId, int spread, int burn) {
         values("chanceToEncourageFire", "a")[blockId] = spread;
         values("abilityToCatchFire", "b")[blockId] = burn;
+    }
+
+    public static int spread(int blockId) {
+        return values("chanceToEncourageFire", "a")[blockId];
+    }
+
+    public static void spread(int blockId, int value) {
+        values("chanceToEncourageFire", "a")[blockId] = value;
+    }
+
+    public static int burn(int blockId) {
+        return values("abilityToCatchFire", "b")[blockId];
+    }
+
+    public static void burn(int blockId, int value) {
+        values("abilityToCatchFire", "b")[blockId] = value;
     }
 
     private static int[] values(String named, String obfuscated) {

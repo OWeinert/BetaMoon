@@ -1,5 +1,6 @@
 package betamoon.luaapi.world;
 
+import betamoon.assets.AssetKey;
 import betamoon.worldgen.WorldGenRegistry;
 import betamoon.worldgen.GenerationDimension;
 import net.minecraft.src.BiomeGenBase;
@@ -13,6 +14,7 @@ import static betamoon.luaapi.utils.LuaDeclarationValues.required;
  * lifetimes.
  */
 public final class OreDeclaration {
+    public final AssetKey key;
     public final int blockId;
     public final int veinsPerChunk;
     public final int veinSize;
@@ -25,6 +27,12 @@ public final class OreDeclaration {
     public OreDeclaration(LuaValue definition) {
         if (!definition.istable()) {
             throw new LuaError("worldgen.ores:add expects a definition table.");
+        }
+        LuaValue keyValue = definition.get("key");
+        try {
+            key = keyValue.isnil() ? null : AssetKey.parse(keyValue.checkjstring());
+        } catch (IllegalArgumentException error) {
+            throw new LuaError("OreGen key: " + error.getMessage());
         }
         LuaValue height = required(definition, "height");
         if (!height.istable()) {
@@ -56,7 +64,7 @@ public final class OreDeclaration {
         return allowedBiomes == null ? null : allowedBiomes.clone();
     }
 
-    private static String[] biomeNames(LuaValue value) {
+    public static String[] biomeNames(LuaValue value) {
         if (value.isnil()) {
             return null;
         }
@@ -73,7 +81,7 @@ public final class OreDeclaration {
         return names;
     }
 
-    private static int resolveBlockId(LuaValue value) {
+    public static int resolveBlockId(LuaValue value) {
         if (value.isnumber()) {
             int id = value.toint();
             if (id < 0 || id >= Block.blocksList.length) {

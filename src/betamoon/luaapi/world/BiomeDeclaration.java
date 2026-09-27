@@ -80,7 +80,7 @@ public final class BiomeDeclaration {
         return value.isnil() ? null : Integer.valueOf((int) value.checkdouble());
     }
 
-    private static Map<BiomeSpawnGroup, List<Spawn>> readSpawns(LuaValue groups) {
+    public static Map<BiomeSpawnGroup, List<Spawn>> readSpawns(LuaValue groups) {
         Map<BiomeSpawnGroup, List<Spawn>> result = new LinkedHashMap<>();
         if (groups.istable()) {
             LuaValue key = LuaValue.NIL;
@@ -158,7 +158,7 @@ public final class BiomeDeclaration {
      *            Lua id or handle
      * @return numeric block id
      */
-    private static int resolveBlockId(LuaValue value) {
+    public static int resolveBlockId(LuaValue value) {
         // Accept raw ids, { id = ... } tables, or block handles with getId().
         if (value.isnumber()) {
             int id = value.toint();

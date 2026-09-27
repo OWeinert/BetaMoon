@@ -38,7 +38,9 @@ public final class InteractiveContainerControlsTest {
         LuaValue result = globals.load("return function() "
                 + "local tile=betamoon.tileEntities:add{name='controls',inventory={slots={input={index=0}}},"
                 + "data={enabled={type='boolean',default=false},speed={type='integer',default=0},"
-                + "mode={type='string',default='idle'},label={type='string',default='old'}}};"
+                + "mode={type='string',default='idle'},label={type='string',default='old'}},"
+                + "onTick={mode='continuous',action=function(ctx) tileTicks=tileTicks+1 end},"
+                + "onInventoryChanged={action=function(ctx) inventoryChanges=inventoryChanges+1 end}};"
                 + "local container=betamoon.containers:add{name='controls',tileEntity=tile,"
                 + "slots={{slot='input',x=8,y=18}},playerInventory={x=8,y=84},"
                 + "session={tab={type='integer',default=1},search={type='string',default='',maxLength=20},"
@@ -51,7 +53,8 @@ public final class InteractiveContainerControlsTest {
                 + "tab={type='number',bind={session='tab'},minimum=1,maximum=3,step=1," 
                 + "beforeChange=function(ctx,value) if value==3 then return 'deny' end return 'pass' end},"
                 + "ratio={type='choice',bind={session='ratio'},values={1,2}},"
-                + "dial={type='custom',onInput=function(ctx) ctx.session:set('tab',1) return 'handled' end}}};"
+                + "dial={type='custom',onInput=function(ctx) ctx.session:set('tab',1) return 'handled' end}},"
+                + "onClose=function(ctx) closes=closes+1 end};"
                 + "local gui=betamoon.containerGuis:add{name='controls',container=container,elements={"
                 + "{type='button',control='start',x=8,y=8,width=40,text='Start'},"
                 + "{type='checkbox',control='enabled',x=8,y=32},"
@@ -63,12 +66,35 @@ public final class InteractiveContainerControlsTest {
                 + "{type='choice',control='ratio',x=136,y=80,width=32,height=14},"
                 + "{type='icon_button',control='start',x=8,y=100,iconBuiltin='confirm'},"
                 + "{type='toggle_button',control='enabled',x=32,y=100,width=60,text='Power'}}};"
-                + "return container,gui end")
+                + "assert(gui.exists and gui.elementCount==10 and "
+                + "betamoon.containerGuis:one{name=gui.name}~=nil);"
+                + "local patch=gui:override{changes={layout={width=200,height=180,pauseGame=true},elements={"
+                + "{type='button',control='start',x=8,y=8,width=40,text='Run'}}}};"
+                + "assert(gui.width==200 and gui.height==180 and gui.pauseGame and gui.elementCount==1);"
+                + "patch:remove(); assert(gui.width==176 and gui.height==166 and not gui.pauseGame"
+                + " and gui.elementCount==10);"
+                + "local tilePatch=tile:override{changes={onTick={mode='scheduled',schedule={delay=3,repeatEvery=7},"
+                + "action=function(ctx) tileTicks=tileTicks+10 ctx:base() end},"
+                + "onInventoryChanged=function(ctx) inventoryChanges=inventoryChanges+10 ctx:base() end}};"
+                + "local containerPatch=container:override{changes={"
+                + "onClose=function(ctx) closes=closes+10 ctx:base() end,"
+                + "controls={start={onActivate=function(ctx) activations=activations+10 ctx:base() end}}}};"
+                + "assert(tile.exists and tile.owner=='interactive_controls_test.lua' and tile.tickMode=='scheduled'"
+                + " and tile.initialTickDelay==3 and tile.repeatTickDelay==7);"
+                + "assert(container.exists and container.tileEntity==tile.name"
+                + " and betamoon.tileEntities:getRequired(tile.name).name==tile.name"
+                + " and betamoon.containers:one{name=container.name}~=nil);"
+                + "return container,gui,tilePatch,containerPatch end")
                 .call();
         globals.set("activations", 0);
+        globals.set("tileTicks", 0);
+        globals.set("inventoryChanges", 0);
+        globals.set("closes", 0);
         Varargs values = result.invoke();
         ContainerDefinition definition = ((TileEntityApi.ContainerHandle) values.arg(1)).definition;
         ContainerGuiDefinition gui = ((TileEntityApi.GuiHandle) values.arg(2)).definition;
+        LuaValue tilePatch = values.arg(3);
+        LuaValue containerPatch = values.arg(4);
         owner.invoke(null, new Object[]{null});
 
         require(definition.controls.size() == 8 && definition.session.size() == 3,
@@ -91,7 +117,7 @@ public final class InteractiveContainerControlsTest {
 
         LuaTable input = ContainerControlRuntime.input("script");
         require(runtime.activate(control(definition, "start"), input)
-                && globals.get("activations").checkint() == 1, "Action callback did not run");
+                && globals.get("activations").checkint() == 11, "Layered action callback did not run");
         require(runtime.activate(control(definition, "enabled"), input)
                 && Boolean.TRUE.equals(tile.getDataValue("enabled")), "Toggle did not update tile data");
         require(runtime.changeNumber(control(definition, "speed"), 9.1D, input)
@@ -108,7 +134,16 @@ public final class InteractiveContainerControlsTest {
                 && Integer.valueOf(1).equals(session.get("tab")), "Custom control input did not run");
         require(runtime.cycle(control(definition, "ratio"), 1, input)
                 && Double.valueOf(2.0D).equals(session.get("ratio")), "Number choice did not preserve its type");
+        definition.tileEntity.tickAction.call(new LuaTable());
+        definition.tileEntity.inventoryChangedAction.call(new LuaTable());
+        require(globals.get("tileTicks").checkint() == 11 && globals.get("inventoryChanges").checkint() == 11,
+                "Tile callback layers did not call their base callbacks");
         runtime.close();
+        require(globals.get("closes").checkint() == 11, "Container close override did not call its base callback");
+        tilePatch.get("remove").call(tilePatch);
+        containerPatch.get("remove").call(containerPatch);
+        require(definition.tileEntity.initialTickDelay == 1 && definition.tileEntity.repeatTickDelay == 1,
+                "Removing the tile override did not restore its cadence");
         expectLuaError(() -> session.get("tab"));
         expectLuaError(() -> runtime.activate(control(definition, "enabled"), input));
         expectLuaError(() -> runtime.custom(control(definition, "dial"), input));

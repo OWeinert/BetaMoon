@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Map;
 import org.luaj.vm2.LuaValue;
 
-/** Immutable slot layout for a Lua container. */
+/** Structural slot layout and live behavior for a Lua container. */
 public final class ContainerDefinition {
     public final String name;
     public final String owner;
@@ -19,7 +19,7 @@ public final class ContainerDefinition {
     public final boolean includeHotbar;
     public final Map<String, SessionField> session;
     public final Map<String, ContainerControlDefinition> controls;
-    public final LuaValue closeAction;
+    public volatile LuaValue closeAction;
 
     public ContainerDefinition(String name, String owner, TileEntityDefinition tileEntity, List<SlotDefinition> slots,
             int playerX, int playerY, boolean includeHotbar) {

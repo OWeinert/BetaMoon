@@ -7,6 +7,8 @@ import betamoon.luaapi.utils.LuaOverrideCallback;
 import betamoon.luaapi.utils.InteractionOutcome;
 import betamoon.luaapi.utils.LuaOverrideCallback.Result;
 import betamoon.luaapi.utils.LuaOverrideDefinition;
+import betamoon.luaapi.utils.LuaOverrideActionDefinition;
+import betamoon.luaapi.utils.LuaOverrideLayers;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
@@ -45,20 +47,22 @@ public final class ItemCallbackOverrides {
         return callback != null && callback.isEnabled() ? callback : null;
     }
 
-    public static OverrideManager.PropertyAdapter<Item, LuaOverrideDefinition> adapter(final String name) {
+    public static OverrideManager.PropertyAdapter<Item, LuaOverrideLayers<LuaOverrideDefinition>> adapter(
+            final String name) {
         final ItemCallback callbackId = ItemCallback.fromLuaName(name);
-        return new OverrideManager.PropertyAdapter<Item, LuaOverrideDefinition>() {
-            public LuaOverrideDefinition read(Item target) {
+        return new OverrideManager.PropertyAdapter<Item, LuaOverrideLayers<LuaOverrideDefinition>>() {
+            @SuppressWarnings("unchecked")
+            public LuaOverrideLayers<LuaOverrideDefinition> read(Item target) {
                 LuaOverrideCallback callback = CALLBACKS.get(key(((Item) target).shiftedIndex, callbackId));
-                return callback == null ? null : callback.definition;
+                return callback == null ? null : (LuaOverrideLayers<LuaOverrideDefinition>) callback.layers();
             }
 
-            public void write(Item target, LuaOverrideDefinition value) {
+            public void write(Item target, LuaOverrideLayers<LuaOverrideDefinition> value) {
                 String key = key(((Item) target).shiftedIndex, callbackId);
                 if (value == null) {
                     CALLBACKS.remove(key);
                 } else {
-                    CALLBACKS.put(key, new LuaOverrideCallback((LuaOverrideDefinition) value));
+                    CALLBACKS.put(key, new LuaOverrideCallback(value));
                 }
             }
         };
@@ -174,8 +178,11 @@ public final class ItemCallbackOverrides {
     public static void inventoryTick(Item item, ItemStack stack, World world, Entity entity, int slot,
             boolean selected) {
         LuaOverrideCallback callback = get(item.shiftedIndex, ItemCallback.INVENTORY_TICK);
-        if (callback != null && (world.getWorldTime() % callback.definition.interval != 0
-                || callback.definition.selectedOnly && !selected)) {
+        LuaOverrideActionDefinition effective = callback == null ? null : callback.effectiveDefinition();
+        LuaOverrideDefinition definition = effective instanceof LuaOverrideDefinition
+                ? (LuaOverrideDefinition) effective : null;
+        if (definition != null && (world.getWorldTime() % definition.interval != 0
+                || definition.selectedOnly && !selected)) {
             item.onUpdate(stack, world, entity, slot, selected);
             return;
         }

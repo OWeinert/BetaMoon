@@ -100,6 +100,22 @@ public final class BiomeGenWrapper extends BiomeGenBase {
         bigTreeChance = chance;
     }
 
+    public BiomeTreeMode treeMode() {
+        return treeMode;
+    }
+
+    public int bigTreeChance() {
+        return bigTreeChance;
+    }
+
+    public boolean snowEnabled() {
+        return getBiomeFlag(this, FIELD_ENABLE_SNOW);
+    }
+
+    public boolean rainEnabled() {
+        return getBiomeFlag(this, FIELD_ENABLE_RAIN);
+    }
+
     /**
      * Clears one of the spawn lists (monsters/creatures/water).
      *

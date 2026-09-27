@@ -68,6 +68,19 @@ public final class SmeltingRecipe implements IRecipe {
         return true;
     }
 
+    /** Updates the stable wrapper while keeping a disabled recipe out of the map. */
+    public boolean setStoredInputId(int newInputId) {
+        if (inputId == newInputId) {
+            return true;
+        }
+        if (smeltingMap.containsKey(Integer.valueOf(newInputId))) {
+            return false;
+        }
+        inputId = newInputId;
+        smeltingRecipe = null;
+        return true;
+    }
+
     /**
      * Updates the output stack and keeps the furnace recipe map in sync.
      *

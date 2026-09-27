@@ -9,7 +9,8 @@ public final class FuelRegistration {
     public final AssetKey setKey;
     public final int itemId;
     public final Integer damage;
-    public final int burnTime;
+    public volatile int burnTime;
+    public volatile boolean enabled = true;
 
     FuelRegistration(long id, String owner, AssetKey setKey, int itemId, Integer damage, int burnTime) {
         this.id = id;

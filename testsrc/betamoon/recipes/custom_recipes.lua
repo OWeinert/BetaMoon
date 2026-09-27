@@ -326,6 +326,11 @@ assert(not invalidMatcher.exists)
 owner("native.lua")
 local native = bm.recipes:add { type = "smelting", input = 15, output = bm.stack(265, 2) }
 assert(native and native.output.count == 2 and native.type == "smelting")
+local smeltingInput = native:override { changes = { input = 264 } }
+assert(native.input.id == 264 and ctx.recipes:getSmeltingResult(bm.stack(264)).count == 2)
+assert(ctx.recipes:getSmeltingResult(bm.stack(15)) == nil)
+smeltingInput:remove()
+assert(native.input.id == 15 and ctx.recipes:getSmeltingResult(bm.stack(15)).count == 2)
 assert(ctx.recipes:getSmeltingResult(nil) == nil)
 fill(); inv:set("left", bm.stack(15, 2, 7))
 local furnaceSlots = { ingredients = { input = "left" }, outputs = { output = "out" } }
@@ -343,6 +348,14 @@ local shapePatch = shape:override { output = bm.stack(265, 4) }
 assert(shape.output.count == 4 and duplicate.output.count == 3)
 assert(bm.recipes:get(shape.key) == shape)
 shapePatch:remove()
+local inputPatch = shape:override { changes = { input = { pattern = { "X" }, key = { X = 3 } } } }
+assert(shape.input.pattern[1] == "A" and shape.input.key.A.id == 3)
+inputPatch:remove()
+assert(shape.input.pattern[1] == "AB" and shape.input.key.A.id == 4)
+fails("pattern", function()
+    shape:override { changes = { output = bm.stack(265, 9), input = { pattern = { "XX", "X" }, key = { X = 3 } } } }
+end)
+assert(shape.output.count == 3)
 local shapeDisabled = bm.overrides:add { target = shape, changes = { enabled = false } }
 assert(shape.exists and not shape.enabled)
 assert(bm.recipes:find { type = "shaped", enabled = false, input = 4, owner = "native.lua" }:one() == shape)
