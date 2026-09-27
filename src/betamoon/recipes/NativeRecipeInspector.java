@@ -16,6 +16,10 @@ public final class NativeRecipeInspector {
     private static final Field SHAPED_INPUTS = findField(ShapedRecipes.class, ItemStack[].class);
     private static final Field SHAPELESS_INPUTS = findAssignableField(ShapelessRecipes.class, List.class);
     private static final List<Field> SHAPED_INTEGER_FIELDS = findFields(ShapedRecipes.class, Integer.TYPE);
+    private static final Field SHAPED_WIDTH = findNamedField(ShapedRecipes.class, Integer.TYPE,
+            "recipeWidth", "a");
+    private static final Field SHAPED_HEIGHT = findNamedField(ShapedRecipes.class, Integer.TYPE,
+            "recipeHeight", "b");
 
     private NativeRecipeInspector() {
     }
@@ -65,6 +69,43 @@ public final class NativeRecipeInspector {
         } catch (IllegalAccessException ignored) {
             return null;
         }
+    }
+
+    public static void setShapedInputs(ShapedRecipes recipe, int width, int height, ItemStack[] inputs) {
+        if (recipe == null || SHAPED_INPUTS == null || SHAPED_WIDTH == null || SHAPED_HEIGHT == null) {
+            throw new IllegalStateException("Native shaped recipe fields are unavailable");
+        }
+        try {
+            SHAPED_WIDTH.setInt(recipe, width);
+            SHAPED_HEIGHT.setInt(recipe, height);
+            SHAPED_INPUTS.set(recipe, copy(inputs));
+        } catch (IllegalAccessException error) {
+            throw new IllegalStateException("Native shaped recipe could not be updated", error);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public static void setShapelessInputs(ShapelessRecipes recipe, List<ItemStack> inputs) {
+        if (recipe == null || SHAPELESS_INPUTS == null) {
+            throw new IllegalStateException("Native shapeless recipe fields are unavailable");
+        }
+        try {
+            List<Object> values = (List<Object>) SHAPELESS_INPUTS.get(recipe);
+            values.clear();
+            for (ItemStack input : inputs) {
+                values.add(input.copy());
+            }
+        } catch (IllegalAccessException error) {
+            throw new IllegalStateException("Native shapeless recipe could not be updated", error);
+        }
+    }
+
+    public static ItemStack[] copy(ItemStack[] values) {
+        ItemStack[] copy = new ItemStack[values.length];
+        for (int index = 0; index < values.length; index++) {
+            copy[index] = values[index] == null ? null : values[index].copy();
+        }
+        return copy;
     }
 
     public static int[] shapedDimensions(ShapedRecipes recipe, int itemCount) {
@@ -145,6 +186,26 @@ public final class NativeRecipeInspector {
             }
         } catch (Exception ignored) {
             return null;
+        }
+        return null;
+    }
+
+    private static Field findNamedField(Class<?> owner, Class<?> type, String... names) {
+        for (String name : names) {
+            try {
+                Field field = owner.getDeclaredField(name);
+                if (field.getType() == type) {
+                    field.setAccessible(true);
+                    return field;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        List<Field> fields = findFields(owner, type);
+        if (fields.size() >= 2) {
+            return names.length > 0 && (names[0].toLowerCase().contains("height") || names[0].equals("b"))
+                    ? fields.get(1)
+                    : fields.get(0);
         }
         return null;
     }

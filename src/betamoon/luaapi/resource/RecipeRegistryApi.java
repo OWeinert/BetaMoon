@@ -11,6 +11,7 @@ import betamoon.recipes.custom.CustomRecipes;
 import betamoon.recipes.custom.RecipeTypes;
 import betamoon.recipes.custom.RecipeValues;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -19,6 +20,8 @@ import java.util.Set;
 import net.minecraft.src.FurnaceRecipes;
 import net.minecraft.src.IRecipe;
 import net.minecraft.src.ItemStack;
+import net.minecraft.src.ShapedRecipes;
+import net.minecraft.src.ShapelessRecipes;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -340,6 +343,9 @@ public final class RecipeRegistryApi {
             if (property.equals("output")) {
                 return stackTable(NativeRecipeInspector.output(recipe));
             }
+            if (property.equals("input")) {
+                return inputTable(recipe);
+            }
             NativeRecipeKind kind = NativeRecipeInspector.kind(recipe);
             if (property.equals("recipeType") && kind != NativeRecipeKind.UNKNOWN) {
                 return RecipeTypes.get(LuaValue.valueOf(kind.getLuaName()), true).reference;
@@ -373,28 +379,40 @@ public final class RecipeRegistryApi {
             } else {
                 RecipeValues.fields(definition, "native recipe override", "when", "changes", "priority", "target");
             }
-            RecipeValues.fields(changes, "native recipe override.changes", "output", "enabled");
+            NativeRecipeKind kind = NativeRecipeInspector.kind(recipe);
+            if (kind == NativeRecipeKind.UNKNOWN) {
+                RecipeValues.fields(changes, "native recipe override.changes", "output", "enabled");
+            } else {
+                RecipeValues.fields(changes, "native recipe override.changes", "output", "enabled", "input");
+            }
             int priority = definition.get("priority").isnil()
                     ? 0
                     : RecipeValues.integer(definition.get("priority"), "override.priority");
             RecipeValues.bool(changes.get("enabled"), true, "recipe override.enabled");
-            List<OverrideManager.Layer<?, ?>> layers = new ArrayList<>();
+            List<OverrideManager.Request<?, ?>> requests = new ArrayList<OverrideManager.Request<?, ?>>();
             LuaValue output = changes.get("output");
             if (!output.isnil()) {
                 final ItemStack stack = RecipeValues.stack(output, false, "recipe output");
                 RecipeValues.fits(stack, "recipe output");
                 OverrideManager.Property<IRecipe, ItemStack> property = new OverrideManager.Property<>("output",
                         outputAdapter(this));
-                layers.add(OverrideManager.apply(identity, recipe, property, stack, priority));
-                set("output", stackTable(stack));
+                requests.add(OverrideManager.request(identity, recipe, property, stack, priority));
             }
             LuaValue enabled = changes.get("enabled");
             if (!enabled.isnil()) {
                 OverrideManager.Property<IRecipe, Boolean> property = new OverrideManager.Property<>("enabled",
                         enabledAdapter(this));
-                layers.add(OverrideManager.apply(identity, recipe, property, Boolean.valueOf(enabled.toboolean()),
-                        priority));
+                requests.add(OverrideManager.request(identity, recipe, property,
+                        Boolean.valueOf(enabled.checkboolean()), priority));
             }
+            LuaValue input = changes.get("input");
+            if (!input.isnil()) {
+                NativeInput parsed = parseInput(recipe, input);
+                OverrideManager.Property<IRecipe, NativeInput> property = new OverrideManager.Property<IRecipe, NativeInput>(
+                        "input", inputAdapter(this));
+                requests.add(OverrideManager.request(identity, recipe, property, parsed, priority));
+            }
+            List<OverrideManager.Layer<?, ?>> layers = OverrideManager.applyAll(requests);
             LuaTable handle = new LuaTable();
             handle.set("target", this);
             handle.set("active", LuaValue.TRUE);
@@ -541,6 +559,197 @@ public final class RecipeRegistryApi {
                 }
             }
         };
+    }
+
+    private static OverrideManager.PropertyAdapter<IRecipe, NativeInput> inputAdapter(
+            final RecipeReference reference) {
+        return new OverrideManager.PropertyAdapter<IRecipe, NativeInput>() {
+            public NativeInput read(IRecipe target) {
+                if (target instanceof ShapedRecipes) {
+                    ItemStack[] values = NativeRecipeInspector.shapedInputs((ShapedRecipes) target);
+                    int[] dimensions = NativeRecipeInspector.shapedDimensions((ShapedRecipes) target, values.length);
+                    return NativeInput.shaped(dimensions[0], dimensions[1], values);
+                }
+                if (target instanceof ShapelessRecipes) {
+                    List<?> values = NativeRecipeInspector.shapelessInputs((ShapelessRecipes) target);
+                    List<ItemStack> inputs = new ArrayList<ItemStack>();
+                    for (Object value : values) {
+                        ItemStack stack = NativeRecipeInspector.normalizeIngredient(value);
+                        if (stack == null) {
+                            throw new IllegalStateException("Native shapeless recipe has an unsupported ingredient");
+                        }
+                        inputs.add(stack.copy());
+                    }
+                    return NativeInput.shapeless(inputs);
+                }
+                if (target instanceof SmeltingRecipe) {
+                    return NativeInput.smelting(((SmeltingRecipe) target).getInputId());
+                }
+                throw new IllegalStateException("Native recipe inputs cannot be updated: " + reference.key);
+            }
+
+            public void write(IRecipe target, NativeInput value) {
+                if (reference.retired) {
+                    return;
+                }
+                if (target instanceof ShapedRecipes && value.kind == NativeRecipeKind.SHAPED) {
+                    NativeRecipeInspector.setShapedInputs((ShapedRecipes) target, value.width, value.height,
+                            value.shaped);
+                    return;
+                }
+                if (target instanceof ShapelessRecipes && value.kind == NativeRecipeKind.SHAPELESS) {
+                    NativeRecipeInspector.setShapelessInputs((ShapelessRecipes) target, value.shapeless);
+                    return;
+                }
+                if (target instanceof SmeltingRecipe && value.kind == NativeRecipeKind.SMELTING) {
+                    SmeltingRecipe smelting = (SmeltingRecipe) target;
+                    int previous = smelting.getInputId();
+                    boolean updated = reference.disabled
+                            ? smelting.setStoredInputId(value.smelting)
+                            : smelting.setInputId(value.smelting);
+                    if (!updated) {
+                        throw new LuaError("Smelting input " + value.smelting + " already has a recipe.");
+                    }
+                    if (NATIVE.get(Integer.valueOf(previous)) == reference) {
+                        NATIVE.remove(Integer.valueOf(previous));
+                    }
+                    NATIVE.put(Integer.valueOf(value.smelting), reference);
+                    return;
+                }
+                throw new IllegalStateException("Recipe input kind changed unexpectedly: " + reference.key);
+            }
+        };
+    }
+
+    private static NativeInput parseInput(IRecipe recipe, LuaValue value) {
+        if (recipe instanceof SmeltingRecipe) {
+            ItemStack stack = RecipeValues.stack(value, false, "smelting input");
+            return NativeInput.smelting(stack.itemID);
+        }
+        if (recipe instanceof ShapelessRecipes) {
+            if (!value.istable() || value.length() < 1 || value.length() > 9
+                    || value.checktable().keys().length != value.length()) {
+                throw new LuaError("Shapeless recipe input must be a dense list of 1 to 9 ingredients.");
+            }
+            List<ItemStack> inputs = new ArrayList<ItemStack>();
+            for (int index = 1; index <= value.length(); index++) {
+                inputs.add(RecipeValues.stack(value.get(index), false, "shapeless input[" + index + "]"));
+            }
+            return NativeInput.shapeless(inputs);
+        }
+        if (recipe instanceof ShapedRecipes) {
+            if (!value.istable()) {
+                throw new LuaError("Shaped recipe input must contain pattern and key tables.");
+            }
+            RecipeValues.fields(value, "shaped recipe input", "pattern", "key");
+            LuaValue pattern = value.get("pattern");
+            LuaValue keys = value.get("key");
+            if (!pattern.istable() || !keys.istable() || pattern.length() < 1 || pattern.length() > 3) {
+                throw new LuaError("Shaped recipe pattern must contain 1 to 3 rows.");
+            }
+            int width = pattern.get(1).checkjstring().length();
+            if (width < 1 || width > 3) {
+                throw new LuaError("Shaped recipe rows must be 1 to 3 characters wide.");
+            }
+            ItemStack[] inputs = new ItemStack[width * pattern.length()];
+            for (int row = 1; row <= pattern.length(); row++) {
+                String text = pattern.get(row).checkjstring();
+                if (text.length() != width) {
+                    throw new LuaError("Shaped recipe pattern rows must have equal width.");
+                }
+                for (int column = 0; column < width; column++) {
+                    char symbol = text.charAt(column);
+                    if (symbol == ' ') {
+                        continue;
+                    }
+                    LuaValue ingredient = keys.get(String.valueOf(symbol));
+                    if (ingredient.isnil()) {
+                        throw new LuaError("Shaped recipe key is missing symbol '" + symbol + "'.");
+                    }
+                    inputs[(row - 1) * width + column] = RecipeValues.stack(ingredient, false,
+                            "shaped input.key." + symbol);
+                }
+            }
+            return NativeInput.shaped(width, pattern.length(), inputs);
+        }
+        throw new LuaError("This third-party recipe type does not expose overridable inputs.");
+    }
+
+    private static LuaValue inputTable(IRecipe recipe) {
+        if (recipe instanceof SmeltingRecipe) {
+            return stackTable(new ItemStack(((SmeltingRecipe) recipe).getInputId(), 1, 0));
+        }
+        if (recipe instanceof ShapelessRecipes) {
+            LuaTable list = new LuaTable();
+            List<?> values = NativeRecipeInspector.shapelessInputs((ShapelessRecipes) recipe);
+            for (int index = 0; index < values.size(); index++) {
+                list.set(index + 1, stackTable(NativeRecipeInspector.normalizeIngredient(values.get(index))));
+            }
+            return list;
+        }
+        if (recipe instanceof ShapedRecipes) {
+            ItemStack[] values = NativeRecipeInspector.shapedInputs((ShapedRecipes) recipe);
+            int[] dimensions = NativeRecipeInspector.shapedDimensions((ShapedRecipes) recipe, values.length);
+            LuaTable result = new LuaTable();
+            LuaTable pattern = new LuaTable();
+            LuaTable keys = new LuaTable();
+            String symbols = "ABCDEFGHI";
+            for (int row = 0; row < dimensions[1]; row++) {
+                StringBuilder text = new StringBuilder();
+                for (int column = 0; column < dimensions[0]; column++) {
+                    int index = row * dimensions[0] + column;
+                    if (values[index] == null) {
+                        text.append(' ');
+                    } else {
+                        String symbol = symbols.substring(index, index + 1);
+                        text.append(symbol);
+                        keys.set(symbol, stackTable(values[index]));
+                    }
+                }
+                pattern.set(row + 1, text.toString());
+            }
+            result.set("pattern", pattern);
+            result.set("key", keys);
+            return result;
+        }
+        return LuaValue.NIL;
+    }
+
+    private static final class NativeInput {
+        private final NativeRecipeKind kind;
+        private final int width;
+        private final int height;
+        private final ItemStack[] shaped;
+        private final List<ItemStack> shapeless;
+        private final int smelting;
+
+        private NativeInput(NativeRecipeKind kind, int width, int height, ItemStack[] shaped,
+                List<ItemStack> shapeless, int smelting) {
+            this.kind = kind;
+            this.width = width;
+            this.height = height;
+            this.shaped = shaped;
+            this.shapeless = shapeless;
+            this.smelting = smelting;
+        }
+
+        private static NativeInput shaped(int width, int height, ItemStack[] values) {
+            return new NativeInput(NativeRecipeKind.SHAPED, width, height, NativeRecipeInspector.copy(values),
+                    null, -1);
+        }
+
+        private static NativeInput shapeless(List<ItemStack> values) {
+            List<ItemStack> copy = new ArrayList<ItemStack>();
+            for (ItemStack value : values) {
+                copy.add(value.copy());
+            }
+            return new NativeInput(NativeRecipeKind.SHAPELESS, 0, 0, null,
+                    Collections.unmodifiableList(copy), -1);
+        }
+
+        private static NativeInput smelting(int input) {
+            return new NativeInput(NativeRecipeKind.SMELTING, 0, 0, null, null, input);
+        }
     }
 
     private static LuaValue stackTable(ItemStack stack) {

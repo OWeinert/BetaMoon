@@ -8,7 +8,7 @@ import static betamoon.luaapi.utils.LuaDeclarationValues.string;
 import static betamoon.luaapi.utils.LuaDeclarationValues.error;
 
 /** Parsed callback declaration; tick cadence belongs to Minecraft, not to override registration. */
-public final class LuaOverrideDefinition {
+public final class LuaOverrideDefinition implements LuaOverrideActionDefinition {
     public final String name;
     public final String owner;
     public final LuaValue action;
@@ -19,7 +19,8 @@ public final class LuaOverrideDefinition {
         this.name = name;
         owner = LuaScriptRegistry.getCurrentScriptFile();
         boolean inventoryTick = name.equals("onInventoryTick");
-        action = inventoryTick ? action(declaration, name, "interval", "when") : action(declaration, name);
+        action = declaration.isfunction() ? declaration
+                : inventoryTick ? action(declaration, name, "interval", "when") : action(declaration, name);
         if (action.isnil()) {
             throw error(name, "callback action is required");
         }
@@ -31,5 +32,17 @@ public final class LuaOverrideDefinition {
             throw error(name + ".when", "expected always or selected");
         }
         selectedOnly = when.equals("selected");
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getOwner() {
+        return owner;
+    }
+
+    public LuaValue getAction() {
+        return action;
     }
 }

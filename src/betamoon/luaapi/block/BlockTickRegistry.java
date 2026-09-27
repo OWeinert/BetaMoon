@@ -136,11 +136,13 @@ public final class BlockTickRegistry {
      * Reuses the display context while the override owns its scoped base call and
      * error handling.
      */
-    public static void invokeDisplayOverride(LuaValue action, int blockId, World world, int x, int y, int z,
-            Random random, LuaValue base) {
-        try (TickContext context = new TickContext(world, x, y, z, blockId, random, false)) {
-            context.set("base", base);
-            action.call(context);
+    public static void invokeDisplayOverride(LuaOverrideCallback callback, Block block, World world, int x, int y,
+            int z, Random random) {
+        try (TickContext context = new TickContext(world, x, y, z, block.blockID, random, false)) {
+            callback.invoke(context, () -> {
+                block.randomDisplayTick(world, x, y, z, random);
+                return LuaValue.NIL;
+            }, LuaOverrideCallback.Result.EVENT);
         }
     }
 

@@ -5,7 +5,7 @@ import java.util.Collections;
 import java.util.List;
 import org.luaj.vm2.LuaValue;
 
-/** Immutable gameplay definition for one interactive container control. */
+/** Structural and live gameplay definition for one interactive container control. */
 public final class ContainerControlDefinition {
     public enum Type {
         ACTION,
@@ -34,12 +34,12 @@ public final class ContainerControlDefinition {
     public final boolean wrap;
     public final List<Object> choices;
     public final ContainerGuiDefinition.Condition enabledWhen;
-    public final LuaValue beforeChange;
-    public final LuaValue onActivate;
-    public final LuaValue onChange;
-    public final LuaValue onEdit;
-    public final LuaValue onCommit;
-    public final LuaValue onInput;
+    public volatile LuaValue beforeChange;
+    public volatile LuaValue onActivate;
+    public volatile LuaValue onChange;
+    public volatile LuaValue onEdit;
+    public volatile LuaValue onCommit;
+    public volatile LuaValue onInput;
 
     public ContainerControlDefinition(String name, Type type, Source source, String field,
             double minimum, double maximum, double step, double pageStep, int maximumLength, boolean wrap,

@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 import org.luaj.vm2.LuaValue;
 
-/** Immutable structural definition used by Lua-backed tile entity instances. */
+/** Structural definition used by Lua-backed tile entity instances. */
 public final class TileEntityDefinition {
     public final String name;
     public final String owner;
@@ -17,12 +17,13 @@ public final class TileEntityDefinition {
     public final Map<String, Integer> slots;
     public final Map<String, Field> fields;
     public final Map<AssetKey, CapabilityAttachmentDefinition> capabilities;
-    public final LuaValue tickAction;
-    public final LuaValue inventoryChangedAction;
-    public final int initialTickDelay;
-    public final int repeatTickDelay;
-    public final boolean randomTicks;
-    public final double randomTickChance;
+    public volatile LuaValue tickAction;
+    public volatile LuaValue inventoryChangedAction;
+    public volatile int initialTickDelay;
+    public volatile int repeatTickDelay;
+    public volatile boolean randomTicks;
+    public volatile double randomTickChance;
+    public volatile long tickRevision;
 
     public TileEntityDefinition(String name, String owner, String inventoryName, Map<String, Integer> slots,
             Map<String, Field> fields, LuaValue tickAction, LuaValue inventoryChangedAction, int initialTickDelay,

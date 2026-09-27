@@ -148,7 +148,8 @@ public final class EntityLuaApiTest {
                         + "onLoad=function(ctx) loadCount=loadCount+1 end,"
                         + "onRemove=function(ctx) removeReason=ctx.reason; removeCount=removeCount+1 end}; "
                         + "assert(prop:getKey()=='mymod:lamp'); "
-                        + "assert(prop.getTemplate==nil and betamoon.entities.one==nil); "
+                        + "assert(prop.getTemplate==nil and type(betamoon.entities.one)=='function'); "
+                        + "assert(prop.exists and prop.kind=='prop' and prop.displayName=='mymod:lamp'); "
                         + "assert(betamoon.entities:get('mymod:lamp'):getKey()=='mymod:lamp'); "
                         + "assert(betamoon.entities:get('mymod:missing')==nil); "
                         + "assert(betamoon.entities:get('minecraft:sheep')==nil); "
@@ -465,6 +466,16 @@ public final class EntityLuaApiTest {
             }
             EntityTypeDefinition lamp = EntityTypeRegistry.find(AssetKey.parse("mymod:lamp"));
             require(lamp != null && lamp.appearance != null, "The prop type must publish with its appearance");
+            try (ScriptExecutionScope ignored = ScriptExecutionScope.open("entity_override.lua")) {
+                lua.load("local lamp=betamoon.entities:getRequired('mymod:lamp');"
+                        + "assert(betamoon.entities:one{key='mymod:lamp'}~=nil);"
+                        + "local low=lamp:override{priority=1,changes={displayName='Lamp',width=1.5}};"
+                        + "local high=lamp:override{priority=2,changes={width=2,tickInterval=4}};"
+                        + "assert(lamp.displayName=='Lamp' and lamp.width==2 and lamp.tickInterval==4);"
+                        + "high:remove(); assert(lamp.width==1.5 and lamp.tickInterval==1);"
+                        + "low:remove(); assert(lamp.displayName=='mymod:lamp' and math.abs(lamp.width-0.6)<0.0001)")
+                        .call();
+            }
             EntityTypeDefinition crate = EntityTypeRegistry.find(AssetKey.parse("mymod:crate"));
             require(crate != null && crate.physics.pushable && crate.physics.bounce == 0.25,
                     "Dynamic prop motion policy must publish");

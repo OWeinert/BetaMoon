@@ -4,6 +4,7 @@ import betamoon.assets.AssetKey;
 import betamoon.client.audio.ClientAudio;
 import betamoon.client.audio.ClientSounds;
 import betamoon.client.audio.SoundAsset;
+import betamoon.luaapi.resource.OverrideManager;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptAssetScope;
 import betamoon.luamodloader.ScriptResourceTracker;
@@ -18,14 +19,44 @@ import java.util.Random;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 
-/**
- * Pending and published event metadata; generation-specific cleanup follows
- * script ownership.
- */
+/** Pending, published, and layered effective sound-event metadata. */
 public final class SoundEvents {
-    private static final Map<AssetKey, Entry> PENDING = new LinkedHashMap<>();
-    private static final Map<AssetKey, Entry> PUBLISHED = new LinkedHashMap<>();
+    private static final Map<AssetKey, Entry> PENDING = new LinkedHashMap<AssetKey, Entry>();
+    private static final Map<AssetKey, Entry> PUBLISHED = new LinkedHashMap<AssetKey, Entry>();
     private static final Random RANDOM = new Random();
+
+    static final OverrideManager.Property<Entry, SoundEventPatch> OVERRIDE_PROPERTY =
+            new OverrideManager.Property<Entry, SoundEventPatch>("definition",
+                    new OverrideManager.PropertyAdapter<Entry, SoundEventPatch>() {
+                        public SoundEventPatch read(Entry target) {
+                            SoundEventDefinition base = target.base;
+                            return new SoundEventPatch(base.clips, Float.valueOf(base.volume),
+                                    Float.valueOf(base.pitchMin), Float.valueOf(base.pitchMax),
+                                    Float.valueOf(base.range), Boolean.valueOf(base.enabled));
+                        }
+
+                        public void write(Entry target, SoundEventPatch value) {
+                            target.effective = value.apply(target.base);
+                        }
+                    }, new OverrideManager.ValueResolver<SoundEventPatch>() {
+                        public SoundEventPatch resolve(SoundEventPatch base, List<SoundEventPatch> layers) {
+                            List<SoundEventDefinition.Clip> clips = base.clips;
+                            Float volume = base.volume;
+                            Float pitchMin = base.pitchMin;
+                            Float pitchMax = base.pitchMax;
+                            Float range = base.range;
+                            Boolean enabled = base.enabled;
+                            for (SoundEventPatch layer : layers) {
+                                clips = layer.clips == null ? clips : layer.clips;
+                                volume = layer.volume == null ? volume : layer.volume;
+                                pitchMin = layer.pitchMin == null ? pitchMin : layer.pitchMin;
+                                pitchMax = layer.pitchMax == null ? pitchMax : layer.pitchMax;
+                                range = layer.range == null ? range : layer.range;
+                                enabled = layer.enabled == null ? enabled : layer.enabled;
+                            }
+                            return new SoundEventPatch(clips, volume, pitchMin, pitchMax, range, enabled);
+                        }
+                    });
 
     private SoundEvents() {
     }
@@ -37,43 +68,48 @@ public final class SoundEvents {
         if (PENDING.containsKey(definition.key) || (existing != null && !owner.equals(existing.owner))) {
             throw new LuaError("Sound event key is already owned: " + definition.key);
         }
-        List<SoundAsset> retained = new ArrayList<>();
-        try {
-            for (SoundEventDefinition.Clip clip : definition.clips) {
-                retained.add(ClientSounds.acquire(clip.location));
-            }
-        } catch (IOException | RuntimeException error) {
-            for (SoundAsset sound : retained) {
-                sound.close();
-            }
-            throw new LuaError("Sound event: " + error.getMessage());
-        }
-        Entry entry = new Entry(owner, definition);
+        final List<SoundAsset> retained = acquire(definition.clips, "Sound event");
+        final Entry entry = new Entry(owner, definition);
         PENDING.put(definition.key, entry);
-        ScriptResourceTracker.track(() -> {
-            remove(entry);
-            for (SoundAsset sound : retained) {
-                sound.close();
+        ScriptResourceTracker.track(new ScriptResourceTracker.Cleanup() {
+            public void run() {
+                remove(entry);
+                close(retained);
             }
         });
     }
 
     public static synchronized void publish(String owner) {
-        for (Entry entry : new ArrayList<>(PENDING.values())) {
+        for (Entry entry : new ArrayList<Entry>(PENDING.values())) {
             if (owner.equals(entry.owner)) {
-                PUBLISHED.put(entry.definition.key, entry);
-                PENDING.remove(entry.definition.key);
+                PUBLISHED.put(entry.base.key, entry);
+                PENDING.remove(entry.base.key);
             }
         }
     }
 
     static synchronized SoundEventDefinition find(AssetKey key) {
+        Entry entry = findEntry(key);
+        return entry == null ? null : entry.effective;
+    }
+
+    static synchronized Entry findEntry(AssetKey key) {
         Entry pending = PENDING.get(key);
         if (pending != null && pending.owner.equals(LuaScriptRegistry.getCurrentScriptFile())) {
-            return pending.definition;
+            return pending;
         }
-        Entry entry = PUBLISHED.get(key);
-        return entry == null ? null : entry.definition;
+        return PUBLISHED.get(key);
+    }
+
+    static synchronized List<Entry> entries() {
+        List<Entry> values = new ArrayList<Entry>(PUBLISHED.values());
+        String owner = LuaScriptRegistry.getCurrentScriptFile();
+        for (Entry entry : PENDING.values()) {
+            if (entry.owner.equals(owner) && !values.contains(entry)) {
+                values.add(entry);
+            }
+        }
+        return Collections.unmodifiableList(values);
     }
 
     public static AssetKey requireKey(LuaValue value, String path) {
@@ -99,6 +135,9 @@ public final class SoundEvents {
         if (event == null) {
             throw new IOException("Sound event is no longer registered: " + key);
         }
+        if (!event.enabled) {
+            return;
+        }
         float volume = Float.isNaN(volumeOverride) ? event.volume : volumeOverride;
         float pitch = Float.isNaN(pitchOverride)
                 ? event.pitchMin + RANDOM.nextFloat() * (event.pitchMax - event.pitchMin)
@@ -113,9 +152,34 @@ public final class SoundEvents {
         }
     }
 
+    static List<SoundAsset> acquire(SoundEventPatch patch) {
+        return patch.clips == null
+                ? Collections.<SoundAsset>emptyList()
+                : acquire(patch.clips, "Sound event override");
+    }
+
+    private static List<SoundAsset> acquire(List<SoundEventDefinition.Clip> clips, String context) {
+        List<SoundAsset> retained = new ArrayList<SoundAsset>();
+        try {
+            for (SoundEventDefinition.Clip clip : clips) {
+                retained.add(ClientSounds.acquire(clip.location));
+            }
+            return retained;
+        } catch (IOException | RuntimeException error) {
+            close(retained);
+            throw new LuaError(context + ": " + error.getMessage());
+        }
+    }
+
+    static void close(List<SoundAsset> sounds) {
+        for (SoundAsset sound : sounds) {
+            sound.close();
+        }
+    }
+
     private static synchronized void remove(Entry entry) {
-        PENDING.remove(entry.definition.key, entry);
-        PUBLISHED.remove(entry.definition.key, entry);
+        PENDING.remove(entry.base.key, entry);
+        PUBLISHED.remove(entry.base.key, entry);
     }
 
     /** Immutable event metadata for diagnostics; decoded sounds stay private. */
@@ -126,16 +190,18 @@ public final class SoundEvents {
         public final float pitchMin;
         public final float pitchMax;
         public final float range;
+        public final boolean enabled;
         public final List<ClipDescription> clips;
 
         private Description(Entry entry) {
-            SoundEventDefinition definition = entry.definition;
+            SoundEventDefinition definition = entry.effective;
             key = definition.key;
             owner = entry.owner;
             volume = definition.volume;
             pitchMin = definition.pitchMin;
             pitchMax = definition.pitchMax;
             range = definition.range;
+            enabled = definition.enabled;
             List<ClipDescription> values = new ArrayList<ClipDescription>();
             for (SoundEventDefinition.Clip clip : definition.clips) {
                 values.add(new ClipDescription(clip));
@@ -166,7 +232,6 @@ public final class SoundEvents {
             result.add(new Description(entry));
         }
         Collections.sort(result, new Comparator<Description>() {
-            @Override
             public int compare(Description left, Description right) {
                 return left.key.toString().compareTo(right.key.toString());
             }
@@ -174,12 +239,15 @@ public final class SoundEvents {
         return Collections.unmodifiableList(result);
     }
 
-    private static final class Entry {
-        private final String owner;
-        private final SoundEventDefinition definition;
+    static final class Entry {
+        final String owner;
+        final SoundEventDefinition base;
+        volatile SoundEventDefinition effective;
+
         private Entry(String owner, SoundEventDefinition definition) {
             this.owner = owner;
-            this.definition = definition;
+            this.base = definition;
+            this.effective = definition;
         }
     }
 }

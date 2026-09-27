@@ -12,7 +12,7 @@ public final class BiomeRegistration {
     private BiomeRegistration() {
     }
 
-    public static BiomeGenWrapper register(BiomeDeclaration definition) {
+    public static BiomeGenRegistry.BiomeGenEntry register(BiomeDeclaration definition) {
         BiomeGenWrapper biome;
         if (definition.basedOn == null) {
             biome = new BiomeGenWrapper(definition.name);
@@ -61,8 +61,7 @@ public final class BiomeRegistration {
                 biome.addSpawn(group.getKey(), spawn.entity, spawn.weight);
             }
         }
-        BiomeGenRegistry.registerBiomeGenerator(biome, definition.temperature.min, definition.temperature.max,
+        return BiomeGenRegistry.registerBiomeGenerator(biome, definition.temperature.min, definition.temperature.max,
                 definition.humidity.min, definition.humidity.max);
-        return biome;
     }
 }

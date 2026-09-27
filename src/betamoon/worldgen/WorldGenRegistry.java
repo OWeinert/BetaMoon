@@ -1,5 +1,6 @@
 package betamoon.worldgen;
 
+import betamoon.assets.AssetKey;
 import betamoon.minecraft.MinecraftBuiltins;
 import betamoon.luamodloader.LuaScriptRegistry;
 import java.util.ArrayList;
@@ -18,23 +19,29 @@ import org.luaj.vm2.LuaError;
  */
 public final class WorldGenRegistry {
     private static final List<OreGenEntry> ORE_ENTRIES = new ArrayList<OreGenEntry>();
+    private static long nextOreId = 1L;
 
     /**
      * Immutable ore generation configuration.
      */
-    private static final class OreGenEntry {
-        private final int blockId;
-        private final int veinsPerChunk;
-        private final int veinSize;
-        private final int minY;
-        private final int maxY;
-        private final GenerationDimension dimension;
-        private final Integer targetBlockId;
-        private final BiomeGenBase[] allowedBiomes;
-        private final String owner;
+    public static final class OreGenEntry {
+        public final long id;
+        public final AssetKey key;
+        public final String owner;
+        public volatile boolean enabled = true;
+        public volatile int blockId;
+        public volatile int veinsPerChunk;
+        public volatile int veinSize;
+        public volatile int minY;
+        public volatile int maxY;
+        public volatile GenerationDimension dimension;
+        public volatile Integer targetBlockId;
+        private volatile BiomeGenBase[] allowedBiomes;
 
-        private OreGenEntry(int blockId, int veinsPerChunk, int veinSize, int minY, int maxY,
+        private OreGenEntry(AssetKey key, int blockId, int veinsPerChunk, int veinSize, int minY, int maxY,
                 GenerationDimension dimension, Integer targetBlockId, BiomeGenBase[] allowedBiomes) {
+            this.id = nextOreId++;
+            this.key = key;
             this.blockId = blockId;
             this.veinsPerChunk = veinsPerChunk;
             this.veinSize = veinSize;
@@ -45,11 +52,23 @@ public final class WorldGenRegistry {
             this.allowedBiomes = allowedBiomes;
             this.owner = LuaScriptRegistry.getCurrentScriptFile();
         }
+
+        public BiomeGenBase[] getAllowedBiomes() {
+            BiomeGenBase[] biomes = allowedBiomes;
+            return biomes == null ? null : biomes.clone();
+        }
+
+        public void setAllowedBiomes(BiomeGenBase[] biomes) {
+            allowedBiomes = biomes == null ? null : biomes.clone();
+        }
     }
 
     /** Immutable, object-free ore-generator description for diagnostics. */
     public static final class Description {
+        public final long id;
+        public final String key;
         public final String owner;
+        public final boolean enabled;
         public final int blockId;
         public final int veinsPerChunk;
         public final int veinSize;
@@ -60,7 +79,10 @@ public final class WorldGenRegistry {
         public final List<String> biomes;
 
         private Description(OreGenEntry entry) {
+            id = entry.id;
+            key = entry.key == null ? null : entry.key.toString();
             owner = entry.owner;
+            enabled = entry.enabled;
             blockId = entry.blockId;
             veinsPerChunk = entry.veinsPerChunk;
             veinSize = entry.veinSize;
@@ -109,10 +131,30 @@ public final class WorldGenRegistry {
      * @param allowedBiomes
      *            optional whitelist of biomes for generation
      */
-    public static synchronized void addOreGen(int blockId, int veinsPerChunk, int veinSize, int minY, int maxY,
+    public static synchronized OreGenEntry addOreGen(AssetKey key, int blockId, int veinsPerChunk, int veinSize,
+            int minY, int maxY,
             GenerationDimension dimension, Integer targetBlockId, BiomeGenBase[] allowedBiomes) {
-        ORE_ENTRIES.add(
-                new OreGenEntry(blockId, veinsPerChunk, veinSize, minY, maxY, dimension, targetBlockId, allowedBiomes));
+        if (key != null) {
+            for (OreGenEntry existing : ORE_ENTRIES) {
+                if (key.equals(existing.key)) {
+                    throw new LuaError("Ore generation key is already registered: " + key);
+                }
+            }
+        }
+        OreGenEntry entry = new OreGenEntry(key, blockId, veinsPerChunk, veinSize, minY, maxY, dimension, targetBlockId,
+                allowedBiomes);
+        ORE_ENTRIES.add(entry);
+        return entry;
+    }
+
+    /** Compatibility overload for Java integrations that do not assign a public key. */
+    public static synchronized OreGenEntry addOreGen(int blockId, int veinsPerChunk, int veinSize, int minY, int maxY,
+            GenerationDimension dimension, Integer targetBlockId, BiomeGenBase[] allowedBiomes) {
+        return addOreGen(null, blockId, veinsPerChunk, veinSize, minY, maxY, dimension, targetBlockId, allowedBiomes);
+    }
+
+    public static synchronized List<OreGenEntry> oreEntries() {
+        return Collections.unmodifiableList(new ArrayList<OreGenEntry>(ORE_ENTRIES));
     }
 
     public static synchronized List<Description> snapshot() {
@@ -172,7 +214,7 @@ public final class WorldGenRegistry {
     private static void generate(World world, Random random, int chunkX, int chunkZ, boolean nether) {
         for (int i = 0; i < ORE_ENTRIES.size(); i++) {
             OreGenEntry entry = ORE_ENTRIES.get(i);
-            if (!entry.dimension.includes(nether)) {
+            if (!entry.enabled || !entry.dimension.includes(nether)) {
                 continue;
             }
             for (int vein = 0; vein < entry.veinsPerChunk; vein++) {

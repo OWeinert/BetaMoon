@@ -39,6 +39,7 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
     private final TileDataStore data = new TileDataStore();
     private final TileCapabilityContainer capabilities = new TileCapabilityContainer(this);
     private int tickCounter;
+    private long observedTickRevision;
     private boolean tickEnabled = true;
     private boolean inventoryActionEnabled = true;
     private boolean notifyingInventory;
@@ -95,6 +96,10 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
         if (definition == null || definition.tickAction.isnil() || !tickEnabled || worldObj == null
                 || worldObj.multiplayerWorld) {
             return;
+        }
+        if (observedTickRevision != definition.tickRevision) {
+            observedTickRevision = definition.tickRevision;
+            tickCounter = 0;
         }
         tickCounter++;
         boolean run = definition.randomTicks

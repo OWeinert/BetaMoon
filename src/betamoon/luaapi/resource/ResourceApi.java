@@ -7,9 +7,13 @@ import betamoon.luaapi.block.BlockCallbackOverrides;
 import betamoon.luaapi.block.BlockApi;
 import betamoon.luaapi.block.BlockDisplayOverrideDefinition;
 import betamoon.luaapi.block.BlockDisplayTickOverrides;
+import betamoon.luaapi.block.BlockDropDefinition;
+import betamoon.luaapi.block.BlockFireRegistration;
 import betamoon.luaapi.item.ItemCallbackOverrides;
 import betamoon.luaapi.item.ItemApi;
+import betamoon.minecraft.MinecraftBuiltins;
 import betamoon.luaapi.utils.LuaOverrideDefinition;
+import betamoon.luaapi.utils.LuaOverrideLayers;
 import betamoon.luamodloader.LuaContentRegistry;
 import betamoon.query.QueryEntries;
 import betamoon.query.QueryEntry;
@@ -28,7 +32,9 @@ import net.minecraft.src.ItemPickaxe;
 import net.minecraft.src.ItemSpade;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.ItemSword;
+import net.minecraft.src.ItemTool;
 import net.minecraft.src.ModLoader;
+import net.minecraft.src.StepSound;
 import net.minecraft.src.StatCollector;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -39,6 +45,38 @@ import static org.luaj.vm2.LuaValue.*;
 
 /** Installs the concise registry, reference, query, and override APIs. */
 public final class ResourceApi {
+    private static final OverrideManager.Property<Block, HardnessLayer> BLOCK_HARDNESS_PROPERTY =
+            new OverrideManager.Property<Block, HardnessLayer>("hardness",
+                    new OverrideManager.PropertyAdapter<Block, HardnessLayer>() {
+                        public HardnessLayer read(Block target) {
+                            return HardnessLayer.hardness((float) numberField(target, Block.class,
+                                    "blockHardness", "bo").checkdouble());
+                        }
+
+                        public void write(Block target, HardnessLayer value) {
+                            floatFieldAdapter(Block.class, "blockHardness", "bo").write(target,
+                                    Float.valueOf(value.hardness.floatValue()));
+                        }
+                    }, new OverrideManager.ValueResolver<HardnessLayer>() {
+                        public HardnessLayer resolve(HardnessLayer base, List<HardnessLayer> layers) {
+                            float current = base.hardness.floatValue();
+                            float lastBreakable = current < 0 ? 0 : current;
+                            for (HardnessLayer layer : layers) {
+                                if (layer.hardness != null) {
+                                    current = layer.hardness.floatValue();
+                                    if (current >= 0) {
+                                        lastBreakable = current;
+                                    }
+                                } else if (layer.unbreakable.booleanValue()) {
+                                    current = -1;
+                                } else {
+                                    current = lastBreakable;
+                                }
+                            }
+                            return HardnessLayer.hardness(current);
+                        }
+                    });
+
     private ResourceApi() {
     }
 
@@ -254,35 +292,46 @@ public final class ResourceApi {
                 handle.set("reason", valueOf(inactiveReason));
                 return handle;
             }
-            List<OverrideManager.Layer<?, ?>> layers = new ArrayList<>();
+            List<OverrideManager.Request<?, ?>> requests = new ArrayList<OverrideManager.Request<?, ?>>();
             int priority = definition.get("priority").optint(0);
+            collectRequests(changes, "", priority, requests);
+            List<OverrideManager.Layer<?, ?>> layers = OverrideManager.applyAll(requests);
+            handle.set("remove", new RemoveOverride(layers, handle));
+            return handle;
+        }
+
+        private void collectRequests(LuaValue changes, String prefix, int priority,
+                List<OverrideManager.Request<?, ?>> requests) {
             LuaValue key = NIL;
             while (true) {
                 Varargs next = changes.next(key);
                 key = next.arg1();
                 if (key.isnil()) {
-                    break;
+                    return;
                 }
-                String property = key.checkjstring();
-                if (property.equals("when") || property.equals("key") || property.equals("priority")) {
+                String field = key.checkjstring();
+                if (prefix.length() == 0 && (field.equals("when") || field.equals("key")
+                        || field.equals("priority") || field.equals("target") || field.equals("changes"))) {
                     continue;
                 }
-                ResourceProperty<T, ?> propertyDefinition = property(property);
-                if (propertyDefinition == null) {
+                String path = prefix.length() == 0 ? field : prefix + "." + field;
+                ResourceProperty<T, ?> propertyDefinition = property(path);
+                LuaValue value = next.arg(2);
+                if (propertyDefinition != null) {
+                    requests.add(prepare(propertyDefinition, value, priority));
+                } else if (value.istable()) {
+                    collectRequests(value, path, priority, requests);
+                } else {
                     throw new LuaError(
-                            "Property '" + property + "' cannot be overridden on " + namespace + " " + id + ".");
+                            "Property '" + path + "' cannot be overridden on " + namespace + " " + id + ".");
                 }
-                layers.add(apply(propertyDefinition, next.arg(2), priority));
-                // Keep the reference used for declaration useful immediately after the patch.
-                set(property, next.arg(2));
             }
-            handle.set("remove", new RemoveOverride(layers, handle));
-            return handle;
         }
 
-        private <V> OverrideManager.Layer<T, V> apply(ResourceProperty<T, V> definition, LuaValue value, int priority) {
-            return OverrideManager.apply(namespace + ":" + id, target, definition.property, definition.convert(value),
-                    priority);
+        private <V> OverrideManager.Request<T, V> prepare(ResourceProperty<T, V> definition, LuaValue value,
+                int priority) {
+            return OverrideManager.request(namespace + ":" + id, target, definition.property,
+                    definition.convert(value), priority);
         }
     }
 
@@ -293,7 +342,17 @@ public final class ResourceApi {
 
         private ResourceProperty(String name, OverrideManager.PropertyAdapter<T, V> adapter,
                 Function<LuaValue, V> converter) {
-            this.property = new OverrideManager.Property<>(name, adapter);
+            this(name, adapter, converter, null);
+        }
+
+        private ResourceProperty(String name, OverrideManager.PropertyAdapter<T, V> adapter,
+                Function<LuaValue, V> converter, OverrideManager.ValueResolver<V> resolver) {
+            this.property = new OverrideManager.Property<T, V>(name, adapter, resolver);
+            this.converter = converter;
+        }
+
+        private ResourceProperty(OverrideManager.Property<T, V> property, Function<LuaValue, V> converter) {
+            this.property = property;
             this.converter = converter;
         }
 
@@ -350,23 +409,72 @@ public final class ResourceApi {
             set("lightOpacity", valueOf(Block.lightOpacity[id]));
             set("hardness", numberField(block, Block.class, "blockHardness", "bo"));
             set("resistance", numberField(block, Block.class, "blockResistance", "bp"));
+            set("stepSound", valueOf(stepSoundName(block.stepSound)));
+            set("slipperiness", valueOf(block.slipperiness));
+        }
+
+        @Override
+        public LuaValue get(LuaValue key) {
+            if (key.isstring()) {
+                String property = key.tojstring();
+                if (property.equals("displayName")) {
+                    return stringOrNil(block.translateBlockName());
+                }
+                if (property.equals("texture")) {
+                    return valueOf(block.blockIndexInTexture);
+                }
+                if (property.equals("light")) {
+                    return valueOf(Block.lightValue[id]);
+                }
+                if (property.equals("lightOpacity")) {
+                    return valueOf(Block.lightOpacity[id]);
+                }
+                if (property.equals("hardness")) {
+                    return numberField(block, Block.class, "blockHardness", "bo");
+                }
+                if (property.equals("unbreakable")) {
+                    return valueOf(numberField(block, Block.class, "blockHardness", "bo").todouble() < 0);
+                }
+                if (property.equals("resistance")) {
+                    return numberField(block, Block.class, "blockResistance", "bp");
+                }
+                if (property.equals("stepSound")) {
+                    return valueOf(stepSoundName(block.stepSound));
+                }
+                if (property.equals("slipperiness")) {
+                    return valueOf(block.slipperiness);
+                }
+                if (property.equals("fire")) {
+                    LuaTable fire = new LuaTable();
+                    fire.set("spread", BlockFireRegistration.spread(id));
+                    fire.set("burn", BlockFireRegistration.burn(id));
+                    return fire;
+                }
+            }
+            return super.get(key);
         }
 
         protected ResourceProperty<Block, ?> property(String property) {
             if (BlockCallbackOverrides.supports(property)) {
                 return resourceProperty(property, BlockCallbackOverrides.adapter(property),
-                        value -> new LuaOverrideDefinition(property, value));
+                        value -> LuaOverrideLayers.single(new LuaOverrideDefinition(property, value)),
+                        LuaOverrideLayers.resolver());
             }
             if (property.equals("onDisplayTick")) {
                 return resourceProperty(property, BlockDisplayTickOverrides.ADAPTER,
-                        BlockDisplayOverrideDefinition::new);
+                        value -> LuaOverrideLayers.single(new BlockDisplayOverrideDefinition(value)),
+                        LuaOverrideLayers.resolver());
             }
             if (property.equals("displayName")) {
                 return resourceProperty(property, displayNameAdapter(), LuaValue::checkjstring);
             }
             if (property.equals("hardness")) {
-                return resourceProperty(property, floatFieldAdapter(Block.class, "blockHardness", "bo"),
-                        value -> Float.valueOf((float) value.checkdouble()));
+                return new ResourceProperty<Block, HardnessLayer>(BLOCK_HARDNESS_PROPERTY,
+                        value -> HardnessLayer.hardness((float) value.checkdouble()));
+            }
+            if (property.equals("unbreakable")) {
+                return new ResourceProperty<Block, HardnessLayer>(BLOCK_HARDNESS_PROPERTY,
+                        value -> HardnessLayer.unbreakable(value.checkboolean()));
             }
             if (property.equals("resistance")) {
                 return resourceProperty(property, floatFieldAdapter(Block.class, "blockResistance", "bp"),
@@ -384,6 +492,34 @@ public final class ResourceApi {
                 return resourceProperty(property, arrayAdapter(Block.lightOpacity, id),
                         value -> Integer.valueOf(value.checkint()));
             }
+            if (property.equals("stepSound")) {
+                return resourceProperty(property, stepSoundAdapter(), value -> resolveStepSound(value.checkjstring()));
+            }
+            if (property.equals("slipperiness")) {
+                return resourceProperty(property, floatFieldAdapter(Block.class, "slipperiness", "bB"),
+                        value -> Float.valueOf(positiveFloat(value, "slipperiness")));
+            }
+            if (property.equals("fire.spread")) {
+                return resourceProperty(property, fireAdapter(true),
+                        value -> Integer.valueOf(nonNegativeInteger(value, "fire.spread", 300)));
+            }
+            if (property.equals("fire.burn")) {
+                return resourceProperty(property, fireAdapter(false),
+                        value -> Integer.valueOf(nonNegativeInteger(value, "fire.burn", 300)));
+            }
+            if (property.equals("drops")) {
+                return resourceProperty("getDrops", BlockCallbackOverrides.adapter("getDrops"), value -> {
+                    final LuaValue drops = copyLua(value);
+                    BlockDropDefinition parsed = new BlockDropDefinition(drops);
+                    parsed.validateRegistered();
+                    LuaValue action = new VarArgFunction() {
+                        public Varargs invoke(Varargs args) {
+                            return copyLua(drops);
+                        }
+                    };
+                    return LuaOverrideLayers.single(new LuaOverrideDefinition("getDrops", action));
+                }, LuaOverrideLayers.resolver());
+            }
             return null;
         }
     }
@@ -400,9 +536,56 @@ public final class ResourceApi {
             set("maxDamage", valueOf(item.getMaxDamage()));
             set("hasSubtypes", valueOf(item.getHasSubtypes()));
             set("icon", valueOf(item.getIconFromDamage(damage)));
+            set("full3D", valueOf(item.isFull3D()));
             String type = itemType(item);
             set("type", valueOf(type));
             set("category", valueOf(item instanceof ItemArmor ? "armor" : isTool(item) ? "tool" : "item"));
+            if (item instanceof ItemTool) {
+                set("efficiency", valueOf(((ItemTool) item).efficiencyOnProperMaterial));
+                set("damageVsEntity", valueOf(((ItemTool) item).damageVsEntity));
+            } else if (item instanceof ItemSword) {
+                set("damageVsEntity", valueOf(itemDamage(item)));
+            }
+        }
+
+        @Override
+        public LuaValue get(LuaValue key) {
+            if (key.isstring()) {
+                String property = key.tojstring();
+                if (property.equals("displayName")) {
+                    return stringOrNil(itemDisplayName(item, damage));
+                }
+                if (property.equals("maxStackSize")) {
+                    return valueOf(item.getItemStackLimit());
+                }
+                if (property.equals("maxDamage")) {
+                    return valueOf(item.getMaxDamage());
+                }
+                if (property.equals("hasSubtypes")) {
+                    return valueOf(item.getHasSubtypes());
+                }
+                if (property.equals("icon") || property.equals("texture")) {
+                    return valueOf(item.getIconFromDamage(damage));
+                }
+                if (property.equals("full3D")) {
+                    return valueOf(item.isFull3D());
+                }
+                if (property.equals("efficiency") && item instanceof ItemTool) {
+                    return valueOf(((ItemTool) item).efficiencyOnProperMaterial);
+                }
+                if (property.equals("damageVsEntity")
+                        && (item instanceof ItemTool || item instanceof ItemSword)) {
+                    return valueOf(itemDamage(item));
+                }
+                if (property.equals("healing") && item instanceof ItemFood) {
+                    return valueOf(((Integer) intFieldAdapter(ItemFood.class, "healAmount", "a").read(item)).intValue());
+                }
+                if (property.equals("wolfFood") && item instanceof ItemFood) {
+                    return valueOf(((Boolean) booleanFieldAdapter(ItemFood.class, "isWolfsFavoriteMeat", "bk")
+                            .read(item)).booleanValue());
+                }
+            }
+            return super.get(key);
         }
 
         protected ResourceProperty<Item, ?> property(String property) {
@@ -411,7 +594,8 @@ public final class ResourceApi {
             }
             if (ItemCallbackOverrides.supports(property)) {
                 return resourceProperty(property, ItemCallbackOverrides.adapter(property),
-                        value -> new LuaOverrideDefinition(property, value));
+                        value -> LuaOverrideLayers.single(new LuaOverrideDefinition(property, value)),
+                        LuaOverrideLayers.resolver());
             }
             if (property.equals("maxStackSize")) {
                 return integerProperty(property, intFieldAdapter(Item.class, "maxStackSize", "bg"));
@@ -421,6 +605,22 @@ public final class ResourceApi {
             }
             if (property.equals("hasSubtypes")) {
                 return booleanProperty(property, booleanFieldAdapter(Item.class, "hasSubtypes", "bj"));
+            }
+            if (property.equals("full3D")) {
+                return booleanProperty(property, booleanFieldAdapter(Item.class, "bFull3D", "bi"));
+            }
+            if (property.equals("efficiency") && item instanceof ItemTool) {
+                return resourceProperty(property,
+                        floatFieldAdapter(ItemTool.class, "efficiencyOnProperMaterial", "bl"),
+                        value -> Float.valueOf(positiveFloat(value, "efficiency")));
+            }
+            if (property.equals("damageVsEntity") && item instanceof ItemTool) {
+                return resourceProperty(property, intFieldAdapter(ItemTool.class, "damageVsEntity", "bm"),
+                        value -> Integer.valueOf(nonNegativeInteger(value, "damageVsEntity")));
+            }
+            if (property.equals("damageVsEntity") && item instanceof ItemSword) {
+                return resourceProperty(property, intFieldAdapter(ItemSword.class, "weaponDamage", "a"),
+                        value -> Integer.valueOf(nonNegativeInteger(value, "damageVsEntity")));
             }
             if (property.equals("icon") || property.equals("texture")) {
                 return resourceProperty(property, intFieldAdapter(Item.class, "iconIndex", "bh"),
@@ -640,6 +840,86 @@ public final class ResourceApi {
         return new ResourceProperty<>(name, adapter, converter);
     }
 
+    private static final class HardnessLayer {
+        private final Float hardness;
+        private final Boolean unbreakable;
+
+        private HardnessLayer(Float hardness, Boolean unbreakable) {
+            this.hardness = hardness;
+            this.unbreakable = unbreakable;
+        }
+
+        private static HardnessLayer hardness(float value) {
+            if (Float.isNaN(value) || Float.isInfinite(value)) {
+                throw new LuaError("hardness must be finite.");
+            }
+            return new HardnessLayer(Float.valueOf(value), null);
+        }
+
+        private static HardnessLayer unbreakable(boolean value) {
+            return new HardnessLayer(null, Boolean.valueOf(value));
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (!(other instanceof HardnessLayer)) {
+                return false;
+            }
+            HardnessLayer value = (HardnessLayer) other;
+            if (hardness != null && value.hardness != null) {
+                return Float.compare(hardness.floatValue(), value.hardness.floatValue()) == 0;
+            }
+            if (hardness != null) {
+                return (hardness.floatValue() < 0) == value.unbreakable.booleanValue();
+            }
+            if (value.hardness != null) {
+                return unbreakable.booleanValue() == (value.hardness.floatValue() < 0);
+            }
+            return unbreakable.equals(value.unbreakable);
+        }
+
+        @Override
+        public int hashCode() {
+            return hardness == null ? unbreakable.hashCode() : hardness.hashCode();
+        }
+    }
+
+    private static OverrideManager.PropertyAdapter<Block, StepSound> stepSoundAdapter() {
+        return new OverrideManager.PropertyAdapter<Block, StepSound>() {
+            public StepSound read(Block target) {
+                return target.stepSound;
+            }
+
+            public void write(Block target, StepSound value) {
+                target.stepSound = value;
+            }
+        };
+    }
+
+    private static OverrideManager.PropertyAdapter<Block, Integer> fireAdapter(final boolean spread) {
+        return new OverrideManager.PropertyAdapter<Block, Integer>() {
+            public Integer read(Block target) {
+                return Integer.valueOf(spread
+                        ? BlockFireRegistration.spread(target.blockID)
+                        : BlockFireRegistration.burn(target.blockID));
+            }
+
+            public void write(Block target, Integer value) {
+                if (spread) {
+                    BlockFireRegistration.spread(target.blockID, value.intValue());
+                } else {
+                    BlockFireRegistration.burn(target.blockID, value.intValue());
+                }
+            }
+        };
+    }
+
+    private static <T, V> ResourceProperty<T, V> resourceProperty(String name,
+            OverrideManager.PropertyAdapter<T, V> adapter, Function<LuaValue, V> converter,
+            OverrideManager.ValueResolver<V> resolver) {
+        return new ResourceProperty<T, V>(name, adapter, converter, resolver);
+    }
+
     private static <T> ResourceProperty<T, Integer> integerProperty(String name,
             OverrideManager.PropertyAdapter<T, Integer> adapter) {
         return resourceProperty(name, adapter, value -> Integer.valueOf(value.checkint()));
@@ -752,6 +1032,71 @@ public final class ResourceApi {
     private static boolean isTool(Item item) {
         return item instanceof ItemPickaxe || item instanceof ItemAxe || item instanceof ItemSpade
                 || item instanceof ItemHoe || item instanceof ItemSword;
+    }
+
+    private static int itemDamage(Item item) {
+        if (item instanceof ItemTool) {
+            return ((ItemTool) item).damageVsEntity;
+        }
+        return ((Integer) intFieldAdapter(ItemSword.class, "weaponDamage", "a").read(item)).intValue();
+    }
+
+    private static StepSound resolveStepSound(String name) {
+        StepSound sound = MinecraftBuiltins.resolveStepSound(name);
+        if (sound == null) {
+            throw new LuaError("Unknown step sound: " + name + ".");
+        }
+        return sound;
+    }
+
+    private static String stepSoundName(StepSound sound) {
+        String[] names = {"stone", "wood", "gravel", "grass", "metal", "glass", "cloth", "sand"};
+        for (String name : names) {
+            if (MinecraftBuiltins.resolveStepSound(name) == sound) {
+                return name;
+            }
+        }
+        return sound == null ? "" : sound.stepSoundDir();
+    }
+
+    private static float positiveFloat(LuaValue value, String property) {
+        double number = value.checkdouble();
+        if (number <= 0 || Double.isNaN(number) || Double.isInfinite(number)) {
+            throw new LuaError(property + " must be a finite number greater than zero.");
+        }
+        return (float) number;
+    }
+
+    private static int nonNegativeInteger(LuaValue value, String property) {
+        int number = value.checkint();
+        if (number < 0) {
+            throw new LuaError(property + " must be nonnegative.");
+        }
+        return number;
+    }
+
+    private static int nonNegativeInteger(LuaValue value, String property, int maximum) {
+        int number = nonNegativeInteger(value, property);
+        if (number > maximum) {
+            throw new LuaError(property + " must not exceed " + maximum + ".");
+        }
+        return number;
+    }
+
+    private static LuaValue copyLua(LuaValue value) {
+        if (!value.istable()) {
+            return value;
+        }
+        LuaTable copy = new LuaTable();
+        LuaValue key = NIL;
+        while (true) {
+            Varargs next = value.next(key);
+            key = next.arg1();
+            if (key.isnil()) {
+                return copy;
+            }
+            copy.set(copyLua(key), copyLua(next.arg(2)));
+        }
     }
 
     private static String itemType(Item item) {

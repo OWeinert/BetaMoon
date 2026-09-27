@@ -18,15 +18,22 @@ final class SoundEventDefinition {
     final float pitchMin;
     final float pitchMax;
     final float range;
+    final boolean enabled;
     private final double totalWeight;
 
     SoundEventDefinition(AssetKey key, List<Clip> clips, float volume, float pitchMin, float pitchMax, float range) {
+        this(key, clips, volume, pitchMin, pitchMax, range, true);
+    }
+
+    SoundEventDefinition(AssetKey key, List<Clip> clips, float volume, float pitchMin, float pitchMax, float range,
+            boolean enabled) {
         this.key = key;
         this.clips = Collections.unmodifiableList(new ArrayList<>(clips));
         this.volume = volume;
         this.pitchMin = pitchMin;
         this.pitchMax = pitchMax;
         this.range = range;
+        this.enabled = enabled;
         double total = 0;
         for (Clip clip : clips) {
             total += clip.weight;

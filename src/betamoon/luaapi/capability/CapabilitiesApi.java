@@ -6,9 +6,11 @@ import betamoon.capability.CapabilityOperationDefinition;
 import betamoon.capability.CapabilityReference;
 import betamoon.capability.CapabilityRegistry;
 import betamoon.data.DataSchema;
+import betamoon.luaapi.resource.LuaResultList;
 import betamoon.luaapi.utils.LuaDeclarationValues;
 import betamoon.luamodloader.LuaScriptRegistry;
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.luaj.vm2.LuaError;
@@ -31,7 +33,45 @@ public final class CapabilitiesApi {
         });
         capabilities.set("get", lookup(capabilities, false));
         capabilities.set("getRequired", lookup(capabilities, true));
+        capabilities.set("find", query(capabilities, 0));
+        capabilities.set("first", query(capabilities, 1));
+        capabilities.set("one", query(capabilities, 2));
         root.set("capabilities", capabilities);
+    }
+
+    private static VarArgFunction query(final LuaTable registry, final int mode) {
+        return new VarArgFunction() {
+            public Varargs invoke(Varargs arguments) {
+                LuaValue criteria = argument(arguments, registry);
+                if (criteria.isnil()) {
+                    criteria = new LuaTable();
+                }
+                if (!criteria.istable()) {
+                    throw new LuaError("Capability query must be a table.");
+                }
+                List<LuaValue> matches = new ArrayList<LuaValue>();
+                for (CapabilityDefinition definition : CapabilityRegistry.all()) {
+                    CapabilityReference reference = new CapabilityReference(definition);
+                    if (reference.matches(criteria)) {
+                        matches.add(reference);
+                    }
+                }
+                if (mode == 1) {
+                    return matches.isEmpty() ? NIL : matches.get(0);
+                }
+                if (mode == 2) {
+                    if (matches.isEmpty()) {
+                        return NIL;
+                    }
+                    if (matches.size() != 1) {
+                        throw new LuaError("Expected exactly one capability, found " + matches.size() + ".");
+                    }
+                    return matches.get(0);
+                }
+                return new LuaResultList(matches, (reference, definition, index) ->
+                        ((CapabilityReference) reference).override(definition));
+            }
+        };
     }
 
     public static CapabilityDefinition definition(LuaValue value, String path) {
