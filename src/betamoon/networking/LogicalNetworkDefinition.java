@@ -28,10 +28,10 @@ public final class LogicalNetworkDefinition {
     public final String endpointField;
     public final double range;
     public final List<String> compatibilityFields;
-    public final int tickInterval;
-    public final LuaValue canConnect;
-    public final LuaValue onTick;
-    public final LuaValue onPulse;
+    public volatile int tickInterval;
+    public volatile LuaValue canConnect;
+    public volatile LuaValue onTick;
+    public volatile LuaValue onPulse;
     public final DataField signalValue;
     public final String signalMode;
     public final String aggregate;

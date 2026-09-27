@@ -510,8 +510,8 @@ public final class BlockItemApiTest {
             }
         });
         int recipesBefore = CraftingManager.getInstance().getRecipeList().size();
-        String[] files = {"01_beg_17_projectile.lua", "01_beg_24_first_block_interaction.lua",
-                "01_beg_25_first_item_use.lua", "02_int_08_block_interactions.lua", "02_int_09_attached_blocks.lua",
+        String[] files = {"01_beg_18_projectile.lua", "01_beg_25_first_block_interaction.lua",
+                "01_beg_26_first_item_use.lua", "02_int_08_block_interactions.lua", "02_int_09_attached_blocks.lua",
                 "02_int_10_block_lifecycle.lua", "02_int_11_item_interactions.lua",
                 "02_int_13_targeted_item_actions.lua", "02_int_14_tool_interactions.lua",
                 "02_int_15_dynamic_tool_callbacks.lua", "02_int_16_block_shapes.lua", "02_int_18_launch_pad.lua",

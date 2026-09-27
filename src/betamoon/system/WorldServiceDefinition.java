@@ -9,10 +9,10 @@ public final class WorldServiceDefinition {
     public final AssetKey key;
     public final String owner;
     public final DataSchema data;
-    public final int tickInterval;
-    public final LuaValue onLoad;
-    public final LuaValue onTick;
-    public final LuaValue onUnload;
+    public volatile int tickInterval;
+    public volatile LuaValue onLoad;
+    public volatile LuaValue onTick;
+    public volatile LuaValue onUnload;
 
     public WorldServiceDefinition(AssetKey key, String owner, DataSchema data, int tickInterval,
             LuaValue onLoad, LuaValue onTick, LuaValue onUnload) {

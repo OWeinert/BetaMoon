@@ -60,9 +60,16 @@ public final class BlockDisplayOverrideTest {
         ScriptResourceTracker.unload("display_high.lua");
         verify(dispatch, world, "before", "smoke", "flame", "after");
 
+        owner.invoke(null, "display_bad_layer.lua");
+        lua.load("badLayer = furnace:override {priority=20,onDisplayTick={action=function(ctx) "
+                + "error('bad top layer') end}}").call();
+        verify(dispatch, world, "before", "smoke", "flame", "after");
+        verify(dispatch, world, "before", "smoke", "flame", "after");
+        lua.load("badLayer:remove()").call();
+
         lua.load("high = furnace:override {priority=10,onDisplayTick={action=function(ctx) "
                 + "ctx:base(); assert(not pcall(function() ctx:base() end)); particle(ctx,'once') end}}").call();
-        verify(dispatch, world, "smoke", "flame", "once");
+        verify(dispatch, world, "before", "smoke", "flame", "after", "once");
         lua.load("high:remove(); low:remove()").call();
         verify(dispatch, world, "smoke", "flame");
 
@@ -83,6 +90,7 @@ public final class BlockDisplayOverrideTest {
         int baseLight = Block.lightValue[62];
         owner.invoke(null, "property_low.lua");
         lua.load("propertyLow = furnace:override {priority=0, light=1}").call();
+        lua.load("assert(furnace.light == 1); assert(betamoon.blocks:getRequired(62).light == 1)").call();
         owner.invoke(null, "property_middle.lua");
         lua.load("propertyMiddle = furnace:override {priority=5, light=2}").call();
         owner.invoke(null, "property_high.lua");
@@ -95,6 +103,34 @@ public final class BlockDisplayOverrideTest {
         require(Block.lightValue[62] == 1, "Removing the highest layer did not reveal the remaining lower layer");
         ScriptResourceTracker.unload("property_low.lua");
         require(Block.lightValue[62] == baseLight, "Removing all property layers did not restore the base value");
+        lua.load("assert(furnace.light == " + baseLight + ")").call();
+
+        double baseHardness = lua.get("furnace").get("hardness").checkdouble();
+        owner.invoke(null, "property_atomic.lua");
+        lua.load("local ok=pcall(function() furnace:override {light=1, hardness='invalid'} end); assert(not ok)")
+                .call();
+        require(Block.lightValue[62] == baseLight, "A failed override left an earlier property applied");
+        require(lua.get("furnace").get("hardness").checkdouble() == baseHardness,
+                "A failed override changed hardness");
+
+        int baseSpread = lua.get("furnace").get("fire").get("spread").checkint();
+        int baseBurn = lua.get("furnace").get("fire").get("burn").checkint();
+        owner.invoke(null, "physical_low.lua");
+        lua.load("physicalLow=furnace:override{priority=1,changes={hardness=2,fire={spread=7,burn=9}}};"
+                + "assert(furnace.hardness==2 and furnace.fire.spread==7 and furnace.fire.burn==9)").call();
+        owner.invoke(null, "physical_high.lua");
+        lua.load("physicalHigh=furnace:override{priority=2,changes={unbreakable=true}};"
+                + "assert(furnace.unbreakable and furnace.hardness<0)").call();
+        owner.invoke(null, "physical_breakable.lua");
+        lua.load("physicalBreakable=furnace:override{priority=3,changes={unbreakable=false}};"
+                + "assert(not furnace.unbreakable and furnace.hardness==2); physicalBreakable:remove();"
+                + "assert(furnace.unbreakable); physicalHigh:remove(); assert(furnace.hardness==2)").call();
+        ScriptResourceTracker.unload("physical_low.lua");
+        require(lua.get("furnace").get("hardness").checkdouble() == baseHardness,
+                "Physical override cleanup did not restore hardness");
+        require(lua.get("furnace").get("fire").get("spread").checkint() == baseSpread
+                        && lua.get("furnace").get("fire").get("burn").checkint() == baseBurn,
+                "Physical override cleanup did not restore fire values");
 
         owner.invoke(null, "property_equal_first.lua");
         lua.load("propertyFirst = furnace:override {priority=4, light=4}").call();

@@ -2,11 +2,14 @@ package betamoon.luaapi.system;
 
 import betamoon.assets.AssetKey;
 import betamoon.data.DataSchema;
+import betamoon.luaapi.resource.LuaResultList;
 import betamoon.luaapi.utils.LuaDeclarationValues;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.system.WorldServiceDefinition;
 import betamoon.system.WorldServiceReference;
 import betamoon.system.WorldServiceRegistry;
+import java.util.ArrayList;
+import java.util.List;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -27,7 +30,45 @@ public final class SystemsApi {
         });
         systems.set("get", lookup(systems, false));
         systems.set("getRequired", lookup(systems, true));
+        systems.set("find", query(systems, 0));
+        systems.set("first", query(systems, 1));
+        systems.set("one", query(systems, 2));
         root.set("systems", systems);
+    }
+
+    private static VarArgFunction query(final LuaTable registry, final int mode) {
+        return new VarArgFunction() {
+            public Varargs invoke(Varargs arguments) {
+                LuaValue criteria = argument(arguments, registry);
+                if (criteria.isnil()) {
+                    criteria = new LuaTable();
+                }
+                if (!criteria.istable()) {
+                    throw new LuaError("World-service query must be a table.");
+                }
+                List<LuaValue> matches = new ArrayList<LuaValue>();
+                for (WorldServiceDefinition definition : WorldServiceRegistry.all()) {
+                    WorldServiceReference reference = new WorldServiceReference(definition);
+                    if (reference.matches(criteria)) {
+                        matches.add(reference);
+                    }
+                }
+                if (mode == 1) {
+                    return matches.isEmpty() ? NIL : matches.get(0);
+                }
+                if (mode == 2) {
+                    if (matches.isEmpty()) {
+                        return NIL;
+                    }
+                    if (matches.size() != 1) {
+                        throw new LuaError("Expected exactly one world service, found " + matches.size() + ".");
+                    }
+                    return matches.get(0);
+                }
+                return new LuaResultList(matches, (reference, definition, index) ->
+                        ((WorldServiceReference) reference).override(definition));
+            }
+        };
     }
 
     public static WorldServiceDefinition definition(LuaValue value, String path) {

@@ -9,7 +9,7 @@ import java.util.List;
 public final class FuelSetDefinition {
     public final AssetKey key;
     public final String owner;
-    public final List<AssetKey> includes;
+    public volatile List<AssetKey> includes;
     public final boolean builtIn;
 
     FuelSetDefinition(AssetKey key, String owner, List<AssetKey> includes, boolean builtIn) {
@@ -17,5 +17,9 @@ public final class FuelSetDefinition {
         this.owner = owner;
         this.includes = Collections.unmodifiableList(new ArrayList<AssetKey>(includes));
         this.builtIn = builtIn;
+    }
+
+    void setIncludes(List<AssetKey> includes) {
+        this.includes = Collections.unmodifiableList(new ArrayList<AssetKey>(includes));
     }
 }

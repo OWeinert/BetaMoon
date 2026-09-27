@@ -15,11 +15,11 @@ The default native directory is `build/gui-natives`. This optional test is kept
 separate from `check` because it requires a working OpenGL driver and natives.
 
 It executes the showcase's real tile/entity/container GUI registration, advances
-the animation through all four pages, and checks item-count page selection.
+the animation through all five pages, and checks item-count page selection.
 Block/recipe registration is captured without loading ModLoader. It then checks
 actual white tooltip glyph pixels with lighting/depth enabled, confirms GL state
 restoration, and reproduces the previous missing-text rendering path.
 
-Screenshots of all four pages and tooltips are written to
+Screenshots of all five pages and tooltips are written to
 `build/gui-showcase-render/` for visual inspection. These render the GUI layers
 and sample item previews; they do not simulate a player opening a world.

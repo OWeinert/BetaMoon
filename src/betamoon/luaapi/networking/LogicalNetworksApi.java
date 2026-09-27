@@ -4,6 +4,7 @@ import betamoon.assets.AssetKey;
 import betamoon.capability.CapabilityDefinition;
 import betamoon.data.DataField;
 import betamoon.luaapi.capability.CapabilitiesApi;
+import betamoon.luaapi.resource.LuaResultList;
 import betamoon.luaapi.utils.LuaDeclarationValues;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.networking.LogicalNetworkDefinition;
@@ -31,7 +32,45 @@ public final class LogicalNetworksApi {
         });
         networks.set("get", lookup(networks, false));
         networks.set("getRequired", lookup(networks, true));
+        networks.set("find", query(networks, 0));
+        networks.set("first", query(networks, 1));
+        networks.set("one", query(networks, 2));
         root.set("logicalNetworks", networks);
+    }
+
+    private static VarArgFunction query(final LuaTable registry, final int mode) {
+        return new VarArgFunction() {
+            public Varargs invoke(Varargs arguments) {
+                LuaValue criteria = argument(arguments, registry);
+                if (criteria.isnil()) {
+                    criteria = new LuaTable();
+                }
+                if (!criteria.istable()) {
+                    throw new LuaError("Logical-network query must be a table.");
+                }
+                List<LuaValue> matches = new ArrayList<LuaValue>();
+                for (LogicalNetworkDefinition definition : LogicalNetworkRegistry.all()) {
+                    LogicalNetworkReference reference = new LogicalNetworkReference(definition);
+                    if (reference.matches(criteria)) {
+                        matches.add(reference);
+                    }
+                }
+                if (mode == 1) {
+                    return matches.isEmpty() ? NIL : matches.get(0);
+                }
+                if (mode == 2) {
+                    if (matches.isEmpty()) {
+                        return NIL;
+                    }
+                    if (matches.size() != 1) {
+                        throw new LuaError("Expected exactly one logical network, found " + matches.size() + ".");
+                    }
+                    return matches.get(0);
+                }
+                return new LuaResultList(matches, (reference, definition, index) ->
+                        ((LogicalNetworkReference) reference).override(definition));
+            }
+        };
     }
 
     public static LogicalNetworkDefinition definition(LuaValue value, String path) {

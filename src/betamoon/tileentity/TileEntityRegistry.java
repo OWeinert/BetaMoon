@@ -25,6 +25,7 @@ public final class TileEntityRegistry {
     private static final Map<String, TileEntityDefinition> TILE_ENTITIES = new HashMap<>();
     private static final Map<String, ContainerDefinition> CONTAINERS = new HashMap<>();
     private static final Map<String, ContainerGuiDefinition> GUIS = new HashMap<>();
+    private static final Map<String, GuiEntry> GUI_ENTRIES = new HashMap<String, GuiEntry>();
     private static final Map<Integer, BlockBinding> BLOCKS = new HashMap<>();
     private static boolean minecraftTypeRegistered;
 
@@ -227,6 +228,7 @@ public final class TileEntityRegistry {
     public static synchronized void register(ContainerGuiDefinition definition) {
         rejectDuplicate(GUIS, definition.name, "container GUI");
         GUIS.put(definition.name, definition);
+        GUI_ENTRIES.put(definition.name, new GuiEntry(definition));
         NonReloadableScriptRegistry.mark(definition.owner, "tile entities or related content");
     }
 
@@ -238,8 +240,31 @@ public final class TileEntityRegistry {
         return CONTAINERS.get(name);
     }
 
+    public static synchronized List<TileEntityDefinition> tileEntities() {
+        return Collections.unmodifiableList(new ArrayList<TileEntityDefinition>(TILE_ENTITIES.values()));
+    }
+
+    public static synchronized List<ContainerDefinition> containers() {
+        return Collections.unmodifiableList(new ArrayList<ContainerDefinition>(CONTAINERS.values()));
+    }
+
     public static synchronized ContainerGuiDefinition getGui(String name) {
         return GUIS.get(name);
+    }
+
+    public static synchronized GuiEntry getGuiEntry(String name) {
+        return GUI_ENTRIES.get(name);
+    }
+
+    public static synchronized List<GuiEntry> guiEntries() {
+        return Collections.unmodifiableList(new ArrayList<GuiEntry>(GUI_ENTRIES.values()));
+    }
+
+    public static synchronized void publishGui(GuiEntry entry, ContainerGuiDefinition definition) {
+        if (GUI_ENTRIES.get(entry.base.name) == entry) {
+            entry.effective = definition;
+            GUIS.put(entry.base.name, definition);
+        }
     }
 
     /** Attaches three validated standalone definitions to a custom block. */
@@ -316,6 +341,12 @@ public final class TileEntityRegistry {
         removeOwned(TILE_ENTITIES, owner);
         removeOwned(CONTAINERS, owner);
         removeOwned(GUIS, owner);
+        Iterator<GuiEntry> guiEntries = GUI_ENTRIES.values().iterator();
+        while (guiEntries.hasNext()) {
+            if (owner.equals(guiEntries.next().base.owner)) {
+                guiEntries.remove();
+            }
+        }
         Iterator<Map.Entry<Integer, BlockBinding>> bindings = BLOCKS.entrySet().iterator();
         while (bindings.hasNext()) {
             Map.Entry<Integer, BlockBinding> entry = bindings.next();
@@ -359,7 +390,11 @@ public final class TileEntityRegistry {
             return false;
         }
         try {
-            ModLoader.OpenGUI(player, new GuiLuaContainer(player.inventory, entity, binding.gui));
+            ContainerGuiDefinition gui = getGui(binding.gui.name);
+            if (gui == null) {
+                return false;
+            }
+            ModLoader.OpenGUI(player, new GuiLuaContainer(player.inventory, entity, gui));
             return true;
         } catch (Throwable error) {
             BetaMoonCommon.LOGGER.warning("Could not open Lua container GUI: " + error.getMessage());
@@ -384,6 +419,16 @@ public final class TileEntityRegistry {
             this.container = container;
             this.gui = gui;
             this.redstone = redstone;
+        }
+    }
+
+    public static final class GuiEntry {
+        public final ContainerGuiDefinition base;
+        public volatile ContainerGuiDefinition effective;
+
+        private GuiEntry(ContainerGuiDefinition base) {
+            this.base = base;
+            this.effective = base;
         }
     }
 }

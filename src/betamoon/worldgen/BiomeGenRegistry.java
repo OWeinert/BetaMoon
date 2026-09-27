@@ -24,13 +24,13 @@ public final class BiomeGenRegistry {
      * Immutable registration entry describing where a biome should appear in the
      * lookup table.
      */
-    private static final class BiomeGenEntry {
-        private final BiomeGenBase biome;
-        private final double minTemperature;
-        private final double maxTemperature;
-        private final double minHumidity;
-        private final double maxHumidity;
-        private final String owner;
+    public static final class BiomeGenEntry {
+        public final BiomeGenBase biome;
+        public volatile double minTemperature;
+        public volatile double maxTemperature;
+        public volatile double minHumidity;
+        public volatile double maxHumidity;
+        public final String owner;
 
         private BiomeGenEntry(BiomeGenBase biome, double minTemperature, double maxTemperature, double minHumidity,
                 double maxHumidity) {
@@ -87,12 +87,27 @@ public final class BiomeGenRegistry {
      * @param maxHumidity
      *            maximum humidity (0..1)
      */
-    public static synchronized void registerBiomeGenerator(BiomeGenBase biome, double minTemperature,
+    public static synchronized BiomeGenEntry registerBiomeGenerator(BiomeGenBase biome, double minTemperature,
             double maxTemperature, double minHumidity, double maxHumidity) {
         if (biome == null) {
-            return;
+            return null;
         }
-        ENTRIES.add(new BiomeGenEntry(biome, minTemperature, maxTemperature, minHumidity, maxHumidity));
+        BiomeGenEntry entry = new BiomeGenEntry(biome, minTemperature, maxTemperature, minHumidity, maxHumidity);
+        ENTRIES.add(entry);
+        return entry;
+    }
+
+    public static synchronized List<BiomeGenEntry> entries() {
+        return Collections.unmodifiableList(new ArrayList<BiomeGenEntry>(ENTRIES));
+    }
+
+    public static synchronized BiomeGenEntry find(BiomeGenBase biome) {
+        for (BiomeGenEntry entry : ENTRIES) {
+            if (entry.biome == biome) {
+                return entry;
+            }
+        }
+        return null;
     }
 
     public static synchronized List<Description> snapshot() {
@@ -111,7 +126,7 @@ public final class BiomeGenRegistry {
      * during world generation.
      * </p>
      */
-    public static void applyBiomeGenerators() {
+    public static synchronized void applyBiomeGenerators() {
         if (ENTRIES.isEmpty()) {
             return;
         }

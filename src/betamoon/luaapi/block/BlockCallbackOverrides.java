@@ -6,6 +6,7 @@ import betamoon.luaapi.resource.OverrideManager;
 import betamoon.luaapi.utils.LuaOverrideCallback;
 import betamoon.luaapi.utils.LuaOverrideCallback.Result;
 import betamoon.luaapi.utils.LuaOverrideDefinition;
+import betamoon.luaapi.utils.LuaOverrideLayers;
 import java.util.Map;
 import java.util.LinkedHashMap;
 import java.util.WeakHashMap;
@@ -42,20 +43,22 @@ public final class BlockCallbackOverrides {
         return callback != null && callback.isEnabled() ? callback : null;
     }
 
-    public static OverrideManager.PropertyAdapter<Block, LuaOverrideDefinition> adapter(final String name) {
+    public static OverrideManager.PropertyAdapter<Block, LuaOverrideLayers<LuaOverrideDefinition>> adapter(
+            final String name) {
         final BlockCallback callbackId = BlockCallback.fromLuaName(name);
-        return new OverrideManager.PropertyAdapter<Block, LuaOverrideDefinition>() {
-            public LuaOverrideDefinition read(Block target) {
+        return new OverrideManager.PropertyAdapter<Block, LuaOverrideLayers<LuaOverrideDefinition>>() {
+            @SuppressWarnings("unchecked")
+            public LuaOverrideLayers<LuaOverrideDefinition> read(Block target) {
                 LuaOverrideCallback callback = CALLBACKS.get(key(((Block) target).blockID, callbackId));
-                return callback == null ? null : callback.definition;
+                return callback == null ? null : (LuaOverrideLayers<LuaOverrideDefinition>) callback.layers();
             }
 
-            public void write(Block target, LuaOverrideDefinition value) {
+            public void write(Block target, LuaOverrideLayers<LuaOverrideDefinition> value) {
                 String key = key(((Block) target).blockID, callbackId);
                 if (value == null) {
                     CALLBACKS.remove(key);
                 } else {
-                    CALLBACKS.put(key, new LuaOverrideCallback((LuaOverrideDefinition) value));
+                    CALLBACKS.put(key, new LuaOverrideCallback(value));
                 }
             }
         };

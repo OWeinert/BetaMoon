@@ -6,8 +6,8 @@ Copy `03_adv_06_gui_showcase.lua` and this entire `gui_showcase` folder into
 Craft a chest with one redstone dust in any arrangement to obtain the GUI
 Showcase block (ID 208). Place it and right-click to open the gallery.
 
-- Leave **Page** empty to cycle through four pages, eight seconds each.
-- Put 1, 2, 3, or 4 items in **Page** to hold the corresponding page.
+- Leave **Page** empty to cycle through five pages, eight seconds each.
+- Put 1, 2, 3, 4, or 5 items in **Page** to hold the corresponding page.
 - Put any item in **Sample** for the live item preview on page 1.
 - Hover the demonstrations for explanations and synchronized values.
 
@@ -15,7 +15,8 @@ The page-selector and sample items remain yours; the showcase never consumes
 them. It uses a 256×232 canvas and continues ticking while open. Changes to its
 Lua definitions require a Minecraft restart.
 
-The commented script demonstrates every container-GUI element type. Its
+The commented script demonstrates every container-GUI element type, including
+interactive controls and temporary container-session state. Its
 `BACKGROUND` setting can be `panel`, `custom`, or `builtin`. The custom panel
 has the same dimensions as the generated one. Built-in backgrounds scale to
 the gallery canvas, with slot frames drawn at the container's actual positions.

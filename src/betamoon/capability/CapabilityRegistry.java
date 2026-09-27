@@ -4,6 +4,8 @@ import betamoon.assets.AssetKey;
 import betamoon.luamodloader.NonReloadableScriptRegistry;
 import betamoon.luamodloader.ScriptResourceTracker;
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /** Process-wide startup registry of typed capability contracts. */
@@ -32,5 +34,9 @@ public final class CapabilityRegistry {
 
     public static synchronized CapabilityDefinition find(AssetKey key) {
         return DEFINITIONS.get(key);
+    }
+
+    public static synchronized List<CapabilityDefinition> all() {
+        return new ArrayList<CapabilityDefinition>(DEFINITIONS.values());
     }
 }

@@ -281,13 +281,23 @@ public final class EntityTypeRegistry {
         active = Collections.emptyMap();
     }
 
-    private static final class Entry {
-        private final String owner;
-        private final EntityTypeDefinition definition;
+    public static final class Entry {
+        public final String owner;
+        public final EntityTypeDefinition base;
+        public volatile EntityTypeDefinition definition;
 
         private Entry(String owner, EntityTypeDefinition definition) {
             this.owner = owner;
+            this.base = definition;
             this.definition = definition;
         }
+    }
+
+    public static synchronized Entry entry(AssetKey key) {
+        return active.get(key);
+    }
+
+    public static synchronized List<Entry> entries() {
+        return Collections.unmodifiableList(new ArrayList<Entry>(active.values()));
     }
 }

@@ -166,6 +166,36 @@ public final class FuelRegistry {
         return snapshot.orderedRegistrations;
     }
 
+    /** Rebuilds immutable lookup tables after an effective registration value changes. */
+    public static synchronized void refresh() {
+        publish();
+    }
+
+    /** Validates and publishes a replacement include list for a live fuel set. */
+    public static synchronized void updateIncludes(FuelSetDefinition definition, List<AssetKey> includes) {
+        if (!contains(definition)) {
+            throw new IllegalArgumentException("Fuel set is no longer registered: " + definition.key);
+        }
+        Set<AssetKey> unique = new HashSet<AssetKey>();
+        for (AssetKey included : includes) {
+            if (!unique.add(included)) {
+                throw new IllegalArgumentException("Fuel set includes '" + included + "' more than once.");
+            }
+            if (!SETS.containsKey(included)) {
+                throw new IllegalArgumentException("Unknown included fuel set: " + included);
+            }
+        }
+        List<AssetKey> previous = definition.includes;
+        definition.setIncludes(includes);
+        try {
+            ensureAcyclic(SETS, definition.key, new HashSet<AssetKey>(), new HashSet<AssetKey>());
+        } catch (RuntimeException error) {
+            definition.setIncludes(previous);
+            throw error;
+        }
+        publish();
+    }
+
     private static void requireOwner(String owner) {
         if (owner == null || owner.trim().length() == 0) {
             throw new IllegalArgumentException("A fuel registration owner is required.");
@@ -225,6 +255,9 @@ public final class FuelRegistry {
                 compiled.put(set.key, new SetSnapshot(set));
             }
             for (FuelRegistration registration : sourceRegistrations.values()) {
+                if (!registration.enabled) {
+                    continue;
+                }
                 SetSnapshot set = compiled.get(registration.setKey);
                 if (set != null) {
                     set.add(registration);

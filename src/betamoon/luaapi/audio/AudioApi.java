@@ -6,7 +6,10 @@ import betamoon.client.audio.ClientAudio;
 import betamoon.client.audio.ClientSounds;
 import betamoon.client.audio.SoundAsset;
 import betamoon.luaapi.asset.AssetInputs;
+import betamoon.luaapi.resource.LuaResultList;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -38,6 +41,9 @@ public final class AudioApi {
         });
         events.set("get", lookup(events, false));
         events.set("getRequired", lookup(events, true));
+        events.set("find", query(events, 0));
+        events.set("first", query(events, 1));
+        events.set("one", query(events, 2));
         module.set("soundEvents", events);
         LuaTable audio = new LuaTable();
         audio.set("play", new VarArgFunction() {
@@ -48,6 +54,41 @@ public final class AudioApi {
             }
         });
         module.set("audio", audio);
+    }
+
+    private static VarArgFunction query(LuaTable registry, int mode) {
+        return new VarArgFunction() {
+            public Varargs invoke(Varargs args) {
+                LuaValue criteria = args.arg(args.arg1() == registry ? 2 : 1);
+                if (criteria.isnil()) {
+                    criteria = new LuaTable();
+                }
+                if (!criteria.istable()) {
+                    throw new LuaError("Sound event query must be a table.");
+                }
+                List<LuaValue> matches = new ArrayList<LuaValue>();
+                for (SoundEvents.Entry entry : SoundEvents.entries()) {
+                    SoundEventReference reference = new SoundEventReference(entry.base.key);
+                    if (reference.matches(criteria)) {
+                        matches.add(reference);
+                    }
+                }
+                if (mode == 1) {
+                    return matches.isEmpty() ? NIL : matches.get(0);
+                }
+                if (mode == 2) {
+                    if (matches.isEmpty()) {
+                        return NIL;
+                    }
+                    if (matches.size() != 1) {
+                        throw new LuaError("Expected exactly one sound event, found " + matches.size() + ".");
+                    }
+                    return matches.get(0);
+                }
+                return new LuaResultList(matches, (reference, definition, index) ->
+                        ((SoundEventReference) reference).applyOverride(definition));
+            }
+        };
     }
 
     private static VarArgFunction lookup(LuaTable registry, boolean required) {
@@ -85,6 +126,9 @@ public final class AudioApi {
             }
         } else if (sound.type() == LuaValue.TSTRING && sound.checkjstring().indexOf(':') >= 0) {
             event = SoundEvents.find(key(sound));
+        }
+        if (event != null && !event.enabled) {
+            return;
         }
         AssetLocation location = event == null ? AssetInputs.sound(sound) : event.choose(RANDOM);
         float volume = SoundEventParser.number(settings.get("volume"), event == null ? 1 : event.volume, 0, 1,

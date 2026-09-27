@@ -49,6 +49,18 @@ public final class CapabilityDataSystemTest {
         LogicalNetworksApi.attach(api);
         globals.set("betamoon", api);
         globals.load(script(), "capability_data_test.lua").call();
+        globals.load("assert(betamoon.logicalNetworks:one{key='test:network/cable'}.key==adjacent.key)\n"
+                + "local cadence=adjacent:override{tickInterval=2}\n"
+                + "assert(adjacent.tickInterval==2 and adjacent.topology=='adjacent') cadence:remove()\n"
+                + "assert(adjacent.tickInterval==1)\n"
+                + "adjacentOverride=adjacent:override{onTick=function(ctx) "
+                + "adjacentTicks=adjacentTicks+10 ctx:base() end}\n"
+                + "assert(betamoon.systems:one{key='test:system/power'}.key==powerSystem.key)\n"
+                + "systemOverride=powerSystem:override{onTick=function(ctx) ctx:base() "
+                + "ctx.data:set('ticks',ctx.data:get('ticks')+10) end}\n"
+                + "assert(betamoon.capabilities:one{key='test:capability/energy'}.key==energy.key)\n"
+                + "operationOverride=energy:override{operations={status=function(ctx,request) "
+                + "local result=ctx:base() result.capacity=result.capacity+1 return result end}}").call();
         owner.invoke(null, new Object[]{null});
         testStructuredDataFoundation(globals);
 
@@ -66,7 +78,7 @@ public final class CapabilityDataSystemTest {
                     + "local r=c:call('receive',{amount=40})\n"
                     + "assert(r.accepted == 40 and c.data:get('stored') == 40)\n"
                     + "local s=c:call('status',{})\n"
-                    + "assert(s.stored == 40 and s.capacity == 100)\n"
+                    + "assert(s.stored == 40 and s.capacity == 101)\n"
                     + "ctx.entity.data:set('profile',{label='sender', samples={2,4,6}})\n"
                     + "ctx.entity.networks:getRequired(explicit):link('receiver')\n"
                     + "ctx.entity.networks:getRequired(wireless):publish(7)\n"
@@ -96,7 +108,7 @@ public final class CapabilityDataSystemTest {
         LogicalNetworkRuntime.added(sender);
         LogicalNetworkRuntime.added(receiver);
         LogicalNetworkRuntime.tick(world);
-        require(globals.get("adjacentTicks").checkint() == 1 && globals.get("adjacentSize").checkint() == 2,
+        require(globals.get("adjacentTicks").checkint() == 11 && globals.get("adjacentSize").checkint() == 2,
                 "Adjacent network did not build one deterministic component");
         require(globals.get("wirelessTicks").checkint() == 1 && globals.get("wirelessSize").checkint() == 2,
                 "Wireless network did not join compatible channel endpoints");
@@ -129,7 +141,7 @@ public final class CapabilityDataSystemTest {
             LuaTable worldApi = LuaWorldActionAccess.create(scope, world, 0, 64, 0);
             globals.set("worldApi", worldApi);
             globals.load("local data=worldApi:getSystemData(powerSystem)\n"
-                    + "assert(data.loads == 1 and data.ticks == 1)\n"
+                    + "assert(data.loads == 1 and data.ticks == 11)\n"
                     + "local info=worldApi:getInfo()\n"
                     + "assert(info.day == 0 and info.timeOfDay == 0 and info.height == 128)\n"
                     + "assert(type(info.celestialAngle) == 'number' and type(info.daytime) == 'boolean')\n"

@@ -7,17 +7,19 @@
 
 name = "GUI Showcase"
 version = "1.0.0"
-description = "Adds GUI Showcase, an interactive four-page gallery of container GUI elements. Copy this " ..
+description = "Adds GUI Showcase, an interactive five-page gallery of container GUI elements. Copy this " ..
     "script and the complete gui_showcase asset folder into your scripts folder, preserving the " ..
     "folder name. Craft one chest with one redstone dust in any arrangement, place the resulting " ..
     "block, and right-click it.\n\n" ..
     "Leave the Page slot empty for an automatic tour, with roughly eight seconds per page. Put a " ..
-    "stack of one, two, three, or four items in that slot to hold the corresponding page; the " ..
+    "stack of one through five items in that slot to hold the corresponding page; the " ..
     "items are not consumed. Put an item into Sample to see its live preview on page 1.\n\n" ..
     "Page 1 demonstrates text alignment, images, item previews, and hover tooltips. Page 2 " ..
     "animates progress bars in four directions, including empty and nearly empty values. Page 3 " ..
     "shows state images and conditional visibility. Page 4 demonstrates groups, offsets, drawing " ..
-    "layers, and translucent rectangles. Hover over examples for additional explanations.\n\n" ..
+    "layers, and translucent rectangles. Page 5 demonstrates buttons, text boxes, toggles, sliders, " ..
+    "choices, keyboard focus, dragging, and temporary session data. Hover over examples for additional " ..
+    "explanations.\n\n" ..
     "Use the real inventory slots to control the gallery; the drawn previews and decorations are " ..
     "not clickable inventory slots. Compare each page with its numbered source section. To try " ..
     "another background, edit BACKGROUND and restart Minecraft; structural GUI changes require a " ..
@@ -27,7 +29,7 @@ description = "Adds GUI Showcase, an interactive four-page gallery of container 
 -- The defined GUI is also explorable ingame via the "GUI Showcase"-block.
 
 -- Empty Page slot: automatic tour, eight seconds per page.
--- Put 1, 2, 3, or 4 items in Page to hold that page; items are never consumed.
+-- Put 1 through 5 items in Page to hold that page; items are never consumed.
 -- Put an item in Sample to see a live item preview on page 1.
 -- GUI elements are visual: real item interaction belongs to container slots.
 local BLOCK_ID = 208
@@ -52,6 +54,10 @@ function modInit()
       limit = { type = "integer", default = 100, sync = true },
       mode = { type = "integer", default = 0, sync = true },
       active = { type = "boolean", default = false, sync = true },
+      enabled = { type = "boolean", default = false, sync = true },
+      speed = { type = "integer", default = 20, sync = true },
+      controlMode = { type = "string", default = "idle" },
+      label = { type = "string", default = "Showcase" },
       -- A private timer can be saved without being exposed to the GUI.
       clock = { type = "integer", default = 0 }
     },
@@ -59,13 +65,13 @@ function modInit()
       mode = "continuous",
       action = function(ctx)
         local data = ctx.entity.data
-        -- % is remainder: wrapping at 640 makes four 160-tick pages repeat.
+        -- % is remainder: wrapping at 800 makes five 160-tick pages repeat.
         -- The Page slot overrides the automatic page using its stack count;
         -- an empty inventory slot is nil and selects the clock-driven tour.
-        local clock = (data:get("clock") + 1) % 640
+        local clock = (data:get("clock") + 1) % 800
         data:set("clock", clock)
         local selector = ctx.entity.inventory:get("page")
-        local page = selector and math.min(4, selector.count) or math.floor(clock / 160) + 1
+        local page = selector and math.min(5, selector.count) or math.floor(clock / 160) + 1
         data:set("page", page)
 
         -- Hold zero, one, and full briefly to make clipping/minimumPixels clear.
@@ -87,7 +93,68 @@ function modInit()
       { name = "Sample", slot = "sample", x = 228, y = 158 }
       -- A machine output slot can additionally use outputOnly = true.
     },
-    playerInventory = { x = 8, y = 152, includeHotbar = true }
+    playerInventory = { x = 8, y = 152, includeHotbar = true },
+
+    -- Session values disappear when the screen closes. Use them for tabs,
+    -- searches, drafts, and other screen-local state.
+    session = {
+      dial = { type = "integer", default = 0 },
+      message = { type = "string", default = "Ready", maxLength = 24 }
+    },
+
+    controls = {
+      reset = {
+        type = "action",
+        onActivate = function(ctx)
+          ctx.data:set("speed", 20)
+          ctx.session:set("dial", 0)
+          ctx.session:set("message", "Reset")
+        end
+      },
+      enabled = {
+        type = "toggle",
+        bind = { data = "enabled" },
+        onChange = function(ctx, value)
+          ctx.session:set("message", value and "Enabled" or "Disabled")
+        end
+      },
+      speed = {
+        type = "number",
+        bind = { data = "speed" },
+        minimum = 0, maximum = 100, step = 5, pageStep = 25,
+        beforeChange = function(ctx, proposed)
+          -- Return DENY to leave the previous value untouched.
+          if not ctx.data:get("enabled") and proposed > 50 then
+            return betamoon.callbackResults.deny
+          end
+          return betamoon.callbackResults.pass
+        end
+      },
+      controlMode = {
+        type = "choice",
+        bind = { data = "controlMode" },
+        values = { "idle", "repeat", "redstone" }
+      },
+      label = {
+        type = "text",
+        bind = { data = "label" },
+        maxLength = 16,
+        onCommit = function(ctx, value)
+          ctx.session:set("message", "Named " .. value)
+        end
+      },
+      dial = {
+        type = "custom",
+        onInput = function(ctx, input)
+          if input.phase == "press" or input.phase == "drag" then
+            ctx.session:set("dial", math.floor(input.x / 63 * 100 + 0.5))
+            ctx.session:set("message", "Dial " .. ctx.session:get("dial"))
+            return betamoon.callbackResults.handled
+          end
+          return betamoon.callbackResults.pass
+        end
+      }
+    }
   }
 
   -- These three alternatives demonstrate a generated panel, an entire PNG,
@@ -134,10 +201,10 @@ function modInit()
       { type = "rectangle", x = 8, y = 134, width = 240, height = 1, color = 0x808080 },
       { type = "text", text = "Page", x = 184, y = 146 },
       { type = "text", text = "Sample", x = 218, y = 146 },
-      { type = "text", text = "1-4 items:", x = 184, y = 182 },
+      { type = "text", text = "1-5 items:", x = 184, y = 182 },
       { type = "text", text = "hold page", x = 184, y = 192 },
       { type = "text", text = "Empty: tour", x = 184, y = 208 },
-      { type = "text", value = "page", format = "Page %d / 4", x = 184, y = 220 },
+      { type = "text", value = "page", format = "Page %d / 5", x = 184, y = 220 },
 
       -- 1. Each page is a group with one inherited visibility condition.
       { type = "group", visibleWhen = { field = "page", equals = 1 },
@@ -429,6 +496,30 @@ function modInit()
           { type = "rectangle", x = 206, y = 72, width = 28, height = 20, color = 0x80FFAA00,
             tooltip = "Rectangle: numeric ARGB, alpha = 0x80"
           }
+        }
+      },
+
+      -- 5. Controls send validated input to the server-side container callbacks.
+      -- Tile-bound values persist; session-bound values last only while this screen is open.
+      { type = "group", visibleWhen = { field = "page", equals = 5 },
+        elements = {
+          { type = "text", text = "5. Interactive controls", x = 8, y = 22 },
+          { type = "button", control = "reset", x = 8, y = 38, width = 52, text = "Reset",
+            tooltip = "Action control: no bound value" },
+          { type = "icon_button", control = "reset", x = 62, y = 38, iconBuiltin = "confirm",
+            tooltip = "Icon button: the same action in a compact 20x20 control" },
+          { type = "checkbox", control = "enabled", x = 88, y = 42, width = 80, text = "Enabled" },
+          { type = "toggle_button", control = "enabled", x = 8, y = 64, width = 70, text = "Power" },
+          { type = "slider", control = "speed", x = 84, y = 64, width = 84,
+            tooltip = "Drag, use arrows, or use Page Up/Down" },
+          { type = "choice", control = "controlMode", x = 8, y = 90, width = 72,
+            tooltip = "Use the left and right arrow regions or the keyboard arrows" },
+          { type = "text_box", control = "label", x = 86, y = 90, width = 82,
+            tooltip = "Enter commits; Escape reverts" },
+          { type = "interactive", control = "dial", x = 8, y = 116, width = 64, height = 8,
+            tooltip = "Custom control: drag across this area" },
+          { type = "text", text = "Dial and messages are session-only", x = 78, y = 116,
+            visibleWhen = { session = "dial", greaterOrEqual = 0 } }
         }
       }
     }
