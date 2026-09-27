@@ -2,8 +2,7 @@
 
 ## 0.7.3
 
-BetaMoon 0.7.3 expands reversible Lua overrides across registered gameplay systems and improves the advanced network
-and interactive-GUI examples.
+BetaMoon 0.7.3 expands reversible Lua overrides across registered gameplay systems.
 
 ### Override API
 
@@ -19,13 +18,3 @@ and interactive-GUI examples.
   networks while keeping persistent schemas and identity fields structural.
 - Validate candidates before publication, rebuild affected indexes/snapshots only, and restore exact lower/base state
   when a layer is removed or its owning script unloads.
-
-### Examples and documentation
-
-- Add a minimal beginner multi-file mod tutorial with a manifest, entrypoint, and private module, and renumber the
-  later beginner lessons accordingly.
-- Fix the hybrid-network example's capability-call budget usage and clarify how to operate its local and remote
-  network paths.
-- Add editable channel controls to the wireless transmitter and receiver example.
-- Integrate the interactive machine GUI controls into the GUI showcase and remove the redundant standalone example.
-- Expand the Lua definitions and wiki reference for the new lookup, live-reference, and override surfaces.
