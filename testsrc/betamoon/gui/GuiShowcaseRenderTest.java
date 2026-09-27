@@ -43,11 +43,15 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.src.FontRenderer;
 import net.minecraft.src.GameSettings;
 import net.minecraft.src.GuiScreen;
+import net.minecraft.src.IChunkProvider;
 import net.minecraft.src.InventoryPlayer;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.RenderEngine;
 import net.minecraft.src.Tessellator;
+import net.minecraft.src.TileEntity;
 import net.minecraft.src.UnexpectedThrowable;
+import net.minecraft.src.World;
+import net.minecraft.src.WorldProvider;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -106,18 +110,23 @@ public final class GuiShowcaseRenderTest {
         owner.invoke(null, new Object[]{null});
         ContainerGuiDefinition definition = ((TileEntityApi.GuiHandle) api.get("result").get("gui")).definition;
         LuaTileEntity entity = new LuaTileEntity(definition.container.tileEntity.name);
+        entity.worldObj = new TestWorld();
         Set<Integer> pages = new HashSet<Integer>();
         Set<Integer> values = new HashSet<Integer>();
-        for (int tick = 0; tick < 640; tick++) {
-            definition.container.tileEntity.tickAction.call(entity.createContext());
+        for (int tick = 0; tick < 800; tick++) {
+            try (LuaTileEntity.Context context = entity.createContext()) {
+                definition.container.tileEntity.tickAction.call(context);
+            }
             pages.add(entity.getDataInt("page"));
             values.add(entity.getDataInt("progress"));
         }
-        require(pages.size() == 4 && values.containsAll(Arrays.asList(0, 1, 100)),
+        require(pages.size() == 5 && values.containsAll(Arrays.asList(0, 1, 100)),
                 "Tour or progress edge cases failed");
-        for (int page = 1; page <= 4; page++) {
+        for (int page = 1; page <= 5; page++) {
             entity.setInventorySlotContents(0, new ItemStack(4, page, 0));
-            definition.container.tileEntity.tickAction.call(entity.createContext());
+            try (LuaTileEntity.Context context = entity.createContext()) {
+                definition.container.tileEntity.tickAction.call(context);
+            }
             require(entity.getDataInt("page") == page && entity.getStackInSlot(0).stackSize == page,
                     "Page selection consumed or ignored items");
         }
@@ -172,7 +181,7 @@ public final class GuiShowcaseRenderTest {
             background.setAccessible(true);
             foreground.setAccessible(true);
             hover.setAccessible(true);
-            for (int page = 1; page <= 4; page++) {
+            for (int page = 1; page <= 5; page++) {
                 entity.setSyncedData("page", page);
                 entity.setSyncedData("progress", 75);
                 entity.setSyncedData("mode", 2);
@@ -193,7 +202,7 @@ public final class GuiShowcaseRenderTest {
             }
             require(GL11.glGetError() == GL11.GL_NO_ERROR, "OpenGL error during showcase rendering");
             System.out.println(
-                    "Showcase parsed; 640 ticks and four selectors passed; framework screens, tooltip state and four "
+                    "Showcase parsed; 800 ticks and five selectors passed; framework screens, tooltip state and five "
                             + "GUI pages rendered.");
         } finally {
             buffer.destroy();
@@ -445,6 +454,27 @@ public final class GuiShowcaseRenderTest {
 
         public void displayUnexpectedThrowable(UnexpectedThrowable error) {
             throw new AssertionError(error);
+        }
+    }
+
+    private static final class TestWorld extends World {
+        private TestWorld() {
+            super(null, "gui_showcase_test", new WorldProvider() {
+            }, 0L);
+        }
+
+        @Override
+        protected IChunkProvider getChunkProvider() {
+            return null;
+        }
+
+        @Override
+        public int getBlockId(int x, int y, int z) {
+            return 1;
+        }
+
+        @Override
+        public void func_698_b(int x, int y, int z, TileEntity entity) {
         }
     }
 }
