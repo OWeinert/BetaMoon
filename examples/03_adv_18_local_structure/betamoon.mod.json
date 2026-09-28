@@ -2,6 +2,6 @@
   "entrypoint": "main.lua",
   "name": "Local Structure Example",
   "version": "1.0.0",
-  "description": "Adds a compact weathered stone shrine to newly generated Overworld terrain. Copy the complete 03_adv_18_local_structure folder into lua_scripts so its manifest, entrypoint, and JSON template stay together.\n\nExplore new chunks and look for a broken cobblestone foundation surrounding a tall central pillar with a glowstone beacon. The example makes one attempt in roughly every six chunks, although unsuitable ground or blocked sky can reject it. Each attempt selects a horizontal rotation and mirror deterministically, palette variants mix cobblestone with mossy cobblestone, and the decay processor removes a few blocks. The template path is derived from the typed structure key.",
+  "description": "Adds a compact weathered stone shrine to newly generated Overworld terrain. Copy the complete 03_adv_18_local_structure folder into lua_scripts so its manifest, entrypoint, and JSON template stay together.\n\nExplore new chunks and look for a broken cobblestone foundation surrounding a tall central pillar with a glowstone beacon. Roughly one in six chunks is eligible, and each eligible chunk tries up to four safe surface positions before giving up. Each shrine selects a horizontal rotation and mirror deterministically, palette variants mix cobblestone with mossy cobblestone, and the decay processor removes a few blocks. The template path is derived from the typed structure key.",
   "dependencies": []
 }

@@ -25,16 +25,21 @@ function modInit()
     feature = shrine,
     stage = "surface_features",
     dimensions = { "overworld" },
-    -- A tutorial structure should be uncommon without becoming frustrating to
-    -- find. Conditions can still reject unsuitable surface positions.
-    attempts = { perChunk = 1, rarity = 6 },
+    -- Roughly one in six chunks is eligible. In an eligible chunk, try four
+    -- footprint-safe grid positions and stop after placing the first shrine.
+    -- This prevents one tree or patch of water from rejecting the whole chunk.
+    attempts = { perChunk = 4, rarity = 6 },
+    successLimit = 1,
     position = {
       height = { type = "surface" },
       horizontal = "grid",
-      gridSpacing = 4
+      -- Centers at 4 and 12 keep this five-block-wide template inside its chunk.
+      gridSpacing = 8
     },
     conditions = {
-      ground = { 2, 3, 12, 13 },
+      -- Natural exposed stone is valid too, which keeps hilly terrain from
+      -- needlessly rejecting every candidate.
+      ground = { 1, 2, 3, 12, 13, 24 },
       air = true,
       requireSky = true
     },
