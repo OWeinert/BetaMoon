@@ -1,0 +1,6 @@
+{
+  "entrypoint": "main.lua",
+  "name": "Regional Structures Example",
+  "version": "1.0.0",
+  "description": "Builds deterministic multi-piece ruins from connector pools and provides a locator item."
+}

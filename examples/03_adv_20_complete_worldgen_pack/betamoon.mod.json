@@ -1,0 +1,6 @@
+{
+  "entrypoint": "main.lua",
+  "name": "Complete Worldgen Pack Example",
+  "version": "1.0.0",
+  "description": "A modular biome pack combining a surface, procedural trees, ground accents, a local structure, decorators, and a climate source."
+}

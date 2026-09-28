@@ -59,6 +59,8 @@ used by later examples.
 | 26 | `01_beg_26_first_item_use.lua` | Handling a consumable item's right-click action |
 | 27 | `01_beg_27_click_sound.lua` | Registered WAV and local playback from item use |
 | 28 | `01_beg_28_custom_fuel.lua` | Registering an item as vanilla furnace fuel |
+| 29 | `01_beg_29_simple_feature_placement.lua` | Separating a reusable feature from its scheduled placement |
+| 30 | `01_beg_30_simple_tree_placement.lua` | Scheduling a vanilla-adapter tree with surface conditions |
 
 ## Intermediate
 
@@ -93,11 +95,14 @@ state, physical behavior, and event-driven logic.
 | 24 | `02_int_24_custom_projectile.lua` | Model-backed projectile behavior, ammunition, and impact handling |
 | 25 | `02_int_25_pickup_entity.lua` | Typed pickup entities and inventory collection |
 | 26 | `02_int_26_configurable_explosion.lua` | Selective explosion effects, attribution, and result snapshots |
+| 27 | `02_int_27_direct_feature_placement.lua` | Previewing and atomically placing a feature from an item callback |
+| 28 | `02_int_28_composite_and_ordered_features.lua` | Weighted/sequence features and explicit placement dependencies |
 
 ## Advanced
 
-Advanced lessons build complete systems. Lessons 03 and 08 through 11 are
-manifested packages whose entrypoints organize private modules with `require`.
+Advanced lessons build complete systems. Lessons 03, 08 through 11, and 18
+through 20 are manifested packages. Their entrypoints preserve gameplay assets
+and, where useful, organize private modules with `require`.
 
 | Lesson | File | Topic |
 | --- | --- | --- |
@@ -117,7 +122,10 @@ manifested packages whose entrypoints organize private modules with `require`.
 | 14 | `03_adv_14_manual_multipart_ai.lua` | Fully manual multipart creature behavior and hit regions |
 | 15 | `03_adv_15_energy_network.lua` | GUI-guided generation, nearest-first flow, bounded rates, endpoint consumers, and adjacent cable grids |
 | 16 | `03_adv_16_wireless_trigger.lua` | Editable wireless channels, transmitter/receiver roles, retained state, and pulses |
-| 18 | `03_adv_18_world_service_and_data.lua` | Persistent per-world services and detached world, chunk, and player views |
+| 17 | `03_adv_17_world_service_and_data.lua` | Persistent per-world services and detached world, chunk, and player views |
+| 18 | `03_adv_18_local_structure/` | Packaged local JSON structure, palette variants, transforms, processors, and placement |
+| 19 | `03_adv_19_regional_structures/` | Connector-pool regional assembly and non-loading structure lookup |
+| 20 | `03_adv_20_complete_worldgen_pack/` | Modular surface, features, structure, biome decorators, and climate source |
 
 ## Trying the interactive examples
 
@@ -148,6 +156,7 @@ manifested packages whose entrypoints organize private modules with `require`.
 | Intermediate 24 | **Pebble Launcher** (5037): copy `entity_examples/`, carry cobblestone, and fire a custom projectile. |
 | Intermediate 25 | **Gem Dropper** (5038): place a typed pickup and collect its full stack. |
 | Intermediate 26 | **Configurable Charge** (5042): right-click for a concussive blast or sneak-right-click for demolition. |
+| Intermediate 27 | **Builder's Rod** (5044): stick + glowstone dust. Use it on the top of a block with four clear blocks above it. |
 | Advanced 01 | **Clockwork Bird Model Item** (5034): observe clip animation with Lua head movement. |
 | Advanced 02 | **Pulse Timer** (213): cobblestone + redstone. A rising north input produces a one-second south output. |
 | Advanced 03 | **Basic Storage** (224): chest surrounded by planks. Its screen reports occupied saved slots. |
@@ -163,6 +172,7 @@ manifested packages whose entrypoints organize private modules with `require`.
 | Advanced 13 | **Clockwork Watcher** (5039): copy `animated_model_item/`, place a living creature, and test its wandering and retaliation. |
 | Advanced 14 | **Manual Guardian** (5040): copy `animated_model_item/`, place it, and inspect Lua-controlled decisions and optional head/wing hitboxes. |
 | Advanced 15 | Connect an **Energy Generator**, **Energy Consumer**, and **Energy Battery** with an **Energy Cable** grid. Attach the battery directly to the grid rather than through the consumer: consumer faces accept energy but never bridge two cable grids. Right-click every block to see its live values and per-tick limits. Energy behaves like consumed flow: the nearest consumers receive their operating energy first, so distant consumers may remain unpowered during a shortage. Buffers fill and batteries charge only after all operating needs are met. Remove the generator to see battery backup. |
+| Advanced 19 | Copy the complete package, craft **Ruin Surveyor** (5045) from a compass and paper, use it on a block, then explore toward the reported candidate. |
 
 ## Multi-file lesson details
 
@@ -174,11 +184,11 @@ manifested packages whose entrypoints organize private modules with `require`.
   mods. The exporter publishes a public table through `betamoon.modules`; the
   importer declares a dependency and reads that cross-mod export.
 
-- Advanced 03 and 08 through 11 each demonstrate one multi-script mod. Their
+- Advanced 03, 08 through 11, and 18 through 20 each demonstrate a packaged mod. Their
   manifests select `main.lua`, while `require` loads private declarations and
-  registration functions from neighboring files. Every file shares the package's
-  lifecycle and resource owner. Copy the whole folder into `lua_scripts`; because
-  these packages register structural machine content, restart after edits.
+  registration functions from neighboring files where the lesson needs them.
+  Every file shares the package's lifecycle and resource owner. Copy the whole
+  folder into `lua_scripts`; restart after structural declaration or gameplay-data edits.
 
 - Advanced 03 keeps its persistent inventory/data schema in `data.lua` and its
   container/GUI layout in `layout.lua`. `main.lua` composes both declarations and

@@ -5,7 +5,7 @@
 
 name = "Script Import Example"
 version = "2.0.0"
-description = "Uses the block exported by beginner example 18a, Script Export Example, and adds natural " ..
+description = "Uses the block exported by beginner example 20a, Script Export Example, and adds natural " ..
     "generation for it. Both files must be loaded; this script imports the existing block rather " ..
     "than registering a second copy.\n\n" ..
     "Start a new world or enter newly generated Overworld chunks and search for Exported Block " ..
@@ -27,8 +27,12 @@ function modInit()
   -- The imported block reference can be passed anywhere a block ID or reference
   -- is accepted. This generation rule places it in newly created chunks.
   betamoon.worldgen.ores:add {
-    -- veinsPerChunk is the number of generation attempts; veinSize is the
-    -- maximum group size. height limits the block Y levels used for attempts.
+    -- A stable key makes the placement independently addressable and preserves
+    -- its deterministic random stream if unrelated rules are added later.
+    key = "example:placement/exported_block_ore",
+    -- veinsPerChunk is the number of generation attempts; veinSize controls
+    -- the generator's shape. Terrain can reduce the actual changed block count.
+    -- height limits the block Y levels used for attempts.
     block = imported.block,
     veinsPerChunk = 12,
     veinSize = 6,

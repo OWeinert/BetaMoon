@@ -1,0 +1,56 @@
+{
+  "format": "betamoon_structure",
+  "size": [5, 3, 5],
+  "origin": [0, 0, 2],
+  "palette": [
+    {
+      "variants": [
+        { "block": 4, "weight": 2 },
+        { "block": 48, "weight": 1 }
+      ]
+    },
+    { "block": 89 }
+  ],
+  "blocks": [
+    { "pos": [0, 0, 0], "state": 0 },
+    { "pos": [1, 0, 0], "state": 0 },
+    { "pos": [2, 0, 0], "state": 0 },
+    { "pos": [3, 0, 0], "state": 0 },
+    { "pos": [4, 0, 0], "state": 0 },
+    { "pos": [0, 0, 1], "state": 0 },
+    { "pos": [1, 0, 1], "state": 0 },
+    { "pos": [2, 0, 1], "state": 0 },
+    { "pos": [3, 0, 1], "state": 0 },
+    { "pos": [4, 0, 1], "state": 0 },
+    { "pos": [0, 0, 2], "state": 0 },
+    { "pos": [1, 0, 2], "state": 0 },
+    { "pos": [2, 0, 2], "state": 1 },
+    { "pos": [3, 0, 2], "state": 0 },
+    { "pos": [4, 0, 2], "state": 0 },
+    { "pos": [0, 0, 3], "state": 0 },
+    { "pos": [1, 0, 3], "state": 0 },
+    { "pos": [2, 0, 3], "state": 0 },
+    { "pos": [3, 0, 3], "state": 0 },
+    { "pos": [4, 0, 3], "state": 0 },
+    { "pos": [0, 0, 4], "state": 0 },
+    { "pos": [1, 0, 4], "state": 0 },
+    { "pos": [2, 0, 4], "state": 0 },
+    { "pos": [3, 0, 4], "state": 0 },
+    { "pos": [4, 0, 4], "state": 0 },
+    { "pos": [0, 1, 0], "state": 0 },
+    { "pos": [0, 2, 0], "state": 0 },
+    { "pos": [4, 1, 0], "state": 0 },
+    { "pos": [4, 2, 0], "state": 0 },
+    { "pos": [0, 1, 4], "state": 0 },
+    { "pos": [0, 2, 4], "state": 0 },
+    { "pos": [4, 1, 4], "state": 0 },
+    { "pos": [4, 2, 4], "state": 0 }
+  ],
+  "markers": [
+    {
+      "pos": [0, 0, 2],
+      "name": "connector",
+      "value": { "pool": "path", "facing": "west" }
+    }
+  ]
+}

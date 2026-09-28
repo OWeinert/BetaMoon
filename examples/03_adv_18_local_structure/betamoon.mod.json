@@ -1,0 +1,6 @@
+{
+  "entrypoint": "main.lua",
+  "name": "Local Structure Example",
+  "version": "1.0.0",
+  "description": "Registers and schedules a rotatable, processed local JSON structure."
+}

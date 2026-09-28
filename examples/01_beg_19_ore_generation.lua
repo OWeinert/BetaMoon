@@ -30,9 +30,13 @@ function modInit()
   -- This adds the ore to newly generated chunks.
   -- It controls how often it appears, vein size, height, and which block it replaces.
   betamoon.worldgen.ores:add {
+    -- A stable key keeps this placement's random stream unchanged when other
+    -- world-generation rules are added or reordered later.
+    key = "example:placement/example_ore",
     -- block is what the generator places. The returned reference avoids repeating its ID.
     block = ore,
-    -- These are placement attempts per chunk and the maximum blocks in one vein.
+    -- These are placement attempts per chunk and the vein generator's size
+    -- parameter. Terrain shape can make the number of changed blocks smaller.
     veinsPerChunk = 10,
     veinSize = 8,
     -- min and max are vertical block coordinates, inclusive.

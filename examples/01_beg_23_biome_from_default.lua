@@ -1,46 +1,58 @@
--- Start with a vanilla biome when only a few settings should differ.
--- basedOn copies its configuration; this does not globally change the original Desert.
--- The climate range chooses where the custom biome can be selected in new terrain.
--- Compare this shorter declaration with the biome-from-scratch example, which spells out more settings.
+-- This is the shortest modern biome workflow: register a reusable surface,
+-- adapt a vanilla biome under a stable key, then select it through a biome source.
+-- The original Desert remains unchanged because basedOn copies its initial settings.
+-- Explore new chunks to see the gravel surface. Beta 1.7.3 recalculates biome
+-- selection, so colors and weather can change over old terrain, but blocks do not.
 
 name = "Custom Biome From Default Example"
-version = "2.0.0"
-description = "Adds Example Desert Copy by starting with Minecraft's Desert biome and changing selected " ..
-    "properties. The new biome has a gravel surface, no trees, and no rain or snow, and is " ..
-    "eligible in a hot, dry climate range.\n\n" ..
-    "Explore newly generated terrain or create a new world to look for the gravel-covered desert " ..
-    "variant. Existing chunks and the original Desert definition are not rewritten, and the new " ..
-    "biome is not guaranteed near spawn. Compare the inherited desert properties with the explicit " ..
-    "surface, climate, tree, and weather settings in the script."
+version = "3.0.0"
+description = "Adds Example Desert Copy with the modern keyed biome API. It inherits Minecraft's Desert " ..
+    "settings, replaces its surface with gravel, remains dry, and is selected for a hot, dry part " ..
+    "of the vanilla climate map.\n\n" ..
+    "Create a new world or explore newly generated terrain to find the gravel-covered desert " ..
+    "variant. It is not guaranteed near spawn. Existing terrain blocks are not rewritten, although " ..
+    "Beta 1.7.3 recalculates biome selection, so biome-dependent colors and weather can change over " ..
+    "old coordinates. Compare the three stable declarations: surface, biome, and biome source."
 
 function modInit()
-  -- basedOn starts with a copy of an existing Minecraft biome.
-  betamoon.worldgen.biomes:add {
+  -- A surface is reusable terrain-layer data. Keys are typed automatically;
+  -- this explicit form makes the resource category obvious in a tutorial.
+  local gravelSurface = betamoon.worldgen.surfaces:add {
+    key = "example:surface/gravel_desert",
+    -- Only these ordinary terrain blocks may be rewritten by this surface.
+    replace = { 1, 2, 3, 12, 13 },
+    layers = {
+      -- Layers are listed from the exposed top downward.
+      { block = 13, depth = 1 },
+      { block = 12, depth = 3 }
+    },
+    underwaterBlock = 13
+  }
+
+  local desertCopy = betamoon.worldgen.biomes:add {
+    key = "example:biome/gravel_desert",
     name = "Example Desert Copy",
-    -- mc.world.biomes lists the vanilla biomes and supplies their exact names.
-    -- The plain string "Desert" remains valid too.
     basedOn = betamoon.mc.world.biomes.desert,
-    -- You only need to write the settings you want to change.
-    surface = {
-      -- Vanilla ID 13 is gravel. Only the exposed top changes here;
-      -- the other settings begin with the chosen Desert configuration.
-      top = 13
-    },
-    range = {
-      -- Both climate values use a scale from 0 to 1. This narrow hot, dry
-      -- range controls where the biome may be selected during terrain creation.
-      temperature = { min = 0.95, max = 1 },
-      humidity = { min = 0, max = 0.2 }
-    },
-    trees = {
-      -- treeModes lists the four supported policies: default, normal, big, and none.
-      -- Their quoted names remain valid. none disables normal tree-generation attempts.
-      type = betamoon.worldgen.treeModes.none
-    },
-    weather = {
-      -- Explicitly disabling both options keeps the copied desert dry.
-      rain = false,
-      snow = false
+    tags = { "example:dry", "example:sandy" },
+    surface = gravelSurface,
+    -- No decorator is needed because this lesson deliberately adds no trees
+    -- or other biome-specific features.
+    weather = { rain = false, snow = false }
+  }
+
+  -- A keyed biome does not place itself. The active biome source maps climate
+  -- cells to biome references. Cells outside this entry keep vanilla selection.
+  betamoon.worldgen.biomeSources:add {
+    key = "example:biome_source/gravel_desert_climate",
+    type = "vanilla_climate",
+    active = true,
+    priority = 10,
+    entries = {
+      {
+        biome = desertCopy,
+        temperature = { min = 0.95, max = 1 },
+        humidity = { min = 0, max = 0.2 }
+      }
     }
   }
 end

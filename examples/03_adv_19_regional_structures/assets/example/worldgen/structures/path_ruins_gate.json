@@ -1,0 +1,39 @@
+{
+  "format": "betamoon_structure",
+  "size": [3, 4, 3],
+  "origin": [1, 0, 1],
+  "palette": [
+    {
+      "variants": [
+        { "block": 4, "weight": 3 },
+        { "block": 48, "weight": 1 }
+      ]
+    },
+    { "block": 89 }
+  ],
+  "blocks": [
+    { "pos": [0, 0, 0], "state": 0 },
+    { "pos": [1, 0, 0], "state": 0 },
+    { "pos": [2, 0, 0], "state": 0 },
+    { "pos": [0, 0, 1], "state": 0 },
+    { "pos": [1, 0, 1], "state": 0 },
+    { "pos": [2, 0, 1], "state": 0 },
+    { "pos": [0, 0, 2], "state": 0 },
+    { "pos": [1, 0, 2], "state": 0 },
+    { "pos": [2, 0, 2], "state": 0 },
+    { "pos": [0, 1, 0], "state": 0 },
+    { "pos": [0, 2, 0], "state": 0 },
+    { "pos": [0, 3, 0], "state": 0 },
+    { "pos": [0, 1, 2], "state": 0 },
+    { "pos": [0, 2, 2], "state": 0 },
+    { "pos": [0, 3, 2], "state": 0 },
+    { "pos": [0, 3, 1], "state": 1 }
+  ],
+  "markers": [
+    {
+      "pos": [2, 0, 1],
+      "name": "connector",
+      "value": { "pool": "path", "facing": "east" }
+    }
+  ]
+}
