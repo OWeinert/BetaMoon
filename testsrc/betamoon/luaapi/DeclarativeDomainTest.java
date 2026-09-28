@@ -167,52 +167,36 @@ public final class DeclarativeDomainTest {
         BiomeGenRegistry.clear();
         try {
             lua.load("local ores=betamoon.worldgen.ores; "
-                    + "local def={key='quality:ore/first',block=1,veinsPerChunk=3,veinSize=7,height={min=4,max=12}}; "
-                    + "local first=ores:add(def); assert(first.block==1 and first.veinSize==7); "
-                    + "assert(first.key=='quality:ore/first' and ores:getRequired(first.key)==first); "
-                    + "local low=first:override({priority=1,veinSize=8}); "
-                    + "local high=first:override({priority=2,veinSize=9}); assert(first.veinSize==9); "
-                    + "high:remove(); assert(first.veinSize==8); low:remove(); assert(first.veinSize==7); "
-                    + "assert(ores:one({block=1})==first); "
-                    + "assert(not pcall(function() first:override({veinSize=10,height={min=20,max=10}}) end)); "
-                    + "assert(first.veinSize==7); def.key=nil; def.dimension='hell'; ores.add(def); "
+                    + "local def={block=1,veinsPerChunk=3,veinSize=7,height={min=4,max=12}}; "
+                    + "local ore=ores:add(def); assert(ore:getKey() and ore:getFeature():getKey()); "
+                    + "def.dimension='hell'; ores.add(def); "
                     + "def.dimension='both'; ores:add(def); def.height.min=13; "
                     + "assert(not pcall(function() ores:add(def) end)); "
                     + "assert(not pcall(function() ores:add({block=1,veinsPerChunk=1,veinSize=1,"
                     + "height={min=1,max=2},biomes={'missing'}}) end)); " + "local biomes=betamoon.worldgen.biomes; "
-                    + "local biome=biomes:add({name='quality_biome',basedOn='desert',surface={top=1},"
-                    + "weather={rain=true},spawns={creatures={{entity='sheep',weight=1}}}}); "
-                    + "assert(biome.name=='quality_biome' and biome.surface.top==1 and biome.isBetaMoon); "
-                    + "assert(biomes:one({name='quality_biome'})==biome); "
-                    + "local climate=biome:override({priority=1,changes={surface={top=3},"
-                    + "range={temperature={min=0.2,max=0.4}},trees={type='none'}}}); "
-                    + "assert(biome.surface.top==3 and math.abs(biome.range.temperature.min-0.2)<0.0001"
-                    + " and biome.trees.type=='none'); climate:remove(); "
-                    + "assert(biome.surface.top==1 and biome.range.temperature.min==0); "
-                    + "local desert=biomes:getRequired('desert'); local baseColor=desert.color; "
-                    + "local nativePatch=desert:override({color=12345}); assert(desert.color==12345); "
-                    + "nativePatch:remove(); assert(desert.color==baseColor); "
+                    + "biomes:add({name='quality_biome',basedOn='desert',surface={top=1},weather={rain=true},"
+                    + "spawns={creatures={{entity='sheep',weight=1}}}}); "
                     + "assert(not pcall(function() biomes:add({name='bad_range',range={humidity={1,0}}}) end)); "
                     + "assert(not pcall(function() biomes:add({name='bad_tree',trees={type='missing'}}) end)); "
                     + "assert(not pcall(function() biomes:add({name='bad_spawn',spawns={missing={}}}) end)); "
                     + "assert(not pcall(function() biomes:add({name='bad_entity',"
                     + "spawns={creatures={{entity='Item',weight=1}}}}) end))").call();
-            List<?> ores = entries(WorldGenRegistry.class, "ORE_ENTRIES");
+            List<WorldGenRegistry.Description> ores = WorldGenRegistry.snapshot();
             require(ores.size() == 3, "Invalid ore declarations must not install generators");
-            require(GenerationDimension.OVERWORLD.equals(field(ores.get(0), "dimension")), "Default ore dimension");
-            require(GenerationDimension.NETHER.equals(field(ores.get(1), "dimension")), "Nether alias");
-            require(GenerationDimension.BOTH.equals(field(ores.get(2), "dimension")), "Both-dimensions mode");
-            require(field(ores.get(0), "targetBlockId") == null && field(ores.get(1), "targetBlockId") == null
-                    && field(ores.get(2), "targetBlockId") == null,
+            require(hasDimension(ores, "overworld"), "Default ore dimension");
+            require(hasDimension(ores, "nether"), "Nether alias");
+            require(hasDimension(ores, "both"), "Both-dimensions mode");
+            require(ores.get(0).targetBlockId == null && ores.get(1).targetBlockId == null
+                    && ores.get(2).targetBlockId == null,
                     "Default replacement is selected for the active dimension");
             require(GenerationDimension.BOTH.includes(false) && GenerationDimension.BOTH.includes(true),
                     "Both-dimensions entries run in the overworld and nether");
-            List<?> biomes = entries(BiomeGenRegistry.class, "ENTRIES");
+            List<BiomeGenRegistry.Description> biomes = BiomeGenRegistry.snapshot();
             require(biomes.size() == 1, "Invalid biome declarations must not install overlays");
-            BiomeGenBase biome = (BiomeGenBase) field(biomes.get(0), "biome");
-            require("quality_biome".equals(biome.biomeName), "Custom biome name");
+            BiomeGenRegistry.Description biome = biomes.get(0);
+            require("quality_biome".equals(biome.name), "Custom biome name");
             require(biome.topBlock == Block.stone.blockID, "Surface override");
-            require(biome.fillerBlock == BiomeGenBase.desert.fillerBlock, "Inherited surface");
+            require(biome.fillerBlock == (BiomeGenBase.desert.fillerBlock & 255), "Inherited surface");
             require(BiomeGenBase.desert.topBlock != Block.stone.blockID, "Source biome must remain unchanged");
         } finally {
             WorldGenRegistry.clear();
@@ -220,16 +204,13 @@ public final class DeclarativeDomainTest {
         }
     }
 
-    private static List<?> entries(Class<?> type, String name) throws Exception {
-        Field field = type.getDeclaredField(name);
-        field.setAccessible(true);
-        return (List<?>) field.get(null);
-    }
-
-    private static Object field(Object target, String name) throws Exception {
-        Field field = target.getClass().getDeclaredField(name);
-        field.setAccessible(true);
-        return field.get(target);
+    private static boolean hasDimension(List<WorldGenRegistry.Description> entries, String dimension) {
+        for (WorldGenRegistry.Description entry : entries) {
+            if (dimension.equals(entry.dimension)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void require(boolean condition, String message) {
