@@ -114,7 +114,8 @@ function modInit()
           tooltip = "Enter commits the channel; Escape restores the previous value" },
         { type = "button", control = "resetChannel", x = 120, y = 34, width = 48, text = "Default",
           tooltip = "Reset the channel to workshop" },
-        { type = "text", text = "Matching channels connect within 64 blocks.", x = 8, y = 58 }
+        { type = "text", text = "Range: 64 blocks", x = 8, y = 58,
+          tooltip = "Transmitters and receivers connect when their channel and owner match" }
       }
     }
     return container, gui

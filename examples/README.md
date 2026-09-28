@@ -115,9 +115,8 @@ manifested packages whose entrypoints organize private modules with `require`.
 | 12 | `03_adv_12_entity_data.lua` | Model-backed entity with persistent interaction data |
 | 13 | `03_adv_13_native_living_ai.lua` | Native living behavior composed with custom Lua AI |
 | 14 | `03_adv_14_manual_multipart_ai.lua` | Fully manual multipart creature behavior and hit regions |
-| 15 | `03_adv_15_energy_network.lua` | Capability operations, persistent energy, adjacent topology, and simulated/committed transfer |
+| 15 | `03_adv_15_energy_network.lua` | GUI-guided generation, nearest-first flow, bounded rates, endpoint consumers, and adjacent cable grids |
 | 16 | `03_adv_16_wireless_trigger.lua` | Editable wireless channels, transmitter/receiver roles, retained state, and pulses |
-| 17 | `03_adv_17_hybrid_network.lua` | Two adjacent trigger segments bridged wirelessly by gateways within 128 blocks |
 | 18 | `03_adv_18_world_service_and_data.lua` | Persistent per-world services and detached world, chunk, and player views |
 
 ## Trying the interactive examples
@@ -163,7 +162,7 @@ manifested packages whose entrypoints organize private modules with `require`.
 | Advanced 12 | **Data Totem**: obtain Data Totem Placer (5036), place and click it to check saved data, then punch it to recover the placer. |
 | Advanced 13 | **Clockwork Watcher** (5039): copy `animated_model_item/`, place a living creature, and test its wandering and retaliation. |
 | Advanced 14 | **Manual Guardian** (5040): copy `animated_model_item/`, place it, and inspect Lua-controlled decisions and optional head/wing hitboxes. |
-| Advanced 17 | Obtain the three Hybrid blocks in a creative/debug inventory. Put an Input against Gateway A, put Gateway B within 128 blocks in the same dimension, and put an Output against Gateway B. Toggle redstone on the Input; the Output follows each transition. |
+| Advanced 15 | Connect an **Energy Generator**, **Energy Consumer**, and **Energy Battery** with an **Energy Cable** grid. Attach the battery directly to the grid rather than through the consumer: consumer faces accept energy but never bridge two cable grids. Right-click every block to see its live values and per-tick limits. Energy behaves like consumed flow: the nearest consumers receive their operating energy first, so distant consumers may remain unpowered during a shortage. Buffers fill and batteries charge only after all operating needs are met. Remove the generator to see battery backup. |
 
 ## Multi-file lesson details
 

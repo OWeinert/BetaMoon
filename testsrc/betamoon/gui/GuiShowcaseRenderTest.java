@@ -15,6 +15,7 @@ import betamoon.luamodloader.LuaScriptErrors;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptMod;
 import betamoon.resources.LuaTextureResources;
+import betamoon.tileentity.ContainerControlRuntime;
 import betamoon.tileentity.ContainerGuiDefinition;
 import betamoon.tileentity.GuiLuaContainer;
 import betamoon.tileentity.LuaTileEntity;
@@ -57,6 +58,7 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.jse.JsePlatform;
 import org.lwjgl.BufferUtils;
+import org.lwjgl.input.Keyboard;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.Pbuffer;
 import org.lwjgl.opengl.PixelFormat;
@@ -99,6 +101,7 @@ public final class GuiShowcaseRenderTest {
                 + "add=function(_, def) betamoon.result=def; return {id=def.id} end}; "
                 + "betamoon.items = {getRequired=betamoon.blocks.getRequired}; "
                 + "betamoon.recipes = {add=function(_, def) betamoon.recipe=def end}; "
+                + "betamoon.callbackResults = {pass='pass', handled='handled', deny='deny'}; "
                 + "betamoon.stack=function(item, count) return {id=item.id, count=count} end").call();
         FileReader reader = new FileReader(new File(examples, "03_adv_06_gui_showcase.lua"));
         try {
@@ -131,6 +134,23 @@ public final class GuiShowcaseRenderTest {
                     "Page selection consumed or ignored items");
         }
         entity.setInventorySlotContents(1, new ItemStack(331, 7, 0));
+        ContainerGuiDefinition.ControlElement dial = null;
+        for (ContainerGuiDefinition.Element element : definition.elements) {
+            if (element instanceof ContainerGuiDefinition.ControlElement
+                    && "dial".equals(((ContainerGuiDefinition.ControlElement) element).control)) {
+                dial = (ContainerGuiDefinition.ControlElement) element;
+                break;
+            }
+        }
+        require(dial != null && dial.captureDrag, "Showcase dial must be a drag-capturing custom control");
+        LuaTable dragInput = ContainerControlRuntime.input("mouse");
+        dragInput.set("phase", "drag");
+        dragInput.set("x", 63);
+        dragInput.set("y", 8);
+        ContainerControlRuntime controls = new ContainerControlRuntime(definition.container, entity, null);
+        require(controls.custom(definition.container.controls.get("dial"), dragInput),
+                "Showcase dial did not handle drag input");
+        require(entity.getDataInt("dial") == 100, "Dragging the showcase dial did not update its visible value");
 
         Pbuffer buffer = new Pbuffer(320, 240, new PixelFormat(8, 24, 0), null, null);
         try {
@@ -200,6 +220,7 @@ public final class GuiShowcaseRenderTest {
                     ImageIO.write(capture(), "png", new File(output, "page-tooltip.png"));
                 }
             }
+            verifyTextRepeatEvents(gui, definition);
             require(GL11.glGetError() == GL11.GL_NO_ERROR, "OpenGL error during showcase rendering");
             System.out.println(
                     "Showcase parsed; 800 ticks and five selectors passed; framework screens, tooltip state and five "
@@ -207,6 +228,33 @@ public final class GuiShowcaseRenderTest {
         } finally {
             buffer.destroy();
         }
+    }
+
+    private static void verifyTextRepeatEvents(GuiLuaContainer gui, ContainerGuiDefinition definition)
+            throws Exception {
+        ContainerGuiDefinition.ControlElement textBox = null;
+        for (ContainerGuiDefinition.Element element : definition.elements) {
+            if (element instanceof ContainerGuiDefinition.ControlElement
+                    && ((ContainerGuiDefinition.ControlElement) element).presentation == ContainerGuiDefinition.ControlElement.Presentation.TEXT_BOX) {
+                textBox = (ContainerGuiDefinition.ControlElement) element;
+                break;
+            }
+        }
+        require(textBox != null, "Showcase text box is missing");
+
+        Method focus = GuiLuaContainer.class.getDeclaredMethod("focus", ContainerGuiDefinition.ControlElement.class);
+        Method blur = GuiLuaContainer.class.getDeclaredMethod("blurFocused");
+        focus.setAccessible(true);
+        blur.setAccessible(true);
+        Keyboard.enableRepeatEvents(false);
+        focus.invoke(gui, textBox);
+        require(Keyboard.areRepeatEventsEnabled(), "Focused container text boxes must enable held-key repeats");
+        blur.invoke(gui);
+        require(!Keyboard.areRepeatEventsEnabled(), "Leaving a container text box must disable held-key repeats");
+
+        focus.invoke(gui, textBox);
+        gui.onGuiClosed();
+        require(!Keyboard.areRepeatEventsEnabled(), "Closing a container GUI must disable held-key repeats");
     }
 
     private static void verifyIssueLayout(FontRenderer font) {
