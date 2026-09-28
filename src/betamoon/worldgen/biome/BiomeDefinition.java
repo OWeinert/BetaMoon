@@ -15,17 +15,16 @@ public final class BiomeDefinition {
     public final BiomeGenWrapper biome;
     public final Set<String> tags;
     public final WorldGenKey surface;
-    public final double minTemperature;
-    public final double maxTemperature;
-    public final double minHumidity;
-    public final double maxHumidity;
+    public volatile double minTemperature;
+    public volatile double maxTemperature;
+    public volatile double minHumidity;
+    public volatile double maxHumidity;
     public final boolean legacyClimateRange;
     public final int decoratorCount;
 
-    public BiomeDefinition(WorldGenKey key, String resourceOwner, String owner, String source,
-            BiomeGenWrapper biome, Set<String> tags, WorldGenKey surface, double minTemperature,
-            double maxTemperature, double minHumidity, double maxHumidity, boolean legacyClimateRange,
-            int decoratorCount) {
+    public BiomeDefinition(WorldGenKey key, String resourceOwner, String owner, String source, BiomeGenWrapper biome,
+            Set<String> tags, WorldGenKey surface, double minTemperature, double maxTemperature, double minHumidity,
+            double maxHumidity, boolean legacyClimateRange, int decoratorCount) {
         this.key = key;
         this.resourceOwner = resourceOwner;
         this.owner = owner;

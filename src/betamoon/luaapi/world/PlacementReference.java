@@ -6,7 +6,7 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
 /** Stable key handle for a compiled placement. */
-public final class PlacementReference extends LuaTable {
+public class PlacementReference extends LuaTable {
     private final WorldGenKey key;
     private final WorldGenKey featureKey;
 

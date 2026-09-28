@@ -22,7 +22,7 @@ import org.luaj.vm2.LuaError;
 
 /** Atomic keyed biome, biome-source, tag, and surface catalog. */
 public final class BiomeGenRegistry {
-    private static final String[] FIELD_BIOME_LOOKUP_TABLE = new String[] { "biomeLookupTable", "x" };
+    private static final String[] FIELD_BIOME_LOOKUP_TABLE = new String[]{"biomeLookupTable", "x"};
     private static final ThreadLocal<PublicationBatch> CURRENT_BATCH = new ThreadLocal<PublicationBatch>();
     private static volatile Snapshot active = Snapshot.empty();
 
@@ -66,8 +66,8 @@ public final class BiomeGenRegistry {
     }
 
     public static WorldGenKey registerBiomeGenerator(String declaredKey, BiomeGenWrapper biome, Set<String> tags,
-            WorldGenKey surface, double minTemperature, double maxTemperature, double minHumidity,
-            double maxHumidity, boolean legacyClimateRange, int decoratorCount) {
+            WorldGenKey surface, double minTemperature, double maxTemperature, double minHumidity, double maxHumidity,
+            boolean legacyClimateRange, int decoratorCount) {
         PublicationBatch batch = CURRENT_BATCH.get();
         if (batch != null) {
             return batch.addBiome(declaredKey, biome, tags, surface, minTemperature, maxTemperature, minHumidity,
@@ -144,9 +144,42 @@ public final class BiomeGenRegistry {
         return active.keysByBiome.get(biome);
     }
 
-    static BiomeGenBase biomeFor(WorldGenKey key) {
-        BiomeDefinition definition = active.biomes.get(key);
+    public static BiomeGenBase biomeFor(WorldGenKey key) {
+        BiomeDefinition definition = definitionFor(key);
         return definition == null ? null : definition.biome;
+    }
+
+    public static BiomeDefinition definitionFor(WorldGenKey key) {
+        PublicationBatch batch = CURRENT_BATCH.get();
+        if (batch != null) {
+            for (BiomeDefinition definition : batch.biomes) {
+                if (definition.key.equals(key)) {
+                    return definition;
+                }
+            }
+        }
+        return active.biomes.get(key);
+    }
+
+    public static BiomeDefinition definitionFor(BiomeGenBase biome) {
+        PublicationBatch batch = CURRENT_BATCH.get();
+        if (batch != null) {
+            for (BiomeDefinition definition : batch.biomes) {
+                if (definition.biome == biome) {
+                    return definition;
+                }
+            }
+        }
+        return active.byBiome.get(biome);
+    }
+
+    public static List<BiomeDefinition> definitions() {
+        List<BiomeDefinition> result = new ArrayList<BiomeDefinition>(active.biomes.values());
+        PublicationBatch batch = CURRENT_BATCH.get();
+        if (batch != null) {
+            result.addAll(batch.biomes);
+        }
+        return Collections.unmodifiableList(result);
     }
 
     public static boolean matchesSelectors(BiomeGenBase biome, Set<String> selectors) {
@@ -176,7 +209,8 @@ public final class BiomeGenRegistry {
         for (int x = 0; x < 16; x++) {
             for (int z = 0; z < 16; z++) {
                 BiomeDefinition biome = snapshot.byBiome.get(biomes[x + z * 16]);
-                SurfaceRuleSet surface = biome == null || biome.surface == null ? null
+                SurfaceRuleSet surface = biome == null || biome.surface == null
+                        ? null
                         : snapshot.surfaces.get(biome.surface);
                 if (surface != null) {
                     surface.apply(world.getRandomSeed(), chunkX, chunkZ, blocks, x, z);
@@ -411,9 +445,9 @@ public final class BiomeGenRegistry {
             this.owner = required(owner);
         }
 
-        private WorldGenKey addBiome(String declaredKey, BiomeGenWrapper biome, Set<String> tags,
-                WorldGenKey surface, double minTemperature, double maxTemperature, double minHumidity,
-                double maxHumidity, boolean legacyClimateRange, int decoratorCount) {
+        private WorldGenKey addBiome(String declaredKey, BiomeGenWrapper biome, Set<String> tags, WorldGenKey surface,
+                double minTemperature, double maxTemperature, double minHumidity, double maxHumidity,
+                boolean legacyClimateRange, int decoratorCount) {
             WorldGenKey key = biomeKey(declaredKey, resourceOwner, biome.biomeName);
             biomes.add(new BiomeDefinition(key, resourceOwner, owner, source("biome"), biome, normalizeTags(tags),
                     surface, minTemperature, maxTemperature, minHumidity, maxHumidity, legacyClimateRange,

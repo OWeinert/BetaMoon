@@ -111,8 +111,7 @@ public final class DeclarativeDomainTest {
         lua.load("local results=betamoon.callbackResults; "
                 + "assert(results.pass=='pass' and results.deny=='deny' and results.handled=='handled'); "
                 + "local found=0; for _,value in pairs(results) do if type(value)=='string' then found=found+1 end end; "
-                + "assert(found==3); "
-                + "assert(not pcall(function() results.pass='handled' end)); "
+                + "assert(found==3); " + "assert(not pcall(function() results.pass='handled' end)); "
                 + "assert(not pcall(function() return results.handeled end))").call();
     }
 
@@ -169,13 +168,19 @@ public final class DeclarativeDomainTest {
             lua.load("local ores=betamoon.worldgen.ores; "
                     + "local def={block=1,veinsPerChunk=3,veinSize=7,height={min=4,max=12}}; "
                     + "local ore=ores:add(def); assert(ore:getKey() and ore:getFeature():getKey()); "
-                    + "def.dimension='hell'; ores.add(def); "
+                    + "assert(ores:get(ore:getKey())==ore); "
+                    + "local oreLayer=ore:override({veinsPerChunk=5,enabled=false}); "
+                    + "assert(ore.veinsPerChunk==5 and not ore.enabled); oreLayer:remove(); "
+                    + "assert(ore.veinsPerChunk==3 and ore.enabled); " + "def.dimension='hell'; ores.add(def); "
                     + "def.dimension='both'; ores:add(def); def.height.min=13; "
                     + "assert(not pcall(function() ores:add(def) end)); "
                     + "assert(not pcall(function() ores:add({block=1,veinsPerChunk=1,veinSize=1,"
                     + "height={min=1,max=2},biomes={'missing'}}) end)); " + "local biomes=betamoon.worldgen.biomes; "
-                    + "biomes:add({name='quality_biome',basedOn='desert',surface={top=1},weather={rain=true},"
-                    + "spawns={creatures={{entity='sheep',weight=1}}}}); "
+                    + "local biome=biomes:add({key='quality:biome/test',name='quality_biome',basedOn='desert',"
+                    + "surface={top=1},weather={rain=true},spawns={creatures={{entity='sheep',weight=1}}}}); "
+                    + "assert(biome:getKey()=='quality:biome/test' and biomes:get(biome:getKey())==biome); "
+                    + "local biomeLayer=biome:override({displayName='temporary_name'}); "
+                    + "assert(biome.name=='temporary_name'); biomeLayer:remove(); assert(biome.name=='quality_biome'); "
                     + "assert(not pcall(function() biomes:add({name='bad_range',range={humidity={1,0}}}) end)); "
                     + "assert(not pcall(function() biomes:add({name='bad_tree',trees={type='missing'}}) end)); "
                     + "assert(not pcall(function() biomes:add({name='bad_spawn',spawns={missing={}}}) end)); "
@@ -187,8 +192,7 @@ public final class DeclarativeDomainTest {
             require(hasDimension(ores, "nether"), "Nether alias");
             require(hasDimension(ores, "both"), "Both-dimensions mode");
             require(ores.get(0).targetBlockId == null && ores.get(1).targetBlockId == null
-                    && ores.get(2).targetBlockId == null,
-                    "Default replacement is selected for the active dimension");
+                    && ores.get(2).targetBlockId == null, "Default replacement is selected for the active dimension");
             require(GenerationDimension.BOTH.includes(false) && GenerationDimension.BOTH.includes(true),
                     "Both-dimensions entries run in the overworld and nether");
             List<BiomeGenRegistry.Description> biomes = BiomeGenRegistry.snapshot();

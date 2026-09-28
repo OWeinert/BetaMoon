@@ -15,15 +15,17 @@ import java.util.Set;
 import net.minecraft.src.World;
 import org.luaj.vm2.LuaError;
 
-/** Immutable runtime catalog and execution engine for reusable features and placements. */
+/**
+ * Immutable runtime catalog and execution engine for reusable features and
+ * placements.
+ */
 final class FeaturePlacementRegistry {
     private static final String ACTUAL_STAGE = "after_vanilla_population";
     private static volatile Snapshot active = Snapshot.empty();
     private static volatile Set<WorldGenKey> decoratorTemplates = Collections.emptySet();
     private static final Map<String, MutableDiagnostics> diagnostics = new LinkedHashMap<String, MutableDiagnostics>();
     private static final Set<WorldGenKey> disabled = new HashSet<WorldGenKey>();
-    private static final Map<String, Set<WorldGenKey>> decoratorTemplatesByOwner =
-            new LinkedHashMap<String, Set<WorldGenKey>>();
+    private static final Map<String, Set<WorldGenKey>> decoratorTemplatesByOwner = new LinkedHashMap<String, Set<WorldGenKey>>();
 
     private FeaturePlacementRegistry() {
     }
@@ -102,6 +104,36 @@ final class FeaturePlacementRegistry {
             placements.add(placement);
         }
         active = Snapshot.compile(features, placements);
+    }
+
+    static synchronized void replace(FeatureDefinition feature, PlacementDefinition placement) {
+        List<FeatureDefinition> features = new ArrayList<FeatureDefinition>();
+        for (FeatureDefinition current : active.features.values()) {
+            if (feature == null || !current.key.equals(feature.key)) {
+                features.add(current);
+            }
+        }
+        List<PlacementDefinition> placements = new ArrayList<PlacementDefinition>();
+        for (PlacementDefinition current : active.placements) {
+            if (placement == null || !current.key.equals(placement.key)) {
+                placements.add(current);
+            }
+        }
+        if (feature != null) {
+            features.add(feature);
+        }
+        if (placement != null) {
+            placements.add(placement);
+        }
+        active = Snapshot.compile(features, placements);
+    }
+
+    static synchronized void setEnabled(WorldGenKey key, boolean enabled) {
+        if (enabled) {
+            disabled.remove(key);
+        } else {
+            disabled.add(key);
+        }
     }
 
     static FeatureDefinition findFeature(WorldGenKey key) {
@@ -233,8 +265,8 @@ final class FeaturePlacementRegistry {
         return commit ? plan.commit(context) : plan.preview(context);
     }
 
-    private static FeatureResult executeFeature(Snapshot snapshot, FeatureDefinition definition,
-            FeatureContext context, BlockPosition origin) {
+    private static FeatureResult executeFeature(Snapshot snapshot, FeatureDefinition definition, FeatureContext context,
+            BlockPosition origin) {
         PlacementPlan plan = new PlacementPlan(origin, definition.maxBlocks, definition.maxRadius);
         FeatureResult planned = definition.feature.plan(context, origin, plan);
         if (!planned.placed) {
@@ -250,8 +282,8 @@ final class FeaturePlacementRegistry {
 
     private static FeatureContext context(final Snapshot snapshot, World world, Random random,
             FeatureDefinition definition, FeatureOptions options) {
-        return new FeatureContext(world, random, definition.key,
-                Math.max(256, definition.maxBlocks * 32), new FeatureContext.FeatureResolver() {
+        return new FeatureContext(world, random, definition.key, Math.max(256, definition.maxBlocks * 32),
+                new FeatureContext.FeatureResolver() {
                     @Override
                     public FeatureDefinition find(WorldGenKey key) {
                         return snapshot.features.get(key);
@@ -352,8 +384,8 @@ final class FeaturePlacementRegistry {
                     throw collision(placement.key, conflict.owner, placement.owner);
                 }
                 if (!features.containsKey(placement.featureKey)) {
-                    throw new LuaError("Placement " + placement.key + " references unknown feature "
-                            + placement.featureKey);
+                    throw new LuaError(
+                            "Placement " + placement.key + " references unknown feature " + placement.featureKey);
                 }
             }
             List<PlacementDefinition> ordered = orderPlacements(placements);
@@ -361,8 +393,8 @@ final class FeaturePlacementRegistry {
         }
 
         private static LuaError collision(WorldGenKey key, String firstOwner, String secondOwner) {
-            return new LuaError("World-generation key " + key + " is declared by both " + firstOwner + " and "
-                    + secondOwner);
+            return new LuaError(
+                    "World-generation key " + key + " is declared by both " + firstOwner + " and " + secondOwner);
         }
 
         private static void validateFeatureReferences(Map<WorldGenKey, FeatureDefinition> features) {
@@ -435,8 +467,8 @@ final class FeaturePlacementRegistry {
             PlacementDefinition sourcePlacement = placements.get(source);
             PlacementDefinition targetPlacement = placements.get(target);
             if (sourcePlacement == null || targetPlacement == null) {
-                throw new LuaError("Placement ordering references unknown key "
-                        + (sourcePlacement == null ? source : target));
+                throw new LuaError(
+                        "Placement ordering references unknown key " + (sourcePlacement == null ? source : target));
             }
             if (sourcePlacement.stage != stage || targetPlacement.stage != stage) {
                 throw new LuaError("Placement ordering cannot cross generation stages: " + source + " -> " + target);
@@ -522,7 +554,8 @@ final class FeaturePlacementRegistry {
             accepted = values == null ? 0 : values.accepted;
             rejected = values == null ? 0 : values.rejected;
             blocksChanged = values == null ? 0 : values.blocksChanged;
-            rejectionReasons = values == null ? Collections.<String, Integer>emptyMap()
+            rejectionReasons = values == null
+                    ? Collections.<String, Integer>emptyMap()
                     : Collections.unmodifiableMap(new LinkedHashMap<String, Integer>(values.reasons));
             disabled = isDisabled(definition.key);
             this.template = template;

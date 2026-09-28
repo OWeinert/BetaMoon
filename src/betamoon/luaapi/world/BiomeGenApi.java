@@ -1,42 +1,158 @@
 package betamoon.luaapi.world;
 
-import betamoon.worldgen.BiomeRegistration;
+import betamoon.luaapi.resource.LuaResultList;
+import betamoon.minecraft.MinecraftBuiltins;
 import betamoon.worldgen.BiomeGenRegistry;
+import betamoon.worldgen.BiomeRegistration;
 import betamoon.worldgen.WorldGenKey;
 import betamoon.worldgen.WorldGenKind;
+import betamoon.worldgen.biome.BiomeDefinition;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import net.minecraft.src.BiomeGenBase;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-/** Installs declarative biome generation. */
+/** Installs biome registration, lookup, queries, and safe definition layers. */
 public final class BiomeGenApi {
+    private static final Map<BiomeGenBase, BiomeReference> REFERENCES = new IdentityHashMap<BiomeGenBase, BiomeReference>();
+
     private BiomeGenApi() {
     }
 
     public static void attach(LuaTable worldgen) {
         final LuaTable biomes = new LuaTable();
         biomes.set("add", new VarArgFunction() {
-            @Override
             public Varargs invoke(Varargs args) {
-                BiomeDeclaration declaration = new BiomeDeclaration(argument(args, biomes, 1));
+                BiomeDeclaration declaration = new BiomeDeclaration(argument(args, biomes));
                 int decoratorCount = decoratorCount(declaration.decorators);
-                WorldGenKey surface = declaration.surfaceRule.isnil() ? null
+                WorldGenKey surface = declaration.surfaceRule.isnil()
+                        ? null
                         : SurfaceGenApi.key(declaration.surfaceRule, "Biome.surfaceRule");
                 WorldGenKey key = BiomeRegistration.register(declaration, surface, decoratorCount);
                 FeaturePlacementApi.addBiomeDecorators(key, declaration.decorators);
-                return new BiomeReference(key);
+                return reference(BiomeGenRegistry.biomeFor(key), BiomeGenRegistry.definitionFor(key));
             }
         });
         biomes.set("get", lookup(biomes, false));
         biomes.set("getRequired", lookup(biomes, true));
+        biomes.set("find", query(biomes, 0));
+        biomes.set("first", query(biomes, 1));
+        biomes.set("one", query(biomes, 2));
         worldgen.set("biomes", biomes);
+    }
+
+    private static VarArgFunction lookup(final LuaTable registry, final boolean required) {
+        return new VarArgFunction() {
+            public Varargs invoke(Varargs args) {
+                LuaValue value = argument(args, registry);
+                if (value instanceof BiomeReference) {
+                    return value;
+                }
+                String name = value.checkjstring();
+                BiomeDefinition entry = definition(name);
+                BiomeGenBase biome = entry == null ? find(name) : entry.biome;
+                if (biome == null && required) {
+                    throw new LuaError("Biome was not found: " + name);
+                }
+                return biome == null
+                        ? NIL
+                        : reference(biome, entry == null ? BiomeGenRegistry.definitionFor(biome) : entry);
+            }
+        };
+    }
+
+    private static VarArgFunction query(final LuaTable registry, final int mode) {
+        return new VarArgFunction() {
+            public Varargs invoke(Varargs args) {
+                LuaValue criteria = argument(args, registry);
+                if (criteria.isnil()) {
+                    criteria = new LuaTable();
+                }
+                if (!criteria.istable()) {
+                    throw new LuaError("Biome query must be a table.");
+                }
+                List<LuaValue> matches = new ArrayList<LuaValue>();
+                for (BiomeReference reference : all()) {
+                    if (reference.matches(criteria)) {
+                        matches.add(reference);
+                    }
+                }
+                if (mode == 1) {
+                    return matches.isEmpty() ? NIL : matches.get(0);
+                }
+                if (mode == 2) {
+                    if (matches.isEmpty()) {
+                        return NIL;
+                    }
+                    if (matches.size() != 1) {
+                        throw new LuaError("Expected exactly one biome, found " + matches.size() + ".");
+                    }
+                    return matches.get(0);
+                }
+                return new LuaResultList(matches,
+                        (reference, definition, index) -> ((BiomeReference) reference).override(definition));
+            }
+        };
+    }
+
+    private static synchronized BiomeReference reference(BiomeGenBase biome, BiomeDefinition entry) {
+        BiomeReference reference = REFERENCES.get(biome);
+        if (reference == null) {
+            reference = new BiomeReference(biome, entry);
+            REFERENCES.put(biome, reference);
+        }
+        return reference;
+    }
+
+    private static BiomeGenBase find(String name) {
+        for (BiomeDefinition entry : BiomeGenRegistry.definitions()) {
+            if (entry.biome.biomeName.equalsIgnoreCase(name)) {
+                return entry.biome;
+            }
+        }
+        return MinecraftBuiltins.resolveBiome(name);
+    }
+
+    private static List<BiomeReference> all() {
+        Set<BiomeGenBase> biomes = new LinkedHashSet<BiomeGenBase>();
+        for (String name : MinecraftBuiltins.biomes().keySet()) {
+            BiomeGenBase biome = MinecraftBuiltins.resolveBiome(name);
+            if (biome != null) {
+                biomes.add(biome);
+            }
+        }
+        for (BiomeDefinition entry : BiomeGenRegistry.definitions()) {
+            biomes.add(entry.biome);
+        }
+        List<BiomeReference> result = new ArrayList<BiomeReference>();
+        for (BiomeGenBase biome : biomes) {
+            result.add(reference(biome, BiomeGenRegistry.definitionFor(biome)));
+        }
+        Collections.sort(result, new Comparator<BiomeReference>() {
+            public int compare(BiomeReference left, BiomeReference right) {
+                return left.get("name").tojstring().compareToIgnoreCase(right.get("name").tojstring());
+            }
+        });
+        return result;
     }
 
     static WorldGenKey key(LuaValue value, String path) {
         if (value instanceof BiomeReference) {
-            return ((BiomeReference) value).key();
+            WorldGenKey key = ((BiomeReference) value).key();
+            if (key == null) {
+                throw new LuaError(path + ": native biomes do not have BetaMoon world-generation keys");
+            }
+            return key;
         }
         if (!value.isstring()) {
             throw new LuaError(path + ": expected a biome reference or key");
@@ -46,6 +162,14 @@ public final class BiomeGenApi {
         } catch (IllegalArgumentException error) {
             throw new LuaError(path + ": " + error.getMessage());
         }
+    }
+
+    private static BiomeDefinition definition(String value) {
+        if (value.indexOf(':') < 0) {
+            return null;
+        }
+        WorldGenKey key = key(LuaValue.valueOf(value), "Biome.get");
+        return BiomeGenRegistry.definitionFor(key);
     }
 
     private static int decoratorCount(LuaValue decorators) {
@@ -60,23 +184,7 @@ public final class BiomeGenApi {
         return count;
     }
 
-    private static VarArgFunction lookup(final LuaTable receiver, final boolean required) {
-        return new VarArgFunction() {
-            @Override
-            public Varargs invoke(Varargs arguments) {
-                WorldGenKey key = key(argument(arguments, receiver, 1), "Biome.get");
-                if (!BiomeGenRegistry.hasBiome(key)) {
-                    if (required) {
-                        throw new LuaError("Biome is not registered: " + key);
-                    }
-                    return NIL;
-                }
-                return new BiomeReference(key);
-            }
-        };
-    }
-
-    private static LuaValue argument(Varargs arguments, LuaValue receiver, int index) {
-        return arguments.arg(index + (arguments.arg1() == receiver ? 1 : 0));
+    private static LuaValue argument(Varargs args, LuaValue receiver) {
+        return args.arg(args.arg1() == receiver ? 2 : 1);
     }
 }

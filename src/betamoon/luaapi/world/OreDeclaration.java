@@ -43,8 +43,8 @@ public final class OreDeclaration {
             throw new LuaError("OreGen: height must satisfy 0 <= min <= max <= 127.");
         }
         if (veinsPerChunk < 0 || veinsPerChunk > WorldGenLimits.MAX_ATTEMPTS_PER_CHUNK) {
-            throw new LuaError("OreGen: veinsPerChunk must be between 0 and "
-                    + WorldGenLimits.MAX_ATTEMPTS_PER_CHUNK + ".");
+            throw new LuaError(
+                    "OreGen: veinsPerChunk must be between 0 and " + WorldGenLimits.MAX_ATTEMPTS_PER_CHUNK + ".");
         }
         if (veinSize < 1 || veinSize > WorldGenLimits.MAX_ORE_VEIN_SIZE) {
             throw new LuaError("OreGen: veinSize must be between 1 and " + WorldGenLimits.MAX_ORE_VEIN_SIZE + ".");
@@ -68,7 +68,7 @@ public final class OreDeclaration {
         return allowedBiomes == null ? null : allowedBiomes.clone();
     }
 
-    private static String[] biomeNames(LuaValue value) {
+    static String[] biomeNames(LuaValue value) {
         if (value.isnil()) {
             return null;
         }
@@ -85,7 +85,7 @@ public final class OreDeclaration {
         return names;
     }
 
-    private static int resolveBlockId(LuaValue value) {
+    static int resolveBlockId(LuaValue value) {
         if (value.isnumber()) {
             int id = value.toint();
             if (id < 0 || id >= Block.blocksList.length) {
