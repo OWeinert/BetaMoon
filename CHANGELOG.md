@@ -4,6 +4,10 @@
 
 BetaMoon 0.7.3 expands reversible Lua overrides across registered gameplay systems.
 
+### Container GUIs
+
+- Add standard held-key repetition to focused text-box controls, including delayed repeating Backspace and Delete.
+
 ### Override API
 
 - Make multi-property override application transactional, keep reference fields live, and compose callback layers

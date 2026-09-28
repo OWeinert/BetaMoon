@@ -56,6 +56,7 @@ function modInit()
       active = { type = "boolean", default = false, sync = true },
       enabled = { type = "boolean", default = false, sync = true },
       speed = { type = "integer", default = 20, sync = true },
+      dial = { type = "integer", default = 0, sync = true },
       controlMode = { type = "string", default = "idle" },
       label = { type = "string", default = "Showcase" },
       -- A private timer can be saved without being exposed to the GUI.
@@ -98,7 +99,6 @@ function modInit()
     -- Session values disappear when the screen closes. Use them for tabs,
     -- searches, drafts, and other screen-local state.
     session = {
-      dial = { type = "integer", default = 0 },
       message = { type = "string", default = "Ready", maxLength = 24 }
     },
 
@@ -107,7 +107,7 @@ function modInit()
         type = "action",
         onActivate = function(ctx)
           ctx.data:set("speed", 20)
-          ctx.session:set("dial", 0)
+          ctx.data:set("dial", 0)
           ctx.session:set("message", "Reset")
         end
       },
@@ -147,8 +147,9 @@ function modInit()
         type = "custom",
         onInput = function(ctx, input)
           if input.phase == "press" or input.phase == "drag" then
-            ctx.session:set("dial", math.floor(input.x / 63 * 100 + 0.5))
-            ctx.session:set("message", "Dial " .. ctx.session:get("dial"))
+            local dial = math.floor(input.x / 63 * 100 + 0.5)
+            ctx.data:set("dial", dial)
+            ctx.session:set("message", "Dial " .. dial)
             return betamoon.callbackResults.handled
           end
           return betamoon.callbackResults.pass
@@ -516,10 +517,9 @@ function modInit()
             tooltip = "Use the left and right arrow regions or the keyboard arrows" },
           { type = "text_box", control = "label", x = 86, y = 90, width = 82,
             tooltip = "Enter commits; Escape reverts" },
-          { type = "interactive", control = "dial", x = 8, y = 116, width = 64, height = 8,
-            tooltip = "Custom control: drag across this area" },
-          { type = "text", text = "Dial and messages are session-only", x = 78, y = 116,
-            visibleWhen = { session = "dial", greaterOrEqual = 0 } }
+          { type = "interactive", control = "dial", x = 8, y = 116, width = 64, height = 16, text = "Drag",
+            tooltip = "Custom control: press or drag horizontally to set the dial" },
+          { type = "text", value = "dial", format = "Dial: %d", x = 78, y = 120 }
         }
       }
     }
