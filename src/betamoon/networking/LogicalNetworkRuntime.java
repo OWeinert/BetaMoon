@@ -20,6 +20,7 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -528,7 +529,7 @@ public final class LogicalNetworkRuntime {
                     }
                 }
                 Collections.sort(members, Comparator.comparing(node -> node.position));
-                result.add(new Component(++sequence, members));
+                result.add(new Component(++sequence, members, edges));
             }
             return Collections.unmodifiableList(result);
         }
@@ -592,8 +593,10 @@ public final class LogicalNetworkRuntime {
                 network.set("topology", definition.topology.name().toLowerCase());
                 network.set("id", component.id);
                 network.set("size", component.nodes.size());
+                Map<LuaValue, Node> viewNodes = new IdentityHashMap<>();
+                network.set("pathDistance", pathDistance(scope, network, component, viewNodes));
                 context.set("network", network);
-                context.set("nodes", nodeViews(scope, component.nodes));
+                context.set("nodes", nodeViews(scope, component.nodes, viewNodes));
                 Node origin = component.nodes.get(0);
                 context.set("world", LuaWorldActionAccess.create(scope, world,
                         origin.position.x, origin.position.y, origin.position.z));
@@ -611,11 +614,43 @@ public final class LogicalNetworkRuntime {
             }
         }
 
-        private LuaTable nodeViews(LuaCallbackScope scope, List<Node> members) {
+        private VarArgFunction pathDistance(final LuaCallbackScope scope, final LuaTable receiver,
+                final Component component, final Map<LuaValue, Node> viewNodes) {
+            final Map<Node, Map<Node, Integer>> cache = new IdentityHashMap<>();
+            return new VarArgFunction() {
+                public Varargs invoke(Varargs arguments) {
+                    scope.requireActive();
+                    int offset = arguments.arg1() == receiver ? 1 : 0;
+                    Node first = callbackNode(arguments.arg(1 + offset), viewNodes, "first");
+                    Node second = callbackNode(arguments.arg(2 + offset), viewNodes, "second");
+                    Map<Node, Integer> distances = cache.get(first);
+                    if (distances == null) {
+                        distances = component.distancesFrom(first);
+                        cache.put(first, distances);
+                    }
+                    Integer distance = distances.get(second);
+                    return distance == null ? LuaValue.NIL : LuaValue.valueOf(distance.intValue());
+                }
+            };
+        }
+
+        private Node callbackNode(LuaValue value, Map<LuaValue, Node> viewNodes, String name) {
+            Node node = viewNodes.get(value);
+            if (node == null) {
+                throw new LuaError("network:pathDistance " + name + " must be a node from ctx.nodes.");
+            }
+            return node;
+        }
+
+        private LuaTable nodeViews(LuaCallbackScope scope, List<Node> members, Map<LuaValue, Node> viewNodes) {
             final LuaTable result = new LuaTable();
+            final Map<Node, LuaTable> views = new IdentityHashMap<>();
             int index = 0;
             for (Node node : members) {
-                result.set(++index, nodeView(scope, node));
+                LuaTable view = nodeView(scope, node);
+                views.put(node, view);
+                viewNodes.put(view, node);
+                result.set(++index, view);
             }
             result.set("find", new VarArgFunction() {
                 public Varargs invoke(Varargs arguments) {
@@ -636,7 +671,7 @@ public final class LogicalNetworkRuntime {
                     for (Node node : members) {
                         if ((endpoint == null || endpoint.equals(endpoint(node)))
                                 && configMatches(node, config)) {
-                            found.set(++foundIndex, nodeView(scope, node));
+                            found.set(++foundIndex, views.get(node));
                         }
                     }
                     return found;
@@ -991,9 +1026,34 @@ public final class LogicalNetworkRuntime {
     private static final class Component {
         private final int id;
         private final List<Node> nodes;
-        private Component(int id, List<Node> nodes) {
+        private final Map<Node, List<Node>> edges;
+        private Component(int id, List<Node> nodes, Map<Node, Set<Node>> networkEdges) {
             this.id = id;
             this.nodes = Collections.unmodifiableList(new ArrayList<>(nodes));
+            Map<Node, List<Node>> componentEdges = new IdentityHashMap<>();
+            for (Node node : nodes) {
+                List<Node> neighbors = new ArrayList<>(networkEdges.get(node));
+                Collections.sort(neighbors, Comparator.comparing(value -> value.position));
+                componentEdges.put(node, Collections.unmodifiableList(neighbors));
+            }
+            this.edges = Collections.unmodifiableMap(componentEdges);
+        }
+        private Map<Node, Integer> distancesFrom(Node source) {
+            Map<Node, Integer> distances = new IdentityHashMap<>();
+            Deque<Node> queue = new ArrayDeque<>();
+            distances.put(source, Integer.valueOf(0));
+            queue.addLast(source);
+            while (!queue.isEmpty()) {
+                Node node = queue.removeFirst();
+                int distance = distances.get(node).intValue() + 1;
+                for (Node neighbor : edges.get(node)) {
+                    if (!distances.containsKey(neighbor)) {
+                        distances.put(neighbor, Integer.valueOf(distance));
+                        queue.addLast(neighbor);
+                    }
+                }
+            }
+            return distances;
         }
     }
 

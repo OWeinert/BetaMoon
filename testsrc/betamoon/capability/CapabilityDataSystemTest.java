@@ -119,6 +119,10 @@ public final class CapabilityDataSystemTest {
         LogicalNetworkRuntime.tick(world);
         require(globals.get("adjacentTicks").checkint() == 11 && globals.get("adjacentSize").checkint() == 2,
                 "Adjacent network did not build one deterministic component");
+        require(globals.get("adjacentDistance").checkint() == 1 && globals.get("adjacentSelfDistance").checkint() == 0,
+                "Logical-network path distance did not count computed edges");
+        require(globals.get("adjacentRejectedForeignNode").toboolean(),
+                "Logical-network path distance accepted a value outside ctx.nodes");
         require(globals.get("wirelessTicks").checkint() == 1 && globals.get("wirelessSize").checkint() == 2,
                 "Wireless network did not join compatible channel endpoints");
         require(globals.get("explicitTicks").checkint() == 1 && globals.get("explicitSize").checkint() == 2,
@@ -215,8 +219,8 @@ public final class CapabilityDataSystemTest {
         tick(nodes);
         LogicalNetworkRuntime.tick(world);
         require(stored(consumer, energy) == 2, "Consumer exceeded or missed its two-energy input limit");
-        require(stored(battery, energy) == 1 && stored(generator, energy) == 1,
-                "The cable grid did not enforce its three-energy transfer limit");
+        require(stored(battery, energy) == 2 && stored(generator, energy) == 0,
+                "Consumer service and battery charging did not use the generator's full production");
         require(stored(separatedBattery, energy) == 0,
                 "A consumer incorrectly bridged the cable grids on its opposite faces");
 
@@ -245,8 +249,8 @@ public final class CapabilityDataSystemTest {
             globals.set("ctx", context);
             globals.set("exampleEnergy", energyHandle);
             globals.load("local source=ctx.entity.capabilities:getRequired(exampleEnergy) "
-                    + "assert(source:call('extract',{amount=100,simulate=true}).extracted==4) "
-                    + "assert(source:call('extract',{amount=100,simulate=false}).extracted==4) "
+                    + "assert(source:call('extract',{amount=100,simulate=true}).extracted==8) "
+                    + "assert(source:call('extract',{amount=100,simulate=false}).extracted==8) "
                     + "assert(source:call('extract',{amount=100,simulate=false}).extracted==0)").call();
         }
 
@@ -262,6 +266,43 @@ public final class CapabilityDataSystemTest {
         require(stored(separatedBattery, energy) == 0, "The isolated cable grid received energy through the consumer");
         require(consumer.getDataInt("displayEnergy") == stored(consumer, energy),
                 "The consumer GUI value did not follow capability storage");
+        LogicalNetworkRuntime.unload(world);
+        testOverloadedEnergyGrid(types, energy);
+    }
+
+    private static void testOverloadedEnergyGrid(String[] types, AssetKey energy) {
+        TestWorld world = new TestWorld();
+        LuaTileEntity generator = tile(types[0], world, 0, 64, 0);
+        LuaTileEntity[] cables = {tile(types[1], world, 1, 64, 0), tile(types[1], world, 2, 64, 0),
+                tile(types[1], world, 3, 64, 0)};
+        LuaTileEntity[] consumers = {tile(types[3], world, 1, 63, 0), tile(types[3], world, 1, 65, 0),
+                tile(types[3], world, 2, 63, 0), tile(types[3], world, 2, 65, 0), tile(types[3], world, 3, 63, 0),
+                tile(types[3], world, 3, 65, 0)};
+        LuaTileEntity[] nodes = new LuaTileEntity[1 + cables.length + consumers.length];
+        nodes[0] = generator;
+        System.arraycopy(cables, 0, nodes, 1, cables.length);
+        System.arraycopy(consumers, 0, nodes, 1 + cables.length, consumers.length);
+        for (LuaTileEntity node : nodes) {
+            world.put(node);
+            LogicalNetworkRuntime.added(node);
+        }
+
+        for (int gameTick = 1; gameTick <= 18; gameTick++) {
+            world.setWorldTime(gameTick);
+            tick(nodes);
+            LogicalNetworkRuntime.tick(world);
+            require(stored(generator, energy) == 0,
+                    "An overloaded generator accumulated energy instead of using its production");
+            int consumerEnergy = 0;
+            for (int index = 0; index < consumers.length; index++) {
+                int stored = stored(consumers[index], energy);
+                require(stored <= 1, "An overloaded consumer gained buffer energy before every load was served");
+                consumerEnergy += stored;
+                require(stored == (index < 4 ? 1 : 0),
+                        "Overload distribution did not consistently serve the nearest consumers first");
+            }
+            require(consumerEnergy == 4, "The overloaded grid did not distribute all four generated energy");
+        }
         LogicalNetworkRuntime.unload(world);
     }
 
@@ -306,10 +347,16 @@ public final class CapabilityDataSystemTest {
                 + "senderType=tile('test:block/sender','transmitter','sender')\n"
                 + "receiverType=tile('test:block/receiver','receiver','receiver')\n"
                 + "adjacentTicks=0 adjacentSize=0 wirelessTicks=0 wirelessSize=0 wirelessSignal=0 pulseValue=0 "
-                + "explicitTicks=0 explicitSize=0 hybridTicks=0 hybridSize=0\n"
+                + "explicitTicks=0 explicitSize=0 hybridTicks=0 hybridSize=0 "
+                + "adjacentDistance=-1 adjacentSelfDistance=-1 adjacentRejectedForeignNode=false\n"
                 + "adjacent=betamoon.logicalNetworks:add{key='test:network/cable',capability=energy,"
                 + "topology={type='adjacent',directions='orthogonal'},tick={interval=1},"
-                + "onTick=function(ctx) adjacentTicks=adjacentTicks+1 adjacentSize=ctx.network.size end}\n"
+                + "onTick=function(ctx) adjacentTicks=adjacentTicks+1 adjacentSize=ctx.network.size "
+                + "if ctx.network.size>=2 then local found=ctx.nodes:find{} "
+                + "adjacentDistance=ctx.network:pathDistance(found[1],found[2]) "
+                + "adjacentSelfDistance=ctx.network:pathDistance(ctx.nodes[1],ctx.nodes[1]) "
+                + "adjacentRejectedForeignNode=not pcall(function() "
+                + "ctx.network:pathDistance({},ctx.nodes[1]) end) end end}\n"
                 + "wireless=betamoon.logicalNetworks:add{key='test:network/wireless',capability=energy,"
                 + "topology={type='wireless',scope='dimension',range=64,channelField='channel',"
                 + "roleField='role',rangeField='range',compatibilityFields={'owner'}},"
