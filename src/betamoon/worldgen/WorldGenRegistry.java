@@ -412,6 +412,22 @@ public final class WorldGenRegistry {
         }
     }
 
+    public static final class PlacementCandidateLocation {
+        public final int x;
+        public final int z;
+        public final int chunkX;
+        public final int chunkZ;
+        public final boolean loaded;
+
+        private PlacementCandidateLocation(FeaturePlacementRegistry.PlacementCandidate candidate) {
+            x = candidate.x;
+            z = candidate.z;
+            chunkX = candidate.chunkX;
+            chunkZ = candidate.chunkZ;
+            loaded = candidate.loaded;
+        }
+    }
+
     public static WorldGenKey addFeature(String key, String type, WorldFeature feature, List<WorldGenKey> dependencies,
             int maxBlocks, int maxRadius) {
         return addFeature(key, WorldGenKind.FEATURE, type, feature, dependencies, maxBlocks, maxRadius);
@@ -767,6 +783,13 @@ public final class WorldGenRegistry {
             int maxRegions) {
         RegionalStructureRegistry.Location location = RegionalStructureRegistry.locate(world, key, x, z, maxRegions);
         return location == null ? null : new RegionalStructureLocation(location);
+    }
+
+    public static PlacementCandidateLocation locatePlacementCandidate(World world, WorldGenKey key, int x, int z,
+            int maxChunks) {
+        FeaturePlacementRegistry.PlacementCandidate candidate = FeaturePlacementRegistry.locateCandidate(world, key,
+                x, z, maxChunks);
+        return candidate == null ? null : new PlacementCandidateLocation(candidate);
     }
 
     public static void regionalStructureChunkLoaded(Chunk chunk) {

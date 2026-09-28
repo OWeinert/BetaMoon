@@ -20,7 +20,7 @@ function modInit()
     }
   }
 
-  betamoon.worldgen.placements:add {
+  local shrinePlacement = betamoon.worldgen.placements:add {
     key = "example:placement/tutorial_shrine",
     feature = shrine,
     stage = "surface_features",
@@ -44,5 +44,55 @@ function modInit()
       requireSky = true
     },
     salt = 301801
+  }
+
+  local surveyor = betamoon.items:add {
+    id = 5046,
+    key = "example:item/shrine_surveyor",
+    displayName = "Shrine Surveyor",
+    icon = { x = 6, y = 3 },
+    maxStackSize = 1,
+    onUseOnBlock = {
+      action = function(ctx)
+        -- Local placements are not saved structure indexes. This finds the
+        -- nearest chunk whose deterministic rarity roll allows an attempt;
+        -- terrain conditions can still reject all four positions in that chunk.
+        local location = shrinePlacement:locateCandidate(
+          ctx.world,
+          ctx.position.x,
+          ctx.position.z,
+          64
+        )
+        if not location then
+          betamoon.chat:send("No eligible shrine chunk was found in range")
+          return betamoon.callbackResults.handled
+        end
+
+        local state = location.loaded and "currently loaded" or "outside the loaded area"
+        betamoon.chat:send(
+          "Eligible shrine chunk: center %i, %i (%s)",
+          location.x,
+          location.z,
+          state
+        )
+        betamoon.chat:send(
+          "Search near X %i or %i and Z %i or %i; terrain may reject a candidate",
+          location.x - 4,
+          location.x + 4,
+          location.z - 4,
+          location.z + 4
+        )
+        return betamoon.callbackResults.handled
+      end
+    }
+  }
+
+  betamoon.recipes:add {
+    type = "shapeless",
+    output = betamoon.stack(surveyor),
+    ingredients = {
+      betamoon.items:getRequired(345),
+      betamoon.items:getRequired(348)
+    }
   }
 end

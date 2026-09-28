@@ -144,6 +144,67 @@ final class FeaturePlacementRegistry {
         return active.placementsByKey.get(key);
     }
 
+    static PlacementCandidate locateCandidate(World world, WorldGenKey key, int blockX, int blockZ,
+            int maxChunks) {
+        PlacementDefinition placement = active.placementsByKey.get(key);
+        if (placement == null || isDisabled(key) || decoratorTemplates.contains(key)) {
+            return null;
+        }
+        String dimension = world.worldProvider.worldType == -1
+                ? "minecraft:nether" : "minecraft:overworld";
+        if (!placement.dimensions.isEmpty() && !placement.dimensions.contains(dimension)) {
+            return null;
+        }
+
+        int centerChunkX = Math.floorDiv(blockX, 16);
+        int centerChunkZ = Math.floorDiv(blockZ, 16);
+        PlacementCandidate best = null;
+        long bestDistance = Long.MAX_VALUE;
+        for (int radius = 0; radius <= maxChunks; radius++) {
+            for (int chunkX = centerChunkX - radius; chunkX <= centerChunkX + radius; chunkX++) {
+                for (int chunkZ = centerChunkZ - radius; chunkZ <= centerChunkZ + radius; chunkZ++) {
+                    if (radius > 0 && chunkX != centerChunkX - radius && chunkX != centerChunkX + radius
+                            && chunkZ != centerChunkZ - radius && chunkZ != centerChunkZ + radius) {
+                        continue;
+                    }
+                    if (!passesProbability(world, dimension, placement, chunkX, chunkZ)) {
+                        continue;
+                    }
+                    long candidateX = (long) chunkX * 16L + 8L;
+                    long candidateZ = (long) chunkZ * 16L + 8L;
+                    if (candidateX < -30000000L || candidateX > 30000000L
+                            || candidateZ < -30000000L || candidateZ > 30000000L) {
+                        continue;
+                    }
+                    long deltaX = candidateX - blockX;
+                    long deltaZ = candidateZ - blockZ;
+                    long distance = deltaX * deltaX + deltaZ * deltaZ;
+                    if (distance >= bestDistance) {
+                        continue;
+                    }
+                    int x = (int) candidateX;
+                    int z = (int) candidateZ;
+                    best = new PlacementCandidate(x, z, chunkX, chunkZ, world.blockExists(x, 64, z));
+                    bestDistance = distance;
+                }
+            }
+        }
+        return best;
+    }
+
+    private static boolean passesProbability(World world, String dimension, PlacementDefinition placement,
+            int chunkX, int chunkZ) {
+        if (placement.probability <= 0.0D) {
+            return false;
+        }
+        if (placement.probability >= 1.0D) {
+            return true;
+        }
+        long seed = SeedMixer.generationSeed(world.getRandomSeed(), dimension, placement.stage.getName(),
+                chunkX, chunkZ, placement.key, placement.salt);
+        return new Random(seed).nextDouble() < placement.probability;
+    }
+
     static FeatureResult place(WorldGenKey key, World world, BlockPosition origin, long seed) {
         return place(key, world, origin, seed, FeatureOptions.DEFAULT);
     }
@@ -583,6 +644,22 @@ final class FeaturePlacementRegistry {
             key = definition.key.toString();
             owner = definition.owner;
             this.value = value;
+        }
+    }
+
+    static final class PlacementCandidate {
+        final int x;
+        final int z;
+        final int chunkX;
+        final int chunkZ;
+        final boolean loaded;
+
+        private PlacementCandidate(int x, int z, int chunkX, int chunkZ, boolean loaded) {
+            this.x = x;
+            this.z = z;
+            this.chunkX = chunkX;
+            this.chunkZ = chunkZ;
+            this.loaded = loaded;
         }
     }
 }

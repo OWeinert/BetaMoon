@@ -60,7 +60,11 @@ public final class FeaturePlacementApiTest {
             TestWorld world = new TestWorld();
             try (LuaCallbackScope scope = new LuaCallbackScope(true)) {
                 lua.set("liveWorld", LuaWorldActionAccess.create(scope, world, 0, 64, 0));
-                lua.load("placed=column:place(liveWorld,0,64,0,{seed=17}); "
+                lua.load("local candidate=betamoon.worldgen.placements:getRequired('test:second')"
+                        + ":locateCandidate(liveWorld,0,0,0); "
+                        + "assert(candidate.x==8 and candidate.z==8 and candidate.chunkX==0 "
+                        + "and candidate.chunkZ==0 and candidate.loaded); "
+                        + "placed=column:place(liveWorld,0,64,0,{seed=17}); "
                         + "assert(placed.placed and placed.blocksChanged==3 and placed.reason==nil)").call();
             }
             require(world.getBlockId(0, 64, 0) == Block.stone.blockID
