@@ -2,5 +2,6 @@
   "entrypoint": "main.lua",
   "name": "Regional Structures Example",
   "version": "1.0.0",
-  "description": "Builds deterministic multi-piece ruins from connector pools and provides a locator item."
+  "description": "Adds multi-piece Path Ruins assembled from a gate, road segments, and terminal courtyards. Copy the complete 03_adv_19_regional_structures folder into lua_scripts. The root opens a 'path' connector pool; compatible markers on weighted pieces let the planner grow a bounded chain.\n\nCraft a Ruin Surveyor from a compass and paper, then use it on any block. Chat reports the nearest candidate start and whether it has generated. Explore toward those coordinates through new terrain. The example separates reusable local templates, connector data, regional spacing, plan limits, and lookup.",
+  "dependencies": []
 }

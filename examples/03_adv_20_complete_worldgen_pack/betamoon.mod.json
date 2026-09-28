@@ -2,5 +2,6 @@
   "entrypoint": "main.lua",
   "name": "Complete Worldgen Pack Example",
   "version": "1.0.0",
-  "description": "A modular biome pack combining a surface, procedural trees, ground accents, a local structure, decorators, and a climate source."
+  "description": "Adds Amber Grove, a complete modular world-generation pack with a layered surface, procedural trees, ground accents, weathered stone circles, biome decorators, tags, spawns, and an active climate source. Copy the complete 03_adv_20_complete_worldgen_pack folder into lua_scripts.\n\nCreate a new world or explore new chunks in warm, moderately humid climates. Terrain blocks and decorations only appear in newly generated chunks. Study main.lua first for dependency order, then features.lua, structures.lua, and biomes.lua for focused declarations.",
+  "dependencies": []
 }

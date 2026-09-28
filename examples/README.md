@@ -11,7 +11,9 @@ intermediate, and advanced categories correctly in normal file explorers.
 Beginner 02 is a minimal packaged mod. Beginner 20 uses letters for two
 independent mods that demonstrate cross-mod exports. Packaged lessons are
 self-contained folders with one `betamoon.mod.json`; copy each complete folder
-without rearranging its files.
+without rearranging its files. Their manifests are the sole source of package
+metadata (`name`, `version`, `description`, and `dependencies`); entrypoint Lua
+files contain behavior without duplicating those fields.
 
 Most examples use the vanilla texture atlas. Choose different numeric block and
 item IDs when another installed mod already owns an example ID. Engine callbacks

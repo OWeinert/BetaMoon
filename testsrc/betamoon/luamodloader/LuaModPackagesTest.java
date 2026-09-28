@@ -16,11 +16,15 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 /** Verifies manifest-based Lua mods and their isolated private modules. */
 public final class LuaModPackagesTest {
+    private static final Pattern ENTRYPOINT_METADATA = Pattern.compile(
+            "(?m)^(?:name|version|description|dependencies|image)\\s*=");
+
     private LuaModPackagesTest() {
     }
 
@@ -81,11 +85,15 @@ public final class LuaModPackagesTest {
         List<LuaModSource> sources = files.discover(examples, discoveryFailures);
         require(discoveryFailures.isEmpty(), "Distributed example discovery failed: " + discoveryFailures);
         List<String> expected = new ArrayList<>();
+        expected.add("01_beg_02_multifile_mod");
         expected.add("03_adv_03_basic_storage");
         expected.add("03_adv_08_simple_alloy");
         expected.add("03_adv_09_contextual_processor");
         expected.add("03_adv_10_advanced_fabrication");
         expected.add("03_adv_11_matcher_cookbook");
+        expected.add("03_adv_18_local_structure");
+        expected.add("03_adv_19_regional_structures");
+        expected.add("03_adv_20_complete_worldgen_pack");
         LuaScriptRegistry.clear();
         for (int i = 0; i < sources.size(); i++) {
             LuaModSource source = sources.get(i);
@@ -94,6 +102,12 @@ public final class LuaModPackagesTest {
             }
             require(source.layout() == LuaModSource.Layout.DIRECTORY && "main.lua".equals(source.entrypointPath()),
                     "Distributed multi-script example is not a main.lua directory package: " + source.ownerId());
+            LuaModManifest manifest = source.manifest();
+            require(manifest != null && manifest.name() != null && manifest.version() != null
+                    && manifest.description() != null && manifest.hasDependencies(),
+                    "Distributed package must keep complete metadata in its manifest: " + source.ownerId());
+            require(!ENTRYPOINT_METADATA.matcher(source.readEntrypoint()).find(),
+                    "Distributed package entrypoint must not duplicate manifest metadata: " + source.ownerId());
             List<String> parseErrors = new ArrayList<>();
             ScriptMod parsed = new ScriptModParser().parse(source, source.readEntrypoint(), parseErrors);
             require(parsed != null && parseErrors.isEmpty(),

@@ -6,21 +6,6 @@
 -- Compared with the custom furnace, this machine delegates timing to match.data.duration and
 -- has several outputs. Its structural content requires a restart after package edits.
 
-name = "Simple Alloy Furnace Example"
-version = "1.0.0"
-description = "Adds Alloy Furnace, a machine with Base, Coal, and Mold inputs plus Result and Slag outputs. " ..
-    "Copy the complete 03_adv_08_simple_alloy folder into lua_scripts. Craft it with three cobblestone across the " ..
-    "top and bottom rows and furnace, stone, furnace across the middle row.\n\n" ..
-    "Place it and right-click. Put one gold ore in Base, coal or charcoal in Coal, and a stick in " ..
-    "Mold. After about ten seconds, take three gold ingots and one cobblestone from the two output " ..
-    "slots; the mold stays in place. Alternatively, use four dirt or four cobblestone in Base, " ..
-    "ordinary coal in Coal, and an empty Mold slot to make stone in about four seconds.\n\n" ..
-    "There is no separate fuel timer or redstone requirement. The arrow shows progress and the " ..
-    "front changes while processing. Full outputs pause valid work and show 'Output full'; remove " ..
-    "results to resume. Changing to a different recipe resets progress. The placed machine saves " ..
-    "its inventory and progress. Compare slot bindings and the processing callback in main.lua with " ..
-    "recipe_type.lua and recipes.lua. This structural package requires a restart after edits."
-
 function modInit()
   local bm = betamoon
   local types = require("recipe_type")()

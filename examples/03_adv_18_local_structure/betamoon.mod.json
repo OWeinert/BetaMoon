@@ -2,5 +2,6 @@
   "entrypoint": "main.lua",
   "name": "Local Structure Example",
   "version": "1.0.0",
-  "description": "Registers and schedules a rotatable, processed local JSON structure."
+  "description": "Adds a small weathered stone shrine to newly generated Overworld terrain. Copy the complete 03_adv_18_local_structure folder into lua_scripts so its manifest, entrypoint, and JSON template stay together.\n\nExplore new chunks and look for a compact cobblestone ruin. Each attempt selects a horizontal rotation and mirror deterministically, palette variants mix cobblestone with mossy cobblestone, and the decay processor removes a few blocks. The template path is derived from the typed structure key.",
+  "dependencies": []
 }
