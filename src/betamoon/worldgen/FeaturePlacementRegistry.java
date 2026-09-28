@@ -154,7 +154,8 @@ final class FeaturePlacementRegistry {
         if (definition == null) {
             return FeatureResult.rejected(FeatureResult.RUNTIME_ERROR);
         }
-        return executeFeature(snapshot, definition, world, origin, new Random(seed), options, true);
+        return executeFeature(snapshot, definition, world, origin, new Random(seed), options,
+                ExecutionMode.RUNTIME);
     }
 
     static FeatureResult preview(WorldGenKey key, World world, BlockPosition origin, long seed,
@@ -164,7 +165,8 @@ final class FeaturePlacementRegistry {
         if (definition == null) {
             return FeatureResult.rejected(FeatureResult.RUNTIME_ERROR);
         }
-        return executeFeature(snapshot, definition, world, origin, new Random(seed), options, false);
+        return executeFeature(snapshot, definition, world, origin, new Random(seed), options,
+                ExecutionMode.PREVIEW);
     }
 
     static void generate(World world, int chunkX, int chunkZ, boolean nether) {
@@ -241,7 +243,8 @@ final class FeaturePlacementRegistry {
 
     private static FeatureResult executeFeature(Snapshot snapshot, FeatureDefinition definition, World world,
             BlockPosition origin, Random random) {
-        return executeFeature(snapshot, definition, world, origin, random, FeatureOptions.DEFAULT, true);
+        return executeFeature(snapshot, definition, world, origin, random, FeatureOptions.DEFAULT,
+                ExecutionMode.WORLD_GENERATION);
     }
 
     static List<StructureDescription> structureSnapshot() {
@@ -255,14 +258,17 @@ final class FeaturePlacementRegistry {
     }
 
     private static FeatureResult executeFeature(Snapshot snapshot, FeatureDefinition definition, World world,
-            BlockPosition origin, Random random, FeatureOptions options, boolean commit) {
+            BlockPosition origin, Random random, FeatureOptions options, ExecutionMode mode) {
         FeatureContext context = context(snapshot, world, random, definition, options);
         PlacementPlan plan = new PlacementPlan(origin, definition.maxBlocks, definition.maxRadius);
         FeatureResult planned = definition.feature.plan(context, origin, plan);
         if (!planned.placed) {
             return planned;
         }
-        return commit ? plan.commit(context) : plan.preview(context);
+        if (mode == ExecutionMode.PREVIEW) {
+            return plan.preview(context);
+        }
+        return mode == ExecutionMode.RUNTIME ? plan.commitWithUpdates(context) : plan.commit(context);
     }
 
     private static FeatureResult executeFeature(Snapshot snapshot, FeatureDefinition definition, FeatureContext context,
@@ -278,6 +284,12 @@ final class FeaturePlacementRegistry {
     private static FeatureContext context(final Snapshot snapshot, World world, Random random,
             FeatureDefinition definition) {
         return context(snapshot, world, random, definition, FeatureOptions.DEFAULT);
+    }
+
+    private enum ExecutionMode {
+        PREVIEW,
+        WORLD_GENERATION,
+        RUNTIME
     }
 
     private static FeatureContext context(final Snapshot snapshot, World world, Random random,

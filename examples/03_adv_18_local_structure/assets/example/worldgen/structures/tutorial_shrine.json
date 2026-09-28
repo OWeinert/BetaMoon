@@ -1,6 +1,6 @@
 {
   "format": "betamoon_structure",
-  "size": [5, 4, 5],
+  "size": [5, 5, 5],
   "origin": [2, 0, 2],
   "palette": [
     {
@@ -21,6 +21,10 @@
     { "pos": [1, 0, 3], "state": 0 },
     { "pos": [2, 0, 3], "state": 0 },
     { "pos": [3, 0, 3], "state": 0 },
+    { "pos": [0, 0, 2], "state": 0 },
+    { "pos": [2, 0, 0], "state": 0 },
+    { "pos": [4, 0, 2], "state": 0 },
+    { "pos": [2, 0, 4], "state": 0 },
 
     { "pos": [1, 1, 1], "state": 0 },
     { "pos": [1, 2, 1], "state": 0 },
@@ -34,7 +38,9 @@
     { "pos": [3, 2, 3], "state": 0 },
 
     { "pos": [2, 1, 2], "state": 0 },
-    { "pos": [2, 2, 2], "state": 1 }
+    { "pos": [2, 2, 2], "state": 0 },
+    { "pos": [2, 3, 2], "state": 0 },
+    { "pos": [2, 4, 2], "state": 1 }
   ],
   "markers": []
 }

@@ -5,6 +5,7 @@ import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptRegistry;
 import java.lang.reflect.Method;
+import java.util.Random;
 import net.minecraft.src.Block;
 import net.minecraft.src.Chunk;
 import net.minecraft.src.IChunkProvider;
@@ -65,6 +66,15 @@ public final class FeaturePlacementApiTest {
             require(world.getBlockId(0, 64, 0) == Block.stone.blockID
                     && world.getBlockId(0, 66, 0) == Block.stone.blockID,
                     "Direct feature placement commits the complete plan");
+            require(world.renderUpdates == 3 && world.neighborUpdates == 3 && !world.observedPartialUpdate,
+                    "Direct feature placement publishes updates only after committing the complete plan");
+            PlacementPlan generationPlan = new PlacementPlan(new BlockPosition(4, 64, 4), 1, 1);
+            generationPlan.setBlock(4, 64, 4, Block.stone.blockID, 0);
+            FeatureContext generationContext = new FeatureContext(world, new Random(23L),
+                    WorldGenKey.parse("test:feature/quiet", WorldGenKind.FEATURE), 256, null);
+            require(generationPlan.commit(generationContext).placed && world.renderUpdates == 3
+                    && world.neighborUpdates == 3,
+                    "World-generation commits remain quiet");
 
             expectFailure(new Runnable() {
                 @Override
@@ -103,6 +113,9 @@ public final class FeaturePlacementApiTest {
 
     private static final class TestWorld extends World {
         private final Chunk chunk;
+        private int renderUpdates;
+        private int neighborUpdates;
+        private boolean observedPartialUpdate;
 
         private TestWorld() {
             super(null, "worldgen_feature_test", new WorldProvider() {
@@ -156,6 +169,19 @@ public final class FeaturePlacementApiTest {
         @Override
         public boolean blockExists(int x, int y, int z) {
             return x >= 0 && x < 16 && z >= 0 && z < 16 && y >= 0 && y < 128;
+        }
+
+        @Override
+        public void markBlockNeedsUpdate(int x, int y, int z) {
+            renderUpdates++;
+            observedPartialUpdate |= getBlockId(0, 64, 0) != Block.stone.blockID
+                    || getBlockId(0, 65, 0) != Block.stone.blockID
+                    || getBlockId(0, 66, 0) != Block.stone.blockID;
+        }
+
+        @Override
+        public void notifyBlocksOfNeighborChange(int x, int y, int z, int blockId) {
+            neighborUpdates++;
         }
     }
 }

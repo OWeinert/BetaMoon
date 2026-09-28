@@ -82,6 +82,15 @@ public final class PlacementPlan {
     }
 
     public FeatureResult commit(FeatureContext context) {
+        return commit(context, false);
+    }
+
+    /** Commits a runtime placement, then publishes render and neighbor updates as one completed change. */
+    public FeatureResult commitWithUpdates(FeatureContext context) {
+        return commit(context, true);
+    }
+
+    private FeatureResult commit(FeatureContext context, boolean publishUpdates) {
         if (failure != null) {
             return FeatureResult.rejected(failure);
         }
@@ -135,6 +144,9 @@ public final class PlacementPlan {
             rollback(world, originals, committed);
             return FeatureResult.rejected(FeatureResult.BLOCKED);
         }
+        if (publishUpdates) {
+            publishUpdates(world);
+        }
         return FeatureResult.placed(committed, min, max);
     }
 
@@ -166,6 +178,14 @@ public final class PlacementPlan {
             Original original = originals.get(index);
             world.setBlockAndMetadata(original.position.x, original.position.y, original.position.z, original.blockId,
                     original.metadata);
+        }
+    }
+
+    private void publishUpdates(World world) {
+        for (Change change : changes.values()) {
+            world.markBlockNeedsUpdate(change.position.x, change.position.y, change.position.z);
+            world.notifyBlocksOfNeighborChange(change.position.x, change.position.y, change.position.z,
+                    change.blockId);
         }
     }
 

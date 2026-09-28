@@ -14,7 +14,7 @@ function modInit()
       -- Air is absent from the template and remains untouched. Decay is seeded,
       -- so the same world seed and placement always produce the same ruin.
       includeAir = false,
-      decay = 0.12,
+      decay = 0.08,
       tileCollision = "reject",
       unknownMetadata = "reject"
     }
@@ -25,7 +25,9 @@ function modInit()
     feature = shrine,
     stage = "surface_features",
     dimensions = { "overworld" },
-    attempts = { perChunk = 1, rarity = 18 },
+    -- A tutorial structure should be uncommon without becoming frustrating to
+    -- find. Conditions can still reject unsuitable surface positions.
+    attempts = { perChunk = 1, rarity = 6 },
     position = {
       height = { type = "surface" },
       horizontal = "grid",

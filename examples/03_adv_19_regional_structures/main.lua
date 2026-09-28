@@ -1,4 +1,4 @@
--- Copy this complete folder into lua_scripts. Three local structure templates
+-- Copy this complete folder into lua_scripts. Four local structure templates
 -- become the root and weighted connector-pool pieces of one regional structure.
 -- Regional starts are selected on a deterministic chunk grid and their complete
 -- plans are saved before individual chunk slices commit.
@@ -22,6 +22,11 @@ function modInit()
     processors = { decay = 0.1 }
   }
 
+  local crossroads = betamoon.worldgen.structures:add {
+    key = "example:structure/path_ruins_crossroads",
+    processors = { decay = 0.05 }
+  }
+
   pathRuins = betamoon.worldgen.structures:addRegional {
     key = "example:structure/path_ruins",
     start = gate,
@@ -33,13 +38,16 @@ function modInit()
     pieces = {
       -- Every choice in this pool must contain at least one connector marker
       -- whose value uses pool = "path". Weight is relative, not a percentage.
-      { pool = "path", structure = road, weight = 4 },
+      { pool = "path", structure = road, weight = 6 },
+      -- Crossroads add three new open routes after the incoming connector is
+      -- consumed, allowing one regional plan to grow beyond a short chain.
+      { pool = "path", structure = crossroads, weight = 1 },
       { pool = "path", structure = courtyard, weight = 1 }
     },
-    maxDepth = 5,
-    maxPieces = 8,
-    maxDistance = 96,
-    terminationChance = 0.25
+    maxDepth = 7,
+    maxPieces = 12,
+    maxDistance = 128,
+    terminationChance = 0.08
   }
 
   local surveyor = betamoon.items:add {
