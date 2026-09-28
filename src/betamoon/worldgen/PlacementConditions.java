@@ -73,7 +73,7 @@ public final class PlacementConditions {
         if (!includeBiomes.isEmpty() && !BiomeGenRegistry.matchesSelectors(biome, includeBiomes)) {
             return FeatureResult.BLOCKED;
         }
-        if (BiomeGenRegistry.matchesSelectors(biome, excludeBiomes)) {
+        if (!excludeBiomes.isEmpty() && BiomeGenRegistry.matchesSelectors(biome, excludeBiomes)) {
             return FeatureResult.BLOCKED;
         }
         return null;

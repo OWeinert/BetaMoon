@@ -5,7 +5,9 @@ import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptRegistry;
 import java.lang.reflect.Method;
+import java.util.Collections;
 import java.util.Random;
+import net.minecraft.src.BiomeGenBase;
 import net.minecraft.src.Block;
 import net.minecraft.src.Chunk;
 import net.minecraft.src.IChunkProvider;
@@ -80,6 +82,19 @@ public final class FeaturePlacementApiTest {
                     && world.neighborUpdates == 3,
                     "World-generation commits remain quiet");
 
+            FeatureContext conditionContext = new FeatureContext(world, new Random(29L),
+                    WorldGenKey.parse("test:feature/conditions", WorldGenKind.FEATURE), 256, null);
+            BlockPosition conditionOrigin = new BlockPosition(4, 64, 4);
+            require(PlacementConditions.any().rejection(conditionContext, conditionOrigin) == null,
+                    "An empty biome exclusion set does not reject every placement");
+            BiomeGenBase originBiome = world.getWorldChunkManager().getBiomeGenAt(
+                    conditionOrigin.x, conditionOrigin.z);
+            PlacementConditions excludedBiome = new PlacementConditions(null, false, null, null, null, 0, 15,
+                    Collections.<String>emptySet(), Collections.singleton(originBiome.biomeName.toLowerCase(
+                            java.util.Locale.ROOT)));
+            require(FeatureResult.BLOCKED.equals(excludedBiome.rejection(conditionContext, conditionOrigin)),
+                    "An explicitly excluded biome still rejects the placement");
+
             expectFailure(new Runnable() {
                 @Override
                 public void run() {
@@ -94,11 +109,31 @@ public final class FeaturePlacementApiTest {
             }, "Feature dependency cycles are rejected");
             require(WorldGenRegistry.featureSnapshot().size() == 4,
                     "Failed feature publication preserves the active snapshot");
+            verifyScheduledPlacementWithEmptyExclusions(lua, world);
             System.out.println("Feature/placement API checks passed.");
         } finally {
             WorldGenRegistry.clear();
             owner.invoke(null, new Object[]{null});
         }
+    }
+
+    private static void verifyScheduledPlacementWithEmptyExclusions(Globals lua, TestWorld world) {
+        WorldGenRegistry.clear();
+        try (WorldGenRegistry.PublicationBatch batch = WorldGenRegistry.beginPublication(
+                "feature_placement_test.lua", "Feature placement test")) {
+            lua.load("local feature=betamoon.worldgen.features:add{key='test:scheduled_column',type='column',"
+                    + "block=1,height=1,replace={0}}; "
+                    + "betamoon.worldgen.placements:add{key='test:scheduled_column',feature=feature,attempts=1,"
+                    + "position={height={type='fixed',value=80},horizontal='grid',gridSpacing=16}}").call();
+            batch.publish();
+        }
+
+        WorldGenRegistry.generateSurface(world, new Random(31L), 0, 0);
+        WorldGenRegistry.PlacementDescription placement = WorldGenRegistry.placementSnapshot().get(0);
+        require(world.getBlockId(8, 80, 8) == Block.stone.blockID,
+                "A scheduled placement with no biome exclusions changes the world");
+        require(placement.accepted == 1 && placement.rejected == 0 && placement.blocksChanged == 1,
+                "Scheduled placement diagnostics record the accepted attempt");
     }
 
     private static void expectFailure(Runnable action, String message) {
