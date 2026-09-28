@@ -18,6 +18,9 @@ function modInit()
   local CONSUMER_USE_RATE = 1
   local MACHINE_INPUT_RATE = 2
   local BATTERY_OUTPUT_RATE = 2
+  local MAX_DISTRIBUTION_CALLS_PER_TICK = 512
+  local distributionCallTick = -1
+  local distributionCalls = 0
 
   local energy = betamoon.capabilities:add {
     key = "example:capability/energy",
@@ -40,7 +43,9 @@ function modInit()
         mode = "query",
         response = {
           stored = { type = "integer" },
-          capacity = { type = "integer" }
+          capacity = { type = "integer" },
+          inputRemaining = { type = "integer" },
+          outputRemaining = { type = "integer" }
         }
       },
       receive = {
@@ -71,9 +76,13 @@ function modInit()
   local function operations(canReceive, canExtract)
     return {
       status = function(ctx)
+        local _, _, inputRemaining = remainingRate(ctx, "maxInput", "inputTick", "inputUsed")
+        local _, _, outputRemaining = remainingRate(ctx, "maxOutput", "outputTick", "outputUsed")
         return {
           stored = ctx.capability.data:get("stored"),
-          capacity = ctx.capability.config.capacity
+          capacity = ctx.capability.config.capacity,
+          inputRemaining = inputRemaining,
+          outputRemaining = outputRemaining
         }
       end,
       receive = function(ctx, request)
@@ -179,6 +188,22 @@ function modInit()
       return ctx.first.config.kind ~= "consumer" and ctx.second.config.kind ~= "consumer"
     end,
     onTick = function(ctx)
+      local worldTime = ctx.world:getInfo().worldTime
+      if distributionCallTick ~= worldTime then
+        distributionCallTick = worldTime
+        distributionCalls = 0
+      end
+
+      local function canCall(count)
+        return distributionCalls + count <= MAX_DISTRIBUTION_CALLS_PER_TICK
+      end
+
+      local function call(capability, operation, request)
+        if not canCall(1) then return nil end
+        distributionCalls = distributionCalls + 1
+        return capability:call(operation, request)
+      end
+
       local producers = ctx.nodes:find { config = { kind = "producer" } }
       local batteries = ctx.nodes:find { config = { kind = "storage" } }
       local cables = ctx.nodes:find { config = { kind = "cable" } }
@@ -217,22 +242,40 @@ function modInit()
         cableRemaining = math.min(cableRemaining or cable.config.maxTransfer, cable.config.maxTransfer)
       end
 
+      -- Cache one status snapshot per touched endpoint. The local ledger is kept
+      -- in sync with committed transfers, avoiding repeated simulation calls.
+      local states = {}
+      local function state(value)
+        local capability = value.capability or value
+        if states[capability] then return states[capability] end
+        local status = call(capability, "status", {})
+        if not status then return nil end
+        states[capability] = status
+        return status
+      end
+
       local function transfer(source, destination, requested)
         if requested <= 0 then return 0 end
         if cableRemaining then
           if cableRemaining <= 0 then return 0 end
           requested = math.min(requested, cableRemaining)
         end
-        local available = source:call("extract", { amount = requested, simulate = true }).extracted
-        local accepted = destination:call("receive", { amount = available, simulate = true }).accepted
-        assert(type(available) == "number" and type(accepted) == "number")
-        local moved = math.min(available, accepted)
-        if moved > 0 then
-          local extracted = source:call("extract", { amount = moved, simulate = false }).extracted
-          local accepted = destination:call("receive", { amount = moved, simulate = false }).accepted
-          assert(extracted == moved and accepted == moved)
-          if cableRemaining then cableRemaining = cableRemaining - moved end
-        end
+        local sourceState = state(source)
+        local destinationState = state(destination)
+        if not sourceState or not destinationState or not canCall(2) then return 0 end
+        local moved = math.min(requested,
+          sourceState.stored, sourceState.outputRemaining,
+          destinationState.capacity - destinationState.stored, destinationState.inputRemaining)
+        if moved <= 0 then return 0 end
+
+        local extracted = call(source, "extract", { amount = moved }).extracted
+        local accepted = call(destination, "receive", { amount = moved }).accepted
+        assert(extracted == moved and accepted == moved)
+        sourceState.stored = sourceState.stored - moved
+        sourceState.outputRemaining = sourceState.outputRemaining - moved
+        destinationState.stored = destinationState.stored + moved
+        destinationState.inputRemaining = destinationState.inputRemaining - moved
+        if cableRemaining then cableRemaining = cableRemaining - moved end
         return moved
       end
 
@@ -297,21 +340,44 @@ function modInit()
         return moved
       end
 
+      local function hasSupply(sourceLists)
+        if cableRemaining and cableRemaining <= 0 then return false end
+        for _, sourceList in ipairs(sourceLists) do
+          for _, source in ipairs(sourceList) do
+            local sourceState = state(source)
+            if sourceState and sourceState.stored > 0 and sourceState.outputRemaining > 0 then
+              return true
+            end
+            if not canCall(1) and not sourceState then return false end
+          end
+        end
+        return false
+      end
+
       -- Like water consumed along a pipe, nearer loads take their operating need
       -- first. Under sustained shortage, farther loads can remain unpowered.
       local operatingNeedsMet = true
       for _, consumer in ipairs(consumers) do
-        local status = consumer.capability:call("status", {})
+        local status = state(consumer)
+        if not status then
+          operatingNeedsMet = false
+          break
+        end
         local requested = math.min(CONSUMER_USE_RATE, status.capacity - status.stored)
-        if supply(consumer, requested) < requested then operatingNeedsMet = false end
+        if supply(consumer, requested) < requested then
+          operatingNeedsMet = false
+          break
+        end
       end
 
       -- Only fill consumer buffers when every connected consumer received enough
       -- energy to operate this tick. The per-machine input cap still applies.
       if operatingNeedsMet then
         for _, consumer in ipairs(consumers) do
-          local status = consumer.capability:call("status", {})
+          local status = state(consumer)
+          if not status then break end
           supply(consumer, status.capacity - status.stored)
+          if not hasSupply({ producers, batteries }) then break end
         end
       end
 
@@ -330,12 +396,14 @@ function modInit()
           return positionLess(first, second)
         end)
         for _, battery in ipairs(orderedBatteries) do
-          local status = battery:call("status", {})
+          local status = state(battery)
+          if not status then break end
           local needed = status.capacity - status.stored
           for _, producer in ipairs(ordered(producers, battery)) do
             if needed <= 0 then break end
             needed = needed - transfer(producer, battery, needed)
           end
+          if not hasSupply({ producers }) then break end
         end
       end
     end

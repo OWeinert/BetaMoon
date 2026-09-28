@@ -268,6 +268,7 @@ public final class CapabilityDataSystemTest {
                 "The consumer GUI value did not follow capability storage");
         LogicalNetworkRuntime.unload(world);
         testOverloadedEnergyGrid(types, energy);
+        testLargeEnergyGrid(types, energy);
     }
 
     private static void testOverloadedEnergyGrid(String[] types, AssetKey energy) {
@@ -303,6 +304,37 @@ public final class CapabilityDataSystemTest {
             }
             require(consumerEnergy == 4, "The overloaded grid did not distribute all four generated energy");
         }
+        LogicalNetworkRuntime.unload(world);
+    }
+
+    private static void testLargeEnergyGrid(String[] types, AssetKey energy) {
+        int cableCount = 1050;
+        TestWorld world = new TestWorld();
+        LuaTileEntity[] nodes = new LuaTileEntity[1 + cableCount * 3];
+        LuaTileEntity generator = tile(types[0], world, 0, 64, 0);
+        nodes[0] = generator;
+        for (int index = 0; index < cableCount; index++) {
+            int x = index + 1;
+            nodes[1 + index] = tile(types[1], world, x, 64, 0);
+            nodes[1 + cableCount + index * 2] = tile(types[3], world, x, 63, 0);
+            nodes[2 + cableCount + index * 2] = tile(types[3], world, x, 65, 0);
+        }
+        for (LuaTileEntity node : nodes) {
+            world.put(node);
+            LogicalNetworkRuntime.added(node);
+        }
+
+        for (int gameTick = 1; gameTick <= 2; gameTick++) {
+            world.setWorldTime(gameTick);
+            tick(nodes);
+            LogicalNetworkRuntime.tick(world);
+            require(stored(generator, energy) == 0,
+                    "A large overloaded grid exhausted the capability-call budget and disabled distribution");
+        }
+        require(stored(nodes[1 + cableCount], energy) == 1,
+                "A large overloaded grid did not continue powering its nearest consumer");
+        require(stored(nodes[nodes.length - 1], energy) == 0,
+                "A large overloaded grid unexpectedly powered its farthest consumer");
         LogicalNetworkRuntime.unload(world);
     }
 
