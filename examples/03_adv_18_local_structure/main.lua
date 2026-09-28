@@ -25,10 +25,10 @@ function modInit()
     feature = shrine,
     stage = "surface_features",
     dimensions = { "overworld" },
-    -- Roughly one in six chunks is eligible. In an eligible chunk, try four
+    -- Roughly one in sixteen chunks is eligible. In an eligible chunk, try four
     -- footprint-safe grid positions and stop after placing the first shrine.
     -- This prevents one tree or patch of water from rejecting the whole chunk.
-    attempts = { perChunk = 4, rarity = 6 },
+    attempts = { perChunk = 4, rarity = 16 },
     successLimit = 1,
     position = {
       height = { type = "surface" },
