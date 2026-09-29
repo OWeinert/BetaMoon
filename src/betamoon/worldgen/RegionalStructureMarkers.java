@@ -30,7 +30,8 @@ final class RegionalStructureMarkers {
                 failures++;
                 continue;
             }
-            for (StructureFeature.PositionedMarker marker : feature.markers(piece.origin, piece.transform)) {
+            for (StructureFeature.PositionedMarker marker : feature.markers(piece.origin, piece.transform,
+                    piece.conformOffsets)) {
                 if (Math.floorDiv(marker.position.x, 16) != chunkX
                         || Math.floorDiv(marker.position.z, 16) != chunkZ) {
                     continue;

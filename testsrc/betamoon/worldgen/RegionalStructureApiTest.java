@@ -12,6 +12,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.ArrayList;
 import net.minecraft.src.Block;
 import net.minecraft.src.IChunkProvider;
 import net.minecraft.src.World;
@@ -106,6 +107,28 @@ public final class RegionalStructureApiTest {
                     && restored.isComplete(chunkX, chunkZ)
                     && restored.pieces.get(0).generationSignature.equals(plan.pieces.get(0).generationSignature),
                     "Saved piece graphs preserve transforms, seeds, bounds, and completion state");
+            RegionalStructurePlan.Piece firstPiece = plan.pieces.get(0);
+            java.util.List<RegionalStructurePlan.Piece.TerrainChange> terrain =
+                    new ArrayList<RegionalStructurePlan.Piece.TerrainChange>();
+            terrain.add(new RegionalStructurePlan.Piece.TerrainChange(firstPiece.origin.offset(0, -1, 0),
+                    Block.cobblestone.blockID, 0, 0, 0));
+            java.util.List<RegionalStructurePlan.Piece> terrainPieces =
+                    new ArrayList<RegionalStructurePlan.Piece>(plan.pieces);
+            java.util.List<StructureFeature.ConformOffset> conform =
+                    Collections.singletonList(new StructureFeature.ConformOffset(0, 0, 1));
+            terrainPieces.set(0, new RegionalStructurePlan.Piece(firstPiece.featureKey, firstPiece.origin,
+                    firstPiece.transform, firstPiece.seed, firstPiece.depth, firstPiece.bounds,
+                    firstPiece.generationSignature, terrain, conform));
+            RegionalStructurePlan terrainPlan = new RegionalStructurePlan(plan.definitionKey, plan.dimension,
+                    plan.regionX, plan.regionZ, plan.startChunkX, plan.startChunkZ, plan.seed, terrainPieces,
+                    "test-placement-signature");
+            RegionalStructurePlan restoredTerrain = RegionalStructurePlan.read(terrainPlan.write());
+            require(restoredTerrain != null
+                    && restoredTerrain.placementSignature.equals("test-placement-signature")
+                    && restoredTerrain.pieces.get(0).terrainChanges.size() == 1
+                    && restoredTerrain.pieces.get(0).terrainChanges.get(0).expectedBlockId == 0
+                    && restoredTerrain.pieces.get(0).conformOffsets.get(0).y == 1,
+                    "Saved regional plans preserve terrain mutations, expected world state, and conform offsets");
 
             expectFailure(new Runnable() {
                 @Override

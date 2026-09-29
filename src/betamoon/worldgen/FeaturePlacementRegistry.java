@@ -254,7 +254,8 @@ final class FeaturePlacementRegistry {
             int successes = 0;
             int attempts = placement.sampleAttempts(random);
             for (int attempt = 0; attempt < attempts && successes < placement.successLimit; attempt++) {
-                FeatureContext context = context(snapshot, world, random, feature);
+                FeatureContext context = context(snapshot, world, random, feature, FeatureOptions.DEFAULT,
+                        placement.conditions.site);
                 BlockPosition origin = placement.sampleOrigin(context, chunkX, chunkZ, attempt);
                 if (origin == null) {
                     reject(placement.key, context.failure() == null ? FeatureResult.OUT_OF_BOUNDS : context.failure());
@@ -324,7 +325,8 @@ final class FeaturePlacementRegistry {
         PlacementPlan plan = new PlacementPlan(origin, definition.maxBlocks, definition.maxRadius);
         FeatureResult planned = definition.feature.plan(context, origin, plan);
         if (!planned.placed) {
-            return planned;
+            return context.diagnostics().isEmpty() ? planned
+                    : FeatureResult.rejected(planned.reason, context.diagnostics());
         }
         if (mode == ExecutionMode.PREVIEW) {
             return plan.preview(context);
@@ -337,7 +339,8 @@ final class FeaturePlacementRegistry {
         PlacementPlan plan = new PlacementPlan(origin, definition.maxBlocks, definition.maxRadius);
         FeatureResult planned = definition.feature.plan(context, origin, plan);
         if (!planned.placed) {
-            return planned;
+            return context.diagnostics().isEmpty() ? planned
+                    : FeatureResult.rejected(planned.reason, context.diagnostics());
         }
         return plan.commit(context);
     }
@@ -355,13 +358,22 @@ final class FeaturePlacementRegistry {
 
     private static FeatureContext context(final Snapshot snapshot, World world, Random random,
             FeatureDefinition definition, FeatureOptions options) {
-        return new FeatureContext(world, random, definition.key, Math.max(256, definition.maxBlocks * 32),
+        return context(snapshot, world, random, definition, options,
+                betamoon.worldgen.structure.SitePolicy.ANY);
+    }
+
+    private static FeatureContext context(final Snapshot snapshot, World world, Random random,
+            FeatureDefinition definition, FeatureOptions options, betamoon.worldgen.structure.SitePolicy site) {
+        int maxReads = definition.feature instanceof StructureFeature
+                ? ((StructureFeature) definition.feature).maximumReads()
+                : Math.max(256, definition.maxBlocks * 32);
+        return new FeatureContext(world, random, definition.key, maxReads,
                 new FeatureContext.FeatureResolver() {
                     @Override
                     public FeatureDefinition find(WorldGenKey key) {
                         return snapshot.features.get(key);
                     }
-                }, options);
+                }, options, site);
     }
 
     private static synchronized boolean isDisabled(WorldGenKey key) {
@@ -614,6 +626,7 @@ final class FeaturePlacementRegistry {
         final Map<String, Integer> rejectionReasons;
         final boolean disabled;
         final boolean template;
+        final String site;
 
         private PlacementDescription(PlacementDefinition definition, MutableDiagnostics values, boolean template) {
             key = definition.key.toString();
@@ -632,6 +645,7 @@ final class FeaturePlacementRegistry {
                     : Collections.unmodifiableMap(new LinkedHashMap<String, Integer>(values.reasons));
             disabled = isDisabled(definition.key);
             this.template = template;
+            site = definition.conditions.site.type.luaName();
         }
     }
 

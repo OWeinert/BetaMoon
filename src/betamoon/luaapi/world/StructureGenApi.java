@@ -3,22 +3,25 @@ package betamoon.luaapi.world;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.worldgen.BlockSet;
 import betamoon.worldgen.RegionalStructureDefinition;
+import betamoon.worldgen.TerrainSurface;
 import betamoon.worldgen.WorldGenKey;
 import betamoon.worldgen.WorldGenKind;
 import betamoon.worldgen.WorldGenLimits;
 import betamoon.worldgen.WorldGenRegistry;
-import betamoon.worldgen.structure.StructureExporter;
 import betamoon.worldgen.structure.CustomMetadataTransform;
+import betamoon.worldgen.structure.SitePolicy;
+import betamoon.worldgen.structure.StructureExporter;
 import betamoon.worldgen.structure.StructureFeature;
 import betamoon.worldgen.structure.StructureProcessors;
 import betamoon.worldgen.structure.StructureTemplate;
 import betamoon.worldgen.structure.StructureTransform;
+import betamoon.worldgen.structure.TerrainPolicy;
 import betamoon.worldgen.structure.WorldGenDataResolver;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -59,11 +62,16 @@ public final class StructureGenApi {
                     WorldGenDataResolver.ResolvedData data = WorldGenDataResolver.structure(owner, key, path);
                     StructureTemplate template = StructureTemplate.read(data.bytes);
                     StructureProcessors processors = processors(definition.get("processors"));
+                    TerrainPolicy terrain = terrain(definition.get("terrain"));
                     StructureFeature feature = new StructureFeature(template, data.displayPath, rotation, mirror,
-                            processors);
-                    int radius = radius(template);
+                            processors, terrain);
+                    int radius = radius(template) + feature.extraRadius();
+                    if (radius > WorldGenLimits.MAX_FEATURE_RADIUS) {
+                        throw new LuaError("Structure terrain policy exceeds maximum placement radius "
+                                + WorldGenLimits.MAX_FEATURE_RADIUS);
+                    }
                     WorldGenRegistry.addFeature(declaredKey, WorldGenKind.STRUCTURE, "local_structure", feature,
-                            Collections.<WorldGenKey>emptyList(), Math.max(1, template.blocks.size()), radius);
+                            Collections.<WorldGenKey>emptyList(), feature.maximumBlocks(), radius);
                     return new FeatureReference(key);
                 } catch (IOException | IllegalArgumentException error) {
                     throw new LuaError("Structure " + key + ": " + error.getMessage());
@@ -93,6 +101,19 @@ public final class StructureGenApi {
                         spacing - 1, Math.min(8, spacing - 1));
                 long salt = definition.get("salt").isnil() ? 0L : definition.get("salt").checklong();
                 Height height = height(definition.get("height"));
+                SitePolicy site = FeaturePlacementApi.site(definition.get("site"), "RegionalStructure.site");
+                int searchAttempts = 1;
+                int searchRadius = 0;
+                LuaValue siteSearch = definition.get("siteSearch");
+                if (!siteSearch.isnil()) {
+                    FeaturePlacementApi.table(siteSearch, "RegionalStructure.siteSearch");
+                    searchAttempts = integer(siteSearch.get("attempts"), "RegionalStructure.siteSearch.attempts",
+                            1, 32, 8);
+                    searchRadius = integer(siteSearch.get("radius"), "RegionalStructure.siteSearch.radius",
+                            0, 7, 7);
+                }
+                int connectorTolerance = integer(definition.get("connectorVerticalTolerance"),
+                        "RegionalStructure.connectorVerticalTolerance", 0, 16, 0);
                 int maxDepth = integer(definition.get("maxDepth"), "RegionalStructure.maxDepth", 0,
                         WorldGenLimits.MAX_REGIONAL_DEPTH, 4);
                 int maxPieces = integer(definition.get("maxPieces"), "RegionalStructure.maxPieces", 1,
@@ -112,7 +133,7 @@ public final class StructureGenApi {
                 WorldGenKey key = WorldGenRegistry.addRegionalStructure(declaredKey, start,
                         dimensions(definition.get("dimensions")), spacing, separation, salt, height.type,
                         height.value, maxDepth, maxPieces, maxDistance, termination, entities, loot,
-                        pieces(definition.get("pieces")));
+                        pieces(definition.get("pieces")), site, searchAttempts, searchRadius, connectorTolerance);
                 return new RegionalStructureReference(key);
             }
         };
@@ -252,6 +273,65 @@ public final class StructureGenApi {
                 metadataTransforms);
     }
 
+    private static TerrainPolicy terrain(LuaValue value) {
+        if (value.isnil()) {
+            return TerrainPolicy.EXACT;
+        }
+        FeaturePlacementApi.table(value, "Structure.terrain");
+        try {
+            TerrainPolicy.Mode mode = TerrainPolicy.Mode.parse(value.get("mode").optjstring("exact"));
+            if (mode == TerrainPolicy.Mode.EXACT) {
+                return TerrainPolicy.EXACT;
+            }
+            TerrainSurface surface = TerrainSurface.parse(value.get("surface").optjstring("solid_surface"));
+            if (surface == TerrainSurface.EXACT) {
+                throw new LuaError("Structure.terrain.surface: exact is only valid with mode='exact'");
+            }
+            TerrainPolicy.Anchor anchor = TerrainPolicy.Anchor.parse(value.get("anchor").optjstring("median"));
+            double percentile = FeaturePlacementApi.optionalNumber(value.get("percentile"), 0.5D,
+                    "Structure.terrain.percentile", 0.0D, 1.0D);
+            int maxSlope = integer(value.get("maxSlope"), "Structure.terrain.maxSlope", 0, 32, 2);
+            int maxStep = integer(value.get("maxStep"), "Structure.terrain.maxStep", 0, 32, maxSlope);
+            double defaultSupport = mode == TerrainPolicy.Mode.FIT ? 0.5D : 0.0D;
+            double support = FeaturePlacementApi.optionalNumber(value.get("requireSupportRatio"), defaultSupport,
+                    "Structure.terrain.requireSupportRatio", 0.0D, 1.0D);
+            int offset = integer(value.get("verticalOffset"), "Structure.terrain.verticalOffset", -32, 32, 0);
+            int foundationBlock = 0;
+            int foundationMetadata = integer(value.get("foundationMeta"), "Structure.terrain.foundationMeta",
+                    0, 15, 0);
+            if (!value.get("foundationBlock").isnil()) {
+                foundationBlock = FeaturePlacementApi.blockId(value.get("foundationBlock"),
+                        "Structure.terrain.foundationBlock");
+                if (foundationBlock == 0) {
+                    throw new LuaError("Structure.terrain.foundationBlock: expected a non-air solid block");
+                }
+            } else if (mode == TerrainPolicy.Mode.FOUNDATION) {
+                foundationBlock = net.minecraft.src.Block.cobblestone.blockID;
+            }
+            if (foundationBlock != 0 && (net.minecraft.src.Block.blocksList[foundationBlock] == null
+                    || !net.minecraft.src.Block.blocksList[foundationBlock].blockMaterial.getIsSolid())) {
+                throw new LuaError("Structure.terrain.foundationBlock: expected a structurally solid block");
+            }
+            if (mode == TerrainPolicy.Mode.FOUNDATION && foundationBlock == 0) {
+                throw new LuaError("Structure.terrain.foundationBlock: foundation mode requires a solid block");
+            }
+            int foundationDepth = integer(value.get("maxFoundationDepth"),
+                    "Structure.terrain.maxFoundationDepth", 1, 32, 6);
+            int cutDepth = integer(value.get("maxCutDepth"), "Structure.terrain.maxCutDepth", 0, 16, 3);
+            int fillDepth = integer(value.get("maxFillDepth"), "Structure.terrain.maxFillDepth", 0, 16, 3);
+            int padding = integer(value.get("padding"), "Structure.terrain.padding", 0, 8, 0);
+            int blendRadius = integer(value.get("blendRadius"), "Structure.terrain.blendRadius", 0, 8, 0);
+            int blendStep = integer(value.get("maxBlendStep"), "Structure.terrain.maxBlendStep", 1, 8, 1);
+            int conform = integer(value.get("maxConformDisplacement"),
+                    "Structure.terrain.maxConformDisplacement", 1, 16, 4);
+            return new TerrainPolicy(mode, surface, anchor, percentile, maxSlope, maxStep, support, offset,
+                    foundationBlock, foundationMetadata, foundationDepth, cutDepth, fillDepth, padding,
+                    blendRadius, blendStep, conform);
+        } catch (IllegalArgumentException error) {
+            throw new LuaError("Structure.terrain: " + error.getMessage());
+        }
+    }
+
     private static int[] metadataMap(LuaValue value, String path) {
         int[] result = new int[16];
         if (value.isnil()) {
@@ -376,14 +456,20 @@ public final class StructureGenApi {
         }
         FeaturePlacementApi.table(value, "RegionalStructure.height");
         String type = value.get("type").optjstring("surface");
-        if (type.equals("surface")) {
+        if (type.equals("surface") || type.equals("world_surface") || type.equals("solid_surface")
+                || type.equals("ocean_floor") || type.equals("fluid_surface")) {
+            try {
+                TerrainSurface.parse(type);
+            } catch (IllegalArgumentException error) {
+                throw new LuaError("RegionalStructure.height.type: " + error.getMessage());
+            }
             return new Height(type, integer(value.get("offset"), "RegionalStructure.height.offset", -127, 127,
                     0));
         }
         if (type.equals("fixed")) {
             return new Height(type, integer(required(value, "value"), "RegionalStructure.height.value", 0, 127));
         }
-        throw new LuaError("RegionalStructure.height.type: expected 'surface' or 'fixed'");
+        throw new LuaError("RegionalStructure.height.type: expected a surface sampler or 'fixed'");
     }
 
     private static LuaValue argument(Varargs arguments, LuaValue receiver, int index) {

@@ -40,11 +40,16 @@ return function(features, structures)
     stage = "surface_features",
     attempts = { perChunk = 1, rarity = 28 },
     position = {
-      height = { type = "surface" },
+      height = { type = "solid_surface" },
       horizontal = "grid",
       gridSpacing = 4
     },
-    conditions = { ground = { 2, 3 }, air = true, requireSky = true },
+    conditions = {
+      ground = { 2, 3 },
+      air = true,
+      requireSky = true,
+      site = { type = "land_surface", scope = "support_footprint" }
+    },
     salt = 302003
   }
 

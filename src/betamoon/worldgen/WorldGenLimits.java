@@ -14,6 +14,8 @@ public final class WorldGenLimits {
     public static final int MAX_REGIONAL_PIECES = 128;
     public static final int MAX_REGIONAL_DISTANCE = 512;
     public static final int MAX_REGIONAL_BLOCKS_PER_CHUNK = 32768;
+    public static final int MAX_TERRAIN_READS_PER_FEATURE = 1048576;
+    public static final int MAX_REGIONAL_TERRAIN_CHANGES = 32768;
 
     private WorldGenLimits() {
     }

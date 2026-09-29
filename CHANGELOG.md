@@ -1,13 +1,33 @@
 # Changelog
 
-## 0.7.4
+## 0.8.0
 
-BetaMoon 0.7.4 improves text editing and adds graph-aware logical-network callbacks.
+BetaMoon 0.8.0 expands world generation into a deterministic, reusable Lua API.
 
-### Container GUIs
+### World-generation foundation
 
-- Add standard held-key repetition to focused text-box controls, including delayed repeating Backspace and Delete.
+- Add typed worldgen keys, deterministic per-placement seeds, atomic publication, bounded placement plans, previews,
+  stable rejection diagnostics, and direct feature placement.
+- Add reusable feature and placement registries with ordering, biome and dimension filters, probability, grid sampling,
+  composite features, lookup references, and placement candidate location.
+- Preserve the approachable ore API while routing declarations through the shared worldgen foundation.
 
-### Logical networks
+### Trees, structures, biomes, and surfaces
 
-- Add callback-scoped shortest path distances between component nodes through `ctx.network:pathDistance`.
+- Add procedural, vanilla-adapter, and structure-authored trees.
+- Add validated JSON local structures with palettes, deterministic variants, transforms, processors, tile data,
+  metadata adapters, capture/export, and marker masks.
+- Add keyed biomes, reusable surface stacks, biome decorators, tags, climate biome sources, weather, and spawn lists.
+- Add persistent regional structures with random-spread starts, connector pools, weighted piece graphs, chunk-sliced
+  recovery, entity and loot markers, definition signatures, and location queries.
+
+### Terrain-aware structures
+
+- Add distinct world-surface, solid-surface, ocean-floor, fluid-surface, underground, and cave-floor sampling.
+- Add opt-in `fit`, `foundation`, `terrace`, and marker-driven `conform` structure modes with transformed support,
+  clearance, ignore, blend, and conform masks.
+- Add footprint-aware land, underwater, underground, cave, and fluid-surface site profiles for local and regional
+  structures.
+- Add bounded regional site fallback search, connector vertical tolerance, and persisted terrain mutations and
+  conform offsets for deterministic recovery.
+- Add terrain planning details to direct placement and preview results, plus focused site and terrain rejection reasons.

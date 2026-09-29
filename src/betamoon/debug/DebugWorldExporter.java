@@ -137,7 +137,7 @@ final class DebugWorldExporter implements DebugExporter {
                     writer.newLine();
                     writer.write("requested stage: " + placement.stage + " | actual stage: " + placement.actualStage
                             + " | dimensions: " + String.join(", ", placement.dimensions) + " | salt: "
-                            + placement.salt);
+                            + placement.salt + " | site: " + placement.site);
                     writer.newLine();
                     writer.write("accepted: " + placement.accepted + " | rejected: " + placement.rejected
                             + " | blocks changed: " + placement.blocksChanged + " | disabled: "
@@ -168,6 +168,9 @@ final class DebugWorldExporter implements DebugExporter {
                             + " | tile collision: " + structure.tileCollision + " | unknown metadata: "
                             + structure.unknownMetadata + " | custom metadata transforms: "
                             + structure.customMetadataTransforms);
+                    writer.newLine();
+                    writer.write("terrain mode/surface: " + structure.terrainMode + "/"
+                            + structure.terrainSurface + " | support columns: " + structure.supportColumns);
                     writer.newLine();
                 }
                 return structures.size();
@@ -208,6 +211,10 @@ final class DebugWorldExporter implements DebugExporter {
                     writer.write("piece choices: " + structure.pieceChoices + " | max depth/pieces/distance: "
                             + structure.maxDepth + "/" + structure.maxPieces + "/" + structure.maxDistance
                             + " | termination chance: " + structure.terminationChance);
+                    writer.newLine();
+                    writer.write("site: " + structure.site + " | same-chunk search attempts/radius: "
+                            + structure.siteSearchAttempts + "/" + structure.siteSearchRadius
+                            + " | connector vertical tolerance: " + structure.connectorVerticalTolerance);
                     writer.newLine();
                     writer.write("starts: " + structure.starts + " | completed chunks: "
                             + structure.completedChunks + " | recovered chunks: " + structure.recoveredChunks

@@ -2,6 +2,7 @@ package betamoon.worldgen;
 
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.minecraft.MinecraftBuiltins;
+import betamoon.worldgen.structure.SitePolicy;
 import betamoon.worldgen.structure.StructureFeature;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -220,13 +221,15 @@ public final class WorldGenRegistry {
         private WorldGenKey addRegionalStructure(String key, WorldGenKey startFeature, Set<String> dimensions,
                 int spacing, int separation, long salt, String heightType, int heightValue, int maxDepth, int maxPieces,
                 int maxDistance, double terminationChance, boolean entityMarkers, boolean lootMarkers,
-                List<RegionalStructureDefinition.PieceChoice> pieces) {
+                List<RegionalStructureDefinition.PieceChoice> pieces, SitePolicy site, int siteSearchAttempts,
+                int siteSearchRadius, int connectorVerticalTolerance) {
             ensureOpen();
             int index = declarationIndex++;
             WorldGenKey typedKey = parseKey(key, WorldGenKind.STRUCTURE, "RegionalStructure.key");
             regionalStructures.add(new RegionalStructureDefinition(typedKey, startFeature, resourceOwner, owner,
                     source(index), dimensions, spacing, separation, salt, heightType, heightValue, maxDepth, maxPieces,
-                    maxDistance, terminationChance, entityMarkers, lootMarkers, pieces));
+                    maxDistance, terminationChance, entityMarkers, lootMarkers, pieces, site, siteSearchAttempts,
+                    siteSearchRadius, connectorVerticalTolerance));
             return typedKey;
         }
 
@@ -393,6 +396,7 @@ public final class WorldGenRegistry {
         public final Map<String, Integer> rejectionReasons;
         public final boolean disabled;
         public final boolean template;
+        public final String site;
 
         private PlacementDescription(FeaturePlacementRegistry.PlacementDescription description) {
             key = description.key;
@@ -409,6 +413,7 @@ public final class WorldGenRegistry {
             rejectionReasons = description.rejectionReasons;
             disabled = description.disabled;
             template = description.template;
+            site = description.site;
         }
     }
 
@@ -450,6 +455,9 @@ public final class WorldGenRegistry {
         public final String tileCollision;
         public final String unknownMetadata;
         public final int customMetadataTransforms;
+        public final String terrainMode;
+        public final String terrainSurface;
+        public final int supportColumns;
 
         private StructureDescription(FeaturePlacementRegistry.StructureDescription description) {
             StructureFeature.Description value = description.value;
@@ -468,6 +476,9 @@ public final class WorldGenRegistry {
             tileCollision = value.tileCollision;
             unknownMetadata = value.unknownMetadata;
             customMetadataTransforms = value.customMetadataTransforms;
+            terrainMode = value.terrainMode;
+            terrainSurface = value.terrainSurface;
+            supportColumns = value.supportColumns;
         }
     }
 
@@ -487,6 +498,10 @@ public final class WorldGenRegistry {
         public final int maxPieces;
         public final int maxDistance;
         public final double terminationChance;
+        public final String site;
+        public final int siteSearchAttempts;
+        public final int siteSearchRadius;
+        public final int connectorVerticalTolerance;
         public final long starts;
         public final long completedChunks;
         public final long recoveredChunks;
@@ -510,6 +525,10 @@ public final class WorldGenRegistry {
             maxPieces = description.maxPieces;
             maxDistance = description.maxDistance;
             terminationChance = description.terminationChance;
+            site = description.site;
+            siteSearchAttempts = description.siteSearchAttempts;
+            siteSearchRadius = description.siteSearchRadius;
+            connectorVerticalTolerance = description.connectorVerticalTolerance;
             starts = description.starts;
             completedChunks = description.completedChunks;
             recoveredChunks = description.recoveredChunks;
@@ -578,13 +597,29 @@ public final class WorldGenRegistry {
             int spacing, int separation, long salt, String heightType, int heightValue, int maxDepth, int maxPieces,
             int maxDistance, double terminationChance, boolean entityMarkers, boolean lootMarkers,
             List<RegionalStructureDefinition.PieceChoice> pieces) {
+        return addRegionalStructure(key, startFeature, dimensions, spacing, separation, salt, heightType,
+                heightValue, maxDepth, maxPieces, maxDistance, terminationChance, entityMarkers, lootMarkers,
+                pieces, SitePolicy.ANY, 1, 0, 0);
+    }
+
+    public static WorldGenKey addRegionalStructure(String key, WorldGenKey startFeature, Set<String> dimensions,
+            int spacing, int separation, long salt, String heightType, int heightValue, int maxDepth, int maxPieces,
+            int maxDistance, double terminationChance, boolean entityMarkers, boolean lootMarkers,
+            List<RegionalStructureDefinition.PieceChoice> pieces, SitePolicy site, int siteSearchAttempts,
+            int siteSearchRadius, int connectorVerticalTolerance) {
         validateRegionalStructure(spacing, separation, heightType, heightValue, maxDepth, maxPieces, maxDistance,
                 terminationChance, pieces);
+        if (siteSearchAttempts < 1 || siteSearchAttempts > 32 || siteSearchRadius < 0 || siteSearchRadius > 7) {
+            throw new LuaError("RegionalStructure.siteSearch: expected 1..32 attempts and radius 0..7");
+        }
+        if (connectorVerticalTolerance < 0 || connectorVerticalTolerance > 16) {
+            throw new LuaError("RegionalStructure.connectorVerticalTolerance: expected 0..16");
+        }
         PublicationBatch batch = CURRENT_BATCH.get();
         if (batch != null) {
             return batch.addRegionalStructure(key, startFeature, dimensions, spacing, separation, salt, heightType,
                     heightValue, maxDepth, maxPieces, maxDistance, terminationChance, entityMarkers, lootMarkers,
-                    pieces);
+                    pieces, site, siteSearchAttempts, siteSearchRadius, connectorVerticalTolerance);
         }
         String resourceOwner = requiredOwner(LuaScriptRegistry.getCurrentScriptFile());
         String owner = requiredOwner(LuaScriptRegistry.getCurrentScriptIdentity());
@@ -592,7 +627,7 @@ public final class WorldGenRegistry {
         RegionalStructureRegistry.publishAddition(new RegionalStructureDefinition(typedKey, startFeature, resourceOwner,
                 owner, resourceOwner + ":worldgen[regional_structure]", dimensions, spacing, separation, salt,
                 heightType, heightValue, maxDepth, maxPieces, maxDistance, terminationChance, entityMarkers,
-                lootMarkers, pieces));
+                lootMarkers, pieces, site, siteSearchAttempts, siteSearchRadius, connectorVerticalTolerance));
         return typedKey;
     }
 
@@ -609,7 +644,7 @@ public final class WorldGenRegistry {
         PlacementConditions original = source.conditions;
         PlacementConditions conditions = new PlacementConditions(original.ground, original.requireSky,
                 original.requireAir, original.requireWater, original.requireLava, original.minLight, original.maxLight,
-                Collections.singleton(biomeSelector), original.excludeBiomes);
+                Collections.singleton(biomeSelector), original.excludeBiomes, original.site);
         return addPlacement(key, source.featureKey, source.stage, source.dimensions, source.attempts,
                 source.extraChance, source.probability, source.height, conditions, source.before, source.after,
                 source.priority, source.salt, source.successLimit, source.horizontal, source.gridSpacing);
@@ -970,11 +1005,13 @@ public final class WorldGenRegistry {
         if (separation < 0 || separation >= spacing) {
             throw new LuaError("RegionalStructure.separation: expected 0..spacing-1");
         }
-        if (!(heightType.equals("fixed") || heightType.equals("surface"))) {
-            throw new LuaError("RegionalStructure.height.type: expected 'fixed' or 'surface'");
+        if (!(heightType.equals("fixed") || heightType.equals("surface") || heightType.equals("world_surface")
+                || heightType.equals("solid_surface") || heightType.equals("ocean_floor")
+                || heightType.equals("fluid_surface"))) {
+            throw new LuaError("RegionalStructure.height.type: expected 'fixed' or a surface sampler");
         }
         if (heightType.equals("fixed") && (heightValue < 0 || heightValue > 127)
-                || heightType.equals("surface") && (heightValue < -127 || heightValue > 127)) {
+                || !heightType.equals("fixed") && (heightValue < -127 || heightValue > 127)) {
             throw new LuaError("RegionalStructure.height: value is outside the supported world height");
         }
         if (maxDepth < 0 || maxDepth > WorldGenLimits.MAX_REGIONAL_DEPTH) {

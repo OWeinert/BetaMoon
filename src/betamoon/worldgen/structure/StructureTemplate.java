@@ -273,6 +273,10 @@ public final class StructureTemplate {
         public int variants() {
             return states.size();
         }
+
+        State first() {
+            return states.get(0);
+        }
     }
 
     public static final class State {

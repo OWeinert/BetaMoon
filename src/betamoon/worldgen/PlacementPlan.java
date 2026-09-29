@@ -3,6 +3,7 @@ package betamoon.worldgen;
 import betamoon.tileentity.LuaTileEntity;
 import betamoon.tileentity.TileEntityRegistry;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -81,6 +82,14 @@ public final class PlacementPlan {
         return changes.containsKey(new BlockPosition(x, y, z));
     }
 
+    public List<PlannedBlock> plannedBlocks() {
+        List<PlannedBlock> result = new ArrayList<PlannedBlock>();
+        for (Change change : changes.values()) {
+            result.add(new PlannedBlock(change.position, change.blockId, change.metadata));
+        }
+        return Collections.unmodifiableList(result);
+    }
+
     public FeatureResult commit(FeatureContext context) {
         return commit(context, false);
     }
@@ -147,7 +156,7 @@ public final class PlacementPlan {
         if (publishUpdates) {
             publishUpdates(world);
         }
-        return FeatureResult.placed(committed, min, max);
+        return FeatureResult.placed(committed, min, max, context.diagnostics());
     }
 
     /** Validates the complete plan and reports its real bounds without mutating the world. */
@@ -170,7 +179,7 @@ public final class PlacementPlan {
             min = min(min, change.position);
             max = max(max, change.position);
         }
-        return FeatureResult.placed(changes.size(), min, max);
+        return FeatureResult.placed(changes.size(), min, max, context.diagnostics());
     }
 
     private static void rollback(World world, List<Original> originals, int committed) {
@@ -220,6 +229,18 @@ public final class PlacementPlan {
         private final int metadata;
 
         private Original(BlockPosition position, int blockId, int metadata) {
+            this.position = position;
+            this.blockId = blockId;
+            this.metadata = metadata;
+        }
+    }
+
+    public static final class PlannedBlock {
+        public final BlockPosition position;
+        public final int blockId;
+        public final int metadata;
+
+        private PlannedBlock(BlockPosition position, int blockId, int metadata) {
             this.position = position;
             this.blockId = blockId;
             this.metadata = metadata;

@@ -82,6 +82,20 @@ public final class FeatureReference extends LuaTable {
             bounds.set("max", position(result.max));
             value.set("bounds", bounds);
         }
+        if (!result.details.isEmpty()) {
+            LuaTable details = new LuaTable();
+            for (java.util.Map.Entry<String, Object> entry : result.details.entrySet()) {
+                Object detail = entry.getValue();
+                if (detail instanceof Number) {
+                    details.set(entry.getKey(), valueOf(((Number) detail).doubleValue()));
+                } else if (detail instanceof Boolean) {
+                    details.set(entry.getKey(), valueOf(((Boolean) detail).booleanValue()));
+                } else {
+                    details.set(entry.getKey(), valueOf(String.valueOf(detail)));
+                }
+            }
+            value.set("details", details);
+        }
         return value;
     }
 

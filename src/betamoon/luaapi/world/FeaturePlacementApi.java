@@ -6,11 +6,13 @@ import betamoon.worldgen.GenerationStage;
 import betamoon.worldgen.HeightProvider;
 import betamoon.worldgen.IntRange;
 import betamoon.worldgen.PlacementConditions;
+import betamoon.worldgen.TerrainSurface;
 import betamoon.worldgen.WorldFeature;
 import betamoon.worldgen.WorldGenKey;
 import betamoon.worldgen.WorldGenKind;
 import betamoon.worldgen.WorldGenLimits;
 import betamoon.worldgen.WorldGenRegistry;
+import betamoon.worldgen.structure.SitePolicy;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -295,9 +297,26 @@ public final class FeaturePlacementApi {
         }
         table(value, "Placement.height");
         String type = value.get("type").optjstring("uniform");
-        if (type.equals("surface") || type.equals("ocean_floor")) {
+        if (type.equals("surface") || type.equals("world_surface") || type.equals("solid_surface")
+                || type.equals("ocean_floor") || type.equals("fluid_surface")) {
             int offset = value.get("offset").isnil() ? 0 : value.get("offset").checkint();
-            return HeightProvider.surface(offset);
+            try {
+                return HeightProvider.surface(TerrainSurface.parse(type), offset);
+            } catch (IllegalArgumentException error) {
+                throw new LuaError("Placement.height.type: " + error.getMessage());
+            }
+        }
+        if (type.equals("underground")) {
+            int minDepth = optionalInteger(value.get("minDepth"), 8, "Placement.height.minDepth", 1, 127);
+            int maxDepth = optionalInteger(value.get("maxDepth"), 32, "Placement.height.maxDepth", minDepth, 127);
+            return HeightProvider.underground(minDepth, maxDepth);
+        }
+        if (type.equals("cave_floor")) {
+            int minY = optionalInteger(value.get("min"), 1, "Placement.height.min", 1, 126);
+            int maxY = optionalInteger(value.get("max"), 96, "Placement.height.max", minY, 126);
+            int clearance = optionalInteger(value.get("minimumClearance"), 3,
+                    "Placement.height.minimumClearance", 1, 32);
+            return HeightProvider.caveFloor(minY, maxY, clearance);
         }
         int min = optionalInteger(value.get("min"), 0, "Placement.height.min", 0, 127);
         int max = optionalInteger(value.get("max"), 127, "Placement.height.max", min, 127);
@@ -342,7 +361,74 @@ public final class FeaturePlacementApi {
         } else if (!biomes.isnil()) {
             throw new LuaError("Placement.biomes: expected a table");
         }
-        return new PlacementConditions(ground, sky, air, water, lava, minLight, maxLight, include, exclude);
+        SitePolicy site = value.istable() ? site(value.get("site"), "Placement.conditions.site") : SitePolicy.ANY;
+        return new PlacementConditions(ground, sky, air, water, lava, minLight, maxLight, include, exclude, site);
+    }
+
+    static SitePolicy site(LuaValue value, String path) {
+        if (value.isnil()) {
+            return SitePolicy.ANY;
+        }
+        if (value.isstring()) {
+            value = tableWithType(value.checkjstring());
+        }
+        table(value, path);
+        SitePolicy.Type type;
+        SitePolicy.Scope defaultScope;
+        SitePolicy.Medium defaultMedium;
+        try {
+            type = SitePolicy.Type.parse(value.get("type").optjstring("any"));
+            defaultScope = type == SitePolicy.Type.CAVE ? SitePolicy.Scope.CLEARANCE_MASK
+                    : type == SitePolicy.Type.UNDERGROUND ? SitePolicy.Scope.FULL_BOUNDS
+                    : type == SitePolicy.Type.ANY ? SitePolicy.Scope.ORIGIN : SitePolicy.Scope.SUPPORT_FOOTPRINT;
+            defaultMedium = type == SitePolicy.Type.CAVE ? SitePolicy.Medium.AIR
+                    : type == SitePolicy.Type.UNDERWATER ? SitePolicy.Medium.WATER : SitePolicy.Medium.ANY;
+            SitePolicy.Scope scope = SitePolicy.Scope.parse(value.get("scope").optjstring(defaultScope.luaName()));
+            SitePolicy.Medium medium = SitePolicy.Medium.parse(
+                    value.get("medium").optjstring(defaultMedium.luaName()));
+            int defaultMinDepth = type == SitePolicy.Type.CAVE ? 8
+                    : type == SitePolicy.Type.UNDERGROUND ? 1 : 0;
+            int minDepth = optionalInteger(value.get("minDepthBelowSurface"), defaultMinDepth,
+                    path + ".minDepthBelowSurface", 0, 127);
+            int maxDepth = optionalInteger(value.get("maxDepthBelowSurface"), 127,
+                    path + ".maxDepthBelowSurface", minDepth, 127);
+            int minFluidDepth = optionalInteger(value.get("minFluidDepth"),
+                    type == SitePolicy.Type.UNDERWATER ? 1 : 0, path + ".minFluidDepth", 0, 127);
+            int maxFluidDepth = optionalInteger(value.get("maxFluidDepth"), 127,
+                    path + ".maxFluidDepth", minFluidDepth, 127);
+            double defaultMinCoverage = type == SitePolicy.Type.UNDERWATER ? 1.0D : 0.0D;
+            double defaultMaxCoverage = type == SitePolicy.Type.LAND_SURFACE ? 0.0D : 1.0D;
+            double minCoverage = optionalNumber(value.get("minFluidCoverage"), defaultMinCoverage,
+                    path + ".minFluidCoverage", 0.0D, 1.0D);
+            double maxCoverage = optionalNumber(value.get("maxFluidCoverage"), defaultMaxCoverage,
+                    path + ".maxFluidCoverage", minCoverage, 1.0D);
+            double airRatio = optionalNumber(value.get("minExistingAirRatio"),
+                    type == SitePolicy.Type.CAVE ? 0.9D : 0.0D, path + ".minExistingAirRatio", 0.0D, 1.0D);
+            int minCover = optionalInteger(value.get("minSolidCover"), type == SitePolicy.Type.CAVE ? 3 : 0,
+                    path + ".minSolidCover", 0, 127);
+            int maxCover = optionalInteger(value.get("maxSolidCover"), 127, path + ".maxSolidCover", minCover, 127);
+            Boolean requireSky = optionalBoolean(value.get("requireSky"));
+            if (requireSky == null && type == SitePolicy.Type.CAVE) {
+                requireSky = Boolean.FALSE;
+            }
+            if (type == SitePolicy.Type.UNDERWATER && medium != SitePolicy.Medium.WATER
+                    && medium != SitePolicy.Medium.ANY_FLUID && medium != SitePolicy.Medium.ANY) {
+                throw new LuaError(path + ".medium: underwater sites require water or a fluid medium");
+            }
+            if (type == SitePolicy.Type.LAND_SURFACE && minCoverage > 0.0D) {
+                throw new LuaError(path + ": land_surface cannot require positive fluid coverage");
+            }
+            return new SitePolicy(type, scope, medium, minDepth, maxDepth, minFluidDepth, maxFluidDepth,
+                    minCoverage, maxCoverage, airRatio, minCover, maxCover, requireSky);
+        } catch (IllegalArgumentException error) {
+            throw new LuaError(path + ": " + error.getMessage());
+        }
+    }
+
+    private static LuaTable tableWithType(String type) {
+        LuaTable result = new LuaTable();
+        result.set("type", type);
+        return result;
     }
 
     private static Set<String> dimensions(LuaValue value) {

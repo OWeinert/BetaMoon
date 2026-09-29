@@ -10,6 +10,17 @@ function modInit()
     -- assets/example/worldgen/structures/tutorial_shrine.json
     rotation = "random_horizontal",
     mirror = "random",
+    -- Keep the shrine rigid, choose a stable height from its whole footprint,
+    -- and fill small gaps instead of leaving edge blocks floating.
+    terrain = {
+      mode = "foundation",
+      surface = "solid_surface",
+      anchor = "median",
+      maxSlope = 3,
+      maxStep = 2,
+      maxFoundationDepth = 4,
+      foundationBlock = 4
+    },
     processors = {
       -- Air is absent from the template and remains untouched. Decay is seeded,
       -- so the same world seed and placement always produce the same ruin.
@@ -31,7 +42,7 @@ function modInit()
     attempts = { perChunk = 4, rarity = 16 },
     successLimit = 1,
     position = {
-      height = { type = "surface" },
+      height = { type = "solid_surface" },
       horizontal = "grid",
       -- Centers at 4 and 12 keep this five-block-wide template inside its chunk.
       gridSpacing = 8
@@ -41,7 +52,10 @@ function modInit()
       -- needlessly rejecting every candidate.
       ground = { 1, 2, 3, 12, 13, 24 },
       air = true,
-      requireSky = true
+      requireSky = true,
+      -- This checks the complete transformed support footprint. A candidate on
+      -- an ocean floor is rejected even though a foundation could reach it.
+      site = { type = "land_surface", scope = "support_footprint" }
     },
     salt = 301801
   }

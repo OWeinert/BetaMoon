@@ -9,22 +9,50 @@ function modInit()
   local gate = betamoon.worldgen.structures:add {
     key = "example:structure/path_ruins_gate",
     rotation = "random_horizontal",
-    processors = { decay = 0.08 }
+    processors = { decay = 0.08 },
+    terrain = {
+      mode = "foundation",
+      surface = "solid_surface",
+      maxSlope = 4,
+      maxFoundationDepth = 6,
+      foundationBlock = 4
+    }
   }
 
   local road = betamoon.worldgen.structures:add {
     key = "example:structure/path_ruins_road",
-    processors = { decay = 0.06 }
+    processors = { decay = 0.06 },
+    terrain = {
+      mode = "foundation",
+      surface = "solid_surface",
+      maxSlope = 4,
+      maxFoundationDepth = 6,
+      foundationBlock = 4
+    }
   }
 
   local courtyard = betamoon.worldgen.structures:add {
     key = "example:structure/path_ruins_courtyard",
-    processors = { decay = 0.1 }
+    processors = { decay = 0.1 },
+    terrain = {
+      mode = "foundation",
+      surface = "solid_surface",
+      maxSlope = 4,
+      maxFoundationDepth = 6,
+      foundationBlock = 4
+    }
   }
 
   local crossroads = betamoon.worldgen.structures:add {
     key = "example:structure/path_ruins_crossroads",
-    processors = { decay = 0.05 }
+    processors = { decay = 0.05 },
+    terrain = {
+      mode = "foundation",
+      surface = "solid_surface",
+      maxSlope = 4,
+      maxFoundationDepth = 6,
+      foundationBlock = 4
+    }
   }
 
   pathRuins = betamoon.worldgen.structures:addRegional {
@@ -34,7 +62,14 @@ function modInit()
     spacing = 24,
     separation = 8,
     salt = 301901,
-    height = { type = "surface" },
+    height = { type = "solid_surface" },
+    -- Ruins belong on dry land. If the chunk center is unsuitable, the planner
+    -- tries a small deterministic set of positions in that same chunk only.
+    site = { type = "land_surface", scope = "support_footprint" },
+    siteSearch = { attempts = 8, radius = 7 },
+    -- Keep connected road floors aligned. Foundations handle depressions below
+    -- them without allowing a child piece to shift away from its connector.
+    connectorVerticalTolerance = 0,
     pieces = {
       -- Every choice in this pool must contain at least one connector marker
       -- whose value uses pool = "path". Weight is relative, not a percentage.

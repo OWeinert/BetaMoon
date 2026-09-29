@@ -1,5 +1,6 @@
 package betamoon.worldgen;
 
+import betamoon.worldgen.structure.SitePolicy;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -25,11 +26,25 @@ public final class RegionalStructureDefinition {
     public final boolean entityMarkers;
     public final boolean lootMarkers;
     public final List<PieceChoice> pieces;
+    public final SitePolicy site;
+    public final int siteSearchAttempts;
+    public final int siteSearchRadius;
+    public final int connectorVerticalTolerance;
 
     public RegionalStructureDefinition(WorldGenKey key, WorldGenKey startFeature, String resourceOwner,
             String owner, String sourceLocation, Set<String> dimensions, int spacing, int separation, long salt,
             String heightType, int heightValue, int maxDepth, int maxPieces, int maxDistance,
             double terminationChance, boolean entityMarkers, boolean lootMarkers, List<PieceChoice> pieces) {
+        this(key, startFeature, resourceOwner, owner, sourceLocation, dimensions, spacing, separation, salt,
+                heightType, heightValue, maxDepth, maxPieces, maxDistance, terminationChance, entityMarkers,
+                lootMarkers, pieces, SitePolicy.ANY, 1, 0, 0);
+    }
+
+    public RegionalStructureDefinition(WorldGenKey key, WorldGenKey startFeature, String resourceOwner,
+            String owner, String sourceLocation, Set<String> dimensions, int spacing, int separation, long salt,
+            String heightType, int heightValue, int maxDepth, int maxPieces, int maxDistance,
+            double terminationChance, boolean entityMarkers, boolean lootMarkers, List<PieceChoice> pieces,
+            SitePolicy site, int siteSearchAttempts, int siteSearchRadius, int connectorVerticalTolerance) {
         this.key = key;
         this.startFeature = startFeature;
         this.resourceOwner = resourceOwner;
@@ -48,6 +63,15 @@ public final class RegionalStructureDefinition {
         this.entityMarkers = entityMarkers;
         this.lootMarkers = lootMarkers;
         this.pieces = Collections.unmodifiableList(new ArrayList<PieceChoice>(pieces));
+        this.site = site == null ? SitePolicy.ANY : site;
+        this.siteSearchAttempts = siteSearchAttempts;
+        this.siteSearchRadius = siteSearchRadius;
+        this.connectorVerticalTolerance = connectorVerticalTolerance;
+    }
+
+    public String placementSignature() {
+        return heightType + '|' + heightValue + '|' + site.signature() + '|' + siteSearchAttempts + '|'
+                + siteSearchRadius + '|' + connectorVerticalTolerance;
     }
 
     public static final class PieceChoice {

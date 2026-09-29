@@ -1,10 +1,11 @@
 package betamoon.worldgen;
 
+import betamoon.worldgen.structure.SitePolicy;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import net.minecraft.src.Block;
 import net.minecraft.src.BiomeGenBase;
+import net.minecraft.src.Block;
 import net.minecraft.src.Material;
 
 /** Immutable predicates evaluated once per sampled placement origin. */
@@ -18,9 +19,17 @@ public final class PlacementConditions {
     public final int maxLight;
     public final Set<String> includeBiomes;
     public final Set<String> excludeBiomes;
+    public final SitePolicy site;
 
     public PlacementConditions(BlockSet ground, boolean requireSky, Boolean requireAir, Boolean requireWater,
             Boolean requireLava, int minLight, int maxLight, Set<String> includeBiomes, Set<String> excludeBiomes) {
+        this(ground, requireSky, requireAir, requireWater, requireLava, minLight, maxLight, includeBiomes,
+                excludeBiomes, SitePolicy.ANY);
+    }
+
+    public PlacementConditions(BlockSet ground, boolean requireSky, Boolean requireAir, Boolean requireWater,
+            Boolean requireLava, int minLight, int maxLight, Set<String> includeBiomes, Set<String> excludeBiomes,
+            SitePolicy site) {
         this.ground = ground;
         this.requireSky = requireSky;
         this.requireAir = requireAir;
@@ -30,6 +39,7 @@ public final class PlacementConditions {
         this.maxLight = maxLight;
         this.includeBiomes = immutable(includeBiomes);
         this.excludeBiomes = immutable(excludeBiomes);
+        this.site = site == null ? SitePolicy.ANY : site;
     }
 
     public static PlacementConditions any() {

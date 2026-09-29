@@ -31,11 +31,39 @@ public interface HeightProvider {
     }
 
     static HeightProvider surface(final int offset) {
+        return surface(TerrainSurface.WORLD_SURFACE, offset);
+    }
+
+    static HeightProvider surface(final TerrainSurface surface, final int offset) {
         return new HeightProvider() {
             @Override
             public int sample(FeatureContext context, int x, int z) {
-                int height = context.surfaceHeight(x, z);
+                int height = context.surfaceHeight(x, z, surface);
                 return height < 0 ? height : Math.max(0, Math.min(127, height + offset));
+            }
+        };
+    }
+
+    static HeightProvider underground(final int minDepth, final int maxDepth) {
+        return new HeightProvider() {
+            @Override
+            public int sample(FeatureContext context, int x, int z) {
+                int surface = context.surfaceHeight(x, z, TerrainSurface.SOLID_SURFACE);
+                if (surface < 0) {
+                    return -1;
+                }
+                int depth = minDepth == maxDepth ? minDepth
+                        : minDepth + context.random().nextInt(maxDepth - minDepth + 1);
+                return Math.max(WorldGenLimits.MIN_HEIGHT, surface - depth);
+            }
+        };
+    }
+
+    static HeightProvider caveFloor(final int min, final int max, final int minimumClearance) {
+        return new HeightProvider() {
+            @Override
+            public int sample(FeatureContext context, int x, int z) {
+                return context.caveFloor(x, z, min, max, minimumClearance);
             }
         };
     }
