@@ -7,13 +7,16 @@ public final class ContentRegistration {
     private final Object content;
     private final String owner;
     private final long revision;
+    private final NativeContentIdentity nativeIdentity;
 
-    ContentRegistration(ContentKey key, ContentType type, Object content, String owner, long revision) {
+    ContentRegistration(ContentKey key, ContentType type, Object content, String owner, long revision,
+            NativeContentIdentity nativeIdentity) {
         this.key = key;
         this.type = type;
         this.content = content;
         this.owner = owner;
         this.revision = revision;
+        this.nativeIdentity = nativeIdentity;
     }
 
     public ContentKey getKey() {
@@ -34,5 +37,13 @@ public final class ContentRegistration {
 
     public long getRevision() {
         return revision;
+    }
+
+    public NativeContentIdentity getNativeIdentity() {
+        return nativeIdentity;
+    }
+
+    public boolean isRetained() {
+        return nativeIdentity != null;
     }
 }

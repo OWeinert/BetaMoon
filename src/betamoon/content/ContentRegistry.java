@@ -2,11 +2,13 @@ package betamoon.content;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Central, script-owned mapping between canonical keys and runtime content.
@@ -18,6 +20,9 @@ public final class ContentRegistry {
     private final Map<String, Long> ownerRevisions = new LinkedHashMap<String, Long>();
     private final Map<ContentKey, Reservation> keyReservations = new LinkedHashMap<ContentKey, Reservation>();
     private final IdentityHashMap<Object, Reservation> contentReservations = new IdentityHashMap<Object, Reservation>();
+    private final Map<NativeContentIdentity, Reservation> identityReservations = new LinkedHashMap<NativeContentIdentity, Reservation>();
+    private final Map<NativeContentIdentity, RetainedClaim> retainedByIdentity = new LinkedHashMap<NativeContentIdentity, RetainedClaim>();
+    private final Map<ContentKey, RetainedClaim> retainedByKey = new LinkedHashMap<ContentKey, RetainedClaim>();
     private long nextRevision;
     private long epoch;
 
@@ -64,6 +69,24 @@ public final class ContentRegistry {
         return registration == null ? null : registration.getKey();
     }
 
+    /** Returns the key permanently claimed by a retained native identity. */
+    public synchronized ContentKey retainedKeyOf(NativeContentIdentity identity) {
+        if (identity == null) {
+            throw new NullPointerException("Native content identity");
+        }
+        RetainedClaim claim = retainedByIdentity.get(identity);
+        return claim == null ? null : claim.key;
+    }
+
+    /** Returns the retained native identity claimed by a key, or {@code null}. */
+    public synchronized NativeContentIdentity nativeIdentityOf(ContentKey key) {
+        if (key == null) {
+            throw new NullPointerException("Content key");
+        }
+        RetainedClaim claim = retainedByKey.get(key);
+        return claim == null ? null : claim.identity;
+    }
+
     /** Returns an immutable point-in-time snapshot in publication order. */
     public synchronized List<ContentRegistration> snapshot() {
         return Collections.unmodifiableList(new ArrayList<ContentRegistration>(registrations.values()));
@@ -76,10 +99,15 @@ public final class ContentRegistry {
         Map<ContentKey, ContentRegistration> next = new LinkedHashMap<ContentKey, ContentRegistration>(registrations);
         removeOwner(next, batch.owner);
 
+        Map<NativeContentIdentity, RetainedClaim> nextRetainedByIdentity = new LinkedHashMap<NativeContentIdentity, RetainedClaim>(
+                retainedByIdentity);
+        Map<ContentKey, RetainedClaim> nextRetainedByKey = new LinkedHashMap<ContentKey, RetainedClaim>(retainedByKey);
+        addRetainedClaims(batch, nextRetainedByIdentity, nextRetainedByKey);
+
         long revision = ++nextRevision;
         for (PendingBinding binding : batch.bindings.values()) {
-            next.put(binding.key,
-                    new ContentRegistration(binding.key, binding.type, binding.content, batch.owner, revision));
+            next.put(binding.key, new ContentRegistration(binding.key, binding.type, binding.content, batch.owner,
+                    revision, binding.nativeIdentity));
         }
 
         IdentityHashMap<Object, ContentRegistration> nextReverse = buildReverse(next);
@@ -87,12 +115,17 @@ public final class ContentRegistry {
         registrations.putAll(next);
         reverse.clear();
         reverse.putAll(nextReverse);
+        retainedByIdentity.clear();
+        retainedByIdentity.putAll(nextRetainedByIdentity);
+        retainedByKey.clear();
+        retainedByKey.putAll(nextRetainedByKey);
         ownerRevisions.put(batch.owner, Long.valueOf(revision));
         return new Publication(batch.owner, epoch, revision);
     }
 
     private void validate(Batch batch) {
         for (PendingBinding binding : batch.bindings.values()) {
+            validateRetained(binding, batch.owner);
             ContentRegistration keyed = registrations.get(binding.key);
             if (keyed != null && !batch.owner.equals(keyed.getOwner())) {
                 throw conflict(ContentRegistryException.Reason.DUPLICATE_KEY, binding.key, keyed.getKey(), batch.owner,
@@ -109,8 +142,56 @@ public final class ContentRegistry {
         }
     }
 
+    private void validateRetained(PendingBinding binding, String owner) {
+        if (binding.nativeIdentity != null && !binding.type.equals(binding.nativeIdentity.type())) {
+            throw conflict(ContentRegistryException.Reason.TYPE_MISMATCH, binding.key, null, owner, null,
+                    "Content type '" + binding.type + "' does not match native identity type '"
+                            + binding.nativeIdentity.type() + "'");
+        }
+        RetainedClaim keyed = retainedByKey.get(binding.key);
+        if (keyed != null) {
+            if (!keyed.owner.equals(owner)) {
+                throw conflict(ContentRegistryException.Reason.DUPLICATE_KEY, binding.key, keyed.key, owner,
+                        keyed.owner, "Retained content key '" + binding.key + "' belongs to script '" + keyed.owner
+                                + "', not '" + owner + "'");
+            }
+            if (!keyed.identity.equals(binding.nativeIdentity)) {
+                throw conflict(ContentRegistryException.Reason.RETAINED_IDENTITY_CHANGED, binding.key, keyed.key, owner,
+                        keyed.owner, "Retained content key '" + binding.key + "' cannot change native identity"
+                                + " from '" + keyed.identity + "' to '" + binding.nativeIdentity + "'");
+            }
+        }
+        if (binding.nativeIdentity == null) {
+            return;
+        }
+
+        RetainedClaim identified = retainedByIdentity.get(binding.nativeIdentity);
+        if (identified != null && !identified.key.equals(binding.key)) {
+            throw conflict(ContentRegistryException.Reason.RETAINED_KEY_CHANGED, binding.key, identified.key, owner,
+                    identified.owner,
+                    "Native identity '" + binding.nativeIdentity + "' is retained by key '" + identified.key + "'");
+        }
+        if (identified != null && !identified.owner.equals(owner)) {
+            throw conflict(ContentRegistryException.Reason.DUPLICATE_KEY, binding.key, identified.key, owner,
+                    identified.owner,
+                    "Native identity '" + binding.nativeIdentity + "' belongs to script '" + identified.owner + "'");
+        }
+    }
+
+    private static void addRetainedClaims(Batch batch, Map<NativeContentIdentity, RetainedClaim> byIdentity,
+            Map<ContentKey, RetainedClaim> byKey) {
+        for (PendingBinding binding : batch.bindings.values()) {
+            if (binding.nativeIdentity != null && !byIdentity.containsKey(binding.nativeIdentity)) {
+                RetainedClaim claim = new RetainedClaim(binding.key, binding.nativeIdentity, batch.owner);
+                byIdentity.put(binding.nativeIdentity, claim);
+                byKey.put(binding.key, claim);
+            }
+        }
+    }
+
     private synchronized void reserve(Batch batch, PendingBinding binding) {
         batch.requireCurrent(epoch, revisionOf(batch.owner));
+        validateRetained(binding, batch.owner);
 
         ContentRegistration keyed = registrations.get(binding.key);
         if (keyed != null && !batch.owner.equals(keyed.getOwner())) {
@@ -138,9 +219,23 @@ public final class ContentRegistry {
                     "Content object is being initialized by script '" + contentReservation.batch.owner + "'");
         }
 
+        if (binding.nativeIdentity != null) {
+            Reservation identityReservation = identityReservations.get(binding.nativeIdentity);
+            if (identityReservation != null
+                    && (identityReservation.batch != batch || !identityReservation.key.equals(binding.key))) {
+                throw conflict(ContentRegistryException.Reason.RETAINED_KEY_CHANGED, binding.key,
+                        identityReservation.key, batch.owner, identityReservation.batch.owner,
+                        "Native identity '" + binding.nativeIdentity + "' is being initialized for key '"
+                                + identityReservation.key + "'");
+            }
+        }
+
         Reservation reservation = new Reservation(batch, binding.key);
         keyReservations.put(binding.key, reservation);
         contentReservations.put(binding.content, reservation);
+        if (binding.nativeIdentity != null) {
+            identityReservations.put(binding.nativeIdentity, reservation);
+        }
     }
 
     private synchronized void releaseReservations(Batch batch) {
@@ -154,6 +249,12 @@ public final class ContentRegistry {
         while (contents.hasNext()) {
             if (contents.next().getValue().batch == batch) {
                 contents.remove();
+            }
+        }
+        Iterator<Map.Entry<NativeContentIdentity, Reservation>> identities = identityReservations.entrySet().iterator();
+        while (identities.hasNext()) {
+            if (identities.next().getValue().batch == batch) {
+                identities.remove();
             }
         }
     }
@@ -175,8 +276,53 @@ public final class ContentRegistry {
         ownerRevisions.clear();
         keyReservations.clear();
         contentReservations.clear();
+        identityReservations.clear();
+        retainedByIdentity.clear();
+        retainedByKey.clear();
         nextRevision = 0L;
         epoch++;
+    }
+
+    /** Removes active declarations from scripts that are no longer loaded. */
+    public synchronized void retainOwners(Set<String> owners) {
+        if (owners == null) {
+            throw new NullPointerException("Retained content owners");
+        }
+        Set<String> invalidated = new HashSet<String>();
+        for (ContentRegistration registration : registrations.values()) {
+            if (!owners.contains(registration.getOwner())) {
+                invalidated.add(registration.getOwner());
+            }
+        }
+        for (Reservation reservation : keyReservations.values()) {
+            if (!owners.contains(reservation.batch.owner)) {
+                invalidated.add(reservation.batch.owner);
+            }
+        }
+
+        for (String owner : invalidated) {
+            removeOwner(registrations, owner);
+            ownerRevisions.put(owner, Long.valueOf(++nextRevision));
+        }
+        Iterator<Map.Entry<ContentKey, Reservation>> keys = keyReservations.entrySet().iterator();
+        while (keys.hasNext()) {
+            if (invalidated.contains(keys.next().getValue().batch.owner)) {
+                keys.remove();
+            }
+        }
+        Iterator<Map.Entry<Object, Reservation>> contents = contentReservations.entrySet().iterator();
+        while (contents.hasNext()) {
+            if (invalidated.contains(contents.next().getValue().batch.owner)) {
+                contents.remove();
+            }
+        }
+        Iterator<Map.Entry<NativeContentIdentity, Reservation>> identities = identityReservations.entrySet().iterator();
+        while (identities.hasNext()) {
+            if (invalidated.contains(identities.next().getValue().batch.owner)) {
+                identities.remove();
+            }
+        }
+        rebuildReverse();
     }
 
     private void rebuildReverse() {
@@ -240,6 +386,19 @@ public final class ContentRegistry {
         }
 
         public void add(ContentKey key, ContentType expectedType, Object content) {
+            add(key, expectedType, content, null);
+        }
+
+        public void addRetained(ContentKey key, ContentType expectedType, Object content,
+                NativeContentIdentity nativeIdentity) {
+            if (nativeIdentity == null) {
+                throw new NullPointerException("Native content identity");
+            }
+            add(key, expectedType, content, nativeIdentity);
+        }
+
+        private void add(ContentKey key, ContentType expectedType, Object content,
+                NativeContentIdentity nativeIdentity) {
             requireOpen();
             if (key == null) {
                 throw new NullPointerException("Content key");
@@ -267,7 +426,7 @@ public final class ContentRegistry {
                         owner, "Content object is already staged for key '" + duplicateContent.key + "'");
             }
 
-            PendingBinding binding = new PendingBinding(key, expectedType, content);
+            PendingBinding binding = new PendingBinding(key, expectedType, content, nativeIdentity);
             reserve(this, binding);
             bindings.put(key, binding);
             reverseBindings.put(content, binding);
@@ -328,11 +487,13 @@ public final class ContentRegistry {
         private final ContentKey key;
         private final ContentType type;
         private final Object content;
+        private final NativeContentIdentity nativeIdentity;
 
-        private PendingBinding(ContentKey key, ContentType type, Object content) {
+        private PendingBinding(ContentKey key, ContentType type, Object content, NativeContentIdentity nativeIdentity) {
             this.key = key;
             this.type = type;
             this.content = content;
+            this.nativeIdentity = nativeIdentity;
         }
     }
 
@@ -343,6 +504,18 @@ public final class ContentRegistry {
         private Reservation(Batch batch, ContentKey key) {
             this.batch = batch;
             this.key = key;
+        }
+    }
+
+    private static final class RetainedClaim {
+        private final ContentKey key;
+        private final NativeContentIdentity identity;
+        private final String owner;
+
+        private RetainedClaim(ContentKey key, NativeContentIdentity identity, String owner) {
+            this.key = key;
+            this.identity = identity;
+            this.owner = owner;
         }
     }
 

@@ -12,6 +12,8 @@ public final class ContentRegistryTest {
         verifyAtomicOwnerReplacement();
         verifyConflicts();
         verifyReservationsAndRollback();
+        verifyRetainedIdentityReload();
+        verifyOwnerRetention();
         verifyNamespaceReservations();
         verifyClearInvalidation();
         System.out.println("Central content-registry mapping checks passed.");
@@ -141,6 +143,126 @@ public final class ContentRegistryTest {
             batch.commit();
         }
         require(registry.snapshot().size() == 3, "Trusted catalogs can publish their reserved namespaces");
+    }
+
+    private static void verifyRetainedIdentityReload() {
+        ContentRegistry registry = new ContentRegistry();
+        ContentKey key = key("mymod:block/press");
+        NativeContentIdentity block250 = NativeContentIdentity.of(ContentType.BLOCK, "numeric_id", "250");
+        NativeContentIdentity block251 = NativeContentIdentity.of(ContentType.BLOCK, "numeric_id", "251");
+        ContentRegistry.Batch abandoned = registry.begin("abandoned.lua");
+        abandoned.addRetained(key("mymod:block/abandoned"), ContentType.BLOCK, new Object(), block250);
+        expectRegistry(ContentRegistryException.Reason.RETAINED_KEY_CHANGED, () -> {
+            try (ContentRegistry.Batch competing = registry.begin("competing.lua")) {
+                competing.addRetained(key("mymod:block/competing"), ContentType.BLOCK, new Object(), block250);
+            }
+        });
+        abandoned.close();
+        require(registry.retainedKeyOf(block250) == null,
+                "Abandoning initialization releases the reservation without creating a retained claim");
+        Object original = new Object();
+        ContentRegistry.Publication originalPublication;
+        try (ContentRegistry.Batch batch = registry.begin("press.lua")) {
+            batch.addRetained(key, ContentType.BLOCK, original, block250);
+            originalPublication = batch.commit();
+        }
+        require(registry.find(key).isRetained(), "Retained registrations expose their compatibility identity");
+        require(block250.equals(registry.find(key).getNativeIdentity()), "Registration retains its native identity");
+        require(key.equals(registry.retainedKeyOf(block250)),
+                "Native identity resolves to its permanent canonical key");
+        require(block250.equals(registry.nativeIdentityOf(key)), "Canonical key resolves to its native identity");
+
+        Object replacement = new Object();
+        ContentRegistry.Publication replacementPublication;
+        try (ContentRegistry.Batch batch = registry.begin("press.lua")) {
+            batch.addRetained(key, ContentType.BLOCK, replacement, block250);
+            replacementPublication = batch.commit();
+        }
+        require(registry.resolve(key) == replacement, "Compatible retained reload may replace its runtime facade");
+        originalPublication.close();
+        require(registry.resolve(key) == replacement, "Old retained cleanup cannot remove the reload");
+
+        expectRegistry(ContentRegistryException.Reason.RETAINED_IDENTITY_CHANGED, () -> {
+            try (ContentRegistry.Batch batch = registry.begin("press.lua")) {
+                batch.addRetained(key, ContentType.BLOCK, new Object(), block251);
+            }
+        });
+        expectRegistry(ContentRegistryException.Reason.RETAINED_IDENTITY_CHANGED, () -> {
+            try (ContentRegistry.Batch batch = registry.begin("press.lua")) {
+                batch.add(key, ContentType.BLOCK, new Object());
+            }
+        });
+        expectRegistry(ContentRegistryException.Reason.RETAINED_KEY_CHANGED, () -> {
+            try (ContentRegistry.Batch batch = registry.begin("press.lua")) {
+                batch.addRetained(key("mymod:block/renamed_press"), ContentType.BLOCK, new Object(), block250);
+            }
+        });
+        expectRegistry(ContentRegistryException.Reason.TYPE_MISMATCH, () -> {
+            try (ContentRegistry.Batch batch = registry.begin("press.lua")) {
+                batch.addRetained(key, ContentType.BLOCK, new Object(),
+                        NativeContentIdentity.of(ContentType.ITEM, "numeric_id", "250"));
+            }
+        });
+        require(registry.resolve(key) == replacement, "Rejected retained reloads preserve active state");
+
+        replacementPublication.close();
+        require(registry.find(key) == null, "Unload removes the active retained binding");
+        require(key.equals(registry.retainedKeyOf(block250)), "Unload keeps the retained compatibility claim");
+        expectRegistry(ContentRegistryException.Reason.DUPLICATE_KEY, () -> {
+            try (ContentRegistry.Batch batch = registry.begin("intruder.lua")) {
+                batch.addRetained(key, ContentType.BLOCK, new Object(), block250);
+            }
+        });
+        try (ContentRegistry.Batch batch = registry.begin("press.lua")) {
+            batch.addRetained(key, ContentType.BLOCK, new Object(), block250);
+            batch.commit();
+        }
+
+        registry.clear();
+        ContentKey renamed = key("mymod:block/renamed_press");
+        try (ContentRegistry.Batch batch = registry.begin("press.lua")) {
+            batch.addRetained(renamed, ContentType.BLOCK, new Object(), block250);
+            batch.commit();
+        }
+        require(renamed.equals(registry.retainedKeyOf(block250)),
+                "Registry reset releases retained compatibility claims");
+
+        expectFailure(IllegalArgumentException.class,
+                () -> NativeContentIdentity.of(ContentType.BLOCK, "Numeric-ID", "250"));
+        expectFailure(IllegalArgumentException.class,
+                () -> NativeContentIdentity.of(ContentType.BLOCK, "numeric_id", "bad\nvalue"));
+    }
+
+    private static void verifyOwnerRetention() {
+        ContentRegistry registry = new ContentRegistry();
+        ContentKey keptKey = key("mymod:block/kept");
+        ContentKey removedKey = key("mymod:item/removed");
+        NativeContentIdentity keptIdentity = NativeContentIdentity.of(ContentType.BLOCK, "numeric_id", "252");
+        Object kept = new Object();
+        Object removed = new Object();
+        try (ContentRegistry.Batch batch = registry.begin("kept.lua")) {
+            batch.addRetained(keptKey, ContentType.BLOCK, kept, keptIdentity);
+            batch.commit();
+        }
+        publish(registry, "removed.lua", removedKey, ContentType.ITEM, removed);
+
+        ContentRegistry.Batch stale = registry.begin("removed.lua");
+        ContentKey stagedKey = key("mymod:item/staged_before_retention");
+        stale.add(stagedKey, ContentType.ITEM, new Object());
+        registry.retainOwners(java.util.Collections.singleton("kept.lua"));
+
+        require(registry.resolve(keptKey) == kept, "Retained owners remain active");
+        require(registry.find(removedKey) == null && registry.keyOf(removed) == null,
+                "Missing owners lose forward and reverse active mappings");
+        expectFailure(IllegalStateException.class, stale::commit);
+        try (ContentRegistry.Batch releasedReservation = registry.begin("new.lua")) {
+            releasedReservation.add(stagedKey, ContentType.ITEM, new Object());
+        }
+
+        registry.retainOwners(java.util.Collections.<String>emptySet());
+        require(registry.find(keptKey) == null, "Owner pruning removes retained content from the active view");
+        require(keptKey.equals(registry.retainedKeyOf(keptIdentity)),
+                "Owner pruning preserves restart-only identity claims");
     }
 
     private static void verifyReservationsAndRollback() {
