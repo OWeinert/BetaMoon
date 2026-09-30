@@ -16,6 +16,8 @@ public final class ContentRegistry {
     private final Map<ContentKey, ContentRegistration> registrations = new LinkedHashMap<ContentKey, ContentRegistration>();
     private final IdentityHashMap<Object, ContentRegistration> reverse = new IdentityHashMap<Object, ContentRegistration>();
     private final Map<String, Long> ownerRevisions = new LinkedHashMap<String, Long>();
+    private final Map<ContentKey, Reservation> keyReservations = new LinkedHashMap<ContentKey, Reservation>();
+    private final IdentityHashMap<Object, Reservation> contentReservations = new IdentityHashMap<Object, Reservation>();
     private long nextRevision;
     private long epoch;
 
@@ -107,6 +109,55 @@ public final class ContentRegistry {
         }
     }
 
+    private synchronized void reserve(Batch batch, PendingBinding binding) {
+        batch.requireCurrent(epoch, revisionOf(batch.owner));
+
+        ContentRegistration keyed = registrations.get(binding.key);
+        if (keyed != null && !batch.owner.equals(keyed.getOwner())) {
+            throw conflict(ContentRegistryException.Reason.DUPLICATE_KEY, binding.key, keyed.getKey(), batch.owner,
+                    keyed.getOwner(), "Content key '" + binding.key + "' belongs to script '" + keyed.getOwner()
+                            + "', not '" + batch.owner + "'");
+        }
+        ContentRegistration reversed = reverse.get(binding.content);
+        if (reversed != null && !binding.key.equals(reversed.getKey())) {
+            throw conflict(ContentRegistryException.Reason.DUPLICATE_CONTENT, binding.key, reversed.getKey(),
+                    batch.owner, reversed.getOwner(),
+                    "Content object is already bound to key '" + reversed.getKey() + "'");
+        }
+
+        Reservation keyReservation = keyReservations.get(binding.key);
+        if (keyReservation != null && keyReservation.batch != batch) {
+            throw conflict(ContentRegistryException.Reason.DUPLICATE_KEY, binding.key, binding.key, batch.owner,
+                    keyReservation.batch.owner, "Content key '" + binding.key + "' is being initialized by script '"
+                            + keyReservation.batch.owner + "'");
+        }
+        Reservation contentReservation = contentReservations.get(binding.content);
+        if (contentReservation != null && contentReservation.batch != batch) {
+            throw conflict(ContentRegistryException.Reason.DUPLICATE_CONTENT, binding.key, contentReservation.key,
+                    batch.owner, contentReservation.batch.owner,
+                    "Content object is being initialized by script '" + contentReservation.batch.owner + "'");
+        }
+
+        Reservation reservation = new Reservation(batch, binding.key);
+        keyReservations.put(binding.key, reservation);
+        contentReservations.put(binding.content, reservation);
+    }
+
+    private synchronized void releaseReservations(Batch batch) {
+        Iterator<Map.Entry<ContentKey, Reservation>> keys = keyReservations.entrySet().iterator();
+        while (keys.hasNext()) {
+            if (keys.next().getValue().batch == batch) {
+                keys.remove();
+            }
+        }
+        Iterator<Map.Entry<Object, Reservation>> contents = contentReservations.entrySet().iterator();
+        while (contents.hasNext()) {
+            if (contents.next().getValue().batch == batch) {
+                contents.remove();
+            }
+        }
+    }
+
     private synchronized void release(Publication publication) {
         if (publication.epoch != epoch || revisionOf(publication.owner) != publication.revision) {
             return;
@@ -122,6 +173,8 @@ public final class ContentRegistry {
         registrations.clear();
         reverse.clear();
         ownerRevisions.clear();
+        keyReservations.clear();
+        contentReservations.clear();
         nextRevision = 0L;
         epoch++;
     }
@@ -215,6 +268,7 @@ public final class ContentRegistry {
             }
 
             PendingBinding binding = new PendingBinding(key, expectedType, content);
+            reserve(this, binding);
             bindings.put(key, binding);
             reverseBindings.put(content, binding);
         }
@@ -242,6 +296,10 @@ public final class ContentRegistry {
 
         @Override
         public void close() {
+            if (closed) {
+                return;
+            }
+            releaseReservations(this);
             bindings.clear();
             reverseBindings.clear();
             closed = true;
@@ -275,6 +333,16 @@ public final class ContentRegistry {
             this.key = key;
             this.type = type;
             this.content = content;
+        }
+    }
+
+    private final class Reservation {
+        private final Batch batch;
+        private final ContentKey key;
+
+        private Reservation(Batch batch, ContentKey key) {
+            this.batch = batch;
+            this.key = key;
         }
     }
 

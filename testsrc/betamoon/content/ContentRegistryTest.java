@@ -11,6 +11,7 @@ public final class ContentRegistryTest {
         verifyMappingsAndOwnership();
         verifyAtomicOwnerReplacement();
         verifyConflicts();
+        verifyReservationsAndRollback();
         verifyNamespaceReservations();
         verifyClearInvalidation();
         System.out.println("Central content-registry mapping checks passed.");
@@ -140,6 +141,46 @@ public final class ContentRegistryTest {
             batch.commit();
         }
         require(registry.snapshot().size() == 3, "Trusted catalogs can publish their reserved namespaces");
+    }
+
+    private static void verifyReservationsAndRollback() {
+        ContentRegistry registry = new ContentRegistry();
+        ContentKey activeKey = key("mymod:block/active");
+        Object active = new Object();
+        publish(registry, "owner.lua", activeKey, ContentType.BLOCK, active);
+
+        ContentKey stagedKey = key("mymod:item/staged");
+        Object staged = new Object();
+        ContentRegistry.Batch initializing = registry.begin("initializing.lua");
+        initializing.add(stagedKey, ContentType.ITEM, staged);
+        require(registry.find(stagedKey) == null && registry.keyOf(staged) == null,
+                "Reservations stay invisible until publication");
+
+        ContentRegistryException keyReservation = expectRegistry(ContentRegistryException.Reason.DUPLICATE_KEY, () -> {
+            try (ContentRegistry.Batch competing = registry.begin("competing.lua")) {
+                competing.add(stagedKey, ContentType.ITEM, new Object());
+            }
+        });
+        require("initializing.lua".equals(keyReservation.getConflictingOwner()),
+                "Reservation conflicts identify the initializing owner");
+        expectRegistry(ContentRegistryException.Reason.DUPLICATE_CONTENT, () -> {
+            try (ContentRegistry.Batch competing = registry.begin("competing.lua")) {
+                competing.add(key("mymod:item/other"), ContentType.ITEM, staged);
+            }
+        });
+
+        initializing.close();
+        publish(registry, "competing.lua", stagedKey, ContentType.ITEM, staged);
+        require(registry.resolve(stagedKey) == staged, "Closing an uncommitted batch releases every reservation");
+        require(registry.resolve(activeKey) == active, "Abandoned initialization does not alter active content");
+
+        ContentRegistry.Batch stale = registry.begin("owner.lua");
+        stale.add(key("mymod:block/stale"), ContentType.BLOCK, new Object());
+        publish(registry, "owner.lua", key("mymod:block/current"), ContentType.BLOCK, new Object());
+        expectFailure(IllegalStateException.class, stale::commit);
+        try (ContentRegistry.Batch afterFailure = registry.begin("after-failure.lua")) {
+            afterFailure.add(key("mymod:block/stale"), ContentType.BLOCK, new Object());
+        }
     }
 
     private static void verifyClearInvalidation() {
