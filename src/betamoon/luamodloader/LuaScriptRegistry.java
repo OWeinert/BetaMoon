@@ -263,6 +263,23 @@ public final class LuaScriptRegistry {
         return script == null ? file : script.getDisplayName();
     }
 
+    /** Returns the executing mod's declared user-facing name, without a file fallback. */
+    public static synchronized String getCurrentScriptDisplayName() {
+        String file = currentScriptFile.get();
+        if (file == null) {
+            return null;
+        }
+        ScriptMod script = byFile.get(file);
+        if (script == null) {
+            return null;
+        }
+        if (script.name != null && !script.name.trim().isEmpty()) {
+            return script.name;
+        }
+        LuaModManifest manifest = script.source == null ? null : script.source.manifest();
+        return manifest == null ? null : manifest.name();
+    }
+
     /** Reads a bounded package-local gameplay-data resource for a published declaration. */
     public static synchronized byte[] readPackageResource(String sourceFileName, String path, int maxBytes)
             throws IOException {

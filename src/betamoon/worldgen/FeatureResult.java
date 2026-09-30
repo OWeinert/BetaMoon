@@ -32,6 +32,11 @@ public final class FeatureResult {
     public static final String SITE_INSUFFICIENT_CAVITY = "site_insufficient_cavity";
     public static final String SITE_SKY_MISMATCH = "site_sky_mismatch";
     public static final String CONFORM_PATH_FAILED = "conform_path_failed";
+    public static final String LOOT_TARGET_MISSING = "loot_target_missing";
+    public static final String LOOT_INVENTORY_SIZE = "loot_inventory_size";
+    public static final String LOOT_EXISTING_CONTENTS = "loot_existing_contents";
+    public static final String LOOT_OVERFLOW = "loot_overflow";
+    public static final String LOOT_MUTATION_FAILED = "loot_mutation_failed";
 
     public final boolean placed;
     public final String reason;

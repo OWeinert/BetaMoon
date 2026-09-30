@@ -1,8 +1,10 @@
 package betamoon.luamodloader;
 
 import betamoon.luaapi.BetaMoonModule;
+import betamoon.luaapi.chat.ChatApi;
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -26,6 +28,7 @@ public final class LoaderCollectionsTest {
     public static void main(String[] arguments) throws Exception {
         try {
             verifyRegistrySnapshots();
+            verifyChatSenderIdentity();
             verifyCleanupOrderAndFailures();
             verifyIdentityOwnership();
             verifyRetainedContent();
@@ -46,6 +49,32 @@ public final class LoaderCollectionsTest {
             LuaScriptRegistry.setCurrentScriptFile(null);
             LuaScriptRegistry.clear();
             LuaScriptErrors.clear();
+        }
+    }
+
+    private static void verifyChatSenderIdentity() throws Exception {
+        LuaScriptRegistry.clear();
+        LuaScriptRegistry.updateParsed("example/main.lua", "Example Mod", Collections.emptyList(), LuaValue.NIL,
+                LuaValue.NIL, LuaValue.NIL, null, null, null);
+
+        Method prefixMessage = ChatApi.class.getDeclaredMethod("prefixMessage", String.class);
+        prefixMessage.setAccessible(true);
+        try {
+            LuaScriptRegistry.setCurrentScriptFile("example/main.lua");
+            require("[Example Mod]: Hello".equals(prefixMessage.invoke(null, "Hello")),
+                    "Chat messages must use the parsed mod name instead of the entrypoint file name");
+
+            LuaScriptRegistry.registerFile("legacy.lua");
+            LuaScriptRegistry.setCurrentScriptFile("legacy.lua");
+            require("Hello".equals(prefixMessage.invoke(null, "Hello")),
+                    "Chat must not expose an internal filename when display metadata is unavailable");
+
+            LuaScriptRegistry.setCurrentScriptFile(null);
+            require("Hello".equals(prefixMessage.invoke(null, "Hello")),
+                    "Messages without a script execution scope must not gain a sender prefix");
+        } finally {
+            LuaScriptRegistry.setCurrentScriptFile(null);
+            LuaScriptRegistry.clear();
         }
     }
 

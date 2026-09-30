@@ -220,7 +220,7 @@ public final class WorldGenRegistry {
 
         private WorldGenKey addRegionalStructure(String key, WorldGenKey startFeature, Set<String> dimensions,
                 int spacing, int separation, long salt, String heightType, int heightValue, int maxDepth, int maxPieces,
-                int maxDistance, double terminationChance, boolean entityMarkers, boolean lootMarkers,
+                int maxDistance, double terminationChance, boolean entityMarkers,
                 List<RegionalStructureDefinition.PieceChoice> pieces, SitePolicy site, int siteSearchAttempts,
                 int siteSearchRadius, int connectorVerticalTolerance) {
             ensureOpen();
@@ -228,7 +228,7 @@ public final class WorldGenRegistry {
             WorldGenKey typedKey = parseKey(key, WorldGenKind.STRUCTURE, "RegionalStructure.key");
             regionalStructures.add(new RegionalStructureDefinition(typedKey, startFeature, resourceOwner, owner,
                     source(index), dimensions, spacing, separation, salt, heightType, heightValue, maxDepth, maxPieces,
-                    maxDistance, terminationChance, entityMarkers, lootMarkers, pieces, site, siteSearchAttempts,
+                    maxDistance, terminationChance, entityMarkers, pieces, site, siteSearchAttempts,
                     siteSearchRadius, connectorVerticalTolerance));
             return typedKey;
         }
@@ -595,16 +595,16 @@ public final class WorldGenRegistry {
 
     public static WorldGenKey addRegionalStructure(String key, WorldGenKey startFeature, Set<String> dimensions,
             int spacing, int separation, long salt, String heightType, int heightValue, int maxDepth, int maxPieces,
-            int maxDistance, double terminationChance, boolean entityMarkers, boolean lootMarkers,
+            int maxDistance, double terminationChance, boolean entityMarkers,
             List<RegionalStructureDefinition.PieceChoice> pieces) {
         return addRegionalStructure(key, startFeature, dimensions, spacing, separation, salt, heightType,
-                heightValue, maxDepth, maxPieces, maxDistance, terminationChance, entityMarkers, lootMarkers,
+                heightValue, maxDepth, maxPieces, maxDistance, terminationChance, entityMarkers,
                 pieces, SitePolicy.ANY, 1, 0, 0);
     }
 
     public static WorldGenKey addRegionalStructure(String key, WorldGenKey startFeature, Set<String> dimensions,
             int spacing, int separation, long salt, String heightType, int heightValue, int maxDepth, int maxPieces,
-            int maxDistance, double terminationChance, boolean entityMarkers, boolean lootMarkers,
+            int maxDistance, double terminationChance, boolean entityMarkers,
             List<RegionalStructureDefinition.PieceChoice> pieces, SitePolicy site, int siteSearchAttempts,
             int siteSearchRadius, int connectorVerticalTolerance) {
         validateRegionalStructure(spacing, separation, heightType, heightValue, maxDepth, maxPieces, maxDistance,
@@ -618,7 +618,7 @@ public final class WorldGenRegistry {
         PublicationBatch batch = CURRENT_BATCH.get();
         if (batch != null) {
             return batch.addRegionalStructure(key, startFeature, dimensions, spacing, separation, salt, heightType,
-                    heightValue, maxDepth, maxPieces, maxDistance, terminationChance, entityMarkers, lootMarkers,
+                    heightValue, maxDepth, maxPieces, maxDistance, terminationChance, entityMarkers,
                     pieces, site, siteSearchAttempts, siteSearchRadius, connectorVerticalTolerance);
         }
         String resourceOwner = requiredOwner(LuaScriptRegistry.getCurrentScriptFile());
@@ -627,7 +627,7 @@ public final class WorldGenRegistry {
         RegionalStructureRegistry.publishAddition(new RegionalStructureDefinition(typedKey, startFeature, resourceOwner,
                 owner, resourceOwner + ":worldgen[regional_structure]", dimensions, spacing, separation, salt,
                 heightType, heightValue, maxDepth, maxPieces, maxDistance, terminationChance, entityMarkers,
-                lootMarkers, pieces, site, siteSearchAttempts, siteSearchRadius, connectorVerticalTolerance));
+                pieces, site, siteSearchAttempts, siteSearchRadius, connectorVerticalTolerance));
         return typedKey;
     }
 

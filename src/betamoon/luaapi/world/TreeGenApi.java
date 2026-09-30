@@ -76,8 +76,12 @@ public final class TreeGenApi {
             for (int index = 1; index <= templates.length(); index++) {
                 LuaValue entry = templates.get(index);
                 FeaturePlacementApi.table(entry, "Tree.templates[" + index + "]");
-                dependencies.add(FeaturePlacementApi.featureKey(required(entry, "structure"),
-                        "Tree.templates[" + index + "].structure"));
+                WorldGenKey structure = FeaturePlacementApi.featureKey(required(entry, "structure"),
+                        "Tree.templates[" + index + "].structure");
+                if (structure.getKind() != WorldGenKind.STRUCTURE) {
+                    throw new LuaError("Tree.templates[" + index + "].structure: expected a structure reference");
+                }
+                dependencies.add(structure);
                 int weight = FeaturePlacementApi.optionalInteger(entry.get("weight"), 1,
                         "Tree.templates[" + index + "].weight", 1, 1000000);
                 total += weight;

@@ -179,17 +179,18 @@ final class StructureTerrainPlanner {
                 return readFailure(context);
             }
             int contact = origin.y + cell.y;
+            int fittedContact = contact - terrain.verticalOffset;
             if (site.type == SitePolicy.Type.LAND_SURFACE) {
                 if (terrain.mode == TerrainPolicy.Mode.EXACT) {
                     wrongSurfaceRelation |= contact != solid;
                 } else if (terrain.mode == TerrainPolicy.Mode.FOUNDATION) {
-                    wrongSurfaceRelation |= contact < solid;
+                    wrongSurfaceRelation |= fittedContact < solid;
                 }
             } else if (site.type == SitePolicy.Type.UNDERWATER) {
                 if (terrain.mode == TerrainPolicy.Mode.EXACT) {
                     wrongSurfaceRelation |= contact != floor;
                 } else if (terrain.mode == TerrainPolicy.Mode.FOUNDATION) {
-                    wrongSurfaceRelation |= contact < floor;
+                    wrongSurfaceRelation |= fittedContact < floor;
                 }
             } else if (site.type == SitePolicy.Type.FLUID_SURFACE) {
                 wrongSurfaceRelation |= fluid < 0
@@ -360,16 +361,18 @@ final class StructureTerrainPlanner {
             if (surface < 0) {
                 return readFailure(context);
             }
-            int depth = target - surface;
-            if (depth < 0) {
+            int fittedTarget = target - terrain.verticalOffset;
+            if (fittedTarget < surface) {
                 return FeatureResult.TERRAIN_SUPPORT;
             }
+            int foundationStart = surface + Math.min(terrain.verticalOffset, 0);
+            int depth = target - foundationStart;
             if (depth > terrain.maxFoundationDepth) {
                 return FeatureResult.FOUNDATION_TOO_DEEP;
             }
-            for (int y = surface; y < target; y++) {
+            for (int y = foundationStart; y < target; y++) {
                 String failure = replaceTerrain(context, output, x, y, z, terrain.foundationBlock,
-                        terrain.foundationMetadata, true);
+                        terrain.foundationMetadata, y >= surface);
                 if (failure != null) {
                     return failure;
                 }

@@ -58,18 +58,23 @@ public final class StructureExporter {
                         paletteIndex.put(identity, state);
                         palette.add(new State(blockId, metadata, data));
                     }
-                    blocks.add(new CapturedBlock(x - minX, y - minY, z - minZ, state.intValue()));
+                    blocks.add(new CapturedBlock(x - originX, y - originY, z - originZ, state.intValue()));
                 }
             }
         }
+        if (palette.isEmpty()) {
+            palette.add(new State(0, 0, null));
+        }
         StringBuilder out = new StringBuilder();
-        out.append("{\n  \"format\": \"betamoon_structure\",\n  \"size\": [")
-                .append(sizeX).append(", ").append(sizeY).append(", ").append(sizeZ).append("],\n")
-                .append("  \"origin\": [").append(originX - minX).append(", ").append(originY - minY)
-                .append(", ").append(originZ - minZ).append("],\n  \"palette\": [\n");
+        out.append("{\n  \"format\": \"betamoon_structure\",\n  \"bounds\": {\n")
+                .append("    \"min\": [").append(minX - originX).append(", ").append(minY - originY)
+                .append(", ").append(minZ - originZ).append("],\n")
+                .append("    \"max\": [").append(maxX - originX).append(", ").append(maxY - originY)
+                .append(", ").append(maxZ - originZ).append("]\n  },\n  \"palette\": {\n");
         for (int index = 0; index < palette.size(); index++) {
             State state = palette.get(index);
-            out.append("    { \"block\": ").append(state.blockId).append(", \"meta\": ")
+            out.append("    \"state_").append(index).append("\": { \"block\": ")
+                    .append(state.blockId).append(", \"meta\": ")
                     .append(state.metadata);
             if (state.data != null && state.data.length() > 0) {
                 out.append(", \"data\": ");
@@ -77,14 +82,15 @@ public final class StructureExporter {
             }
             out.append(" }").append(index + 1 == palette.size() ? "\n" : ",\n");
         }
-        out.append("  ],\n  \"blocks\": [\n");
+        out.append("  },\n  \"templates\": {},\n  \"elements\": [\n");
         for (int index = 0; index < blocks.size(); index++) {
             CapturedBlock block = blocks.get(index);
-            out.append("    { \"pos\": [").append(block.x).append(", ").append(block.y).append(", ")
-                    .append(block.z).append("], \"state\": ").append(block.state).append(" }")
+            out.append("    { \"type\": \"block\", \"pos\": [").append(block.x).append(", ")
+                    .append(block.y).append(", ").append(block.z).append("], \"state\": \"state_")
+                    .append(block.state).append("\" }")
                     .append(index + 1 == blocks.size() ? "\n" : ",\n");
         }
-        return out.append("  ],\n  \"markers\": []\n}\n").toString();
+        return out.append("  ],\n  \"processors\": []\n}\n").toString();
     }
 
     private static void json(StringBuilder out, LuaValue value) {

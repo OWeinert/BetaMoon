@@ -52,7 +52,7 @@ public final class RegionalStructureApiTest {
                 lua.load("local s=betamoon.worldgen.structures; "
                         + "local regional=s:addRegional{key='test:ruins',start=s:getRequired('test:start'),"
                         + "dimensions='overworld',spacing=24,separation=6,salt=991,height=64,maxDepth=3,"
-                        + "maxPieces=8,maxDistance=64,terminationChance=0,markers={entities=false,loot=false},"
+                        + "maxPieces=8,maxDistance=64,terminationChance=0,markers={entities=false},"
                         + "pieces={{pool='road',structure=s:getRequired('test:corridor'),weight=1}}}; "
                         + "assert(regional:getKey()=='test:structure/ruins' "
                         + "and s:getRegionalRequired('test:ruins'):getKey()==regional:getKey())").call();
@@ -136,7 +136,7 @@ public final class RegionalStructureApiTest {
                     try (WorldGenRegistry.PublicationBatch batch = WorldGenRegistry.beginPublication(
                             "regional_structure_test.lua", "Regional structure test")) {
                         WorldGenRegistry.addRegionalStructure("test:broken", definition.startFeature,
-                                definition.dimensions, 16, 4, 0L, "fixed", 64, 2, 4, 64, 0.0D, false, false,
+                                definition.dimensions, 16, 4, 0L, "fixed", 64, 2, 4, 64, 0.0D, false,
                                 Collections.singletonList(new RegionalStructureDefinition.PieceChoice("missing",
                                         definition.pieces.get(0).feature, 1)));
                         batch.validate();
@@ -158,7 +158,7 @@ public final class RegionalStructureApiTest {
         return new RegionalStructureDefinition(WorldGenKey.parse("test:ruins", WorldGenKind.STRUCTURE), start,
                 "regional_structure_test.lua", "Regional structure test", "test", new LinkedHashSet<String>(
                         Collections.singleton("minecraft:overworld")), 24, 6, 991L, "fixed", 64, 3, 8, 64, 0.0D,
-                false, false, Collections.singletonList(
+                false, Collections.singletonList(
                         new RegionalStructureDefinition.PieceChoice("road", corridor, 1)));
     }
 
@@ -193,13 +193,14 @@ public final class RegionalStructureApiTest {
             if (index > 0) {
                 markers.append(',');
             }
-            markers.append("{\"pos\":[0,0,0],\"name\":\"connector\",\"value\":")
+            markers.append("{\"type\":\"marker\",\"pos\":[0,0,0],\"name\":\"connector\",\"value\":")
                     .append("{\"pool\":\"road\",\"facing\":\"").append(facings[index]).append("\"}}");
         }
         StructureTemplate template = StructureTemplate.read(("{"
-                + "\"format\":\"betamoon_structure\",\"size\":[1,1,1],\"origin\":[0,0,0],"
-                + "\"palette\":[{\"block\":\"minecraft:stone\"}],"
-                + "\"blocks\":[{\"pos\":[0,0,0],\"state\":0}],\"markers\":[" + markers + "]}"
+                + "\"format\":\"betamoon_structure\","
+                + "\"palette\":{\"stone\":{\"block\":\"minecraft:stone\"}},"
+                + "\"elements\":[{\"type\":\"block\",\"pos\":[0,0,0],\"state\":\"stone\"}"
+                + (markers.length() == 0 ? "" : "," + markers) + "]}"
                 ).getBytes(StandardCharsets.UTF_8));
         return new StructureFeature(template, "memory:test.json", "none", "none",
                 new StructureProcessors(false, Collections.<Integer, Integer>emptyMap(), 0.0D, null, "reject",

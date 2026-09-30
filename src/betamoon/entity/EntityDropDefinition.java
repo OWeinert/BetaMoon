@@ -1,10 +1,13 @@
 package betamoon.entity;
 
 import betamoon.assets.AssetKey;
+import betamoon.loot.GameplayLootDefinition;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.src.Entity;
 import net.minecraft.src.Item;
+import net.minecraft.src.ItemStack;
 import org.luaj.vm2.LuaValue;
 import static betamoon.luaapi.utils.LuaDeclarationValues.error;
 import static betamoon.luaapi.utils.LuaDeclarationValues.fields;
@@ -13,14 +16,21 @@ import static betamoon.luaapi.utils.LuaDeclarationValues.integer;
 import static betamoon.luaapi.utils.LuaDeclarationValues.length;
 import static betamoon.luaapi.utils.LuaDeclarationValues.number;
 
-/** Immutable item-drop choices sampled whenever a typed entity emits its configured loot. */
+/** Immutable shorthand entries or loot-table source sampled whenever a typed entity emits configured loot. */
 public final class EntityDropDefinition {
     private final List<Entry> entries = new ArrayList<>();
+    private final GameplayLootDefinition loot;
 
     public EntityDropDefinition(LuaValue value) {
         if (value.isnil()) {
+            loot = null;
             return;
         }
+        if (hasNamedFields(value)) {
+            loot = GameplayLootDefinition.read(value, "entity.drops");
+            return;
+        }
+        loot = null;
         int count = length(value, "entity.drops");
         for (int index = 1; index <= count; index++) {
             LuaValue entry = value.get(index);
@@ -44,6 +54,12 @@ public final class EntityDropDefinition {
         if (entity.worldObj == null || entity.worldObj.multiplayerWorld) {
             return;
         }
+        if (loot != null) {
+            for (ItemStack stack : loot.sample(entity.worldObj.rand)) {
+                EntityLoot.dropItem(entity, stack);
+            }
+            return;
+        }
         for (Entry entry : entries) {
             if (entity.worldObj.rand.nextDouble() >= entry.chance) {
                 continue;
@@ -54,11 +70,30 @@ public final class EntityDropDefinition {
     }
 
     public void validateRegistered(AssetKey key, List<String> errors) {
+        if (loot != null) {
+            try {
+                loot.validateReferences();
+            } catch (IOException exception) {
+                errors.add("Entity loot table invalid (" + key + "): " + exception.getMessage());
+            }
+        }
         for (Entry entry : entries) {
             if (entry.item <= 0 || entry.item >= Item.itemsList.length || Item.itemsList[entry.item] == null) {
                 errors.add("Entity drop item not registered (" + key + "): " + entry.item);
             }
         }
+    }
+
+    private static boolean hasNamedFields(LuaValue definition) {
+        if (!definition.istable()) {
+            return false;
+        }
+        for (LuaValue key : definition.checktable().keys()) {
+            if (!key.isint() && key.isstring()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static final class Entry {

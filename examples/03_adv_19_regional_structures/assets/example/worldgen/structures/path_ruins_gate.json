@@ -1,39 +1,25 @@
 {
   "format": "betamoon_structure",
-  "size": [3, 4, 3],
-  "origin": [1, 0, 1],
-  "palette": [
-    {
-      "variants": [
-        { "block": 4, "weight": 3 },
-        { "block": 48, "weight": 1 }
-      ]
-    },
-    { "block": 89 }
+  "palette": {
+    "stone": { "variants": [{ "block": 4, "weight": 3 }, { "block": 48, "weight": 1 }] },
+    "lamp": { "block": 89 }
+  },
+  "templates": {
+    "pillar": { "elements": [{ "type": "fill", "from": [0, 1, 0], "to": [0, 3, 0], "state": "stone" }] }
+  },
+  "elements": [
+    { "type": "fill", "from": [-1, 0, -1], "to": [1, 0, 1], "state": "stone", "tags": ["foundation"] },
+    { "type": "template", "name": "pillar", "at": [-1, 0, -1] },
+    { "type": "template", "name": "pillar", "at": [-1, 0, 1] },
+    { "type": "block", "pos": [-1, 3, 0], "state": "lamp" },
+    { "type": "marker", "pos": [1, 0, 0], "name": "connector", "value": { "pool": "path", "facing": "east" } }
   ],
-  "blocks": [
-    { "pos": [0, 0, 0], "state": 0 },
-    { "pos": [1, 0, 0], "state": 0 },
-    { "pos": [2, 0, 0], "state": 0 },
-    { "pos": [0, 0, 1], "state": 0 },
-    { "pos": [1, 0, 1], "state": 0 },
-    { "pos": [2, 0, 1], "state": 0 },
-    { "pos": [0, 0, 2], "state": 0 },
-    { "pos": [1, 0, 2], "state": 0 },
-    { "pos": [2, 0, 2], "state": 0 },
-    { "pos": [0, 1, 0], "state": 0 },
-    { "pos": [0, 2, 0], "state": 0 },
-    { "pos": [0, 3, 0], "state": 0 },
-    { "pos": [0, 1, 2], "state": 0 },
-    { "pos": [0, 2, 2], "state": 0 },
-    { "pos": [0, 3, 2], "state": 0 },
-    { "pos": [0, 3, 1], "state": 1 }
-  ],
-  "markers": [
+  "processors": [
     {
-      "pos": [2, 0, 1],
-      "name": "connector",
-      "value": { "pool": "path", "facing": "east" }
+      "type": "decay",
+      "key": "gate_decay",
+      "select": { "excludeTags": ["foundation"] },
+      "chance": 0.08
     }
   ]
 }

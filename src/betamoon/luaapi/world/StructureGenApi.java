@@ -33,8 +33,9 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 import static betamoon.luaapi.utils.LuaDeclarationValues.required;
+import static betamoon.luaapi.utils.LuaDeclarationValues.fields;
 
-/** Installs local JSON structure declarations and capture tooling. */
+/** Installs declarative structure authoring, registration, lookup, and capture tooling. */
 public final class StructureGenApi {
     private StructureGenApi() {
     }
@@ -54,18 +55,17 @@ public final class StructureGenApi {
                     throw new LuaError("Structure.key: " + error.getMessage());
                 }
                 String owner = LuaScriptRegistry.getCurrentScriptFile();
-                String path = definition.get("path").isnil() ? null : definition.get("path").checkjstring();
                 String rotation = definition.get("rotation").optjstring("none");
                 String mirror = definition.get("mirror").optjstring("none");
                 validateTransform(rotation, mirror);
                 try {
-                    WorldGenDataResolver.ResolvedData data = WorldGenDataResolver.structure(owner, key, path);
-                    StructureTemplate template = StructureTemplate.read(data.bytes);
+                    TemplateSource source = templateSource(definition, owner, key);
                     StructureProcessors processors = processors(definition.get("processors"));
                     TerrainPolicy terrain = terrain(definition.get("terrain"));
-                    StructureFeature feature = new StructureFeature(template, data.displayPath, rotation, mirror,
+                    StructureFeature feature = new StructureFeature(source.template, source.displayPath,
+                            rotation, mirror,
                             processors, terrain);
-                    int radius = radius(template) + feature.extraRadius();
+                    int radius = radius(source.template) + feature.extraRadius();
                     if (radius > WorldGenLimits.MAX_FEATURE_RADIUS) {
                         throw new LuaError("Structure terrain policy exceeds maximum placement radius "
                                 + WorldGenLimits.MAX_FEATURE_RADIUS);
@@ -83,8 +83,42 @@ public final class StructureGenApi {
         structures.set("addRegional", addRegional(structures));
         structures.set("getRegional", lookupRegional(structures, false));
         structures.set("getRegionalRequired", lookupRegional(structures, true));
+        structures.set("builder", builder(structures));
         structures.set("export", exporter(structures));
         worldgen.set("structures", structures);
+    }
+
+    private static VarArgFunction builder(final LuaTable structures) {
+        return new VarArgFunction() {
+            @Override
+            public Varargs invoke(Varargs arguments) {
+                return new StructureBuilder(argument(arguments, structures, 1));
+            }
+        };
+    }
+
+    private static TemplateSource templateSource(LuaValue definition, String owner, WorldGenKey key)
+            throws IOException {
+        LuaValue inline = definition.get("template");
+        LuaValue pathValue = definition.get("path");
+        if (!inline.isnil() && !pathValue.isnil()) {
+            throw new LuaError("Structure: path and template are mutually exclusive");
+        }
+        if (inline instanceof StructureBuilder.CompiledStructureValue) {
+            return new TemplateSource(((StructureBuilder.CompiledStructureValue) inline).template(),
+                    owner + ":inline structure " + key);
+        }
+        if (!inline.isnil()) {
+            if (!inline.istable()) {
+                throw new LuaError("Structure.template: expected a structure table or compiled structure");
+            }
+            StructureTemplate template = StructureTemplate.read(
+                    LuaStructureDocument.snapshot(inline, "Structure.template"));
+            return new TemplateSource(template, owner + ":inline structure " + key);
+        }
+        String path = pathValue.isnil() ? null : pathValue.checkjstring();
+        WorldGenDataResolver.ResolvedData data = WorldGenDataResolver.structure(owner, key, path);
+        return new TemplateSource(StructureTemplate.read(data.bytes), data.displayPath);
     }
 
     private static VarArgFunction addRegional(final LuaTable structures) {
@@ -124,15 +158,14 @@ public final class StructureGenApi {
                         "RegionalStructure.terminationChance", 0.0D, 1.0D);
                 LuaValue markers = definition.get("markers");
                 boolean entities = false;
-                boolean loot = false;
                 if (!markers.isnil()) {
                     FeaturePlacementApi.table(markers, "RegionalStructure.markers");
+                    fields(markers, "RegionalStructure.markers", "entities");
                     entities = markers.get("entities").optboolean(false);
-                    loot = markers.get("loot").optboolean(false);
                 }
                 WorldGenKey key = WorldGenRegistry.addRegionalStructure(declaredKey, start,
                         dimensions(definition.get("dimensions")), spacing, separation, salt, height.type,
-                        height.value, maxDepth, maxPieces, maxDistance, termination, entities, loot,
+                        height.value, maxDepth, maxPieces, maxDistance, termination, entities,
                         pieces(definition.get("pieces")), site, searchAttempts, searchRadius, connectorTolerance);
                 return new RegionalStructureReference(key);
             }
@@ -493,6 +526,16 @@ public final class StructureGenApi {
 
     private static int integer(LuaValue value, String path, int min, int max, int fallback) {
         return value.isnil() ? fallback : integer(value, path, min, max);
+    }
+
+    private static final class TemplateSource {
+        private final StructureTemplate template;
+        private final String displayPath;
+
+        private TemplateSource(StructureTemplate template, String displayPath) {
+            this.template = template;
+            this.displayPath = displayPath;
+        }
     }
 
     private static final class Height {

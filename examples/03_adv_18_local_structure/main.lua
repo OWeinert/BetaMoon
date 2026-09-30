@@ -4,6 +4,12 @@
 -- composed, attached to a biome decorator, or placed directly from a callback.
 
 function modInit()
+  -- Reusable loot tables live outside structure geometry. With no path override,
+  -- this key resolves assets/example/loot_tables/shrine_supplies.json.
+  betamoon.lootTables:add {
+    key = "example:shrine_supplies"
+  }
+
   local shrine = betamoon.worldgen.structures:add {
     key = "example:structure/tutorial_shrine",
     -- With no path override, the key above resolves to:
@@ -16,17 +22,23 @@ function modInit()
       mode = "foundation",
       surface = "solid_surface",
       anchor = "median",
-      maxSlope = 3,
-      maxStep = 2,
+      maxSlope = 1,
+      maxStep = 0,
+      -- Replace the sampled top terrain layer with the shrine floor.
+      verticalOffset = -1,
       maxFoundationDepth = 4,
       foundationBlock = 4
     },
     processors = {
-      -- Air is absent from the template and remains untouched. Decay is seeded,
-      -- so the same world seed and placement always produce the same ruin.
+      -- Air is absent from the template and remains untouched. The structure
+      -- JSON owns its seeded moss and decay processor pipeline.
       includeAir = false,
-      decay = 0.08,
+      -- tileCollision refers to placement collisions with TileEntities not normal blocks.
+      -- This can occure, for example, when a template gets placed multiple times during structure generation and one
+      -- placement would override a TileEntity block from a previous placement attempt.
       tileCollision = "reject",
+      -- This will reject placement of the structure if there is an attempt to place a block with unknown metadata set.
+      -- For example: A stone block can't have metadata, so the attempt to place a stone block with metadata 1 would be rejected.
       unknownMetadata = "reject"
     }
   }
@@ -36,10 +48,10 @@ function modInit()
     feature = shrine,
     stage = "surface_features",
     dimensions = { "overworld" },
-    -- Roughly one in sixteen chunks is eligible. In an eligible chunk, try four
+    -- Roughly one in sixty-four chunks is eligible. In an eligible chunk, try four
     -- footprint-safe grid positions and stop after placing the first shrine.
     -- This prevents one tree or patch of water from rejecting the whole chunk.
-    attempts = { perChunk = 4, rarity = 16 },
+    attempts = { perChunk = 4, rarity = 64 },
     successLimit = 1,
     position = {
       height = { type = "solid_surface" },

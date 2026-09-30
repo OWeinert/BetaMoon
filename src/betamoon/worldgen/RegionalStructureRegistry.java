@@ -190,15 +190,18 @@ final class RegionalStructureRegistry {
                 StructureTransform.Mirror.NONE);
         StructureFeature rootFeature = (StructureFeature) rootDefinition.feature;
         StructureFeature.RegionalPlacement rootPlacement = null;
+        long rootSeed = 0L;
         for (int attempt = 0; attempt < definition.siteSearchAttempts && rootPlacement == null; attempt++) {
             BlockPosition proposed = regionalOrigin(world, definition, candidate, attempt);
             if (proposed == null) {
                 continue;
             }
+            long attemptSeed = SeedMixer.derive(candidate.seed, attempt);
             StructureFeature.RegionalPlacement resolved = resolveRegional(world, definition, rootDefinition,
-                    rootFeature, proposed, rootTransform, SeedMixer.derive(candidate.seed, attempt));
+                    rootFeature, proposed, rootTransform, attemptSeed);
             if (resolved.accepted && withinWorld(resolved.bounds)) {
                 rootPlacement = resolved;
+                rootSeed = attemptSeed;
             }
         }
         if (rootPlacement == null) {
@@ -207,7 +210,6 @@ final class RegionalStructureRegistry {
         BlockPosition start = rootPlacement.origin;
         StructureFeature.Bounds rootBounds = rootPlacement.bounds;
         List<RegionalStructurePlan.Piece> pieces = new ArrayList<RegionalStructurePlan.Piece>();
-        long rootSeed = SeedMixer.derive(candidate.seed, 0L);
         RegionalStructurePlan.Piece root = new RegionalStructurePlan.Piece(definition.startFeature, start,
                 rootTransform, rootSeed, 0, rootBounds, rootFeature.generationSignature(),
                 terrainChanges(world, rootPlacement), rootPlacement.conformOffsets);
@@ -219,7 +221,7 @@ final class RegionalStructureRegistry {
 
         Deque<OpenConnector> open = new ArrayDeque<OpenConnector>();
         for (StructureFeature.Connector connector : rootFeature.connectors(start, rootTransform,
-                rootPlacement.conformOffsets)) {
+                rootPlacement.conformOffsets, rootSeed)) {
             open.addLast(new OpenConnector(connector, 1));
         }
         while (!open.isEmpty() && pieces.size() < definition.maxPieces) {
@@ -236,14 +238,13 @@ final class RegionalStructureRegistry {
                 continue;
             }
             StructureFeature feature = structureFeature(attachment.choice.feature);
-            long pieceSeed = SeedMixer.derive(candidate.seed, pieces.size());
             RegionalStructurePlan.Piece piece = new RegionalStructurePlan.Piece(attachment.choice.feature,
-                    attachment.origin, attachment.transform, pieceSeed, parent.depth, attachment.bounds,
+                    attachment.origin, attachment.transform, attachment.seed, parent.depth, attachment.bounds,
                     feature.generationSignature(), attachment.terrainChanges, attachment.conformOffsets);
             pieces.add(piece);
             terrainChangeCount += attachment.terrainChanges.size();
             for (StructureFeature.Connector connector : feature.connectors(attachment.origin,
-                    attachment.transform, attachment.conformOffsets)) {
+                    attachment.transform, attachment.conformOffsets, attachment.seed)) {
                 if (sameConnector(connector, attachment.usedConnector)) {
                     continue;
                 }
@@ -270,8 +271,9 @@ final class RegionalStructureRegistry {
             }
             for (StructureTransform.Rotation rotation : StructureTransform.Rotation.values()) {
                 StructureTransform transform = new StructureTransform(rotation, StructureTransform.Mirror.NONE);
+                long pieceSeed = random.nextLong();
                 for (StructureFeature.Connector relative : feature.connectors(new BlockPosition(0, 0, 0),
-                        transform)) {
+                        transform, Collections.<StructureFeature.ConformOffset>emptyList(), pieceSeed)) {
                     if (!relative.pool.equals(parent.pool) || relative.facing != parent.facing.opposite()) {
                         continue;
                     }
@@ -279,7 +281,7 @@ final class RegionalStructureRegistry {
                             parent.position.y - relative.position.y, targetZ - relative.position.z);
                     FeatureDefinition featureDefinition = FeaturePlacementRegistry.findFeature(choice.feature);
                     StructureFeature.RegionalPlacement placement = resolveRegional(world, definition,
-                            featureDefinition, feature, origin, transform, random.nextLong());
+                            featureDefinition, feature, origin, transform, pieceSeed);
                     if (!placement.accepted
                             || Math.abs(placement.origin.y - origin.y) > definition.connectorVerticalTolerance) {
                         continue;
@@ -290,11 +292,11 @@ final class RegionalStructureRegistry {
                         continue;
                     }
                     StructureFeature.Connector used = matchingConnector(feature, placement.origin, transform,
-                            relative, placement.conformOffsets);
+                            relative, placement.conformOffsets, pieceSeed);
                     if (Math.abs(used.position.y - parent.position.y) > definition.connectorVerticalTolerance) {
                         continue;
                     }
-                    candidates.add(new Attachment(choice, placement.origin, transform, bounds, used,
+                    candidates.add(new Attachment(choice, placement.origin, transform, pieceSeed, bounds, used,
                             terrainChanges(world, placement), placement.conformOffsets));
                 }
             }
@@ -318,8 +320,9 @@ final class RegionalStructureRegistry {
 
     private static StructureFeature.Connector matchingConnector(StructureFeature feature, BlockPosition origin,
             StructureTransform transform, StructureFeature.Connector relative,
-            List<StructureFeature.ConformOffset> conformOffsets) {
-        for (StructureFeature.Connector connector : feature.connectors(origin, transform, conformOffsets)) {
+            List<StructureFeature.ConformOffset> conformOffsets, long pieceSeed) {
+        for (StructureFeature.Connector connector : feature.connectors(origin, transform, conformOffsets,
+                pieceSeed)) {
             if (connector.pool.equals(relative.pool) && connector.facing == relative.facing
                     && connector.position.x - origin.x == relative.position.x
                     && connector.position.z - origin.z == relative.position.z) {
@@ -370,7 +373,7 @@ final class RegionalStructureRegistry {
             BlockPosition origin, StructureTransform transform, long seed) {
         FeatureContext context = new FeatureContext(world, new Random(seed), featureDefinition.key,
                 Math.max(4096, feature.maximumReads()), null, FeatureOptions.DEFAULT, definition.site);
-        return feature.resolveRegional(context, origin, transform, definition.site);
+        return feature.resolveRegional(context, origin, transform, definition.site, seed);
     }
 
     private static List<RegionalStructurePlan.Piece.TerrainChange> terrainChanges(World world,
@@ -479,7 +482,7 @@ final class RegionalStructureRegistry {
                         return;
                     }
                 }
-                FeatureResult result = changes.size() == 0 ? FeatureResult.placed(0, null, null)
+                FeatureResult result = !changes.hasPlannedChanges() ? FeatureResult.placed(0, null, null)
                         : changes.commit(context);
                 if (!result.placed) {
                     reject(definition.key, result.reason);
@@ -667,7 +670,7 @@ final class RegionalStructureRegistry {
 
         private static void validateMarkers(RegionalStructureDefinition definition, StructureFeature feature) {
             try {
-                RegionalStructureMarkers.validate(feature, definition.entityMarkers, definition.lootMarkers);
+                RegionalStructureMarkers.validate(feature, definition.entityMarkers);
             } catch (IllegalArgumentException error) {
                 throw new LuaError("Regional structure " + definition.key + ": " + error.getMessage());
             }
@@ -784,19 +787,21 @@ final class RegionalStructureRegistry {
         private final RegionalStructureDefinition.PieceChoice choice;
         private final BlockPosition origin;
         private final StructureTransform transform;
+        private final long seed;
         private final StructureFeature.Bounds bounds;
         private final StructureFeature.Connector usedConnector;
         private final List<RegionalStructurePlan.Piece.TerrainChange> terrainChanges;
         private final List<StructureFeature.ConformOffset> conformOffsets;
 
         private Attachment(RegionalStructureDefinition.PieceChoice choice, BlockPosition origin,
-                StructureTransform transform, StructureFeature.Bounds bounds,
+                StructureTransform transform, long seed, StructureFeature.Bounds bounds,
                 StructureFeature.Connector usedConnector,
                 List<RegionalStructurePlan.Piece.TerrainChange> terrainChanges,
                 List<StructureFeature.ConformOffset> conformOffsets) {
             this.choice = choice;
             this.origin = origin;
             this.transform = transform;
+            this.seed = seed;
             this.bounds = bounds;
             this.usedConnector = usedConnector;
             this.terrainChanges = terrainChanges;

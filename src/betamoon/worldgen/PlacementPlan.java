@@ -1,5 +1,6 @@
 package betamoon.worldgen;
 
+import betamoon.loot.InventoryLootOperation;
 import betamoon.tileentity.LuaTileEntity;
 import betamoon.tileentity.TileEntityRegistry;
 import java.util.ArrayList;
@@ -7,6 +8,9 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import net.minecraft.src.IInventory;
+import net.minecraft.src.ItemStack;
+import net.minecraft.src.NBTTagCompound;
 import net.minecraft.src.TileEntity;
 import net.minecraft.src.World;
 import org.luaj.vm2.LuaValue;
@@ -17,6 +21,8 @@ public final class PlacementPlan {
     private final int maxBlocks;
     private final int maxRadius;
     private final Map<BlockPosition, Change> changes = new LinkedHashMap<BlockPosition, Change>();
+    private final Map<BlockPosition, InventoryLootOperation> inventoryLoot =
+            new LinkedHashMap<BlockPosition, InventoryLootOperation>();
     private String failure;
 
     public PlacementPlan(BlockPosition origin, int maxBlocks, int maxRadius) {
@@ -74,6 +80,33 @@ public final class PlacementPlan {
         return failure;
     }
 
+    public boolean addInventoryLoot(int x, int y, int z, InventoryLootOperation operation) {
+        if (failure != null) {
+            return false;
+        }
+        if (operation == null || y < WorldGenLimits.MIN_HEIGHT || y > WorldGenLimits.MAX_HEIGHT
+                || Math.abs(x - origin.x) > maxRadius || Math.abs(y - origin.y) > maxRadius
+                || Math.abs(z - origin.z) > maxRadius) {
+            failure = FeatureResult.OUT_OF_BOUNDS;
+            return false;
+        }
+        BlockPosition position = new BlockPosition(x, y, z);
+        if (inventoryLoot.containsKey(position)) {
+            failure = FeatureResult.BLOCKED;
+            return false;
+        }
+        inventoryLoot.put(position, operation);
+        return true;
+    }
+
+    public int inventoryOperationCount() {
+        return inventoryLoot.size();
+    }
+
+    public boolean hasPlannedChanges() {
+        return !changes.isEmpty() || !inventoryLoot.isEmpty();
+    }
+
     public int size() {
         return changes.size();
     }
@@ -106,7 +139,7 @@ public final class PlacementPlan {
         if (context.failure() != null) {
             return FeatureResult.rejected(context.failure());
         }
-        if (changes.isEmpty()) {
+        if (changes.isEmpty() && inventoryLoot.isEmpty()) {
             return FeatureResult.rejected(FeatureResult.NO_CHANGES);
         }
 
@@ -120,9 +153,16 @@ public final class PlacementPlan {
             }
             originals.add(new Original(change.position, world.getBlockId(change.position.x, change.position.y,
                     change.position.z), world.getBlockMetadata(change.position.x, change.position.y,
-                            change.position.z)));
+                            change.position.z), tileData(world, change.position)));
             min = min(min, change.position);
             max = max(max, change.position);
+        }
+        for (BlockPosition position : inventoryLoot.keySet()) {
+            if (!world.blockExists(position.x, position.y, position.z)) {
+                return FeatureResult.rejected(FeatureResult.UNLOADED_CHUNK);
+            }
+            min = min(min, position);
+            max = max(max, position);
         }
 
         int committed = 0;
@@ -153,6 +193,31 @@ public final class PlacementPlan {
             rollback(world, originals, committed);
             return FeatureResult.rejected(FeatureResult.BLOCKED);
         }
+        List<InventoryOriginal> inventoryOriginals = new ArrayList<InventoryOriginal>();
+        try {
+            for (BlockPosition position : inventoryLoot.keySet()) {
+                TileEntity tile = world.getBlockTileEntity(position.x, position.y, position.z);
+                if (!(tile instanceof IInventory)) {
+                    restoreInventories(inventoryOriginals);
+                    rollback(world, originals, committed);
+                    return FeatureResult.rejected(FeatureResult.LOOT_TARGET_MISSING);
+                }
+                inventoryOriginals.add(new InventoryOriginal((IInventory) tile));
+            }
+            int index = 0;
+            for (InventoryLootOperation operation : inventoryLoot.values()) {
+                InventoryLootOperation.Result result = operation.apply(inventoryOriginals.get(index++).inventory);
+                if (result != InventoryLootOperation.Result.APPLIED) {
+                    restoreInventories(inventoryOriginals);
+                    rollback(world, originals, committed);
+                    return FeatureResult.rejected(lootFailure(result));
+                }
+            }
+        } catch (RuntimeException error) {
+            restoreInventories(inventoryOriginals);
+            rollback(world, originals, committed);
+            return FeatureResult.rejected(FeatureResult.LOOT_MUTATION_FAILED);
+        }
         if (publishUpdates) {
             publishUpdates(world);
         }
@@ -167,7 +232,7 @@ public final class PlacementPlan {
         if (context.failure() != null) {
             return FeatureResult.rejected(context.failure());
         }
-        if (changes.isEmpty()) {
+        if (changes.isEmpty() && inventoryLoot.isEmpty()) {
             return FeatureResult.rejected(FeatureResult.NO_CHANGES);
         }
         BlockPosition min = null;
@@ -179,6 +244,13 @@ public final class PlacementPlan {
             min = min(min, change.position);
             max = max(max, change.position);
         }
+        for (BlockPosition position : inventoryLoot.keySet()) {
+            if (!context.world().blockExists(position.x, position.y, position.z)) {
+                return FeatureResult.rejected(FeatureResult.UNLOADED_CHUNK);
+            }
+            min = min(min, position);
+            max = max(max, position);
+        }
         return FeatureResult.placed(changes.size(), min, max, context.diagnostics());
     }
 
@@ -187,7 +259,53 @@ public final class PlacementPlan {
             Original original = originals.get(index);
             world.setBlockAndMetadata(original.position.x, original.position.y, original.position.z, original.blockId,
                     original.metadata);
+            if (original.tileData != null) {
+                TileEntity tile = TileEntity.createAndLoadEntity(original.tileData);
+                if (tile != null) {
+                    world.setBlockTileEntity(original.position.x, original.position.y, original.position.z, tile);
+                }
+            }
         }
+    }
+
+    private static NBTTagCompound tileData(World world, BlockPosition position) {
+        TileEntity tile = world.getBlockTileEntity(position.x, position.y, position.z);
+        if (tile == null) {
+            return null;
+        }
+        try {
+            NBTTagCompound data = new NBTTagCompound();
+            tile.writeToNBT(data);
+            return data;
+        } catch (RuntimeException error) {
+            return null;
+        }
+    }
+
+    private static void restoreInventories(List<InventoryOriginal> originals) {
+        for (InventoryOriginal original : originals) {
+            for (int slot = 0; slot < original.contents.length; slot++) {
+                original.inventory.setInventorySlotContents(slot, copy(original.contents[slot]));
+            }
+            original.inventory.onInventoryChanged();
+        }
+    }
+
+    private static String lootFailure(InventoryLootOperation.Result result) {
+        if (result == InventoryLootOperation.Result.INCOMPATIBLE_SIZE) {
+            return FeatureResult.LOOT_INVENTORY_SIZE;
+        }
+        if (result == InventoryLootOperation.Result.EXISTING_CONTENTS) {
+            return FeatureResult.LOOT_EXISTING_CONTENTS;
+        }
+        if (result == InventoryLootOperation.Result.OVERFLOW) {
+            return FeatureResult.LOOT_OVERFLOW;
+        }
+        return FeatureResult.LOOT_MUTATION_FAILED;
+    }
+
+    private static ItemStack copy(ItemStack stack) {
+        return stack == null ? null : new ItemStack(stack.itemID, stack.stackSize, stack.getItemDamage());
     }
 
     private void publishUpdates(World world) {
@@ -227,11 +345,26 @@ public final class PlacementPlan {
         private final BlockPosition position;
         private final int blockId;
         private final int metadata;
+        private final NBTTagCompound tileData;
 
-        private Original(BlockPosition position, int blockId, int metadata) {
+        private Original(BlockPosition position, int blockId, int metadata, NBTTagCompound tileData) {
             this.position = position;
             this.blockId = blockId;
             this.metadata = metadata;
+            this.tileData = tileData;
+        }
+    }
+
+    private static final class InventoryOriginal {
+        private final IInventory inventory;
+        private final ItemStack[] contents;
+
+        private InventoryOriginal(IInventory inventory) {
+            this.inventory = inventory;
+            contents = new ItemStack[inventory.getSizeInventory()];
+            for (int slot = 0; slot < contents.length; slot++) {
+                contents[slot] = copy(inventory.getStackInSlot(slot));
+            }
         }
     }
 

@@ -19,15 +19,28 @@ final class StructureTerrainMask {
     private final Set<Column> blend;
 
     StructureTerrainMask(StructureTemplate template) {
+        this(template.blocks, template.markers, template.palette, template.origin);
+    }
+
+    StructureTerrainMask(StructureTemplate.Resolved resolved, StructureTemplate template) {
+        this(resolved.blocks, resolved.markers, template.palette, template.origin);
+    }
+
+    private StructureTerrainMask(List<StructureTemplate.TemplateBlock> blocks,
+            List<StructureTemplate.Marker> markers, List<StructureTemplate.PaletteEntry> palette,
+            BlockPosition origin) {
         Map<Column, Integer> lowest = new LinkedHashMap<Column, Integer>();
-        for (StructureTemplate.TemplateBlock block : template.blocks) {
-            StructureTemplate.State state = template.palette.get(block.state).first();
-            if (state.blockId == 0) {
+        for (StructureTemplate.TemplateBlock block : blocks) {
+            boolean hasNonAirVariant = false;
+            for (StructureTemplate.State state : palette.get(block.state).states) {
+                hasNonAirVariant |= state.blockId != 0;
+            }
+            if (!hasNonAirVariant) {
                 continue;
             }
-            int x = block.position.x - template.origin.x;
-            int y = block.position.y - template.origin.y;
-            int z = block.position.z - template.origin.z;
+            int x = block.position.x - origin.x;
+            int y = block.position.y - origin.y;
+            int z = block.position.z - origin.z;
             Column column = new Column(x, z);
             Integer current = lowest.get(column);
             if (current == null || y < current.intValue()) {
@@ -39,10 +52,10 @@ final class StructureTerrainMask {
         Set<Column> ignores = new LinkedHashSet<Column>();
         Set<Column> conforms = new LinkedHashSet<Column>();
         Set<Column> blends = new LinkedHashSet<Column>();
-        for (StructureTemplate.Marker marker : template.markers) {
-            int x = marker.position.x - template.origin.x;
-            int y = marker.position.y - template.origin.y;
-            int z = marker.position.z - template.origin.z;
+        for (StructureTemplate.Marker marker : markers) {
+            int x = marker.position.x - origin.x;
+            int y = marker.position.y - origin.y;
+            int z = marker.position.z - origin.z;
             if (marker.name.equals("terrain_support")) {
                 supports.add(new BlockPosition(x, y, z));
             } else if (marker.name.equals("terrain_clearance")) {

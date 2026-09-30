@@ -24,7 +24,6 @@ public final class RegionalStructureDefinition {
     public final int maxDistance;
     public final double terminationChance;
     public final boolean entityMarkers;
-    public final boolean lootMarkers;
     public final List<PieceChoice> pieces;
     public final SitePolicy site;
     public final int siteSearchAttempts;
@@ -34,16 +33,16 @@ public final class RegionalStructureDefinition {
     public RegionalStructureDefinition(WorldGenKey key, WorldGenKey startFeature, String resourceOwner,
             String owner, String sourceLocation, Set<String> dimensions, int spacing, int separation, long salt,
             String heightType, int heightValue, int maxDepth, int maxPieces, int maxDistance,
-            double terminationChance, boolean entityMarkers, boolean lootMarkers, List<PieceChoice> pieces) {
+            double terminationChance, boolean entityMarkers, List<PieceChoice> pieces) {
         this(key, startFeature, resourceOwner, owner, sourceLocation, dimensions, spacing, separation, salt,
                 heightType, heightValue, maxDepth, maxPieces, maxDistance, terminationChance, entityMarkers,
-                lootMarkers, pieces, SitePolicy.ANY, 1, 0, 0);
+                pieces, SitePolicy.ANY, 1, 0, 0);
     }
 
     public RegionalStructureDefinition(WorldGenKey key, WorldGenKey startFeature, String resourceOwner,
             String owner, String sourceLocation, Set<String> dimensions, int spacing, int separation, long salt,
             String heightType, int heightValue, int maxDepth, int maxPieces, int maxDistance,
-            double terminationChance, boolean entityMarkers, boolean lootMarkers, List<PieceChoice> pieces,
+            double terminationChance, boolean entityMarkers, List<PieceChoice> pieces,
             SitePolicy site, int siteSearchAttempts, int siteSearchRadius, int connectorVerticalTolerance) {
         this.key = key;
         this.startFeature = startFeature;
@@ -61,7 +60,6 @@ public final class RegionalStructureDefinition {
         this.maxDistance = maxDistance;
         this.terminationChance = terminationChance;
         this.entityMarkers = entityMarkers;
-        this.lootMarkers = lootMarkers;
         this.pieces = Collections.unmodifiableList(new ArrayList<PieceChoice>(pieces));
         this.site = site == null ? SitePolicy.ANY : site;
         this.siteSearchAttempts = siteSearchAttempts;

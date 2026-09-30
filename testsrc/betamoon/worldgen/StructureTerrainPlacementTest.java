@@ -22,6 +22,7 @@ public final class StructureTerrainPlacementTest {
     }
 
     public static void main(String[] arguments) throws Exception {
+        verifySitePolicyActivation();
         TestWorld world = new TestWorld();
         for (int x = 0; x < 16; x++) {
             for (int z = 0; z < 16; z++) {
@@ -60,6 +61,35 @@ public final class StructureTerrainPlacementTest {
                 && world.getBlockId(5, 61, 4) == Block.stone.blockID
                 && ((Number) committedFoundation.details.get("resolvedAnchorY")).intValue() == 61,
                 "Foundation placement fills a low support column and keeps the structure rigid");
+
+        world.setBlockAndMetadata(8, 60, 8, Block.dirt.blockID, 0);
+        world.setBlockAndMetadata(9, 60, 8, 0, 0);
+        world.setBlockAndMetadata(9, 59, 8, 0, 0);
+        world.setBlockAndMetadata(9, 58, 8, Block.stone.blockID, 0);
+        TerrainPolicy embeddedFoundation = new TerrainPolicy(TerrainPolicy.Mode.FOUNDATION,
+                TerrainSurface.SOLID_SURFACE, TerrainPolicy.Anchor.MAXIMUM, 0.5D, 2, 2, 0.0D, -1,
+                Block.cobblestone.blockID, 0, 4, 0, 0, 0, 0, 1, 4);
+        StructureFeature embedded = feature(pair, embeddedFoundation);
+        SitePolicy embeddedLand = new SitePolicy(SitePolicy.Type.LAND_SURFACE,
+                SitePolicy.Scope.SUPPORT_FOOTPRINT, SitePolicy.Medium.ANY, 0, 127, 0, 127,
+                0.0D, 0.0D, 0.0D, 0, 127, null);
+        FeatureContext embeddedContext = context(world, 9L, embeddedLand);
+        PlacementPlan embeddedPlan = new PlacementPlan(new BlockPosition(8, 80, 8), 32, 32);
+        FeatureResult embeddedResult = embedded.plan(embeddedContext, new BlockPosition(8, 80, 8), embeddedPlan);
+        require(embeddedResult.placed
+                && embeddedPlan.contains(8, 60, 8)
+                && embeddedPlan.contains(9, 58, 8)
+                && embeddedPlan.contains(9, 59, 8)
+                && embeddedPlan.contains(9, 60, 8)
+                && ((Number) embeddedContext.diagnostics().get("resolvedAnchorY")).intValue() == 60,
+                "Negative foundation offsets embed the floor while low columns still receive support");
+        FeatureResult committedEmbedded = embeddedPlan.commit(embeddedContext);
+        require(committedEmbedded.placed
+                && world.getBlockId(8, 60, 8) == Block.stone.blockID
+                && world.getBlockId(9, 58, 8) == Block.cobblestone.blockID
+                && world.getBlockId(9, 59, 8) == Block.cobblestone.blockID
+                && world.getBlockId(9, 60, 8) == Block.stone.blockID,
+                "Embedded floors replace terrain and shift their generated foundation by the same offset");
 
         StructureFeature exact = feature(template(1), TerrainPolicy.EXACT);
         SitePolicy land = new SitePolicy(SitePolicy.Type.LAND_SURFACE, SitePolicy.Scope.SUPPORT_FOOTPRINT,
@@ -117,6 +147,19 @@ public final class StructureTerrainPlacementTest {
         System.out.println("Structure terrain placement checks passed.");
     }
 
+    private static void verifySitePolicyActivation() {
+        require(!SitePolicy.ANY.active(), "The unconstrained any-site policy remains inactive");
+        require(new SitePolicy(SitePolicy.Type.ANY, SitePolicy.Scope.ORIGIN, SitePolicy.Medium.ANY,
+                1, 127, 0, 127, 0.0D, 1.0D, 0.0D, 0, 127, null).active(),
+                "Depth constraints activate an any-site policy");
+        require(new SitePolicy(SitePolicy.Type.ANY, SitePolicy.Scope.SUPPORT_FOOTPRINT, SitePolicy.Medium.ANY,
+                0, 127, 0, 127, 0.25D, 1.0D, 0.0D, 0, 127, null).active(),
+                "Fluid coverage constraints activate an any-site policy");
+        require(new SitePolicy(SitePolicy.Type.ANY, SitePolicy.Scope.CLEARANCE_MASK, SitePolicy.Medium.ANY,
+                0, 127, 0, 127, 0.0D, 1.0D, 0.75D, 0, 127, null).active(),
+                "Existing-air constraints activate an any-site policy");
+    }
+
     private static StructureFeature feature(StructureTemplate template, TerrainPolicy terrain) {
         return new StructureFeature(template, "memory:terrain.json", "none", "none",
                 new StructureProcessors(false, Collections.<Integer, Integer>emptyMap(), 0.0D, null, "reject",
@@ -129,19 +172,21 @@ public final class StructureTerrainPlacementTest {
             if (x > 0) {
                 blocks.append(',');
             }
-            blocks.append("{\"pos\":[").append(x).append(",0,0],\"state\":0}");
+            blocks.append("{\"type\":\"block\",\"pos\":[").append(x)
+                    .append(",0,0],\"state\":\"stone\"}");
         }
-        return StructureTemplate.read(("{\"format\":\"betamoon_structure\",\"size\":[" + width
-                + ",1,1],\"origin\":[0,0,0],\"palette\":[{\"block\":\"minecraft:stone\"}],\"blocks\":["
+        return StructureTemplate.read(("{\"format\":\"betamoon_structure\","
+                + "\"palette\":{\"stone\":{\"block\":\"minecraft:stone\"}},\"elements\":["
                 + blocks + "]}").getBytes(StandardCharsets.UTF_8));
     }
 
     private static StructureTemplate conformTemplate() throws Exception {
-        return StructureTemplate.read(("{\"format\":\"betamoon_structure\",\"size\":[2,1,1],"
-                + "\"origin\":[0,0,0],\"palette\":[{\"block\":\"minecraft:stone\"}],"
-                + "\"blocks\":[{\"pos\":[0,0,0],\"state\":0},{\"pos\":[1,0,0],\"state\":0}],"
-                + "\"markers\":[{\"pos\":[0,0,0],\"name\":\"terrain_conform\"},"
-                + "{\"pos\":[1,0,0],\"name\":\"terrain_conform\"}]}")
+        return StructureTemplate.read(("{\"format\":\"betamoon_structure\","
+                + "\"palette\":{\"stone\":{\"block\":\"minecraft:stone\"}},"
+                + "\"elements\":[{\"type\":\"block\",\"pos\":[0,0,0],\"state\":\"stone\"},"
+                + "{\"type\":\"block\",\"pos\":[1,0,0],\"state\":\"stone\"},"
+                + "{\"type\":\"marker\",\"pos\":[0,0,0],\"name\":\"terrain_conform\"},"
+                + "{\"type\":\"marker\",\"pos\":[1,0,0],\"name\":\"terrain_conform\"}]}")
                 .getBytes(StandardCharsets.UTF_8));
     }
 

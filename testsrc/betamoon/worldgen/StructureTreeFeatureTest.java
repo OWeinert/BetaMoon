@@ -24,11 +24,13 @@ public final class StructureTreeFeatureTest {
     public static void main(String[] arguments) throws Exception {
         require(Block.stone != null, "Vanilla blocks are initialized");
         StructureTemplate template = StructureTemplate.read(("{"
-                + "\"format\":\"betamoon_structure\",\"size\":[3,2,2],\"origin\":[1,0,0],"
-                + "\"palette\":[{\"block\":\"minecraft:stone\",\"meta\":0},"
-                + "{\"variants\":[{\"block\":3,\"weight\":2},{\"block\":4,\"weight\":1}]}],"
-                + "\"blocks\":[{\"pos\":[1,0,0],\"state\":0},{\"pos\":[2,1,1],\"state\":1}],"
-                + "\"markers\":[{\"pos\":[1,0,0],\"name\":\"loot\",\"value\":\"test:ruin\"}]}"
+                + "\"format\":\"betamoon_structure\","
+                + "\"palette\":{\"stone\":{\"block\":\"minecraft:stone\",\"meta\":0},"
+                + "\"mixed\":{\"variants\":[{\"block\":3,\"weight\":2},{\"block\":4,\"weight\":1}]}},"
+                + "\"elements\":[{\"type\":\"block\",\"pos\":[0,0,0],\"state\":\"stone\"},"
+                + "{\"type\":\"block\",\"pos\":[1,1,1],\"state\":\"mixed\"},"
+                + "{\"type\":\"marker\",\"pos\":[0,0,0],\"name\":\"test_point\","
+                + "\"value\":\"test:ruin\"}]}"
                 ).getBytes(StandardCharsets.UTF_8));
         require(template.blocks.size() == 2 && template.markers.size() == 1,
                 "Readable palette blocks and markers parse");

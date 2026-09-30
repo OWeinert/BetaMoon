@@ -1,56 +1,24 @@
 {
   "format": "betamoon_structure",
-  "size": [5, 3, 5],
-  "origin": [0, 0, 2],
-  "palette": [
-    {
-      "variants": [
-        { "block": 4, "weight": 2 },
-        { "block": 48, "weight": 1 }
-      ]
-    },
-    { "block": 89 }
+  "palette": {
+    "stone": { "variants": [{ "block": 4, "weight": 2 }, { "block": 48, "weight": 1 }] },
+    "lamp": { "block": 89 }
+  },
+  "templates": {
+    "pillar": { "elements": [{ "type": "fill", "from": [0, 1, 0], "to": [0, 2, 0], "state": "stone" }] }
+  },
+  "elements": [
+    { "type": "fill", "from": [0, 0, -2], "to": [4, 0, 2], "state": "stone", "tags": ["foundation"] },
+    { "type": "block", "pos": [2, 0, 0], "state": "lamp", "write": "replace" },
+    { "type": "array", "template": "pillar", "at": [0, 0, -2], "count": [2, 1, 2], "step": [4, 0, 4] },
+    { "type": "marker", "pos": [0, 0, 0], "name": "connector", "value": { "pool": "path", "facing": "west" } }
   ],
-  "blocks": [
-    { "pos": [0, 0, 0], "state": 0 },
-    { "pos": [1, 0, 0], "state": 0 },
-    { "pos": [2, 0, 0], "state": 0 },
-    { "pos": [3, 0, 0], "state": 0 },
-    { "pos": [4, 0, 0], "state": 0 },
-    { "pos": [0, 0, 1], "state": 0 },
-    { "pos": [1, 0, 1], "state": 0 },
-    { "pos": [2, 0, 1], "state": 0 },
-    { "pos": [3, 0, 1], "state": 0 },
-    { "pos": [4, 0, 1], "state": 0 },
-    { "pos": [0, 0, 2], "state": 0 },
-    { "pos": [1, 0, 2], "state": 0 },
-    { "pos": [2, 0, 2], "state": 1 },
-    { "pos": [3, 0, 2], "state": 0 },
-    { "pos": [4, 0, 2], "state": 0 },
-    { "pos": [0, 0, 3], "state": 0 },
-    { "pos": [1, 0, 3], "state": 0 },
-    { "pos": [2, 0, 3], "state": 0 },
-    { "pos": [3, 0, 3], "state": 0 },
-    { "pos": [4, 0, 3], "state": 0 },
-    { "pos": [0, 0, 4], "state": 0 },
-    { "pos": [1, 0, 4], "state": 0 },
-    { "pos": [2, 0, 4], "state": 0 },
-    { "pos": [3, 0, 4], "state": 0 },
-    { "pos": [4, 0, 4], "state": 0 },
-    { "pos": [0, 1, 0], "state": 0 },
-    { "pos": [0, 2, 0], "state": 0 },
-    { "pos": [4, 1, 0], "state": 0 },
-    { "pos": [4, 2, 0], "state": 0 },
-    { "pos": [0, 1, 4], "state": 0 },
-    { "pos": [0, 2, 4], "state": 0 },
-    { "pos": [4, 1, 4], "state": 0 },
-    { "pos": [4, 2, 4], "state": 0 }
-  ],
-  "markers": [
+  "processors": [
     {
-      "pos": [0, 0, 2],
-      "name": "connector",
-      "value": { "pool": "path", "facing": "west" }
+      "type": "decay",
+      "key": "courtyard_decay",
+      "select": { "excludeTags": ["foundation"] },
+      "chance": 0.1
     }
   ]
 }

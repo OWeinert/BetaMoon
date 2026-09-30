@@ -179,7 +179,11 @@ public final class FeaturePlacementApi {
             metadata = metadata(definition.get("metadata"), "Feature.metadata");
             IntRange height = range(required(definition, "height"), "Feature.height", 1,
                     WorldGenLimits.MAX_FEATURE_RADIUS);
-            boolean downward = definition.get("direction").optjstring("up").equals("down");
+            String direction = definition.get("direction").optjstring("up");
+            if (!direction.equals("up") && !direction.equals("down")) {
+                throw new LuaError("Feature.direction: expected 'up' or 'down'");
+            }
+            boolean downward = direction.equals("down");
             BlockSet replace = definition.get("replace").isnil() ? new BlockSet(0)
                     : blocks(definition.get("replace"), "Feature.replace");
             feature = BuiltInFeatures.column(blockId, metadata, height, downward, replace);

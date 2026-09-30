@@ -125,7 +125,7 @@ and, where useful, organize private modules with `require`.
 | 15 | `03_adv_15_energy_network.lua` | GUI-guided generation, nearest-first flow, bounded rates, endpoint consumers, and adjacent cable grids |
 | 16 | `03_adv_16_wireless_trigger.lua` | Editable wireless channels, transmitter/receiver roles, retained state, and pulses |
 | 17 | `03_adv_17_world_service_and_data.lua` | Persistent per-world services and detached world, chunk, and player views |
-| 18 | `03_adv_18_local_structure/` | Packaged local JSON structure, palette variants, transforms, processors, and placement |
+| 18 | `03_adv_18_local_structure/` | Packaged local JSON structure, palette variants, transforms, processors, deterministic chest loot, and placement |
 | 19 | `03_adv_19_regional_structures/` | Connector-pool regional assembly and non-loading structure lookup |
 | 20 | `03_adv_20_complete_worldgen_pack/` | Modular surface, features, structure, biome decorators, and climate source |
 

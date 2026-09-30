@@ -1,44 +1,42 @@
 {
   "format": "betamoon_structure",
-  "size": [5, 2, 3],
-  "origin": [0, 0, 1],
-  "palette": [
-    {
+  "palette": {
+    "road": {
       "variants": [
         { "block": 4, "weight": 4 },
         { "block": 48, "weight": 1 }
-      ]
+      ],
+      "tags": ["structural", "weatherable"]
     }
+  },
+  "elements": [
+    { "type": "fill", "from": [0, 0, -1], "to": [4, 0, 1], "state": "road", "tags": ["foundation"] },
+    { "type": "block", "pos": [2, 1, -1], "state": "road" },
+    { "type": "block", "pos": [2, 1, 1], "state": "road" },
+    { "type": "marker", "pos": [0, 0, 0], "name": "connector", "value": { "pool": "path", "facing": "west" } },
+    { "type": "marker", "pos": [4, 0, 0], "name": "connector", "value": { "pool": "path", "facing": "east" } },
+    { "type": "marker", "pos": [0, 0, -1], "name": "terrain_conform" },
+    { "type": "marker", "pos": [0, 0, 0], "name": "terrain_conform" },
+    { "type": "marker", "pos": [0, 0, 1], "name": "terrain_conform" },
+    { "type": "marker", "pos": [1, 0, -1], "name": "terrain_conform" },
+    { "type": "marker", "pos": [1, 0, 0], "name": "terrain_conform" },
+    { "type": "marker", "pos": [1, 0, 1], "name": "terrain_conform" },
+    { "type": "marker", "pos": [2, 0, -1], "name": "terrain_conform" },
+    { "type": "marker", "pos": [2, 0, 0], "name": "terrain_conform" },
+    { "type": "marker", "pos": [2, 0, 1], "name": "terrain_conform" },
+    { "type": "marker", "pos": [3, 0, -1], "name": "terrain_conform" },
+    { "type": "marker", "pos": [3, 0, 0], "name": "terrain_conform" },
+    { "type": "marker", "pos": [3, 0, 1], "name": "terrain_conform" },
+    { "type": "marker", "pos": [4, 0, -1], "name": "terrain_conform" },
+    { "type": "marker", "pos": [4, 0, 0], "name": "terrain_conform" },
+    { "type": "marker", "pos": [4, 0, 1], "name": "terrain_conform" }
   ],
-  "blocks": [
-    { "pos": [0, 0, 0], "state": 0 },
-    { "pos": [0, 0, 1], "state": 0 },
-    { "pos": [0, 0, 2], "state": 0 },
-    { "pos": [1, 0, 0], "state": 0 },
-    { "pos": [1, 0, 1], "state": 0 },
-    { "pos": [1, 0, 2], "state": 0 },
-    { "pos": [2, 0, 0], "state": 0 },
-    { "pos": [2, 0, 1], "state": 0 },
-    { "pos": [2, 0, 2], "state": 0 },
-    { "pos": [3, 0, 0], "state": 0 },
-    { "pos": [3, 0, 1], "state": 0 },
-    { "pos": [3, 0, 2], "state": 0 },
-    { "pos": [4, 0, 0], "state": 0 },
-    { "pos": [4, 0, 1], "state": 0 },
-    { "pos": [4, 0, 2], "state": 0 },
-    { "pos": [2, 1, 0], "state": 0 },
-    { "pos": [2, 1, 2], "state": 0 }
-  ],
-  "markers": [
+  "processors": [
     {
-      "pos": [0, 0, 1],
-      "name": "connector",
-      "value": { "pool": "path", "facing": "west" }
-    },
-    {
-      "pos": [4, 0, 1],
-      "name": "connector",
-      "value": { "pool": "path", "facing": "east" }
+      "type": "decay",
+      "key": "road_decay",
+      "select": { "excludeTags": ["foundation"] },
+      "chance": 0.06
     }
   ]
 }

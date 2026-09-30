@@ -9,10 +9,12 @@ function modInit()
   local gate = betamoon.worldgen.structures:add {
     key = "example:structure/path_ruins_gate",
     rotation = "random_horizontal",
-    processors = { decay = 0.08 },
     terrain = {
       mode = "foundation",
       surface = "solid_surface",
+      -- Embed the authored floor in the sampled top terrain layer instead of
+      -- placing it in the air block immediately above the surface.
+      verticalOffset = -1,
       maxSlope = 4,
       maxFoundationDepth = 6,
       foundationBlock = 4
@@ -21,22 +23,24 @@ function modInit()
 
   local road = betamoon.worldgen.structures:add {
     key = "example:structure/path_ruins_road",
-    processors = { decay = 0.06 },
     terrain = {
-      mode = "foundation",
+      -- Every road-floor column carries a terrain_conform marker. Unlike the
+      -- rigid ruin pieces, this lets the route rise and fall with solid ground.
+      mode = "conform",
       surface = "solid_surface",
-      maxSlope = 4,
-      maxFoundationDepth = 6,
-      foundationBlock = 4
+      -- Each marked road-floor column replaces its local surface block.
+      verticalOffset = -1,
+      maxStep = 1,
+      maxConformDisplacement = 6
     }
   }
 
   local courtyard = betamoon.worldgen.structures:add {
     key = "example:structure/path_ruins_courtyard",
-    processors = { decay = 0.1 },
     terrain = {
       mode = "foundation",
       surface = "solid_surface",
+      verticalOffset = -1,
       maxSlope = 4,
       maxFoundationDepth = 6,
       foundationBlock = 4
@@ -45,10 +49,10 @@ function modInit()
 
   local crossroads = betamoon.worldgen.structures:add {
     key = "example:structure/path_ruins_crossroads",
-    processors = { decay = 0.05 },
     terrain = {
       mode = "foundation",
       surface = "solid_surface",
+      verticalOffset = -1,
       maxSlope = 4,
       maxFoundationDepth = 6,
       foundationBlock = 4
@@ -67,8 +71,8 @@ function modInit()
     -- tries a small deterministic set of positions in that same chunk only.
     site = { type = "land_surface", scope = "support_footprint" },
     siteSearch = { attempts = 8, radius = 7 },
-    -- Keep connected road floors aligned. Foundations handle depressions below
-    -- them without allowing a child piece to shift away from its connector.
+    -- Keep connected endpoints aligned. Conforming road connectors move with
+    -- their marked columns, so a mismatched endpoint rejects that candidate.
     connectorVerticalTolerance = 0,
     pieces = {
       -- Every choice in this pool must contain at least one connector marker

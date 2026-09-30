@@ -24,6 +24,8 @@ import betamoon.luaapi.item.ItemDefinition;
 import betamoon.luaapi.item.ItemApi;
 import betamoon.luaapi.item.ItemInteractionRouting;
 import betamoon.luaapi.item.LuaItemActionContext;
+import betamoon.loot.LootTableDefinition;
+import betamoon.loot.LootTableRegistry;
 import betamoon.luamodloader.LuaScriptErrors;
 import betamoon.luamodloader.LuaContentRegistry;
 import betamoon.luamodloader.LuaScriptRegistry;
@@ -33,7 +35,10 @@ import betamoon.wrappers.ItemWrapper;
 import java.io.File;
 import java.io.FileReader;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
 import net.minecraft.src.AxisAlignedBB;
 import net.minecraft.src.Block;
 import net.minecraft.src.Chunk;
@@ -72,6 +77,7 @@ public final class BlockItemApiTest {
         owner.setAccessible(true);
         owner.invoke(null, "block_item_api_test.lua");
         Globals lua = JsePlatform.standardGlobals();
+        verifyLootTableDrops(lua);
         verifyDisplayNameReload(lua);
         verifyTypedCallbackContracts(lua);
         verifyCallbackExecutionState(lua);
@@ -207,6 +213,55 @@ public final class BlockItemApiTest {
         verifyItemBehavior(lua, world, player);
         System.out.println(
                 "Block/item API checks passed: state, directional power, live access, shapes, use routing and food.");
+    }
+
+    private static void verifyLootTableDrops(Globals lua) throws Exception {
+        LootTableRegistry.clear();
+        try (LootTableRegistry.PublicationBatch batch = LootTableRegistry.beginPublication(
+                "block_item_api_test.lua", "Block/item test")) {
+            String json = "{\"format\":\"betamoon_loot_table\",\"pools\":[{"
+                    + "\"key\":\"main\",\"rolls\":1,\"entries\":[{\"type\":\"item\","
+                    + "\"stack\":{\"item\":263,\"count\":2}}]}]}";
+            LootTableRegistry.add("test:block_drops",
+                    LootTableDefinition.read(json.getBytes(StandardCharsets.UTF_8)), "memory:block_drops");
+            batch.validate();
+            batch.publish();
+        }
+
+        BlockDefinition registered = new BlockDefinition(lua.load(
+                "return {drops={table='test:block_drops'}}").call());
+        registered.drops.validateRegistered();
+        CountingRandom random = new CountingRandom();
+        List<ItemStack> first = registered.drops.sample(random, 1.0F);
+        List<ItemStack> second = registered.drops.sample(random, 1.0F);
+        require(random.longCalls == 2 && first.size() == 1 && second.size() == 1
+                && first.get(0).itemID == 263 && first.get(0).stackSize == 2,
+                "Registered block loot tables must resample from runtime RNG for every drop request");
+
+        BlockDefinition inline = new BlockDefinition(lua.load("return {drops={pools={{key='main',rolls=1,"
+                + "entries={{type='item',stack={item=264,count={min=1,max=1},damage=3}}}}}}}").call());
+        List<ItemStack> inlineDrops = inline.drops.sample(new Random(4L), 1.0F);
+        require(inlineDrops.size() == 1 && inlineDrops.get(0).itemID == 264
+                && inlineDrops.get(0).stackSize == 1 && inlineDrops.get(0).getItemDamage() == 3,
+                "Inline block loot pools must use loot-table item-stack definitions");
+
+        BlockDefinition legacy = new BlockDefinition(lua.load(
+                "return {drops={{item=331,min=2,max=2,chance=1,damage=0}}}").call());
+        List<ItemStack> legacyDrops = legacy.drops.sample(new Random(5L), 1.0F);
+        require(legacyDrops.size() == 1 && legacyDrops.get(0).itemID == 331
+                && legacyDrops.get(0).stackSize == 2,
+                "Legacy block drop lists must remain supported as shorthand");
+        LootTableRegistry.clear();
+    }
+
+    private static final class CountingRandom extends Random {
+        private int longCalls;
+
+        @Override
+        public long nextLong() {
+            longCalls++;
+            return longCalls * 104729L;
+        }
     }
 
     private static void verifyDisplayNameReload(Globals lua) {

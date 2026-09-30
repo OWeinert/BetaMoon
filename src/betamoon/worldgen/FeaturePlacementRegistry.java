@@ -67,6 +67,15 @@ final class FeaturePlacementRegistry {
 
     static synchronized void validateOwner(String resourceOwner, List<FeatureDefinition> ownerFeatures,
             List<PlacementDefinition> ownerPlacements, Set<WorldGenKey> ownerDecoratorTemplates) {
+        for (FeatureDefinition definition : ownerFeatures) {
+            if (definition.feature instanceof StructureFeature) {
+                try {
+                    ((StructureFeature) definition.feature).validateLootReferences();
+                } catch (java.io.IOException | IllegalStateException error) {
+                    throw new LuaError("Structure " + definition.key + ": " + error.getMessage());
+                }
+            }
+        }
         Snapshot candidate = ownerSnapshot(resourceOwner, ownerFeatures, ownerPlacements);
         for (WorldGenKey key : ownerDecoratorTemplates) {
             if (!candidate.placementsByKey.containsKey(key)) {

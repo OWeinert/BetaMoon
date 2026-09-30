@@ -59,7 +59,10 @@ public final class ChatApi {
     }
 
     private static void sendChat(String message) {
-        message = prefixMessage(message);
+        deliverChat(prefixMessage(message));
+    }
+
+    private static void deliverChat(String message) {
         try {
             Minecraft mc = ModLoader.getMinecraftInstance();
             if (mc != null && mc.thePlayer != null) {
@@ -126,12 +129,12 @@ public final class ChatApi {
     }
 
     private static void sendBroadcast(String message) {
-        message = prefixMessage(message);
-        if (tryServerBroadcast(message)) {
+        String prefixedMessage = prefixMessage(message);
+        if (tryServerBroadcast(prefixedMessage)) {
             return;
         }
         if (MinecraftUtils.isSingleplayerClient()) {
-            sendChat(message);
+            deliverChat(prefixedMessage);
         } else {
             LuaApiUtils.warn("Chat", "Broadcast unavailable: server not accessible.");
         }
@@ -169,7 +172,7 @@ public final class ChatApi {
     }
 
     private static String prefixMessage(String message) {
-        String scriptName = LuaScriptRegistry.getCurrentScriptFile();
+        String scriptName = LuaScriptRegistry.getCurrentScriptDisplayName();
         if (scriptName != null && !scriptName.trim().isEmpty()) {
             return "[" + scriptName + "]: " + message;
         }

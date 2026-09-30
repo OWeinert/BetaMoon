@@ -15,11 +15,19 @@ BetaMoon 0.8.0 expands world generation into a deterministic, reusable Lua API.
 ### Trees, structures, biomes, and surfaces
 
 - Add procedural, vanilla-adapter, and structure-authored trees.
-- Add validated JSON local structures with palettes, deterministic variants, transforms, processors, tile data,
-  metadata adapters, capture/export, and marker masks.
+- Add local structures from strict JSON, plain Lua tables, or a table-backed Lua builder, with named palettes,
+  deterministic variants and conditional geometry, compact shapes, reusable templates, ordered weathering processors,
+  transforms, tile data, metadata adapters, capture/export, and marker masks.
+- Protect tile-entity states, tile-data and loot targets, connectors, and terrain supports from document processors by
+  default, with `allowProtected` as an explicit opt-in override.
 - Add keyed biomes, reusable surface stacks, biome decorators, tags, climate biome sources, weather, and spawn lists.
 - Add persistent regional structures with random-spread starts, connector pools, weighted piece graphs, chunk-sliced
-  recovery, entity and loot markers, definition signatures, and location queries.
+  recovery, entity markers, definition signatures, and location queries.
+- Add reusable deterministic loot tables and dedicated structure loot elements with fixed, inline, or referenced
+  contents, item metadata and ranges, configurable insertion policies, and atomic inventory rollback for local and
+  regional placement.
+- Allow block and entity drops to reuse registered loot tables or declare the same weighted pools inline, with a fresh
+  runtime RNG sample for every drop event while preserving legacy drop lists as shorthand.
 
 ### Terrain-aware structures
 
@@ -31,3 +39,8 @@ BetaMoon 0.8.0 expands world generation into a deterministic, reusable Lua API.
 - Add bounded regional site fallback search, connector vertical tolerance, and persisted terrain mutations and
   conform offsets for deterministic recovery.
 - Add terrain planning details to direct placement and preview results, plus focused site and terrain rejection reasons.
+
+### Chat
+
+- Prefix script chat messages with the mod name declared by its metadata instead of its entrypoint filename, and avoid
+  applying the prefix twice when a singleplayer broadcast falls back to local chat.

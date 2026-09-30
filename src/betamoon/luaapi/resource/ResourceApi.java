@@ -11,6 +11,7 @@ import betamoon.luaapi.block.BlockDropDefinition;
 import betamoon.luaapi.block.BlockFireRegistration;
 import betamoon.luaapi.item.ItemCallbackOverrides;
 import betamoon.luaapi.item.ItemApi;
+import betamoon.luaapi.utils.LuaDataReference;
 import betamoon.minecraft.MinecraftBuiltins;
 import betamoon.luaapi.utils.LuaOverrideDefinition;
 import betamoon.luaapi.utils.LuaOverrideLayers;
@@ -1084,6 +1085,9 @@ public final class ResourceApi {
     }
 
     private static LuaValue copyLua(LuaValue value) {
+        if (value instanceof LuaDataReference) {
+            return value;
+        }
         if (!value.istable()) {
             return value;
         }

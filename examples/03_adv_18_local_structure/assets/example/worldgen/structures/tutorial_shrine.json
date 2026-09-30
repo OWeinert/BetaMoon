@@ -1,46 +1,60 @@
 {
   "format": "betamoon_structure",
-  "size": [5, 5, 5],
-  "origin": [2, 0, 2],
-  "palette": [
-    {
-      "variants": [
-        { "block": 4, "weight": 3 },
-        { "block": 48, "weight": 1 }
+  "palette": {
+    "stone": { "block": 4, "tags": ["structural", "weatherable"] },
+    "mossy_stone": { "block": 48, "tags": ["structural", "weatherable"] },
+    "lamp": { "block": 89, "tags": ["protected"] },
+    "chest": { "block": 54, "tags": ["protected"] }
+  },
+  "templates": {
+    "pillar": {
+      "elements": [
+        { "type": "fill", "from": [0, 1, 0], "to": [0, 3, 0], "state": "stone" }
       ]
+    }
+  },
+  "elements": [
+    { "type": "fill", "from": [-1, 0, -1], "to": [1, 0, 1], "state": "stone", "tags": ["foundation"] },
+    { "type": "block", "pos": [-2, 0, 0], "state": "stone", "tags": ["foundation"] },
+    { "type": "block", "pos": [2, 0, 0], "state": "stone", "tags": ["foundation"] },
+    { "type": "block", "pos": [0, 0, -2], "state": "stone", "tags": ["foundation"] },
+    { "type": "block", "pos": [0, 0, 2], "state": "stone", "tags": ["foundation"] },
+    { "type": "array", "template": "pillar", "at": [-1, 0, -1], "count": [2, 1, 2], "step": [2, 0, 2] },
+    { "type": "fill", "from": [0, 1, 0], "to": [0, 3, 0], "state": "stone" },
+    { "type": "block", "pos": [0, 4, 0], "state": "lamp" },
+    { "type": "block", "pos": [0, 1, 2], "state": "chest", "tags": ["protected"] },
+    {
+      "type": "loot",
+      "key": "shrine_supplies",
+      "pos": [0, 1, 2],
+      "table": "example:shrine_supplies"
+    }
+  ],
+  "processors": [
+    {
+      "type": "replace",
+      "key": "mossy_weathering",
+      "select": {
+        "states": ["stone"],
+        "tags": ["weatherable"]
+      },
+      "chance": 0.65,
+      "pattern": {
+        "type": "noise",
+        "scale": 3,
+        "threshold": 0.42
+      },
+      "with": "mossy_stone"
     },
-    { "block": 89 }
-  ],
-  "blocks": [
-    { "pos": [1, 0, 1], "state": 0 },
-    { "pos": [2, 0, 1], "state": 0 },
-    { "pos": [3, 0, 1], "state": 0 },
-    { "pos": [1, 0, 2], "state": 0 },
-    { "pos": [2, 0, 2], "state": 0 },
-    { "pos": [3, 0, 2], "state": 0 },
-    { "pos": [1, 0, 3], "state": 0 },
-    { "pos": [2, 0, 3], "state": 0 },
-    { "pos": [3, 0, 3], "state": 0 },
-    { "pos": [0, 0, 2], "state": 0 },
-    { "pos": [2, 0, 0], "state": 0 },
-    { "pos": [4, 0, 2], "state": 0 },
-    { "pos": [2, 0, 4], "state": 0 },
-
-    { "pos": [1, 1, 1], "state": 0 },
-    { "pos": [1, 2, 1], "state": 0 },
-    { "pos": [1, 3, 1], "state": 0 },
-    { "pos": [3, 1, 1], "state": 0 },
-    { "pos": [3, 2, 1], "state": 0 },
-    { "pos": [3, 3, 1], "state": 0 },
-    { "pos": [1, 1, 3], "state": 0 },
-    { "pos": [1, 2, 3], "state": 0 },
-    { "pos": [3, 1, 3], "state": 0 },
-    { "pos": [3, 2, 3], "state": 0 },
-
-    { "pos": [2, 1, 2], "state": 0 },
-    { "pos": [2, 2, 2], "state": 0 },
-    { "pos": [2, 3, 2], "state": 0 },
-    { "pos": [2, 4, 2], "state": 1 }
-  ],
-  "markers": []
+    {
+      "type": "decay",
+      "key": "missing_exposed_stones",
+      "select": {
+        "tags": ["weatherable"],
+        "excludeTags": ["foundation"],
+        "minExposedFaces": 2
+      },
+      "chance": 0.08
+    }
+  ]
 }

@@ -114,6 +114,26 @@ public final class StructureTransform {
         return rotation == Rotation.NONE && mirror == Mirror.NONE;
     }
 
+    /** Returns the transform that applies {@code inner} first and this transform second. */
+    public StructureTransform compose(StructureTransform inner) {
+        BlockPosition innerX = inner.apply(1, 0, 0);
+        BlockPosition innerZ = inner.apply(0, 0, 1);
+        BlockPosition composedX = apply(innerX.x, 0, innerX.z);
+        BlockPosition composedZ = apply(innerZ.x, 0, innerZ.z);
+        for (Rotation candidateRotation : Rotation.values()) {
+            for (Mirror candidateMirror : Mirror.values()) {
+                StructureTransform candidate = new StructureTransform(candidateRotation, candidateMirror);
+                BlockPosition candidateX = candidate.apply(1, 0, 0);
+                BlockPosition candidateZ = candidate.apply(0, 0, 1);
+                if (candidateX.x == composedX.x && candidateX.z == composedX.z
+                        && candidateZ.x == composedZ.x && candidateZ.z == composedZ.z) {
+                    return candidate;
+                }
+            }
+        }
+        throw new IllegalStateException("Horizontal structure transforms did not compose");
+    }
+
     public static StructureTransform select(String requestedRotation, String requestedMirror,
             String defaultRotation, String defaultMirror, Random random) {
         return new StructureTransform(rotation(requestedRotation == null ? defaultRotation : requestedRotation,

@@ -28,7 +28,6 @@ public final class StructureFeature implements WorldFeature {
     private final TerrainPolicy terrain;
     private final StructureTerrainMask terrainMask;
     private final List<Connector> connectors;
-    private final String generationSignature;
 
     public StructureFeature(StructureTemplate template, String assetSource, String defaultRotation,
             String defaultMirror, StructureProcessors processors) {
@@ -45,7 +44,6 @@ public final class StructureFeature implements WorldFeature {
         this.terrain = terrain == null ? TerrainPolicy.EXACT : terrain;
         terrainMask = new StructureTerrainMask(template);
         connectors = Collections.unmodifiableList(parseConnectors(template));
-        generationSignature = generationSignature(template, processors, this.terrain);
     }
 
     @Override
@@ -57,12 +55,21 @@ public final class StructureFeature implements WorldFeature {
         } catch (IllegalArgumentException error) {
             return FeatureResult.rejected(FeatureResult.BLOCKED);
         }
+        long placementSeed = context.random().nextLong();
+        StructureTemplate.Resolved resolved;
+        try {
+            resolved = template.resolve(placementSeed);
+        } catch (IllegalStateException error) {
+            return FeatureResult.rejected(FeatureResult.BLOCKED);
+        }
+        StructureTerrainMask resolvedTerrainMask = new StructureTerrainMask(resolved, template);
         StructureTerrainPlanner.Result placement = StructureTerrainPlanner.prepare(context, origin, transform,
-                terrain, context.sitePolicy(), terrainMask, bounds(new BlockPosition(0, 0, 0), transform), output);
+                terrain, context.sitePolicy(), resolvedTerrainMask,
+                bounds(new BlockPosition(0, 0, 0), transform), output);
         if (placement.failure != null) {
             return FeatureResult.rejected(placement.failure, context.diagnostics());
         }
-        return plan(context, placement.origin, output, transform, context.random(), null, false,
+        return plan(context, placement.origin, output, transform, resolved, placementSeed, false,
                 Integer.MIN_VALUE, Integer.MAX_VALUE, Integer.MIN_VALUE, Integer.MAX_VALUE,
                 placement.conformOffsets());
     }
@@ -78,25 +85,23 @@ public final class StructureFeature implements WorldFeature {
     public FeatureResult planChunk(FeatureContext context, BlockPosition origin, PlacementPlan output,
             StructureTransform transform, long pieceSeed, int chunkX, int chunkZ, boolean recovery,
             List<ConformOffset> conformOffsets) {
-        return plan(context, origin, output, transform, null, Long.valueOf(pieceSeed), recovery,
-                chunkX << 4, (chunkX << 4) + 15, chunkZ << 4, (chunkZ << 4) + 15, conformOffsets);
+        StructureTemplate.Resolved resolved;
+        try {
+            resolved = template.resolve(pieceSeed);
+        } catch (IllegalStateException error) {
+            return FeatureResult.rejected(FeatureResult.BLOCKED);
+        }
+        return plan(context, origin, output, transform, resolved, pieceSeed, recovery, chunkX << 4,
+                (chunkX << 4) + 15, chunkZ << 4, (chunkZ << 4) + 15, conformOffsets);
     }
 
     private FeatureResult plan(FeatureContext context, BlockPosition origin, PlacementPlan output,
-            StructureTransform transform, Random sharedRandom, Long deterministicSeed, boolean recovery) {
-        return plan(context, origin, output, transform, sharedRandom, deterministicSeed, recovery,
-                Integer.MIN_VALUE, Integer.MAX_VALUE, Integer.MIN_VALUE, Integer.MAX_VALUE, null);
-    }
-
-    private FeatureResult plan(FeatureContext context, BlockPosition origin, PlacementPlan output,
-            StructureTransform transform, Random sharedRandom, Long deterministicSeed, boolean recovery,
+            StructureTransform transform, StructureTemplate.Resolved resolved, long placementSeed, boolean recovery,
             int minX, int maxX, int minZ, int maxZ, List<ConformOffset> conformOffsets) {
-        Map<BlockPosition, Map<String, LuaValue>> markerData = markerData(transform);
+        Map<BlockPosition, Map<String, LuaValue>> markerData = markerData(resolved.markers);
         int before = output.size();
-        for (int index = 0; index < template.blocks.size(); index++) {
-            StructureTemplate.TemplateBlock block = template.blocks.get(index);
-            Random random = deterministicSeed == null ? sharedRandom
-                    : new Random(SeedMixer.derive(deterministicSeed.longValue(), index));
+        for (StructureTemplate.TemplateBlock block : resolved.blocks) {
+            Random random = new Random(blockSeed(placementSeed, block));
             StructureTemplate.State selected = template.palette.get(block.state).select(random);
             if (selected.blockId == 0 && !processors.includeAir) {
                 continue;
@@ -133,7 +138,8 @@ public final class StructureFeature implements WorldFeature {
             }
             int metadata;
             try {
-                metadata = BlockStateTransformRegistry.transform(blockId, selected.metadata, transform,
+                metadata = BlockStateTransformRegistry.transform(blockId, selected.metadata,
+                        transform.compose(block.localTransform),
                         processors.unknownMetadata, processors.metadataTransforms.get(Integer.valueOf(blockId)));
             } catch (IllegalArgumentException error) {
                 return FeatureResult.rejected(FeatureResult.BLOCKED);
@@ -147,6 +153,30 @@ public final class StructureFeature implements WorldFeature {
                 return FeatureResult.rejected(output.failure());
             }
         }
+        for (StructureLoot loot : resolved.loots) {
+            BlockPosition relative = transform.apply(loot.position.x - template.origin.x,
+                    loot.position.y - template.origin.y, loot.position.z - template.origin.z);
+            int conformOffset = conformOffset(conformOffsets, relative.x, relative.z);
+            int x = origin.x + relative.x;
+            int y = origin.y + relative.y + conformOffset;
+            int z = origin.z + relative.z;
+            if (x < minX || x > maxX || z < minZ || z > maxZ) {
+                continue;
+            }
+            if (!output.contains(x, y, z)) {
+                return FeatureResult.rejected(FeatureResult.BLOCKED);
+            }
+            long lootSeed = SeedMixer.derive(placementSeed,
+                    SeedMixer.hash(loot.key == null ? loot.semantics() : loot.key));
+            lootSeed = SeedMixer.derive(lootSeed, coordinateSeed(x, y, z));
+            try {
+                if (!output.addInventoryLoot(x, y, z, loot.plan(lootSeed))) {
+                    return FeatureResult.rejected(output.failure());
+                }
+            } catch (IllegalStateException error) {
+                return FeatureResult.rejected(FeatureResult.BLOCKED);
+            }
+        }
         int added = output.size() - before;
         return added == 0 ? FeatureResult.rejected(FeatureResult.NO_CHANGES)
                 : FeatureResult.placed(added, null, null);
@@ -155,9 +185,9 @@ public final class StructureFeature implements WorldFeature {
     public Bounds bounds(BlockPosition origin, StructureTransform transform) {
         BlockPosition min = null;
         BlockPosition max = null;
-        int[] xs = new int[]{-template.origin.x, template.sizeX - template.origin.x - 1};
-        int[] ys = new int[]{-template.origin.y, template.sizeY - template.origin.y - 1};
-        int[] zs = new int[]{-template.origin.z, template.sizeZ - template.origin.z - 1};
+        int[] xs = new int[]{template.minimum.x, template.maximum.x};
+        int[] ys = new int[]{template.minimum.y, template.maximum.y};
+        int[] zs = new int[]{template.minimum.z, template.maximum.z};
         for (int x : xs) {
             for (int y : ys) {
                 for (int z : zs) {
@@ -198,6 +228,18 @@ public final class StructureFeature implements WorldFeature {
 
     public List<Connector> connectors(BlockPosition origin, StructureTransform transform,
             List<ConformOffset> offsets) {
+        return positionedConnectors(connectors, origin, transform, offsets);
+    }
+
+    /** Resolves conditional connectors from the persisted regional piece seed. */
+    public List<Connector> connectors(BlockPosition origin, StructureTransform transform,
+            List<ConformOffset> offsets, long placementSeed) {
+        return positionedConnectors(parseConnectors(template.resolve(placementSeed).markers), origin, transform,
+                offsets);
+    }
+
+    private static List<Connector> positionedConnectors(List<Connector> connectors, BlockPosition origin,
+            StructureTransform transform, List<ConformOffset> offsets) {
         List<Connector> result = new ArrayList<Connector>();
         for (Connector connector : connectors) {
             BlockPosition relative = transform.apply(connector.position.x, connector.position.y,
@@ -231,7 +273,14 @@ public final class StructureFeature implements WorldFeature {
     }
 
     public String generationSignature() {
-        return generationSignature;
+        return generationSignature(template, processors, terrain);
+    }
+
+    /** Resolves every external/nested loot dependency while the publication batch is active. */
+    public void validateLootReferences() throws java.io.IOException {
+        for (StructureLoot loot : template.loots) {
+            loot.validateReferences();
+        }
     }
 
     public List<PositionedMarker> markers(BlockPosition origin, StructureTransform transform) {
@@ -240,10 +289,20 @@ public final class StructureFeature implements WorldFeature {
 
     public List<PositionedMarker> markers(BlockPosition origin, StructureTransform transform,
             List<ConformOffset> offsets) {
+        return positionedMarkers(template.markers, origin, transform, offsets);
+    }
+
+    /** Resolves placement-time marker variation using the same persisted seed as the piece blocks. */
+    public List<PositionedMarker> markers(BlockPosition origin, StructureTransform transform,
+            List<ConformOffset> offsets, long placementSeed) {
+        return positionedMarkers(template.resolve(placementSeed).markers, origin, transform, offsets);
+    }
+
+    private static List<PositionedMarker> positionedMarkers(List<StructureTemplate.Marker> markers,
+            BlockPosition origin, StructureTransform transform, List<ConformOffset> offsets) {
         List<PositionedMarker> result = new ArrayList<PositionedMarker>();
-        for (StructureTemplate.Marker marker : template.markers) {
-            BlockPosition relative = transform.apply(marker.position.x - template.origin.x,
-                    marker.position.y - template.origin.y, marker.position.z - template.origin.z);
+        for (StructureTemplate.Marker marker : markers) {
+            BlockPosition relative = transform.apply(marker.position.x, marker.position.y, marker.position.z);
             result.add(new PositionedMarker(origin.offset(relative.x,
                     relative.y + conformOffset(offsets, relative.x, relative.z), relative.z), marker.name,
                     marker.value));
@@ -252,8 +311,12 @@ public final class StructureFeature implements WorldFeature {
     }
 
     private static List<Connector> parseConnectors(StructureTemplate template) {
+        return parseConnectors(template.markers);
+    }
+
+    private static List<Connector> parseConnectors(List<StructureTemplate.Marker> markers) {
         List<Connector> result = new ArrayList<Connector>();
-        for (StructureTemplate.Marker marker : template.markers) {
+        for (StructureTemplate.Marker marker : markers) {
             if (!marker.name.equals("connector")) {
                 continue;
             }
@@ -269,8 +332,7 @@ public final class StructureFeature implements WorldFeature {
             if (!(facingValue instanceof String)) {
                 throw new IllegalArgumentException("connector marker facing must be north, east, south, or west");
             }
-            BlockPosition relative = new BlockPosition(marker.position.x - template.origin.x,
-                    marker.position.y - template.origin.y, marker.position.z - template.origin.z);
+            BlockPosition relative = marker.position;
             result.add(new Connector((String) poolValue, relative,
                     StructureTransform.Direction.parse((String) facingValue)));
             if (result.size() > 64) {
@@ -294,6 +356,10 @@ public final class StructureFeature implements WorldFeature {
                 : new TreeMap<Integer, CustomMetadataTransform>(processors.metadataTransforms).entrySet()) {
             canonical.append('|').append(entry.getKey()).append('=').append(entry.getValue().generationSignature());
         }
+        for (StructureLoot loot : template.loots) {
+            canonical.append("|loot=").append(loot.semantics()).append(':')
+                    .append(loot.dependencySignature());
+        }
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")
                     .digest(canonical.toString().getBytes("UTF-8"));
@@ -309,9 +375,9 @@ public final class StructureFeature implements WorldFeature {
         }
     }
 
-    private Map<BlockPosition, Map<String, LuaValue>> markerData(StructureTransform ignored) {
+    private Map<BlockPosition, Map<String, LuaValue>> markerData(List<StructureTemplate.Marker> markers) {
         Map<BlockPosition, Map<String, LuaValue>> result = new LinkedHashMap<BlockPosition, Map<String, LuaValue>>();
-        for (StructureTemplate.Marker marker : template.markers) {
+        for (StructureTemplate.Marker marker : markers) {
             if (!marker.name.equals("tile_data") && !marker.name.equals("data")) {
                 continue;
             }
@@ -321,6 +387,20 @@ public final class StructureFeature implements WorldFeature {
             result.put(marker.position, luaData(castMap(marker.value)));
         }
         return result;
+    }
+
+    private static long blockSeed(long placementSeed, StructureTemplate.TemplateBlock block) {
+        long coordinate = ((long) block.position.x & 0x1fffffL) << 42;
+        coordinate ^= ((long) block.position.y & 0x1fffffL) << 21;
+        coordinate ^= (long) block.position.z & 0x1fffffL;
+        return SeedMixer.derive(SeedMixer.derive(placementSeed, coordinate), block.state);
+    }
+
+    private static long coordinateSeed(int x, int y, int z) {
+        long coordinate = ((long) x & 0x1fffffL) << 42;
+        coordinate ^= ((long) y & 0x1fffffL) << 21;
+        coordinate ^= (long) z & 0x1fffffL;
+        return coordinate;
     }
 
     @SuppressWarnings("unchecked")
@@ -385,11 +465,24 @@ public final class StructureFeature implements WorldFeature {
     /** Resolves regional terrain once so later chunk recovery never resamples a partially generated site. */
     public RegionalPlacement resolveRegional(FeatureContext context, BlockPosition requestedOrigin,
             StructureTransform transform, SitePolicy site) {
+        return resolveRegional(context, requestedOrigin, transform, site, 0L);
+    }
+
+    /** Resolves regional terrain from the same deterministic seed later used for piece placement. */
+    public RegionalPlacement resolveRegional(FeatureContext context, BlockPosition requestedOrigin,
+            StructureTransform transform, SitePolicy site, long placementSeed) {
+        StructureTemplate.Resolved resolved;
+        try {
+            resolved = template.resolve(placementSeed);
+        } catch (IllegalStateException error) {
+            return RegionalPlacement.rejected(FeatureResult.BLOCKED);
+        }
+        StructureTerrainMask resolvedTerrainMask = new StructureTerrainMask(resolved, template);
         PlacementPlan terrainChanges = new PlacementPlan(requestedOrigin, maximumBlocks(),
                 Math.min(betamoon.worldgen.WorldGenLimits.MAX_FEATURE_RADIUS,
                         Math.max(1, extraRadius() + maximumTemplateRadius())));
         StructureTerrainPlanner.Result result = StructureTerrainPlanner.prepare(context, requestedOrigin, transform,
-                terrain, site, terrainMask, bounds(new BlockPosition(0, 0, 0), transform), terrainChanges);
+                terrain, site, resolvedTerrainMask, bounds(new BlockPosition(0, 0, 0), transform), terrainChanges);
         if (result.failure != null) {
             return RegionalPlacement.rejected(result.failure);
         }

@@ -3,6 +3,7 @@ package betamoon.luamodloader;
 import betamoon.BetaMoonCommon;
 
 import betamoon.io.IoUtils;
+import betamoon.luaapi.block.BlockCallbackRegistry;
 import betamoon.luaapi.module.ModuleRegistry;
 import betamoon.recipes.RecipeModificationHandler;
 import betamoon.tileentity.TileEntityRegistry;
@@ -11,6 +12,7 @@ import betamoon.entity.EntityPresentationResources;
 import betamoon.wrappers.BlockWrapper;
 import betamoon.worldgen.BiomeGenRegistry;
 import betamoon.worldgen.WorldGenRegistry;
+import betamoon.loot.LootTableRegistry;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -78,6 +80,7 @@ public final class LuaModLoader {
             presentScripts.add(mod.sourceFileName);
         }
         EntityTypeRegistry.retainOwners(presentScripts);
+        LootTableRegistry.retainOwners(presentScripts);
         WorldGenRegistry.retainOwners(presentScripts);
         BiomeGenRegistry.retainOwners(presentScripts);
         EntityPresentationResources.prune();
@@ -85,6 +88,7 @@ public final class LuaModLoader {
         reportLoadSummary(ordered, failedMods);
         BiomeGenRegistry.applyBiomeGenerators();
         List<String> dropErrors = new ArrayList<>();
+        BlockCallbackRegistry.validateDrops(dropErrors);
         BlockWrapper.validatePendingDrops(dropErrors);
         EntityTypeRegistry.validateDrops(dropErrors);
         if (!dropErrors.isEmpty()) {

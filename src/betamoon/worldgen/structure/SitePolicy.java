@@ -101,7 +101,12 @@ public final class SitePolicy {
     }
 
     public boolean active() {
-        return type != Type.ANY || medium != Medium.ANY || requireSky != null;
+        return type != Type.ANY || medium != Medium.ANY || minDepthBelowSurface != 0
+                || maxDepthBelowSurface != 127 || minFluidDepth != 0 || maxFluidDepth != 127
+                || Double.compare(minFluidCoverage, 0.0D) != 0
+                || Double.compare(maxFluidCoverage, 1.0D) != 0
+                || Double.compare(minExistingAirRatio, 0.0D) != 0 || minSolidCover != 0
+                || maxSolidCover != 127 || requireSky != null;
     }
 
     public String signature() {
