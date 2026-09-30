@@ -24,12 +24,67 @@ public final class ClientControlHook implements HookModule {
     @Override
     public void register(HookRegistrar registrar) {
         registerInputTick(registrar);
+        registerQueuedInput(registrar);
+        registerGuiConsumption(registrar);
         registerKeyForwarding(registrar);
         registerMovementIntent(registrar);
         registerLookApplication(registrar);
         registerActions(registrar);
         registerTargeting(registrar);
         registerCamera(registrar);
+    }
+
+    private static void registerGuiConsumption(HookRegistrar registrar) {
+        ClassRef gui = new ClassRef("net/minecraft/src/GuiScreen");
+        registrar.register(AroundHookDefinition
+                .builder(ID + ":gui_keyboard_consume", new MethodRef(gui, "handleKeyboardInput", "()V"))
+                .capture(HandlerRef.of(CALLBACKS, "beforeGuiKeyboardInput", "(Lnet/minecraft/src/GuiScreen;)I"),
+                        ValueBinding.thisValue())
+                .onReturn(HandlerRef.of(CALLBACKS, "afterGuiKeyboardInput", "(Lnet/minecraft/src/GuiScreen;I)V"),
+                        ValueBinding.thisValue(), ValueBinding.capturedValue())
+                .skipWhenCapturedNonZero().build());
+        registrar.register(AroundHookDefinition
+                .builder(ID + ":gui_mouse_consume", new MethodRef(gui, "handleMouseInput", "()V"))
+                .capture(HandlerRef.of(CALLBACKS, "beforeGuiMouseInput", "(Lnet/minecraft/src/GuiScreen;)I"),
+                        ValueBinding.thisValue())
+                .onReturn(HandlerRef.of(CALLBACKS, "afterGuiMouseInput", "(Lnet/minecraft/src/GuiScreen;I)V"),
+                        ValueBinding.thisValue(), ValueBinding.capturedValue())
+                .skipWhenCapturedNonZero().build());
+    }
+
+    private static void registerQueuedInput(HookRegistrar registrar) {
+        ClassRef minecraft = new ClassRef("net/minecraft/client/Minecraft");
+        MethodRef runTick = new MethodRef(minecraft, "runTick", "()V");
+        ClassRef gui = new ClassRef("net/minecraft/src/GuiScreen");
+        MethodRef guiInput = new MethodRef(gui, "handleInput", "()V");
+        registerStaticRedirect(registrar, ID + ":keyboard_next", runTick, "org/lwjgl/input/Keyboard", "next", "()Z",
+                "nextKeyboardEvent", "()Z", false);
+        registerStaticRedirect(registrar, ID + ":mouse_next", runTick, "org/lwjgl/input/Mouse", "next", "()Z",
+                "nextMouseEvent", "()Z", false);
+        registerStaticRedirect(registrar, ID + ":keyboard_state", runTick, "org/lwjgl/input/Keyboard",
+                "getEventKeyState", "()Z", "keyboardEventState", "()Z", true);
+        registerStaticRedirect(registrar, ID + ":mouse_state", runTick, "org/lwjgl/input/Mouse", "getEventButtonState",
+                "()Z", "mouseEventButtonState", "()Z", true);
+        registerStaticRedirect(registrar, ID + ":mouse_wheel", runTick, "org/lwjgl/input/Mouse", "getEventDWheel",
+                "()I", "mouseEventWheel", "()I", false);
+
+        registerStaticRedirect(registrar, ID + ":gui_keyboard_next", guiInput, "org/lwjgl/input/Keyboard", "next",
+                "()Z", "nextKeyboardEvent", "()Z", false);
+        registerStaticRedirect(registrar, ID + ":gui_mouse_next", guiInput, "org/lwjgl/input/Mouse", "next", "()Z",
+                "nextMouseEvent", "()Z", false);
+        registerStaticRedirect(registrar, ID + ":gui_keyboard_state", new MethodRef(gui, "handleKeyboardInput", "()V"),
+                "org/lwjgl/input/Keyboard", "getEventKeyState", "()Z", "keyboardEventState", "()Z", true);
+        registerStaticRedirect(registrar, ID + ":gui_mouse_state", new MethodRef(gui, "handleMouseInput", "()V"),
+                "org/lwjgl/input/Mouse", "getEventButtonState", "()Z", "mouseEventButtonState", "()Z", true);
+    }
+
+    private static void registerStaticRedirect(HookRegistrar registrar, String id, MethodRef target,
+            String invocationOwner, String invocationName, String invocationDescriptor, String callbackName,
+            String callbackDescriptor, boolean allCalls) {
+        CallRedirectHookDefinition definition = new CallRedirectHookDefinition(id, target,
+                new MethodRef(new ClassRef(invocationOwner), invocationName, invocationDescriptor),
+                HandlerRef.of(CALLBACKS, callbackName, callbackDescriptor)).staticInvocation();
+        registrar.register(allCalls ? definition.allCallsInTarget() : definition);
     }
 
     private static void registerInputTick(HookRegistrar registrar) {

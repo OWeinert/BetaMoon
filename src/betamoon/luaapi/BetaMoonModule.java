@@ -7,6 +7,7 @@ import betamoon.luaapi.audio.AudioApi;
 import betamoon.luaapi.event.EventsApi;
 import betamoon.luaapi.entity.EntitiesApi;
 import betamoon.luaapi.fuel.FuelsApi;
+import betamoon.luaapi.input.InputApi;
 import betamoon.luaapi.material.ArmorMaterialApi;
 import betamoon.luaapi.material.ToolMaterialApi;
 import betamoon.luaapi.minecraft.MinecraftApi;
@@ -62,6 +63,7 @@ public final class BetaMoonModule extends TwoArgFunction {
         EntitiesApi.attach(module);
         FuelsApi.attach(module);
         AudioApi.attach(module);
+        InputApi.attach(module);
         CapabilitiesApi.attach(module);
         SystemsApi.attach(module);
         LogicalNetworksApi.attach(module);

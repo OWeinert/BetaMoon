@@ -58,6 +58,8 @@ public final class ContentKeyTest {
         require("quest_entry".equals(custom.value()), "New valid content types remain possible");
         require(custom.equals(ContentType.of("quest_entry")), "Content type equality is value based");
         require(ContentType.RECIPE_TYPE == ContentType.of("recipe_type"), "Known factories reuse constants");
+        require(ContentType.INPUT_MAP == ContentType.of("input_map"), "Input maps use a shared known type");
+        require(ContentType.HOTKEY == ContentType.of("hotkey"), "Hotkeys use a shared known type");
         require("mymod:quest_entry/first_steps".equals(ContentKey.parseForType("mymod:first_steps", custom).toString()),
                 "Expandable types work with typed shorthand");
     }

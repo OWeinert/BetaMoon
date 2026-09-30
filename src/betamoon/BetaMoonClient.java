@@ -1,17 +1,18 @@
 package betamoon;
 
+import betamoon.client.LuaLoaderClientFeedback;
 import betamoon.client.assets.ClientAssets;
 import betamoon.client.audio.ClientAudio;
 import betamoon.client.audio.ClientEntityEffects;
+import betamoon.client.control.input.ClientHotkeys;
 import betamoon.client.network.ClientNetworkSession;
 import betamoon.client.render.ClientEntityPresentationResources;
-import betamoon.client.LuaLoaderClientFeedback;
 import betamoon.config.BetaMoonConfig;
-import betamoon.luaapi.block.BlockModelRegistry;
 import betamoon.gui.GuiBetaMoonIngameMenu;
 import betamoon.gui.GuiBetaMoonMainMenu;
 import betamoon.gui.GuiPopupAgentWarning;
 import betamoon.gui.GuiPopupScriptErrors;
+import betamoon.luaapi.block.BlockModelRegistry;
 import betamoon.luaapi.chat.ChatApi;
 import betamoon.luamodloader.LuaScriptErrors;
 import betamoon.update.UpdateChecker;
@@ -51,6 +52,7 @@ public final class BetaMoonClient {
         ClientEntityEffects.initialize();
         ClientEntityPresentationResources.initialize();
         LuaLoaderClientFeedback.initialize();
+        ClientHotkeys.initialize(baseMod);
         this.networkSession = ClientNetworkSession.initialize();
         BlockModelRegistry.initialize(baseMod);
         this.agentRegistered = common.isAgentRegistered();
@@ -157,6 +159,11 @@ public final class BetaMoonClient {
         }
         LOGGER.info("Reloading Lua scripts from Ctrl+Shift+" + Keyboard.getKeyName(key.keyCode) + ".");
         reloadLuaScripts();
+    }
+
+    /** Dispatches a script hotkey delivered by ModLoader. */
+    public void handleScriptHotkey(KeyBinding key) {
+        ClientHotkeys.dispatch(key);
     }
 
     public void generateSurface(World world, Random random, int chunkX, int chunkZ) {

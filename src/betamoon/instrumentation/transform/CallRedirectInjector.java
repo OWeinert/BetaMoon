@@ -52,7 +52,7 @@ final class CallRedirectInjector {
         List<MethodInsnNode> originals = new ArrayList<MethodInsnNode>();
         int redirects = 0;
         for (MethodNode method : classNode.methods) {
-            CallCounts counts = findCalls(method, invocation, handler);
+            CallCounts counts = findCalls(method, definition, invocation, handler);
             originals.addAll(counts.originals);
             redirects += counts.redirects;
         }
@@ -77,7 +77,10 @@ final class CallRedirectInjector {
         ResolvedMethod invocation = resolveInvocation(definition, namespace);
         ResolvedMethod handler = mappings.resolveMethod(definition.getHandler().getMethod(), namespace);
         validateHandler(definition, invocation, handler);
-        CallCounts counts = findCalls(method, invocation, handler);
+        CallCounts counts = findCalls(method, definition, invocation, handler);
+        if (definition.redirectsAllCallsInTarget()) {
+            return redirectAllCalls(method, definition, handler, counts);
+        }
         if (counts.originals.isEmpty() && counts.redirects == 1) {
             return HookTransformOutcome.ALREADY_APPLIED;
         }
@@ -87,6 +90,24 @@ final class CallRedirectInjector {
         }
         replace(counts.originals.get(0), handler);
         return HookTransformOutcome.APPLIED;
+    }
+
+    private HookTransformOutcome redirectAllCalls(MethodNode method, CallRedirectHookDefinition definition,
+            ResolvedMethod handler, CallCounts counts) throws HookTransformException {
+        if (!counts.originals.isEmpty() && counts.redirects == 0) {
+            for (MethodInsnNode original : counts.originals) {
+                replace(original, handler);
+            }
+            return HookTransformOutcome.APPLIED;
+        }
+        if (counts.originals.isEmpty() && counts.redirects > 0) {
+            return HookTransformOutcome.ALREADY_APPLIED;
+        }
+        if (counts.originals.isEmpty()) {
+            return HookTransformOutcome.NO_MATCH;
+        }
+        throw failure(definition, "Found partial or conflicting instrumentation with " + counts.originals.size()
+                + " originals and " + counts.redirects + " redirects in " + method.name + method.desc);
     }
 
     private ResolvedMethod resolveInvocation(CallRedirectHookDefinition definition, RuntimeNamespace namespace) {
@@ -100,20 +121,26 @@ final class CallRedirectInjector {
 
     private void validateHandler(CallRedirectHookDefinition definition, ResolvedMethod invocation,
             ResolvedMethod handler) throws HookTransformException {
-        String expected = "(L" + invocation.getOwner() + ";" + invocation.getDescriptor().substring(1);
+        String expected = definition.isStaticInvocation()
+                ? invocation.getDescriptor()
+                : "(L" + invocation.getOwner() + ";" + invocation.getDescriptor().substring(1);
         if (!handler.getDescriptor().equals(expected)) {
             throw failure(definition, "Handler must preserve receiver and arguments");
         }
     }
 
-    private CallCounts findCalls(MethodNode method, ResolvedMethod invocation, ResolvedMethod handler) {
+    private CallCounts findCalls(MethodNode method, CallRedirectHookDefinition definition, ResolvedMethod invocation,
+            ResolvedMethod handler) {
         List<MethodInsnNode> originals = new ArrayList<MethodInsnNode>();
         int redirects = 0;
         for (AbstractInsnNode instruction : method.instructions) {
             if (instruction instanceof MethodInsnNode) {
                 MethodInsnNode call = (MethodInsnNode) instruction;
-                if (matches(call, invocation, Opcodes.INVOKEVIRTUAL)
-                        || matches(call, invocation, Opcodes.INVOKEINTERFACE)) {
+                boolean original = definition.isStaticInvocation()
+                        ? matches(call, invocation, Opcodes.INVOKESTATIC)
+                        : matches(call, invocation, Opcodes.INVOKEVIRTUAL)
+                                || matches(call, invocation, Opcodes.INVOKEINTERFACE);
+                if (original) {
                     originals.add(call);
                 } else if (matches(call, handler, Opcodes.INVOKESTATIC)) {
                     redirects++;

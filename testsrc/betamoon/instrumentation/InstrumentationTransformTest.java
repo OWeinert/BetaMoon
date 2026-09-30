@@ -40,7 +40,8 @@ public final class InstrumentationTransformTest {
     private static final String PLAYER_CONTROLLER = "net/minecraft/src/PlayerController";
     private static final String MINECRAFT_DESCRIPTOR = "Lnet/minecraft/client/Minecraft;";
     private static final String BREAK_DESCRIPTOR = "(IIII)Z";
-    private static final String PLACE_DESCRIPTOR = "(Lnet/minecraft/src/EntityPlayer;Lnet/minecraft/src/World;Lnet/minecraft/src/ItemStack;IIII)Z";
+    private static final String PLACE_DESCRIPTOR = "(Lnet/minecraft/src/EntityPlayer;Lnet/minecraft/src/World;"
+            + "Lnet/minecraft/src/ItemStack;IIII)Z";
 
     private InstrumentationTransformTest() {
     }
@@ -194,6 +195,12 @@ public final class InstrumentationTransformTest {
                 "An inherited-call redirect must retain its explicit bytecode receiver owner");
         require(inherited.inAllMethods().getInvocationOwner() == receiver,
                 "All-method selection must preserve an inherited-call receiver owner");
+        CallRedirectHookDefinition staticCalls = singleMethod.staticInvocation().allCallsInTarget();
+        require(staticCalls.isStaticInvocation() && staticCalls.redirectsAllCallsInTarget(),
+                "Static and all-call redirect selections are retained");
+        require(staticCalls.inAllMethods().isStaticInvocation()
+                && staticCalls.inAllMethods().redirectsAllCallsInTarget(),
+                "Immutable redirect selections compose without losing prior options");
 
         TransformationReport report = new TransformationReport();
         HookRegistry registry = new HookRegistry(report);
@@ -418,6 +425,12 @@ public final class InstrumentationTransformTest {
                 "beforeAction", "afterAction");
         assertAroundCallbacks(mappings, minecraft, "net/minecraft/client/Minecraft", "func_6254_a", "(IZ)V",
                 "beforeHeldBreaking", "afterHeldBreaking");
+        require(countCallbackCalls(minecraft, "nextKeyboardEvent") == 1
+                && countCallbackCalls(minecraft, "nextMouseEvent") == 1
+                && countCallbackCalls(minecraft, "keyboardEventState") == 2
+                && countCallbackCalls(minecraft, "mouseEventButtonState") == 4
+                && countCallbackCalls(minecraft, "mouseEventWheel") == 1,
+                "Queued gameplay input calls were not redirected exactly");
 
         byte[] player = transformControlClass(mappings, clientJarPath, transformer, "net/minecraft/src/EntityPlayerSP");
         assertAroundCallbacks(mappings, player, "net/minecraft/src/EntityPlayerSP", "handleKeyPress", "(IZ)V",
@@ -440,6 +453,16 @@ public final class InstrumentationTransformTest {
                 "beforeCamera", "afterCamera");
         assertAroundCallbacks(mappings, renderer, "net/minecraft/src/EntityRenderer", "setupCameraTransform", "(FI)V",
                 "beforeProjection", "afterProjection");
+
+        byte[] gui = transformControlClass(mappings, clientJarPath, transformer, "net/minecraft/src/GuiScreen");
+        require(countCallbackCalls(gui, "nextKeyboardEvent") == 1 && countCallbackCalls(gui, "nextMouseEvent") == 1
+                && countCallbackCalls(gui, "keyboardEventState") == 1
+                && countCallbackCalls(gui, "mouseEventButtonState") == 1,
+                "Queued GUI input calls were not redirected exactly");
+        assertAroundCallbacks(mappings, gui, "net/minecraft/src/GuiScreen", "handleKeyboardInput", "()V",
+                "beforeGuiKeyboardInput", "afterGuiKeyboardInput");
+        assertAroundCallbacks(mappings, gui, "net/minecraft/src/GuiScreen", "handleMouseInput", "()V",
+                "beforeGuiMouseInput", "afterGuiMouseInput");
     }
 
     private static byte[] transformControlClass(TinyMappingResolver mappings, String clientJarPath,

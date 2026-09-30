@@ -38,7 +38,9 @@ public class mod_BetaMoon extends BaseMod {
     public void KeyboardEvent(KeyBinding key) {
         if (key == RELOAD_SCRIPTS_KEY) {
             this.betaMoon.handleReloadHotkey(key);
+            return;
         }
+        this.betaMoon.handleScriptHotkey(key);
     }
 
     @Override

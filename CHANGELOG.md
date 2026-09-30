@@ -2,7 +2,18 @@
 
 ## 0.8.0
 
-BetaMoon 0.8.0 expands world generation into a deterministic, reusable Lua API.
+BetaMoon 0.8.0 expands world generation into a deterministic, reusable Lua API and begins the player-facing control
+stack.
+
+### Input and control foundation
+
+- Add owner-scoped named input maps with keyboard, mouse-button, wheel, and modifier bindings; exact per-cycle
+  pressed/held/released state; priority-ordered consumable contexts; native-family capture; runtime rebinding and
+  conflict validation.
+- Add script-owned native hotkeys through ModLoader's key registration, including Controls-screen labels, persisted
+  player remaps, optional held repeat, reload-safe native binding reuse, and isolated callback failures.
+- Capture queued gameplay and GUI events before their native consumers, preserve native first-person behavior when no
+  context handles them, synthesize releases across focus/screen/world/player changes, and clean layers up on unload.
 
 ### World-generation foundation
 

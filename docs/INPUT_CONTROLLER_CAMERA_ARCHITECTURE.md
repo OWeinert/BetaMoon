@@ -49,6 +49,8 @@ the normal instrumentation diagnostics.
 | Concern | Native seam | Contract |
 | --- | --- | --- |
 | Input cycle | around `Minecraft.runTick()` | Open and close one coherent input dispatch cycle. |
+| Queued devices | redirect LWJGL `next` and event-value calls in gameplay and base GUI loops | Record exact keyboard/button/wheel transitions and hide consumed values from native consumers. |
+| GUI consumption | around base `GuiScreen` keyboard and mouse handlers | Skip the complete GUI event path when a context consumes it. |
 | Movement key | around `EntityPlayerSP.handleKeyPress(int, boolean)` | Permit a context to consume native movement forwarding. |
 | Movement intent | around `MovementInputFromOptions.updatePlayerMoveState(EntityPlayer)` | Publish or replace final movement intent after native calculation. |
 | Look | redirect the local-player rotation call in `EntityRenderer.updateCameraAndRender(float)` | Route only camera-derived player look; do not intercept arbitrary entity rotation. |
@@ -64,8 +66,10 @@ therefore supports an explicit invocation owner; the method name and descriptor
 still resolve from their declaring class. This is a general bytecode capability,
 not a look-specific instruction search.
 
-All callbacks initially pass through to Minecraft. Public behavior is added only
-after the corresponding runtime has lifecycle, failure, and fallback tests.
+The initial seam commit passed through to Minecraft. Named-action routing now owns
+queued-device and family-capture decisions; controller, targeting, and camera seams
+still pass through until their corresponding runtimes have lifecycle, failure, and
+fallback tests.
 
 ## Runtime boundaries
 
@@ -112,8 +116,24 @@ synthesize releases before clearing state so captures cannot remain stuck.
 Contexts declare the families they capture: named actions, movement, look,
 world actions, inventory, and GUI. A handled named action does not implicitly
 consume unrelated GUI input. Device bindings support keyboard keys, mouse buttons,
-wheel direction, pointer axes, and modifier combinations. Rebinding is separate
-from immutable action declarations and is validated for conflicts.
+wheel direction, and modifier combinations. Pointer axes join this contract with
+the controller/camera increment. Rebinding is separate from immutable action
+declarations, is validated for conflicts, and is currently runtime-scoped rather
+than persisted as a user setting.
+
+User-configurable command hotkeys are a separate native layer. Each script hotkey
+has a `hotkey` content key and is registered through `ModLoader.RegisterKey`, then
+published into the already-created `GameSettings.keyBindings` array because Lua
+scripts load after ModLoader's startup registration pass. Reloading options after
+that append restores the player's saved Controls assignment.
+
+ModLoader cannot unregister a key. The registry therefore retains one native
+`KeyBinding` slot per canonical hotkey for the process lifetime, while script
+unload removes its callback and owner. Redeclaration reattaches to that slot,
+preserving the current key code. Labels may be relocalized on reload; ModLoader's
+held-repeat policy is immutable for the retained slot and requires a restart to
+change. Native hotkeys do not participate in input consumption. Contextual or
+consumable commands belong in named input maps.
 
 ## Camera and targeting contract
 

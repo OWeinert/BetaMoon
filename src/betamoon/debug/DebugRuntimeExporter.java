@@ -1,6 +1,8 @@
 package betamoon.debug;
 
 import betamoon.assets.BuiltinAssets;
+import betamoon.client.control.input.ClientHotkeys;
+import betamoon.client.control.input.ClientInputRuntime;
 import betamoon.entity.EntityTypeRegistry;
 import betamoon.event.Events;
 import betamoon.event.api.EventChannel;
@@ -29,7 +31,9 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-/** Exports agent diagnostics and safe summaries of active runtime registrations. */
+/**
+ * Exports agent diagnostics and safe summaries of active runtime registrations.
+ */
 final class DebugRuntimeExporter implements DebugExporter {
     @Override
     public void export(DebugExportSession session) throws Exception {
@@ -85,6 +89,10 @@ final class DebugRuntimeExporter implements DebugExporter {
         rows.add("registry: script assets | entries: " + ScriptAssetScope.snapshot().size());
         rows.add("registry: built-in models | lookup keys: " + BuiltinAssets.models().size());
         rows.add("registry: sound events | entries: " + SoundEvents.snapshot().size());
+        rows.add("registry: input maps | entries: " + ClientInputRuntime.router().registrationCount());
+        rows.add("runtime: input contexts | active: " + ClientInputRuntime.router().contextCount());
+        rows.add("registry: native hotkeys | active: " + ClientHotkeys.activeCount() + " | retained: "
+                + ClientHotkeys.retainedCount());
         rows.add("registry: entity types | entries: " + EntityTypeRegistry.snapshot().size());
         rows.add("registry: tile entities | entries: " + TileEntityRegistry.tileEntityDescriptions().size());
         rows.add("registry: containers | entries: " + TileEntityRegistry.containerDescriptions().size());
@@ -96,8 +104,7 @@ final class DebugRuntimeExporter implements DebugExporter {
         rows.add("registry: world generators | entries: " + WorldGenRegistry.snapshot().size());
         rows.add("registry: worldgen features | entries: " + WorldGenRegistry.featureSnapshot().size());
         rows.add("registry: worldgen placements | entries: " + WorldGenRegistry.placementSnapshot().size());
-        rows.add("registry: regional structures | entries: "
-                + WorldGenRegistry.regionalStructureSnapshot().size());
+        rows.add("registry: regional structures | entries: " + WorldGenRegistry.regionalStructureSnapshot().size());
         rows.add("registry: biome overlays | entries: " + BiomeGenRegistry.snapshot().size());
         rows.add("registry: cross-mod exports | entries: " + ModuleRegistry.snapshot().size());
         for (FuelSetDefinition set : FuelRegistry.sets()) {
@@ -107,8 +114,8 @@ final class DebugRuntimeExporter implements DebugExporter {
         }
         for (FuelRegistration registration : FuelRegistry.registrations()) {
             rows.add("fuel rule: set=" + registration.setKey + " | item registry ID=" + registration.itemId
-                    + " | damage=" + (registration.damage == null ? "any" : registration.damage)
-                    + " | burn time=" + registration.burnTime + " | owner=" + safe(registration.owner));
+                    + " | damage=" + (registration.damage == null ? "any" : registration.damage) + " | burn time="
+                    + registration.burnTime + " | owner=" + safe(registration.owner));
         }
         rows.addAll(eventRows());
         Collections.sort(rows);
@@ -131,8 +138,8 @@ final class DebugRuntimeExporter implements DebugExporter {
             }
             try {
                 EventChannel<?> channel = (EventChannel<?>) field.get(null);
-                rows.add("event channel: " + field.getName().toLowerCase() + " | listeners: "
-                        + channel.listenerCount());
+                rows.add(
+                        "event channel: " + field.getName().toLowerCase() + " | listeners: " + channel.listenerCount());
             } catch (IllegalAccessException ignored) {
                 // Public event fields should be accessible; foreign fields may not be.
             }

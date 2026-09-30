@@ -16,6 +16,8 @@ public final class ContentType {
     public static final ContentType ARMOR_MATERIAL = new ContentType("armor_material");
     public static final ContentType TEAM = new ContentType("team");
     public static final ContentType SHARED = new ContentType("shared");
+    public static final ContentType INPUT_MAP = new ContentType("input_map");
+    public static final ContentType HOTKEY = new ContentType("hotkey");
 
     private final String value;
 
@@ -57,6 +59,12 @@ public final class ContentType {
         }
         if (SHARED.value.equals(value)) {
             return SHARED;
+        }
+        if (INPUT_MAP.value.equals(value)) {
+            return INPUT_MAP;
+        }
+        if (HOTKEY.value.equals(value)) {
+            return HOTKEY;
         }
         return new ContentType(value);
     }

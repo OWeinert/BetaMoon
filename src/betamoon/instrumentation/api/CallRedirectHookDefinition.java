@@ -1,8 +1,9 @@
 package betamoon.instrumentation.api;
 
 /**
- * Replaces one virtual call inside a method with a static handler accepting its
- * receiver and arguments.
+ * Replaces mapped calls inside a method with a static handler. Virtual handlers
+ * accept the original receiver first; static handlers preserve the invocation
+ * descriptor.
  */
 public final class CallRedirectHookDefinition implements HookDefinition {
     private final String id;
@@ -11,6 +12,8 @@ public final class CallRedirectHookDefinition implements HookDefinition {
     private final ClassRef invocationOwner;
     private final HandlerRef handler;
     private final boolean allMethods;
+    private final boolean allCallsInTarget;
+    private final boolean staticInvocation;
 
     /**
      * Redirect every matching call in the target class, including multiple calls in
@@ -19,7 +22,24 @@ public final class CallRedirectHookDefinition implements HookDefinition {
     public CallRedirectHookDefinition inAllMethods() {
         return allMethods
                 ? this
-                : new CallRedirectHookDefinition(id, target, invocation, invocationOwner, handler, true);
+                : new CallRedirectHookDefinition(id, target, invocation, invocationOwner, handler, true,
+                        allCallsInTarget, staticInvocation);
+    }
+
+    /** Redirects every matching call in the selected target method. */
+    public CallRedirectHookDefinition allCallsInTarget() {
+        return allCallsInTarget
+                ? this
+                : new CallRedirectHookDefinition(id, target, invocation, invocationOwner, handler, allMethods, true,
+                        staticInvocation);
+    }
+
+    /** Selects an {@code INVOKESTATIC} source call instead of a virtual call. */
+    public CallRedirectHookDefinition staticInvocation() {
+        return staticInvocation
+                ? this
+                : new CallRedirectHookDefinition(id, target, invocation, invocationOwner, handler, allMethods,
+                        allCallsInTarget, true);
     }
 
     /**
@@ -33,19 +53,28 @@ public final class CallRedirectHookDefinition implements HookDefinition {
         }
         return invocationOwner != null && owner.getInternalName().equals(invocationOwner.getInternalName())
                 ? this
-                : new CallRedirectHookDefinition(id, target, invocation, owner, handler, allMethods);
+                : new CallRedirectHookDefinition(id, target, invocation, owner, handler, allMethods, allCallsInTarget,
+                        staticInvocation);
     }
 
     public boolean appliesToAllMethods() {
         return allMethods;
     }
 
+    public boolean redirectsAllCallsInTarget() {
+        return allCallsInTarget;
+    }
+
+    public boolean isStaticInvocation() {
+        return staticInvocation;
+    }
+
     public CallRedirectHookDefinition(String id, MethodRef target, MethodRef invocation, HandlerRef handler) {
-        this(id, target, invocation, null, handler, false);
+        this(id, target, invocation, null, handler, false, false, false);
     }
 
     private CallRedirectHookDefinition(String id, MethodRef target, MethodRef invocation, ClassRef invocationOwner,
-            HandlerRef handler, boolean allMethods) {
+            HandlerRef handler, boolean allMethods, boolean allCallsInTarget, boolean staticInvocation) {
         if (id == null || target == null || invocation == null || handler == null) {
             throw new IllegalArgumentException("Call redirect requires an ID, target, invocation, and handler");
         }
@@ -55,6 +84,8 @@ public final class CallRedirectHookDefinition implements HookDefinition {
         this.invocationOwner = invocationOwner;
         this.handler = handler;
         this.allMethods = allMethods;
+        this.allCallsInTarget = allCallsInTarget;
+        this.staticInvocation = staticInvocation;
     }
 
     @Override

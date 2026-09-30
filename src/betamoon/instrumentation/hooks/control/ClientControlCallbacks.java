@@ -1,9 +1,11 @@
 package betamoon.instrumentation.hooks.control;
 
+import betamoon.client.control.input.ClientInputRuntime;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.EntityPlayerSP;
 import net.minecraft.src.EntityRenderer;
+import net.minecraft.src.GuiScreen;
 import net.minecraft.src.MovementInputFromOptions;
 
 /**
@@ -15,6 +17,7 @@ public final class ClientControlCallbacks {
     }
 
     public static int beginInputTick(Minecraft minecraft) {
+        ClientInputRuntime.beginCycle(minecraft);
         return 0;
     }
 
@@ -22,7 +25,21 @@ public final class ClientControlCallbacks {
     }
 
     public static int beforeMovementKey(EntityPlayerSP player, int keyCode, boolean pressed) {
-        return 0;
+        return ClientInputRuntime.consumesMovementKey(player, keyCode) ? 1 : 0;
+    }
+
+    public static int beforeGuiKeyboardInput(GuiScreen screen) {
+        return ClientInputRuntime.consumesCurrentKeyboardEvent() ? 1 : 0;
+    }
+
+    public static void afterGuiKeyboardInput(GuiScreen screen, int decision) {
+    }
+
+    public static int beforeGuiMouseInput(GuiScreen screen) {
+        return ClientInputRuntime.consumesCurrentMouseEvent() ? 1 : 0;
+    }
+
+    public static void afterGuiMouseInput(GuiScreen screen, int decision) {
     }
 
     public static void afterMovementKey(EntityPlayerSP player, int keyCode, boolean pressed, int decision) {
@@ -36,18 +53,20 @@ public final class ClientControlCallbacks {
     }
 
     public static void applyLook(EntityPlayerSP player, float yawDelta, float pitchDelta) {
-        player.func_346_d(yawDelta, pitchDelta);
+        if (!ClientInputRuntime.consumesLook()) {
+            player.func_346_d(yawDelta, pitchDelta);
+        }
     }
 
     public static int beforeAction(Minecraft minecraft, int button) {
-        return 0;
+        return ClientInputRuntime.consumesWorldAction(button) ? 1 : 0;
     }
 
     public static void afterAction(Minecraft minecraft, int button, int decision) {
     }
 
     public static int beforeHeldBreaking(Minecraft minecraft, int button, boolean held) {
-        return 0;
+        return ClientInputRuntime.consumesWorldAction(button) ? 1 : 0;
     }
 
     public static void afterHeldBreaking(Minecraft minecraft, int button, boolean held, int decision) {
@@ -72,5 +91,25 @@ public final class ClientControlCallbacks {
     }
 
     public static void afterProjection(EntityRenderer renderer, float partialTick, int eye, int decision) {
+    }
+
+    public static boolean nextKeyboardEvent() {
+        return ClientInputRuntime.nextKeyboardEvent();
+    }
+
+    public static boolean keyboardEventState() {
+        return ClientInputRuntime.keyboardEventState();
+    }
+
+    public static boolean nextMouseEvent() {
+        return ClientInputRuntime.nextMouseEvent();
+    }
+
+    public static boolean mouseEventButtonState() {
+        return ClientInputRuntime.mouseEventButtonState();
+    }
+
+    public static int mouseEventWheel() {
+        return ClientInputRuntime.mouseEventWheel();
     }
 }
