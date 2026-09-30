@@ -13,8 +13,8 @@
     }
   },
   "elements": [
-    { "type": "fill", "from": [-3, 0, -1], "to": [3, 0, 1], "state": "stone", "tags": ["foundation"] },
-    { "type": "fill", "from": [-1, 0, -3], "to": [1, 0, 3], "state": "stone", "tags": ["foundation"] },
+    { "type": "fill", "from": [-3, 0, -1], "to": [3, 0, 1], "state": "stone", "tags": ["foundation", "road_surface"] },
+    { "type": "fill", "from": [-1, 0, -3], "to": [1, 0, 3], "state": "stone", "tags": ["foundation", "road_surface"] },
     { "type": "array", "template": "lamp_pillar", "at": [-2, 0, -2], "count": [2, 1, 2], "step": [4, 0, 4] },
     { "type": "marker", "pos": [0, 0, -3], "name": "connector", "value": { "pool": "path", "facing": "north" } },
     { "type": "marker", "pos": [3, 0, 0], "name": "connector", "value": { "pool": "path", "facing": "east" } },

@@ -21,7 +21,10 @@ import java.util.Map;
 import java.util.Set;
 import net.minecraft.src.Block;
 
-/** Reads a strict JSON-compatible data tree and compiles it into one immutable structure template. */
+/**
+ * Reads a strict JSON-compatible data tree and compiles it into one immutable
+ * structure template.
+ */
 final class StructureDocumentReader {
     private static final int MAX_PALETTE = 4096;
     private static final int MAX_VARIANTS = 64;
@@ -31,8 +34,8 @@ final class StructureDocumentReader {
     private static final int MAX_DEPTH = 16;
     private static final int MAX_EMISSIONS = WorldGenLimits.MAX_BLOCK_CHANGES_PER_FEATURE * 8;
     private static final int MAX_REPEAT = 256;
-    private static final StructureTransform IDENTITY_TRANSFORM = new StructureTransform(StructureTransform.Rotation.NONE,
-            StructureTransform.Mirror.NONE);
+    private static final StructureTransform IDENTITY_TRANSFORM = new StructureTransform(
+            StructureTransform.Rotation.NONE, StructureTransform.Mirror.NONE);
 
     private StructureDocumentReader() {
     }
@@ -42,8 +45,7 @@ final class StructureDocumentReader {
     }
 
     static StructureTemplate read(Map<String, Object> root) throws IOException {
-        ModelJson.fields(root, "structure", "format", "bounds", "palette", "templates", "elements",
-                "processors");
+        ModelJson.fields(root, "structure", "format", "bounds", "palette", "templates", "elements", "processors");
         if (!"betamoon_structure".equals(ModelJson.name(root.get("format"), "structure.format"))) {
             throw new IOException("structure.format: expected betamoon_structure");
         }
@@ -52,8 +54,8 @@ final class StructureDocumentReader {
         Map<String, TemplateDefinition> templates = templates(root.get("templates"));
         List<Object> elements = ModelJson.array(root.get("elements"), "structure.elements");
         Compiler compiler = new Compiler(palette, templates, canonical(root));
-        compiler.elements(elements, Affine.IDENTITY, Collections.<String, String>emptyMap(),
-                "structure.elements", 0, "root");
+        compiler.elements(elements, Affine.IDENTITY, Collections.<String, String>emptyMap(), "structure.elements", 0,
+                "root");
         compiler.processors(root.get("processors"));
         Bounds declared = root.get("bounds") == null ? null : bounds(root.get("bounds"), "structure.bounds");
         return compiler.finish(declared);
@@ -98,8 +100,8 @@ final class StructureDocumentReader {
                 states.add(state(value, path, totalWeight));
             }
             names.put(name, Integer.valueOf(entries.size()));
-            entries.add(new StructureTemplate.PaletteEntry(name, tags(value.get("tags"), path + ".tags"),
-                    states, totalWeight));
+            entries.add(new StructureTemplate.PaletteEntry(name, tags(value.get("tags"), path + ".tags"), states,
+                    totalWeight));
         }
         return new Palette(entries, names);
     }
@@ -108,7 +110,8 @@ final class StructureDocumentReader {
             throws IOException {
         int block = resolveBlock(value.get("block"), path + ".block");
         int metadata = optionalInteger(value.get("meta"), path + ".meta", 0, 15, 0);
-        Map<String, Object> data = value.get("data") == null ? Collections.<String, Object>emptyMap()
+        Map<String, Object> data = value.get("data") == null
+                ? Collections.<String, Object>emptyMap()
                 : immutableObject(ModelJson.object(value.get("data"), path + ".data"), path + ".data", 0);
         return new StructureTemplate.State(block, metadata, data, cumulativeWeight);
     }
@@ -141,8 +144,7 @@ final class StructureDocumentReader {
         if (minimum.x > maximum.x || minimum.y > maximum.y || minimum.z > maximum.z) {
             throw new IOException(path + ": min must not exceed max");
         }
-        if (minimum.x > 0 || minimum.y > 0 || minimum.z > 0
-                || maximum.x < 0 || maximum.y < 0 || maximum.z < 0) {
+        if (minimum.x > 0 || minimum.y > 0 || minimum.z > 0 || maximum.x < 0 || maximum.y < 0 || maximum.z < 0) {
             throw new IOException(path + ": declared bounds must contain the placement origin [0, 0, 0]");
         }
         checkCoordinate(minimum, path + ".min");
@@ -172,8 +174,8 @@ final class StructureDocumentReader {
             this.sourceSemantics = sourceSemantics;
         }
 
-        private void elements(List<Object> values, Affine transform, Map<String, String> remap, String path,
-                int depth, String instancePath) throws IOException {
+        private void elements(List<Object> values, Affine transform, Map<String, String> remap, String path, int depth,
+                String instancePath) throws IOException {
             if (depth > MAX_DEPTH) {
                 throw new IOException(path + ": nested element/template depth exceeds " + MAX_DEPTH);
             }
@@ -206,8 +208,8 @@ final class StructureDocumentReader {
                 fields(value, path, "type", "from", "to", "width", "state", "facing", "tags", "write");
                 staircase(value, transform, remap, path);
             } else if (type.equals("cylinder")) {
-                fields(value, path, "type", "base", "radius", "height", "axis", "mode", "thickness", "caps",
-                        "state", "tags", "write");
+                fields(value, path, "type", "base", "radius", "height", "axis", "mode", "thickness", "caps", "state",
+                        "tags", "write");
                 cylinder(value, transform, remap, path);
             } else if (type.equals("ellipsoid")) {
                 fields(value, path, "type", "center", "radius", "mode", "thickness", "state", "tags", "write");
@@ -234,8 +236,7 @@ final class StructureDocumentReader {
                 fields(value, path, "type", "pos", "name", "value");
                 marker(value, transform, path);
             } else if (type.equals("loot")) {
-                fields(value, path, "type", "pos", "key", "items", "pools", "table", "slots",
-                        "existing", "overflow");
+                fields(value, path, "type", "pos", "key", "items", "pools", "table", "slots", "existing", "overflow");
                 loot(value, transform, path, instancePath);
             } else if (type.equals("chance")) {
                 fields(value, path, "type", "key", "chance", "elements");
@@ -260,7 +261,8 @@ final class StructureDocumentReader {
             Set<String> tags = tags(value.get("tags"), path + ".tags");
             boolean replace = replace(value, path);
             int thickness = optionalInteger(value.get("thickness"), path + ".thickness", 1, 32, 1);
-            Set<String> faces = mode == CuboidMode.SHELL ? faces(value.get("faces"), path + ".faces")
+            Set<String> faces = mode == CuboidMode.SHELL
+                    ? faces(value.get("faces"), path + ".faces")
                     : Collections.<String>emptySet();
             for (int x = box.min.x; x <= box.max.x; x++) {
                 for (int y = box.min.y; y <= box.max.y; y++) {
@@ -290,8 +292,7 @@ final class StructureDocumentReader {
             int state = state(value, remap, path);
             Set<String> tags = tags(value.get("tags"), path + ".tags");
             boolean replace = replace(value, path);
-            int steps = Math.max(Math.abs(to.x - from.x), Math.max(Math.abs(to.y - from.y),
-                    Math.abs(to.z - from.z)));
+            int steps = Math.max(Math.abs(to.x - from.x), Math.max(Math.abs(to.y - from.y), Math.abs(to.z - from.z)));
             BlockPosition previous = from;
             write(transform.apply(from), state, tags, replace, transform.orientation(), path);
             for (int step = 1; step <= steps; step++) {
@@ -332,8 +333,8 @@ final class StructureDocumentReader {
             boolean replace = replace(value, path);
             StructureTransform orientation = transform.orientation();
             if (value.get("facing") != null) {
-                orientation = orientation.compose(facingTransform(
-                        ModelJson.name(value.get("facing"), path + ".facing"), path + ".facing"));
+                orientation = orientation.compose(
+                        facingTransform(ModelJson.name(value.get("facing"), path + ".facing"), path + ".facing"));
             }
             int low = alongX ? Math.min(from.x, to.x) : Math.min(from.z, to.z);
             int high = alongX ? Math.max(from.x, to.x) : Math.max(from.z, to.z);
@@ -388,7 +389,7 @@ final class StructureDocumentReader {
             for (int heightOffset = 0; heightOffset < height; heightOffset++) {
                 for (int first = -radius[0]; first <= radius[0]; first++) {
                     for (int second = -radius[1]; second <= radius[1]; second++) {
-                        if (!ellipse(first, second, radius[0], radius[1])) {
+                        if (!VoxelShapeRasterizer.ellipse(first, second, radius[0], radius[1])) {
                             continue;
                         }
                         boolean cap = heightOffset < thickness && caps.contains("bottom")
@@ -396,7 +397,7 @@ final class StructureDocumentReader {
                         int innerFirst = radius[0] - thickness;
                         int innerSecond = radius[1] - thickness;
                         boolean wall = innerFirst <= 0 || innerSecond <= 0
-                                || !ellipse(first, second, innerFirst, innerSecond);
+                                || !VoxelShapeRasterizer.ellipse(first, second, innerFirst, innerSecond);
                         if (mode.equals("shell") && !cap && !wall) {
                             continue;
                         }
@@ -429,18 +430,17 @@ final class StructureDocumentReader {
             for (int x = -radius[0]; x <= radius[0]; x++) {
                 for (int y = -radius[1]; y <= radius[1]; y++) {
                     for (int z = -radius[2]; z <= radius[2]; z++) {
-                        if (!ellipsoidContains(x, y, z, radius)) {
+                        if (!VoxelShapeRasterizer.ellipsoid(x, y, z, radius[0], radius[1], radius[2])) {
                             continue;
                         }
-                        int[] inner = new int[]{radius[0] - thickness, radius[1] - thickness,
-                                radius[2] - thickness};
+                        int[] inner = new int[]{radius[0] - thickness, radius[1] - thickness, radius[2] - thickness};
                         boolean wall = inner[0] <= 0 || inner[1] <= 0 || inner[2] <= 0
-                                || !ellipsoidContains(x, y, z, inner);
+                                || !VoxelShapeRasterizer.ellipsoid(x, y, z, inner[0], inner[1], inner[2]);
                         if (mode.equals("shell") && !wall) {
                             continue;
                         }
-                        write(transform.apply(center.offset(x, y, z)), state, tags, replace,
-                                transform.orientation(), path);
+                        write(transform.apply(center.offset(x, y, z)), state, tags, replace, transform.orientation(),
+                                path);
                     }
                 }
             }
@@ -455,8 +455,10 @@ final class StructureDocumentReader {
                 if (entry.getKey().length() != 1 || entry.getKey().charAt(0) > 127) {
                     throw new IOException(path + ".legend: keys must be one ASCII character");
                 }
-                legend.put(Character.valueOf(entry.getKey().charAt(0)), entry.getValue() == null ? null
-                        : remap(ModelJson.name(entry.getValue(), path + ".legend." + entry.getKey()), remap));
+                legend.put(Character.valueOf(entry.getKey().charAt(0)),
+                        entry.getValue() == null
+                                ? null
+                                : remap(ModelJson.name(entry.getValue(), path + ".legend." + entry.getKey()), remap));
             }
             List<Object> layers = ModelJson.array(value.get("layers"), path + ".layers");
             if (layers.isEmpty()) {
@@ -488,8 +490,9 @@ final class StructureDocumentReader {
                         }
                         String stateName = legend.get(symbol);
                         if (stateName != null) {
-                            write(transform.apply(at.offset(x, y, z)), palette.index(stateName,
-                                    path + ".legend." + symbol), elementTags, replace, transform.orientation(), path);
+                            write(transform.apply(at.offset(x, y, z)),
+                                    palette.index(stateName, path + ".legend." + symbol), elementTags, replace,
+                                    transform.orientation(), path);
                         }
                     }
                 }
@@ -523,8 +526,7 @@ final class StructureDocumentReader {
                 String name = remap(ModelJson.name(names.get(index), path + ".replace[" + index + "]"), remap);
                 replace.add(Integer.valueOf(palette.index(name, path + ".replace[" + index + "]")));
             }
-            int with = palette.index(remap(ModelJson.name(value.get("with"), path + ".with"), remap),
-                    path + ".with");
+            int with = palette.index(remap(ModelJson.name(value.get("with"), path + ".with"), remap), path + ".with");
             List<BlockPosition> positions = new ArrayList<BlockPosition>();
             for (int x = box.min.x; x <= box.max.x; x++) {
                 for (int y = box.min.y; y <= box.max.y; y++) {
@@ -551,7 +553,8 @@ final class StructureDocumentReader {
             if (templateStack.contains(name)) {
                 throw new IOException(path + ": recursive template reference " + templateStack + " -> " + name);
             }
-            BlockPosition at = value.get("at") == null ? new BlockPosition(0, 0, 0)
+            BlockPosition at = value.get("at") == null
+                    ? new BlockPosition(0, 0, 0)
                     : vector(value.get("at"), path + ".at");
             Affine local = Affine.of(transform(value, path), at);
             Map<String, String> remap = composeRemap(parentRemap, value.get("states"), path + ".states");
@@ -568,7 +571,8 @@ final class StructureDocumentReader {
 
         private void array(Map<String, Object> value, Affine transform, Map<String, String> remap, String path,
                 int depth, String instancePath) throws IOException {
-            BlockPosition at = value.get("at") == null ? new BlockPosition(0, 0, 0)
+            BlockPosition at = value.get("at") == null
+                    ? new BlockPosition(0, 0, 0)
                     : vector(value.get("at"), path + ".at");
             int[] count = positiveVector(value.get("count"), path + ".count", MAX_REPEAT);
             BlockPosition step = vector(value.get("step"), path + ".step");
@@ -599,10 +603,9 @@ final class StructureDocumentReader {
             BlockPosition step = vector(value.get("step"), path + ".step");
             Map<String, Object> repeated = ModelJson.object(value.get("element"), path + ".element");
             for (int index = 0; index < count; index++) {
-                Affine translated = transform.compose(Affine.translation(index * step.x, index * step.y,
-                        index * step.z));
-                element(repeated, translated, remap, path + ".element", depth + 1,
-                        instancePath + "/repeat:" + index);
+                Affine translated = transform
+                        .compose(Affine.translation(index * step.x, index * step.y, index * step.z));
+                element(repeated, translated, remap, path + ".element", depth + 1, instancePath + "/repeat:" + index);
             }
         }
 
@@ -611,8 +614,8 @@ final class StructureDocumentReader {
             String key = randomKey(value.get("key"), path + ".key", instancePath);
             double probability = number(value.get("chance"), path + ".chance", 0.0D, 1.0D);
             List<StructureProgram.Action> actions = conditionalActions(
-                    ModelJson.array(value.get("elements"), path + ".elements"), transform, remap,
-                    path + ".elements", depth + 1, instancePath + "/chance:" + key);
+                    ModelJson.array(value.get("elements"), path + ".elements"), transform, remap, path + ".elements",
+                    depth + 1, instancePath + "/chance:" + key);
             currentActions.add(new StructureProgram.ChanceAction(key, probability, actions));
         }
 
@@ -701,14 +704,12 @@ final class StructureDocumentReader {
             if (type == StructureProgram.Processor.Type.RECOLOR) {
                 fields(value, path, "type", "key", "select", "with", "map", "allowProtected");
             } else if (type == StructureProgram.Processor.Type.ERODE) {
-                fields(value, path, "type", "key", "select", "chance", "pattern", "iterations",
-                        "allowProtected");
+                fields(value, path, "type", "key", "select", "chance", "pattern", "iterations", "allowProtected");
             } else if (type == StructureProgram.Processor.Type.DEPOSIT) {
-                fields(value, path, "type", "key", "select", "chance", "pattern", "with", "distance",
-                        "onConflict", "allowProtected");
-            } else if (type == StructureProgram.Processor.Type.REPLACE) {
-                fields(value, path, "type", "key", "select", "chance", "pattern", "with",
+                fields(value, path, "type", "key", "select", "chance", "pattern", "with", "distance", "onConflict",
                         "allowProtected");
+            } else if (type == StructureProgram.Processor.Type.REPLACE) {
+                fields(value, path, "type", "key", "select", "chance", "pattern", "with", "allowProtected");
             } else {
                 fields(value, path, "type", "key", "select", "chance", "pattern", "allowProtected");
             }
@@ -716,7 +717,8 @@ final class StructureDocumentReader {
             StructureProgram.Selector selector = selector(value.get("select"), path + ".select");
             boolean random = type != StructureProgram.Processor.Type.RECOLOR;
             double chance = random && value.get("chance") != null
-                    ? number(value.get("chance"), path + ".chance", 0.0D, 1.0D) : 1.0D;
+                    ? number(value.get("chance"), path + ".chance", 0.0D, 1.0D)
+                    : 1.0D;
             StructureProgram.Distribution distribution = distribution(value.get("pattern"), path + ".pattern");
             boolean allowProtected = value.get("allowProtected") != null
                     && ModelJson.bool(value.get("allowProtected"), path + ".allowProtected");
@@ -729,8 +731,8 @@ final class StructureDocumentReader {
                     throw new IOException(path + ": recolor requires exactly one of with or map");
                 }
                 if (value.get("with") != null) {
-                    with = Integer.valueOf(palette.index(ModelJson.name(value.get("with"), path + ".with"),
-                            path + ".with"));
+                    with = Integer
+                            .valueOf(palette.index(ModelJson.name(value.get("with"), path + ".with"), path + ".with"));
                 } else {
                     Map<String, Object> states = ModelJson.object(value.get("map"), path + ".map");
                     if (states.isEmpty()) {
@@ -751,20 +753,21 @@ final class StructureDocumentReader {
                 totalWeight = result.totalWeight;
             }
             int iterations = type == StructureProgram.Processor.Type.ERODE
-                    ? optionalInteger(value.get("iterations"), path + ".iterations", 1, 16, 1) : 1;
+                    ? optionalInteger(value.get("iterations"), path + ".iterations", 1, 16, 1)
+                    : 1;
             int distance = type == StructureProgram.Processor.Type.DEPOSIT
-                    ? optionalInteger(value.get("distance"), path + ".distance", 1, 8, 1) : 1;
+                    ? optionalInteger(value.get("distance"), path + ".distance", 1, 8, 1)
+                    : 1;
             String conflict = type == StructureProgram.Processor.Type.DEPOSIT
-                    ? optionalName(value.get("onConflict"), path + ".onConflict", "skip") : "skip";
+                    ? optionalName(value.get("onConflict"), path + ".onConflict", "skip")
+                    : "skip";
             if (!conflict.equals("skip") && !conflict.equals("error") && !conflict.equals("replace")) {
                 throw new IOException(path + ".onConflict: expected skip, error, or replace");
             }
             StructureProgram.Processor result = new StructureProgram.Processor(type, key, selector, chance,
-                    distribution, with, mapping, weighted, totalWeight, iterations, distance, conflict,
-                    allowProtected);
+                    distribution, with, mapping, weighted, totalWeight, iterations, distance, conflict, allowProtected);
             if (type == StructureProgram.Processor.Type.DEPOSIT) {
-                expandMaximumDeposit(distance, with == null ? weighted.get(0).state : with.intValue(), selector,
-                        path);
+                expandMaximumDeposit(distance, with == null ? weighted.get(0).state : with.intValue(), selector, path);
             }
             return result;
         }
@@ -772,21 +775,33 @@ final class StructureDocumentReader {
         private void expandMaximumDeposit(int distance, int state, StructureProgram.Selector selector, String path)
                 throws IOException {
             Map<BlockPosition, MutableCell> additions = new LinkedHashMap<BlockPosition, MutableCell>();
-            for (Map.Entry<BlockPosition, MutableCell> entry
-                    : new ArrayList<Map.Entry<BlockPosition, MutableCell>>(maximumCells.entrySet())) {
+            for (Map.Entry<BlockPosition, MutableCell> entry : new ArrayList<Map.Entry<BlockPosition, MutableCell>>(
+                    maximumCells.entrySet())) {
                 for (StructureProgram.Direction direction : selector.depositDirections()) {
                     BlockPosition target;
                     switch (direction) {
-                        case DOWN: target = entry.getKey().offset(0, -distance, 0); break;
-                        case UP: target = entry.getKey().offset(0, distance, 0); break;
-                        case NORTH: target = entry.getKey().offset(0, 0, -distance); break;
-                        case SOUTH: target = entry.getKey().offset(0, 0, distance); break;
-                        case WEST: target = entry.getKey().offset(-distance, 0, 0); break;
-                        default: target = entry.getKey().offset(distance, 0, 0); break;
+                        case DOWN:
+                            target = entry.getKey().offset(0, -distance, 0);
+                            break;
+                        case UP:
+                            target = entry.getKey().offset(0, distance, 0);
+                            break;
+                        case NORTH:
+                            target = entry.getKey().offset(0, 0, -distance);
+                            break;
+                        case SOUTH:
+                            target = entry.getKey().offset(0, 0, distance);
+                            break;
+                        case WEST:
+                            target = entry.getKey().offset(-distance, 0, 0);
+                            break;
+                        default:
+                            target = entry.getKey().offset(distance, 0, 0);
+                            break;
                     }
                     checkCoordinate(target, path + ".distance");
-                    additions.put(target, new MutableCell(state, Collections.<String>emptySet(),
-                            entry.getValue().localTransform));
+                    additions.put(target,
+                            new MutableCell(state, Collections.<String>emptySet(), entry.getValue().localTransform));
                 }
             }
             maximumCells.putAll(additions);
@@ -818,8 +833,8 @@ final class StructureDocumentReader {
                     throw new IOException(path + ": total weight is too large");
                 }
                 states.add(new StructureProgram.WeightedState(
-                        palette.index(ModelJson.name(entry.get("state"), entryPath + ".state"),
-                                entryPath + ".state"), weight));
+                        palette.index(ModelJson.name(entry.get("state"), entryPath + ".state"), entryPath + ".state"),
+                        weight));
             }
             return new WeightedResult(null, states, total);
         }
@@ -838,16 +853,19 @@ final class StructureDocumentReader {
                 fields(value, path, "type", "scale", "threshold");
                 return new StructureProgram.NoiseDistribution(
                         optionalInteger(value.get("scale"), path + ".scale", 1, 32, 3),
-                        value.get("threshold") == null ? 0.5D
+                        value.get("threshold") == null
+                                ? 0.5D
                                 : number(value.get("threshold"), path + ".threshold", 0.0D, 1.0D));
             }
             if (type.equals("clusters")) {
                 fields(value, path, "type", "radius", "density", "falloff");
                 return new StructureProgram.ClusterDistribution(
                         optionalInteger(value.get("radius"), path + ".radius", 1, 16, 2),
-                        value.get("density") == null ? 0.2D
+                        value.get("density") == null
+                                ? 0.2D
                                 : number(value.get("density"), path + ".density", 0.0D, 1.0D),
-                        value.get("falloff") == null ? 0.65D
+                        value.get("falloff") == null
+                                ? 0.65D
                                 : number(value.get("falloff"), path + ".falloff", 0.0D, 1.0D));
             }
             throw new IOException(path + ".type: expected independent, noise, or clusters");
@@ -855,15 +873,14 @@ final class StructureDocumentReader {
 
         private StructureProgram.Selector selector(Object input, String path) throws IOException {
             if (input == null) {
-                return new StructureProgram.Selector(Collections.<Integer>emptySet(),
-                        Collections.<Integer>emptySet(), Collections.<String>emptySet(), false,
-                        Collections.<String>emptySet(), null, null, null, null,
+                return new StructureProgram.Selector(Collections.<Integer>emptySet(), Collections.<Integer>emptySet(),
+                        Collections.<String>emptySet(), false, Collections.<String>emptySet(), null, null, null, null,
                         Collections.<StructureProgram.Direction>emptySet(), null, 0, 6, null,
                         Collections.<String>emptySet());
             }
             Map<String, Object> value = ModelJson.object(input, path);
-            fields(value, path, "states", "excludeStates", "tags", "match", "excludeTags", "bounds", "height",
-                    "faces", "exposed", "minExposedFaces", "maxExposedFaces", "nearMarker", "excludeMarkers");
+            fields(value, path, "states", "excludeStates", "tags", "match", "excludeTags", "bounds", "height", "faces",
+                    "exposed", "minExposedFaces", "maxExposedFaces", "nearMarker", "excludeMarkers");
             Set<Integer> states = stateSet(value.get("states"), path + ".states");
             Set<Integer> excludedStates = stateSet(value.get("excludeStates"), path + ".excludeStates");
             Set<String> includedTags = tags(value.get("tags"), path + ".tags");
@@ -888,16 +905,21 @@ final class StructureDocumentReader {
             if (value.get("height") != null) {
                 Map<String, Object> height = ModelJson.object(value.get("height"), path + ".height");
                 fields(height, path + ".height", "min", "max");
-                minHeight = height.get("min") == null ? null : Integer.valueOf(integer(height.get("min"),
-                        path + ".height.min", -WorldGenLimits.MAX_HEIGHT, WorldGenLimits.MAX_HEIGHT));
-                maxHeight = height.get("max") == null ? null : Integer.valueOf(integer(height.get("max"),
-                        path + ".height.max", -WorldGenLimits.MAX_HEIGHT, WorldGenLimits.MAX_HEIGHT));
+                minHeight = height.get("min") == null
+                        ? null
+                        : Integer.valueOf(integer(height.get("min"), path + ".height.min", -WorldGenLimits.MAX_HEIGHT,
+                                WorldGenLimits.MAX_HEIGHT));
+                maxHeight = height.get("max") == null
+                        ? null
+                        : Integer.valueOf(integer(height.get("max"), path + ".height.max", -WorldGenLimits.MAX_HEIGHT,
+                                WorldGenLimits.MAX_HEIGHT));
                 if (minHeight != null && maxHeight != null && minHeight.intValue() > maxHeight.intValue()) {
                     throw new IOException(path + ".height: min must not exceed max");
                 }
             }
             Set<StructureProgram.Direction> selectedFaces = directionSet(value.get("faces"), path + ".faces");
-            Boolean exposed = value.get("exposed") == null ? null
+            Boolean exposed = value.get("exposed") == null
+                    ? null
                     : Boolean.valueOf(ModelJson.bool(value.get("exposed"), path + ".exposed"));
             int minExposed = optionalInteger(value.get("minExposedFaces"), path + ".minExposedFaces", 0, 6, 0);
             int maxExposed = optionalInteger(value.get("maxExposedFaces"), path + ".maxExposedFaces", 0, 6, 6);
@@ -1024,8 +1046,8 @@ final class StructureDocumentReader {
                         + "; use write='replace' for an intentional overwrite");
             }
             if (cells.size() > WorldGenLimits.MAX_BLOCK_CHANGES_PER_FEATURE) {
-                throw new IOException(path + ": structure exceeds "
-                        + WorldGenLimits.MAX_BLOCK_CHANGES_PER_FEATURE + " distinct cells");
+                throw new IOException(path + ": structure exceeds " + WorldGenLimits.MAX_BLOCK_CHANGES_PER_FEATURE
+                        + " distinct cells");
             }
             MutableCell maximum = maximumCells.get(position);
             if (maximum == null || replace) {
@@ -1033,8 +1055,8 @@ final class StructureDocumentReader {
             } else {
                 maximum.tags.addAll(tags);
             }
-            currentActions.add(new StructureProgram.WriteAction(Collections.singletonList(
-                    new StructureProgram.CellWrite(position, state, tags, localTransform, replace))));
+            currentActions.add(new StructureProgram.WriteAction(Collections
+                    .singletonList(new StructureProgram.CellWrite(position, state, tags, localTransform, replace))));
         }
 
         private StructureTemplate finish(Bounds declared) throws IOException {
@@ -1050,8 +1072,8 @@ final class StructureDocumentReader {
 
             for (StructureLoot loot : maximumLoots) {
                 if (!maximumCells.containsKey(loot.position)) {
-                    throw new IOException("loot element at " + coordinate(loot.position)
-                            + " does not target a structure block");
+                    throw new IOException(
+                            "loot element at " + coordinate(loot.position) + " does not target a structure block");
                 }
             }
 
@@ -1061,34 +1083,33 @@ final class StructureDocumentReader {
                 throw new IOException("structure.bounds: declared bounds do not contain all expanded cells, markers,"
                         + " and loot targets");
             }
-            String hash = sha256(semanticHash(bounds, palette.entries, blocks, maximumMarkers, maximumLoots)
-                    + '|' + sourceSemantics);
-            return new StructureTemplate(hash, bounds.minimum, bounds.maximum, palette.entries, palette.names,
-                    blocks, maximumMarkers, maximumLoots, new StructureProgram(currentActions, processors));
+            String hash = sha256(semanticHash(bounds, palette.entries, blocks, maximumMarkers, maximumLoots) + '|'
+                    + sourceSemantics);
+            return new StructureTemplate(hash, bounds.minimum, bounds.maximum, palette.entries, palette.names, blocks,
+                    maximumMarkers, maximumLoots, new StructureProgram(currentActions, processors));
         }
     }
 
     private static final Comparator<StructureTemplate.TemplateBlock> BLOCK_ORDER =
             new Comparator<StructureTemplate.TemplateBlock>() {
-                @Override
-                public int compare(StructureTemplate.TemplateBlock left, StructureTemplate.TemplateBlock right) {
-                    int y = Integer.compare(left.position.y, right.position.y);
-                    int z = Integer.compare(left.position.z, right.position.z);
-                    return y != 0 ? y : z != 0 ? z : Integer.compare(left.position.x, right.position.x);
-                }
-            };
+        @Override
+        public int compare(StructureTemplate.TemplateBlock left, StructureTemplate.TemplateBlock right) {
+            int y = Integer.compare(left.position.y, right.position.y);
+            int z = Integer.compare(left.position.z, right.position.z);
+            return y != 0 ? y : z != 0 ? z : Integer.compare(left.position.x, right.position.x);
+        }
+    };
 
-    private static final Comparator<StructureTemplate.Marker> MARKER_ORDER =
-            new Comparator<StructureTemplate.Marker>() {
-                @Override
-                public int compare(StructureTemplate.Marker left, StructureTemplate.Marker right) {
-                    int y = Integer.compare(left.position.y, right.position.y);
-                    int z = Integer.compare(left.position.z, right.position.z);
-                    int x = Integer.compare(left.position.x, right.position.x);
-                    int name = left.name.compareTo(right.name);
-                    return y != 0 ? y : z != 0 ? z : x != 0 ? x : name;
-                }
-            };
+    private static final Comparator<StructureTemplate.Marker> MARKER_ORDER = new Comparator<StructureTemplate.Marker>() {
+        @Override
+        public int compare(StructureTemplate.Marker left, StructureTemplate.Marker right) {
+            int y = Integer.compare(left.position.y, right.position.y);
+            int z = Integer.compare(left.position.z, right.position.z);
+            int x = Integer.compare(left.position.x, right.position.x);
+            int name = left.name.compareTo(right.name);
+            return y != 0 ? y : z != 0 ? z : x != 0 ? x : name;
+        }
+    };
 
     private static final Comparator<StructureLoot> LOOT_ORDER = new Comparator<StructureLoot>() {
         @Override
@@ -1138,8 +1159,7 @@ final class StructureDocumentReader {
 
     private static String sha256(String value) {
         try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest(value.getBytes(StandardCharsets.UTF_8));
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
             StringBuilder result = new StringBuilder(digest.length * 2);
             for (byte part : digest) {
                 result.append(String.format(Locale.ROOT, "%02x", part & 0xff));
@@ -1216,9 +1236,8 @@ final class StructureDocumentReader {
     }
 
     private static boolean contains(Bounds bounds, BlockPosition position) {
-        return position.x >= bounds.minimum.x && position.x <= bounds.maximum.x
-                && position.y >= bounds.minimum.y && position.y <= bounds.maximum.y
-                && position.z >= bounds.minimum.z && position.z <= bounds.maximum.z;
+        return position.x >= bounds.minimum.x && position.x <= bounds.maximum.x && position.y >= bounds.minimum.y
+                && position.y <= bounds.maximum.y && position.z >= bounds.minimum.z && position.z <= bounds.maximum.z;
     }
 
     private static String remap(String state, Map<String, String> remap) {
@@ -1244,8 +1263,8 @@ final class StructureDocumentReader {
         try {
             StructureTransform.Rotation rotation = StructureTransform.rotation(
                     optionalName(value.get("rotation"), path + ".rotation", "none"), new java.util.Random(0L));
-            StructureTransform.Mirror mirror = StructureTransform.mirror(
-                    optionalName(value.get("mirror"), path + ".mirror", "none"), new java.util.Random(0L));
+            StructureTransform.Mirror mirror = StructureTransform
+                    .mirror(optionalName(value.get("mirror"), path + ".mirror", "none"), new java.util.Random(0L));
             return new StructureTransform(rotation, mirror);
         } catch (IllegalArgumentException error) {
             throw new IOException(path + ": " + error.getMessage());
@@ -1263,8 +1282,8 @@ final class StructureDocumentReader {
         Object facing = value.get("facing");
         if (facing != null) {
             try {
-                StructureTransform.Direction direction = StructureTransform.Direction.parse(
-                        ModelJson.name(facing, path + ".facing"));
+                StructureTransform.Direction direction = StructureTransform.Direction
+                        .parse(ModelJson.name(facing, path + ".facing"));
                 value.put("facing", transform.apply(direction).name().toLowerCase(Locale.ROOT));
             } catch (IllegalArgumentException error) {
                 throw new IOException(path + ".facing: expected north, east, south, or west");
@@ -1360,26 +1379,6 @@ final class StructureDocumentReader {
         return first < second ? new int[]{first, second} : new int[]{second, first};
     }
 
-    private static boolean ellipse(int first, int second, int radiusFirst, int radiusSecond) {
-        long firstSquared = (long) first * first;
-        long secondSquared = (long) second * second;
-        long radiusFirstSquared = (long) radiusFirst * radiusFirst;
-        long radiusSecondSquared = (long) radiusSecond * radiusSecond;
-        return firstSquared * radiusSecondSquared + secondSquared * radiusFirstSquared
-                <= radiusFirstSquared * radiusSecondSquared;
-    }
-
-    private static boolean ellipsoidContains(int x, int y, int z, int[] radius) {
-        long rx = radius[0];
-        long ry = radius[1];
-        long rz = radius[2];
-        long rx2 = rx * rx;
-        long ry2 = ry * ry;
-        long rz2 = rz * rz;
-        return (long) x * x * ry2 * rz2 + (long) y * y * rx2 * rz2 + (long) z * z * rx2 * ry2
-                <= rx2 * ry2 * rz2;
-    }
-
     private static int[] radii(Object input, String path, int count) throws IOException {
         if (input instanceof Number) {
             int radius = integer(input, path, 1, WorldGenLimits.MAX_FEATURE_RADIUS);
@@ -1404,10 +1403,12 @@ final class StructureDocumentReader {
         if (values.size() != 3) {
             throw new IOException(path + ": expected exactly three integers");
         }
-        BlockPosition result = new BlockPosition(integer(values.get(0), path + "[0]", -WorldGenLimits.MAX_FEATURE_RADIUS,
-                WorldGenLimits.MAX_FEATURE_RADIUS), integer(values.get(1), path + "[1]", -WorldGenLimits.MAX_HEIGHT,
-                WorldGenLimits.MAX_HEIGHT), integer(values.get(2), path + "[2]", -WorldGenLimits.MAX_FEATURE_RADIUS,
-                WorldGenLimits.MAX_FEATURE_RADIUS));
+        BlockPosition result = new BlockPosition(
+                integer(values.get(0), path + "[0]", -WorldGenLimits.MAX_FEATURE_RADIUS,
+                        WorldGenLimits.MAX_FEATURE_RADIUS),
+                integer(values.get(1), path + "[1]", -WorldGenLimits.MAX_HEIGHT, WorldGenLimits.MAX_HEIGHT),
+                integer(values.get(2), path + "[2]", -WorldGenLimits.MAX_FEATURE_RADIUS,
+                        WorldGenLimits.MAX_FEATURE_RADIUS));
         return result;
     }
 
@@ -1417,16 +1418,15 @@ final class StructureDocumentReader {
             throw new IOException(path + ": expected exactly three positive integers");
         }
         return new int[]{integer(values.get(0), path + "[0]", 1, maximum),
-                integer(values.get(1), path + "[1]", 1, maximum),
-                integer(values.get(2), path + "[2]", 1, maximum)};
+                integer(values.get(1), path + "[1]", 1, maximum), integer(values.get(2), path + "[2]", 1, maximum)};
     }
 
     private static void checkCoordinate(BlockPosition position, String path) throws IOException {
         if (Math.abs(position.x) > WorldGenLimits.MAX_FEATURE_RADIUS
                 || Math.abs(position.z) > WorldGenLimits.MAX_FEATURE_RADIUS
                 || Math.abs(position.y) > WorldGenLimits.MAX_HEIGHT) {
-            throw new IOException(path + ": expanded coordinate " + coordinate(position)
-                    + " exceeds structure coordinate limits");
+            throw new IOException(
+                    path + ": expanded coordinate " + coordinate(position) + " exceeds structure coordinate limits");
         }
     }
 
@@ -1460,7 +1460,8 @@ final class StructureDocumentReader {
                 continue;
             }
             String internal = block.getBlockName();
-            String normalized = internal == null ? ""
+            String normalized = internal == null
+                    ? ""
                     : internal.startsWith("tile.") ? internal.substring("tile.".length()) : internal;
             if (name.equals(internal) || bare.equals(internal) || bare.equals(normalized)) {
                 return id;
@@ -1556,9 +1557,7 @@ final class StructureDocumentReader {
     }
 
     private enum CuboidMode {
-        FILL,
-        SHELL,
-        FRAME
+        FILL, SHELL, FRAME
     }
 
     private static final class Palette {
@@ -1672,9 +1671,8 @@ final class StructureDocumentReader {
 
         private Affine compose(Affine inner) {
             return new Affine(xx * inner.xx + xz * inner.zx, xx * inner.xz + xz * inner.zz,
-                    zx * inner.xx + zz * inner.zx, zx * inner.xz + zz * inner.zz,
-                    xx * inner.tx + xz * inner.tz + tx, inner.ty + ty,
-                    zx * inner.tx + zz * inner.tz + tz);
+                    zx * inner.xx + zz * inner.zx, zx * inner.xz + zz * inner.zz, xx * inner.tx + xz * inner.tz + tx,
+                    inner.ty + ty, zx * inner.tx + zz * inner.tz + tz);
         }
 
         private StructureTransform orientation() {

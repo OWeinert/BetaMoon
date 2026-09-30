@@ -94,6 +94,8 @@ public final class LuaModPackagesTest {
         expected.add("03_adv_18_local_structure");
         expected.add("03_adv_19_regional_structures");
         expected.add("03_adv_20_complete_worldgen_pack");
+        expected.add("03_adv_21_sunken_cellar");
+        expected.add("03_adv_22_excavated_foundation");
         LuaScriptRegistry.clear();
         for (int i = 0; i < sources.size(); i++) {
             LuaModSource source = sources.get(i);

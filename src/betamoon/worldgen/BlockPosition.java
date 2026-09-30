@@ -31,4 +31,9 @@ public final class BlockPosition {
         result = 31 * result + y;
         return 31 * result + z;
     }
+
+    @Override
+    public String toString() {
+        return x + "," + y + "," + z;
+    }
 }

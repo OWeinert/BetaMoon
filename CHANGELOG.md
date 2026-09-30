@@ -39,6 +39,13 @@ BetaMoon 0.8.0 expands world generation into a deterministic, reusable Lua API.
 - Add bounded regional site fallback search, connector vertical tolerance, and persisted terrain mutations and
   conform offsets for deterministic recovery.
 - Add terrain planning details to direct placement and preview results, plus focused site and terrain rejection reasons.
+- Add reusable transformed footprints, named and authored masks, rounded and convex foundation/terrace cores,
+  deterministic materials, hard/stepped/blended/natural/authored edges, and bounded transition grading.
+- Add selector-based conform columns with support/tag/state/bounds/height/marker filters, precise include/exclude
+  markers, deterministic smoothing, focused diagnostics, and persisted regional offsets.
+- Add independent atomic excavation for every terrain mode with footprint, box, cylinder, ellipsoid, authored voxel,
+  local/surface-relative bounds, replacement/fluid policies, protected-cell checks, regional recovery, and explicit
+  excavation < adaptation < structure write precedence.
 
 ### Chat
 

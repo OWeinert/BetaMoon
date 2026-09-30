@@ -17,6 +17,10 @@ import org.luaj.vm2.LuaValue;
 
 /** Bounded transactional block changes for one local feature. */
 public final class PlacementPlan {
+    public enum WritePriority {
+        EXCAVATION, TERRAIN_ADAPTATION, STRUCTURE
+    }
+
     private final BlockPosition origin;
     private final int maxBlocks;
     private final int maxRadius;
@@ -32,10 +36,19 @@ public final class PlacementPlan {
     }
 
     public boolean setBlock(int x, int y, int z, int blockId, int metadata) {
-        return setBlock(x, y, z, blockId, metadata, null);
+        return setBlock(x, y, z, blockId, metadata, null, WritePriority.STRUCTURE);
+    }
+
+    public boolean setBlock(int x, int y, int z, int blockId, int metadata, WritePriority priority) {
+        return setBlock(x, y, z, blockId, metadata, null, priority);
     }
 
     public boolean setBlock(int x, int y, int z, int blockId, int metadata, Map<String, LuaValue> tileData) {
+        return setBlock(x, y, z, blockId, metadata, tileData, WritePriority.STRUCTURE);
+    }
+
+    public boolean setBlock(int x, int y, int z, int blockId, int metadata, Map<String, LuaValue> tileData,
+            WritePriority priority) {
         if (failure != null) {
             return false;
         }
@@ -53,6 +66,10 @@ public final class PlacementPlan {
             return false;
         }
         BlockPosition position = new BlockPosition(x, y, z);
+        Change previous = changes.get(position);
+        if (previous != null && previous.priority.ordinal() > priority.ordinal()) {
+            return true;
+        }
         if (!changes.containsKey(position) && changes.size() >= maxBlocks) {
             failure = FeatureResult.BUDGET_EXCEEDED;
             return false;
@@ -72,7 +89,7 @@ public final class PlacementPlan {
                 return false;
             }
         }
-        changes.put(position, new Change(position, blockId, metadata, tileData));
+        changes.put(position, new Change(position, blockId, metadata, tileData, priority));
         return true;
     }
 
@@ -115,6 +132,11 @@ public final class PlacementPlan {
         return changes.containsKey(new BlockPosition(x, y, z));
     }
 
+    public boolean hasPriority(BlockPosition position, WritePriority priority) {
+        Change change = changes.get(position);
+        return change != null && change.priority == priority;
+    }
+
     public List<PlannedBlock> plannedBlocks() {
         List<PlannedBlock> result = new ArrayList<PlannedBlock>();
         for (Change change : changes.values()) {
@@ -127,7 +149,10 @@ public final class PlacementPlan {
         return commit(context, false);
     }
 
-    /** Commits a runtime placement, then publishes render and neighbor updates as one completed change. */
+    /**
+     * Commits a runtime placement, then publishes render and neighbor updates as
+     * one completed change.
+     */
     public FeatureResult commitWithUpdates(FeatureContext context) {
         return commit(context, true);
     }
@@ -151,9 +176,10 @@ public final class PlacementPlan {
             if (!world.blockExists(change.position.x, change.position.y, change.position.z)) {
                 return FeatureResult.rejected(FeatureResult.UNLOADED_CHUNK);
             }
-            originals.add(new Original(change.position, world.getBlockId(change.position.x, change.position.y,
-                    change.position.z), world.getBlockMetadata(change.position.x, change.position.y,
-                            change.position.z), tileData(world, change.position)));
+            originals.add(new Original(change.position,
+                    world.getBlockId(change.position.x, change.position.y, change.position.z),
+                    world.getBlockMetadata(change.position.x, change.position.y, change.position.z),
+                    tileData(world, change.position)));
             min = min(min, change.position);
             max = max(max, change.position);
         }
@@ -179,8 +205,7 @@ public final class PlacementPlan {
                 if (change.tileData.isEmpty()) {
                     continue;
                 }
-                TileEntity tile = world.getBlockTileEntity(change.position.x, change.position.y,
-                        change.position.z);
+                TileEntity tile = world.getBlockTileEntity(change.position.x, change.position.y, change.position.z);
                 if (!(tile instanceof LuaTileEntity)) {
                     rollback(world, originals, committed);
                     return FeatureResult.rejected(FeatureResult.BLOCKED);
@@ -224,7 +249,10 @@ public final class PlacementPlan {
         return FeatureResult.placed(committed, min, max, context.diagnostics());
     }
 
-    /** Validates the complete plan and reports its real bounds without mutating the world. */
+    /**
+     * Validates the complete plan and reports its real bounds without mutating the
+     * world.
+     */
     public FeatureResult preview(FeatureContext context) {
         if (failure != null) {
             return FeatureResult.rejected(failure);
@@ -311,19 +339,20 @@ public final class PlacementPlan {
     private void publishUpdates(World world) {
         for (Change change : changes.values()) {
             world.markBlockNeedsUpdate(change.position.x, change.position.y, change.position.z);
-            world.notifyBlocksOfNeighborChange(change.position.x, change.position.y, change.position.z,
-                    change.blockId);
+            world.notifyBlocksOfNeighborChange(change.position.x, change.position.y, change.position.z, change.blockId);
         }
     }
 
     private static BlockPosition min(BlockPosition left, BlockPosition right) {
-        return left == null ? right : new BlockPosition(Math.min(left.x, right.x), Math.min(left.y, right.y),
-                Math.min(left.z, right.z));
+        return left == null
+                ? right
+                : new BlockPosition(Math.min(left.x, right.x), Math.min(left.y, right.y), Math.min(left.z, right.z));
     }
 
     private static BlockPosition max(BlockPosition left, BlockPosition right) {
-        return left == null ? right : new BlockPosition(Math.max(left.x, right.x), Math.max(left.y, right.y),
-                Math.max(left.z, right.z));
+        return left == null
+                ? right
+                : new BlockPosition(Math.max(left.x, right.x), Math.max(left.y, right.y), Math.max(left.z, right.z));
     }
 
     private static final class Change {
@@ -331,13 +360,17 @@ public final class PlacementPlan {
         private final int blockId;
         private final int metadata;
         private final Map<String, LuaValue> tileData;
+        private final WritePriority priority;
 
-        private Change(BlockPosition position, int blockId, int metadata, Map<String, LuaValue> tileData) {
+        private Change(BlockPosition position, int blockId, int metadata, Map<String, LuaValue> tileData,
+                WritePriority priority) {
             this.position = position;
             this.blockId = blockId;
             this.metadata = metadata;
-            this.tileData = tileData == null ? java.util.Collections.<String, LuaValue>emptyMap()
+            this.tileData = tileData == null
+                    ? java.util.Collections.<String, LuaValue>emptyMap()
                     : java.util.Collections.unmodifiableMap(new LinkedHashMap<String, LuaValue>(tileData));
+            this.priority = priority;
         }
     }
 

@@ -10,7 +10,9 @@ import java.util.Set;
 import net.minecraft.src.TileEntity;
 import net.minecraft.src.World;
 
-/** Bounded world reads and deterministic random state for one feature attempt. */
+/**
+ * Bounded world reads and deterministic random state for one feature attempt.
+ */
 public final class FeatureContext {
     private final World world;
     private final Random random;
@@ -120,6 +122,14 @@ public final class FeatureContext {
         return TerrainColumn.isStructural(blockId);
     }
 
+    public boolean isOrdinaryTerrain(int blockId) {
+        return TerrainColumn.isOrdinaryTerrain(blockId);
+    }
+
+    public boolean isTerrainMaterial(int blockId) {
+        return TerrainColumn.isTerrainMaterial(blockId);
+    }
+
     public boolean isFluid(int blockId) {
         return TerrainColumn.isFluid(blockId);
     }
@@ -170,7 +180,8 @@ public final class FeatureContext {
         }
         try {
             FeatureDefinition definition = resolver.find(key);
-            return definition == null ? FeatureResult.rejected(FeatureResult.RUNTIME_ERROR)
+            return definition == null
+                    ? FeatureResult.rejected(FeatureResult.RUNTIME_ERROR)
                     : definition.feature.plan(this, origin, output);
         } finally {
             activeFeatures.remove(key);

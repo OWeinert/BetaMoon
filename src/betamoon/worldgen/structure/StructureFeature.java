@@ -11,9 +11,11 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.TreeMap;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -50,8 +52,8 @@ public final class StructureFeature implements WorldFeature {
     public FeatureResult plan(FeatureContext context, BlockPosition origin, PlacementPlan output) {
         StructureTransform transform;
         try {
-            transform = StructureTransform.select(context.options().rotation, context.options().mirror,
-                    defaultRotation, defaultMirror, context.random());
+            transform = StructureTransform.select(context.options().rotation, context.options().mirror, defaultRotation,
+                    defaultMirror, context.random());
         } catch (IllegalArgumentException error) {
             return FeatureResult.rejected(FeatureResult.BLOCKED);
         }
@@ -62,26 +64,31 @@ public final class StructureFeature implements WorldFeature {
         } catch (IllegalStateException error) {
             return FeatureResult.rejected(FeatureResult.BLOCKED);
         }
-        StructureTerrainMask resolvedTerrainMask = new StructureTerrainMask(resolved, template);
-        StructureTerrainPlanner.Result placement = StructureTerrainPlanner.prepare(context, origin, transform,
-                terrain, context.sitePolicy(), resolvedTerrainMask,
-                bounds(new BlockPosition(0, 0, 0), transform), output);
+        StructureTerrainMask resolvedTerrainMask = new StructureTerrainMask(resolved, template, processors,
+                placementSeed);
+        StructureTerrainPlanner.Result placement = StructureTerrainPlanner.prepare(context, origin, transform, terrain,
+                context.sitePolicy(), resolvedTerrainMask, bounds(new BlockPosition(0, 0, 0), transform), output,
+                placementSeed);
         if (placement.failure != null) {
             return FeatureResult.rejected(placement.failure, context.diagnostics());
         }
-        return plan(context, placement.origin, output, transform, resolved, placementSeed, false,
-                Integer.MIN_VALUE, Integer.MAX_VALUE, Integer.MIN_VALUE, Integer.MAX_VALUE,
-                placement.conformOffsets());
+        return plan(context, placement.origin, output, transform, resolved, placementSeed, false, Integer.MIN_VALUE,
+                Integer.MAX_VALUE, Integer.MIN_VALUE, Integer.MAX_VALUE, placement.conformOffsets());
     }
 
-    /** Plans only the part of a deterministic regional piece contained by one chunk. */
+    /**
+     * Plans only the part of a deterministic regional piece contained by one chunk.
+     */
     public FeatureResult planChunk(FeatureContext context, BlockPosition origin, PlacementPlan output,
             StructureTransform transform, long pieceSeed, int chunkX, int chunkZ, boolean recovery) {
         return planChunk(context, origin, output, transform, pieceSeed, chunkX, chunkZ, recovery,
                 Collections.<ConformOffset>emptyList());
     }
 
-    /** Plans a saved regional piece with its resolved terrain-conforming column offsets. */
+    /**
+     * Plans a saved regional piece with its resolved terrain-conforming column
+     * offsets.
+     */
     public FeatureResult planChunk(FeatureContext context, BlockPosition origin, PlacementPlan output,
             StructureTransform transform, long pieceSeed, int chunkX, int chunkZ, boolean recovery,
             List<ConformOffset> conformOffsets) {
@@ -91,8 +98,8 @@ public final class StructureFeature implements WorldFeature {
         } catch (IllegalStateException error) {
             return FeatureResult.rejected(FeatureResult.BLOCKED);
         }
-        return plan(context, origin, output, transform, resolved, pieceSeed, recovery, chunkX << 4,
-                (chunkX << 4) + 15, chunkZ << 4, (chunkZ << 4) + 15, conformOffsets);
+        return plan(context, origin, output, transform, resolved, pieceSeed, recovery, chunkX << 4, (chunkX << 4) + 15,
+                chunkZ << 4, (chunkZ << 4) + 15, conformOffsets);
     }
 
     private FeatureResult plan(FeatureContext context, BlockPosition origin, PlacementPlan output,
@@ -100,6 +107,9 @@ public final class StructureFeature implements WorldFeature {
             int minX, int maxX, int minZ, int maxZ, List<ConformOffset> conformOffsets) {
         Map<BlockPosition, Map<String, LuaValue>> markerData = markerData(resolved.markers);
         int before = output.size();
+        int terrainOverlaps = 0;
+        int structureWrites = 0;
+        Set<BlockPosition> occupied = new LinkedHashSet<BlockPosition>();
         for (StructureTemplate.TemplateBlock block : resolved.blocks) {
             Random random = new Random(blockSeed(placementSeed, block));
             StructureTemplate.State selected = template.palette.get(block.state).select(random);
@@ -123,6 +133,13 @@ public final class StructureFeature implements WorldFeature {
             if (x < minX || x > maxX || z < minZ || z > maxZ) {
                 continue;
             }
+            BlockPosition finalPosition = new BlockPosition(x, y, z);
+            if (!conformOffsets.isEmpty() && !occupied.add(finalPosition)) {
+                return FeatureResult.rejected(FeatureResult.CONFORM_COLUMN_COLLISION);
+            }
+            if (output.contains(x, y, z)) {
+                terrainOverlaps++;
+            }
             int existing = context.blockId(x, y, z);
             if (existing < 0) {
                 return FeatureResult.rejected(context.failure());
@@ -139,8 +156,8 @@ public final class StructureFeature implements WorldFeature {
             int metadata;
             try {
                 metadata = BlockStateTransformRegistry.transform(blockId, selected.metadata,
-                        transform.compose(block.localTransform),
-                        processors.unknownMetadata, processors.metadataTransforms.get(Integer.valueOf(blockId)));
+                        transform.compose(block.localTransform), processors.unknownMetadata,
+                        processors.metadataTransforms.get(Integer.valueOf(blockId)));
             } catch (IllegalArgumentException error) {
                 return FeatureResult.rejected(FeatureResult.BLOCKED);
             }
@@ -152,6 +169,7 @@ public final class StructureFeature implements WorldFeature {
             if (!output.setBlock(x, y, z, blockId, metadata, data)) {
                 return FeatureResult.rejected(output.failure());
             }
+            structureWrites++;
         }
         for (StructureLoot loot : resolved.loots) {
             BlockPosition relative = transform.apply(loot.position.x - template.origin.x,
@@ -178,8 +196,12 @@ public final class StructureFeature implements WorldFeature {
             }
         }
         int added = output.size() - before;
-        return added == 0 ? FeatureResult.rejected(FeatureResult.NO_CHANGES)
-                : FeatureResult.placed(added, null, null);
+        context.diagnostic("terrainStructureOverlaps", Integer.valueOf(terrainOverlaps));
+        context.diagnostic("structureWritesPlanned", Integer.valueOf(structureWrites));
+        context.diagnostic("totalWritesPlanned", Integer.valueOf(output.size()));
+        return !output.hasPlannedChanges()
+                ? FeatureResult.rejected(FeatureResult.NO_CHANGES)
+                : FeatureResult.placed(Math.max(added, structureWrites), null, null);
     }
 
     public Bounds bounds(BlockPosition origin, StructureTransform transform) {
@@ -193,10 +215,14 @@ public final class StructureFeature implements WorldFeature {
                 for (int z : zs) {
                     BlockPosition relative = transform.apply(x, y, z);
                     BlockPosition position = origin.offset(relative.x, relative.y, relative.z);
-                    min = min == null ? position : new BlockPosition(Math.min(min.x, position.x),
-                            Math.min(min.y, position.y), Math.min(min.z, position.z));
-                    max = max == null ? position : new BlockPosition(Math.max(max.x, position.x),
-                            Math.max(max.y, position.y), Math.max(max.z, position.z));
+                    min = min == null
+                            ? position
+                            : new BlockPosition(Math.min(min.x, position.x), Math.min(min.y, position.y),
+                                    Math.min(min.z, position.z));
+                    max = max == null
+                            ? position
+                            : new BlockPosition(Math.max(max.x, position.x), Math.max(max.y, position.y),
+                                    Math.max(max.z, position.z));
                 }
             }
         }
@@ -214,10 +240,14 @@ public final class StructureFeature implements WorldFeature {
                     block.position.y - template.origin.y, block.position.z - template.origin.z);
             BlockPosition position = origin.offset(relative.x,
                     relative.y + conformOffset(offsets, relative.x, relative.z), relative.z);
-            min = min == null ? position : new BlockPosition(Math.min(min.x, position.x),
-                    Math.min(min.y, position.y), Math.min(min.z, position.z));
-            max = max == null ? position : new BlockPosition(Math.max(max.x, position.x),
-                    Math.max(max.y, position.y), Math.max(max.z, position.z));
+            min = min == null
+                    ? position
+                    : new BlockPosition(Math.min(min.x, position.x), Math.min(min.y, position.y),
+                            Math.min(min.z, position.z));
+            max = max == null
+                    ? position
+                    : new BlockPosition(Math.max(max.x, position.x), Math.max(max.y, position.y),
+                            Math.max(max.z, position.z));
         }
         return new Bounds(min == null ? origin : min, max == null ? origin : max);
     }
@@ -226,14 +256,13 @@ public final class StructureFeature implements WorldFeature {
         return connectors(origin, transform, Collections.<ConformOffset>emptyList());
     }
 
-    public List<Connector> connectors(BlockPosition origin, StructureTransform transform,
-            List<ConformOffset> offsets) {
+    public List<Connector> connectors(BlockPosition origin, StructureTransform transform, List<ConformOffset> offsets) {
         return positionedConnectors(connectors, origin, transform, offsets);
     }
 
     /** Resolves conditional connectors from the persisted regional piece seed. */
-    public List<Connector> connectors(BlockPosition origin, StructureTransform transform,
-            List<ConformOffset> offsets, long placementSeed) {
+    public List<Connector> connectors(BlockPosition origin, StructureTransform transform, List<ConformOffset> offsets,
+            long placementSeed) {
         return positionedConnectors(parseConnectors(template.resolve(placementSeed).markers), origin, transform,
                 offsets);
     }
@@ -242,10 +271,9 @@ public final class StructureFeature implements WorldFeature {
             StructureTransform transform, List<ConformOffset> offsets) {
         List<Connector> result = new ArrayList<Connector>();
         for (Connector connector : connectors) {
-            BlockPosition relative = transform.apply(connector.position.x, connector.position.y,
-                    connector.position.z);
-            result.add(new Connector(connector.pool, origin.offset(relative.x,
-                    relative.y + conformOffset(offsets, relative.x, relative.z), relative.z),
+            BlockPosition relative = transform.apply(connector.position.x, connector.position.y, connector.position.z);
+            result.add(new Connector(connector.pool,
+                    origin.offset(relative.x, relative.y + conformOffset(offsets, relative.x, relative.z), relative.z),
                     transform.apply(connector.facing)));
         }
         return Collections.unmodifiableList(result);
@@ -276,7 +304,10 @@ public final class StructureFeature implements WorldFeature {
         return generationSignature(template, processors, terrain);
     }
 
-    /** Resolves every external/nested loot dependency while the publication batch is active. */
+    /**
+     * Resolves every external/nested loot dependency while the publication batch is
+     * active.
+     */
     public void validateLootReferences() throws java.io.IOException {
         for (StructureLoot loot : template.loots) {
             loot.validateReferences();
@@ -292,7 +323,10 @@ public final class StructureFeature implements WorldFeature {
         return positionedMarkers(template.markers, origin, transform, offsets);
     }
 
-    /** Resolves placement-time marker variation using the same persisted seed as the piece blocks. */
+    /**
+     * Resolves placement-time marker variation using the same persisted seed as the
+     * piece blocks.
+     */
     public List<PositionedMarker> markers(BlockPosition origin, StructureTransform transform,
             List<ConformOffset> offsets, long placementSeed) {
         return positionedMarkers(template.resolve(placementSeed).markers, origin, transform, offsets);
@@ -303,9 +337,9 @@ public final class StructureFeature implements WorldFeature {
         List<PositionedMarker> result = new ArrayList<PositionedMarker>();
         for (StructureTemplate.Marker marker : markers) {
             BlockPosition relative = transform.apply(marker.position.x, marker.position.y, marker.position.z);
-            result.add(new PositionedMarker(origin.offset(relative.x,
-                    relative.y + conformOffset(offsets, relative.x, relative.z), relative.z), marker.name,
-                    marker.value));
+            result.add(new PositionedMarker(
+                    origin.offset(relative.x, relative.y + conformOffset(offsets, relative.x, relative.z), relative.z),
+                    marker.name, marker.value));
         }
         return Collections.unmodifiableList(result);
     }
@@ -350,19 +384,19 @@ public final class StructureFeature implements WorldFeature {
         canonical.append('|').append(processors.tileCollision).append('|').append(processors.unknownMetadata);
         canonical.append('|').append(terrain.signature());
         canonical.append('|').append(new TreeMap<Integer, Integer>(processors.replacements));
-        canonical.append('|').append(processors.allowedExisting == null ? "*"
-                : java.util.Arrays.toString(processors.allowedExisting.values()));
-        for (Map.Entry<Integer, CustomMetadataTransform> entry
-                : new TreeMap<Integer, CustomMetadataTransform>(processors.metadataTransforms).entrySet()) {
+        canonical.append('|')
+                .append(processors.allowedExisting == null
+                        ? "*"
+                        : java.util.Arrays.toString(processors.allowedExisting.values()));
+        for (Map.Entry<Integer, CustomMetadataTransform> entry : new TreeMap<Integer, CustomMetadataTransform>(
+                processors.metadataTransforms).entrySet()) {
             canonical.append('|').append(entry.getKey()).append('=').append(entry.getValue().generationSignature());
         }
         for (StructureLoot loot : template.loots) {
-            canonical.append("|loot=").append(loot.semantics()).append(':')
-                    .append(loot.dependencySignature());
+            canonical.append("|loot=").append(loot.semantics()).append(':').append(loot.dependencySignature());
         }
         try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest(canonical.toString().getBytes("UTF-8"));
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(canonical.toString().getBytes("UTF-8"));
             StringBuilder result = new StringBuilder(digest.length * 2);
             for (byte value : digest) {
                 result.append(String.format(java.util.Locale.ROOT, "%02x", value & 0xff));
@@ -389,7 +423,7 @@ public final class StructureFeature implements WorldFeature {
         return result;
     }
 
-    private static long blockSeed(long placementSeed, StructureTemplate.TemplateBlock block) {
+    static long blockSeed(long placementSeed, StructureTemplate.TemplateBlock block) {
         long coordinate = ((long) block.position.x & 0x1fffffL) << 42;
         coordinate ^= ((long) block.position.y & 0x1fffffL) << 21;
         coordinate ^= (long) block.position.z & 0x1fffffL;
@@ -462,13 +496,19 @@ public final class StructureFeature implements WorldFeature {
                 terrainMask.supportColumns());
     }
 
-    /** Resolves regional terrain once so later chunk recovery never resamples a partially generated site. */
+    /**
+     * Resolves regional terrain once so later chunk recovery never resamples a
+     * partially generated site.
+     */
     public RegionalPlacement resolveRegional(FeatureContext context, BlockPosition requestedOrigin,
             StructureTransform transform, SitePolicy site) {
         return resolveRegional(context, requestedOrigin, transform, site, 0L);
     }
 
-    /** Resolves regional terrain from the same deterministic seed later used for piece placement. */
+    /**
+     * Resolves regional terrain from the same deterministic seed later used for
+     * piece placement.
+     */
     public RegionalPlacement resolveRegional(FeatureContext context, BlockPosition requestedOrigin,
             StructureTransform transform, SitePolicy site, long placementSeed) {
         StructureTemplate.Resolved resolved;
@@ -477,12 +517,13 @@ public final class StructureFeature implements WorldFeature {
         } catch (IllegalStateException error) {
             return RegionalPlacement.rejected(FeatureResult.BLOCKED);
         }
-        StructureTerrainMask resolvedTerrainMask = new StructureTerrainMask(resolved, template);
+        StructureTerrainMask resolvedTerrainMask = new StructureTerrainMask(resolved, template, processors,
+                placementSeed);
         PlacementPlan terrainChanges = new PlacementPlan(requestedOrigin, maximumBlocks(),
-                Math.min(betamoon.worldgen.WorldGenLimits.MAX_FEATURE_RADIUS,
-                        Math.max(1, extraRadius() + maximumTemplateRadius())));
+                Math.min(betamoon.worldgen.WorldGenLimits.MAX_FEATURE_RADIUS, Math.max(1, maximumRadius())));
         StructureTerrainPlanner.Result result = StructureTerrainPlanner.prepare(context, requestedOrigin, transform,
-                terrain, site, resolvedTerrainMask, bounds(new BlockPosition(0, 0, 0), transform), terrainChanges);
+                terrain, site, resolvedTerrainMask, bounds(new BlockPosition(0, 0, 0), transform), terrainChanges,
+                placementSeed);
         if (result.failure != null) {
             return RegionalPlacement.rejected(result.failure);
         }
@@ -496,8 +537,8 @@ public final class StructureFeature implements WorldFeature {
             maximum = new BlockPosition(Math.max(maximum.x, block.position.x), Math.max(maximum.y, block.position.y),
                     Math.max(maximum.z, block.position.z));
         }
-        return RegionalPlacement.accepted(result.origin, new Bounds(minimum, maximum),
-                terrainChanges.plannedBlocks(), conformOffsets);
+        return RegionalPlacement.accepted(result.origin, new Bounds(minimum, maximum), terrainChanges.plannedBlocks(),
+                conformOffsets);
     }
 
     private int maximumTemplateRadius() {
@@ -521,7 +562,11 @@ public final class StructureFeature implements WorldFeature {
     }
 
     public int extraRadius() {
-        return terrain.extraRadius();
+        return Math.max(0, maximumRadius() - maximumTemplateRadius());
+    }
+
+    public int maximumRadius() {
+        return terrain.requiredRadius(maximumTemplateRadius());
     }
 
     public int maximumReads() {
@@ -529,8 +574,7 @@ public final class StructureFeature implements WorldFeature {
         long volume = footprintColumns * template.sizeY;
         long reads = volume + footprintColumns * (betamoon.worldgen.WorldGenLimits.MAX_HEIGHT + 1L) * 2L
                 + (long) maximumBlocks() * 4L;
-        return (int) Math.min(betamoon.worldgen.WorldGenLimits.MAX_TERRAIN_READS_PER_FEATURE,
-                Math.max(256L, reads));
+        return (int) Math.min(betamoon.worldgen.WorldGenLimits.MAX_TERRAIN_READS_PER_FEATURE, Math.max(256L, reads));
     }
 
     public static final class Description {
@@ -556,9 +600,8 @@ public final class StructureFeature implements WorldFeature {
         private Description(String assetSource, int sizeX, int sizeY, int sizeZ, int paletteEntries,
                 int paletteVariants, int blocks, int markers, String rotation, String mirror, boolean includeAir,
                 double decay, String tileCollision, String unknownMetadata, int customMetadataTransforms) {
-            this(assetSource, sizeX, sizeY, sizeZ, paletteEntries, paletteVariants, blocks, markers, rotation,
-                    mirror, includeAir, decay, tileCollision, unknownMetadata, customMetadataTransforms, "exact",
-                    "exact", 0);
+            this(assetSource, sizeX, sizeY, sizeZ, paletteEntries, paletteVariants, blocks, markers, rotation, mirror,
+                    includeAir, decay, tileCollision, unknownMetadata, customMetadataTransforms, "exact", "exact", 0);
         }
 
         private Description(String assetSource, int sizeX, int sizeY, int sizeZ, int paletteEntries,
@@ -603,8 +646,7 @@ public final class StructureFeature implements WorldFeature {
         public boolean intersectsChunk(int chunkX, int chunkZ) {
             int minChunkX = chunkX << 4;
             int minChunkZ = chunkZ << 4;
-            return min.x <= minChunkX + 15 && max.x >= minChunkX && min.z <= minChunkZ + 15
-                    && max.z >= minChunkZ;
+            return min.x <= minChunkX + 15 && max.x >= minChunkX && min.z <= minChunkZ + 15 && max.z >= minChunkZ;
         }
     }
 
@@ -641,8 +683,7 @@ public final class StructureFeature implements WorldFeature {
         public final List<ConformOffset> conformOffsets;
 
         private RegionalPlacement(boolean accepted, BlockPosition origin, Bounds bounds,
-                List<PlacementPlan.PlannedBlock> terrainChanges, String failure,
-                List<ConformOffset> conformOffsets) {
+                List<PlacementPlan.PlannedBlock> terrainChanges, String failure, List<ConformOffset> conformOffsets) {
             this.accepted = accepted;
             this.origin = origin;
             this.bounds = bounds;

@@ -22,7 +22,10 @@ import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.jse.JsePlatform;
 
-/** Verifies regional distribution, connector planning, persistence, and publication validation. */
+/**
+ * Verifies regional distribution, connector planning, persistence, and
+ * publication validation.
+ */
 public final class RegionalStructureApiTest {
     private RegionalStructureApiTest() {
     }
@@ -40,15 +43,16 @@ public final class RegionalStructureApiTest {
             StructureFeature corridor = feature("west", "east");
             require(!start.generationSignature().equals(corridor.generationSignature()),
                     "Template signatures distinguish saved regional piece definitions");
-            require(Math.abs(new StructureTransform(StructureTransform.Rotation.CLOCKWISE_90,
-                    StructureTransform.Mirror.NONE).applyYaw(0.0F) - 90.0F) < 0.001F,
+            require(Math.abs(
+                    new StructureTransform(StructureTransform.Rotation.CLOCKWISE_90, StructureTransform.Mirror.NONE)
+                            .applyYaw(0.0F) - 90.0F) < 0.001F,
                     "Entity marker yaw follows piece rotation");
-            try (WorldGenRegistry.PublicationBatch batch = WorldGenRegistry.beginPublication(
-                    "regional_structure_test.lua", "Regional structure test")) {
-                WorldGenRegistry.addFeature("test:start", WorldGenKind.STRUCTURE,
-                        "local_structure", start, Collections.<WorldGenKey>emptyList(), 16, 8);
-                WorldGenRegistry.addFeature("test:corridor", WorldGenKind.STRUCTURE,
-                        "local_structure", corridor, Collections.<WorldGenKey>emptyList(), 16, 8);
+            try (WorldGenRegistry.PublicationBatch batch = WorldGenRegistry
+                    .beginPublication("regional_structure_test.lua", "Regional structure test")) {
+                WorldGenRegistry.addFeature("test:start", WorldGenKind.STRUCTURE, "local_structure", start,
+                        Collections.<WorldGenKey>emptyList(), 16, 8);
+                WorldGenRegistry.addFeature("test:corridor", WorldGenKind.STRUCTURE, "local_structure", corridor,
+                        Collections.<WorldGenKey>emptyList(), 16, 8);
                 lua.load("local s=betamoon.worldgen.structures; "
                         + "local regional=s:addRegional{key='test:ruins',start=s:getRequired('test:start'),"
                         + "dimensions='overworld',spacing=24,separation=6,salt=991,height=64,maxDepth=3,"
@@ -112,29 +116,33 @@ public final class RegionalStructureApiTest {
                     new ArrayList<RegionalStructurePlan.Piece.TerrainChange>();
             terrain.add(new RegionalStructurePlan.Piece.TerrainChange(firstPiece.origin.offset(0, -1, 0),
                     Block.cobblestone.blockID, 0, 0, 0));
-            java.util.List<RegionalStructurePlan.Piece> terrainPieces =
-                    new ArrayList<RegionalStructurePlan.Piece>(plan.pieces);
-            java.util.List<StructureFeature.ConformOffset> conform =
-                    Collections.singletonList(new StructureFeature.ConformOffset(0, 0, 1));
-            terrainPieces.set(0, new RegionalStructurePlan.Piece(firstPiece.featureKey, firstPiece.origin,
-                    firstPiece.transform, firstPiece.seed, firstPiece.depth, firstPiece.bounds,
-                    firstPiece.generationSignature, terrain, conform));
+            terrain.add(new RegionalStructurePlan.Piece.TerrainChange(firstPiece.origin.offset(1, 0, 0), 0, 0,
+                    Block.dirt.blockID, 0));
+            java.util.List<RegionalStructurePlan.Piece> terrainPieces = new ArrayList<RegionalStructurePlan.Piece>(
+                    plan.pieces);
+            java.util.List<StructureFeature.ConformOffset> conform = Collections
+                    .singletonList(new StructureFeature.ConformOffset(0, 0, 1));
+            terrainPieces.set(0,
+                    new RegionalStructurePlan.Piece(firstPiece.featureKey, firstPiece.origin, firstPiece.transform,
+                            firstPiece.seed, firstPiece.depth, firstPiece.bounds, firstPiece.generationSignature,
+                            terrain, conform));
             RegionalStructurePlan terrainPlan = new RegionalStructurePlan(plan.definitionKey, plan.dimension,
                     plan.regionX, plan.regionZ, plan.startChunkX, plan.startChunkZ, plan.seed, terrainPieces,
                     "test-placement-signature");
             RegionalStructurePlan restoredTerrain = RegionalStructurePlan.read(terrainPlan.write());
-            require(restoredTerrain != null
-                    && restoredTerrain.placementSignature.equals("test-placement-signature")
-                    && restoredTerrain.pieces.get(0).terrainChanges.size() == 1
+            require(restoredTerrain != null && restoredTerrain.placementSignature.equals("test-placement-signature")
+                    && restoredTerrain.pieces.get(0).terrainChanges.size() == 2
                     && restoredTerrain.pieces.get(0).terrainChanges.get(0).expectedBlockId == 0
+                    && restoredTerrain.pieces.get(0).terrainChanges.get(1).blockId == 0
+                    && restoredTerrain.pieces.get(0).terrainChanges.get(1).expectedBlockId == Block.dirt.blockID
                     && restoredTerrain.pieces.get(0).conformOffsets.get(0).y == 1,
-                    "Saved regional plans preserve terrain mutations, expected world state, and conform offsets");
+                    "Saved regional plans preserve adaptation, excavation, expected world state, and conform offsets");
 
             expectFailure(new Runnable() {
                 @Override
                 public void run() {
-                    try (WorldGenRegistry.PublicationBatch batch = WorldGenRegistry.beginPublication(
-                            "regional_structure_test.lua", "Regional structure test")) {
+                    try (WorldGenRegistry.PublicationBatch batch = WorldGenRegistry
+                            .beginPublication("regional_structure_test.lua", "Regional structure test")) {
                         WorldGenRegistry.addRegionalStructure("test:broken", definition.startFeature,
                                 definition.dimensions, 16, 4, 0L, "fixed", 64, 2, 4, 64, 0.0D, false,
                                 Collections.singletonList(new RegionalStructureDefinition.PieceChoice("missing",
@@ -156,10 +164,10 @@ public final class RegionalStructureApiTest {
         WorldGenKey start = WorldGenKey.parse("test:start", WorldGenKind.STRUCTURE);
         WorldGenKey corridor = WorldGenKey.parse("test:corridor", WorldGenKind.STRUCTURE);
         return new RegionalStructureDefinition(WorldGenKey.parse("test:ruins", WorldGenKind.STRUCTURE), start,
-                "regional_structure_test.lua", "Regional structure test", "test", new LinkedHashSet<String>(
-                        Collections.singleton("minecraft:overworld")), 24, 6, 991L, "fixed", 64, 3, 8, 64, 0.0D,
-                false, Collections.singletonList(
-                        new RegionalStructureDefinition.PieceChoice("road", corridor, 1)));
+                "regional_structure_test.lua", "Regional structure test", "test",
+                new LinkedHashSet<String>(Collections.singleton("minecraft:overworld")), 24, 6, 991L, "fixed", 64, 3, 8,
+                64, 0.0D, false,
+                Collections.singletonList(new RegionalStructureDefinition.PieceChoice("road", corridor, 1)));
     }
 
     private static String candidate(RegionalStructureDefinition definition, int regionX, int regionZ) {
@@ -196,15 +204,12 @@ public final class RegionalStructureApiTest {
             markers.append("{\"type\":\"marker\",\"pos\":[0,0,0],\"name\":\"connector\",\"value\":")
                     .append("{\"pool\":\"road\",\"facing\":\"").append(facings[index]).append("\"}}");
         }
-        StructureTemplate template = StructureTemplate.read(("{"
-                + "\"format\":\"betamoon_structure\","
-                + "\"palette\":{\"stone\":{\"block\":\"minecraft:stone\"}},"
-                + "\"elements\":[{\"type\":\"block\",\"pos\":[0,0,0],\"state\":\"stone\"}"
-                + (markers.length() == 0 ? "" : "," + markers) + "]}"
-                ).getBytes(StandardCharsets.UTF_8));
-        return new StructureFeature(template, "memory:test.json", "none", "none",
-                new StructureProcessors(false, Collections.<Integer, Integer>emptyMap(), 0.0D, null, "reject",
-                        "reject"));
+        StructureTemplate template = StructureTemplate.read(
+                ("{" + "\"format\":\"betamoon_structure\"," + "\"palette\":{\"stone\":{\"block\":\"minecraft:stone\"}},"
+                        + "\"elements\":[{\"type\":\"block\",\"pos\":[0,0,0],\"state\":\"stone\"}"
+                        + (markers.length() == 0 ? "" : "," + markers) + "]}").getBytes(StandardCharsets.UTF_8));
+        return new StructureFeature(template, "memory:test.json", "none", "none", new StructureProcessors(false,
+                Collections.<Integer, Integer>emptyMap(), 0.0D, null, "reject", "reject"));
     }
 
     private static void expectFailure(Runnable action, String message) {

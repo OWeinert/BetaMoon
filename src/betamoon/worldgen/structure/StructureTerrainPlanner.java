@@ -14,25 +14,31 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** Shared bounded planner for structure fitting, site validation, and terrain mutations. */
+/**
+ * Shared bounded planner for structure fitting, site validation, and terrain
+ * mutations.
+ */
 final class StructureTerrainPlanner {
     private StructureTerrainPlanner() {
     }
 
     static Result prepare(FeatureContext context, BlockPosition requestedOrigin, StructureTransform transform,
             TerrainPolicy terrain, SitePolicy site, StructureTerrainMask mask, StructureFeature.Bounds relativeBounds,
-            PlacementPlan output) {
+            PlacementPlan output, long placementSeed) {
         List<StructureTerrainMask.Support> support = mask.support(transform);
         context.diagnostic("terrainMode", terrain.mode.luaName());
         context.diagnostic("terrainSurface", terrain.surface.getName());
         context.diagnostic("siteType", site.type.luaName());
         context.diagnostic("supportColumns", Integer.valueOf(support.size()));
         context.diagnostic("requestedAnchorY", Integer.valueOf(requestedOrigin.y));
-        if (support.isEmpty()) {
+        if (support.isEmpty()
+                && (terrain.mode != TerrainPolicy.Mode.EXACT || terrain.excavation == null || site.active())) {
             return Result.rejected(FeatureResult.TERRAIN_SUPPORT);
         }
 
-        BlockPosition resolved = requestedOrigin;
+        BlockPosition resolved = terrain.mode == TerrainPolicy.Mode.EXACT || terrain.mode == TerrainPolicy.Mode.CONFORM
+                ? requestedOrigin.offset(0, terrain.verticalOffset, 0)
+                : requestedOrigin;
         Map<Column, Integer> sampledOrigins = Collections.emptyMap();
         if (terrain.mode != TerrainPolicy.Mode.EXACT && terrain.mode != TerrainPolicy.Mode.CONFORM) {
             sampledOrigins = sampleOrigins(context, requestedOrigin, support, terrain.surface);
@@ -68,26 +74,51 @@ final class StructureTerrainPlanner {
             }
             context.diagnostic("supportRatio", Double.valueOf((double) supported / sampledOrigins.size()));
         }
+        if (resolved.y < WorldGenLimits.MIN_HEIGHT || resolved.y > WorldGenLimits.MAX_HEIGHT) {
+            return Result.rejected(FeatureResult.OUT_OF_BOUNDS);
+        }
 
         String siteFailure = validateSite(context, resolved, transform, support, mask, relativeBounds, terrain, site);
         if (siteFailure != null) {
             return Result.rejected(siteFailure);
         }
 
-        if (terrain.mode == TerrainPolicy.Mode.FOUNDATION) {
-            String failure = planFoundation(context, resolved, support, terrain, output);
+        String excavationFailure = ExcavationPlanner.plan(context, resolved, transform, terrain, mask, relativeBounds,
+                output);
+        if (excavationFailure != null) {
+            return Result.rejected(excavationFailure);
+        }
+        Set<BlockPosition> excavated = new LinkedHashSet<BlockPosition>();
+        for (PlacementPlan.PlannedBlock block : output.plannedBlocks()) {
+            if (output.hasPriority(block.position, PlacementPlan.WritePriority.EXCAVATION)) {
+                excavated.add(block.position);
+            }
+        }
+
+        if (terrain.foundation != null) {
+            String failure = TerrainAdaptationPlanner.planFoundation(context, resolved, transform, support, terrain,
+                    mask, relativeBounds, output, placementSeed);
             if (failure != null) {
                 return Result.rejected(failure);
             }
-        } else if (terrain.mode == TerrainPolicy.Mode.TERRACE) {
-            String failure = planTerrace(context, resolved, transform, support, terrain, mask, output);
+        } else if (terrain.terrace != null) {
+            String failure = TerrainAdaptationPlanner.planTerrace(context, resolved, transform, support, terrain, mask,
+                    relativeBounds, output, placementSeed);
             if (failure != null) {
                 return Result.rejected(failure);
             }
         }
+        int adaptationOverlap = 0;
+        for (BlockPosition position : excavated) {
+            if (output.hasPriority(position, PlacementPlan.WritePriority.TERRAIN_ADAPTATION)) {
+                adaptationOverlap++;
+            }
+        }
+        context.diagnostic("excavationAdaptationOverlaps", Integer.valueOf(adaptationOverlap));
+        context.diagnostic("terrainWritesPlanned", Integer.valueOf(output.size()));
 
-        Map<Column, Integer> conformOffsets = terrain.mode == TerrainPolicy.Mode.CONFORM
-                ? conformOffsets(context, resolved, transform, terrain, mask, support)
+        Map<Column, Integer> conformOffsets = terrain.conform != null
+                ? conformOffsets(context, resolved, transform, terrain, mask, support, relativeBounds)
                 : Collections.<Column, Integer>emptyMap();
         if (conformOffsets == null) {
             return Result.rejected(readFailure(context));
@@ -122,10 +153,8 @@ final class StructureTerrainPlanner {
         }
         for (Map.Entry<Column, Integer> entry : heights.entrySet()) {
             for (int[] offset : NEIGHBORS) {
-                Integer neighbor = heights.get(new Column(entry.getKey().x + offset[0],
-                        entry.getKey().z + offset[1]));
-                if (neighbor != null && Math.abs(entry.getValue().intValue() - neighbor.intValue())
-                        > terrain.maxStep) {
+                Integer neighbor = heights.get(new Column(entry.getKey().x + offset[0], entry.getKey().z + offset[1]));
+                if (neighbor != null && Math.abs(entry.getValue().intValue() - neighbor.intValue()) > terrain.maxStep) {
                     return FeatureResult.TERRAIN_STEP;
                 }
             }
@@ -160,8 +189,7 @@ final class StructureTerrainPlanner {
 
     private static String validateSite(FeatureContext context, BlockPosition origin, StructureTransform transform,
             List<StructureTerrainMask.Support> support, StructureTerrainMask mask,
-            StructureFeature.Bounds relativeBounds, TerrainPolicy terrain,
-            SitePolicy site) {
+            StructureFeature.Bounds relativeBounds, TerrainPolicy terrain, SitePolicy site) {
         if (!site.active()) {
             return null;
         }
@@ -193,17 +221,16 @@ final class StructureTerrainPlanner {
                     wrongSurfaceRelation |= fittedContact < floor;
                 }
             } else if (site.type == SitePolicy.Type.FLUID_SURFACE) {
-                wrongSurfaceRelation |= fluid < 0
-                        || (terrain.mode == TerrainPolicy.Mode.EXACT && contact != fluid);
+                wrongSurfaceRelation |= fluid < 0 || (terrain.mode == TerrainPolicy.Mode.EXACT && contact != fluid);
             }
             if (fluid >= 0 && fluid > floor) {
                 int block = context.blockId(x, floor, z);
                 if (block < 0) {
                     return readFailure(context);
                 }
-                boolean selectedFluid = site.medium == SitePolicy.Medium.WATER ? context.isWater(block)
-                        : site.medium == SitePolicy.Medium.LAVA ? context.isLava(block)
-                        : context.isFluid(block);
+                boolean selectedFluid = site.medium == SitePolicy.Medium.WATER
+                        ? context.isWater(block)
+                        : site.medium == SitePolicy.Medium.LAVA ? context.isLava(block) : context.isFluid(block);
                 if (selectedFluid) {
                     fluidCovered++;
                     int depth = fluid - floor;
@@ -223,8 +250,7 @@ final class StructureTerrainPlanner {
         if (fluidCoverage < site.minFluidCoverage || fluidCoverage > site.maxFluidCoverage) {
             return FeatureResult.SITE_FLUID_COVERAGE;
         }
-        if (fluidCovered > 0
-                && (minimumFluidDepth < site.minFluidDepth || maximumFluidDepth > site.maxFluidDepth)) {
+        if (fluidCovered > 0 && (minimumFluidDepth < site.minFluidDepth || maximumFluidDepth > site.maxFluidDepth)) {
             return FeatureResult.SITE_FLUID_DEPTH;
         }
 
@@ -258,8 +284,8 @@ final class StructureTerrainPlanner {
                     caveTops.put(Long.valueOf(key), cell);
                 }
             }
-            if (site.requireSky != null && context.canSeeSky(cell.x, cell.y, cell.z)
-                    != site.requireSky.booleanValue()) {
+            if (site.requireSky != null
+                    && context.canSeeSky(cell.x, cell.y, cell.z) != site.requireSky.booleanValue()) {
                 return FeatureResult.SITE_SKY_MISMATCH;
             }
         }
@@ -309,8 +335,7 @@ final class StructureTerrainPlanner {
 
     private static List<BlockPosition> siteCells(BlockPosition origin, StructureTransform transform,
             List<StructureTerrainMask.Support> support, StructureTerrainMask mask,
-            StructureFeature.Bounds relativeBounds,
-            SitePolicy.Scope scope) {
+            StructureFeature.Bounds relativeBounds, SitePolicy.Scope scope) {
         List<BlockPosition> result = new ArrayList<BlockPosition>();
         if (scope == SitePolicy.Scope.ORIGIN) {
             result.add(origin);
@@ -351,178 +376,122 @@ final class StructureTerrainPlanner {
         }
     }
 
-    private static String planFoundation(FeatureContext context, BlockPosition origin,
-            List<StructureTerrainMask.Support> support, TerrainPolicy terrain, PlacementPlan output) {
-        for (StructureTerrainMask.Support cell : support) {
-            int x = origin.x + cell.x;
-            int z = origin.z + cell.z;
-            int target = origin.y + cell.y;
-            int surface = context.surfaceHeight(x, z, terrain.surface);
-            if (surface < 0) {
-                return readFailure(context);
-            }
-            int fittedTarget = target - terrain.verticalOffset;
-            if (fittedTarget < surface) {
-                return FeatureResult.TERRAIN_SUPPORT;
-            }
-            int foundationStart = surface + Math.min(terrain.verticalOffset, 0);
-            int depth = target - foundationStart;
-            if (depth > terrain.maxFoundationDepth) {
-                return FeatureResult.FOUNDATION_TOO_DEEP;
-            }
-            for (int y = foundationStart; y < target; y++) {
-                String failure = replaceTerrain(context, output, x, y, z, terrain.foundationBlock,
-                        terrain.foundationMetadata, y >= surface);
-                if (failure != null) {
-                    return failure;
-                }
-            }
-        }
-        return null;
-    }
-
-    private static String planTerrace(FeatureContext context, BlockPosition origin, StructureTransform transform,
-            List<StructureTerrainMask.Support> support, TerrainPolicy terrain, StructureTerrainMask mask,
-            PlacementPlan output) {
-        int minX = Integer.MAX_VALUE;
-        int maxX = Integer.MIN_VALUE;
-        int minZ = Integer.MAX_VALUE;
-        int maxZ = Integer.MIN_VALUE;
-        List<Integer> baseLevels = new ArrayList<Integer>();
-        for (StructureTerrainMask.Support cell : support) {
-            minX = Math.min(minX, cell.x);
-            maxX = Math.max(maxX, cell.x);
-            minZ = Math.min(minZ, cell.z);
-            maxZ = Math.max(maxZ, cell.z);
-            baseLevels.add(Integer.valueOf(origin.y + cell.y - 1));
-        }
-        Collections.sort(baseLevels);
-        int target = baseLevels.get((baseLevels.size() - 1) / 2).intValue();
-        int outer = terrain.padding + terrain.blendRadius;
-        Set<Column> columns = new LinkedHashSet<Column>();
-        for (int relativeX = minX - outer; relativeX <= maxX + outer; relativeX++) {
-            for (int relativeZ = minZ - outer; relativeZ <= maxZ + outer; relativeZ++) {
-                columns.add(new Column(relativeX, relativeZ));
-            }
-        }
-        for (BlockPosition blend : mask.blend(transform)) {
-            columns.add(new Column(blend.x, blend.z));
-        }
-        for (Column column : columns) {
-            int relativeX = column.x;
-            int relativeZ = column.z;
-            int x = origin.x + relativeX;
-            int z = origin.z + relativeZ;
-            int surface = context.surfaceHeight(x, z, terrain.surface);
-            if (surface < 0) {
-                return readFailure(context);
-            }
-            int originalTop = surface - 1;
-            int distance = distanceOutside(relativeX, relativeZ, minX - terrain.padding,
-                    maxX + terrain.padding, minZ - terrain.padding, maxZ + terrain.padding);
-            int columnTarget = target;
-            if (distance > 0) {
-                int rings = Math.max(1, terrain.blendRadius - distance + 1);
-                int allowed = terrain.maxBlendStep * rings;
-                columnTarget = clamp(target, originalTop - allowed, originalTop + allowed);
-            }
-            int difference = columnTarget - originalTop;
-            if (difference > terrain.maxFillDepth) {
-                return FeatureResult.TERRACE_FILL_LIMIT;
-            }
-            if (-difference > terrain.maxCutDepth) {
-                return FeatureResult.TERRACE_CUT_LIMIT;
-            }
-            int material = terrain.foundationBlock;
-            int metadata = terrain.foundationMetadata;
-            if (material == 0 && originalTop >= 0) {
-                material = context.blockId(x, originalTop, z);
-                metadata = context.metadata(x, originalTop, z);
-                if (material < 0 || metadata < 0) {
-                    return readFailure(context);
-                }
-                if (!context.isStructural(material)) {
-                    material = net.minecraft.src.Block.dirt.blockID;
-                    metadata = 0;
-                }
-            }
-            if (difference >= 0) {
-                for (int y = surface; y <= columnTarget; y++) {
-                    String failure = replaceTerrain(context, output, x, y, z, material, metadata, true);
-                    if (failure != null) {
-                        return failure;
-                    }
-                }
-            } else {
-                for (int y = originalTop; y > columnTarget; y--) {
-                    String failure = replaceTerrain(context, output, x, y, z, 0, 0, false);
-                    if (failure != null) {
-                        return failure;
-                    }
-                }
-            }
-        }
-        return null;
-    }
-
-    private static String replaceTerrain(FeatureContext context, PlacementPlan output, int x, int y, int z,
-            int block, int metadata, boolean requireReplaceable) {
-        int existing = context.blockId(x, y, z);
-        if (existing < 0) {
-            return readFailure(context);
-        }
-        if (context.hasTileEntity(x, y, z)) {
-            return FeatureResult.TERRAIN_TILE_COLLISION;
-        }
-        if (existing == net.minecraft.src.Block.bedrock.blockID) {
-            return FeatureResult.TERRAIN_PROTECTED_BLOCK;
-        }
-        if (requireReplaceable && !context.isReplaceable(existing) && !context.isFluid(existing)) {
-            return FeatureResult.TERRAIN_PROTECTED_BLOCK;
-        }
-        if (!output.setBlock(x, y, z, block, metadata)) {
-            return output.failure();
-        }
-        return null;
-    }
-
     private static Map<Column, Integer> conformOffsets(FeatureContext context, BlockPosition origin,
             StructureTransform transform, TerrainPolicy terrain, StructureTerrainMask mask,
-            List<StructureTerrainMask.Support> support) {
+            List<StructureTerrainMask.Support> support, StructureFeature.Bounds relativeBounds) {
+        ConformPolicy policy = terrain.conform;
+        Set<Column> selected = new LinkedHashSet<Column>();
+        if (!policy.compatibilityMarkersOnly) {
+            try {
+                TerrainFootprint footprint = TerrainFootprintCompiler.compile(policy.columns, mask, transform,
+                        relativeBounds, terrain.masks);
+                for (TerrainFootprint.Cell cell : footprint.cells()) {
+                    selected.add(new Column(cell.x, cell.z));
+                }
+            } catch (IllegalArgumentException error) {
+                context.diagnostic("conformError", error.getMessage());
+                context.markFailure(error.getMessage().contains("unknown terrain mask")
+                        ? FeatureResult.CONFORM_UNKNOWN_MASK
+                        : FeatureResult.CONFORM_SELECTOR_INVALID);
+                return null;
+            }
+        }
+        Set<Column> supportColumns = new LinkedHashSet<Column>();
+        for (StructureTerrainMask.Support cell : support) {
+            Column column = new Column(cell.x, cell.z);
+            supportColumns.add(column);
+            if (mask.conforms(cell.x, cell.z, transform) && !TerrainFootprintCompiler.excluded(cell, policy.columns)) {
+                selected.add(column);
+            }
+            if (mask.excludesConform(cell.x, cell.z, transform)) {
+                selected.remove(column);
+            }
+        }
+        selected.retainAll(supportColumns);
+        if (selected.isEmpty() && !policy.allowEmpty && !policy.compatibilityMarkersOnly) {
+            context.markFailure(FeatureResult.CONFORM_EMPTY_SELECTION);
+            return null;
+        }
         Map<Column, Integer> result = new LinkedHashMap<Column, Integer>();
         for (StructureTerrainMask.Support cell : support) {
-            if (!mask.conforms(cell.x, cell.z, transform)) {
+            if (!selected.contains(new Column(cell.x, cell.z))) {
                 continue;
             }
             int surface = context.surfaceHeight(origin.x + cell.x, origin.z + cell.z, terrain.surface);
             if (surface < 0) {
                 return null;
             }
-            int displacement = surface - (origin.y + cell.y) + terrain.verticalOffset;
-            if (Math.abs(displacement) > terrain.maxConformDisplacement) {
-                context.markFailure(FeatureResult.CONFORM_PATH_FAILED);
+            int displacement = surface - (origin.y + cell.y);
+            if (Math.abs(displacement) > policy.maxDisplacement) {
+                context.markFailure(FeatureResult.CONFORM_DISPLACEMENT_LIMIT);
                 return null;
             }
             result.put(new Column(cell.x, cell.z), Integer.valueOf(displacement));
         }
+        for (int pass = 0; pass < policy.smoothingPasses; pass++) {
+            Map<Column, Integer> smoothed = new LinkedHashMap<Column, Integer>();
+            for (Map.Entry<Column, Integer> entry : result.entrySet()) {
+                int total = entry.getValue().intValue();
+                int count = 1;
+                for (Map.Entry<Column, Integer> candidate : result.entrySet()) {
+                    if (!candidate.getKey().equals(entry.getKey())
+                            && Math.max(Math.abs(candidate.getKey().x - entry.getKey().x),
+                                    Math.abs(candidate.getKey().z - entry.getKey().z)) <= policy.smoothingRadius) {
+                        total += candidate.getValue().intValue();
+                        count++;
+                    }
+                }
+                int value = (int) Math.round((double) total / count);
+                smoothed.put(entry.getKey(),
+                        Integer.valueOf(clamp(value, -policy.maxDisplacement, policy.maxDisplacement)));
+            }
+            result = smoothed;
+        }
         for (Map.Entry<Column, Integer> entry : result.entrySet()) {
             for (int[] offset : NEIGHBORS) {
-                Integer neighbor = result.get(new Column(entry.getKey().x + offset[0],
-                        entry.getKey().z + offset[1]));
-                if (neighbor != null && Math.abs(entry.getValue().intValue() - neighbor.intValue())
-                        > terrain.maxStep) {
-                    context.markFailure(FeatureResult.CONFORM_PATH_FAILED);
+                Integer neighbor = result.get(new Column(entry.getKey().x + offset[0], entry.getKey().z + offset[1]));
+                if (neighbor != null && Math.abs(entry.getValue().intValue() - neighbor.intValue()) > policy.maxStep) {
+                    context.markFailure(FeatureResult.CONFORM_STEP_LIMIT);
                     return null;
                 }
             }
         }
+        int minimum = 0;
+        int maximum = 0;
+        for (Integer value : result.values()) {
+            minimum = Math.min(minimum, value.intValue());
+            maximum = Math.max(maximum, value.intValue());
+        }
+        context.diagnostic("conformSource", policy.compatibilityMarkersOnly ? "markers" : policy.columns.signature());
+        context.diagnostic("conformSupportColumns", Integer.valueOf(support.size()));
+        context.diagnostic("conformSelectedColumns", Integer.valueOf(result.size()));
+        context.diagnostic("conformComponents", Integer.valueOf(components(result.keySet())));
+        context.diagnostic("conformMinimumDisplacement", Integer.valueOf(minimum));
+        context.diagnostic("conformMaximumDisplacement", Integer.valueOf(maximum));
         return result;
     }
 
-    private static int distanceOutside(int x, int z, int minX, int maxX, int minZ, int maxZ) {
-        int dx = x < minX ? minX - x : x > maxX ? x - maxX : 0;
-        int dz = z < minZ ? minZ - z : z > maxZ ? z - maxZ : 0;
-        return Math.max(dx, dz);
+    private static int components(Set<Column> cells) {
+        Set<Column> remaining = new LinkedHashSet<Column>(cells);
+        int result = 0;
+        while (!remaining.isEmpty()) {
+            result++;
+            List<Column> pending = new ArrayList<Column>();
+            pending.add(remaining.iterator().next());
+            while (!pending.isEmpty()) {
+                Column cell = pending.remove(pending.size() - 1);
+                if (!remaining.remove(cell)) {
+                    continue;
+                }
+                for (int[] neighbor : NEIGHBORS) {
+                    Column adjacent = new Column(cell.x + neighbor[0], cell.z + neighbor[1]);
+                    if (remaining.contains(adjacent)) {
+                        pending.add(adjacent);
+                    }
+                }
+            }
+        }
+        return result;
     }
 
     private static int clamp(int value, int minimum, int maximum) {

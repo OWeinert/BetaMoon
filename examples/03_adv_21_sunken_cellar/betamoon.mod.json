@@ -1,0 +1,7 @@
+{
+  "entrypoint": "main.lua",
+  "name": "Sunken Cellar Example",
+  "version": "1.0.0",
+  "description": "Adds small buried cellars to newly generated Overworld terrain. Copy the complete 03_adv_21_sunken_cellar folder into lua_scripts so its manifest, entrypoint, and structure JSON stay together.\n\nThe example focuses on the shortest useful excavation declaration: a rigid structure fits to solid terrain, moves four blocks downward, and clears its base footprint up to the original surface before its floor, walls, and roof are placed. This shows that a negative verticalOffset embeds a structure but does not carve space by itself.",
+  "dependencies": []
+}

@@ -16,22 +16,35 @@ function modInit()
       -- placing it in the air block immediately above the surface.
       verticalOffset = -1,
       maxSlope = 4,
-      maxFoundationDepth = 6,
-      foundationBlock = 4
+      foundation = {
+        footprint = { source = "base_bounds", shape = "bounds" },
+        edge = { type = "stepped", stepEvery = 2, maxExpansion = 1 },
+        material = 4,
+        maxDepth = 6,
+        maxBlocks = 192
+      }
     }
   }
 
   local road = betamoon.worldgen.structures:add {
     key = "example:structure/path_ruins_road",
     terrain = {
-      -- Every road-floor column carries a terrain_conform marker. Unlike the
-      -- rigid ruin pieces, this lets the route rise and fall with solid ground.
+      -- Select the tagged road surface directly. Unlike the rigid ruin pieces,
+      -- this lets the route rise and fall with solid ground without one terrain
+      -- marker per column.
       mode = "conform",
       surface = "solid_surface",
       -- Each marked road-floor column replaces its local surface block.
       verticalOffset = -1,
       maxStep = 1,
-      maxConformDisplacement = 6
+      conform = {
+        columns = {
+          source = "support",
+          select = { tags = { "road_surface" } }
+        },
+        maxDisplacement = 6,
+        maxStep = 1
+      }
     }
   }
 
@@ -42,20 +55,44 @@ function modInit()
       surface = "solid_surface",
       verticalOffset = -1,
       maxSlope = 4,
-      maxFoundationDepth = 6,
-      foundationBlock = 4
+      masks = {
+        courtyard_base = {
+          shape = "authored",
+          cells = {
+            { 0, -2 }, { 1, -2 }, { 2, -2 }, { 3, -2 }, { 4, -2 },
+            { 0, -1 }, { 1, -1 }, { 2, -1 }, { 3, -1 }, { 4, -1 },
+            { 0,  0 }, { 1,  0 }, { 2,  0 }, { 3,  0 }, { 4,  0 },
+            { 0,  1 }, { 1,  1 }, { 2,  1 }, { 3,  1 }, { 4,  1 },
+            { 0,  2 }, { 1,  2 }, { 2,  2 }, { 3,  2 }, { 4,  2 }
+          }
+        }
+      },
+      foundation = {
+        footprint = { source = "named", name = "courtyard_base" },
+        edge = { type = "hard" },
+        material = 4,
+        maxDepth = 6,
+        maxBlocks = 256
+      }
     }
   }
 
   local crossroads = betamoon.worldgen.structures:add {
     key = "example:structure/path_ruins_crossroads",
     terrain = {
-      mode = "foundation",
+      mode = "conform",
       surface = "solid_surface",
       verticalOffset = -1,
       maxSlope = 4,
-      maxFoundationDepth = 6,
-      foundationBlock = 4
+      maxStep = 1,
+      conform = {
+        columns = {
+          source = "support",
+          select = { tags = { "road_surface" } }
+        },
+        maxDisplacement = 6,
+        maxStep = 1
+      }
     }
   }
 
@@ -72,7 +109,7 @@ function modInit()
     site = { type = "land_surface", scope = "support_footprint" },
     siteSearch = { attempts = 8, radius = 7 },
     -- Keep connected endpoints aligned. Conforming road connectors move with
-    -- their marked columns, so a mismatched endpoint rejects that candidate.
+    -- their selected columns, so a mismatched endpoint rejects that candidate.
     connectorVerticalTolerance = 0,
     pieces = {
       -- Every choice in this pool must contain at least one connector marker

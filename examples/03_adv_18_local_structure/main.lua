@@ -17,7 +17,7 @@ function modInit()
     rotation = "random_horizontal",
     mirror = "random",
     -- Keep the shrine rigid, choose a stable height from its whole footprint,
-    -- and fill small gaps instead of leaving edge blocks floating.
+    -- and give its compact base a shallow stepped stone skirt.
     terrain = {
       mode = "foundation",
       surface = "solid_surface",
@@ -26,8 +26,23 @@ function modInit()
       maxStep = 0,
       -- Replace the sampled top terrain layer with the shrine floor.
       verticalOffset = -1,
-      maxFoundationDepth = 4,
-      foundationBlock = 4
+      foundation = {
+        footprint = {
+          source = "base_bounds",
+          shape = "rounded_bounds",
+          cornerRadius = 2
+        },
+        edge = {
+          type = "stepped",
+          stepEvery = 1,
+          maxExpansion = 1
+        },
+        material = 4,
+        maxDepth = 4,
+        replace = "terrain_and_vegetation",
+        fluids = "reject",
+        maxBlocks = 160
+      }
     },
     processors = {
       -- Air is absent from the template and remains untouched. The structure

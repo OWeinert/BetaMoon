@@ -103,7 +103,7 @@ state, physical behavior, and event-driven logic.
 ## Advanced
 
 Advanced lessons build complete systems. Lessons 03, 08 through 11, and 18
-through 20 are manifested packages. Their entrypoints preserve gameplay assets
+through 22 are manifested packages. Their entrypoints preserve gameplay assets
 and, where useful, organize private modules with `require`.
 
 | Lesson | File | Topic |
@@ -125,9 +125,11 @@ and, where useful, organize private modules with `require`.
 | 15 | `03_adv_15_energy_network.lua` | GUI-guided generation, nearest-first flow, bounded rates, endpoint consumers, and adjacent cable grids |
 | 16 | `03_adv_16_wireless_trigger.lua` | Editable wireless channels, transmitter/receiver roles, retained state, and pulses |
 | 17 | `03_adv_17_world_service_and_data.lua` | Persistent per-world services and detached world, chunk, and player views |
-| 18 | `03_adv_18_local_structure/` | Packaged local JSON structure, palette variants, transforms, processors, deterministic chest loot, and placement |
-| 19 | `03_adv_19_regional_structures/` | Connector-pool regional assembly and non-loading structure lookup |
-| 20 | `03_adv_20_complete_worldgen_pack/` | Modular surface, features, structure, biome decorators, and climate source |
+| 18 | `03_adv_18_local_structure/` | Packaged local JSON structure with a rounded stepped foundation, deterministic loot, and placement |
+| 19 | `03_adv_19_regional_structures/` | Regional assembly with bounded/authored foundations, selector-conforming roads, and lookup |
+| 20 | `03_adv_20_complete_worldgen_pack/` | Modular worldgen pack whose fitted stone circle deliberately performs no terrain mutation |
+| 21 | `03_adv_21_sunken_cellar/` | Minimal footprint-to-surface excavation for a negatively offset cellar |
+| 22 | `03_adv_22_excavated_foundation/` | Exact clearance voxels, a named 3D excavation mask, and an authored foundation footprint |
 
 ## Trying the interactive examples
 
@@ -176,6 +178,9 @@ and, where useful, organize private modules with `require`.
 | Advanced 15 | Connect an **Energy Generator**, **Energy Consumer**, and **Energy Battery** with an **Energy Cable** grid. Attach the battery directly to the grid rather than through the consumer: consumer faces accept energy but never bridge two cable grids. Right-click every block to see its live values and per-tick limits. Energy behaves like consumed flow: the nearest consumers receive their operating energy first, so distant consumers may remain unpowered during a shortage. Buffers fill and batteries charge only after all operating needs are met. Remove the generator to see battery backup. |
 | Advanced 18 | Copy the complete package and explore newly generated Overworld chunks for a compact shrine with a glowstone beacon. |
 | Advanced 19 | Copy the complete package, craft **Ruin Surveyor** (5045) from a compass and paper, use it on a block, then explore toward the reported branching Path Ruins. |
+| Advanced 20 | Copy the complete package and explore warm, moderately humid new chunks; its stone circle uses fit-only terrain placement as a contrast to the mutation examples that follow. |
+| Advanced 21 | Copy the complete package and explore new dry-land chunks for buried cellars whose footprint is excavated up to the original surface. |
+| Advanced 22 | Copy the complete package and explore new dry-land chunks for partially buried chambers with exact authored interior and entrance excavation. |
 
 ## Multi-file lesson details
 
@@ -187,7 +192,7 @@ and, where useful, organize private modules with `require`.
   mods. The exporter publishes a public table through `betamoon.modules`; the
   importer declares a dependency and reads that cross-mod export.
 
-- Advanced 03, 08 through 11, and 18 through 20 each demonstrate a packaged mod. Their
+- Advanced 03, 08 through 11, and 18 through 22 each demonstrate a packaged mod. Their
   manifests select `main.lua`, while `require` loads private declarations and
   registration functions from neighboring files where the lesson needs them.
   Every file shares the package's lifecycle and resource owner. Copy the whole

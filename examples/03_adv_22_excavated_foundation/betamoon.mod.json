@@ -1,0 +1,7 @@
+{
+  "entrypoint": "main.lua",
+  "name": "Excavated Foundation Example",
+  "version": "1.0.0",
+  "description": "Adds partially buried stone chambers that combine an authored foundation footprint with exact excavation voxels. Copy the complete 03_adv_22_excavated_foundation folder into lua_scripts.\n\nThe template marks its interior as terrain_clearance. The Lua declaration excavates those exact transformed cells plus a reusable named entrance mask, while a separate authored two-dimensional mask builds the foundation. Overlap order is deterministic: excavation runs first, foundation writes win next, and the final structure wins over both.",
+  "dependencies": []
+}

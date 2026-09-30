@@ -19,11 +19,13 @@ import net.minecraft.src.Chunk;
 import net.minecraft.src.World;
 import org.luaj.vm2.LuaError;
 
-/** Deterministic random-spread starts, connector planning, and chunk-clipped execution. */
+/**
+ * Deterministic random-spread starts, connector planning, and chunk-clipped
+ * execution.
+ */
 final class RegionalStructureRegistry {
     private static volatile Snapshot active = Snapshot.empty();
-    private static final Map<String, MutableDiagnostics> diagnostics =
-            new LinkedHashMap<String, MutableDiagnostics>();
+    private static final Map<String, MutableDiagnostics> diagnostics = new LinkedHashMap<String, MutableDiagnostics>();
     private static final Set<WorldGenKey> disabled = new HashSet<WorldGenKey>();
 
     private RegionalStructureRegistry() {
@@ -137,8 +139,7 @@ final class RegionalStructureRegistry {
                     continue;
                 }
                 try {
-                    RegionalStructurePlan plan = plan(world, definition, dimension, regionX, regionZ,
-                            candidate);
+                    RegionalStructurePlan plan = plan(world, definition, dimension, regionX, regionZ, candidate);
                     if (plan != null) {
                         index.add(plan);
                         diagnostic(definition.key).starts++;
@@ -178,8 +179,8 @@ final class RegionalStructureRegistry {
         }
     }
 
-    static RegionalStructurePlan plan(World world, RegionalStructureDefinition definition,
-            String dimension, int regionX, int regionZ, Candidate candidate) {
+    static RegionalStructurePlan plan(World world, RegionalStructureDefinition definition, String dimension,
+            int regionX, int regionZ, Candidate candidate) {
         FeatureDefinition rootDefinition = FeaturePlacementRegistry.findFeature(definition.startFeature);
         if (rootDefinition == null || !(rootDefinition.feature instanceof StructureFeature)) {
             throw new IllegalStateException("Missing root structure feature " + definition.startFeature);
@@ -233,8 +234,7 @@ final class RegionalStructureRegistry {
             if (attachment == null) {
                 continue;
             }
-            if (terrainChangeCount + attachment.terrainChanges.size()
-                    > WorldGenLimits.MAX_REGIONAL_TERRAIN_CHANGES) {
+            if (terrainChangeCount + attachment.terrainChanges.size() > WorldGenLimits.MAX_REGIONAL_TERRAIN_CHANGES) {
                 continue;
             }
             StructureFeature feature = structureFeature(attachment.choice.feature);
@@ -243,8 +243,8 @@ final class RegionalStructureRegistry {
                     feature.generationSignature(), attachment.terrainChanges, attachment.conformOffsets);
             pieces.add(piece);
             terrainChangeCount += attachment.terrainChanges.size();
-            for (StructureFeature.Connector connector : feature.connectors(attachment.origin,
-                    attachment.transform, attachment.conformOffsets, attachment.seed)) {
+            for (StructureFeature.Connector connector : feature.connectors(attachment.origin, attachment.transform,
+                    attachment.conformOffsets, attachment.seed)) {
                 if (sameConnector(connector, attachment.usedConnector)) {
                     continue;
                 }
@@ -272,16 +272,16 @@ final class RegionalStructureRegistry {
             for (StructureTransform.Rotation rotation : StructureTransform.Rotation.values()) {
                 StructureTransform transform = new StructureTransform(rotation, StructureTransform.Mirror.NONE);
                 long pieceSeed = random.nextLong();
-                for (StructureFeature.Connector relative : feature.connectors(new BlockPosition(0, 0, 0),
-                        transform, Collections.<StructureFeature.ConformOffset>emptyList(), pieceSeed)) {
+                for (StructureFeature.Connector relative : feature.connectors(new BlockPosition(0, 0, 0), transform,
+                        Collections.<StructureFeature.ConformOffset>emptyList(), pieceSeed)) {
                     if (!relative.pool.equals(parent.pool) || relative.facing != parent.facing.opposite()) {
                         continue;
                     }
                     BlockPosition origin = new BlockPosition(targetX - relative.position.x,
                             parent.position.y - relative.position.y, targetZ - relative.position.z);
                     FeatureDefinition featureDefinition = FeaturePlacementRegistry.findFeature(choice.feature);
-                    StructureFeature.RegionalPlacement placement = resolveRegional(world, definition,
-                            featureDefinition, feature, origin, transform, pieceSeed);
+                    StructureFeature.RegionalPlacement placement = resolveRegional(world, definition, featureDefinition,
+                            feature, origin, transform, pieceSeed);
                     if (!placement.accepted
                             || Math.abs(placement.origin.y - origin.y) > definition.connectorVerticalTolerance) {
                         continue;
@@ -291,8 +291,8 @@ final class RegionalStructureRegistry {
                             || collides(bounds, placed)) {
                         continue;
                     }
-                    StructureFeature.Connector used = matchingConnector(feature, placement.origin, transform,
-                            relative, placement.conformOffsets, pieceSeed);
+                    StructureFeature.Connector used = matchingConnector(feature, placement.origin, transform, relative,
+                            placement.conformOffsets, pieceSeed);
                     if (Math.abs(used.position.y - parent.position.y) > definition.connectorVerticalTolerance) {
                         continue;
                     }
@@ -321,8 +321,7 @@ final class RegionalStructureRegistry {
     private static StructureFeature.Connector matchingConnector(StructureFeature feature, BlockPosition origin,
             StructureTransform transform, StructureFeature.Connector relative,
             List<StructureFeature.ConformOffset> conformOffsets, long pieceSeed) {
-        for (StructureFeature.Connector connector : feature.connectors(origin, transform, conformOffsets,
-                pieceSeed)) {
+        for (StructureFeature.Connector connector : feature.connectors(origin, transform, conformOffsets, pieceSeed)) {
             if (connector.pool.equals(relative.pool) && connector.facing == relative.facing
                     && connector.position.x - origin.x == relative.position.x
                     && connector.position.z - origin.z == relative.position.z) {
@@ -349,8 +348,7 @@ final class RegionalStructureRegistry {
             z = Math.max(chunkMinZ, Math.min(chunkMinZ + 15, z));
         }
         int y = regionalHeight(world, definition, x, z, candidate.seed);
-        return y < WorldGenLimits.MIN_HEIGHT || y > WorldGenLimits.MAX_HEIGHT
-                ? null : new BlockPosition(x, y, z);
+        return y < WorldGenLimits.MIN_HEIGHT || y > WorldGenLimits.MAX_HEIGHT ? null : new BlockPosition(x, y, z);
     }
 
     private static int regionalHeight(World world, RegionalStructureDefinition definition, int x, int z, long seed) {
@@ -378,8 +376,7 @@ final class RegionalStructureRegistry {
 
     private static List<RegionalStructurePlan.Piece.TerrainChange> terrainChanges(World world,
             StructureFeature.RegionalPlacement placement) {
-        List<RegionalStructurePlan.Piece.TerrainChange> result =
-                new ArrayList<RegionalStructurePlan.Piece.TerrainChange>();
+        List<RegionalStructurePlan.Piece.TerrainChange> result = new ArrayList<RegionalStructurePlan.Piece.TerrainChange>();
         for (PlacementPlan.PlannedBlock block : placement.terrainChanges) {
             result.add(new RegionalStructurePlan.Piece.TerrainChange(block.position, block.blockId, block.metadata,
                     world.getBlockId(block.position.x, block.position.y, block.position.z),
@@ -394,9 +391,9 @@ final class RegionalStructureRegistry {
     }
 
     private static boolean withinWorld(StructureFeature.Bounds bounds) {
-        return bounds.min.x >= -30000000 && bounds.max.x <= 30000000
-                && bounds.min.z >= -30000000 && bounds.max.z <= 30000000
-                && bounds.min.y >= WorldGenLimits.MIN_HEIGHT && bounds.max.y <= WorldGenLimits.MAX_HEIGHT;
+        return bounds.min.x >= -30000000 && bounds.max.x <= 30000000 && bounds.min.z >= -30000000
+                && bounds.max.z <= 30000000 && bounds.min.y >= WorldGenLimits.MIN_HEIGHT
+                && bounds.max.y <= WorldGenLimits.MAX_HEIGHT;
     }
 
     private static boolean collides(StructureFeature.Bounds bounds, List<RegionalStructurePlan.Piece> pieces) {
@@ -433,8 +430,7 @@ final class RegionalStructureRegistry {
                                 return FeaturePlacementRegistry.findFeature(key);
                             }
                         });
-                PlacementPlan changes = new PlacementPlan(
-                        new BlockPosition((chunkX << 4) + 8, 64, (chunkZ << 4) + 8),
+                PlacementPlan changes = new PlacementPlan(new BlockPosition((chunkX << 4) + 8, 64, (chunkZ << 4) + 8),
                         WorldGenLimits.MAX_REGIONAL_BLOCKS_PER_CHUNK, 128);
                 for (RegionalStructurePlan.Piece piece : plan.pieces) {
                     if (!piece.bounds.intersectsChunk(chunkX, chunkZ)) {
@@ -451,10 +447,8 @@ final class RegionalStructureRegistry {
                     for (RegionalStructurePlan.Piece.TerrainChange terrain : piece.terrainChanges) {
                         if (Math.floorDiv(terrain.position.x, 16) == chunkX
                                 && Math.floorDiv(terrain.position.z, 16) == chunkZ) {
-                            int existing = context.blockId(terrain.position.x, terrain.position.y,
-                                    terrain.position.z);
-                            int metadata = context.metadata(terrain.position.x, terrain.position.y,
-                                    terrain.position.z);
+                            int existing = context.blockId(terrain.position.x, terrain.position.y, terrain.position.z);
+                            int metadata = context.metadata(terrain.position.x, terrain.position.y, terrain.position.z);
                             if (existing < 0 || metadata < 0) {
                                 reject(definition.key, context.failure());
                                 return;
@@ -462,14 +456,14 @@ final class RegionalStructureRegistry {
                             boolean alreadyApplied = existing == terrain.blockId && metadata == terrain.metadata;
                             boolean unchanged = terrain.expectedBlockId < 0
                                     || existing == terrain.expectedBlockId && metadata == terrain.expectedMetadata;
-                            if (!alreadyApplied && (!unchanged
-                                    || context.hasTileEntity(terrain.position.x, terrain.position.y,
-                                            terrain.position.z))) {
+                            if (!alreadyApplied && (!unchanged || context.hasTileEntity(terrain.position.x,
+                                    terrain.position.y, terrain.position.z))) {
                                 reject(definition.key, FeatureResult.TERRAIN_PROTECTED_BLOCK);
                                 return;
                             }
                             if (!changes.setBlock(terrain.position.x, terrain.position.y, terrain.position.z,
-                                    terrain.blockId, terrain.metadata)) {
+                                    terrain.blockId, terrain.metadata,
+                                    PlacementPlan.WritePriority.TERRAIN_ADAPTATION)) {
                                 reject(definition.key, changes.failure());
                                 return;
                             }
@@ -482,7 +476,8 @@ final class RegionalStructureRegistry {
                         return;
                     }
                 }
-                FeatureResult result = !changes.hasPlannedChanges() ? FeatureResult.placed(0, null, null)
+                FeatureResult result = !changes.hasPlannedChanges()
+                        ? FeatureResult.placed(0, null, null)
                         : changes.commit(context);
                 if (!result.placed) {
                     reject(definition.key, result.reason);
@@ -536,8 +531,7 @@ final class RegionalStructureRegistry {
                     if (distance >= bestDistance) {
                         continue;
                     }
-                    RegionalStructurePlan saved = index == null ? null
-                            : index.find(id(key, dimension, x, z));
+                    RegionalStructurePlan saved = index == null ? null : index.find(id(key, dimension, x, z));
                     BlockPosition savedOrigin = saved == null ? null : saved.pieces.get(0).origin;
                     Integer y = savedOrigin == null ? null : Integer.valueOf(savedOrigin.y);
                     best = new Location(savedOrigin == null ? candidateX : savedOrigin.x, y,
@@ -551,10 +545,10 @@ final class RegionalStructureRegistry {
         return best;
     }
 
-    static Candidate candidate(RegionalStructureDefinition definition, long worldSeed, String dimension,
-            int regionX, int regionZ) {
-        long seed = SeedMixer.generationSeed(worldSeed, dimension, "large_structures", regionX, regionZ,
-                definition.key, definition.salt);
+    static Candidate candidate(RegionalStructureDefinition definition, long worldSeed, String dimension, int regionX,
+            int regionZ) {
+        long seed = SeedMixer.generationSeed(worldSeed, dimension, "large_structures", regionX, regionZ, definition.key,
+                definition.salt);
         Random random = new Random(seed);
         int spread = definition.spacing - definition.separation;
         int chunkX = regionX * definition.spacing + random.nextInt(spread);
@@ -574,7 +568,8 @@ final class RegionalStructureRegistry {
     private static StructureFeature structureFeature(WorldGenKey key) {
         FeatureDefinition definition = FeaturePlacementRegistry.findFeature(key);
         return definition != null && definition.feature instanceof StructureFeature
-                ? (StructureFeature) definition.feature : null;
+                ? (StructureFeature) definition.feature
+                : null;
     }
 
     private static boolean matchesDimension(RegionalStructureDefinition definition, String dimension) {
@@ -648,8 +643,8 @@ final class RegionalStructureRegistry {
                 }
                 StructureFeature root = structureFeature(definition.startFeature, stagedFeatures);
                 if (root == null) {
-                    throw new LuaError("Regional structure " + definition.key
-                            + " references unknown local structure " + definition.startFeature);
+                    throw new LuaError("Regional structure " + definition.key + " references unknown local structure "
+                            + definition.startFeature);
                 }
                 validateMarkers(definition, root);
                 for (RegionalStructureDefinition.PieceChoice choice : definition.pieces) {
@@ -659,8 +654,8 @@ final class RegionalStructureRegistry {
                                 + " references unknown local structure " + choice.feature);
                     }
                     if (!feature.hasConnectorPool(choice.pool)) {
-                        throw new LuaError("Regional structure piece " + choice.feature
-                                + " has no connector for pool '" + choice.pool + "'");
+                        throw new LuaError("Regional structure piece " + choice.feature + " has no connector for pool '"
+                                + choice.pool + "'");
                     }
                     validateMarkers(definition, feature);
                 }
@@ -767,7 +762,8 @@ final class RegionalStructureRegistry {
             recoveredChunks = values == null ? 0 : values.recoveredChunks;
             rejectedChunks = values == null ? 0 : values.rejectedChunks;
             blocksChanged = values == null ? 0 : values.blocksChanged;
-            rejectionReasons = values == null ? Collections.<String, Integer>emptyMap()
+            rejectionReasons = values == null
+                    ? Collections.<String, Integer>emptyMap()
                     : Collections.unmodifiableMap(new LinkedHashMap<String, Integer>(values.reasons));
             this.disabled = disabled;
         }

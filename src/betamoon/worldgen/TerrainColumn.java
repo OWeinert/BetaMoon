@@ -1,6 +1,7 @@
 package betamoon.worldgen;
 
 import net.minecraft.src.Block;
+import net.minecraft.src.BlockContainer;
 import net.minecraft.src.Material;
 
 /** Lazily sampled, attempt-local facts for one world column. */
@@ -128,12 +129,26 @@ final class TerrainColumn {
             return false;
         }
         Material material = Block.blocksList[blockId].blockMaterial;
-        return material.getIsSolid() && material != Material.leaves && material != Material.snow
-                && !isFluid(blockId);
+        return material.getIsSolid() && material != Material.leaves && material != Material.snow && !isFluid(blockId);
+    }
+
+    static boolean isOrdinaryTerrain(int blockId) {
+        if (blockId <= 0 || blockId >= Block.blocksList.length || Block.blocksList[blockId] == null) {
+            return false;
+        }
+        Material material = Block.blocksList[blockId].blockMaterial;
+        return material == Material.rock || material == Material.ground || material == Material.sand
+                || material == Material.snow || blockId == Block.grass.blockID || blockId == Block.gravel.blockID
+                || blockId == Block.ice.blockID;
+    }
+
+    static boolean isTerrainMaterial(int blockId) {
+        return isStructural(blockId) && !(Block.blocksList[blockId] instanceof BlockContainer);
     }
 
     private static Material material(int blockId) {
         return blockId <= 0 || blockId >= Block.blocksList.length || Block.blocksList[blockId] == null
-                ? Material.air : Block.blocksList[blockId].blockMaterial;
+                ? Material.air
+                : Block.blocksList[blockId].blockMaterial;
     }
 }
