@@ -69,7 +69,7 @@ public final class ContentRegistry {
         return registration == null ? null : registration.getKey();
     }
 
-    /** Returns the key permanently claimed by a retained native identity. */
+    /** Returns the key claimed by a retained native identity until registry reset. */
     public synchronized ContentKey retainedKeyOf(NativeContentIdentity identity) {
         if (identity == null) {
             throw new NullPointerException("Native content identity");
@@ -269,7 +269,7 @@ public final class ContentRegistry {
         ownerRevisions.put(publication.owner, Long.valueOf(++nextRevision));
     }
 
-    /** Removes all active state and invalidates batches and publications. */
+    /** Removes active state and retained claims, then invalidates batches and publications. */
     public synchronized void clear() {
         registrations.clear();
         reverse.clear();
@@ -283,7 +283,7 @@ public final class ContentRegistry {
         epoch++;
     }
 
-    /** Removes active declarations from scripts that are no longer loaded. */
+    /** Removes inactive owners while preserving restart-only retained claims. */
     public synchronized void retainOwners(Set<String> owners) {
         if (owners == null) {
             throw new NullPointerException("Retained content owners");

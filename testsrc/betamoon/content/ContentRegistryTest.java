@@ -16,7 +16,7 @@ public final class ContentRegistryTest {
         verifyOwnerRetention();
         verifyNamespaceReservations();
         verifyClearInvalidation();
-        System.out.println("Central content-registry mapping checks passed.");
+        System.out.println("Central content-registry checks passed: mappings, ownership, transactions and reload.");
     }
 
     private static void verifyMappingsAndOwnership() {
