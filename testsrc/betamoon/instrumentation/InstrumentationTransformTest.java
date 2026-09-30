@@ -137,11 +137,11 @@ public final class InstrumentationTransformTest {
         registry.register(betamoon.instrumentation.api.AroundHookDefinition
                 .builder("test:object_guard",
                         new betamoon.instrumentation.api.MethodRef(
-                                new betamoon.instrumentation.api.ClassRef(targetName), "run",
-                                "(I)Ljava/lang/String;"))
+                                new betamoon.instrumentation.api.ClassRef(targetName), "run", "(I)Ljava/lang/String;"))
                 .capture(betamoon.instrumentation.api.HandlerRef.of(callbackOwner, "captureDecision", "(I)I"),
                         betamoon.instrumentation.api.ValueBinding.argument(0))
-                .onReturn(betamoon.instrumentation.api.HandlerRef.of(callbackOwner, "completeObjectDecision",
+                .onReturn(
+                        betamoon.instrumentation.api.HandlerRef.of(callbackOwner, "completeObjectDecision",
                                 "(Ljava/lang/Object;I)Ljava/lang/String;"),
                         betamoon.instrumentation.api.ValueBinding.returnValue(),
                         betamoon.instrumentation.api.ValueBinding.capturedValue())
@@ -188,6 +188,12 @@ public final class InstrumentationTransformTest {
         require(singleMethod != allMethods && !singleMethod.appliesToAllMethods() && allMethods.appliesToAllMethods(),
                 "Selecting all-method redirection must return a new immutable definition");
         require(allMethods.inAllMethods() == allMethods, "Repeating an immutable all-method selection must be stable");
+        ClassRef receiver = new ClassRef("fixture/RedirectSubtype");
+        CallRedirectHookDefinition inherited = singleMethod.withInvocationOwner(receiver);
+        require(inherited != singleMethod && inherited.getInvocationOwner() == receiver,
+                "An inherited-call redirect must retain its explicit bytecode receiver owner");
+        require(inherited.inAllMethods().getInvocationOwner() == receiver,
+                "All-method selection must preserve an inherited-call receiver owner");
 
         TransformationReport report = new TransformationReport();
         HookRegistry registry = new HookRegistry(report);
@@ -262,6 +268,7 @@ public final class InstrumentationTransformTest {
                     || diagnostic.getHookId().startsWith("betamoon:model_render")
                     || diagnostic.getHookId().startsWith("betamoon:entity_lifecycle")
                     || diagnostic.getHookId().startsWith("betamoon:entity_natural_spawn")
+                    || diagnostic.getHookId().startsWith("betamoon:client_control")
                     || diagnostic.getHookId().startsWith("betamoon:worldgen_surface")
                     || diagnostic.getHookId().startsWith("betamoon:regional_structure_chunk")
                     || diagnostic.getHookId().equals("betamoon:block_break_guard")
@@ -337,23 +344,25 @@ public final class InstrumentationTransformTest {
         require(transformer.transform(null, survivalOwner, null, null, survival) == null,
                 "Survival guard must be idempotent");
 
+        verifyClientControlSeams(mappings, clientJarPath, transformer);
+
         String[][] additionalTargets = {{"net/minecraft/src/World", "emission"}, {"forge/ForgeHooks", "permission"},
                 {"net/minecraft/src/ItemRenderer", "held"}, {"net/minecraft/src/RenderItem", "gui"},
                 {"net/minecraft/src/EntityRenderer", "frame"}, {"net/minecraft/src/Chunk", "chunkLoaded"},
-                {"net/minecraft/src/RenderGlobal", "worldModels"},
-                {"net/minecraft/src/TileEntityFurnace", "result"},
+                {"net/minecraft/src/RenderGlobal", "worldModels"}, {"net/minecraft/src/TileEntityFurnace", "result"},
                 {"net/minecraft/src/SpawnerAnimals", "after"}};
         for (String[] target : additionalTargets) {
             String targetOwner = mappings.resolveClass(new betamoon.instrumentation.api.ClassRef(target[0]),
                     RuntimeNamespace.CLIENT);
             byte[] result = transformer.transform(null, targetOwner, null, null, readClass(clientJarPath, targetOwner));
-            int expectedCallbacks = target[0].equals("net/minecraft/src/RenderGlobal") ? 2
-                    : target[0].equals("net/minecraft/src/SpawnerAnimals") ? 3
+            int expectedCallbacks = target[0].equals("net/minecraft/src/RenderGlobal")
+                    ? 2
+                    : target[0].equals("net/minecraft/src/SpawnerAnimals")
+                            ? 3
                             : target[0].equals("net/minecraft/src/TileEntityFurnace") ? 7 : 1;
             int callbackCount = result == null ? 0 : countCallbackCalls(result, target[1]);
-            require(result != null && callbackCount == expectedCallbacks,
-                    "Missing runtime hook for " + target[0] + " (transformed=" + (result != null)
-                            + ", callbacks=" + callbackCount + ")");
+            require(result != null && callbackCount == expectedCallbacks, "Missing runtime hook for " + target[0]
+                    + " (transformed=" + (result != null) + ", callbacks=" + callbackCount + ")");
             if (target[0].equals("net/minecraft/src/Chunk")) {
                 require(countCallbackCalls(result, "chunkUnloaded") == 2,
                         "Missing model or entity chunk unload bridge");
@@ -399,6 +408,67 @@ public final class InstrumentationTransformTest {
         }
     }
 
+    private static void verifyClientControlSeams(TinyMappingResolver mappings, String clientJarPath,
+            BetaMoonTransformer transformer) throws Exception {
+        byte[] minecraft = transformControlClass(mappings, clientJarPath, transformer,
+                "net/minecraft/client/Minecraft");
+        assertAroundCallbacks(mappings, minecraft, "net/minecraft/client/Minecraft", "runTick", "()V", "beginInputTick",
+                "finishInputTick");
+        assertAroundCallbacks(mappings, minecraft, "net/minecraft/client/Minecraft", "clickMouse", "(I)V",
+                "beforeAction", "afterAction");
+        assertAroundCallbacks(mappings, minecraft, "net/minecraft/client/Minecraft", "func_6254_a", "(IZ)V",
+                "beforeHeldBreaking", "afterHeldBreaking");
+
+        byte[] player = transformControlClass(mappings, clientJarPath, transformer, "net/minecraft/src/EntityPlayerSP");
+        assertAroundCallbacks(mappings, player, "net/minecraft/src/EntityPlayerSP", "handleKeyPress", "(IZ)V",
+                "beforeMovementKey", "afterMovementKey");
+
+        byte[] movement = transformControlClass(mappings, clientJarPath, transformer,
+                "net/minecraft/src/MovementInputFromOptions");
+        MethodRef updateMovement = new MethodRef(new ClassRef("net/minecraft/src/MovementInput"),
+                "updatePlayerMoveState", "(Lnet/minecraft/src/EntityPlayer;)V")
+                .implementedBy(new ClassRef("net/minecraft/src/MovementInputFromOptions"));
+        assertAroundCallbacks(mappings, movement, updateMovement, "enterMovementIntent", "finishMovementIntent");
+
+        byte[] renderer = transformControlClass(mappings, clientJarPath, transformer,
+                "net/minecraft/src/EntityRenderer");
+        require(countCallbackCalls(renderer, "applyLook") == 1,
+                "The local-player look call was not redirected exactly once");
+        assertAroundCallbacks(mappings, renderer, "net/minecraft/src/EntityRenderer", "getMouseOver", "(F)V",
+                "beforeTargeting", "afterTargeting");
+        assertAroundCallbacks(mappings, renderer, "net/minecraft/src/EntityRenderer", "orientCamera", "(F)V",
+                "beforeCamera", "afterCamera");
+        assertAroundCallbacks(mappings, renderer, "net/minecraft/src/EntityRenderer", "setupCameraTransform", "(FI)V",
+                "beforeProjection", "afterProjection");
+    }
+
+    private static byte[] transformControlClass(TinyMappingResolver mappings, String clientJarPath,
+            BetaMoonTransformer transformer, String namedOwner) throws Exception {
+        String runtimeOwner = mappings.resolveClass(new ClassRef(namedOwner), RuntimeNamespace.CLIENT);
+        byte[] transformed = transformer.transform(null, runtimeOwner, null, null,
+                readClass(clientJarPath, runtimeOwner));
+        require(transformed != null, "Client control seam did not transform " + namedOwner);
+        require(transformer.transform(null, runtimeOwner, null, null, transformed) == null,
+                "Client control seam must be idempotent: " + namedOwner);
+        return transformed;
+    }
+
+    private static void assertAroundCallbacks(TinyMappingResolver mappings, byte[] transformed, String namedOwner,
+            String methodName, String descriptor, String entryCallback, String returnCallback) {
+        assertAroundCallbacks(mappings, transformed, new MethodRef(new ClassRef(namedOwner), methodName, descriptor),
+                entryCallback, returnCallback);
+    }
+
+    private static void assertAroundCallbacks(TinyMappingResolver mappings, byte[] transformed, MethodRef method,
+            String entryCallback, String returnCallback) {
+        ResolvedMethod target = mappings.resolveMethod(method, RuntimeNamespace.CLIENT);
+        require(countCallbackCalls(transformed, entryCallback) == 1,
+                "Client control seam " + entryCallback + " did not match exactly once in " + target);
+        int returns = countReturns(transformed, target);
+        require(returns > 0 && countCallbackCalls(transformed, returnCallback) == returns,
+                "Client control seam " + returnCallback + " did not cover every return in " + target);
+    }
+
     private static void verifyRuntimeServer(TinyMappingResolver mappings, String serverJarPath) throws Exception {
         TransformationReport report = new TransformationReport();
         HookRegistry registry = new HookRegistry(report);
@@ -409,15 +479,13 @@ public final class InstrumentationTransformTest {
 
         String tracker = mappings.resolveClass(new ClassRef("net/minecraft/src/EntityTracker"),
                 RuntimeNamespace.SERVER);
-        byte[] transformedTracker = transformer.transform(null, tracker, null, null,
-                readClass(serverJarPath, tracker));
+        byte[] transformedTracker = transformer.transform(null, tracker, null, null, readClass(serverJarPath, tracker));
         require(transformedTracker != null && countCallbackCalls(transformedTracker, "track") == 1,
                 "Runtime server EntityTracker is missing custom registration");
 
         String entry = mappings.resolveClass(new ClassRef("net/minecraft/src/EntityTrackerEntry"),
                 RuntimeNamespace.SERVER);
-        byte[] transformedEntry = transformer.transform(null, entry, null, null,
-                readClass(serverJarPath, entry));
+        byte[] transformedEntry = transformer.transform(null, entry, null, null, readClass(serverJarPath, entry));
         require(transformedEntry != null && countCallbackCalls(transformedEntry, "custom") == 1
                 && countCallbackCalls(transformedEntry, "spawn") >= 2,
                 "Runtime server EntityTrackerEntry is missing custom spawn selection");
@@ -503,7 +571,8 @@ public final class InstrumentationTransformTest {
             int count = 0;
             for (AbstractInsnNode instruction = method.instructions
                     .getFirst(); instruction != null; instruction = instruction.getNext()) {
-                if (instruction.getOpcode() == Opcodes.IRETURN) {
+                int opcode = instruction.getOpcode();
+                if (opcode >= Opcodes.IRETURN && opcode <= Opcodes.RETURN) {
                     count++;
                 }
             }

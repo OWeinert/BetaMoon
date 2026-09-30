@@ -45,7 +45,7 @@ final class CallRedirectInjector {
 
     private HookTransformOutcome redirectAll(ClassNode classNode, CallRedirectHookDefinition definition,
             RuntimeNamespace namespace) throws HookTransformException {
-        ResolvedMethod invocation = mappings.resolveMethod(definition.getInvocation(), namespace);
+        ResolvedMethod invocation = resolveInvocation(definition, namespace);
         ResolvedMethod handler = mappings.resolveMethod(definition.getHandler().getMethod(), namespace);
         validateHandler(definition, invocation, handler);
 
@@ -74,7 +74,7 @@ final class CallRedirectInjector {
 
     private HookTransformOutcome redirect(MethodNode method, CallRedirectHookDefinition definition,
             RuntimeNamespace namespace) throws HookTransformException {
-        ResolvedMethod invocation = mappings.resolveMethod(definition.getInvocation(), namespace);
+        ResolvedMethod invocation = resolveInvocation(definition, namespace);
         ResolvedMethod handler = mappings.resolveMethod(definition.getHandler().getMethod(), namespace);
         validateHandler(definition, invocation, handler);
         CallCounts counts = findCalls(method, invocation, handler);
@@ -87,6 +87,15 @@ final class CallRedirectInjector {
         }
         replace(counts.originals.get(0), handler);
         return HookTransformOutcome.APPLIED;
+    }
+
+    private ResolvedMethod resolveInvocation(CallRedirectHookDefinition definition, RuntimeNamespace namespace) {
+        ResolvedMethod invocation = mappings.resolveMethod(definition.getInvocation(), namespace);
+        if (definition.getInvocationOwner() == null) {
+            return invocation;
+        }
+        String owner = mappings.resolveClass(definition.getInvocationOwner(), namespace);
+        return new ResolvedMethod(owner, invocation.getName(), invocation.getDescriptor());
     }
 
     private void validateHandler(CallRedirectHookDefinition definition, ResolvedMethod invocation,
