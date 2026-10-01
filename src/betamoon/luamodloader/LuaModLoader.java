@@ -2,8 +2,10 @@ package betamoon.luamodloader;
 
 import betamoon.BetaMoonCommon;
 
+import betamoon.fluid.interaction.FluidInteractionRegistry;
 import betamoon.io.IoUtils;
 import betamoon.luaapi.block.BlockCallbackRegistry;
+import betamoon.luaapi.fluid.FluidDefinitionTracker;
 import betamoon.luaapi.module.ModuleRegistry;
 import betamoon.recipes.RecipeModificationHandler;
 import betamoon.tileentity.TileEntityRegistry;
@@ -63,6 +65,8 @@ public final class LuaModLoader {
 
     private void loadAndRunInternal() {
         LuaContentRegistry.beginLoadPass();
+        FluidDefinitionTracker.beginLoadPass();
+        FluidInteractionRegistry.instance().beginLoadPass();
         LuaScriptRegistry.clear();
         List<String> errors = new ArrayList<>();
         List<ScriptMod> mods = loadLuaMods(errors);
@@ -96,6 +100,14 @@ public final class LuaModLoader {
                 LuaScriptErrors.add("Block drops", dropErrors.get(i));
             }
             reportErrors(dropErrors);
+        }
+        List<String> fluidDefinitionErrors = FluidDefinitionTracker.finishLoadPass();
+        FluidInteractionRegistry.instance().finishLoadPass();
+        if (!fluidDefinitionErrors.isEmpty()) {
+            for (int i = 0; i < fluidDefinitionErrors.size(); i++) {
+                LuaScriptErrors.add("Fluid registration", fluidDefinitionErrors.get(i));
+            }
+            reportErrors(fluidDefinitionErrors);
         }
         List<String> retainedWarnings = LuaContentRegistry.finishLoadPass();
         for (int i = 0; i < retainedWarnings.size(); i++) {

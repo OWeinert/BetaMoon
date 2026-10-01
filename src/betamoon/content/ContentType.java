@@ -18,6 +18,8 @@ public final class ContentType {
     public static final ContentType SHARED = new ContentType("shared");
     public static final ContentType INPUT_MAP = new ContentType("input_map");
     public static final ContentType HOTKEY = new ContentType("hotkey");
+    public static final ContentType FLUID = new ContentType("fluid");
+    public static final ContentType FLUID_INTERACTION = new ContentType("fluid_interaction");
 
     private final String value;
 
@@ -65,6 +67,12 @@ public final class ContentType {
         }
         if (HOTKEY.value.equals(value)) {
             return HOTKEY;
+        }
+        if (FLUID.value.equals(value)) {
+            return FLUID;
+        }
+        if (FLUID_INTERACTION.value.equals(value)) {
+            return FLUID_INTERACTION;
         }
         return new ContentType(value);
     }

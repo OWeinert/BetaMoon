@@ -2,12 +2,14 @@ import betamoon.BetaMoonClient;
 import betamoon.client.render.RenderLuaEntityPart;
 import betamoon.client.render.RenderLuaPickup;
 import betamoon.client.render.RenderLuaProp;
+import betamoon.client.render.FluidRenderer;
 import betamoon.entity.LuaEntityPart;
 import betamoon.entity.LuaLivingEntity;
 import betamoon.entity.LuaPickupEntity;
 import betamoon.entity.LuaProjectileEntity;
 import betamoon.entity.LuaPropEntity;
 import betamoon.fuel.FuelRegistry;
+import betamoon.fluid.block.FluidBlock;
 import betamoon.luaapi.block.BlockModelRegistry;
 import java.util.Map;
 import java.util.Random;
@@ -90,6 +92,9 @@ public class mod_BetaMoon extends BaseMod {
     @Override
     public boolean RenderWorldBlock(RenderBlocks renderer, IBlockAccess world, int x, int y, int z, Block block,
             int type) {
+        if (FluidRenderer.handles(block, type)) {
+            return FluidRenderer.render(renderer, world, x, y, z, (FluidBlock) block);
+        }
         return BlockModelRegistry.renderWorld(renderer, world, x, y, z, block);
     }
 

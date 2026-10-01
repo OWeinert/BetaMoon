@@ -5,6 +5,16 @@
 BetaMoon 0.8.0 expands world generation into a deterministic, reusable Lua API and begins the player-facing control
 stack.
 
+### Custom fluids
+
+- Add keyed custom fluids with explicit non-adjacent flowing/still block pairs, bounded Beta-style flow policies,
+  renewable-source rules, safe displacement, and reload-retained native identities.
+- Add identity-aware fluid rendering with independent still/flowing textures, tint, render pass, light, and opacity.
+- Add optional filled buckets, source-only vanilla-bucket collection, Nether evaporation for water-preset buckets,
+  fluid lookup/references, advanced block/item binding, and deterministic metadata-aware interaction rules.
+- Use vanilla water/lava only as temporary native material carriers behind an extensible boundary; fluid identity does
+  not depend on the carrier, and custom materials plus entity/camera/ecology integration remain later work.
+
 ### Input and control foundation
 
 - Add owner-scoped named input maps with keyboard, mouse-button, wheel, and modifier bindings; exact per-cycle

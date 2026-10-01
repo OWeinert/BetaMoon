@@ -7,6 +7,7 @@ import betamoon.client.audio.ClientEntityEffects;
 import betamoon.client.control.input.ClientHotkeys;
 import betamoon.client.network.ClientNetworkSession;
 import betamoon.client.render.ClientEntityPresentationResources;
+import betamoon.client.render.FluidRenderer;
 import betamoon.config.BetaMoonConfig;
 import betamoon.gui.GuiBetaMoonIngameMenu;
 import betamoon.gui.GuiBetaMoonMainMenu;
@@ -55,6 +56,7 @@ public final class BetaMoonClient {
         ClientHotkeys.initialize(baseMod);
         this.networkSession = ClientNetworkSession.initialize();
         BlockModelRegistry.initialize(baseMod);
+        FluidRenderer.initialize(baseMod);
         this.agentRegistered = common.isAgentRegistered();
         this.config = new BetaMoonConfig("betamoon.config");
         this.eventHandler = new BetaMoonEventHandler();

@@ -60,6 +60,9 @@ public final class ContentKeyTest {
         require(ContentType.RECIPE_TYPE == ContentType.of("recipe_type"), "Known factories reuse constants");
         require(ContentType.INPUT_MAP == ContentType.of("input_map"), "Input maps use a shared known type");
         require(ContentType.HOTKEY == ContentType.of("hotkey"), "Hotkeys use a shared known type");
+        require(ContentType.FLUID == ContentType.of("fluid"), "Fluids use a shared known type");
+        require(ContentType.FLUID_INTERACTION == ContentType.of("fluid_interaction"),
+                "Fluid interactions use a shared known type");
         require("mymod:quest_entry/first_steps".equals(ContentKey.parseForType("mymod:first_steps", custom).toString()),
                 "Expandable types work with typed shorthand");
     }

@@ -1,6 +1,8 @@
 package betamoon;
 
 import betamoon.entity.EntityBootstrap;
+import betamoon.fluid.FluidRegistry;
+import betamoon.fluid.item.FluidBucketHandler;
 import betamoon.instrumentation.agent.AgentStatus;
 import betamoon.instrumentation.agent.BetaMoonAgent;
 import betamoon.luamodloader.LuaModLoader;
@@ -46,6 +48,8 @@ public final class BetaMoonCommon {
     private BetaMoonCommon(LuaModLoader luaModLoader) {
         EntityBootstrap.register();
         PacketRegistration.register();
+        FluidRegistry.instance().registerVanilla();
+        FluidBucketHandler.register();
         this.luaModLoader = luaModLoader;
         this.agentRegistered = inspectAgentStatus();
     }
