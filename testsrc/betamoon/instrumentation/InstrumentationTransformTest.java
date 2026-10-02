@@ -278,6 +278,7 @@ public final class InstrumentationTransformTest {
                     || diagnostic.getHookId().startsWith("betamoon:client_control")
                     || diagnostic.getHookId().startsWith("betamoon:worldgen_surface")
                     || diagnostic.getHookId().startsWith("betamoon:regional_structure_chunk")
+                    || diagnostic.getHookId().equals("betamoon:fluid_interactions")
                     || diagnostic.getHookId().equals("betamoon:block_break_guard")
                     || diagnostic.getHookId().equals("betamoon:block_power")
                     || diagnostic.getHookId().equals("betamoon:block_display_tick")
@@ -352,6 +353,7 @@ public final class InstrumentationTransformTest {
                 "Survival guard must be idempotent");
 
         verifyClientControlSeams(mappings, clientJarPath, transformer);
+        verifyFluidInteractionSeam(mappings, clientJarPath, transformer, RuntimeNamespace.CLIENT);
 
         String[][] additionalTargets = {{"net/minecraft/src/World", "emission"}, {"forge/ForgeHooks", "permission"},
                 {"net/minecraft/src/ItemRenderer", "held"}, {"net/minecraft/src/RenderItem", "gui"},
@@ -512,6 +514,22 @@ public final class InstrumentationTransformTest {
         require(transformedEntry != null && countCallbackCalls(transformedEntry, "custom") == 1
                 && countCallbackCalls(transformedEntry, "spawn") >= 2,
                 "Runtime server EntityTrackerEntry is missing custom spawn selection");
+        verifyFluidInteractionSeam(mappings, serverJarPath, transformer, RuntimeNamespace.SERVER);
+    }
+
+    private static void verifyFluidInteractionSeam(TinyMappingResolver mappings, String jarPath,
+            BetaMoonTransformer transformer, RuntimeNamespace namespace) throws Exception {
+        MethodRef method = new MethodRef(new ClassRef("net/minecraft/src/BlockFluid"), "checkForHarden",
+                "(Lnet/minecraft/src/World;III)V");
+        ResolvedMethod target = mappings.resolveMethod(method, namespace);
+        String owner = target.getOwner();
+        byte[] transformed = transformer.transform(null, owner, null, null, readClass(jarPath, owner));
+        require(transformed != null && countCallbackCalls(transformed, "beforeHarden") == 1,
+                "Runtime " + namespace + " BlockFluid is missing identity-aware hardening");
+        require(countCallbackCalls(transformed, "complete") == countReturns(transformed, target),
+                "Runtime " + namespace + " BlockFluid hardening does not cover its return path");
+        require(transformer.transform(null, owner, null, null, transformed) == null,
+                "Fluid interaction seam must be idempotent for " + namespace);
     }
 
     private static byte[] readClass(String jarPath, String owner) throws Exception {

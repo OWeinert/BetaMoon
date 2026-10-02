@@ -2,6 +2,11 @@ package betamoon.fluid;
 
 import betamoon.content.ContentKey;
 import betamoon.content.ContentType;
+import betamoon.fluid.interaction.FluidFace;
+import betamoon.fluid.interaction.FluidInteractionDefinition;
+import betamoon.fluid.interaction.FluidInteractionOutcome;
+import betamoon.fluid.interaction.FluidInteractionRegistry;
+import betamoon.fluid.interaction.VanillaFluidInteractions;
 import net.minecraft.src.Block;
 
 /** Verifies metadata, registry identity and reload-safe structural contracts. */
@@ -79,6 +84,26 @@ public final class FluidFoundationTest {
         require(lava != null && lava.definition().isVanilla(), "Vanilla lava has a read-only registry identity");
         require(registry.getByBlockId(Block.waterMoving.blockID) == water, "Vanilla flowing water resolves by ID");
         require(registry.getByBlockId(Block.lavaStill.blockID) == lava, "Vanilla still lava resolves by ID");
+
+        FluidInteractionRegistry interactions = FluidInteractionRegistry.instance();
+        FluidInteractionDefinition hardening = interactions.get(VanillaFluidInteractions.LAVA_WATER_KEY);
+        require(hardening != null && hardening.replaced() == lava && hardening.counterpart() == water,
+                "Vanilla lava-water hardening is represented by fluid identity");
+        require(!hardening.faces().contains(FluidFace.DOWN) && hardening.faces().size() == 5,
+                "Vanilla hardening retains its five checked contact faces");
+        FluidInteractionOutcome source = hardening.outcome(FluidState.of(0));
+        FluidInteractionOutcome shallow = hardening.outcome(FluidState.of(4));
+        require(source != null && source.resultBlockId() == Block.obsidian.blockID,
+                "Vanilla lava sources harden into obsidian");
+        require(shallow != null && shallow.resultBlockId() == Block.cobblestone.blockID,
+                "Vanilla shallow lava hardens into cobblestone");
+        require(hardening.outcome(FluidState.of(5)) == null && hardening.outcome(FluidState.of(8)) == null,
+                "Deep and falling vanilla lava retain their native no-replacement behavior");
+
+        interactions.beginLoadPass();
+        interactions.finishLoadPass();
+        require(interactions.get(VanillaFluidInteractions.LAVA_WATER_KEY) == hardening,
+                "Built-in fluid interactions survive script reload cleanup");
     }
 
     private static FluidDefinition definition(String key, int flowing, int still, FluidFlowPolicy flow) {

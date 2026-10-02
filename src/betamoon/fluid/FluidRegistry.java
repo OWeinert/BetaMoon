@@ -2,6 +2,7 @@ package betamoon.fluid;
 
 import betamoon.content.ContentKey;
 import betamoon.content.ContentType;
+import betamoon.fluid.interaction.VanillaFluidInteractions;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -35,6 +36,7 @@ public final class FluidRegistry {
         }
         publish(vanillaWater());
         publish(vanillaLava());
+        VanillaFluidInteractions.register(this);
         vanillaRegistered = true;
     }
 

@@ -12,6 +12,7 @@ import betamoon.instrumentation.hooks.item.ItemInteractionHook;
 import betamoon.instrumentation.hooks.entity.EntityLifecycleHook;
 import betamoon.instrumentation.hooks.entity.EntityNaturalSpawnHook;
 import betamoon.instrumentation.hooks.entity.EntityTrackingHook;
+import betamoon.instrumentation.hooks.fluid.FluidInteractionHook;
 import betamoon.instrumentation.hooks.fuel.FuelBurnTimeHook;
 import betamoon.instrumentation.hooks.texture.TextureResourceHook;
 import betamoon.instrumentation.hooks.model.ModelRenderHook;
@@ -42,6 +43,7 @@ public final class BuiltinHookModules {
         registry.registerModule(new ContentCallbackOverrideHook());
         registry.registerModule(new ItemHarvestHook());
         registry.registerModule(new BlockPowerHook());
+        registry.registerModule(new FluidInteractionHook());
         registry.registerModule(new EntityLifecycleHook());
         registry.registerModule(new EntityNaturalSpawnHook());
         registry.registerModule(new WorldgenSurfaceHook());

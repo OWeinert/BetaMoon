@@ -3,9 +3,10 @@
 Status: accepted design with an implementation in progress on
 `feature/custom-fluid-api`. The initial registry, custom block simulation,
 identity-aware rendering, buckets, Lua creation/lookup, and custom interaction
-rules are implemented. Entity/camera behavior, ecology hooks, custom materials,
-and the remaining hard-coded vanilla seams stay in the later phases described
-below.
+rules are implemented. Vanilla lava-water hardening now uses a permanent shared
+interaction rule when the instrumentation bridge is active. Entity/camera
+behavior, ecology hooks, custom materials, and the remaining hard-coded vanilla
+seams stay in the later phases described below.
 
 Audited against BetaMoon `feature/input-controller-camera-stack` at `53f172a`
 and the bundled remapped Minecraft Beta 1.7.3 and Forge sources on 2026-10-01.
@@ -1509,6 +1510,11 @@ may not yet have a bucket or custom entity semantics.
 4. Add deterministic interaction rules.
 5. Express vanilla lava-water hardening through the shared evaluator.
 6. Test permission failure and inventory/container edge cases.
+
+Implementation status: items 1–5 are implemented. Item 5 uses a common client
+and dedicated-server instrumentation seam, with the untouched native method as
+the safe fallback when the agent is unavailable. Item 6 remains the next Phase 3
+closure task.
 
 ### Phase 4: entity and camera behavior
 
