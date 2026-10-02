@@ -2,6 +2,7 @@ package betamoon.luaapi;
 
 import betamoon.client.render.FluidRendererTest;
 import betamoon.fluid.FluidFoundationTest;
+import betamoon.fluid.item.FluidBucketTest;
 import betamoon.luaapi.fluid.FluidLuaApiTest;
 import betamoon.luaapi.module.ModuleRegistry;
 import betamoon.luamodloader.LuaScriptRegistry;
@@ -72,6 +73,7 @@ public final class DeclarativeDomainTest {
             verifyWorldGeneration(lua);
             FluidFoundationTest.main(new String[0]);
             FluidRendererTest.main(new String[0]);
+            FluidBucketTest.main(new String[0]);
             FluidLuaApiTest.main(new String[0]);
             System.out.println(
                     "Declarative domains passed: constants, materials, world generation, validation and retained identity.");

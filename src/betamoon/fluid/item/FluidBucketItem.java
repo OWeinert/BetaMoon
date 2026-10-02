@@ -68,16 +68,17 @@ public final class FluidBucketItem extends Item {
         } else if (hit.sideHit == 5) {
             x++;
         }
-        if (!canPlace(world, x, y, z)) {
+        if (!world.func_6466_a(player, x, y, z) || !canPlace(world, x, y, z)) {
             return stack;
         }
 
         if (world.worldProvider.isHellWorld && "water".equals(fluid.preset())) {
             evaporate(world, x, y, z);
-        } else {
-            world.setBlockAndMetadataWithNotify(x, y, z, fluid.flowingBlockId(), 0);
+            return new ItemStack(Item.bucketEmpty);
         }
-        return new ItemStack(Item.bucketEmpty);
+        return world.setBlockAndMetadataWithNotify(x, y, z, fluid.flowingBlockId(), 0)
+                ? new ItemStack(Item.bucketEmpty)
+                : stack;
     }
 
     private static boolean canPlace(World world, int x, int y, int z) {

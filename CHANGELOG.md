@@ -12,6 +12,8 @@ stack.
 - Add identity-aware fluid rendering with independent still/flowing textures, tint, render pass, light, and opacity.
 - Add optional filled buckets, source-only vanilla-bucket collection, Nether evaporation for water-preset buckets,
   fluid lookup/references, advanced block/item binding, and deterministic metadata-aware interaction rules.
+- Prevent vanilla bucket fallback from collecting custom sources without a valid bucket, check selected and destination
+  permissions, and preserve held containers whenever collection or placement mutation fails.
 - Route vanilla lava-water hardening through the shared identity-aware interaction evaluator when BetaMoon's native
   hooks are active, preserving native metadata outcomes without matching custom fluids by carrier material.
 - Use vanilla water/lava only as temporary native material carriers behind an extensible boundary; fluid identity does

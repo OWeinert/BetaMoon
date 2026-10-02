@@ -4,6 +4,7 @@ import betamoon.fluid.FluidRegistration;
 import betamoon.fluid.FluidRegistry;
 import forge.IBucketHandler;
 import forge.MinecraftForge;
+import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.World;
 
@@ -25,11 +26,25 @@ public final class FluidBucketHandler implements IBucketHandler {
     @Override
     public ItemStack fillCustomBucket(World world, int x, int y, int z) {
         FluidRegistration fluid = FluidRegistry.instance().getByBlockId(world.getBlockId(x, y, z));
-        if (fluid == null || fluid.definition().isVanilla() || !fluid.definition().hasBucket()
-                || world.getBlockMetadata(x, y, z) != 0) {
+        if (fluid == null || fluid.definition().isVanilla() || world.getBlockMetadata(x, y, z) != 0) {
             return null;
         }
-        world.setBlockWithNotify(x, y, z, 0);
-        return new ItemStack(fluid.definition().bucketItemId(), 1, 0);
+        if (!fluid.definition().hasBucket()) {
+            return unchangedBucket();
+        }
+        int bucketId = fluid.definition().bucketItemId();
+        if (bucketId < 0 || bucketId >= Item.itemsList.length
+                || !(Item.itemsList[bucketId] instanceof FluidBucketItem)
+                || FluidRegistry.instance().getByBucketItemId(bucketId) != fluid) {
+            return unchangedBucket();
+        }
+        if (!world.setBlockWithNotify(x, y, z, 0)) {
+            return unchangedBucket();
+        }
+        return new ItemStack(bucketId, 1, 0);
+    }
+
+    private static ItemStack unchangedBucket() {
+        return new ItemStack(Item.bucketEmpty);
     }
 }

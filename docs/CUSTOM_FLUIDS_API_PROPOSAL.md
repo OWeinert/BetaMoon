@@ -1511,10 +1511,12 @@ may not yet have a bucket or custom entity semantics.
 5. Express vanilla lava-water hardening through the shared evaluator.
 6. Test permission failure and inventory/container edge cases.
 
-Implementation status: items 1–5 are implemented. Item 5 uses a common client
+Implementation status: items 1–6 are implemented. Item 5 uses a common client
 and dedicated-server instrumentation seam, with the untouched native method as
-the safe fallback when the agent is unavailable. Item 6 remains the next Phase 3
-closure task.
+the safe fallback when the agent is unavailable. Bucket tests exercise source
+and partial collection, no-bucket carrier containment, permission failure,
+rejected world mutations, solid/fluid destinations, crafting remainder, source
+placement, and Nether evaporation through real in-memory `World` mutation paths.
 
 ### Phase 4: entity and camera behavior
 
