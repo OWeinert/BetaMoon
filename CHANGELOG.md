@@ -97,10 +97,3 @@ game-specific controls.
 
 - Prefix script chat messages with the mod name declared by its metadata instead of its entrypoint filename, and avoid
   applying the prefix twice when a singleplayer broadcast falls back to local chat.
-
-### Documentation and examples
-
-- Add beginner animated-texture and intermediate custom-fluid lessons, with the required texture assets and updated
-  example ordering.
-- Update the LuaLS addon and JSON schemas for the new APIs, and revise the wiki's API reference and installation
-  examples for this release.
