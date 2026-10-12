@@ -14,6 +14,7 @@ stack.
 
 - Add keyed custom fluids with explicit non-adjacent flowing/still block pairs, bounded Beta-style flow policies,
   renewable-source rules, safe displacement, and reload-retained native identities.
+- Add `flow.finite` as a simple source-renewal setting alongside the detailed `sourceCreation` rule.
 - Add identity-aware fluid rendering with independent still/flowing textures, tint, render pass, light, and opacity.
 - Keep rotated flow surfaces within a single atlas tile and let fluid spread over level ground when no downhill path
   is available.

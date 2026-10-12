@@ -233,11 +233,12 @@ texture is adjacent to its top/still texture. BetaMoon's `AtlasTextures` instead
 allocates independent static atlas slots. A custom block must return two explicit
 indices and must not assume adjacency.
 
-The existing BetaMoon asset path is static but hot-reloadable. A first fluid
-release can therefore support independent still and flowing texture assets with
-correct refresh behavior. Frame animation requires an extension of the atlas
-slot implementation or a managed `TextureFX`; it should be designed as an
-appearance extension, not built into flow simulation.
+The BetaMoon asset path supports static and animated textures with hot reload.
+Fluid appearances can use independent still and flowing texture assets with
+correct refresh behavior. Frame animation uses the shared managed atlas slot
+and texture input described in the
+[general animated textures proposal](ANIMATED_TEXTURES_API_PROPOSAL.md), not
+flow simulation.
 
 ### 5.8 Entity movement and contact
 
@@ -700,6 +701,7 @@ flow = {
     tickRate = 5,
     levelStep = 1,
     slopeSearch = 4,
+    finite = false,
     sourceCreation = "two_adjacent",
     retreatDelayChance = 0,
     dimensions = {
@@ -718,13 +720,18 @@ flow = {
 | `tickRate` | integer `1..1200` | Ticks between scheduled updates. |
 | `levelStep` | integer `1..7` | Level increase for horizontal spreading. |
 | `slopeSearch` | integer `0..8` | Maximum recursive search depth for a drop. |
+| `finite` | boolean | `true` prevents source renewal; `false` applies the two-adjacent-source rule. Defaults to `false` for water and `true` for neutral/lava. |
 | `sourceCreation` | `never`, `two_adjacent` | Renewable-source rule. |
 | `retreatDelayChance` | number `0..1` | Chance to keep the old level for one receding update. |
 | `dimensions` | map of dimension keys to partial policies | Deterministic dimension-specific overrides. |
 
-`sourceCreation = "two_adjacent"` should reproduce the native water rule,
-including the support requirement. A later API may add a structured source rule,
-but a boolean such as `infinite = true` is too vague to define edge behavior.
+`finite` is a concise way to select the existing source-creation rule. If both
+fields are supplied, they must agree; contradictory declarations are errors.
+`finite = false` uses `sourceCreation = "two_adjacent"`, which requires two
+adjacent sources and support below. It does not create sources from a single
+source, and `finite = true` does not conserve total fluid volume while fluid
+spreads. A later API may add a structured source rule or finite-volume
+simulation without changing these source-renewal semantics.
 
 `levelStep` intentionally exposes the native decay concept. A field called
 `range` would be easier to read but could not describe falling resets, slopes, or
@@ -774,24 +781,26 @@ appearance = {
 Both textures are required for custom fluids. The implementation should accept the
 same texture asset references as ordinary blocks and allocate them independently.
 
-An optional later animation form should preserve the same field names:
+Animated appearances preserve the same `still` and `flowing` fields and use the shared texture input from the
+[general animated textures proposal](ANIMATED_TEXTURES_API_PROPOSAL.md):
 
 ```lua
 appearance = {
     still = {
-        texture = "blocks/oil_still_frames.png",
-        frameTicks = 2
+        asset = "blocks/oil_still_frames.png",
+        animation = { frameTicks = 2 }
     },
     flowing = {
-        texture = "blocks/oil_flowing_frames.png",
-        frameTicks = 2
+        asset = "blocks/oil_flowing_frames.png",
+        animation = { frameTicks = 2 }
     }
 }
 ```
 
-The exact strip layout must be validated by the asset system when animation is
-implemented. Static texture support must not pretend that a multi-frame image is
-already animated.
+The common asset system validates frame layout, timing, and reload behavior.
+The fluid registry only supplies the two block texture roles; it does not own a
+separate animator. Static texture support must not pretend that a multi-frame
+image is already animated.
 
 ## 14. Displacement policy
 
@@ -1544,7 +1553,8 @@ placement, and Nether evaporation through real in-memory `World` mutation paths.
 
 ### Phase 6: optional visual polish
 
-1. Add validated frame-strip atlas animation.
+1. Adopt the shared animated texture capability for both fluid block texture
+   roles (implemented); see [General animated textures API](ANIMATED_TEXTURES_API_PROPOSAL.md).
 2. Add bounded display sounds and particles.
 3. Add authoring previews and fluid-state inspection tools.
 

@@ -1,14 +1,19 @@
 package betamoon.luaapi.fluid;
 
 import betamoon.fluid.FluidBlockRole;
+import betamoon.fluid.FluidFlowPolicy;
 import betamoon.fluid.FluidRegistration;
 import betamoon.fluid.FluidRegistry;
 import betamoon.fluid.block.FluidBlock;
 import betamoon.fluid.interaction.FluidInteractionRegistry;
 import betamoon.fluid.item.FluidBucketItem;
+import betamoon.assets.io.FileAssetProvider;
+import betamoon.client.assets.AtlasTextures;
+import betamoon.client.assets.ClientAssets;
 import betamoon.luaapi.BetaMoonModule;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.instrumentation.agent.AgentRuntime;
+import betamoon.resources.EnumTexAtlas;
 import java.io.File;
 import java.io.FileReader;
 import java.lang.reflect.Field;
@@ -69,7 +74,7 @@ public final class FluidLuaApiTest {
                 + "still={id=241,key='quality:block/acid_still'}},bucket={id=28200,"
                 + "key='quality:item/acid_bucket',displayName='Acid Bucket',icon={x=3,y=4}},"
                 + "appearance={still=17,flowing=18,tint=0x83D936,renderPass='translucent'},"
-                + "flow={tickRate=8,sourceCreation='never'},displacement={blocks='drop'},"
+                + "flow={tickRate=8,finite=true},displacement={blocks='drop'},"
                 + "entity={movement='water',currentScale=0.6,drowning=false,countsAsWet=false,"
                 + "extinguishesFire=false,contactDamage=2,contactIntervalTicks=15},"
                 + "camera={fogColor=0x29451B,fogDensity=0.16,overlay=false}};"
@@ -92,6 +97,8 @@ public final class FluidLuaApiTest {
         require(acid.roleOf(240) == FluidBlockRole.FLOWING && acid.roleOf(241) == FluidBlockRole.STILL,
                 "Pair roles are preserved");
         require(acid.definition().flow().tickRate() == 8, "Explicit flow fields override the preset");
+        require(acid.definition().flow().sourceCreation() == FluidFlowPolicy.SourceCreation.NEVER,
+                "Finite overrides a renewable water preset");
         require(!acid.definition().entity().drowning() && acid.definition().entity().contactDamage() == 2
                 && acid.definition().entity().contactIntervalTicks() == 15,
                 "Entity declaration publishes its compiled policy atomically");
@@ -113,6 +120,25 @@ public final class FluidLuaApiTest {
     }
 
     private static void verifyPolicyParsing(Globals lua) {
+        require(policy(lua, "water", null).sourceCreation() == FluidFlowPolicy.SourceCreation.TWO_ADJACENT
+                        && policy(lua, "lava", null).sourceCreation() == FluidFlowPolicy.SourceCreation.NEVER,
+                "Water is renewable by default and lava is finite by default");
+        require(policy(lua, "water", "{finite=true}").sourceCreation() == FluidFlowPolicy.SourceCreation.NEVER
+                        && policy(lua, "lava", "{finite=false}").sourceCreation()
+                                == FluidFlowPolicy.SourceCreation.TWO_ADJACENT,
+                "Finite explicitly overrides either preset");
+        require(policy(lua, "water", "{sourceCreation='never'}").sourceCreation()
+                        == FluidFlowPolicy.SourceCreation.NEVER
+                        && policy(lua, "water", "{finite=false,sourceCreation='two_adjacent'}").sourceCreation()
+                                == FluidFlowPolicy.SourceCreation.TWO_ADJACENT,
+                "Existing sourceCreation declarations and matching explicit settings remain valid");
+        lua.load("local function invalid(flow) "
+                + "return not pcall(function() betamoon.fluids:define{key='quality:fluid/bad_finite',"
+                + "material='water',appearance={still=1,flowing=2},flow=flow} end) end;"
+                + "assert(invalid{finite='yes'});"
+                + "assert(invalid{finite=true,sourceCreation='two_adjacent'});"
+                + "assert(invalid{finite=false,sourceCreation='never'})").call();
+
         LuaValue declaration = lua.load("return {key='quality:fluid/policy',material='water',"
                 + "appearance={still=1,flowing=2},entity={movement='lava',currentScale=0.5,"
                 + "drowning=true,countsAsWet=false,extinguishesFire=false,ignitesEntities=true,"
@@ -141,6 +167,13 @@ public final class FluidLuaApiTest {
         }
         require(Block.blocksList[249] == null && Block.blocksList[250] == null,
                 "Missing entity hooks reject shorthand before native block allocation");
+    }
+
+    private static FluidFlowPolicy policy(Globals lua, String preset, String flow) {
+        String flowField = flow == null ? "" : ",flow=" + flow;
+        LuaValue declaration = lua.load("return {key='quality:fluid/policy_parse',material='water',preset='"
+                + preset + "',appearance={still=1,flowing=2}" + flowField + "}").call();
+        return FluidDeclaration.parse(declaration, false).draft.flow();
     }
 
     private static void verifyPreflight(Globals lua) {
@@ -181,6 +214,9 @@ public final class FluidLuaApiTest {
                 "Reload preserves native block and item identity");
         require(FluidRegistry.instance().getByBlockId(240).definition().flow().tickRate() == 11,
                 "Reload atomically replaces the fluid policy snapshot");
+        require(FluidRegistry.instance().getByBlockId(240).definition().flow().sourceCreation()
+                        == FluidFlowPolicy.SourceCreation.TWO_ADJACENT,
+                "Reload restores the preset renewal rule when finite is omitted");
         require(FluidRegistry.instance().getByBlockId(240).definition().entity().drowning()
                 && FluidRegistry.instance().getByBlockId(240).definition().camera().hasOverlay(),
                 "Reload restores omitted entity and camera fields to the selected preset");
@@ -202,6 +238,27 @@ public final class FluidLuaApiTest {
 
     private static void verifyDistributedExample(Globals lua, Method owner) throws Exception {
         String file = "02_int_20_custom_fluid.lua";
+        ClientAssets.useProviders(new FileAssetProvider(new File("examples")), null, message -> {
+            throw new AssertionError(message);
+        });
+        AtlasTextures.useBackend(new AtlasTextures.Backend() {
+            private int nextIndex = 200;
+
+            public int allocate(EnumTexAtlas atlas) {
+                return nextIndex++;
+            }
+
+            public boolean isReady() {
+                return false;
+            }
+
+            public boolean isAnaglyph() {
+                return false;
+            }
+
+            public void upload(EnumTexAtlas atlas, int index, byte[] pixels) {
+            }
+        });
         owner.invoke(null, file);
         FileReader reader = new FileReader(new File("examples", file));
         try {
@@ -216,6 +273,8 @@ public final class FluidLuaApiTest {
                 "The distributed fluid example must register in its example namespace");
         require(FluidRegistry.instance().getByBlockId(252) == acid && Item.itemsList[5047] instanceof FluidBucketItem,
                 "The distributed fluid example must publish its paired blocks and bucket");
+        require(acid.definition().flow().sourceCreation() == FluidFlowPolicy.SourceCreation.NEVER,
+                "The distributed finite-fluid example must not create new sources");
     }
 
     private static void prepareModLoaderBlockList() throws Exception {

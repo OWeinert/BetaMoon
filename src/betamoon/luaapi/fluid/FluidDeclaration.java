@@ -102,14 +102,13 @@ final class FluidDeclaration {
         if (value.isnil()) {
             return base;
         }
-        fields(value, "fluid.flow", "tickRate", "levelStep", "slopeSearch", "sourceCreation",
+        fields(value, "fluid.flow", "tickRate", "levelStep", "slopeSearch", "finite", "sourceCreation",
                 "retreatDelayChance", "dimensions");
         int tickRate = optionalInteger(value.get("tickRate"), base.tickRate(), 1, 1200, "fluid.flow.tickRate");
         int levelStep = optionalInteger(value.get("levelStep"), base.levelStep(), 1, 7, "fluid.flow.levelStep");
         int slopeSearch = optionalInteger(value.get("slopeSearch"), base.slopeSearch(), 0, 8,
                 "fluid.flow.slopeSearch");
-        String sourceName = value.get("sourceCreation").optjstring(sourceName(base.sourceCreation()));
-        FluidFlowPolicy.SourceCreation source = sourceCreation(sourceName);
+        FluidFlowPolicy.SourceCreation source = sourceCreation(value, base.sourceCreation());
         float retreat = optionalFloat(value.get("retreatDelayChance"), base.retreatDelayChance(), 0.0F, 1.0F,
                 "fluid.flow.retreatDelayChance");
         Integer hellTickRate = base.hellTickRate();
@@ -148,8 +147,28 @@ final class FluidDeclaration {
         return new FluidFlowPolicy(tickRate, levelStep, slopeSearch, source, retreat, hellTickRate, hellLevelStep);
     }
 
-    private static String sourceName(FluidFlowPolicy.SourceCreation source) {
-        return source == FluidFlowPolicy.SourceCreation.TWO_ADJACENT ? "two_adjacent" : "never";
+    private static FluidFlowPolicy.SourceCreation sourceCreation(LuaValue flow,
+            FluidFlowPolicy.SourceCreation fallback) {
+        LuaValue finiteValue = flow.get("finite");
+        LuaValue sourceValue = flow.get("sourceCreation");
+        FluidFlowPolicy.SourceCreation finiteSource = fallback;
+        if (!finiteValue.isnil()) {
+            if (!finiteValue.isboolean()) {
+                throw new LuaError("fluid.flow.finite must be a boolean.");
+            }
+            finiteSource = finiteValue.toboolean()
+                    ? FluidFlowPolicy.SourceCreation.NEVER
+                    : FluidFlowPolicy.SourceCreation.TWO_ADJACENT;
+        }
+        if (sourceValue.isnil()) {
+            return finiteSource;
+        }
+
+        FluidFlowPolicy.SourceCreation source = sourceCreation(sourceValue.checkjstring());
+        if (!finiteValue.isnil() && source != finiteSource) {
+            throw new LuaError("fluid.flow.finite conflicts with fluid.flow.sourceCreation.");
+        }
+        return source;
     }
 
     private static FluidFlowPolicy.SourceCreation sourceCreation(String value) {
