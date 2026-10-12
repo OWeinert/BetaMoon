@@ -2,8 +2,8 @@
 
 ## 0.8.0
 
-BetaMoon 0.8.0 expands world generation into a deterministic, reusable Lua API and begins the player-facing control
-stack.
+BetaMoon 0.8.0 adds deterministic world generation, custom fluids, animated textures, and Lua input maps for
+game-specific controls.
 
 ### Script diagnostics
 
@@ -28,8 +28,8 @@ stack.
   bounded interval damage, fog color/density, and a packaged first-person overlay.
 - Allow numbered bundled Lua lessons to declare `example` fluid and input keys while keeping that namespace reserved
   for ordinary scripts.
-- Use vanilla water/lava only as temporary native material carriers behind an extensible boundary; fluid identity does
-  not depend on the carrier; custom materials and ecology integrations remain later work.
+- Fluid declarations use water or lava block material. Minecraft behavior that checks material directly may still
+  treat a custom fluid like the selected vanilla material.
 
 ### Animated textures
 
@@ -38,8 +38,7 @@ stack.
   and GUI images.
 - Keep atlas slots and standalone texture bindings stable while frames advance, validate pack overrides before
   selection, and retain the previous usable animation when a refresh fails.
-- Advance frame strips from Minecraft's client tick count in ModLoader callbacks so blocks, items, and fluids animate
-  even when the optional client-control agent hook is unavailable.
+- Keep block, item, and fluid animations running without the optional client-control hook.
 
 ### Input and control foundation
 
@@ -98,3 +97,10 @@ stack.
 
 - Prefix script chat messages with the mod name declared by its metadata instead of its entrypoint filename, and avoid
   applying the prefix twice when a singleplayer broadcast falls back to local chat.
+
+### Documentation and examples
+
+- Add beginner animated-texture and intermediate custom-fluid lessons, with the required texture assets and updated
+  example ordering.
+- Update the LuaLS addon and JSON schemas for the new APIs, and revise the wiki's API reference and installation
+  examples for this release.
