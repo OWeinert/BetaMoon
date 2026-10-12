@@ -1,7 +1,7 @@
 # Custom fluids API audit and proposal
 
 Status: accepted design with an implementation in progress on
-`feature/custom-fluid-api`. The initial registry, custom block simulation,
+`feature/0.8.0`. The initial registry, custom block simulation,
 identity-aware rendering, buckets, Lua creation/lookup, and custom interaction
 rules are implemented. Vanilla lava-water hardening now uses a permanent shared
 interaction rule when the instrumentation bridge is active. Entity/camera
