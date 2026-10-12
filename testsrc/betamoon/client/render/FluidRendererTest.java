@@ -40,6 +40,15 @@ public final class FluidRendererTest {
         world.set(0, 1, 0, 236, 0);
         require(close(FluidRenderer.cornerHeight(world, 232, 0, 0, 0), 1.0F),
                 "The explicitly paired same fluid above the corner forces a full-height surface");
+
+        for (int step = 0; step < 16; step++) {
+            float angle = (float) (step * Math.PI / 8.0D);
+            float extent = FluidRenderer.topTextureExtent(angle);
+            float farthestPixel = extent * (Math.abs((float) Math.sin(angle))
+                    + Math.abs((float) Math.cos(angle)));
+            require(farthestPixel < 8.0F,
+                    "Rotated flowing top UVs must remain inside their single atlas cell");
+        }
         System.out.println("Fluid renderer identity checks passed.");
     }
 

@@ -15,6 +15,8 @@ stack.
 - Add keyed custom fluids with explicit non-adjacent flowing/still block pairs, bounded Beta-style flow policies,
   renewable-source rules, safe displacement, and reload-retained native identities.
 - Add identity-aware fluid rendering with independent still/flowing textures, tint, render pass, light, and opacity.
+- Keep rotated flow surfaces within a single atlas tile and let fluid spread over level ground when no downhill path
+  is available.
 - Add optional filled buckets, source-only vanilla-bucket collection, Nether evaporation for water-preset buckets,
   fluid lookup/references, advanced block/item binding, and deterministic metadata-aware interaction rules.
 - Prevent vanilla bucket fallback from collecting custom sources without a valid bucket, check selected and destination

@@ -75,12 +75,10 @@ public final class FluidRenderer {
             double centerV = (textureY + 8.0D) / 256.0D;
             if (angle < -999.0F) {
                 angle = 0.0F;
-            } else {
-                centerU = (textureX + 16.0F) / 256.0F;
-                centerV = (textureY + 16.0F) / 256.0F;
             }
-            float sin = MathHelper.sin(angle) * 8.0F / 256.0F;
-            float cos = MathHelper.cos(angle) * 8.0F / 256.0F;
+            float extent = topTextureExtent(angle);
+            float sin = MathHelper.sin(angle) * extent / 256.0F;
+            float cos = MathHelper.cos(angle) * extent / 256.0F;
             float brightness = block.getBlockBrightness(world, x, y, z);
             tessellator.setColorOpaque_F(brightness * red, brightness * green, brightness * blue);
             tessellator.addVertexWithUV(x, y + northWest, z, centerU - cos - sin, centerV - cos + sin);
@@ -188,5 +186,12 @@ public final class FluidRenderer {
             samples++;
         }
         return samples == 0 ? 0.0F : 1.0F - air / samples;
+    }
+
+    /** Fits the rotated top UV square inside one atlas cell, including diagonal flow. */
+    static float topTextureExtent(float angle) {
+        float sin = MathHelper.sin(angle);
+        float cos = MathHelper.cos(angle);
+        return 7.99F / (Math.abs(sin) + Math.abs(cos));
     }
 }

@@ -137,26 +137,34 @@ final class FluidSimulation {
 
     private static boolean[] optimalDirections(FluidDefinition definition, World world, int x, int y, int z) {
         int[] costs = new int[4];
-        int minimum = NO_PATH;
+        boolean[] candidates = new boolean[4];
         for (int direction = 0; direction < 4; direction++) {
             int targetX = x + OFFSET_X[direction];
             int targetZ = z + OFFSET_Z[direction];
             costs[direction] = NO_PATH;
             if (!blocksFlow(definition, world, targetX, y, targetZ)
                     && decay(definition, world, targetX, y, targetZ) != 0) {
+                candidates[direction] = true;
                 costs[direction] = !blocksFlow(definition, world, targetX, y - 1, targetZ)
                         ? 0
                         : flowCost(definition, world, targetX, y, targetZ, 1, direction);
             }
-            minimum = Math.min(minimum, costs[direction]);
         }
 
-        boolean[] optimal = new boolean[4];
-        if (minimum == NO_PATH) {
-            return optimal;
+        return chooseDirections(costs, candidates);
+    }
+
+    /** Spreads over open level ground when every candidate lacks a downhill route. */
+    static boolean[] chooseDirections(int[] costs, boolean[] candidates) {
+        int minimum = NO_PATH;
+        for (int direction = 0; direction < costs.length; direction++) {
+            if (candidates[direction]) {
+                minimum = Math.min(minimum, costs[direction]);
+            }
         }
+        boolean[] optimal = new boolean[4];
         for (int direction = 0; direction < 4; direction++) {
-            optimal[direction] = costs[direction] == minimum;
+            optimal[direction] = candidates[direction] && costs[direction] == minimum;
         }
         return optimal;
     }
