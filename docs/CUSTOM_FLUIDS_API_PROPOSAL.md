@@ -827,7 +827,8 @@ entity = {
     countsAsWet = true,
     extinguishesFire = true,
     ignitesEntities = false,
-    contactDamage = 0
+    contactDamage = 0,
+    contactIntervalTicks = 10
 }
 ```
 
@@ -842,6 +843,7 @@ entity = {
 | `extinguishesFire` | Whether contact clears entity fire. |
 | `ignitesEntities` | Whether body contact applies lava-style ignition. |
 | `contactDamage` | Non-negative damage applied at a bounded interval. |
+| `contactIntervalTicks` | Integer `5..200`; interval for aggregated damage from this fluid, default 10. |
 
 `movement`, breathing, wetness, extinguishing, ignition, and damage remain
 independent. This permits oil which swims like water but burns, gas-like liquid
@@ -853,9 +855,11 @@ entity intersects more than one fluid, resolution must be deterministic: highest
 covered eye fluid for breathing/camera, then greatest body intersection with a
 stable block-coordinate tie-break for movement and contact.
 
-Contact damage needs an explicit native interval and source attribution policy.
-The initial proposal recommends once every 10 ticks per entity/fluid and generic
-environmental damage, not one hit per occupied block.
+Contact damage uses one timer per entity/fluid, reset on leaving contact, and
+generic environmental damage with the fluid registration passed through a
+single adapter. The default is once every 10 ticks after entering contact,
+not one hit per occupied block. A future shared damage pipeline can consume
+that registration without changing the Lua declaration.
 
 ### 15.2 Later numeric movement profile
 

@@ -42,6 +42,7 @@ public final class CapabilityDataSystemTest {
     }
 
     public static void main(String[] arguments) throws Exception {
+        NativePlayerSaveBaselineTest.main(new String[0]);
         Method mapping = TileEntity.class.getDeclaredMethod("addMapping", Class.class, String.class);
         mapping.setAccessible(true);
         java.lang.reflect.Field registrationHook = net.minecraft.src.ModLoader.class

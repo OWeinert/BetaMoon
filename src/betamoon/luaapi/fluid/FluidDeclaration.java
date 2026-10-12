@@ -8,6 +8,12 @@ import betamoon.fluid.FluidAppearance;
 import betamoon.fluid.FluidCarrier;
 import betamoon.fluid.FluidDisplacementPolicy;
 import betamoon.fluid.FluidFlowPolicy;
+import betamoon.fluid.FluidEntityPolicy;
+import betamoon.fluid.FluidCameraPolicy;
+import betamoon.client.assets.AssetLocation;
+import betamoon.client.assets.ClientAssets;
+import betamoon.runtime.RuntimeEnvironment;
+import java.io.IOException;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.asset.AssetInputs;
 import betamoon.luamodloader.LuaScriptRegistry;
@@ -36,7 +42,7 @@ final class FluidDeclaration {
         if (!value.istable()) {
             throw new LuaError("Fluid definition must be a table.");
         }
-        fields(value, "fluid", "key", "material", "preset", "appearance", "flow", "displacement",
+        fields(value, "fluid", "key", "material", "preset", "appearance", "flow", "displacement", "entity", "camera",
                 shorthand ? "blocks" : "__no_blocks", shorthand ? "bucket" : "__no_bucket");
 
         String owner = LuaScriptRegistry.getCurrentScriptFile();
@@ -50,11 +56,14 @@ final class FluidDeclaration {
         FluidFlowPolicy flow = flow(value.get("flow"), base);
         FluidAppearance appearance = appearance(required(value, "appearance"), preset);
         FluidDisplacementPolicy displacement = displacement(value.get("displacement"), preset);
+        FluidEntityPolicy entity = entity(value.get("entity"), preset);
+        FluidCameraPolicy camera = camera(value.get("camera"), preset);
         LuaValue blocks = value.get("blocks");
         if (shorthand && !blocks.istable()) {
             throw new LuaError("fluid.blocks must be a table with flowing and still declarations.");
         }
-        return new FluidDeclaration(new FluidDraft(key, owner, preset, carrier, flow, appearance, displacement),
+        return new FluidDeclaration(new FluidDraft(key, owner, preset, carrier, flow, appearance, displacement, entity,
+                camera),
                 blocks, value.get("bucket"));
     }
 
@@ -204,6 +213,82 @@ final class FluidDeclaration {
             return FluidDisplacementPolicy.BLOCK;
         }
         throw new LuaError("fluid.displacement.blocks must be drop, destroy, or block.");
+    }
+
+    private static FluidEntityPolicy entity(LuaValue value, String preset) {
+        FluidEntityPolicy base = FluidEntityPolicy.forPreset(preset);
+        if (value.isnil()) {
+            return base;
+        }
+        fields(value, "fluid.entity", "movement", "currentScale", "drowning", "countsAsWet",
+                "extinguishesFire", "ignitesEntities", "contactDamage", "contactIntervalTicks");
+        String movementName = value.get("movement").optjstring(base.movement().value());
+        FluidEntityPolicy.Movement movement;
+        if ("none".equals(movementName)) {
+            movement = FluidEntityPolicy.Movement.NONE;
+        } else if ("water".equals(movementName)) {
+            movement = FluidEntityPolicy.Movement.WATER;
+        } else if ("lava".equals(movementName)) {
+            movement = FluidEntityPolicy.Movement.LAVA;
+        } else {
+            throw new LuaError("fluid.entity.movement must be none, water, or lava.");
+        }
+        float currentScale = optionalFloat(value.get("currentScale"), base.currentScale(), 0.0F, 8.0F,
+                "fluid.entity.currentScale");
+        int damage = optionalInteger(value.get("contactDamage"), base.contactDamage(), 0, Integer.MAX_VALUE,
+                "fluid.entity.contactDamage");
+        int interval = optionalInteger(value.get("contactIntervalTicks"), base.contactIntervalTicks(), 5, 200,
+                "fluid.entity.contactIntervalTicks");
+        return new FluidEntityPolicy(movement, currentScale,
+                optionalBoolean(value.get("drowning"), base.drowning(), "fluid.entity.drowning"),
+                optionalBoolean(value.get("countsAsWet"), base.countsAsWet(), "fluid.entity.countsAsWet"),
+                optionalBoolean(value.get("extinguishesFire"), base.extinguishesFire(),
+                        "fluid.entity.extinguishesFire"),
+                optionalBoolean(value.get("ignitesEntities"), base.ignitesEntities(),
+                        "fluid.entity.ignitesEntities"), damage, interval);
+    }
+
+    private static boolean optionalBoolean(LuaValue value, boolean fallback, String path) {
+        if (value.isnil()) {
+            return fallback;
+        }
+        if (!value.isboolean()) {
+            throw new LuaError(path + " must be a boolean.");
+        }
+        return value.toboolean();
+    }
+
+    private static FluidCameraPolicy camera(LuaValue value, String preset) {
+        FluidCameraPolicy base = FluidCameraPolicy.forPreset(preset);
+        if (value.isnil()) {
+            return base;
+        }
+        fields(value, "fluid.camera", "fogColor", "fogDensity", "overlay");
+        Integer color = base.fogColor();
+        if (!value.get("fogColor").isnil()) {
+            color = Integer.valueOf(integer(value.get("fogColor"), "fluid.camera.fogColor", 0, 0xFFFFFF));
+        }
+        Float density = base.fogDensity();
+        if (!value.get("fogDensity").isnil()) {
+            density = Float.valueOf(optionalFloat(value.get("fogDensity"), 0.0F, 0.0F, 1.0F,
+                    "fluid.camera.fogDensity"));
+        }
+        LuaValue overlay = value.get("overlay");
+        if (overlay.isnil()) {
+            return new FluidCameraPolicy(color, density, base.nativeOverlay(), base.overlayAsset());
+        }
+        if (overlay.isboolean() && !overlay.toboolean()) {
+            return new FluidCameraPolicy(color, density, null, null);
+        }
+        AssetLocation location = AssetInputs.texture(overlay);
+        if (RuntimeEnvironment.isClient()) {
+            try {
+                ClientAssets.resolveTexture(location);
+            } catch (IOException error) {
+                throw new LuaError("fluid.camera.overlay: " + error.getMessage());
+            }
+        }
+        return new FluidCameraPolicy(color, density, null, location);
     }
 
     private static int optionalInteger(LuaValue value, int fallback, int minimum, int maximum, String path) {

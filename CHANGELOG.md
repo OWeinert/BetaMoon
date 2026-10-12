@@ -16,8 +16,10 @@ stack.
   permissions, and preserve held containers whenever collection or placement mutation fails.
 - Route vanilla lava-water hardening through the shared identity-aware interaction evaluator when BetaMoon's native
   hooks are active, preserving native metadata outcomes without matching custom fluids by carrier material.
+- Add identity-aware entity and eye contact policies for movement, current, breathing and air HUD, wetness, fire,
+  bounded interval damage, fog color/density, and a packaged first-person overlay.
 - Use vanilla water/lava only as temporary native material carriers behind an extensible boundary; fluid identity does
-  not depend on the carrier, and custom materials plus entity/camera/ecology integration remain later work.
+  not depend on the carrier; custom materials and ecology integrations remain later work.
 
 ### Input and control foundation
 

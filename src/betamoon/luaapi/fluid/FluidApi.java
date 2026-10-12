@@ -63,6 +63,7 @@ public final class FluidApi {
         }
 
         int bucketId = bucketDefinition.isnil() ? -1 : bucketDefinition.get("id").checkint();
+        declaration.draft.requireHooks();
         try {
             FluidRegistry.instance().preflight(declaration.draft.bind(flowingId, stillId, bucketId));
         } catch (IllegalArgumentException | IllegalStateException error) {

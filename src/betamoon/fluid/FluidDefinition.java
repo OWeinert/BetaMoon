@@ -12,6 +12,8 @@ public final class FluidDefinition {
     private final FluidFlowPolicy flow;
     private final FluidAppearance appearance;
     private final FluidDisplacementPolicy displacement;
+    private final FluidEntityPolicy entity;
+    private final FluidCameraPolicy camera;
     private final int flowingBlockId;
     private final int stillBlockId;
     private final int bucketItemId;
@@ -20,6 +22,20 @@ public final class FluidDefinition {
     public FluidDefinition(ContentKey key, String owner, String preset, FluidCarrier carrier, FluidFlowPolicy flow,
             FluidAppearance appearance, FluidDisplacementPolicy displacement, int flowingBlockId, int stillBlockId,
             int bucketItemId, boolean vanilla) {
+        this(key, owner, preset, carrier, flow, appearance, displacement, FluidEntityPolicy.forPreset(preset),
+                FluidCameraPolicy.forPreset(preset), flowingBlockId, stillBlockId, bucketItemId, vanilla);
+    }
+
+    public FluidDefinition(ContentKey key, String owner, String preset, FluidCarrier carrier, FluidFlowPolicy flow,
+            FluidAppearance appearance, FluidDisplacementPolicy displacement, FluidEntityPolicy entity,
+            int flowingBlockId, int stillBlockId, int bucketItemId, boolean vanilla) {
+        this(key, owner, preset, carrier, flow, appearance, displacement, entity, FluidCameraPolicy.forPreset(preset),
+                flowingBlockId, stillBlockId, bucketItemId, vanilla);
+    }
+
+    public FluidDefinition(ContentKey key, String owner, String preset, FluidCarrier carrier, FluidFlowPolicy flow,
+            FluidAppearance appearance, FluidDisplacementPolicy displacement, FluidEntityPolicy entity,
+            FluidCameraPolicy camera, int flowingBlockId, int stillBlockId, int bucketItemId, boolean vanilla) {
         if (key == null || !ContentType.FLUID.equals(key.type())) {
             throw new IllegalArgumentException("Fluid definition requires a fluid content key.");
         }
@@ -29,7 +45,8 @@ public final class FluidDefinition {
         if (!"neutral".equals(preset) && !"water".equals(preset) && !"lava".equals(preset)) {
             throw new IllegalArgumentException("Fluid preset must be neutral, water, or lava.");
         }
-        if (carrier == null || flow == null || appearance == null || displacement == null) {
+        if (carrier == null || flow == null || appearance == null || displacement == null || entity == null
+                || camera == null) {
             throw new NullPointerException("Fluid definition policies");
         }
         validateBlockId(flowingBlockId, "flowing");
@@ -47,6 +64,8 @@ public final class FluidDefinition {
         this.flow = flow;
         this.appearance = appearance;
         this.displacement = displacement;
+        this.entity = entity;
+        this.camera = camera;
         this.flowingBlockId = flowingBlockId;
         this.stillBlockId = stillBlockId;
         this.bucketItemId = bucketItemId;
@@ -85,6 +104,14 @@ public final class FluidDefinition {
 
     public FluidDisplacementPolicy displacement() {
         return displacement;
+    }
+
+    public FluidEntityPolicy entity() {
+        return entity;
+    }
+
+    public FluidCameraPolicy camera() {
+        return camera;
     }
 
     public int flowingBlockId() {

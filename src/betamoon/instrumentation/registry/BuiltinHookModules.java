@@ -13,6 +13,8 @@ import betamoon.instrumentation.hooks.entity.EntityLifecycleHook;
 import betamoon.instrumentation.hooks.entity.EntityNaturalSpawnHook;
 import betamoon.instrumentation.hooks.entity.EntityTrackingHook;
 import betamoon.instrumentation.hooks.fluid.FluidInteractionHook;
+import betamoon.instrumentation.hooks.fluid.FluidContactHook;
+import betamoon.instrumentation.hooks.fluid.FluidCameraHook;
 import betamoon.instrumentation.hooks.fuel.FuelBurnTimeHook;
 import betamoon.instrumentation.hooks.texture.TextureResourceHook;
 import betamoon.instrumentation.hooks.model.ModelRenderHook;
@@ -44,6 +46,7 @@ public final class BuiltinHookModules {
         registry.registerModule(new ItemHarvestHook());
         registry.registerModule(new BlockPowerHook());
         registry.registerModule(new FluidInteractionHook());
+        registry.registerModule(new FluidContactHook());
         registry.registerModule(new EntityLifecycleHook());
         registry.registerModule(new EntityNaturalSpawnHook());
         registry.registerModule(new WorldgenSurfaceHook());
@@ -60,6 +63,7 @@ public final class BuiltinHookModules {
         registry.registerModule(new ModelRenderHook());
         registry.registerModule(new FuelBurnTimeHook());
         registry.registerModule(new ClientControlHook());
+        registry.registerModule(new FluidCameraHook());
     }
 
     private static void registerServer(HookRegistry registry) {

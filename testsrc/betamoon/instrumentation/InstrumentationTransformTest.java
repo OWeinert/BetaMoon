@@ -279,6 +279,8 @@ public final class InstrumentationTransformTest {
                     || diagnostic.getHookId().startsWith("betamoon:worldgen_surface")
                     || diagnostic.getHookId().startsWith("betamoon:regional_structure_chunk")
                     || diagnostic.getHookId().equals("betamoon:fluid_interactions")
+                    || diagnostic.getHookId().startsWith("betamoon:fluid_contact")
+                    || diagnostic.getHookId().startsWith("betamoon:fluid_camera")
                     || diagnostic.getHookId().equals("betamoon:block_break_guard")
                     || diagnostic.getHookId().equals("betamoon:block_power")
                     || diagnostic.getHookId().equals("betamoon:block_display_tick")
@@ -354,6 +356,8 @@ public final class InstrumentationTransformTest {
 
         verifyClientControlSeams(mappings, clientJarPath, transformer);
         verifyFluidInteractionSeam(mappings, clientJarPath, transformer, RuntimeNamespace.CLIENT);
+        verifyFluidContactSeams(mappings, clientJarPath, transformer, RuntimeNamespace.CLIENT);
+        verifyFluidCameraSeams(mappings, clientJarPath, transformer);
 
         String[][] additionalTargets = {{"net/minecraft/src/World", "emission"}, {"forge/ForgeHooks", "permission"},
                 {"net/minecraft/src/ItemRenderer", "held"}, {"net/minecraft/src/RenderItem", "gui"},
@@ -515,6 +519,46 @@ public final class InstrumentationTransformTest {
                 && countCallbackCalls(transformedEntry, "spawn") >= 2,
                 "Runtime server EntityTrackerEntry is missing custom spawn selection");
         verifyFluidInteractionSeam(mappings, serverJarPath, transformer, RuntimeNamespace.SERVER);
+        verifyFluidContactSeams(mappings, serverJarPath, transformer, RuntimeNamespace.SERVER);
+    }
+
+    private static void verifyFluidContactSeams(TinyMappingResolver mappings, String jarPath,
+            BetaMoonTransformer transformer, RuntimeNamespace namespace) throws Exception {
+        for (String namedOwner : new String[]{"net/minecraft/src/Entity", "net/minecraft/src/EntityLiving",
+                "net/minecraft/src/EntityItem"}) {
+            String owner = mappings.resolveClass(new ClassRef(namedOwner), namespace);
+            byte[] transformed = transformer.transform(null, owner, null, null, readClass(jarPath, owner));
+            require(transformed != null, "Fluid contact did not transform " + namedOwner + " on " + namespace);
+            require(transformer.transform(null, owner, null, null, transformed) == null,
+                    "Fluid contact must be idempotent for " + namedOwner + " on " + namespace);
+            if (namedOwner.endsWith("EntityItem")) {
+                require(countCallbackCalls(transformed, "itemWaterMovement") > 0,
+                        "Dropped item water movement must use fluid identity on " + namespace);
+            } else if (namedOwner.endsWith("EntityLiving")) {
+                require(countCallbackCalls(transformed, "drowning") == 1,
+                        "Living entity drowning must route through fluid identity on " + namespace);
+            } else {
+                require(countCallbackCalls(transformed, "waterMovement") > 0
+                        && countCallbackCalls(transformed, "lavaMovement") > 0
+                        && countCallbackCalls(transformed, "afterEntityTick") > 0,
+                        "Entity movement and fire contact hooks are incomplete on " + namespace);
+            }
+        }
+    }
+
+    private static void verifyFluidCameraSeams(TinyMappingResolver mappings, String jarPath,
+            BetaMoonTransformer transformer) throws Exception {
+        String[] targets = {"net/minecraft/src/EntityRenderer", "net/minecraft/src/ItemRenderer",
+                "net/minecraft/src/GuiIngame"};
+        String[] callbacks = {"fogColor", "overlayVisible", "showAirHud"};
+        for (int index = 0; index < targets.length; index++) {
+            String owner = mappings.resolveClass(new ClassRef(targets[index]), RuntimeNamespace.CLIENT);
+            byte[] transformed = transformer.transform(null, owner, null, null, readClass(jarPath, owner));
+            require(transformed != null && countCallbackCalls(transformed, callbacks[index]) > 0,
+                    "Fluid camera hook " + callbacks[index] + " did not transform " + targets[index]);
+            require(transformer.transform(null, owner, null, null, transformed) == null,
+                    "Fluid camera hooks must be idempotent for " + targets[index]);
+        }
     }
 
     private static void verifyFluidInteractionSeam(TinyMappingResolver mappings, String jarPath,

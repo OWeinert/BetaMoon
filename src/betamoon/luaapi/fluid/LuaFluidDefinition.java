@@ -118,6 +118,7 @@ public final class LuaFluidDefinition extends LuaTable {
         if (flowing == null || still == null) {
             throw new LuaError("Fluid '" + draft.key() + "' requires one flowing and one still block before bind.");
         }
+        draft.requireHooks();
         try {
             FluidDefinition definition = draft.bind(flowing.blockID, still.blockID,
                     bucket == null ? -1 : bucket.shiftedIndex);
