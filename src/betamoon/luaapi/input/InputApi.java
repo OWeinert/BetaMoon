@@ -12,8 +12,8 @@ import betamoon.client.control.input.InputMapDefinition;
 import betamoon.client.control.input.InputMapRegistration;
 import betamoon.content.ContentKey;
 import betamoon.content.ContentKeyException;
-import betamoon.content.ContentNamespaces;
 import betamoon.content.ContentType;
+import betamoon.luaapi.utils.LuaContentNamespaces;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptResourceTracker;
 import java.util.ArrayList;
@@ -100,7 +100,7 @@ public final class InputApi {
     private static ContentKey contentKey(LuaValue value, ContentType type, String path) {
         try {
             ContentKey key = ContentKey.parseForType(value.checkjstring(), type);
-            ContentNamespaces.requireUserNamespace(key);
+            LuaContentNamespaces.requireDeclarationNamespace(key);
             return key;
         } catch (ContentKeyException error) {
             throw new LuaError(path + ": " + error.getMessage());

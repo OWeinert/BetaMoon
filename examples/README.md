@@ -18,6 +18,9 @@ files contain behavior without duplicating those fields.
 Most examples use the vanilla texture atlas. Choose different numeric block and
 item IDs when another installed mod already owns an example ID. Engine callbacks
 on vanilla content and several global events require the BetaMoon Java agent.
+Numbered lesson scripts may use the reserved `example` content namespace when
+kept under their distributed filenames. If you rename a lesson or adapt it into
+your own mod, change its `example:` keys to a namespace of your own.
 
 Named Minecraft values are available through the read-only `betamoon.mc` table,
 such as `betamoon.mc.blockMaterials.rock` and

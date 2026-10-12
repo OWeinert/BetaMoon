@@ -9,6 +9,8 @@ import betamoon.fluid.item.FluidBucketItem;
 import betamoon.luaapi.BetaMoonModule;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.instrumentation.agent.AgentRuntime;
+import java.io.File;
+import java.io.FileReader;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import net.minecraft.src.Block;
@@ -40,6 +42,7 @@ public final class FluidLuaApiTest {
             verifyPreflight(lua);
             verifyReload(lua);
             verifyUnboundTracking(lua);
+            verifyDistributedExample(lua, owner);
             System.out.println("Fluid Lua API checks passed.");
         } finally {
             owner.invoke(null, new Object[]{null});
@@ -125,6 +128,8 @@ public final class FluidLuaApiTest {
         lua.load("local ok=pcall(function() betamoon.fluids:define{key='quality:fluid/bad_policy',"
                 + "material='water',appearance={still=1,flowing=2},"
                 + "entity={contactIntervalTicks=201}} end); assert(not ok)").call();
+        lua.load("local ok=pcall(function() betamoon.fluids:define{key='example:fluid/not_a_lesson',"
+                + "material='water',appearance={still=1,flowing=2}} end); assert(not ok)").call();
         System.setProperty(AgentRuntime.STATUS_PROPERTY, "NOT_LOADED");
         try {
             lua.load("local ok=pcall(function() betamoon.fluids:add{key='quality:fluid/no_hook',"
@@ -193,6 +198,24 @@ public final class FluidLuaApiTest {
                 + "appearance={still=1,flowing=2}}").call();
         require(FluidDefinitionTracker.finishLoadPass().size() == 1,
                 "An advanced definition left unbound is reported at the end of the load pass");
+    }
+
+    private static void verifyDistributedExample(Globals lua, Method owner) throws Exception {
+        String file = "02_int_20_custom_fluid.lua";
+        owner.invoke(null, file);
+        FileReader reader = new FileReader(new File("examples", file));
+        try {
+            lua.load(reader, file).call();
+        } finally {
+            reader.close();
+        }
+        lua.get("modInit").call();
+
+        FluidRegistration acid = FluidRegistry.instance().getByBlockId(251);
+        require(acid != null && "example:fluid/lesson_acid".equals(acid.key().toString()),
+                "The distributed fluid example must register in its example namespace");
+        require(FluidRegistry.instance().getByBlockId(252) == acid && Item.itemsList[5047] instanceof FluidBucketItem,
+                "The distributed fluid example must publish its paired blocks and bucket");
     }
 
     private static void prepareModLoaderBlockList() throws Exception {

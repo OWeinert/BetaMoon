@@ -18,6 +18,8 @@ stack.
   hooks are active, preserving native metadata outcomes without matching custom fluids by carrier material.
 - Add identity-aware entity and eye contact policies for movement, current, breathing and air HUD, wetness, fire,
   bounded interval damage, fog color/density, and a packaged first-person overlay.
+- Allow numbered bundled Lua lessons to declare `example` fluid and input keys while keeping that namespace reserved
+  for ordinary scripts.
 - Use vanilla water/lava only as temporary native material carriers behind an extensible boundary; fluid identity does
   not depend on the carrier; custom materials and ecology integrations remain later work.
 

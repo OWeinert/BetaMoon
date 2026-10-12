@@ -2,7 +2,6 @@ package betamoon.luaapi.fluid;
 
 import betamoon.content.ContentKey;
 import betamoon.content.ContentKeyException;
-import betamoon.content.ContentNamespaces;
 import betamoon.content.ContentType;
 import betamoon.fluid.FluidAppearance;
 import betamoon.fluid.FluidCarrier;
@@ -16,6 +15,7 @@ import betamoon.runtime.RuntimeEnvironment;
 import java.io.IOException;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.asset.AssetInputs;
+import betamoon.luaapi.utils.LuaContentNamespaces;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.resources.EnumTexAtlas;
 import org.luaj.vm2.LuaError;
@@ -70,7 +70,7 @@ final class FluidDeclaration {
     private static ContentKey fluidKey(LuaValue value) {
         try {
             ContentKey key = ContentKey.parseForType(value.checkjstring(), ContentType.FLUID);
-            ContentNamespaces.requireUserNamespace(key);
+            LuaContentNamespaces.requireDeclarationNamespace(key);
             return key;
         } catch (ContentKeyException error) {
             throw new LuaError("fluid.key: " + error.getMessage());

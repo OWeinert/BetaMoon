@@ -2,7 +2,6 @@ package betamoon.luaapi.item;
 
 import betamoon.content.ContentKey;
 import betamoon.content.ContentKeyException;
-import betamoon.content.ContentNamespaces;
 import betamoon.content.ContentType;
 import betamoon.fluid.FluidRegistration;
 import betamoon.fluid.FluidRegistry;
@@ -10,6 +9,7 @@ import betamoon.fluid.item.FluidBucketItem;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.asset.AssetInputs;
 import betamoon.luaapi.fluid.LuaFluidDefinition;
+import betamoon.luaapi.utils.LuaContentNamespaces;
 import betamoon.luamodloader.LuaContentRegistry;
 import betamoon.resources.EnumTexAtlas;
 import net.minecraft.src.Item;
@@ -133,7 +133,7 @@ public final class FluidBucketRegistration {
     private static ContentKey itemKey(LuaValue value) {
         try {
             ContentKey key = ContentKey.parseForType(value.checkjstring(), ContentType.ITEM);
-            ContentNamespaces.requireUserNamespace(key);
+            LuaContentNamespaces.requireDeclarationNamespace(key);
             return key;
         } catch (ContentKeyException error) {
             throw new LuaError("fluid bucket.key: " + error.getMessage());

@@ -2,7 +2,6 @@ package betamoon.luaapi.block;
 
 import betamoon.content.ContentKey;
 import betamoon.content.ContentKeyException;
-import betamoon.content.ContentNamespaces;
 import betamoon.content.ContentType;
 import betamoon.fluid.FluidBlockRole;
 import betamoon.fluid.FluidRegistration;
@@ -11,6 +10,7 @@ import betamoon.fluid.block.FlowingFluidBlock;
 import betamoon.fluid.block.FluidBlock;
 import betamoon.fluid.block.StillFluidBlock;
 import betamoon.luaapi.fluid.LuaFluidDefinition;
+import betamoon.luaapi.utils.LuaContentNamespaces;
 import betamoon.luamodloader.LuaContentRegistry;
 import net.minecraft.src.Block;
 import net.minecraft.src.Item;
@@ -127,7 +127,7 @@ public final class FluidBlockRegistration {
     private static ContentKey blockKey(LuaValue value) {
         try {
             ContentKey key = ContentKey.parseForType(value.checkjstring(), ContentType.BLOCK);
-            ContentNamespaces.requireUserNamespace(key);
+            LuaContentNamespaces.requireDeclarationNamespace(key);
             return key;
         } catch (ContentKeyException error) {
             throw new LuaError("fluid block.key: " + error.getMessage());

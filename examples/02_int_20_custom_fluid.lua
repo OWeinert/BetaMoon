@@ -19,8 +19,8 @@ function modInit()
     preset = "water",
 
     blocks = {
-      flowing = { id = 241, key = "example:block/lesson_acid_flowing" },
-      still = { id = 242, key = "example:block/lesson_acid_still" }
+      flowing = { id = 251, key = "example:block/lesson_acid_flowing" },
+      still = { id = 252, key = "example:block/lesson_acid_still" }
     },
     bucket = {
       id = 5047,

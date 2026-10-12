@@ -2,7 +2,6 @@ package betamoon.luaapi.fluid;
 
 import betamoon.content.ContentKey;
 import betamoon.content.ContentKeyException;
-import betamoon.content.ContentNamespaces;
 import betamoon.content.ContentType;
 import betamoon.fluid.FluidRegistration;
 import betamoon.fluid.FluidRegistry;
@@ -12,6 +11,7 @@ import betamoon.fluid.interaction.FluidInteractionEffects;
 import betamoon.fluid.interaction.FluidInteractionOutcome;
 import betamoon.fluid.interaction.FluidInteractionRegistry;
 import betamoon.luaapi.resource.ResourceApi;
+import betamoon.luaapi.utils.LuaContentNamespaces;
 import betamoon.luamodloader.LuaScriptRegistry;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -189,7 +189,7 @@ final class FluidInteractionApi {
     private static ContentKey key(LuaValue value) {
         try {
             ContentKey key = ContentKey.parseForType(value.checkjstring(), ContentType.FLUID_INTERACTION);
-            ContentNamespaces.requireUserNamespace(key);
+            LuaContentNamespaces.requireDeclarationNamespace(key);
             return key;
         } catch (ContentKeyException error) {
             throw new LuaError("fluid interaction.key: " + error.getMessage());
