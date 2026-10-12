@@ -9,7 +9,7 @@ import java.util.Optional;
 
 public final class BetaMoonConfig {
     private Configuration config;
-    private ConfigField<Boolean> showPopupOnWarnings;
+    private ConfigField<Boolean> showScriptWarningsOnLoad;
     private ConfigField<Boolean> checkForUpdates;
     private ConfigField<Boolean> notifyUpdatesOnWorldJoin;
     private ConfigField<Boolean> hotReloadOnFileChange;
@@ -37,9 +37,14 @@ public final class BetaMoonConfig {
     public void updateConfigFields() {
         config.load();
 
+        // The old setting was persisted but never read by the UI. Replace it so
+        // existing generated configs also receive the new errors-only default.
+        config.generalProperties.remove("showPopupOnWarnings");
+
         // Assign config fields
-        showPopupOnWarnings = getOrCreateBooleanProperty("showPopupOnWarnings", Configuration.GENERAL_PROPERTY,
-                Optional.of(true));
+        showScriptWarningsOnLoad = getOrCreateBooleanProperty("showScriptWarningsOnLoad",
+                Configuration.GENERAL_PROPERTY,
+                Optional.of(false));
         checkForUpdates = getOrCreateBooleanProperty("checkForUpdates", Configuration.GENERAL_PROPERTY,
                 Optional.of(true));
         notifyUpdatesOnWorldJoin = getOrCreateBooleanProperty("notifyUpdatesOnWorldJoin",
@@ -50,8 +55,8 @@ public final class BetaMoonConfig {
         config.save();
     }
 
-    public ConfigField<Boolean> getShowPopupWarnings() {
-        return showPopupOnWarnings;
+    public ConfigField<Boolean> getShowScriptWarningsOnLoad() {
+        return showScriptWarningsOnLoad;
     }
 
     public ConfigField<Boolean> getCheckForUpdates() {

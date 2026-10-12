@@ -5,6 +5,11 @@
 BetaMoon 0.8.0 expands world generation into a deterministic, reusable Lua API and begins the player-facing control
 stack.
 
+### Script diagnostics
+
+- Show script errors by default on startup and reload. Use `showScriptWarningsOnLoad=true` to include warnings in
+  automatic popups and reload chat messages; keep all warnings available in the Scripts screen and logs.
+
 ### Custom fluids
 
 - Add keyed custom fluids with explicit non-adjacent flowing/still block pairs, bounded Beta-style flow policies,

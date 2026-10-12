@@ -12,16 +12,29 @@ public final class BetaMoonConfigTest {
             BetaMoonConfig defaults = new BetaMoonConfig(root, "betamoon.config");
             require(!defaults.getHotReloadOnFileChange().getValue(),
                     "Automatic file-change reload must default to disabled");
+            require(!defaults.getShowScriptWarningsOnLoad().getValue(),
+                    "Script warning notifications must default to disabled");
 
             File configFile = new File(root, "betamoon.config");
             String contents = new String(Files.readAllBytes(configFile.toPath()), StandardCharsets.UTF_8);
             require(contents.contains("hotReloadOnFileChange=false"), "Config must persist the disabled default");
+            require(contents.contains("showScriptWarningsOnLoad=false"), "Config must persist the errors-only default");
             contents = contents.replace("hotReloadOnFileChange=false", "hotReloadOnFileChange=true");
+            contents = contents.replace("showScriptWarningsOnLoad=false", "showScriptWarningsOnLoad=true");
             Files.write(configFile.toPath(), contents.getBytes(StandardCharsets.UTF_8));
 
             BetaMoonConfig enabled = new BetaMoonConfig(root, "betamoon.config");
             require(enabled.getHotReloadOnFileChange().getValue(), "Config must accept enabled file-change reload");
-            System.out.println("BetaMoon config passed: automatic hot reload defaults off and can be enabled.");
+            require(enabled.getShowScriptWarningsOnLoad().getValue(), "Config must accept script warning opt-in");
+
+            contents = contents.replace("showScriptWarningsOnLoad=true", "showPopupOnWarnings=true");
+            Files.write(configFile.toPath(), contents.getBytes(StandardCharsets.UTF_8));
+            BetaMoonConfig migrated = new BetaMoonConfig(root, "betamoon.config");
+            require(!migrated.getShowScriptWarningsOnLoad().getValue(),
+                    "Existing unused warning setting must not keep notifications enabled");
+            contents = new String(Files.readAllBytes(configFile.toPath()), StandardCharsets.UTF_8);
+            require(!contents.contains("showPopupOnWarnings"), "Obsolete warning setting must be removed");
+            System.out.println("BetaMoon config passed: conservative reload and script warning defaults, opt-in and migration.");
         } finally {
             deleteRecursively(root);
         }

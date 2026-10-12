@@ -101,6 +101,17 @@ public final class LuaScriptErrors {
         return new ArrayList<>(entries);
     }
 
+    /** Returns the issues included in an automatic startup or reload notification. */
+    public static synchronized List<ScriptIssue> getNotificationEntries(boolean showWarnings) {
+        List<ScriptIssue> visible = new ArrayList<>();
+        for (ScriptIssue issue : entries) {
+            if (showWarnings || !issue.isWarning()) {
+                visible.add(issue);
+            }
+        }
+        return visible;
+    }
+
     /**
      * Counts errors in the current issue set without including warnings.
      *
@@ -119,10 +130,10 @@ public final class LuaScriptErrors {
     /**
      * Returns true when the popup should be shown to the user.
      *
-     * @return true when errors exist and have not been ignored
+     * @return true when visible issues exist and have not been ignored
      */
-    public static synchronized boolean shouldShowPopup() {
-        return !ignored && !entries.isEmpty();
+    public static synchronized boolean shouldShowPopup(boolean showWarnings) {
+        return !ignored && !getNotificationEntries(showWarnings).isEmpty();
     }
 
     /**

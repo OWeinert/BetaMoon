@@ -52,13 +52,13 @@ public final class BetaMoonClient {
         this.common = new BetaMoonCommon();
         ClientEntityEffects.initialize();
         ClientEntityPresentationResources.initialize();
-        LuaLoaderClientFeedback.initialize();
         ClientHotkeys.initialize(baseMod);
         this.networkSession = ClientNetworkSession.initialize();
         BlockModelRegistry.initialize(baseMod);
         FluidRenderer.initialize(baseMod);
         this.agentRegistered = common.isAgentRegistered();
         this.config = new BetaMoonConfig("betamoon.config");
+        LuaLoaderClientFeedback.initialize(showScriptWarningsOnLoad());
         this.eventHandler = new BetaMoonEventHandler();
         setInitHooks(this.betaMoonBaseMod);
     }
@@ -93,6 +93,10 @@ public final class BetaMoonClient {
 
     public UpdateRelease getAvailableUpdate() {
         return updateChecker.getAvailableUpdate();
+    }
+
+    public boolean showScriptWarningsOnLoad() {
+        return config.getShowScriptWarningsOnLoad().getValue();
     }
 
     public boolean onTickInGUI(net.minecraft.client.Minecraft mc, GuiScreen current) {
@@ -210,8 +214,9 @@ public final class BetaMoonClient {
                 return;
             }
             // Render script error Popup
-            if (LuaScriptErrors.shouldShowPopup()) {
-                mc.displayGuiScreen(new GuiPopupScriptErrors(current));
+            boolean showWarnings = showScriptWarningsOnLoad();
+            if (LuaScriptErrors.shouldShowPopup(showWarnings)) {
+                mc.displayGuiScreen(new GuiPopupScriptErrors(current, showWarnings));
                 return;
             }
         }

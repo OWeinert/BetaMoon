@@ -92,6 +92,10 @@ IDs when combining scripts with other mods.
 
 Saved script changes trigger hot reload after the save settles. You can also use **Reload** on the Scripts screen. Changes to persistent structural definitions, including tile entities, containers and GUIs, require a Minecraft restart. See [installing scripts](https://github.com/OWeinert/BetaMoon/wiki/Install-Scripts) and [reload and compatibility](https://github.com/OWeinert/BetaMoon/wiki/Hot-Reload-and-Compatibility).
 
+Startup and reload notifications show script errors by default. To include warnings in the popup and reload chat messages,
+set `showScriptWarningsOnLoad=true` in `.minecraft/config/betamoon.config` and restart Minecraft. Warnings remain
+available in the Scripts screen and launcher log when notifications are disabled.
+
 ## Writing scripts
 
 Start with [your first BetaMoon script](https://github.com/OWeinert/BetaMoon/wiki/Getting-Started), then use the [Lua API reference](https://github.com/OWeinert/BetaMoon/wiki/API-Documentation) for function signatures, declaration fields and focused snippets. The [examples](examples/README.md) range from simple registrations to complete processing machines.

@@ -16,16 +16,19 @@ final class GuiPanelScriptErrorList extends GuiContainer {
 
     private final ErrorListContent content = new ErrorListContent();
     private final GuiScrollView scrollView = new GuiScrollView(content, GuiScrollView.Policy.VERTICAL);
+    private final boolean showWarnings;
     private GuiIssueLayout issueLayout;
 
-    GuiPanelScriptErrorList() {
+    GuiPanelScriptErrorList(boolean showWarnings) {
+        this.showWarnings = showWarnings;
         add(scrollView);
     }
 
     @Override
     protected void arrangeChildren(GuiContext context) {
         int contentWidth = Math.max(0, getWidth() - CONTENT_PADDING);
-        issueLayout = GuiIssueLayout.prepare(context.getFont(), LuaScriptErrors.getEntries(), contentWidth, ENTRY_GAP);
+        issueLayout = GuiIssueLayout.prepare(context.getFont(),
+                LuaScriptErrors.getNotificationEntries(showWarnings), contentWidth, ENTRY_GAP);
         scrollView.setContentSize(getWidth(), issueLayout.getHeight());
         scrollView.arrange(context, getBounds());
     }
