@@ -14,8 +14,16 @@ public final class InputMapDefinition {
 
     private final ContentKey key;
     private final Map<String, InputActionDefinition> actions;
+    private final String label;
+    private final String description;
+    private final boolean configurable;
 
     public InputMapDefinition(ContentKey key, List<InputActionDefinition> actions) {
+        this(key, actions, null, null, true);
+    }
+
+    public InputMapDefinition(ContentKey key, List<InputActionDefinition> actions, String label, String description,
+            boolean configurable) {
         if (key == null || !ContentType.INPUT_MAP.equals(key.type())) {
             throw new IllegalArgumentException("Input map key must have type 'input_map'");
         }
@@ -31,6 +39,15 @@ public final class InputMapDefinition {
         }
         this.key = key;
         this.actions = Collections.unmodifiableMap(copy);
+        if (label != null && (label.trim().isEmpty() || label.length() > 128)) {
+            throw new IllegalArgumentException("Input map label must have 1..128 characters");
+        }
+        if (description != null && (description.trim().isEmpty() || description.length() > 512)) {
+            throw new IllegalArgumentException("Input map description must have 1..512 characters");
+        }
+        this.label = label;
+        this.description = description;
+        this.configurable = configurable;
     }
 
     private static void rejectOverlappingDefaults(Map<String, InputActionDefinition> actions,
@@ -60,5 +77,17 @@ public final class InputMapDefinition {
 
     public List<InputActionDefinition> actions() {
         return Collections.unmodifiableList(new ArrayList<InputActionDefinition>(actions.values()));
+    }
+
+    public String label() {
+        return label == null ? key.name().replace('_', ' ') : label;
+    }
+
+    public String description() {
+        return description;
+    }
+
+    public boolean configurable() {
+        return configurable;
     }
 }

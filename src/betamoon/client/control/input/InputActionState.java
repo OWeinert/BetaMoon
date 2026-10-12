@@ -7,13 +7,26 @@ public final class InputActionState {
     private final boolean held;
     private final boolean released;
     private final float amount;
+    private final InputActivationMode mode;
+    private final boolean active;
+    private final boolean activated;
+    private final boolean deactivated;
 
     InputActionState(long cycle, boolean pressed, boolean held, boolean released, float amount) {
+        this(cycle, pressed, held, released, amount, InputActivationMode.HOLD, held, pressed, released);
+    }
+
+    InputActionState(long cycle, boolean pressed, boolean held, boolean released, float amount,
+            InputActivationMode mode, boolean active, boolean activated, boolean deactivated) {
         this.cycle = cycle;
         this.pressed = pressed;
         this.held = held;
         this.released = released;
         this.amount = amount;
+        this.mode = mode;
+        this.active = active;
+        this.activated = activated;
+        this.deactivated = deactivated;
     }
 
     public long cycle() {
@@ -34,5 +47,21 @@ public final class InputActionState {
 
     public float amount() {
         return amount;
+    }
+
+    public InputActivationMode mode() {
+        return mode;
+    }
+
+    public boolean active() {
+        return active;
+    }
+
+    public boolean activated() {
+        return activated;
+    }
+
+    public boolean deactivated() {
+        return deactivated;
     }
 }

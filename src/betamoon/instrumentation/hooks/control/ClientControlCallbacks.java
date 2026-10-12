@@ -1,11 +1,15 @@
 package betamoon.instrumentation.hooks.control;
 
 import betamoon.client.control.input.ClientInputRuntime;
+import betamoon.client.control.input.GuiControlsHub;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.EntityPlayerSP;
 import net.minecraft.src.EntityRenderer;
 import net.minecraft.src.GuiScreen;
+import net.minecraft.src.GuiOptions;
+import net.minecraft.src.GuiButton;
+import net.minecraft.src.ModLoader;
 import net.minecraft.src.MovementInputFromOptions;
 
 /**
@@ -21,11 +25,27 @@ public final class ClientControlCallbacks {
         return 0;
     }
 
+    public static int beforeOptionsControls(GuiOptions screen, GuiButton button) {
+        if (button == null || !button.enabled || button.id != 100) {
+            return 0;
+        }
+        Minecraft minecraft = ModLoader.getMinecraftInstance();
+        if (minecraft == null) {
+            return 0;
+        }
+        minecraft.gameSettings.saveOptions();
+        minecraft.displayGuiScreen(new GuiControlsHub(screen, minecraft.gameSettings));
+        return 1;
+    }
+
+    public static void afterOptionsControls() {
+    }
+
     public static void finishInputTick(Minecraft minecraft) {
     }
 
     public static int beforeMovementKey(EntityPlayerSP player, int keyCode, boolean pressed) {
-        return ClientInputRuntime.consumesMovementKey(player, keyCode) ? 1 : 0;
+        return ClientInputRuntime.consumesMovementKey(player, keyCode, pressed) ? 1 : 0;
     }
 
     public static int beforeGuiKeyboardInput(GuiScreen screen) {
@@ -50,23 +70,36 @@ public final class ClientControlCallbacks {
     }
 
     public static void finishMovementIntent(MovementInputFromOptions input, EntityPlayer player) {
+        if (player instanceof EntityPlayerSP) {
+            ClientInputRuntime.applyControllerMovement(input, (EntityPlayerSP) player);
+        }
     }
 
     public static void applyLook(EntityPlayerSP player, float yawDelta, float pitchDelta) {
-        if (!ClientInputRuntime.consumesLook()) {
+        if (!ClientInputRuntime.consumesLook()
+                && !ClientInputRuntime.appliesControllerLook(player, yawDelta, pitchDelta)) {
             player.func_346_d(yawDelta, pitchDelta);
         }
     }
 
     public static int beforeAction(Minecraft minecraft, int button) {
-        return ClientInputRuntime.consumesWorldAction(button) ? 1 : 0;
+        return ClientInputRuntime.consumesWorldAction(button)
+                || !ClientInputRuntime.allowsControllerWorldAction(minecraft, button, false) ? 1 : 0;
     }
 
     public static void afterAction(Minecraft minecraft, int button, int decision) {
     }
 
     public static int beforeHeldBreaking(Minecraft minecraft, int button, boolean held) {
-        return ClientInputRuntime.consumesWorldAction(button) ? 1 : 0;
+        if (!held) {
+            return 0;
+        }
+        boolean denied = ClientInputRuntime.consumesWorldAction(button)
+                || !ClientInputRuntime.allowsControllerWorldAction(minecraft, button, true);
+        if (denied && minecraft != null && minecraft.playerController != null) {
+            minecraft.playerController.resetBlockRemoving();
+        }
+        return denied ? 1 : 0;
     }
 
     public static void afterHeldBreaking(Minecraft minecraft, int button, boolean held, int decision) {
