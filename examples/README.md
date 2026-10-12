@@ -90,15 +90,16 @@ state, physical behavior, and event-driven logic.
 | 17 | `02_int_17_facing_model_block.lua` | One built-in stair model rotated by placement state |
 | 18 | `02_int_18_launch_pad.lua` | Player filtering and motion-preserving launch behavior |
 | 19 | `02_int_19_special_blocks.lua` | Replaceable, translucent, luminous, and unbreakable blocks |
-| 20 | `02_int_20_random_and_continuous_ticks.lua` | Default and vanilla random block ticks |
-| 21 | `02_int_21_scheduled_and_display_ticks.lua` | Scheduled gameplay ticks and client display ticks |
-| 22 | `02_int_22_redstone_switch.lua` | Directional digital redstone output |
-| 23 | `02_int_23_first_entity.lua` | Model-backed prop declaration and spawning from an item |
-| 24 | `02_int_24_custom_projectile.lua` | Model-backed projectile behavior, ammunition, and impact handling |
-| 25 | `02_int_25_pickup_entity.lua` | Typed pickup entities and inventory collection |
-| 26 | `02_int_26_configurable_explosion.lua` | Selective explosion effects, attribution, and result snapshots |
-| 27 | `02_int_27_direct_feature_placement.lua` | Previewing and atomically placing a feature from an item callback |
-| 28 | `02_int_28_composite_and_ordered_features.lua` | Weighted/sequence features and explicit placement dependencies |
+| 20 | `02_int_20_custom_fluid.lua` | Paired fluid blocks, a bucket, and independent entity/camera policies |
+| 21 | `02_int_21_random_and_continuous_ticks.lua` | Default and vanilla random block ticks |
+| 22 | `02_int_22_scheduled_and_display_ticks.lua` | Scheduled gameplay ticks and client display ticks |
+| 23 | `02_int_23_redstone_switch.lua` | Directional digital redstone output |
+| 24 | `02_int_24_first_entity.lua` | Model-backed prop declaration and spawning from an item |
+| 25 | `02_int_25_custom_projectile.lua` | Model-backed projectile behavior, ammunition, and impact handling |
+| 26 | `02_int_26_pickup_entity.lua` | Typed pickup entities and inventory collection |
+| 27 | `02_int_27_configurable_explosion.lua` | Selective explosion effects, attribution, and result snapshots |
+| 28 | `02_int_28_direct_feature_placement.lua` | Previewing and atomically placing a feature from an item callback |
+| 29 | `02_int_29_composite_and_ordered_features.lua` | Weighted/sequence features and explicit placement dependencies |
 
 ## Advanced
 
@@ -154,13 +155,14 @@ and, where useful, organize private modules with `require`.
 | Intermediate 17 | **Facing Stair Display** (233): place from different directions and walk over its rotated stair collision. |
 | Intermediate 18 | **Launch Pad** (214): planks + redstone. Walk onto it while moving to see horizontal speed preserved. |
 | Intermediate 19 | Blocks 219–221: obtain the sprout, luminous glass, and sealed casing through a creative/debug inventory. |
-| Intermediate 20 | Blocks 222–223: obtain both through a creative/debug inventory and compare their update timing. |
-| Intermediate 22 | **Directional Switch** (212): stone + redstone. Toggle it and connect wire to its output face. |
-| Intermediate 23 | **Stone Sample Entity**: obtain Sample Placer (5035), copy `builtin_model_item/`, place it, then punch it to recover the placer. |
-| Intermediate 24 | **Pebble Launcher** (5037): copy `entity_examples/`, carry cobblestone, and fire a custom projectile. |
-| Intermediate 25 | **Gem Dropper** (5038): place a typed pickup and collect its full stack. |
-| Intermediate 26 | **Configurable Charge** (5042): right-click for a concussive blast or sneak-right-click for demolition. |
-| Intermediate 27 | **Builder's Rod** (5044): stick + glowstone dust. Use it on the top of a block with four clear blocks above it. |
+| Intermediate 20 | **Acid Bucket** (5047): enable the Java agent, obtain the filled bucket in creative mode, place a source, then enter it to compare movement, damage, and green fog with water. |
+| Intermediate 21 | Blocks 222–223: obtain both through a creative/debug inventory and compare their update timing. |
+| Intermediate 23 | **Directional Switch** (212): stone + redstone. Toggle it and connect wire to its output face. |
+| Intermediate 24 | **Stone Sample Entity**: obtain Sample Placer (5035), copy `builtin_model_item/`, place it, then punch it to recover the placer. |
+| Intermediate 25 | **Pebble Launcher** (5037): copy `entity_examples/`, carry cobblestone, and fire a custom projectile. |
+| Intermediate 26 | **Gem Dropper** (5038): place a typed pickup and collect its full stack. |
+| Intermediate 27 | **Configurable Charge** (5042): right-click for a concussive blast or sneak-right-click for demolition. |
+| Intermediate 28 | **Builder's Rod** (5044): stick + glowstone dust. Use it on the top of a block with four clear blocks above it. |
 | Advanced 01 | **Clockwork Bird Model Item** (5034): observe clip animation with Lua head movement. |
 | Advanced 02 | **Pulse Timer** (213): cobblestone + redstone. A rising north input produces a one-second south output. |
 | Advanced 03 | **Basic Storage** (224): chest surrounded by planks. Its screen reports occupied saved slots. |

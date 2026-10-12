@@ -570,8 +570,8 @@ public final class BlockItemApiTest {
                 "02_int_10_block_lifecycle.lua", "02_int_11_item_interactions.lua",
                 "02_int_13_targeted_item_actions.lua", "02_int_14_tool_interactions.lua",
                 "02_int_15_dynamic_tool_callbacks.lua", "02_int_16_block_shapes.lua", "02_int_18_launch_pad.lua",
-                "02_int_19_special_blocks.lua", "02_int_20_random_and_continuous_ticks.lua",
-                "02_int_22_redstone_switch.lua", "03_adv_02_redstone_timer.lua"};
+                "02_int_19_special_blocks.lua", "02_int_21_random_and_continuous_ticks.lua",
+                "02_int_23_redstone_switch.lua", "03_adv_02_redstone_timer.lua"};
         for (String file : files) {
             owner.invoke(null, file);
             FileReader reader = new FileReader(new File("examples", file));
