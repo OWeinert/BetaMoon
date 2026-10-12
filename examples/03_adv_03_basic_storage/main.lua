@@ -2,19 +2,6 @@
 -- private modules. Craft a chest surrounded by planks, place the storage block,
 -- and right-click it. Structural changes require a Minecraft restart.
 
-name = "Basic Storage Block Example"
-version = "1.0.0"
-description = "Adds Basic Storage, a persistent nine-slot storage block assembled from private data and " ..
-    "layout modules. Copy the complete 03_adv_03_basic_storage folder into lua_scripts. In a crafting " ..
-    "table, surround one chest with eight wooden plank blocks to craft it.\n\n" ..
-    "Place the block and right-click to open its 3x3 storage grid. Move items into and out of the " ..
-    "grid and watch 'Occupied slots' change from zero through nine. A stack of many items counts " ..
-    "as one occupied slot; splitting that stack across several slots increases the count.\n\n" ..
-    "Close and reopen the screen, then save and rejoin the world with the block still placed to " ..
-    "check that its stored items persist. Compare the inventory-change callback here with data.lua " ..
-    "and layout.lua. Restart Minecraft after changes to this " ..
-    "structural block, inventory, or GUI."
-
 function modInit()
   local dataDefinition = require("data")
   local layoutDefinition = require("layout")

@@ -1,11 +1,11 @@
 package betamoon.entity;
 
 import betamoon.assets.AssetKey;
+import betamoon.worldgen.BiomeGenRegistry;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import net.minecraft.src.ChunkCoordIntPair;
@@ -130,8 +130,8 @@ public final class EntityNaturalSpawner {
         if (light < rule.minLight || light > rule.maxLight) {
             return false;
         }
-        String biome = world.getWorldChunkManager().getBiomeGenAt(x, z).biomeName.toLowerCase(Locale.ROOT);
-        if (!rule.biomes.isEmpty() && !rule.biomes.contains(biome)) {
+        if (!rule.biomes.isEmpty() && !BiomeGenRegistry.matchesSelectors(
+                world.getWorldChunkManager().getBiomeGenAt(x, z), rule.biomes)) {
             return false;
         }
         int substrate = world.getBlockId(x, y - 1, z);

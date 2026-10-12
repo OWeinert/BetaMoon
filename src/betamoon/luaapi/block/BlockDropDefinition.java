@@ -1,5 +1,7 @@
 package betamoon.luaapi.block;
 
+import betamoon.loot.GameplayLootDefinition;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -13,16 +15,23 @@ import static betamoon.luaapi.utils.LuaDeclarationValues.integer;
 import static betamoon.luaapi.utils.LuaDeclarationValues.length;
 import static betamoon.luaapi.utils.LuaDeclarationValues.number;
 
-/** Declarative drop entries, sampled once when the engine requests drops. */
+/** Legacy shorthand entries or a shared loot-table source sampled for one block-drop request. */
 public final class BlockDropDefinition {
     public final boolean declared;
     private final List<Entry> entries = new ArrayList<Entry>();
+    private final GameplayLootDefinition loot;
 
     public BlockDropDefinition(LuaValue definition) {
         declared = !definition.isnil();
         if (!declared) {
+            loot = null;
             return;
         }
+        if (hasNamedFields(definition)) {
+            loot = GameplayLootDefinition.read(definition, "drops");
+            return;
+        }
+        loot = null;
         int count = length(definition, "drops");
         for (int index = 1; index <= count; index++) {
             LuaValue entry = definition.get(index);
@@ -41,6 +50,19 @@ public final class BlockDropDefinition {
     }
 
     public List<ItemStack> sample(Random random, float engineChance) {
+        if (loot != null) {
+            List<ItemStack> sampled = loot.sample(random);
+            if (engineChance >= 1.0F) {
+                return sampled;
+            }
+            List<ItemStack> accepted = new ArrayList<ItemStack>();
+            for (ItemStack stack : sampled) {
+                if (random.nextFloat() < engineChance) {
+                    accepted.add(stack);
+                }
+            }
+            return accepted;
+        }
         List<ItemStack> drops = new ArrayList<ItemStack>();
         for (Entry entry : entries) {
             if (random.nextDouble() >= entry.chance * engineChance) {
@@ -55,11 +77,30 @@ public final class BlockDropDefinition {
     }
 
     public void validateRegistered() {
+        if (loot != null) {
+            try {
+                loot.validateReferences();
+            } catch (IOException exception) {
+                throw error("drops", exception.getMessage());
+            }
+        }
         for (Entry entry : entries) {
             if (entry.item <= 0 || entry.item >= Item.itemsList.length || Item.itemsList[entry.item] == null) {
                 throw error("getDrops", "unknown item ID " + entry.item);
             }
         }
+    }
+
+    private static boolean hasNamedFields(LuaValue definition) {
+        if (!definition.istable()) {
+            return false;
+        }
+        for (LuaValue key : definition.checktable().keys()) {
+            if (!key.isint() && key.isstring()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static final class Entry {

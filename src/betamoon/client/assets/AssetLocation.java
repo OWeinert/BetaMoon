@@ -4,6 +4,7 @@ import betamoon.assets.AssetDefinition;
 import betamoon.assets.AssetId;
 import betamoon.assets.AssetKind;
 import betamoon.assets.AssetPath;
+import betamoon.assets.TextureAnimation;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptAssetScope;
 
@@ -18,6 +19,7 @@ public final class AssetLocation {
     private final AssetPath override;
     private final boolean builtin;
     private final String defaultSource;
+    private final TextureAnimation textureAnimation;
 
     public AssetLocation(AssetDefinition definition) {
         builtin = definition.isBuiltin();
@@ -26,6 +28,7 @@ public final class AssetLocation {
         fallback = definition.getFallbackPath();
         override = definition.getOverridePath();
         defaultSource = definition.getDefaultSource();
+        textureAnimation = definition.getTextureAnimation();
     }
 
     public AssetLocation(AssetKind kind, AssetPath path) {
@@ -35,6 +38,28 @@ public final class AssetLocation {
         fallback = path;
         override = path.getDirectOverridePath();
         defaultSource = LuaScriptRegistry.getCurrentScriptFile();
+        textureAnimation = null;
+    }
+
+    private AssetLocation(AssetLocation original, TextureAnimation animation) {
+        builtin = original.builtin;
+        kind = original.kind;
+        id = original.id;
+        fallback = original.fallback;
+        override = original.override;
+        defaultSource = original.defaultSource;
+        textureAnimation = animation;
+    }
+
+    public AssetLocation withTextureAnimation(TextureAnimation animation) {
+        if (kind != AssetKind.TEXTURE) {
+            throw new IllegalArgumentException("Only texture assets accept animation metadata");
+        }
+        return new AssetLocation(this, animation);
+    }
+
+    public TextureAnimation getTextureAnimation() {
+        return textureAnimation;
     }
 
     public AssetKind getKind() {
@@ -62,8 +87,13 @@ public final class AssetLocation {
 
     public String getCacheKey() {
         if (id != null) {
-            return kind.getDirectory() + ":key:" + id.getKey();
+            return kind.getDirectory() + ":key:" + id.getKey() + animationKey();
         }
-        return kind.getDirectory() + ":path:" + (defaultSource == null ? "" : defaultSource + ":") + fallback;
+        return kind.getDirectory() + ":path:" + (defaultSource == null ? "" : defaultSource + ":") + fallback
+                + animationKey();
+    }
+
+    private String animationKey() {
+        return textureAnimation == null ? "" : ":animation:" + textureAnimation.cacheKey();
     }
 }

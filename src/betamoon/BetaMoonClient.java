@@ -1,17 +1,19 @@
 package betamoon;
 
+import betamoon.client.LuaLoaderClientFeedback;
 import betamoon.client.assets.ClientAssets;
 import betamoon.client.audio.ClientAudio;
 import betamoon.client.audio.ClientEntityEffects;
+import betamoon.client.control.input.ClientHotkeys;
 import betamoon.client.network.ClientNetworkSession;
 import betamoon.client.render.ClientEntityPresentationResources;
-import betamoon.client.LuaLoaderClientFeedback;
+import betamoon.client.render.FluidRenderer;
 import betamoon.config.BetaMoonConfig;
-import betamoon.luaapi.block.BlockModelRegistry;
 import betamoon.gui.GuiBetaMoonIngameMenu;
 import betamoon.gui.GuiBetaMoonMainMenu;
 import betamoon.gui.GuiPopupAgentWarning;
 import betamoon.gui.GuiPopupScriptErrors;
+import betamoon.luaapi.block.BlockModelRegistry;
 import betamoon.luaapi.chat.ChatApi;
 import betamoon.luamodloader.LuaScriptErrors;
 import betamoon.update.UpdateChecker;
@@ -50,11 +52,13 @@ public final class BetaMoonClient {
         this.common = new BetaMoonCommon();
         ClientEntityEffects.initialize();
         ClientEntityPresentationResources.initialize();
-        LuaLoaderClientFeedback.initialize();
+        ClientHotkeys.initialize(baseMod);
         this.networkSession = ClientNetworkSession.initialize();
         BlockModelRegistry.initialize(baseMod);
+        FluidRenderer.initialize(baseMod);
         this.agentRegistered = common.isAgentRegistered();
         this.config = new BetaMoonConfig("betamoon.config");
+        LuaLoaderClientFeedback.initialize(showScriptWarningsOnLoad());
         this.eventHandler = new BetaMoonEventHandler();
         setInitHooks(this.betaMoonBaseMod);
     }
@@ -91,10 +95,17 @@ public final class BetaMoonClient {
         return updateChecker.getAvailableUpdate();
     }
 
+    public boolean showScriptWarningsOnLoad() {
+        return config.getShowScriptWarningsOnLoad().getValue();
+    }
+
     public boolean onTickInGUI(net.minecraft.client.Minecraft mc, GuiScreen current) {
         if (common.areScriptsLoaded()) {
             pollScriptChanges();
             ClientAssets.poll();
+            if (mc.theWorld == null) {
+                ClientAssets.animationTicks(ClientTickClock.elapsedTicks(mc), mc.isGamePaused);
+            }
         }
         ClientAudio.tick();
         eventHandler.handleGuiEvents(mc, current);
@@ -107,6 +118,7 @@ public final class BetaMoonClient {
         if (common.areScriptsLoaded()) {
             pollScriptChanges();
             ClientAssets.poll();
+            ClientAssets.animationTicks(ClientTickClock.elapsedTicks(mc), mc.isGamePaused);
         }
         ClientAudio.tick();
         ChatApi.flushPendingMessages();
@@ -159,6 +171,11 @@ public final class BetaMoonClient {
         reloadLuaScripts();
     }
 
+    /** Dispatches a script hotkey delivered by ModLoader. */
+    public void handleScriptHotkey(KeyBinding key) {
+        ClientHotkeys.dispatch(key);
+    }
+
     public void generateSurface(World world, Random random, int chunkX, int chunkZ) {
         common.generateSurface(world, random, chunkX, chunkZ);
     }
@@ -201,8 +218,9 @@ public final class BetaMoonClient {
                 return;
             }
             // Render script error Popup
-            if (LuaScriptErrors.shouldShowPopup()) {
-                mc.displayGuiScreen(new GuiPopupScriptErrors(current));
+            boolean showWarnings = showScriptWarningsOnLoad();
+            if (LuaScriptErrors.shouldShowPopup(showWarnings)) {
+                mc.displayGuiScreen(new GuiPopupScriptErrors(current, showWarnings));
                 return;
             }
         }

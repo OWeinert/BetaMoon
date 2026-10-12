@@ -1,0 +1,188 @@
+package betamoon.fluid;
+
+import betamoon.content.ContentKey;
+import betamoon.content.ContentType;
+import betamoon.fluid.contact.FluidContactResolver;
+import betamoon.fluid.contact.FluidContactSnapshot;
+import betamoon.fluid.contact.FluidContactRuntime;
+import net.minecraft.src.AxisAlignedBB;
+import net.minecraft.src.World;
+import net.minecraft.src.WorldProvider;
+import net.minecraft.src.IChunkProvider;
+import net.minecraft.src.Chunk;
+import net.minecraft.src.IProgressUpdate;
+import net.minecraft.src.Entity;
+import net.minecraft.src.NBTTagCompound;
+
+/** Contact coverage, eye depth, identity, and bounded sampling checks. */
+public final class FluidContactTest {
+    private FluidContactTest() {
+    }
+
+    public static void main(String[] arguments) {
+        FluidRegistry registry = FluidRegistry.instance();
+        FluidRegistration first = registry.publish(definition("first", 216, 217));
+        FluidRegistration second = registry.publish(definition("second", 218, 219));
+        TestWorld world = new TestWorld();
+        world.first = first;
+        world.second = second;
+        world.firstMetadata = 7;
+
+        AxisAlignedBB ankle = AxisAlignedBB.getBoundingBox(0.1D, 0.05D, 0.1D, 0.9D, 0.5D, 0.9D);
+        FluidContactSnapshot shallow = FluidContactResolver.resolve(world, ankle, 0.5D, 0.2D, 0.5D);
+        require(shallow.dominantBody().fluid() == first, "Shallow contact retains registered identity");
+        require(shallow.eyeFluid() == null, "Eye above a shallow surface is not immersed");
+        require(shallow.cellsRead() <= 64 && !shallow.approximate(), "Ordinary actor uses exact bounded sampling");
+
+        FluidContactSnapshot immersed = FluidContactResolver.resolve(world, ankle, 0.5D, 0.1D, 0.5D);
+        require(immersed.eyeFluid() == first, "Eye below the surface selects fluid identity");
+
+        world.firstMetadata = 0;
+        AxisAlignedBB mixed = AxisAlignedBB.getBoundingBox(0.1D, 0.0D, 0.1D, 1.9D, 0.8D, 0.9D);
+        FluidContactSnapshot mixedContact = FluidContactResolver.resolve(world, mixed, 1.5D, 0.5D, 0.5D);
+        require(mixedContact.bodyContacts().size() == 2, "Different fluids are aggregated separately");
+        require(mixedContact.eyeFluid() == second, "Eye identity is independent of body dominance");
+        require(mixedContact.dominantBody().fluid() == first,
+                "Equal body coverage resolves by lowest occupied coordinate");
+
+        AxisAlignedBB giant = AxisAlignedBB.getBoundingBox(0.0D, 0.0D, 0.0D, 20.0D, 20.0D, 20.0D);
+        FluidContactSnapshot bounded = FluidContactResolver.resolve(world, giant, 0.5D, 0.5D, 0.5D);
+        require(bounded.approximate() && bounded.cellsRead() <= 64,
+                "Oversized actors sample at most 64 cells including the eye");
+
+        world.firstMetadata = 0;
+        TestEntity actor = new TestEntity(world);
+        actor.setPosition(0.5D, 0.0D, 0.5D);
+        for (int tick = 1; tick <= 5; tick++) {
+            actor.ticksExisted = tick;
+            betamoon.fluid.contact.FluidContactRuntime.finishEntityTick(actor, 0, false);
+        }
+        require(actor.damage == 0, "Contact damage waits for the declared interval");
+        actor.ticksExisted = 6;
+        betamoon.fluid.contact.FluidContactRuntime.finishEntityTick(actor, 0, false);
+        require(actor.damage == 2, "Touching one fluid applies one interval damage event");
+        actor.setPosition(3.5D, 0.0D, 0.5D);
+        actor.ticksExisted = 7;
+        betamoon.fluid.contact.FluidContactRuntime.finishEntityTick(actor, 0, false);
+        actor.setPosition(0.5D, 0.0D, 0.5D);
+        actor.ticksExisted = 8;
+        betamoon.fluid.contact.FluidContactRuntime.finishEntityTick(actor, 0, false);
+        require(actor.damage == 2, "Leaving and reentering resets the interval timer");
+
+        TestEntity neutralMover = new TestEntity(world);
+        neutralMover.setPosition(1.5D, 0.0D, 0.5D);
+        neutralMover.ticksExisted = 1;
+        require(!FluidContactRuntime.movement(neutralMover, FluidEntityPolicy.Movement.WATER)
+                && !FluidContactRuntime.shouldDrown(neutralMover)
+                && !FluidContactRuntime.isWet(neutralMover, false),
+                "A water carrier does not force movement, drowning, or wetness");
+        FluidContactRuntime.tickWithoutNativeUpdate(neutralMover);
+        require(neutralMover.fire == 600, "Manual actors receive declared ignition without native entity ticks");
+
+        TestEntity mixedActor = new TestEntity(world);
+        mixedActor.setPosition(1.0D, 0.0D, 0.5D);
+        mixedActor.fire = 20;
+        mixedActor.ticksExisted = 1;
+        FluidContactRuntime.finishEntityTick(mixedActor, 20, false);
+        require(mixedActor.fire == 600, "Mixed fluid ignition deterministically follows extinguishing");
+
+        try {
+            new FluidEntityPolicy(FluidEntityPolicy.Movement.NONE, 0.0F, false, false, false, false, 1, 201);
+            throw new AssertionError("Unbounded contact interval was accepted");
+        } catch (IllegalArgumentException expected) {
+            // Validation runs before registration.
+        }
+        System.out.println("Fluid contact checks passed.");
+    }
+
+    private static FluidDefinition definition(String name, int flowing, int still) {
+        return new FluidDefinition(ContentKey.of("contact_test", ContentType.FLUID, name), "contact_test.lua",
+                "neutral", FluidCarrier.WATER, FluidFlowPolicy.neutral(),
+                new FluidAppearance(1, 2, 0xFFFFFF, 1, 0, 3), FluidDisplacementPolicy.DROP,
+                new FluidEntityPolicy(FluidEntityPolicy.Movement.NONE, 0.0F, false, "first".equals(name),
+                        "first".equals(name), "second".equals(name),
+                        "first".equals(name) ? 2 : 0, 5), flowing, still, -1, false);
+    }
+
+    private static void require(boolean condition, String message) {
+        if (!condition) {
+            throw new AssertionError(message);
+        }
+    }
+
+    private static final class TestWorld extends World {
+        private FluidRegistration first;
+        private FluidRegistration second;
+        private int firstMetadata;
+
+        private TestWorld() {
+            super(null, "fluid_contact_test", new WorldProvider() { }, 123L);
+        }
+
+        @Override
+        protected IChunkProvider getChunkProvider() {
+            return new IChunkProvider() {
+                public boolean chunkExists(int x, int z) { return true; }
+                public Chunk provideChunk(int x, int z) { return null; }
+                public Chunk prepareChunk(int x, int z) { return null; }
+                public void populate(IChunkProvider provider, int x, int z) { }
+                public boolean saveChunks(boolean force, IProgressUpdate progress) { return true; }
+                public boolean unload100OldestChunks() { return false; }
+                public boolean canSave() { return false; }
+                public String makeString() { return "FluidContactTest"; }
+            };
+        }
+
+        @Override
+        public boolean blockExists(int x, int y, int z) {
+            return y >= 0 && y < 128;
+        }
+
+        @Override
+        public int getBlockId(int x, int y, int z) {
+            if (y == 0 && z == 0 && x == 0) {
+                return first.definition().stillBlockId();
+            }
+            if (y == 0 && z == 0 && x == 1) {
+                return second.definition().stillBlockId();
+            }
+            return 0;
+        }
+
+        @Override
+        public int getBlockMetadata(int x, int y, int z) {
+            return x == 0 ? firstMetadata : 0;
+        }
+
+        @Override
+        public boolean canBlockBeRainedOn(int x, int y, int z) {
+            return false;
+        }
+    }
+
+    private static final class TestEntity extends Entity {
+        private int damage;
+
+        private TestEntity(World world) {
+            super(world);
+        }
+
+        @Override
+        protected void entityInit() {
+        }
+
+        @Override
+        protected void readEntityFromNBT(NBTTagCompound compound) {
+        }
+
+        @Override
+        protected void writeEntityToNBT(NBTTagCompound compound) {
+        }
+
+        @Override
+        public boolean attackEntityFrom(Entity attacker, int amount) {
+            damage += amount;
+            return true;
+        }
+    }
+}

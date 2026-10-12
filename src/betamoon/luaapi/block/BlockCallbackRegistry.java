@@ -39,6 +39,16 @@ public final class BlockCallbackRegistry {
         return DEFINITIONS.size();
     }
 
+    public static void validateDrops(List<String> errors) {
+        for (Map.Entry<Integer, BlockDefinition> entry : DEFINITIONS.entrySet()) {
+            try {
+                entry.getValue().drops.validateRegistered();
+            } catch (RuntimeException exception) {
+                errors.add("Block loot table invalid (" + entry.getKey() + "): " + exception.getMessage());
+            }
+        }
+    }
+
     public static void validateIdentity(int id, BlockDefinition definition) {
         String old = SAVED_SCHEMAS.get(id);
         if (old != null && !old.equals(definition.state.signature)) {

@@ -5,26 +5,6 @@
 -- the largest eligible stack wins. Other occupied material slots remain untouched.
 -- Structural machine changes require a Minecraft restart.
 
-name = "Matcher Cookbook Press Example"
-version = "1.0.0"
-description = "Adds Focused Press, a five-input machine that demonstrates choosing which stack a recipe " ..
-    "consumes. Copy the complete 03_adv_11_matcher_cookbook folder into lua_scripts. Craft it with " ..
-    "pistons in the four corners, redstone dust in the center, and iron ingots in the four remaining " ..
-    "cells.\n\n" ..
-    "Place it and right-click. The five Material slots run left to right. Put at least four " ..
-    "cobblestone in one slot and leave Die empty to make one stone in about three seconds. For " ..
-    "glass, put at least four sand in one material slot and a stick in Die; a batch makes two " ..
-    "glass in about five seconds and keeps the stick.\n\n" ..
-    "A batch must come from one stack: two plus two items in separate slots do not qualify. With " ..
-    "power off, slot 1 is preferred; supply redstone at the north connection to prefer slot 5. If " ..
-    "the preferred slot cannot supply a batch, the largest eligible stack is chosen. Try stacks of " ..
-    "four and eight in different slots and watch which shrinks. Other material slots remain " ..
-    "untouched.\n\n" ..
-    "No fuel is needed. Redstone selects a preference rather than enabling processing. Watch the " ..
-    "preferred-slot label, progress arrow, and output-blocked message. Remove output to resume " ..
-    "blocked work. Inventory and data persist with the placed block; restart after structural " ..
-    "package edits."
-
 function modInit()
   local recipeType = require("recipe_type")().recipeType
 

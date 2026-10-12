@@ -1,9 +1,11 @@
 package betamoon.luaapi.world;
 
-import betamoon.assets.AssetKey;
 import betamoon.luaapi.resource.LuaResultList;
 import betamoon.luaapi.resource.OverrideManager;
 import betamoon.worldgen.GenerationDimension;
+import betamoon.worldgen.WorldGenKey;
+import betamoon.worldgen.WorldGenKind;
+import betamoon.worldgen.WorldGenLimits;
 import betamoon.worldgen.WorldGenRegistry;
 import betamoon.worldgen.WorldGenRegistry.OreGenEntry;
 import java.util.ArrayList;
@@ -18,7 +20,10 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-/** Installs queryable, layered ore-generation registrations. */
+/**
+ * Installs declarative ore generation, lookup, queries, and reversible
+ * overrides.
+ */
 public final class OreGenApi {
     private static final Map<OreGenEntry, OreReference> REFERENCES = new IdentityHashMap<OreGenEntry, OreReference>();
 
@@ -31,94 +36,101 @@ public final class OreGenApi {
             @Override
             public Varargs invoke(Varargs args) {
                 OreDeclaration declaration = new OreDeclaration(argument(args, ores));
-                OreGenEntry entry = WorldGenRegistry.addOreGen(declaration.key, declaration.blockId,
-                        declaration.veinsPerChunk,
-                        declaration.veinSize, declaration.minY, declaration.maxY, declaration.dimension,
-                        declaration.targetBlockId, declaration.getAllowedBiomes());
-                return reference(entry);
+                WorldGenKey key = WorldGenRegistry.addOreGen(declaration.key, declaration.blockId,
+                        declaration.veinsPerChunk, declaration.veinSize, declaration.minY, declaration.maxY,
+                        declaration.dimension, declaration.targetBlockId, declaration.getAllowedBiomes(),
+                        declaration.salt);
+                return reference(WorldGenRegistry.oreEntry(key));
             }
         });
         ores.set("get", lookup(ores, false));
         ores.set("getRequired", lookup(ores, true));
-        ores.set("find", new Find(ores, 0));
-        ores.set("first", new Find(ores, 1));
-        ores.set("one", new Find(ores, 2));
+        ores.set("find", query(ores, 0));
+        ores.set("first", query(ores, 1));
+        ores.set("one", query(ores, 2));
         worldgen.set("ores", ores);
     }
 
-    private static VarArgFunction lookup(final LuaTable registry, final boolean required) {
+    private static VarArgFunction lookup(final LuaTable receiver, final boolean required) {
         return new VarArgFunction() {
+            @Override
             public Varargs invoke(Varargs args) {
-                AssetKey key;
-                try {
-                    key = AssetKey.parse(argument(args, registry).checkjstring());
-                } catch (IllegalArgumentException error) {
-                    throw new LuaError("ore key: " + error.getMessage());
-                }
-                for (OreGenEntry entry : WorldGenRegistry.oreEntries()) {
-                    if (key.equals(entry.key)) {
-                        return reference(entry);
-                    }
-                }
-                if (required) {
+                WorldGenKey key = key(argument(args, receiver));
+                OreGenEntry entry = WorldGenRegistry.oreEntry(key);
+                if (entry == null && required) {
                     throw new LuaError("Ore rule is not registered: " + key);
                 }
-                return NIL;
+                return entry == null ? NIL : reference(entry);
             }
         };
     }
 
-    private static final class Find extends VarArgFunction {
-        private final LuaTable registry;
-        private final int mode;
+    private static VarArgFunction query(final LuaTable receiver, final int mode) {
+        return new VarArgFunction() {
+            @Override
+            public Varargs invoke(Varargs args) {
+                LuaValue criteria = argument(args, receiver);
+                if (criteria.isnil()) {
+                    criteria = new LuaTable();
+                }
+                if (!criteria.istable()) {
+                    throw new LuaError("Ore query must be a table.");
+                }
+                List<LuaValue> matches = new ArrayList<LuaValue>();
+                for (OreGenEntry entry : WorldGenRegistry.oreEntries()) {
+                    OreReference reference = reference(entry);
+                    if (reference.matches(criteria)) {
+                        matches.add(reference);
+                    }
+                }
+                if (mode == 1) {
+                    return matches.isEmpty() ? NIL : matches.get(0);
+                }
+                if (mode == 2) {
+                    if (matches.isEmpty()) {
+                        return NIL;
+                    }
+                    if (matches.size() != 1) {
+                        throw new LuaError("Expected exactly one ore rule, found " + matches.size() + ".");
+                    }
+                    return matches.get(0);
+                }
+                return new LuaResultList(matches,
+                        (reference, definition, index) -> ((OreReference) reference).override(definition));
+            }
+        };
+    }
 
-        private Find(LuaTable registry, int mode) {
-            this.registry = registry;
-            this.mode = mode;
+    private static WorldGenKey key(LuaValue value) {
+        if (value instanceof OreReference) {
+            return ((OreReference) value).key();
         }
-
-        @Override
-        public Varargs invoke(Varargs args) {
-            LuaValue criteria = argument(args, registry);
-            if (criteria.isnil()) {
-                criteria = new LuaTable();
-            }
-            if (!criteria.istable()) {
-                throw new LuaError("ore query must be a table.");
-            }
-            List<LuaValue> references = new ArrayList<LuaValue>();
-            for (OreGenEntry entry : WorldGenRegistry.oreEntries()) {
-                OreReference reference = reference(entry);
-                if (reference.matches(criteria)) {
-                    references.add(reference);
-                }
-            }
-            if (mode == 1) {
-                return references.isEmpty() ? NIL : references.get(0);
-            }
-            if (mode == 2) {
-                if (references.isEmpty()) {
-                    return NIL;
-                }
-                if (references.size() != 1) {
-                    throw new LuaError("Expected exactly one ore rule, found " + references.size() + ".");
-                }
-                return references.get(0);
-            }
-            return new LuaResultList(references, (reference, definition, index) ->
-                    ((OreReference) reference).applyOverride(definition));
+        try {
+            return WorldGenKey.parse(value.checkjstring(), WorldGenKind.PLACEMENT);
+        } catch (IllegalArgumentException error) {
+            throw new LuaError("Ore key: " + error.getMessage());
         }
     }
 
-    private static final class OreReference extends LuaTable {
+    private static synchronized OreReference reference(OreGenEntry entry) {
+        OreReference reference = REFERENCES.get(entry);
+        if (reference == null) {
+            reference = new OreReference(entry);
+            REFERENCES.put(entry, reference);
+        }
+        return reference;
+    }
+
+    private static final class OreReference extends PlacementReference {
         private final OreGenEntry entry;
 
         private OreReference(OreGenEntry entry) {
+            super(entry.key, entry.featureKey);
             this.entry = entry;
             set("override", new VarArgFunction() {
                 @Override
                 public Varargs invoke(Varargs args) {
-                    return applyOverride(argument(args, OreReference.this));
+                    return override(argument(args, OreReference.this));
                 }
             });
         }
@@ -131,7 +143,7 @@ public final class OreGenApi {
                     return valueOf(entry.id);
                 }
                 if (property.equals("key")) {
-                    return entry.key == null ? NIL : valueOf(entry.key.toString());
+                    return valueOf(entry.key.toString());
                 }
                 if (property.equals("owner")) {
                     return valueOf(entry.owner);
@@ -166,10 +178,8 @@ public final class OreGenApi {
                 if (property.equals("biomes")) {
                     LuaTable biomes = new LuaTable();
                     BiomeGenBase[] values = entry.getAllowedBiomes();
-                    if (values != null) {
-                        for (int i = 0; i < values.length; i++) {
-                            biomes.set(i + 1, values[i].biomeName);
-                        }
+                    for (int index = 0; index < values.length; index++) {
+                        biomes.set(index + 1, values[index].biomeName);
                     }
                     return biomes;
                 }
@@ -178,16 +188,13 @@ public final class OreGenApi {
         }
 
         private boolean matches(LuaValue criteria) {
-            if (!criteria.get("key").isnil()
-                    && (entry.key == null || !entry.key.toString().equals(criteria.get("key").checkjstring()))) {
+            if (!criteria.get("key").isnil() && !entry.key.toString().equals(criteria.get("key").checkjstring())) {
                 return false;
             }
-            if (!criteria.get("owner").isnil()
-                    && !entry.owner.equals(criteria.get("owner").checkjstring())) {
+            if (!criteria.get("owner").isnil() && !entry.owner.equals(criteria.get("owner").checkjstring())) {
                 return false;
             }
-            if (!criteria.get("enabled").isnil()
-                    && entry.enabled != criteria.get("enabled").checkboolean()) {
+            if (!criteria.get("enabled").isnil() && entry.enabled != criteria.get("enabled").checkboolean()) {
                 return false;
             }
             if (!criteria.get("block").isnil()
@@ -201,16 +208,16 @@ public final class OreGenApi {
             return true;
         }
 
-        private LuaValue applyOverride(LuaValue definition) {
+        private LuaValue override(LuaValue definition) {
             if (!definition.istable()) {
-                throw new LuaError("ore override expects a table.");
+                throw new LuaError("Ore override expects a table.");
             }
-            final LuaTable handle = new LuaTable();
+            LuaTable handle = new LuaTable();
             handle.set("target", this);
             LuaValue when = definition.get("when");
             if (!when.isnil()) {
                 if (!when.istable()) {
-                    throw new LuaError("ore override when must be a table.");
+                    throw new LuaError("Ore override when must be a table.");
                 }
                 if (!when.get("owner").isnil() && !entry.owner.equals(when.get("owner").checkjstring())) {
                     handle.set("active", FALSE);
@@ -223,17 +230,16 @@ public final class OreGenApi {
                 changes = definition;
             }
             if (!changes.istable()) {
-                throw new LuaError("ore override changes must be a table.");
+                throw new LuaError("Ore override changes must be a table.");
             }
             int priority = definition.get("priority").optint(0);
             List<OverrideManager.Request<?, ?>> requests = new ArrayList<OverrideManager.Request<?, ?>>();
-            LuaValue key = NIL;
-            while (!(key = changes.next(key).arg1()).isnil()) {
-                String property = key.checkjstring();
-                if (isControlProperty(property)) {
-                    continue;
+            LuaValue field = NIL;
+            while (!(field = changes.next(field).arg1()).isnil()) {
+                String property = field.checkjstring();
+                if (!isControlProperty(property)) {
+                    requests.add(request(property, changes.get(field), priority));
                 }
-                requests.add(request(property, changes.get(key), priority));
             }
             final List<OverrideManager.Layer<?, ?>> layers = OverrideManager.applyAll(requests);
             handle.set("active", TRUE);
@@ -241,8 +247,8 @@ public final class OreGenApi {
                 @Override
                 public Varargs invoke(Varargs args) {
                     if (handle.get("active").toboolean()) {
-                        for (int i = layers.size() - 1; i >= 0; i--) {
-                            layers.get(i).remove();
+                        for (int index = layers.size() - 1; index >= 0; index--) {
+                            layers.get(index).remove();
                         }
                         handle.set("active", FALSE);
                     }
@@ -253,160 +259,83 @@ public final class OreGenApi {
         }
 
         private OverrideManager.Request<?, ?> request(String property, LuaValue value, int priority) {
-            String target = "ore:" + entry.id;
             if (property.equals("enabled")) {
-                return OverrideManager.request(target, entry, booleanProperty("enabled", new BooleanAccess() {
-                    public boolean get(OreGenEntry value) {
-                        return value.enabled;
-                    }
-
-                    public void set(OreGenEntry target, boolean value) {
-                        target.enabled = value;
-                    }
-                }), Boolean.valueOf(value.checkboolean()), priority);
+                return request(property, valueOf(value.checkboolean()), priority, target -> valueOf(target.enabled),
+                        (target, next) -> target.enabled = next.checkboolean());
             }
             if (property.equals("block")) {
-                return OverrideManager.request(target, entry, integerProperty("block", new IntegerAccess() {
-                    public int get(OreGenEntry value) {
-                        return value.blockId;
-                    }
-
-                    public void set(OreGenEntry target, int value) {
-                        target.blockId = value;
-                    }
-                }), Integer.valueOf(OreDeclaration.resolveBlockId(value)), priority);
+                int parsed = OreDeclaration.resolveBlockId(value);
+                return request(property, valueOf(parsed), priority, target -> valueOf(target.blockId),
+                        (target, next) -> target.blockId = next.checkint());
             }
-            if (property.equals("veinsPerChunk") || property.equals("veinSize")) {
-                int parsed = positive(value, property);
-                IntegerAccess access = property.equals("veinsPerChunk") ? new IntegerAccess() {
-                    public int get(OreGenEntry value) {
-                        return value.veinsPerChunk;
-                    }
-
-                    public void set(OreGenEntry target, int value) {
-                        target.veinsPerChunk = value;
-                    }
-                } : new IntegerAccess() {
-                    public int get(OreGenEntry value) {
-                        return value.veinSize;
-                    }
-
-                    public void set(OreGenEntry target, int value) {
-                        target.veinSize = value;
-                    }
-                };
-                return OverrideManager.request(target, entry, integerProperty(property, access),
-                        Integer.valueOf(parsed), priority);
+            if (property.equals("veinsPerChunk")) {
+                int parsed = integer(value, property, 0, WorldGenLimits.MAX_ATTEMPTS_PER_CHUNK);
+                return request(property, valueOf(parsed), priority, target -> valueOf(target.veinsPerChunk),
+                        (target, next) -> target.veinsPerChunk = next.checkint());
+            }
+            if (property.equals("veinSize")) {
+                int parsed = integer(value, property, 1, WorldGenLimits.MAX_ORE_VEIN_SIZE);
+                return request(property, valueOf(parsed), priority, target -> valueOf(target.veinSize),
+                        (target, next) -> target.veinSize = next.checkint());
             }
             if (property.equals("height")) {
-                Height height = Height.parse(value);
-                OverrideManager.Property<OreGenEntry, Height> definition = new OverrideManager.Property<OreGenEntry, Height>(
-                        "height", new OverrideManager.PropertyAdapter<OreGenEntry, Height>() {
-                            public Height read(OreGenEntry target) {
-                                return new Height(target.minY, target.maxY);
-                            }
-
-                            public void write(OreGenEntry target, Height value) {
-                                target.minY = value.min;
-                                target.maxY = value.max;
-                            }
+                Height parsed = Height.parse(value);
+                return typedRequest(property, parsed, priority, target -> new Height(target.minY, target.maxY),
+                        (target, next) -> {
+                            target.minY = next.min;
+                            target.maxY = next.max;
                         });
-                return OverrideManager.request(target, entry, definition, height, priority);
             }
             if (property.equals("dimension")) {
-                OverrideManager.Property<OreGenEntry, GenerationDimension> definition = new OverrideManager.Property<OreGenEntry, GenerationDimension>(
-                        "dimension", new OverrideManager.PropertyAdapter<OreGenEntry, GenerationDimension>() {
-                            public GenerationDimension read(OreGenEntry target) {
-                                return target.dimension;
-                            }
-
-                            public void write(OreGenEntry target, GenerationDimension value) {
-                                target.dimension = value;
-                            }
-                        });
-                return OverrideManager.request(target, entry, definition,
-                        GenerationDimension.parse(value.checkjstring()), priority);
+                GenerationDimension parsed = GenerationDimension.parse(value.checkjstring());
+                return typedRequest(property, parsed, priority, target -> target.dimension,
+                        (target, next) -> target.dimension = next);
             }
             if (property.equals("replace")) {
-                Integer replacement = value.isboolean() && !value.toboolean()
-                        ? null : Integer.valueOf(OreDeclaration.resolveBlockId(value));
-                OverrideManager.Property<OreGenEntry, Integer> definition = new OverrideManager.Property<OreGenEntry, Integer>(
-                        "replace", new OverrideManager.PropertyAdapter<OreGenEntry, Integer>() {
-                            public Integer read(OreGenEntry target) {
-                                return target.targetBlockId;
-                            }
-
-                            public void write(OreGenEntry target, Integer value) {
-                                target.targetBlockId = value;
-                            }
-                        });
-                return OverrideManager.request(target, entry, definition, replacement, priority);
+                Integer parsed = value.isboolean() && !value.toboolean()
+                        ? null
+                        : Integer.valueOf(OreDeclaration.resolveBlockId(value));
+                return typedRequest(property, parsed, priority, target -> target.targetBlockId,
+                        (target, next) -> target.targetBlockId = next);
             }
             if (property.equals("biomes")) {
-                Biomes biomes = Biomes.parse(value);
-                OverrideManager.Property<OreGenEntry, Biomes> definition = new OverrideManager.Property<OreGenEntry, Biomes>(
-                        "biomes", new OverrideManager.PropertyAdapter<OreGenEntry, Biomes>() {
-                            public Biomes read(OreGenEntry target) {
-                                return new Biomes(target.getAllowedBiomes());
-                            }
-
-                            public void write(OreGenEntry target, Biomes value) {
-                                target.setAllowedBiomes(value.values);
-                            }
-                        });
-                return OverrideManager.request(target, entry, definition, biomes, priority);
+                Biomes parsed = Biomes.parse(value);
+                return typedRequest(property, parsed, priority, target -> new Biomes(target.getAllowedBiomes()),
+                        (target, next) -> target.setAllowedBiomes(next.values));
             }
             throw new LuaError("Property '" + property + "' cannot be overridden on an ore rule.");
         }
-    }
 
-    private static synchronized OreReference reference(OreGenEntry entry) {
-        OreReference reference = REFERENCES.get(entry);
-        if (reference == null) {
-            reference = new OreReference(entry);
-            REFERENCES.put(entry, reference);
+        private OverrideManager.Request<OreGenEntry, LuaValue> request(String property, LuaValue value, int priority,
+                Reader<LuaValue> reader, Writer<LuaValue> writer) {
+            return typedRequest(property, value, priority, reader, writer);
         }
-        return reference;
+
+        private <T> OverrideManager.Request<OreGenEntry, T> typedRequest(String property, T value, int priority,
+                final Reader<T> reader, final Writer<T> writer) {
+            OverrideManager.Property<OreGenEntry, T> definition = new OverrideManager.Property<OreGenEntry, T>(property,
+                    new OverrideManager.PropertyAdapter<OreGenEntry, T>() {
+                        @Override
+                        public T read(OreGenEntry target) {
+                            return reader.read(target);
+                        }
+
+                        @Override
+                        public void write(OreGenEntry target, T next) {
+                            writer.write(target, next);
+                            WorldGenRegistry.refreshOre(target);
+                        }
+                    });
+            return OverrideManager.request("ore:" + entry.key, entry, definition, value, priority);
+        }
     }
 
-    private interface IntegerAccess {
-        int get(OreGenEntry target);
-
-        void set(OreGenEntry target, int value);
+    private interface Reader<T> {
+        T read(OreGenEntry target);
     }
 
-    private interface BooleanAccess {
-        boolean get(OreGenEntry target);
-
-        void set(OreGenEntry target, boolean value);
-    }
-
-    private static OverrideManager.Property<OreGenEntry, Integer> integerProperty(String name,
-            final IntegerAccess access) {
-        return new OverrideManager.Property<OreGenEntry, Integer>(name,
-                new OverrideManager.PropertyAdapter<OreGenEntry, Integer>() {
-                    public Integer read(OreGenEntry target) {
-                        return Integer.valueOf(access.get(target));
-                    }
-
-                    public void write(OreGenEntry target, Integer value) {
-                        access.set(target, value.intValue());
-                    }
-                });
-    }
-
-    private static OverrideManager.Property<OreGenEntry, Boolean> booleanProperty(String name,
-            final BooleanAccess access) {
-        return new OverrideManager.Property<OreGenEntry, Boolean>(name,
-                new OverrideManager.PropertyAdapter<OreGenEntry, Boolean>() {
-                    public Boolean read(OreGenEntry target) {
-                        return Boolean.valueOf(access.get(target));
-                    }
-
-                    public void write(OreGenEntry target, Boolean value) {
-                        access.set(target, value.booleanValue());
-                    }
-                });
+    private interface Writer<T> {
+        void write(OreGenEntry target, T value);
     }
 
     private static final class Height {
@@ -420,14 +349,24 @@ public final class OreGenApi {
 
         private static Height parse(LuaValue value) {
             if (!value.istable()) {
-                throw new LuaError("ore override height must be a table.");
+                throw new LuaError("Ore override height must be a table.");
             }
             int min = value.get("min").checkint();
             int max = value.get("max").checkint();
-            if (min < 0 || max < min || max > 127) {
-                throw new LuaError("ore override height must satisfy 0 <= min <= max <= 127.");
+            if (min < WorldGenLimits.MIN_HEIGHT || max > WorldGenLimits.MAX_HEIGHT || min > max) {
+                throw new LuaError("Ore override height must satisfy 0 <= min <= max <= 127.");
             }
             return new Height(min, max);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof Height && min == ((Height) other).min && max == ((Height) other).max;
+        }
+
+        @Override
+        public int hashCode() {
+            return min * 31 + max;
         }
     }
 
@@ -435,7 +374,7 @@ public final class OreGenApi {
         private final BiomeGenBase[] values;
 
         private Biomes(BiomeGenBase[] values) {
-            this.values = values == null ? null : values.clone();
+            this.values = values == null ? new BiomeGenBase[0] : values.clone();
         }
 
         private static Biomes parse(LuaValue value) {
@@ -456,10 +395,10 @@ public final class OreGenApi {
         }
     }
 
-    private static int positive(LuaValue value, String property) {
+    private static int integer(LuaValue value, String property, int min, int max) {
         int parsed = value.checkint();
-        if (parsed <= 0) {
-            throw new LuaError(property + " must be positive.");
+        if (parsed < min || parsed > max) {
+            throw new LuaError(property + " must be between " + min + " and " + max + ".");
         }
         return parsed;
     }

@@ -5,9 +5,12 @@ import betamoon.worldgen.BiomeSpawnGroup;
 import betamoon.worldgen.BiomeTreeMode;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import net.minecraft.src.BiomeGenBase;
 import net.minecraft.src.Block;
 import net.minecraft.src.EntityLiving;
@@ -26,6 +29,7 @@ public final class BiomeDeclaration {
     }
 
     public final String name;
+    public final String key;
     public final BiomeGenBase basedOn;
     public final Integer color;
     public final Integer foliageColor;
@@ -37,12 +41,17 @@ public final class BiomeDeclaration {
     public final Integer bigTreeChance;
     public final Weather weather;
     public final Map<BiomeSpawnGroup, List<Spawn>> spawns;
+    public final Set<String> tags;
+    public final LuaValue surfaceRule;
+    public final LuaValue decorators;
+    public final boolean legacyClimateRange;
 
     public BiomeDeclaration(LuaValue definition) {
         if (!definition.istable()) {
             throw new LuaError("worldgen.biomes:add expects a definition table.");
         }
         name = required(definition, "name").checkjstring();
+        key = definition.get("key").isnil() ? null : definition.get("key").checkjstring();
         LuaValue source = definition.get("basedOn");
         basedOn = source.isnil() ? null : resolveBiome(source.checkjstring());
         if (!source.isnil() && basedOn == null) {
@@ -56,6 +65,7 @@ public final class BiomeDeclaration {
                 ? resolveBlockId(surface.get("filler"))
                 : null;
         LuaValue range = definition.get("range");
+        legacyClimateRange = key == null || !range.isnil();
         temperature = new Range(range.istable() ? range.get("temperature") : LuaValue.NIL, "temperature",
                 "setTemperatureRange");
         humidity = new Range(range.istable() ? range.get("humidity") : LuaValue.NIL, "humidity", "setHumidityRange");
@@ -74,6 +84,41 @@ public final class BiomeDeclaration {
                         ? Weather.SNOW
                         : climate.get("rain").toboolean() ? Weather.RAIN : Weather.DRY;
         spawns = readSpawns(definition.get("spawns"));
+        tags = readTags(definition.get("tags"));
+        LuaValue explicitSurfaceRule = definition.get("surfaceRule");
+        if (!explicitSurfaceRule.isnil()) {
+            surfaceRule = explicitSurfaceRule;
+        } else if (surface instanceof SurfaceReference || surface.isstring()) {
+            surfaceRule = surface;
+        } else {
+            surfaceRule = surface.istable() ? surface.get("rule") : LuaValue.NIL;
+        }
+        LuaValue decorator = definition.get("decorator");
+        decorators = definition.get("decorators").isnil() && decorator.istable()
+                ? decorator.get("placements") : definition.get("decorators");
+    }
+
+    private static Set<String> readTags(LuaValue value) {
+        if (value.isnil()) {
+            return Collections.emptySet();
+        }
+        if (!value.istable() || value.length() > 64) {
+            throw new LuaError("Biome.tags: expected an array with at most 64 entries");
+        }
+        Set<String> result = new HashSet<String>();
+        for (int index = 1; index <= value.length(); index++) {
+            String tag = value.get(index).checkjstring().trim().toLowerCase(Locale.ROOT);
+            if (tag.startsWith("#")) {
+                tag = tag.substring(1);
+            }
+            if (tag.isEmpty() || tag.length() > 128) {
+                throw new LuaError("Biome.tags[" + index + "]: expected 1..128 characters");
+            }
+            if (!result.add(tag)) {
+                throw new LuaError("Biome.tags: duplicate tag: " + tag);
+            }
+        }
+        return Collections.unmodifiableSet(result);
     }
 
     private static Integer optionalInteger(LuaValue value) {

@@ -4,6 +4,8 @@ import betamoon.luaapi.resource.OverrideManager;
 import betamoon.worldgen.BiomeGenRegistry;
 import betamoon.worldgen.BiomeSpawnGroup;
 import betamoon.worldgen.BiomeTreeMode;
+import betamoon.worldgen.WorldGenKey;
+import betamoon.worldgen.biome.BiomeDefinition;
 import betamoon.wrappers.BiomeGenWrapper;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -18,9 +20,10 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
+import org.luaj.vm2.lib.ZeroArgFunction;
 
 /** Stable live reference for a native or BetaMoon biome. */
-final class BiomeReference extends LuaTable {
+public final class BiomeReference extends LuaTable {
     private static final String[] SNOW = {"enableSnow", "v"};
     private static final String[] RAIN = {"enableRain", "w"};
     private static final String[] MONSTERS = {"spawnableMonsterList", "s"};
@@ -28,18 +31,36 @@ final class BiomeReference extends LuaTable {
     private static final String[] WATER = {"spawnableWaterCreatureList", "u"};
 
     private final BiomeGenBase biome;
-    private final BiomeGenRegistry.BiomeGenEntry entry;
+    private final BiomeDefinition entry;
+    private final WorldGenKey key;
     private final String identity;
 
-    BiomeReference(BiomeGenBase biome, BiomeGenRegistry.BiomeGenEntry entry) {
+    BiomeReference(BiomeGenBase biome, BiomeDefinition entry) {
         this.biome = biome;
         this.entry = entry;
-        identity = "biome:" + System.identityHashCode(biome);
+        this.key = entry == null ? null : entry.key;
+        identity = key == null ? "biome:" + System.identityHashCode(biome) : "biome:" + key;
+        set("getKey", new ZeroArgFunction() {
+            @Override
+            public LuaValue call() {
+                return valueOf(BiomeReference.this.key == null
+                        ? BiomeReference.this.biome.biomeName
+                        : BiomeReference.this.key.toString());
+            }
+        });
         set("override", new VarArgFunction() {
             public Varargs invoke(Varargs args) {
                 return override(args.arg(args.arg1() == BiomeReference.this ? 2 : 1));
             }
         });
+    }
+
+    public BiomeReference(WorldGenKey key) {
+        this(requiredBiome(key), BiomeGenRegistry.definitionFor(key));
+    }
+
+    WorldGenKey key() {
+        return key;
     }
 
     @Override
@@ -48,7 +69,10 @@ final class BiomeReference extends LuaTable {
             return super.get(key);
         }
         String name = key.tojstring();
-        if (name.equals("name") || name.equals("displayName") || name.equals("key")) {
+        if (name.equals("key")) {
+            return valueOf(key == null ? biome.biomeName : key.toString());
+        }
+        if (name.equals("name") || name.equals("displayName")) {
             return valueOf(biome.biomeName);
         }
         if (name.equals("owner")) {
@@ -104,8 +128,7 @@ final class BiomeReference extends LuaTable {
         if (!query.get("owner").isnil() && !get("owner").raweq(query.get("owner"))) {
             return false;
         }
-        if (!query.get("name").isnil()
-                && !biome.biomeName.equalsIgnoreCase(query.get("name").checkjstring())) {
+        if (!query.get("name").isnil() && !biome.biomeName.equalsIgnoreCase(query.get("name").checkjstring())) {
             return false;
         }
         return query.get("vanilla").isnil() || (entry == null) == query.get("vanilla").checkboolean();
@@ -152,8 +175,7 @@ final class BiomeReference extends LuaTable {
         return handle;
     }
 
-    private void collect(LuaValue changes, String prefix, int priority,
-            List<OverrideManager.Request<?, ?>> requests) {
+    private void collect(LuaValue changes, String prefix, int priority, List<OverrideManager.Request<?, ?>> requests) {
         LuaValue key = NIL;
         while (true) {
             Varargs next = changes.next(key);
@@ -162,8 +184,8 @@ final class BiomeReference extends LuaTable {
                 return;
             }
             String field = key.checkjstring();
-            if (prefix.length() == 0 && (field.equals("when") || field.equals("priority")
-                    || field.equals("target") || field.equals("changes"))) {
+            if (prefix.length() == 0 && (field.equals("when") || field.equals("priority") || field.equals("target")
+                    || field.equals("changes"))) {
                 continue;
             }
             String path = prefix.length() == 0 ? field : prefix + "." + field;
@@ -192,8 +214,8 @@ final class BiomeReference extends LuaTable {
             }), value.checkjstring(), priority);
         }
         if (path.equals("color")) {
-            return request(path, intProperty(path, () -> biome.color, value1 -> biome.color = value1),
-                    value.checkint(), priority);
+            return request(path, intProperty(path, () -> biome.color, value1 -> biome.color = value1), value.checkint(),
+                    priority);
         }
         if (path.equals("foliageColor")) {
             return request(path, intProperty(path, () -> biome.field_6502_q, value1 -> biome.field_6502_q = value1),
@@ -203,8 +225,7 @@ final class BiomeReference extends LuaTable {
             final boolean top = path.endsWith("top");
             int block = BiomeDeclaration.resolveBlockId(value);
             OverrideManager.Property<BiomeGenBase, Integer> property = intProperty(path,
-                    () -> top ? biome.topBlock & 255 : biome.fillerBlock & 255,
-                    value1 -> {
+                    () -> top ? biome.topBlock & 255 : biome.fillerBlock & 255, value1 -> {
                         if (top) {
                             biome.topBlock = (byte) value1;
                         } else {
@@ -233,26 +254,25 @@ final class BiomeReference extends LuaTable {
             }
             final boolean temperature = path.endsWith("temperature");
             Range parsed = parseRange(value, path);
-            OverrideManager.Property<BiomeGenRegistry.BiomeGenEntry, Range> property =
-                    new OverrideManager.Property<BiomeGenRegistry.BiomeGenEntry, Range>(path,
-                            new OverrideManager.PropertyAdapter<BiomeGenRegistry.BiomeGenEntry, Range>() {
-                                public Range read(BiomeGenRegistry.BiomeGenEntry target) {
-                                    return temperature
-                                            ? new Range(target.minTemperature, target.maxTemperature)
-                                            : new Range(target.minHumidity, target.maxHumidity);
-                                }
+            OverrideManager.Property<BiomeDefinition, Range> property = new OverrideManager.Property<BiomeDefinition, Range>(
+                    path, new OverrideManager.PropertyAdapter<BiomeDefinition, Range>() {
+                        public Range read(BiomeDefinition target) {
+                            return temperature
+                                    ? new Range(target.minTemperature, target.maxTemperature)
+                                    : new Range(target.minHumidity, target.maxHumidity);
+                        }
 
-                                public void write(BiomeGenRegistry.BiomeGenEntry target, Range range) {
-                                    if (temperature) {
-                                        target.minTemperature = range.min;
-                                        target.maxTemperature = range.max;
-                                    } else {
-                                        target.minHumidity = range.min;
-                                        target.maxHumidity = range.max;
-                                    }
-                                    BiomeGenRegistry.applyBiomeGenerators();
-                                }
-                            });
+                        public void write(BiomeDefinition target, Range range) {
+                            if (temperature) {
+                                target.minTemperature = range.min;
+                                target.maxTemperature = range.max;
+                            } else {
+                                target.minHumidity = range.min;
+                                target.maxHumidity = range.max;
+                            }
+                            BiomeGenRegistry.applyBiomeGenerators();
+                        }
+                    });
             return OverrideManager.request(identity, entry, property, parsed, priority);
         }
         if (path.equals("trees.type") || path.equals("trees.bigTreeChance")) {
@@ -261,42 +281,48 @@ final class BiomeReference extends LuaTable {
             }
             final BiomeGenWrapper wrapper = (BiomeGenWrapper) biome;
             if (path.endsWith("type")) {
-                OverrideManager.Property<BiomeGenBase, BiomeTreeMode> property =
-                        new OverrideManager.Property<BiomeGenBase, BiomeTreeMode>(path,
-                                new OverrideManager.PropertyAdapter<BiomeGenBase, BiomeTreeMode>() {
-                                    public BiomeTreeMode read(BiomeGenBase target) {
-                                        return wrapper.treeMode();
-                                    }
+                OverrideManager.Property<BiomeGenBase, BiomeTreeMode> property = new OverrideManager.Property<BiomeGenBase, BiomeTreeMode>(
+                        path, new OverrideManager.PropertyAdapter<BiomeGenBase, BiomeTreeMode>() {
+                            public BiomeTreeMode read(BiomeGenBase target) {
+                                return wrapper.treeMode();
+                            }
 
-                                    public void write(BiomeGenBase target, BiomeTreeMode mode) {
-                                        wrapper.applyTreeMode(mode);
-                                    }
-                                });
+                            public void write(BiomeGenBase target, BiomeTreeMode mode) {
+                                wrapper.applyTreeMode(mode);
+                            }
+                        });
                 return request(path, property, BiomeTreeMode.parse(value.checkjstring()), priority);
             }
             int chance = value.checkint();
             if (chance < 1) {
                 throw new LuaError("trees.bigTreeChance must be at least 1.");
             }
-            return request(path, intProperty(path, wrapper::bigTreeChance, wrapper::applyBigTreeChance),
-                    chance, priority);
+            return request(path, intProperty(path, wrapper::bigTreeChance, wrapper::applyBigTreeChance), chance,
+                    priority);
         }
         if (path.equals("spawns")) {
             final SpawnLists parsed = SpawnLists.fromDeclaration(BiomeDeclaration.readSpawns(value));
-            OverrideManager.Property<BiomeGenBase, SpawnLists> property =
-                    new OverrideManager.Property<BiomeGenBase, SpawnLists>(path,
-                            new OverrideManager.PropertyAdapter<BiomeGenBase, SpawnLists>() {
-                                public SpawnLists read(BiomeGenBase target) {
-                                    return readSpawns(target);
-                                }
+            OverrideManager.Property<BiomeGenBase, SpawnLists> property = new OverrideManager.Property<BiomeGenBase, SpawnLists>(
+                    path, new OverrideManager.PropertyAdapter<BiomeGenBase, SpawnLists>() {
+                        public SpawnLists read(BiomeGenBase target) {
+                            return readSpawns(target);
+                        }
 
-                                public void write(BiomeGenBase target, SpawnLists spawns) {
-                                    spawns.write(target);
-                                }
-                            });
+                        public void write(BiomeGenBase target, SpawnLists spawns) {
+                            spawns.write(target);
+                        }
+                    });
             return request(path, property, parsed, priority);
         }
         return null;
+    }
+
+    private static BiomeGenBase requiredBiome(WorldGenKey key) {
+        BiomeGenBase biome = BiomeGenRegistry.biomeFor(key);
+        if (biome == null) {
+            throw new LuaError("Biome is not registered: " + key);
+        }
+        return biome;
     }
 
     private <V> OverrideManager.Request<BiomeGenBase, V> request(String path,
@@ -387,8 +413,7 @@ final class BiomeReference extends LuaTable {
     }
 
     private static SpawnLists readSpawns(BiomeGenBase biome) {
-        return new SpawnLists(copy(list(biome, MONSTERS)), copy(list(biome, CREATURES)),
-                copy(list(biome, WATER)));
+        return new SpawnLists(copy(list(biome, MONSTERS)), copy(list(biome, CREATURES)), copy(list(biome, WATER)));
     }
 
     private static List<SpawnListEntry> copy(List<SpawnListEntry> source) {
@@ -448,8 +473,7 @@ final class BiomeReference extends LuaTable {
         private final List<SpawnListEntry> creatures;
         private final List<SpawnListEntry> water;
 
-        private SpawnLists(List<SpawnListEntry> monsters, List<SpawnListEntry> creatures,
-                List<SpawnListEntry> water) {
+        private SpawnLists(List<SpawnListEntry> monsters, List<SpawnListEntry> creatures, List<SpawnListEntry> water) {
             this.monsters = Collections.unmodifiableList(monsters);
             this.creatures = Collections.unmodifiableList(creatures);
             this.water = Collections.unmodifiableList(water);
