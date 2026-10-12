@@ -28,6 +28,16 @@ stack.
 - Use vanilla water/lava only as temporary native material carriers behind an extensible boundary; fluid identity does
   not depend on the carrier; custom materials and ecology integrations remain later work.
 
+### Animated textures
+
+- Add reusable vertical frame-strip textures with registered or inline playback settings, client-tick timing,
+  optional frame sequence and pause behavior, and shared use across blocks, items, fluids, model materials, armor,
+  and GUI images.
+- Keep atlas slots and standalone texture bindings stable while frames advance, validate pack overrides before
+  selection, and retain the previous usable animation when a refresh fails.
+- Advance frame strips from Minecraft's client tick count in ModLoader callbacks so blocks, items, and fluids animate
+  even when the optional client-control agent hook is unavailable.
+
 ### Input and control foundation
 
 - Add owner-scoped named input maps with keyboard, mouse-button, wheel, and modifier bindings; exact per-cycle

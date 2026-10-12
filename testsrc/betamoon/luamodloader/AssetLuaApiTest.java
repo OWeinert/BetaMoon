@@ -2,14 +2,13 @@ package betamoon.luamodloader;
 
 import betamoon.assets.io.FileAssetProvider;
 import betamoon.assets.io.ZipAssetProvider;
-import betamoon.client.assets.ClientAssets;
-import betamoon.client.assets.AtlasTextures;
-import betamoon.resources.EnumTexAtlas;
 import betamoon.client.assets.AssetResourceTest;
+import betamoon.client.assets.AtlasTextures;
+import betamoon.client.assets.ClientAssets;
+import betamoon.resources.EnumTexAtlas;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.lang.reflect.Field;
-import net.minecraft.src.Session;
-import net.minecraft.src.ModLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -18,6 +17,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+import javax.imageio.ImageIO;
+import net.minecraft.src.ModLoader;
+import net.minecraft.src.Session;
 
 /**
  * Runs the public API inside the real parser/lifecycle, including recoverable
@@ -31,6 +33,8 @@ public final class AssetLuaApiTest {
         Path root = Files.createTempDirectory("betamoon-lua-assets-");
         try {
             Files.write(root.resolve("guard.png"), AssetResourceTest.png(0xff00ff00, 16));
+            ImageIO.write(new BufferedImage(16, 32, BufferedImage.TYPE_INT_ARGB), "png",
+                    root.resolve("strip.png").toFile());
             Files.write(root.resolve("hit.wav"), AssetResourceTest.wav());
             Files.write(root.resolve("broken.png"), new byte[]{0});
             Path textureFolder = root.resolve("mymod/textures/lessons");
@@ -73,6 +77,10 @@ public final class AssetLuaApiTest {
                     + "assert(not pcall(function() betamoon.assets.textures:add{key='mymod:early',path='guard.png'} end))\n"
                     + "function modInit()\n"
                     + " local t=betamoon.assets.textures:add{key='mymod:guard',path='guard.png'}\n"
+                    + " local moving=betamoon.assets.textures:add{key='mymod:moving',path='strip.png',"
+                    + "animation={frameTicks=2}}\n"
+                    + " assert(not pcall(function() betamoon.assets.textures:add{key='mymod:bad_anim',"
+                    + "path='strip.png',animation={layout='grid'}} end))\n"
                     + " assert(t:getKey()=='mymod:guard' and t:getKind()=='textures')\n"
                     + " assert(t:getPath()=='guard.png' and t:getOverridePath()=='bm_assets/guard.png')\n"
                     + " local inferred=betamoon.assets.textures:add{key='mymod:lessons/mosaic'}\n"
@@ -87,7 +95,7 @@ public final class AssetLuaApiTest {
                     + " assert(betamoon.assets.textures:getRequired('mymod:guard')~=nil)\n"
                     + " assert(not pcall(function() betamoon.assets.textures:add{key='mymod:broken',path='broken.png'} end))\n"
                     + " assert(betamoon.assets.textures:get('mymod:broken')==nil)\n"
-                    + " betamoon.blocks:add{id=231,key='asset_block',material='rock',texture=t,textures={top='mymod:guard'}}\n"
+                    + " betamoon.blocks:add{id=231,key='asset_block',material='rock',texture=t,textures={top=moving}}\n"
                     + " betamoon.items:add{id=29001,key='asset_item',texture=t}\n"
                     + " betamoon.items:getRequired(29001):override{texture=t}\n"
                     + " local s=betamoon.assets.sounds:add{key='mymod:guard',path='hit.wav'}\n"
@@ -119,6 +127,7 @@ public final class AssetLuaApiTest {
             ScriptResourceTracker.unload("asset_api_test.lua");
             String consumer = "name='Asset cleanup test'\nfunction modInit()\n"
                     + "assert(betamoon.assets.textures:get('mymod:guard')==nil)\n"
+                    + "assert(betamoon.assets.textures:get('mymod:moving')==nil)\n"
                     + "assert(betamoon.assets.sounds:get('mymod:guard')==nil)\n"
                     + "assert(betamoon.soundEvents:get('mymod:hit')==nil)\nend";
             ScriptMod cleanup = new ScriptModParser().parse(new File("asset_cleanup_test.lua"), consumer, errors);

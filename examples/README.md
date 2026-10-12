@@ -8,9 +8,10 @@ is kept loaded for world safety and requires a Minecraft restart after changes.
 
 Read files in name order. `01_beg`, `02_int`, and `03_adv` sort the beginner,
 intermediate, and advanced categories correctly in normal file explorers.
-Beginner 02 is a minimal packaged mod. Beginner 20 uses letters for two
-independent mods that demonstrate cross-mod exports. Packaged lessons are
-self-contained folders with one `betamoon.mod.json`; copy each complete folder
+Beginner 02 is a minimal packaged mod. Beginner 11 extends the registered
+texture lesson; beginner 21 uses letters for two independent mods that
+demonstrate cross-mod exports. Packaged lessons are self-contained folders
+with one `betamoon.mod.json`; copy each complete folder
 without rearranging its files. Their manifests are the sole source of package
 metadata (`name`, `version`, `description`, and `dependencies`); entrypoint Lua
 files contain behavior without duplicating those fields.
@@ -46,26 +47,27 @@ used by later examples.
 | 08 | `01_beg_08_simple_override.lua` | Changing one property of an existing resource |
 | 09 | `01_beg_09_textures.lua` | Custom block and item textures |
 | 10 | `01_beg_10_registered_texture.lua` | Reusable registered PNG for a block and item |
-| 11 | `01_beg_11_food.lua` | Food properties |
-| 12 | `01_beg_12_drops.lua` | Custom block drops |
-| 13 | `01_beg_13_vanilla_recipes.lua` | Shaped, shapeless, and smelting recipes |
-| 14 | `01_beg_14_tool.lua` | Tool materials and tool types |
-| 15 | `01_beg_15_armor.lua` | Armor materials, pieces, and textures |
-| 16 | `01_beg_16_utilities.lua` | Stack and position utilities |
-| 17 | `01_beg_17_chat.lua` | Chat output and formatting |
-| 18 | `01_beg_18_projectile.lua` | Projectile ammunition and cooldowns |
-| 19 | `01_beg_19_ore_generation.lua` | Ore generation in new chunks |
-| 20a–20b | `01_beg_20a_module_export.lua`, `01_beg_20b_module_import.lua` | Sharing an exported table between scripts |
-| 21 | `01_beg_21_item_subtypes.lua` | Metadata subtypes and render variants |
-| 22 | `01_beg_22_builtin_model_item.lua` | Built-in slab model on an item |
-| 23 | `01_beg_23_biome_from_default.lua` | Adapting a vanilla biome |
-| 24 | `01_beg_24_first_event.lua` | Responding to one global game event |
-| 25 | `01_beg_25_first_block_interaction.lua` | Handling a block activation |
-| 26 | `01_beg_26_first_item_use.lua` | Handling a consumable item's right-click action |
-| 27 | `01_beg_27_click_sound.lua` | Registered WAV and local playback from item use |
-| 28 | `01_beg_28_custom_fuel.lua` | Registering an item as vanilla furnace fuel |
-| 29 | `01_beg_29_simple_feature_placement.lua` | Separating a reusable feature from its scheduled placement |
-| 30 | `01_beg_30_simple_tree_placement.lua` | Scheduling a vanilla-adapter tree with surface conditions |
+| 11 | `01_beg_11_animated_texture.lua` | Animated version of a shared block and item texture |
+| 12 | `01_beg_12_food.lua` | Food properties |
+| 13 | `01_beg_13_drops.lua` | Custom block drops |
+| 14 | `01_beg_14_vanilla_recipes.lua` | Shaped, shapeless, and smelting recipes |
+| 15 | `01_beg_15_tool.lua` | Tool materials and tool types |
+| 16 | `01_beg_16_armor.lua` | Armor materials, pieces, and textures |
+| 17 | `01_beg_17_utilities.lua` | Stack and position utilities |
+| 18 | `01_beg_18_chat.lua` | Chat output and formatting |
+| 19 | `01_beg_19_projectile.lua` | Projectile ammunition and cooldowns |
+| 20 | `01_beg_20_ore_generation.lua` | Ore generation in new chunks |
+| 21a–21b | `01_beg_21a_module_export.lua`, `01_beg_21b_module_import.lua` | Sharing an exported table between scripts |
+| 22 | `01_beg_22_item_subtypes.lua` | Metadata subtypes and render variants |
+| 23 | `01_beg_23_builtin_model_item.lua` | Built-in slab model on an item |
+| 24 | `01_beg_24_biome_from_default.lua` | Adapting a vanilla biome |
+| 25 | `01_beg_25_first_event.lua` | Responding to one global game event |
+| 26 | `01_beg_26_first_block_interaction.lua` | Handling a block activation |
+| 27 | `01_beg_27_first_item_use.lua` | Handling a consumable item's right-click action |
+| 28 | `01_beg_28_click_sound.lua` | Registered WAV and local playback from item use |
+| 29 | `01_beg_29_custom_fuel.lua` | Registering an item as vanilla furnace fuel |
+| 30 | `01_beg_30_simple_feature_placement.lua` | Separating a reusable feature from its scheduled placement |
+| 31 | `01_beg_31_simple_tree_placement.lua` | Scheduling a vanilla-adapter tree with surface conditions |
 
 ## Intermediate
 
@@ -93,7 +95,7 @@ state, physical behavior, and event-driven logic.
 | 17 | `02_int_17_facing_model_block.lua` | One built-in stair model rotated by placement state |
 | 18 | `02_int_18_launch_pad.lua` | Player filtering and motion-preserving launch behavior |
 | 19 | `02_int_19_special_blocks.lua` | Replaceable, translucent, luminous, and unbreakable blocks |
-| 20 | `02_int_20_custom_fluid.lua` | Paired fluid blocks, a bucket, and independent entity/camera policies |
+| 20 | `02_int_20_custom_fluid.lua` | Paired fluid blocks, animated appearance, a bucket, and entity/camera policies |
 | 21 | `02_int_21_random_and_continuous_ticks.lua` | Default and vanilla random block ticks |
 | 22 | `02_int_22_scheduled_and_display_ticks.lua` | Scheduled gameplay ticks and client display ticks |
 | 23 | `02_int_23_redstone_switch.lua` | Directional digital redstone output |
@@ -140,12 +142,13 @@ and, where useful, organize private modules with `require`.
 | Lesson | Content and use |
 | --- | --- |
 | Beginner 10 | **Mosaic Block** (232) and **Mosaic Token** (5030): compare one registered texture on both. |
-| Beginner 18 | **Snowball Launcher** (5023): two iron ingots + snowball. Carry snowball ammunition and right-click. |
-| Beginner 22 | **Slab Model Item** (5031): compare its 3D model in inventory, hand, and on the ground. |
-| Beginner 25 | **Greeting Block** (228): cobblestone + stick. Place and right-click it to report its position. |
-| Beginner 26 | **Signal Bell** (5028): sugar + redstone makes four. Right-click to play its sound and consume one. |
-| Beginner 27 | **Clicker** (5032): right-click to hear the local WAV. |
-| Beginner 28 | **Compressed Coal** (5041): eight coal around clay; burns for 12,800 ticks in a vanilla furnace. |
+| Beginner 11 | **Pulsing Crystal** block (241) and item (5048): compare their synchronized frames in the world, inventory, and hand. |
+| Beginner 19 | **Snowball Launcher** (5023): two iron ingots + snowball. Carry snowball ammunition and right-click. |
+| Beginner 23 | **Slab Model Item** (5031): compare its 3D model in inventory, hand, and on the ground. |
+| Beginner 26 | **Greeting Block** (228): cobblestone + stick. Place and right-click it to report its position. |
+| Beginner 27 | **Signal Bell** (5028): sugar + redstone makes four. Right-click to play its sound and consume one. |
+| Beginner 28 | **Clicker** (5032): right-click to hear the local WAV. |
+| Beginner 29 | **Compressed Coal** (5041): eight coal around clay; burns for 12,800 ticks in a vanilla furnace. |
 | Intermediate 08 | **Interaction Block** (210): cobblestone + stick. Right-click toggles activity; sneak-right-click locks mining. |
 | Intermediate 09 | **Attached Lamp** (217): stone + glowstone dust makes four. Attach one to any solid face and remove its support. |
 | Intermediate 10 | **Lifecycle Observer** (218): stone + paper. Click it, alter a neighbor, collide with it, then break or explode it. |
@@ -193,7 +196,7 @@ and, where useful, organize private modules with `require`.
   entrypoint uses `require("lifecycle")` to load its private module. It deliberately
   registers nothing, making it a minimal structure to copy before adding content.
 
-- Beginner 20 requires both loose scripts and deliberately treats them as separate
+- Beginner 21 requires both loose scripts and deliberately treats them as separate
   mods. The exporter publishes a public table through `betamoon.modules`; the
   importer declares a dependency and reads that cross-mod export.
 
@@ -242,12 +245,13 @@ and, where useful, organize private modules with `require`.
 
 ## Assets
 
-- For each new asset lesson, copy its matching folder beside the Lua script: `example/` for Beginner 10,
+- For each new asset lesson, copy its matching folder beside the Lua script.
+  Beginners 10 and 11 and Intermediate 20 use `example/`; other lessons use
   `builtin_model_item/`, `click_sound/`, `blockbench_model_item/`,
   `facing_model_block/`, `animated_model_item/`, `animated_machine/`, or `entity_examples/`.
   Keep the folder name and contents unchanged.
 
-- Beginner 09 needs `example_block.png`. Beginner 15 needs the six
+- Beginner 09 needs `example_block.png`. Beginner 16 needs the six
   `example_armor_*.png` files. Copy those files beside their scripts.
 
 - Advanced 06 needs the complete `gui_showcase/` directory beside its script.

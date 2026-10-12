@@ -103,6 +103,9 @@ public final class BetaMoonClient {
         if (common.areScriptsLoaded()) {
             pollScriptChanges();
             ClientAssets.poll();
+            if (mc.theWorld == null) {
+                ClientAssets.animationTicks(ClientTickClock.elapsedTicks(mc), mc.isGamePaused);
+            }
         }
         ClientAudio.tick();
         eventHandler.handleGuiEvents(mc, current);
@@ -115,6 +118,7 @@ public final class BetaMoonClient {
         if (common.areScriptsLoaded()) {
             pollScriptChanges();
             ClientAssets.poll();
+            ClientAssets.animationTicks(ClientTickClock.elapsedTicks(mc), mc.isGamePaused);
         }
         ClientAudio.tick();
         ChatApi.flushPendingMessages();

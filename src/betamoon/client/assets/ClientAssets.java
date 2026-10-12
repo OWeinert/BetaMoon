@@ -11,6 +11,7 @@ import betamoon.client.render.ModelAppearance;
 import betamoon.client.render.EntityVisuals;
 import betamoon.io.IoUtils;
 import betamoon.luaapi.LuaApiUtils;
+import betamoon.resources.LuaTextureResources;
 import betamoon.luaapi.block.BlockModelRegistry;
 import java.io.File;
 import java.io.IOException;
@@ -62,7 +63,30 @@ public final class ClientAssets {
             textureResolver = textureResolver.withDefaults(BuiltinAssetProvider.INSTANCE, "builtin");
         }
         return textureResolver.resolve(location.getCacheKey(), location.getFallback(), location.getOverride(),
-                MAX_TEXTURE_BYTES, TextureImage::decode);
+                MAX_TEXTURE_BYTES, bytes -> {
+                    TextureImage image = TextureImage.decode(bytes);
+                    TextureFrames.decode(image, location.getTextureAnimation());
+                    return image;
+                });
+    }
+
+    /** Advances animations for the logical client ticks completed since the last render callback. */
+    public static void animationTick(boolean paused) {
+        animationTicks(1, paused);
+    }
+
+    public static void animationTicks(int elapsedTicks, boolean paused) {
+        if (elapsedTicks <= 0) {
+            return;
+        }
+        ArrayList<TextureAsset> active = new ArrayList<>(TEXTURES.values());
+        for (int tick = 0; tick < elapsedTicks; tick++) {
+            for (TextureAsset asset : active) {
+                asset.tick(paused);
+            }
+        }
+        AtlasTextures.uploadChanged();
+        LuaTextureResources.uploadChanged();
     }
 
     public static AssetResolver getResolver() throws IOException {
@@ -146,6 +170,7 @@ public final class ClientAssets {
         }
         ModelAppearance.preloadTextures();
         AtlasTextures.uploadChanged();
+        LuaTextureResources.uploadChanged();
         BlockModelRegistry.flushInvalidation();
     }
 

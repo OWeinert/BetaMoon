@@ -98,6 +98,17 @@ public final class LoaderCollectionsTest {
         LuaScriptErrors.getEntries().clear();
         require(LuaScriptErrors.getErrorCount() == 1, "Snapshot changes must not remove recorded errors");
         require(LuaScriptErrors.hasWarningFor("snapshot", "snapshot.lua"), "Warnings must remain recorded");
+        require(LuaScriptErrors.shouldShowPopup(false), "Errors must trigger the default popup");
+        require(LuaScriptErrors.getNotificationEntries(false).size() == 1,
+                "Default notifications must include errors without warnings");
+        require(LuaScriptErrors.getNotificationEntries(true).size() == 2,
+                "Opted-in notifications must include both errors and warnings");
+        LuaScriptErrors.clear();
+        LuaScriptErrors.addWarning("snapshot.lua", "Retained registration");
+        require(!LuaScriptErrors.shouldShowPopup(false), "Warnings alone must not trigger a default popup");
+        require(LuaScriptErrors.shouldShowPopup(true), "Warnings alone must trigger an opted-in popup");
+        LuaScriptErrors.ignore();
+        require(!LuaScriptErrors.shouldShowPopup(true), "Ignoring issues must dismiss an opted-in popup");
     }
 
     private static void verifyCleanupOrderAndFailures() {

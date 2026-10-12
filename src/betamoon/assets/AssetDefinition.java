@@ -17,23 +17,25 @@ public final class AssetDefinition {
     private final boolean builtin;
     private final boolean pathDerived;
     private final String defaultSource;
+    private final TextureAnimation textureAnimation;
 
     /**
      * Extension includes compound suffixes such as animation.json, without a
      * leading dot.
      */
     public AssetDefinition(AssetId id, AssetPath fallbackPath, String extension) {
-        this(id, fallbackPath, extension, false, false, null);
+        this(id, fallbackPath, extension, false, false, null, null);
     }
 
     private AssetDefinition(AssetId id, AssetPath fallbackPath, String extension, boolean builtin,
-            boolean pathDerived, String defaultSource) {
+            boolean pathDerived, String defaultSource, TextureAnimation textureAnimation) {
         this.id = Objects.requireNonNull(id, "Asset identity");
         this.fallbackPath = Objects.requireNonNull(fallbackPath, "Asset fallback path");
         this.extension = Objects.requireNonNull(extension, "Asset extension");
         this.builtin = builtin;
         this.pathDerived = pathDerived;
         this.defaultSource = defaultSource;
+        this.textureAnimation = textureAnimation;
         if (!EXTENSION.matcher(extension).matches()) {
             throw new IllegalArgumentException("Invalid lowercase asset extension: " + extension);
         }
@@ -43,12 +45,23 @@ public final class AssetDefinition {
     }
 
     static AssetDefinition builtin(AssetKind kind, AssetKey key, AssetPath resource, String extension) {
-        return new AssetDefinition(new AssetId(kind, key), resource, extension, true, false, null);
+        return new AssetDefinition(new AssetId(kind, key), resource, extension, true, false, null, null);
     }
 
     /** Creates a declaration whose fallback path was resolved from its key. */
     public static AssetDefinition derived(AssetId id, AssetPath fallbackPath, String extension) {
-        return new AssetDefinition(id, fallbackPath, extension, false, true, null);
+        return new AssetDefinition(id, fallbackPath, extension, false, true, null, null);
+    }
+
+    public AssetDefinition withTextureAnimation(TextureAnimation animation) {
+        if (id.getKind() != AssetKind.TEXTURE) {
+            throw new IllegalArgumentException("Only texture assets accept animation metadata");
+        }
+        return new AssetDefinition(id, fallbackPath, extension, builtin, pathDerived, defaultSource, animation);
+    }
+
+    public TextureAnimation getTextureAnimation() {
+        return textureAnimation;
     }
 
     /** Associates a script asset with the Lua source that owns its default file. */
@@ -57,7 +70,7 @@ public final class AssetDefinition {
             throw new IllegalStateException("Built-in assets do not have a Lua source");
         }
         return new AssetDefinition(id, fallbackPath, extension, false, pathDerived,
-                Objects.requireNonNull(source, "Asset default source"));
+                Objects.requireNonNull(source, "Asset default source"), textureAnimation);
     }
 
     public boolean isBuiltin() {
