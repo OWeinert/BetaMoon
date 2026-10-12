@@ -10,6 +10,7 @@ import net.minecraft.src.NBTTagCompound;
 public final class BetaMoonWorldData extends MapDataBase {
     private NBTTagCompound services = new NBTTagCompound();
     private NBTTagCompound networks = new NBTTagCompound();
+    private NBTTagCompound structures = new NBTTagCompound();
     private final Map<String, NBTBase> unknown = new LinkedHashMap<>();
 
     public BetaMoonWorldData(String name) {
@@ -21,12 +22,14 @@ public final class BetaMoonWorldData extends MapDataBase {
         unknown.clear();
         for (Object value : tag.func_28110_c()) {
             NBTBase saved = (NBTBase) value;
-            if (!("Services".equals(saved.getKey()) || "Networks".equals(saved.getKey()))) {
+            if (!("Services".equals(saved.getKey()) || "Networks".equals(saved.getKey())
+                    || "Structures".equals(saved.getKey()))) {
                 unknown.put(saved.getKey(), saved);
             }
         }
         services = tag.hasKey("Services") ? tag.getCompoundTag("Services") : new NBTTagCompound();
         networks = tag.hasKey("Networks") ? tag.getCompoundTag("Networks") : new NBTTagCompound();
+        structures = tag.hasKey("Structures") ? tag.getCompoundTag("Structures") : new NBTTagCompound();
     }
 
     @Override
@@ -36,6 +39,7 @@ public final class BetaMoonWorldData extends MapDataBase {
         }
         tag.setCompoundTag("Services", services);
         tag.setCompoundTag("Networks", networks);
+        tag.setCompoundTag("Structures", structures);
     }
 
     public NBTTagCompound services() {
@@ -44,5 +48,9 @@ public final class BetaMoonWorldData extends MapDataBase {
 
     public NBTTagCompound networks() {
         return networks;
+    }
+
+    public NBTTagCompound structures() {
+        return structures;
     }
 }

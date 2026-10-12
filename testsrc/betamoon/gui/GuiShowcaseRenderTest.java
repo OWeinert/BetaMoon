@@ -392,7 +392,7 @@ public final class GuiShowcaseRenderTest {
 
     private static final class IssuePanelLayout extends GuiContainer {
         private final GuiPanelScriptInfo infoPanel = add(new GuiPanelScriptInfo());
-        private final GuiPanelScriptErrorList errorPanel = add(new GuiPanelScriptErrorList());
+        private final GuiPanelScriptErrorList errorPanel = add(new GuiPanelScriptErrorList(true));
 
         private IssuePanelLayout(ScriptMod selected) {
             infoPanel.setHeaderY(12);

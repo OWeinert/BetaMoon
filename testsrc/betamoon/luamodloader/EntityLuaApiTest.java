@@ -31,7 +31,9 @@ import betamoon.luaapi.entity.EntitiesApi;
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.item.ItemUseDefinition;
 import betamoon.luaapi.utils.LuaCallbackScope;
+import betamoon.luaapi.world.LootTablesApi;
 import betamoon.luaapi.world.LuaWorldActionAccess;
+import betamoon.loot.LootTableRegistry;
 import betamoon.network.protocol.WireValue;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
@@ -94,6 +96,7 @@ public final class EntityLuaApiTest {
         AssetsApi.attach(api);
         AudioApi.attach(api);
         EntitiesApi.attach(api);
+        LootTablesApi.attach(api);
         lua.set("betamoon", api);
         lua.set("spawnCount", org.luaj.vm2.LuaValue.ZERO);
         lua.set("loadCount", org.luaj.vm2.LuaValue.ZERO);
@@ -135,7 +138,9 @@ public final class EntityLuaApiTest {
             EntityBootstrap.register();
             try (ScriptExecutionScope owner = ScriptExecutionScope.open("entities.lua");
                     ScriptAssetScope assets = ScriptAssetScope.open("entities.lua");
-                    ScriptEntityScope scope = ScriptEntityScope.open("entities.lua")) {
+                    ScriptEntityScope scope = ScriptEntityScope.open("entities.lua");
+                    LootTableRegistry.PublicationBatch lootTables = LootTableRegistry.beginPublication(
+                            "entities.lua", "Entity test")) {
                 lua.load("local sound=betamoon.assets.sounds:add{key='mymod:entity_sound',path='test.wav'}; "
                         + "presentationSound=betamoon.soundEvents:add{key='mymod:entity_sound',sound=sound}")
                         .call();
@@ -212,6 +217,17 @@ public final class EntityLuaApiTest {
                 lua.load("betamoon.entities:add{key='mymod:stack_limited_loot',kind='prop',"
                         + "appearance={model='minecraft:block/torch',texture='test.png'},"
                         + "drops={{item=" + Item.swordSteel.shiftedIndex + ",min=3,max=3}}}")
+                        .call();
+                lua.load("local runtime=betamoon.lootTables:add{key='mymod:runtime_entity_drops',pools={{"
+                        + "key='main',rolls=1,entries={{type='item',weight=1,stack={item=263}},"
+                        + "{type='item',weight=1,stack={item=264}}}}}};"
+                        + "betamoon.entities:add{key='mymod:table_loot_prop',kind='prop',"
+                        + "appearance={model='minecraft:block/torch',texture='test.png'},"
+                        + "drops={table=runtime}};"
+                        + "betamoon.entities:add{key='mymod:inline_loot_prop',kind='prop',"
+                        + "appearance={model='minecraft:block/torch',texture='test.png'},"
+                        + "drops={pools={{key='main',rolls=1,entries={{type='item',"
+                        + "stack={item=266,count=2}}}}}}}")
                         .call();
                 lua.load("local shot=betamoon.entities:add{key='mymod:shot',kind='projectile',"
                         + "appearance={model='minecraft:block/torch',texture='test.png'},"
@@ -460,8 +476,13 @@ public final class EntityLuaApiTest {
                         .call();
                 require(EntityTypeRegistry.find(AssetKey.parse("mymod:lamp")) == null,
                         "Unpublished declarations must stay private");
+                lootTables.validate();
                 assets.publish();
                 scope.publish();
+                List<String> dropErrors = new ArrayList<String>();
+                EntityTypeRegistry.validateDrops(dropErrors);
+                require(dropErrors.isEmpty(), "Entity loot-table references must validate during publication");
+                lootTables.publish();
                 SoundEvents.publish("entities.lua");
             }
             EntityTypeDefinition lamp = EntityTypeRegistry.find(AssetKey.parse("mymod:lamp"));
@@ -721,6 +742,21 @@ public final class EntityLuaApiTest {
                     && countItemQuantity(world, swordId) == swordQuantityBefore + 3
                     && hasItemEntity(world, swordId, 1),
                     "Declared loot totals must split into legal native stack sizes");
+            LuaPropEntity tableLoot = (LuaPropEntity) EntitySpawner.spawn(world,
+                    AssetKey.parse("mymod:table_loot_prop"), 12, 64, 6, 0, 0).entity;
+            int coalBefore = countItemEntities(world, 263);
+            int diamondsBeforeTable = countItemEntities(world, 264);
+            for (int sample = 0; sample < 32; sample++) {
+                require(EntityLoot.dropLoot(tableLoot), "Registered entity loot table must remain callable");
+            }
+            require(countItemEntities(world, 263) > coalBefore
+                    && countItemEntities(world, 264) > diamondsBeforeTable,
+                    "Repeated entity loot-table evaluations must resample from runtime world RNG");
+            LuaPropEntity inlineLoot = (LuaPropEntity) EntitySpawner.spawn(world,
+                    AssetKey.parse("mymod:inline_loot_prop"), 12, 64, 7, 0, 0).entity;
+            int goldBefore = countItemQuantity(world, 266);
+            require(EntityLoot.dropLoot(inlineLoot) && countItemQuantity(world, 266) == goldBefore + 2,
+                    "Inline entity loot pools must emit their generated item stack");
             LuaPropEntity failedDamage = (LuaPropEntity) EntitySpawner.spawn(world,
                     AssetKey.parse("mymod:failed_damage"), 13, 64, 2, 0, 0).entity;
             require(failedDamage != null && !failedDamage.attackEntityFrom(null, 2)
@@ -1479,6 +1515,7 @@ public final class EntityLuaApiTest {
         } finally {
             EntityPresentationEvents.install(null);
             EntityTypeRegistry.clear();
+            LootTableRegistry.clear();
             EntityVisuals.prune();
         }
     }

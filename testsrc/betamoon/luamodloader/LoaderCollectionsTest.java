@@ -1,8 +1,10 @@
 package betamoon.luamodloader;
 
 import betamoon.luaapi.BetaMoonModule;
+import betamoon.luaapi.chat.ChatApi;
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -26,6 +28,7 @@ public final class LoaderCollectionsTest {
     public static void main(String[] arguments) throws Exception {
         try {
             verifyRegistrySnapshots();
+            verifyChatSenderIdentity();
             verifyCleanupOrderAndFailures();
             verifyIdentityOwnership();
             verifyRetainedContent();
@@ -49,6 +52,32 @@ public final class LoaderCollectionsTest {
         }
     }
 
+    private static void verifyChatSenderIdentity() throws Exception {
+        LuaScriptRegistry.clear();
+        LuaScriptRegistry.updateParsed("example/main.lua", "Example Mod", Collections.emptyList(), LuaValue.NIL,
+                LuaValue.NIL, LuaValue.NIL, null, null, null);
+
+        Method prefixMessage = ChatApi.class.getDeclaredMethod("prefixMessage", String.class);
+        prefixMessage.setAccessible(true);
+        try {
+            LuaScriptRegistry.setCurrentScriptFile("example/main.lua");
+            require("[Example Mod]: Hello".equals(prefixMessage.invoke(null, "Hello")),
+                    "Chat messages must use the parsed mod name instead of the entrypoint file name");
+
+            LuaScriptRegistry.registerFile("legacy.lua");
+            LuaScriptRegistry.setCurrentScriptFile("legacy.lua");
+            require("Hello".equals(prefixMessage.invoke(null, "Hello")),
+                    "Chat must not expose an internal filename when display metadata is unavailable");
+
+            LuaScriptRegistry.setCurrentScriptFile(null);
+            require("Hello".equals(prefixMessage.invoke(null, "Hello")),
+                    "Messages without a script execution scope must not gain a sender prefix");
+        } finally {
+            LuaScriptRegistry.setCurrentScriptFile(null);
+            LuaScriptRegistry.clear();
+        }
+    }
+
     private static void verifyRegistrySnapshots() {
         LuaScriptRegistry.clear();
         ScriptMod original = script("snapshot", Collections.emptyList());
@@ -69,6 +98,17 @@ public final class LoaderCollectionsTest {
         LuaScriptErrors.getEntries().clear();
         require(LuaScriptErrors.getErrorCount() == 1, "Snapshot changes must not remove recorded errors");
         require(LuaScriptErrors.hasWarningFor("snapshot", "snapshot.lua"), "Warnings must remain recorded");
+        require(LuaScriptErrors.shouldShowPopup(false), "Errors must trigger the default popup");
+        require(LuaScriptErrors.getNotificationEntries(false).size() == 1,
+                "Default notifications must include errors without warnings");
+        require(LuaScriptErrors.getNotificationEntries(true).size() == 2,
+                "Opted-in notifications must include both errors and warnings");
+        LuaScriptErrors.clear();
+        LuaScriptErrors.addWarning("snapshot.lua", "Retained registration");
+        require(!LuaScriptErrors.shouldShowPopup(false), "Warnings alone must not trigger a default popup");
+        require(LuaScriptErrors.shouldShowPopup(true), "Warnings alone must trigger an opted-in popup");
+        LuaScriptErrors.ignore();
+        require(!LuaScriptErrors.shouldShowPopup(true), "Ignoring issues must dismiss an opted-in popup");
     }
 
     private static void verifyCleanupOrderAndFailures() {

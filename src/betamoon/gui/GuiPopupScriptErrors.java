@@ -8,10 +8,15 @@ import net.minecraft.src.GuiScreen;
 
 /** Dialog that reports Lua script errors and warnings found during loading. */
 public final class GuiPopupScriptErrors extends GuiDialogScreen {
-    private final GuiPanelScriptErrorList errorList = new GuiPanelScriptErrorList();
+    private final GuiPanelScriptErrorList errorList;
 
     public GuiPopupScriptErrors(GuiScreen parent) {
-        super(parent, "Scripts Loaded with Errors/Warnings");
+        this(parent, true);
+    }
+
+    public GuiPopupScriptErrors(GuiScreen parent, boolean showWarnings) {
+        super(parent, showWarnings ? "Scripts Loaded with Errors/Warnings" : "Scripts Loaded with Errors");
+        errorList = new GuiPanelScriptErrorList(showWarnings);
 
         dialog.setPanelSize(360, 260, 140);
         dialog.setBody(errorList);

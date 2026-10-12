@@ -1,8 +1,9 @@
 package betamoon.entity;
 
+import betamoon.fluid.contact.FluidContactRuntime;
 import net.minecraft.src.Entity;
 
-/** Minimal previous-frame maintenance for an inactive, non-simulating bridge. */
+/** Previous-frame maintenance and declarative contact for manually ticked entities. */
 final class EntityMotion {
     private EntityMotion() {
     }
@@ -11,11 +12,13 @@ final class EntityMotion {
         frozenTick(entity);
         entity.ticksExisted++;
         entity.motionX = entity.motionY = entity.motionZ = 0;
+        FluidContactRuntime.tickWithoutNativeUpdate(entity);
     }
 
     static void manualTick(Entity entity) {
         frozenTick(entity);
         entity.ticksExisted++;
+        FluidContactRuntime.tickWithoutNativeUpdate(entity);
     }
 
     static void frozenTick(Entity entity) {

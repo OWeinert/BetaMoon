@@ -3,6 +3,7 @@ package betamoon.client.render;
 import betamoon.assets.io.FileAssetProvider;
 import betamoon.assets.model.ModelFoundationTest;
 import betamoon.client.assets.ClientAssets;
+import betamoon.client.assets.TexturePixelUpload;
 import betamoon.luaapi.asset.ModelAppearanceDeclaration;
 import betamoon.luaapi.block.ModelVariantRenderTest;
 import java.awt.image.BufferedImage;
@@ -84,6 +85,18 @@ public final class ModelRenderTest {
                 }
             }
             ModelVariantRenderTest.run(textureId);
+            BufferedImage replacement = new BufferedImage(64, 32, BufferedImage.TYPE_INT_ARGB);
+            for (int y = 0; y < 32; y++) {
+                for (int x = 0; x < 64; x++) {
+                    replacement.setRGB(x, y, 0xff2080e0);
+                }
+            }
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, textureId);
+            TexturePixelUpload.upload(replacement, 0, 0, 64, 32, false, false);
+            ByteBuffer uploaded = BufferUtils.createByteBuffer(64 * 32 * 4);
+            GL11.glGetTexImage(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, uploaded);
+            require((uploaded.get(0) & 255) == 0x20 && (uploaded.get(1) & 255) == 0x80
+                    && (uploaded.get(2) & 255) == 0xe0, "Managed texture frame did not reach OpenGL");
             GL11.glDeleteTextures(textureId);
             require(GL11.glGetError() == GL11.GL_NO_ERROR, "OpenGL error after model rendering");
         } finally {

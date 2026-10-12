@@ -4,6 +4,7 @@ import betamoon.client.assets.AssetLocation;
 import betamoon.client.assets.ClientAssets;
 import betamoon.client.assets.TextureAsset;
 import betamoon.client.assets.TextureImage;
+import betamoon.client.assets.TexturePixelUpload;
 import betamoon.luaapi.asset.AssetInputs;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -11,8 +12,10 @@ import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.RenderEngine;
+import org.lwjgl.opengl.GL11;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 
@@ -45,7 +48,9 @@ public final class LuaTextureResources {
         try {
             TextureAsset texture = ClientAssets.acquireTexture(location);
             resource = PREFIX + (++nextId) + ".png";
-            ENTRIES.put(resource, new Entry(key, texture));
+            Entry entry = new Entry(key, texture);
+            texture.listen(entry.listener);
+            ENTRIES.put(resource, entry);
             RESOURCES_BY_KEY.put(key, resource);
             return resource;
         } catch (IOException error) {
@@ -58,12 +63,19 @@ public final class LuaTextureResources {
             return null;
         }
         Entry entry = ENTRIES.get(resource);
-        return (entry == null ? MISSING : entry.texture.getContent().getValue()).open();
+        if (entry == null) {
+            return MISSING.open();
+        }
+        try {
+            return entry.texture.getFrames().open(entry.texture.framePosition());
+        } catch (IOException error) {
+            throw new IllegalStateException("Cannot encode texture frame " + resource, error);
+        }
     }
 
     public static synchronized BufferedImage load(String resource) {
         Entry entry = ENTRIES.get(resource);
-        return entry == null ? null : entry.texture.getContent().getValue().getImage();
+        return entry == null ? null : entry.texture.currentFrame();
     }
 
     public static synchronized int[] dimensions(String resource) {
@@ -78,8 +90,41 @@ public final class LuaTextureResources {
         }
         ENTRIES.remove(resource);
         RESOURCES_BY_KEY.remove(entry.key);
+        entry.texture.unlisten(entry.listener);
         entry.texture.close();
         removeMinecraftTexture(resource);
+    }
+
+    /** Upload changed standalone frames to Minecraft's stable cached texture IDs. */
+    public static synchronized void uploadChanged() {
+        if (ModLoader.getMinecraftInstance() == null || ModLoader.getMinecraftInstance().renderEngine == null) {
+            return;
+        }
+        RenderEngine engine = ModLoader.getMinecraftInstance().renderEngine;
+        boolean anaglyph = ModLoader.getMinecraftInstance().gameSettings.anaglyph;
+        int previous = GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
+        try {
+            for (Map.Entry<String, Entry> binding : ENTRIES.entrySet()) {
+                Entry entry = binding.getValue();
+                if (entry.texture.getFrames().animation() == null || !entry.dirty && entry.anaglyph == anaglyph) {
+                    continue;
+                }
+                int textureId = engine.getTexture(binding.getKey());
+                engine.bindTexture(textureId);
+                BufferedImage frame = entry.texture.currentFrame();
+                int width = GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, 0, GL11.GL_TEXTURE_WIDTH);
+                int height = GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D, 0, GL11.GL_TEXTURE_HEIGHT);
+                if (width != frame.getWidth() || height != frame.getHeight()) {
+                    engine.setupTexture(frame, textureId);
+                } else {
+                    TexturePixelUpload.upload(frame, 0, 0, width, height, anaglyph, RenderEngine.useMipmaps);
+                }
+                entry.dirty = false;
+                entry.anaglyph = anaglyph;
+            }
+        } finally {
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, previous);
+        }
     }
 
     private static void removeMinecraftTexture(String resourcePath) {
@@ -106,7 +151,10 @@ public final class LuaTextureResources {
     private static final class Entry {
         private final String key;
         private final TextureAsset texture;
+        private final Consumer<TextureImage> listener = image -> dirty = true;
         private int references = 1;
+        private boolean dirty = true;
+        private boolean anaglyph;
 
         private Entry(String key, TextureAsset texture) {
             this.key = key;

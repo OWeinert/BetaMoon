@@ -7,6 +7,8 @@ import betamoon.luaapi.audio.AudioApi;
 import betamoon.luaapi.event.EventsApi;
 import betamoon.luaapi.entity.EntitiesApi;
 import betamoon.luaapi.fuel.FuelsApi;
+import betamoon.luaapi.fluid.FluidApi;
+import betamoon.luaapi.input.InputApi;
 import betamoon.luaapi.material.ArmorMaterialApi;
 import betamoon.luaapi.material.ToolMaterialApi;
 import betamoon.luaapi.minecraft.MinecraftApi;
@@ -21,6 +23,7 @@ import betamoon.luaapi.tileentity.TileEntityApi;
 import betamoon.luaapi.utils.PositionF;
 import betamoon.luaapi.utils.PositionI;
 import betamoon.luaapi.world.WorldGenApi;
+import betamoon.luaapi.world.LootTablesApi;
 import betamoon.recipes.custom.RecipeBindings;
 import betamoon.recipes.custom.RecipeMatcherRegistry;
 import betamoon.luamodloader.ScriptExecution;
@@ -60,7 +63,9 @@ public final class BetaMoonModule extends TwoArgFunction {
         AssetsApi.attach(module);
         EntitiesApi.attach(module);
         FuelsApi.attach(module);
+        FluidApi.attach(module);
         AudioApi.attach(module);
+        InputApi.attach(module);
         CapabilitiesApi.attach(module);
         SystemsApi.attach(module);
         LogicalNetworksApi.attach(module);
@@ -73,6 +78,7 @@ public final class BetaMoonModule extends TwoArgFunction {
         LuaTable recipes = new LuaTable();
         module.set("recipes", recipes);
 
+        LootTablesApi.attach(module);
         WorldGenApi.attach(module);
         MinecraftApi.attach(module);
 

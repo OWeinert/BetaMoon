@@ -19,7 +19,7 @@ public final class AssetInputs {
     }
 
     public static AssetLocation texture(LuaValue value) {
-        return read(value, AssetKind.TEXTURE);
+        return TextureInputs.read(value);
     }
 
     public static AssetLocation sound(LuaValue value) {

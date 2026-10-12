@@ -104,8 +104,9 @@ public final class GuiScreenScripts extends GuiComponentScreen {
         }
         reloadPending = false;
         reloadButton.setEnabled(true);
-        if (LuaScriptErrors.shouldShowPopup()) {
-            showScreen(new GuiPopupScriptErrors(this));
+        boolean showWarnings = main != null && main.showScriptWarningsOnLoad();
+        if (LuaScriptErrors.shouldShowPopup(showWarnings)) {
+            showScreen(new GuiPopupScriptErrors(this, showWarnings));
         }
     }
 

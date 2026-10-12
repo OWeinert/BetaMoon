@@ -11,7 +11,7 @@ public final class LuaLoaderClientFeedback {
     private LuaLoaderClientFeedback() {
     }
 
-    public static void initialize() {
+    public static void initialize(boolean showWarnings) {
         LuaLoaderFeedback.install(new LuaLoaderFeedback.Sink() {
             @Override
             public void reportIssues() {
@@ -19,7 +19,7 @@ public final class LuaLoaderClientFeedback {
                 if (minecraft == null || minecraft.thePlayer == null) {
                     return;
                 }
-                List<LuaScriptErrors.ScriptIssue> issues = LuaScriptErrors.getEntries();
+                List<LuaScriptErrors.ScriptIssue> issues = LuaScriptErrors.getNotificationEntries(showWarnings);
                 for (LuaScriptErrors.ScriptIssue issue : issues) {
                     addColoredChatMessage(minecraft, issue.getMessage(), issue.isWarning() ? "\u00a76" : "\u00a7c");
                 }

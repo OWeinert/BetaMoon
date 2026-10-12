@@ -9,6 +9,9 @@ public final class BlockApi {
     }
 
     public static Block add(LuaValue definition) {
+        if ("fluid".equals(definition.get("type").optjstring(""))) {
+            return FluidBlockRegistration.register(definition);
+        }
         return BlockRegistration.register(new BlockDeclaration(definition));
     }
 }

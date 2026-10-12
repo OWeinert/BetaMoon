@@ -15,6 +15,9 @@ public final class ItemApi {
     }
 
     public static Item add(LuaValue definition) {
+        if ("fluid_bucket".equals(definition.get("type").optjstring(""))) {
+            return FluidBucketRegistration.register(definition);
+        }
         return ItemRegistration.register(new ItemDeclaration(definition));
     }
 }

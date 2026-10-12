@@ -1,5 +1,8 @@
 package betamoon.luaapi.resource;
 
+import betamoon.fluid.FluidBlockRole;
+import betamoon.fluid.FluidRegistration;
+import betamoon.fluid.FluidRegistry;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.asset.AssetInputs;
 import betamoon.luaapi.asset.AssetReference;
@@ -9,12 +12,14 @@ import betamoon.luaapi.block.BlockDisplayOverrideDefinition;
 import betamoon.luaapi.block.BlockDisplayTickOverrides;
 import betamoon.luaapi.block.BlockDropDefinition;
 import betamoon.luaapi.block.BlockFireRegistration;
+import betamoon.luaapi.fluid.FluidReference;
 import betamoon.luaapi.item.ItemCallbackOverrides;
 import betamoon.luaapi.item.ItemApi;
-import betamoon.minecraft.MinecraftBuiltins;
+import betamoon.luaapi.utils.LuaDataReference;
 import betamoon.luaapi.utils.LuaOverrideDefinition;
 import betamoon.luaapi.utils.LuaOverrideLayers;
 import betamoon.luamodloader.LuaContentRegistry;
+import betamoon.minecraft.MinecraftBuiltins;
 import betamoon.query.QueryEntries;
 import betamoon.query.QueryEntry;
 import betamoon.resources.EnumTexAtlas;
@@ -88,6 +93,46 @@ public final class ResourceApi {
         module.set("armor", new Registry(false, "armor"));
         module.set("stack", new StackFunction());
         module.set("overrides", new OverrideService());
+    }
+
+    public static LuaValue blockReference(Block block) {
+        return block == null ? NIL : new BlockReference(block, 0);
+    }
+
+    public static LuaValue itemReference(Item item) {
+        return item == null ? NIL : new ItemReference(item, 0);
+    }
+
+    public static Block requireBlockReference(LuaValue value) {
+        if (!(value instanceof BlockReference)) {
+            throw new LuaError("Expected a block reference.");
+        }
+        return ((BlockReference) value).block;
+    }
+
+    public static Item requireItemReference(LuaValue value) {
+        if (!(value instanceof ItemReference)) {
+            throw new LuaError("Expected an item reference.");
+        }
+        return ((ItemReference) value).item;
+    }
+
+    public static Block resolveBlock(LuaValue value) {
+        if (value instanceof BlockReference) {
+            return ((BlockReference) value).block;
+        }
+        LuaValue reference;
+        if (value.isnumber()) {
+            reference = new Registry(true, null).reference(value.checkint(), 0);
+        } else if (value.isstring()) {
+            reference = new Registry(true, null).reference(value.checkjstring());
+        } else {
+            throw new LuaError("Expected a block reference, ID, or name.");
+        }
+        if (reference.isnil()) {
+            throw new LuaError("Block '" + value.tojstring() + "' is not registered.");
+        }
+        return ((BlockReference) reference).block;
     }
 
     /** Shared block/item registry with identical get/find/first/one semantics. */
@@ -411,6 +456,12 @@ public final class ResourceApi {
             set("resistance", numberField(block, Block.class, "blockResistance", "bp"));
             set("stepSound", valueOf(stepSoundName(block.stepSound)));
             set("slipperiness", valueOf(block.slipperiness));
+            FluidRegistration fluid = FluidRegistry.instance().getByBlockId(block.blockID);
+            if (fluid != null) {
+                FluidBlockRole role = fluid.roleOf(block.blockID);
+                set("fluid", FluidReference.compact(fluid));
+                set("fluidRole", valueOf(FluidReference.roleName(role)));
+            }
         }
 
         @Override
@@ -545,6 +596,10 @@ public final class ResourceApi {
                 set("damageVsEntity", valueOf(((ItemTool) item).damageVsEntity));
             } else if (item instanceof ItemSword) {
                 set("damageVsEntity", valueOf(itemDamage(item)));
+            }
+            FluidRegistration fluid = FluidRegistry.instance().getByBucketItemId(item.shiftedIndex);
+            if (fluid != null) {
+                set("fluid", FluidReference.compact(fluid));
             }
         }
 
@@ -1084,6 +1139,9 @@ public final class ResourceApi {
     }
 
     private static LuaValue copyLua(LuaValue value) {
+        if (value instanceof LuaDataReference) {
+            return value;
+        }
         if (!value.istable()) {
             return value;
         }

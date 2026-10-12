@@ -2,7 +2,10 @@ package betamoon.luamodloader;
 
 import betamoon.BetaMoonCommon;
 
+import betamoon.fluid.interaction.FluidInteractionRegistry;
 import betamoon.io.IoUtils;
+import betamoon.luaapi.block.BlockCallbackRegistry;
+import betamoon.luaapi.fluid.FluidDefinitionTracker;
 import betamoon.luaapi.module.ModuleRegistry;
 import betamoon.recipes.RecipeModificationHandler;
 import betamoon.tileentity.TileEntityRegistry;
@@ -11,6 +14,7 @@ import betamoon.entity.EntityPresentationResources;
 import betamoon.wrappers.BlockWrapper;
 import betamoon.worldgen.BiomeGenRegistry;
 import betamoon.worldgen.WorldGenRegistry;
+import betamoon.loot.LootTableRegistry;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -61,6 +65,8 @@ public final class LuaModLoader {
 
     private void loadAndRunInternal() {
         LuaContentRegistry.beginLoadPass();
+        FluidDefinitionTracker.beginLoadPass();
+        FluidInteractionRegistry.instance().beginLoadPass();
         LuaScriptRegistry.clear();
         List<String> errors = new ArrayList<>();
         List<ScriptMod> mods = loadLuaMods(errors);
@@ -78,11 +84,15 @@ public final class LuaModLoader {
             presentScripts.add(mod.sourceFileName);
         }
         EntityTypeRegistry.retainOwners(presentScripts);
+        LootTableRegistry.retainOwners(presentScripts);
+        WorldGenRegistry.retainOwners(presentScripts);
+        BiomeGenRegistry.retainOwners(presentScripts);
         EntityPresentationResources.prune();
         reportFailedMods(failedMods);
         reportLoadSummary(ordered, failedMods);
         BiomeGenRegistry.applyBiomeGenerators();
         List<String> dropErrors = new ArrayList<>();
+        BlockCallbackRegistry.validateDrops(dropErrors);
         BlockWrapper.validatePendingDrops(dropErrors);
         EntityTypeRegistry.validateDrops(dropErrors);
         if (!dropErrors.isEmpty()) {
@@ -90,6 +100,14 @@ public final class LuaModLoader {
                 LuaScriptErrors.add("Block drops", dropErrors.get(i));
             }
             reportErrors(dropErrors);
+        }
+        List<String> fluidDefinitionErrors = FluidDefinitionTracker.finishLoadPass();
+        FluidInteractionRegistry.instance().finishLoadPass();
+        if (!fluidDefinitionErrors.isEmpty()) {
+            for (int i = 0; i < fluidDefinitionErrors.size(); i++) {
+                LuaScriptErrors.add("Fluid registration", fluidDefinitionErrors.get(i));
+            }
+            reportErrors(fluidDefinitionErrors);
         }
         List<String> retainedWarnings = LuaContentRegistry.finishLoadPass();
         for (int i = 0; i < retainedWarnings.size(); i++) {
@@ -135,8 +153,6 @@ public final class LuaModLoader {
             }
             lifecycleRunner.unloadReloadableScripts();
             ScriptResourceTracker.unloadReloadable();
-            WorldGenRegistry.clear();
-            BiomeGenRegistry.clear();
             RecipeModificationHandler.createRecipeMap();
             phase = LoaderPhase.HOT_RELOAD;
             loadAndRunInternal();

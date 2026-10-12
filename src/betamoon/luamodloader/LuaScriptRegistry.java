@@ -1,5 +1,6 @@
 package betamoon.luamodloader;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -250,5 +251,48 @@ public final class LuaScriptRegistry {
      */
     public static String getCurrentScriptFile() {
         return currentScriptFile.get();
+    }
+
+    /** Returns the declared package name for the executing script, with a file fallback. */
+    public static synchronized String getCurrentScriptIdentity() {
+        String file = currentScriptFile.get();
+        if (file == null) {
+            return null;
+        }
+        ScriptMod script = byFile.get(file);
+        return script == null ? file : script.getDisplayName();
+    }
+
+    /** Returns the executing mod's declared user-facing name, without a file fallback. */
+    public static synchronized String getCurrentScriptDisplayName() {
+        String file = currentScriptFile.get();
+        if (file == null) {
+            return null;
+        }
+        ScriptMod script = byFile.get(file);
+        if (script == null) {
+            return null;
+        }
+        if (script.name != null && !script.name.trim().isEmpty()) {
+            return script.name;
+        }
+        LuaModManifest manifest = script.source == null ? null : script.source.manifest();
+        return manifest == null ? null : manifest.name();
+    }
+
+    /** Reads a bounded package-local gameplay-data resource for a published declaration. */
+    public static synchronized byte[] readPackageResource(String sourceFileName, String path, int maxBytes)
+            throws IOException {
+        ScriptMod script = byFile.get(sourceFileName);
+        if (script == null || script.source == null) {
+            throw new IOException("Script package is unavailable: " + sourceFileName);
+        }
+        return script.source.readResource(path, maxBytes);
+    }
+
+    /** Returns a path suitable for diagnostics without exposing the absolute package root. */
+    public static synchronized String packageResourceDisplayPath(String sourceFileName, String path) {
+        ScriptMod script = byFile.get(sourceFileName);
+        return script == null || script.source == null ? path : script.source.sourceDisplayPath(path);
     }
 }
