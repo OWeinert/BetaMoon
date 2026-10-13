@@ -1,99 +1,14 @@
 # Changelog
 
-## 0.8.0
+## 0.9.0 (in development)
 
-BetaMoon 0.8.0 adds deterministic world generation, custom fluids, animated textures, and Lua input maps for
-game-specific controls.
+### Player input and controls
 
-### Script diagnostics
+- Add named input actions with configurable keyboard, mouse-button, and wheel bindings, Hold/Toggle modes, action state, and priority-based capture of native controls.
+- Add staged player controllers for movement, looking, and world actions, with safe fallback to Minecraft behavior.
+- Add Minecraft and BetaMoon tabs to the Controls screen, including search, binding capture, conflict handling, per-action reset, and mode controls where an action allows both modes.
 
-- Show script errors by default on startup and reload. Use `showScriptWarningsOnLoad=true` to include warnings in
-  automatic popups and reload chat messages; keep all warnings available in the Scripts screen and logs.
+### Script configuration
 
-### Custom fluids
-
-- Add keyed custom fluids with explicit non-adjacent flowing/still block pairs, bounded Beta-style flow policies,
-  renewable-source rules, safe displacement, and reload-retained native identities.
-- Add `flow.finite` as a simple source-renewal setting alongside the detailed `sourceCreation` rule.
-- Add identity-aware fluid rendering with independent still/flowing textures, tint, render pass, light, and opacity.
-- Keep rotated flow surfaces within a single atlas tile and let fluid spread over level ground when no downhill path
-  is available.
-- Add optional filled buckets, source-only vanilla-bucket collection, Nether evaporation for water-preset buckets,
-  fluid lookup/references, advanced block/item binding, and deterministic metadata-aware interaction rules.
-- Prevent vanilla bucket fallback from collecting custom sources without a valid bucket, check selected and destination
-  permissions, and preserve held containers whenever collection or placement mutation fails.
-- Route vanilla lava-water hardening through the shared identity-aware interaction evaluator when BetaMoon's native
-  hooks are active, preserving native metadata outcomes without matching custom fluids by carrier material.
-- Add identity-aware entity and eye contact policies for movement, current, breathing and air HUD, wetness, fire,
-  bounded interval damage, fog color/density, and a packaged first-person overlay.
-- Allow numbered bundled Lua lessons to declare `example` fluid and input keys while keeping that namespace reserved
-  for ordinary scripts.
-- Fluid declarations use water or lava block material. Minecraft behavior that checks material directly may still
-  treat a custom fluid like the selected vanilla material.
-
-### Animated textures
-
-- Add reusable vertical frame-strip textures with registered or inline playback settings, client-tick timing,
-  optional frame sequence and pause behavior, and shared use across blocks, items, fluids, model materials, armor,
-  and GUI images.
-- Keep atlas slots and standalone texture bindings stable while frames advance, validate pack overrides before
-  selection, and retain the previous usable animation when a refresh fails.
-- Keep block, item, and fluid animations running without the optional client-control hook.
-
-### Input and control foundation
-
-- Add owner-scoped named input maps with keyboard, mouse-button, wheel, and modifier bindings; exact per-cycle
-  pressed/held/released state; priority-ordered consumable contexts; native-family capture; runtime rebinding and
-  conflict validation.
-- Add script-owned native hotkeys through ModLoader's key registration, including Controls-screen labels, persisted
-  player remaps, optional held repeat, reload-safe native binding reuse, and isolated callback failures.
-- Capture queued gameplay and GUI events before their native consumers, preserve native first-person behavior when no
-  context handles them, synthesize releases across focus/screen/world/player changes, and clean layers up on unload.
-
-### World-generation foundation
-
-- Add typed worldgen keys, deterministic per-placement seeds, atomic publication, bounded placement plans, previews,
-  stable rejection diagnostics, and direct feature placement.
-- Add reusable feature and placement registries with ordering, biome and dimension filters, probability, grid sampling,
-  composite features, lookup references, and placement candidate location.
-- Preserve the approachable ore API while routing declarations through the shared worldgen foundation.
-
-### Trees, structures, biomes, and surfaces
-
-- Add procedural, vanilla-adapter, and structure-authored trees.
-- Add local structures from strict JSON, plain Lua tables, or a table-backed Lua builder, with named palettes,
-  deterministic variants and conditional geometry, compact shapes, reusable templates, ordered weathering processors,
-  transforms, tile data, metadata adapters, capture/export, and marker masks.
-- Protect tile-entity states, tile-data and loot targets, connectors, and terrain supports from document processors by
-  default, with `allowProtected` as an explicit opt-in override.
-- Add keyed biomes, reusable surface stacks, biome decorators, tags, climate biome sources, weather, and spawn lists.
-- Add persistent regional structures with random-spread starts, connector pools, weighted piece graphs, chunk-sliced
-  recovery, entity markers, definition signatures, and location queries.
-- Add reusable deterministic loot tables and dedicated structure loot elements with fixed, inline, or referenced
-  contents, item metadata and ranges, configurable insertion policies, and atomic inventory rollback for local and
-  regional placement.
-- Allow block and entity drops to reuse registered loot tables or declare the same weighted pools inline, with a fresh
-  runtime RNG sample for every drop event while preserving legacy drop lists as shorthand.
-
-### Terrain-aware structures
-
-- Add distinct world-surface, solid-surface, ocean-floor, fluid-surface, underground, and cave-floor sampling.
-- Add opt-in `fit`, `foundation`, `terrace`, and marker-driven `conform` structure modes with transformed support,
-  clearance, ignore, blend, and conform masks.
-- Add footprint-aware land, underwater, underground, cave, and fluid-surface site profiles for local and regional
-  structures.
-- Add bounded regional site fallback search, connector vertical tolerance, and persisted terrain mutations and
-  conform offsets for deterministic recovery.
-- Add terrain planning details to direct placement and preview results, plus focused site and terrain rejection reasons.
-- Add reusable transformed footprints, named and authored masks, rounded and convex foundation/terrace cores,
-  deterministic materials, hard/stepped/blended/natural/authored edges, and bounded transition grading.
-- Add selector-based conform columns with support/tag/state/bounds/height/marker filters, precise include/exclude
-  markers, deterministic smoothing, focused diagnostics, and persisted regional offsets.
-- Add independent atomic excavation for every terrain mode with footprint, box, cylinder, ellipsoid, authored voxel,
-  local/surface-relative bounds, replacement/fluid policies, protected-cell checks, regional recovery, and explicit
-  excavation < adaptation < structure write precedence.
-
-### Chat
-
-- Prefix script chat messages with the mod name declared by its metadata instead of its entrypoint filename, and avoid
-  applying the prefix twice when a singleplayer broadcast falls back to local chat.
+- Add `betamoon.config(key, defaults)` for JSON settings in the instance's `config/betamoon` folder. A short key creates one file; a named key places a file under that key's namespace folder.
+- Return an ordinary Lua table with direct field access and explicit `config.save()` and `config.reload()` methods. Preserve unsaved values on failed reload and reject saves that would overwrite a file changed on disk.
