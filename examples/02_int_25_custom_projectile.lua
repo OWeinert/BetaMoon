@@ -1,4 +1,4 @@
--- Copy entity_examples/ beside this script in lua_scripts.
+-- Copy entity_examples/ beside this script in betamoon/scripts.
 -- Obtain the Pebble Launcher (5037); cobblestone is its ammunition.
 
 name = "Custom Projectile Example"

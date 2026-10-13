@@ -1,6 +1,6 @@
 # Complete worldgen pack example
 
-Copy this whole directory into `.minecraft/lua_scripts/`. It is a capstone rather than a minimal snippet:
+Copy this whole directory into `.minecraft/betamoon/scripts/`. It is a capstone rather than a minimal snippet:
 
 - `main.lua` controls registration order and dependency injection.
 - `features.lua` registers a procedural tree and weighted ground-accent features.

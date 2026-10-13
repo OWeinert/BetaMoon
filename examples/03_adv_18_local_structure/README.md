@@ -1,6 +1,6 @@
 # Local structure example
 
-Copy this entire directory into `.minecraft/lua_scripts/`. The package layout is intentional:
+Copy this entire directory into `.minecraft/betamoon/scripts/`. The package layout is intentional:
 
 - `betamoon.mod.json` selects `main.lua` as the entrypoint.
 - `main.lua` registers the structure as a feature and schedules it.

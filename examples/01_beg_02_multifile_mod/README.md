@@ -1,7 +1,7 @@
 # Multi-file base mod
 
 Copy the complete `01_beg_02_multifile_mod` directory into
-`.minecraft/lua_scripts/`. Keep the files together:
+`.minecraft/betamoon/scripts/`. Keep the files together:
 
 ```text
 01_beg_02_multifile_mod/

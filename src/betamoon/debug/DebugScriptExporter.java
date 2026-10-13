@@ -162,8 +162,8 @@ final class DebugScriptExporter implements DebugExporter {
         if (path == null || path.isEmpty()) {
             return value;
         }
-        String result = value.replace(path, "<lua_scripts>");
-        result = result.replace(path.replace('\\', '/'), "<lua_scripts>");
-        return result.replace(path.replace('/', '\\'), "<lua_scripts>");
+        String result = value.replace(path, "<betamoon/scripts>");
+        result = result.replace(path.replace('\\', '/'), "<betamoon/scripts>");
+        return result.replace(path.replace('/', '\\'), "<betamoon/scripts>");
     }
 }

@@ -1,4 +1,4 @@
--- Copy animated_model_item/ beside this script in lua_scripts.
+-- Copy animated_model_item/ beside this script in betamoon/scripts.
 -- Obtain the Guardian Placer (5040). The head has a hitbox; wings are visual only.
 
 name = "Manual Multipart AI Example"

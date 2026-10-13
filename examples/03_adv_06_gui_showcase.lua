@@ -1,5 +1,5 @@
 -- Read the basic storage lesson first for the tile entity -> container -> GUI -> block relationship.
--- Copy this script AND the gui_showcase folder into lua_scripts, keeping the folder name.
+-- Copy this script AND the gui_showcase folder into betamoon/scripts, keeping the folder name.
 -- Craft chest + redstone dust and open the placed block. Use the Page slot to inspect
 -- one page at a time, then find the corresponding numbered group below.
 -- Edit one element at a time and restart Minecraft: this script owns structural content.
@@ -34,7 +34,7 @@ description = "Adds GUI Showcase, an interactive five-page gallery of container 
 -- GUI elements are visual: real item interaction belongs to container slots.
 local BLOCK_ID = 208
 -- The trailing slash allows ASSETS .. "panel.png" to form a relative path.
--- Keep these files under lua_scripts so the GUI can load them.
+-- Keep these files under betamoon/scripts so the GUI can load them.
 local ASSETS = "gui_showcase/"
 local BACKGROUND = "panel" -- Try "custom" or "builtin", then restart.
 

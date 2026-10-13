@@ -80,6 +80,10 @@ final class LuaModSource {
         return moduleRoot;
     }
 
+    File scriptsRoot() {
+        return scriptsRoot;
+    }
+
     String ownerId() {
         return ownerId;
     }

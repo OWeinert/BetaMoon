@@ -1,11 +1,13 @@
 package betamoon;
 
 import betamoon.entity.EntityBootstrap;
+import betamoon.config.BetaMoonConfig;
 import betamoon.fluid.FluidRegistry;
 import betamoon.fluid.item.FluidBucketHandler;
 import betamoon.instrumentation.agent.AgentStatus;
 import betamoon.instrumentation.agent.BetaMoonAgent;
 import betamoon.luamodloader.LuaModLoader;
+import betamoon.luamodloader.SlowScriptCallbackMonitor;
 import betamoon.network.transport.PacketRegistration;
 import betamoon.recipes.RecipeModificationHandler;
 import betamoon.worldgen.WorldGenRegistry;
@@ -26,7 +28,6 @@ import net.minecraft.src.World;
  */
 public final class BetaMoonCommon {
     public static final String VERSION = "0.9.0";
-    public static final String LUA_SCRIPTS_DIR = "lua_scripts";
     public static final Logger LOGGER = Logger.getLogger("BetaMoon");
 
     private final LuaModLoader luaModLoader;
@@ -62,6 +63,11 @@ public final class BetaMoonCommon {
         RecipeModificationHandler.createRecipeMap();
         luaModLoader.loadAndRun();
         scriptsLoaded = true;
+    }
+
+    public void configure(BetaMoonConfig config) {
+        luaModLoader.configure(config);
+        SlowScriptCallbackMonitor.configure(config.getSlowCallbackWarningMs().getValue());
     }
 
     public void pollScripts() {

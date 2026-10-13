@@ -73,7 +73,8 @@ public final class GuiShowcaseRenderTest {
         File output = new File(args[1]);
         output.mkdirs();
         // Use only a build-owned scripts directory, never an installed player's files.
-        File scriptRoot = new File(IoUtils.resolveMinecraftDirFromCodeSource(LuaTextureResources.class), "lua_scripts");
+        File scriptRoot = new File(IoUtils.resolveMinecraftDirFromCodeSource(LuaTextureResources.class),
+                "betamoon/scripts");
         if (!scriptRoot.getCanonicalPath().startsWith(new File("build").getCanonicalPath() + File.separator)) {
             throw new IllegalStateException("Run with the Gradle build/classes outputs on the classpath");
         }

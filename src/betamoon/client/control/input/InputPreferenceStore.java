@@ -123,7 +123,7 @@ public final class InputPreferenceStore {
         Path target = file.toPath();
         Path parent = target.toAbsolutePath().getParent();
         Files.createDirectories(parent);
-        Path temporary = Files.createTempFile(parent, "betamoon-inputs-", ".tmp");
+        Path temporary = Files.createTempFile(parent, "betamoon-controls-", ".tmp");
         try {
             Files.write(temporary, data);
             try {

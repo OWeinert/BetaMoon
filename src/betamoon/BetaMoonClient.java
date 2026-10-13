@@ -57,8 +57,11 @@ public final class BetaMoonClient {
         BlockModelRegistry.initialize(baseMod);
         FluidRenderer.initialize(baseMod);
         this.agentRegistered = common.isAgentRegistered();
-        this.config = new BetaMoonConfig("betamoon.config");
-        LuaLoaderClientFeedback.initialize(showScriptWarningsOnLoad());
+        this.config = new BetaMoonConfig();
+        common.configure(config);
+        ClientAssets.setVerboseDiagnostics(config.getVerboseAssetDiagnostics().getValue());
+        LuaLoaderClientFeedback.initialize(showScriptWarningsOnLoad(),
+                config.getShowSuccessfulReloadMessages().getValue());
         this.eventHandler = new BetaMoonEventHandler();
         setInitHooks(this.betaMoonBaseMod);
     }
@@ -203,6 +206,9 @@ public final class BetaMoonClient {
             // scripts is present.
             if (finishedLoading && !common.areScriptsLoaded()) {
                 common.loadScripts();
+                if (!config.getShowScriptErrorPopupOnStartup().getValue()) {
+                    LuaScriptErrors.ignore();
+                }
             }
 
             // Render custom Main Menu

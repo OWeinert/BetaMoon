@@ -1,4 +1,4 @@
--- Copy builtin_model_item/ beside this script in lua_scripts.
+-- Copy builtin_model_item/ beside this script in betamoon/scripts.
 -- Obtain the Sample Placer item (5035) and right-click the top of a block.
 
 name = "First Entity Example"

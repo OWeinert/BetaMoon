@@ -2,7 +2,7 @@
 
 These examples form a tutorial as well as a capability reference. Copy the Lua
 files you want, or a complete manifested example folder, into
-`.minecraft/lua_scripts/`. Scripts hot reload after a file save settles, or
+`.minecraft/betamoon/scripts/`. Scripts hot reload after a file save settles, or
 through **Reload** on BetaMoon's Scripts screen. Structural tile-entity content
 is kept loaded for world safety and requires a Minecraft restart after changes.
 
@@ -204,7 +204,7 @@ and, where useful, organize private modules with `require`.
   manifests select `main.lua`, while `require` loads private declarations and
   registration functions from neighboring files where the lesson needs them.
   Every file shares the package's lifecycle and resource owner. Copy the whole
-  folder into `lua_scripts`; restart after structural declaration or gameplay-data edits.
+  folder into `betamoon/scripts`; restart after structural declaration or gameplay-data edits.
 
 - Advanced 03 keeps its persistent inventory/data schema in `data.lua` and its
   container/GUI layout in `layout.lua`. `main.lua` composes both declarations and

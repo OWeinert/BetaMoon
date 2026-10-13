@@ -1,5 +1,6 @@
 package betamoon.luamodloader;
 
+import betamoon.BetaMoonCommon;
 import betamoon.luaapi.module.ModuleRegistry;
 import betamoon.luaapi.audio.SoundEvents;
 import betamoon.tileentity.TileEntityRegistry;
@@ -26,12 +27,17 @@ final class ScriptLifecycleRunner {
     }
 
     void run(List<ScriptMod> ordered, List<String> failedMods, boolean hotReload) {
+        run(ordered, failedMods, hotReload, false);
+    }
+
+    void run(List<ScriptMod> ordered, List<String> failedMods, boolean hotReload, boolean logTimings) {
         for (int i = 0; i < ordered.size(); i++) {
             ScriptMod mod = ordered.get(i);
             if (hotReload && NonReloadableScriptRegistry.contains(mod.sourceFileName)) {
                 continue;
             }
 
+            long startedNanos = System.nanoTime();
             try (ScriptExecutionScope ignored = ScriptExecutionScope.open(mod.sourceFileName);
                     ScriptAssetScope assets = ScriptAssetScope.open(mod.sourceFileName);
                     ScriptEntityScope entities = ScriptEntityScope.open(mod.sourceFileName);
@@ -61,6 +67,11 @@ final class ScriptLifecycleRunner {
                 recordLoadFailure(mod, failedMods, error.getMessage());
             } catch (Throwable error) {
                 recordLoadFailure(mod, failedMods, error.toString());
+            } finally {
+                if (logTimings) {
+                    BetaMoonCommon.LOGGER.info("Lua mod init " + mod.getDisplayName() + " took "
+                            + ((System.nanoTime() - startedNanos) / 1000000L) + " ms.");
+                }
             }
         }
     }

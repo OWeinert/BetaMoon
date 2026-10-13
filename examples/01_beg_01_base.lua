@@ -1,4 +1,4 @@
--- Start here: copy this file into .minecraft/lua_scripts and give it a unique name.
+-- Start here: copy this file into .minecraft/betamoon/scripts and give it a unique name.
 -- The assignments below describe the script; modInit is where its content is created.
 -- Lines beginning with -- are comments, so you can edit them without changing behavior.
 -- This template deliberately creates nothing. The simple block example adds the first block.
@@ -8,7 +8,7 @@
 name = "Base Script"
 
 -- Optional: An image shown on the script information screen.
--- Put the image in the lua_scripts folder and write its file name here.
+-- Put the image in the betamoon/scripts folder and write its file name here.
 image = "basic.png"
 
 -- Optional: The version shown on the script information screen.

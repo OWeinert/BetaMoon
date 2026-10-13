@@ -1,6 +1,6 @@
 # Regional structures example
 
-Copy this complete folder into `.minecraft/lua_scripts/`, then restart Minecraft after changing its structural data.
+Copy this complete folder into `.minecraft/betamoon/scripts/`, then restart Minecraft after changing its structural data.
 
 The four JSON templates are local structures. Their `connector` markers use the shared `path` pool and cardinal facings:
 

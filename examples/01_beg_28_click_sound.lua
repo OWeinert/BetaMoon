@@ -1,4 +1,4 @@
--- Copy click_sound/ beside this script in lua_scripts.
+-- Copy click_sound/ beside this script in betamoon/scripts.
 -- Local playback is suitable for feedback to the player running this script.
 
 name = "Registered Sound Example"

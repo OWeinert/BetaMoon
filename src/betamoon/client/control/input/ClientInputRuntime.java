@@ -1,7 +1,7 @@
 package betamoon.client.control.input;
 
+import betamoon.io.BetaMoonDirectories;
 import betamoon.luaapi.LuaApiUtils;
-import java.io.File;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.EntityPlayerSP;
 import net.minecraft.src.MovementInputFromOptions;
@@ -16,7 +16,7 @@ public final class ClientInputRuntime {
                     registration.definition().key + "." + stage.luaName() + " activation released after error: "
                             + safeMessage(error)));
     private static final InputPreferenceStore PREFERENCES = new InputPreferenceStore(
-            new File(new File(Minecraft.getMinecraftDir(), "config"), "betamoon-inputs.json"));
+            BetaMoonDirectories.controlsFileForInstance(Minecraft.getMinecraftDir()));
     private static final InputRouter ROUTER = new InputRouter((context, action, error) -> LuaApiUtils
             .warnForScript(context.owner(), "Input", context.registration().definition().key() + "." + action
                     + " context disabled after error: " + safeMessage(error)), PREFERENCES);

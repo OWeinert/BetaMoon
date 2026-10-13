@@ -127,11 +127,7 @@ public final class IoUtils {
         if (minecraftDir == null) {
             return null;
         }
-        File luaModsDir = new File(minecraftDir, BetaMoonCommon.LUA_SCRIPTS_DIR);
-        if (create) {
-            return ensureDirectory(luaModsDir);
-        }
-        return luaModsDir.isDirectory() ? luaModsDir : null;
+        return BetaMoonDirectories.scriptsDirectory(minecraftDir, create);
     }
 
     /**

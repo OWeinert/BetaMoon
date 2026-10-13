@@ -1,4 +1,4 @@
--- Copy builtin_model_item/ beside this script in lua_scripts.
+-- Copy builtin_model_item/ beside this script in betamoon/scripts.
 -- Built-in models need no model registration. They still need a texture binding.
 
 name = "Built-in Model Item Example"
