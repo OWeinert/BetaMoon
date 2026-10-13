@@ -55,8 +55,10 @@ public final class ClientControlHook implements HookModule {
 
     private static void registerOptionsControls(HookRegistrar registrar) {
         ClassRef options = new ClassRef("net/minecraft/src/GuiOptions");
+        MethodRef actionPerformed = new MethodRef(new ClassRef("net/minecraft/src/GuiScreen"),
+                "actionPerformed", "(Lnet/minecraft/src/GuiButton;)V").implementedBy(options);
         registrar.register(AroundHookDefinition.builder(ID + ":options_controls",
-                new MethodRef(options, "actionPerformed", "(Lnet/minecraft/src/GuiButton;)V"))
+                actionPerformed)
                 .capture(HandlerRef.of(CALLBACKS, "beforeOptionsControls",
                         "(Lnet/minecraft/src/GuiOptions;Lnet/minecraft/src/GuiButton;)I"),
                         ValueBinding.thisValue(), ValueBinding.argument(0))

@@ -119,7 +119,7 @@ public final class ClientInputRuntime {
     }
 
     private static boolean isProtectedScreen() {
-        return currentMinecraft != null && GuiControlsHub.isProtectedScreen(currentMinecraft.currentScreen);
+        return currentMinecraft != null && GuiTabbedControls.isProtectedScreen(currentMinecraft.currentScreen);
     }
 
     private static boolean isInventoryKey(int keyCode) {

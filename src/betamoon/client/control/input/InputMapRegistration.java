@@ -32,9 +32,6 @@ public final class InputMapRegistration implements AutoCloseable {
                 if (saved.bindings() != null) {
                     try {
                         List<InputBinding> candidate = unique(saved.bindings());
-                        InputActivationMode effectiveMode = saved.mode() != null && action.modes().contains(saved.mode())
-                                ? saved.mode() : action.defaultMode();
-                        validateBindingsForMode(action.name(), candidate, effectiveMode);
                         savedBindings.put(action.name(), Collections.unmodifiableList(candidate));
                     } catch (IllegalArgumentException ignored) {
                         // A changed declaration wins over an incompatible saved override.
@@ -83,7 +80,6 @@ public final class InputMapRegistration implements AutoCloseable {
             throw new IllegalArgumentException("Input actions require 1..8 effective bindings");
         }
         List<InputBinding> copy = unique(bindings);
-        validateBindingsForMode(action, copy, mode(action));
         if (!allowConflicts) {
             rejectConflicts(action, copy);
         }
@@ -119,7 +115,6 @@ public final class InputMapRegistration implements AutoCloseable {
             throw new IllegalArgumentException("Saved input bindings require 0..8 entries");
         }
         List<InputBinding> copy = unique(bindings);
-        validateBindingsForMode(action, copy, mode(action));
         if (!allowConflicts) {
             rejectConflicts(action, copy);
         }
@@ -159,7 +154,6 @@ public final class InputMapRegistration implements AutoCloseable {
         if (mode == null || !definition.action(action).modes().contains(mode)) {
             throw new IllegalArgumentException("Mode is not allowed for input action '" + action + "'");
         }
-        validateBindingsForMode(action, bindings(action), mode);
         try {
             requirePreferences().setMode(definition.key(), action, mode);
         } catch (IOException error) {
@@ -207,16 +201,6 @@ public final class InputMapRegistration implements AutoCloseable {
     private void requireAction(String action) {
         if (definition.action(action) == null) {
             throw new IllegalArgumentException("Unknown input action '" + action + "' in " + definition.key());
-        }
-    }
-
-    private static void validateBindingsForMode(String action, List<InputBinding> bindings, InputActivationMode mode) {
-        if (mode == InputActivationMode.TOGGLE) {
-            for (InputBinding binding : bindings) {
-                if (binding.device() == InputDeviceEvent.Device.MOUSE_WHEEL) {
-                    throw new IllegalArgumentException("Wheel binding cannot use toggle mode for action '" + action + "'");
-                }
-            }
         }
     }
 

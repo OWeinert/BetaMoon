@@ -136,11 +136,7 @@ public final class InputRouter {
             for (InputBinding binding : registration.bindings(action.name())) {
                 if (binding.matchesWheel(source, physical.modifiers())) {
                     update.matched(registration);
-                    state.pressed = true;
-                    state.released = true;
-                    state.amount += source.amount();
-                    state.activated = true;
-                    state.deactivated = true;
+                    state.pulseWheel(source.amount());
                     addTransition(update.transitions, registration, action.name(), InputPhase.PRESSED, source.amount(),
                             source, state, false);
                     break;
@@ -456,6 +452,18 @@ public final class InputRouter {
                 changeActive(held);
             } else if (held) {
                 changeActive(!active);
+            }
+        }
+
+        private void pulseWheel(float wheelAmount) {
+            pressed = true;
+            released = true;
+            amount += wheelAmount;
+            if (mode == InputActivationMode.TOGGLE) {
+                changeActive(!active);
+            } else {
+                activated = true;
+                deactivated = true;
             }
         }
 

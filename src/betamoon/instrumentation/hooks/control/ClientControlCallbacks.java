@@ -1,7 +1,7 @@
 package betamoon.instrumentation.hooks.control;
 
 import betamoon.client.control.input.ClientInputRuntime;
-import betamoon.client.control.input.GuiControlsHub;
+import betamoon.client.control.input.GuiTabbedControls;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.EntityPlayerSP;
@@ -34,7 +34,7 @@ public final class ClientControlCallbacks {
             return 0;
         }
         minecraft.gameSettings.saveOptions();
-        minecraft.displayGuiScreen(new GuiControlsHub(screen, minecraft.gameSettings));
+        minecraft.displayGuiScreen(new GuiTabbedControls(screen, minecraft.gameSettings));
         return 1;
     }
 

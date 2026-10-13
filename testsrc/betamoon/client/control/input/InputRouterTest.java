@@ -23,6 +23,7 @@ public final class InputRouterTest {
         verifyPriorityFailureAndCapture();
         verifyRebindingAndLifecycle();
         verifyToggleAndPreferences();
+        verifyWheelToggle();
         verifyControllerContracts();
         PlayerControllerRuntimeTest.main(new String[0]);
         InputControlsGuiTest.main(new String[0]);
@@ -250,11 +251,35 @@ public final class InputRouterTest {
                 "Malformed preference files retain the last usable in-memory snapshot");
     }
 
-    private static void verifyControllerContracts() {
-        expectFailure(() -> new InputActionDefinition("bad",
+    private static void verifyWheelToggle() {
+        InputRouter router = new InputRouter(null);
+        InputActionDefinition action = new InputActionDefinition("switch",
                 Collections.singletonList(InputBinding.parse("mouse.wheel_up")), null, null, true,
-                EnumSet.of(InputActivationMode.TOGGLE), InputActivationMode.TOGGLE),
-                "Wheel toggle declaration is rejected");
+                EnumSet.of(InputActivationMode.HOLD, InputActivationMode.TOGGLE), InputActivationMode.TOGGLE);
+        InputMapRegistration map = router.register(new InputMapDefinition(
+                ContentKey.parseForType("test:wheel_toggle", ContentType.INPUT_MAP),
+                Collections.singletonList(action)), "wheel.lua");
+        Object world = new Object();
+        Object player = new Object();
+        router.beginCycle(world, player, null, true);
+        router.accept(InputDeviceEvent.mouseWheel(120));
+        InputActionState enabled = map.state("switch");
+        require(enabled.active() && enabled.activated() && !enabled.deactivated()
+                && enabled.pressed() && enabled.released() && !enabled.held(),
+                "A matching wheel pulse activates a toggle without a held state");
+        router.beginCycle(world, player, null, true);
+        require(map.state("switch").active() && !map.state("switch").activated(),
+                "Wheel toggle activation persists into later cycles");
+        router.accept(InputDeviceEvent.mouseWheel(-120));
+        require(map.state("switch").active(), "The opposite wheel direction does not switch the action");
+        router.accept(InputDeviceEvent.mouseWheel(120));
+        InputActionState disabled = map.state("switch");
+        require(!disabled.active() && disabled.deactivated() && !disabled.activated(),
+                "The next matching wheel pulse deactivates a toggle");
+        map.close();
+    }
+
+    private static void verifyControllerContracts() {
         expectFailure(() -> new PlayerControllerRuntime.Movement(Float.NaN, 0, false, false),
                 "Nonfinite manual movement is rejected");
         expectFailure(() -> new PlayerControllerRuntime.Facing(0, 91),

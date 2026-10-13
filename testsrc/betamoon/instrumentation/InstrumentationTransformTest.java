@@ -423,6 +423,13 @@ public final class InstrumentationTransformTest {
 
     private static void verifyClientControlSeams(TinyMappingResolver mappings, String clientJarPath,
             BetaMoonTransformer transformer) throws Exception {
+        byte[] options = transformControlClass(mappings, clientJarPath, transformer,
+                "net/minecraft/src/GuiOptions");
+        MethodRef optionsControls = new MethodRef(new ClassRef("net/minecraft/src/GuiScreen"),
+                "actionPerformed", "(Lnet/minecraft/src/GuiButton;)V")
+                .implementedBy(new ClassRef("net/minecraft/src/GuiOptions"));
+        assertAroundCallbacks(mappings, options, optionsControls, "beforeOptionsControls", "afterOptionsControls");
+
         byte[] minecraft = transformControlClass(mappings, clientJarPath, transformer,
                 "net/minecraft/client/Minecraft");
         assertAroundCallbacks(mappings, minecraft, "net/minecraft/client/Minecraft", "runTick", "()V", "beginInputTick",

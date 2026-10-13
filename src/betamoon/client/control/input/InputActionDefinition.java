@@ -49,13 +49,6 @@ public final class InputActionDefinition {
         if (modes == null || modes.isEmpty() || defaultMode == null || !modes.contains(defaultMode)) {
             throw new IllegalArgumentException("Input action default mode must be in its allowed modes: " + name);
         }
-        if (modes.contains(InputActivationMode.TOGGLE)) {
-            for (InputBinding binding : bindings) {
-                if (binding.device() == InputDeviceEvent.Device.MOUSE_WHEEL) {
-                    throw new IllegalArgumentException("Wheel action cannot allow toggle mode: " + name);
-                }
-            }
-        }
         this.modes = modes.clone();
         this.defaultMode = defaultMode;
     }
