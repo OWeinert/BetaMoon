@@ -80,19 +80,13 @@ Update the argument whenever you move or rename the JAR, including after a versi
 
 ## Installing scripts
 
-Place loose scripts, manifested mod folders, or packaged mod ZIPs directly inside
+Place loose scripts, script mod folders, or packaged mod ZIPs directly inside
 the active instance's `.minecraft/betamoon/scripts` folder. BetaMoon creates this
-folder when it starts. Use the lowercase `.lua` extension and copy complete
-folders and required assets without changing their directory structure. Loose-script
-assets resolve from `betamoon/scripts`; manifested directory and ZIP packages resolve game
-assets from their package-local `assets/` directory.
+folder when it starts.
+Use the lowercase `.lua` extension and copy complete
+folders and required assets without changing their directory structure.
 
-On startup, BetaMoon moves an existing `.minecraft/lua_scripts` directory to
-`.minecraft/betamoon/scripts` when the new scripts directory is absent. If both
-directories exist, BetaMoon uses the new one and leaves the old one untouched.
-If the move fails, BetaMoon loads the old directory for that session and logs a warning.
-
-Keep dependency scripts together and copy manifested example folders as complete
+For the examples: Keep dependency scripts together and copy manifested example folders as complete
 units. The [example index](examples/README.md) explains which files belong to the
 same lesson, required assets and how to try the content. Check numeric content
 IDs when combining scripts with other mods.
@@ -105,18 +99,11 @@ Startup and reload notifications show script errors by default. To include warni
 set `notifications.showScriptWarningsOnLoad=true` in `.minecraft/config/betamoon.cfg` and restart Minecraft. Warnings remain
 available in the Scripts screen and launcher log when notifications are disabled.
 
-BetaMoon's `.cfg` groups settings with `notifications.`, `scripts.`, `diagnostics.`, and `updates.` key prefixes.
-Each field has a short comment in the file. Existing flat setting names migrate to these grouped names on startup.
-`scripts.disabledScripts` accepts comma-separated top-level names from `betamoon/scripts`, such as `foo.lua`,
-`Pack`, or `Pack.zip`. Skipping a script can leave dependents unavailable; restart after changing the list.
-Failed-load reports created by `diagnostics.autoExportDiagnosticsOnScriptError` are saved as
-`betamoon/logs/script_err_<timestamp>.log`, with the newest ten retained.
-
 ## Writing scripts
 
 Start with [your first BetaMoon script](https://github.com/OWeinert/BetaMoon/wiki/Getting-Started), then use the [Lua API reference](https://github.com/OWeinert/BetaMoon/wiki/API-Documentation) for function signatures, declaration fields and focused snippets. The [examples](examples/README.md) range from simple registrations to complete processing machines.
 
-Community scripts are collected in [AwesomeBetaMoon](https://github.com/OWeinert/AwesomeBetaMoon).
+A curated selection of community scripts is collected in [AwesomeBetaMoon](https://github.com/OWeinert/AwesomeBetaMoon).
 
 ## Troubleshooting
 
@@ -127,7 +114,7 @@ Community scripts are collected in [AwesomeBetaMoon](https://github.com/OWeinert
 | Agent JAR cannot be opened | File existence, filename, path quoting and read permissions. |
 | Script fails to load | Errors on the Scripts screen, script metadata and required dependencies. |
 | Content ID already occupied | IDs used by other installed scripts or mods. |
-| Texture missing | PNG paths relative to `betamoon/scripts`, or to `assets/` inside a manifested directory or ZIP package. |
+| Texture missing | PNG paths relative to `betamoon/scripts`, or to `assets/` inside a script mod directory or ZIP package. |
 | Changes require restart | Retained structural definitions; follow BetaMoon's restart indication. |
 
 See the wiki's [troubleshooting guide](https://github.com/OWeinert/BetaMoon/wiki/Troubleshooting) for more detail. When [reporting an issue](https://github.com/OWeinert/BetaMoon/issues), include the BetaMoon version, relevant console error and steps to reproduce it.
