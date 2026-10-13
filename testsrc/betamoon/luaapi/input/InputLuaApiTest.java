@@ -4,6 +4,8 @@ import betamoon.client.control.input.ClientHotkeys;
 import betamoon.client.control.input.ClientInputRuntime;
 import betamoon.client.control.input.InputDeviceEvent;
 import betamoon.client.control.input.InputFamily;
+import betamoon.content.ContentKey;
+import betamoon.content.ContentType;
 import betamoon.luaapi.BetaMoonModule;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptExecution;
@@ -55,7 +57,14 @@ public final class InputLuaApiTest {
                     + "hotkey:on(function(event) trace=trace..'hotkey:'..event.binding..','; "
                     + "assert(event.key==hotkey.key and event.keyCode==34) end)\n"
                     + "assert(not pcall(function() betamoon.input:hotkey{key='mymod:bad',label='Bad',"
-                    + "default='ctrl+key.g'} end))\n";
+                    + "default='ctrl+key.g'} end))\n"
+                    + "controller=betamoon.input.controllers:add{key='mymod:player',"
+                    + "stages={movement='manual',worldActions='disabled'}}\n"
+                    + "assert(controller.key=='mymod:input_controller/player' and controller:isActive())\n"
+                    + "assert(betamoon.input.controllers:get('mymod:player').key==controller.key)\n"
+                    + "assert(not pcall(function() betamoon.input.controllers:getRequired('mymod:absent') end))\n"
+                    + "controller:on('movement',function(event) return {movement={forward=0,strafe=0}} end)\n"
+                    + "assert(not pcall(function() controller:on('look',function() end) end))\n";
             ScriptExecution.invoke(OWNER, lua.load(source, OWNER), LuaValue.NONE);
 
             LuaHotkey hotkey = (LuaHotkey) lua.get("hotkey");
@@ -96,7 +105,10 @@ public final class InputLuaApiTest {
                     && ClientInputRuntime.router().contextCount() == 0, "Script unload removes Lua maps and contexts");
             require(ClientHotkeys.activeCount() == 0 && ClientHotkeys.retainedCount() == 1,
                     "Script unload detaches hotkeys while retaining their native Controls slots");
-            System.out.println("Input Lua API passed: maps, native hotkeys, callbacks, state, rebinding and cleanup.");
+            require(ClientInputRuntime.controllers().get(
+                    ContentKey.parseForType("mymod:player", ContentType.INPUT_CONTROLLER)) == null,
+                    "Script unload closes controller registrations");
+            System.out.println("Input Lua API passed: maps, controllers, hotkeys, callbacks and cleanup.");
         } finally {
             ScriptResourceTracker.unloadAll();
             LuaScriptRegistry.clear();

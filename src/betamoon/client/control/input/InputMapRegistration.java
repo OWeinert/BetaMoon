@@ -1,5 +1,6 @@
 package betamoon.client.control.input;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -13,12 +14,50 @@ public final class InputMapRegistration implements AutoCloseable {
     private final InputMapDefinition definition;
     private final String owner;
     private final Map<String, List<InputBinding>> rebound = new HashMap<String, List<InputBinding>>();
+    private final Map<String, List<InputBinding>> savedBindings = new HashMap<String, List<InputBinding>>();
+    private final Map<String, InputActivationMode> selectedModes = new HashMap<String, InputActivationMode>();
     private boolean active = true;
 
     InputMapRegistration(InputRouter router, InputMapDefinition definition, String owner) {
         this.router = router;
         this.definition = definition;
         this.owner = owner;
+        InputPreferenceStore preferences = router.preferences();
+        if (preferences != null) {
+            for (InputActionDefinition action : definition.actions()) {
+                InputPreferenceStore.Preference saved = preferences.get(definition.key(), action.name());
+                if (saved == null) {
+                    continue;
+                }
+                if (saved.bindings() != null) {
+                    try {
+                        List<InputBinding> candidate = unique(saved.bindings());
+                        savedBindings.put(action.name(), Collections.unmodifiableList(candidate));
+                    } catch (IllegalArgumentException ignored) {
+                        // A changed declaration wins over an incompatible saved override.
+                    }
+                }
+                if (saved.mode() != null && action.modes().contains(saved.mode())) {
+                    selectedModes.put(action.name(), saved.mode());
+                }
+            }
+            boolean removed;
+            do {
+                removed = false;
+                for (InputActionDefinition action : definition.actions()) {
+                    List<InputBinding> candidate = savedBindings.get(action.name());
+                    if (candidate == null) {
+                        continue;
+                    }
+                    try {
+                        rejectConflicts(action.name(), candidate);
+                    } catch (IllegalArgumentException ignored) {
+                        savedBindings.remove(action.name());
+                        removed = true;
+                    }
+                }
+            } while (removed);
+        }
     }
 
     public InputContext activate(int priority, EnumSet<InputFamily> captures) {
@@ -45,21 +84,118 @@ public final class InputMapRegistration implements AutoCloseable {
             rejectConflicts(action, copy);
         }
         rebound.put(action, Collections.unmodifiableList(copy));
-        router.refresh(this);
+        router.refreshBindings(this, action);
     }
 
     public void resetBinding(String action) {
         requireActive();
         requireAction(action);
-        if (rebound.remove(action) != null) {
-            router.refresh(this);
+        if (savedBindings.containsKey(action)) {
+            rebound.put(action, definition.action(action).bindings());
+            router.refreshBindings(this, action);
+        } else if (rebound.remove(action) != null) {
+            router.refreshBindings(this, action);
         }
     }
 
     public List<InputBinding> bindings(String action) {
         requireAction(action);
         List<InputBinding> replacement = rebound.get(action);
-        return replacement == null ? definition.action(action).bindings() : replacement;
+        if (replacement != null) {
+            return replacement;
+        }
+        List<InputBinding> saved = savedBindings.get(action);
+        return saved == null ? definition.action(action).bindings() : saved;
+    }
+
+    public void setPreferredBindings(String action, List<InputBinding> bindings, boolean allowConflicts) {
+        requireActive();
+        requireAction(action);
+        if (bindings == null || bindings.size() > 8) {
+            throw new IllegalArgumentException("Saved input bindings require 0..8 entries");
+        }
+        List<InputBinding> copy = unique(bindings);
+        if (!allowConflicts) {
+            rejectConflicts(action, copy);
+        }
+        InputPreferenceStore preferences = requirePreferences();
+        try {
+            preferences.setBindings(definition.key(), action, copy);
+        } catch (IOException error) {
+            throw new IllegalStateException("Input preference save failed: " + error.getMessage(), error);
+        }
+        savedBindings.put(action, Collections.unmodifiableList(copy));
+        rebound.remove(action);
+        router.refreshBindings(this, action);
+    }
+
+    public void resetPreferredBindings(String action) {
+        requireActive();
+        requireAction(action);
+        try {
+            requirePreferences().resetBindings(definition.key(), action);
+        } catch (IOException error) {
+            throw new IllegalStateException("Input preference save failed: " + error.getMessage(), error);
+        }
+        savedBindings.remove(action);
+        rebound.remove(action);
+        router.refreshBindings(this, action);
+    }
+
+    public InputActivationMode mode(String action) {
+        requireAction(action);
+        InputActivationMode selected = selectedModes.get(action);
+        return selected == null ? definition.action(action).defaultMode() : selected;
+    }
+
+    public void setMode(String action, InputActivationMode mode) {
+        requireActive();
+        requireAction(action);
+        if (mode == null || !definition.action(action).modes().contains(mode)) {
+            throw new IllegalArgumentException("Mode is not allowed for input action '" + action + "'");
+        }
+        try {
+            requirePreferences().setMode(definition.key(), action, mode);
+        } catch (IOException error) {
+            throw new IllegalStateException("Input preference save failed: " + error.getMessage(), error);
+        }
+        selectedModes.put(action, mode);
+        router.refreshMode(this, action);
+    }
+
+    public void resetMode(String action) {
+        requireActive();
+        requireAction(action);
+        try {
+            requirePreferences().resetMode(definition.key(), action);
+        } catch (IOException error) {
+            throw new IllegalStateException("Input preference save failed: " + error.getMessage(), error);
+        }
+        selectedModes.remove(action);
+        router.refreshMode(this, action);
+    }
+
+    public void resetAllPreferences() {
+        requireActive();
+        try {
+            requirePreferences().resetMap(definition.key());
+        } catch (IOException error) {
+            throw new IllegalStateException("Input preference save failed: " + error.getMessage(), error);
+        }
+        savedBindings.clear();
+        selectedModes.clear();
+        rebound.clear();
+        for (InputActionDefinition action : definition.actions()) {
+            router.refreshBindings(this, action.name());
+        }
+    }
+
+    private InputPreferenceStore requirePreferences() {
+        InputPreferenceStore preferences = router.preferences();
+        if (preferences == null) {
+            throw new IllegalStateException("Saved input preferences are unavailable");
+        }
+        return preferences;
     }
 
     private void requireAction(String action) {
@@ -121,6 +257,8 @@ public final class InputMapRegistration implements AutoCloseable {
     void deactivate() {
         active = false;
         rebound.clear();
+        savedBindings.clear();
+        selectedModes.clear();
     }
 
     @Override

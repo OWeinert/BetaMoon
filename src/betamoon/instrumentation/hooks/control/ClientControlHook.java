@@ -26,6 +26,7 @@ public final class ClientControlHook implements HookModule {
         registerInputTick(registrar);
         registerQueuedInput(registrar);
         registerGuiConsumption(registrar);
+        registerOptionsControls(registrar);
         registerKeyForwarding(registrar);
         registerMovementIntent(registrar);
         registerLookApplication(registrar);
@@ -49,6 +50,19 @@ public final class ClientControlHook implements HookModule {
                         ValueBinding.thisValue())
                 .onReturn(HandlerRef.of(CALLBACKS, "afterGuiMouseInput", "(Lnet/minecraft/src/GuiScreen;I)V"),
                         ValueBinding.thisValue(), ValueBinding.capturedValue())
+                .skipWhenCapturedNonZero().build());
+    }
+
+    private static void registerOptionsControls(HookRegistrar registrar) {
+        ClassRef options = new ClassRef("net/minecraft/src/GuiOptions");
+        MethodRef actionPerformed = new MethodRef(new ClassRef("net/minecraft/src/GuiScreen"),
+                "actionPerformed", "(Lnet/minecraft/src/GuiButton;)V").implementedBy(options);
+        registrar.register(AroundHookDefinition.builder(ID + ":options_controls",
+                actionPerformed)
+                .capture(HandlerRef.of(CALLBACKS, "beforeOptionsControls",
+                        "(Lnet/minecraft/src/GuiOptions;Lnet/minecraft/src/GuiButton;)I"),
+                        ValueBinding.thisValue(), ValueBinding.argument(0))
+                .onReturn(HandlerRef.of(CALLBACKS, "afterOptionsControls", "()V"))
                 .skipWhenCapturedNonZero().build());
     }
 
