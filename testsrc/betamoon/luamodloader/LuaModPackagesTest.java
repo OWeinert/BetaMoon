@@ -33,6 +33,7 @@ public final class LuaModPackagesTest {
         try {
             verifyDistributedExamples(new File("examples"));
             verifyDiscoveryAndManifestMetadata(root);
+            verifyScriptConfigPlacement(root);
             verifyRequireCachingAndInitModules(root);
             verifyPrivateModuleIsolation(root);
             verifyMetadataConflicts(root);
@@ -74,6 +75,22 @@ public final class LuaModPackagesTest {
                 "Identical relative paths in different package asset roots must remain isolated");
         require(assets.forSource("first/main.lua").read(AssetPath.parse("shared/outside.png"), 1024) == null,
                 "Files outside a package's assets directory must not be exposed as game assets");
+    }
+
+    private static void verifyScriptConfigPlacement(File root) throws IOException {
+        File instance = directory(root, "config_instance");
+        File scripts = directory(instance, "lua_scripts");
+        write(new File(scripts, "settings.lua"), "name='Settings'\n"
+                + "local settings=betamoon.config('settings_test',{volume=0.75})\n"
+                + "function modInit() assert(settings.volume==0.75) end\n");
+        List<LuaScriptFiles.PreflightFailure> failures = new ArrayList<>();
+        List<LuaModSource> sources = new LuaScriptFiles().discover(scripts, failures);
+        require(failures.isEmpty() && sources.size() == 1, "Config placement fixture must discover one script");
+        List<String> errors = new ArrayList<>();
+        ScriptMod parsed = new ScriptModParser().parse(sources.get(0), sources.get(0).readEntrypoint(), errors);
+        require(parsed != null && errors.isEmpty(), "Script must create its config from defaults: " + errors);
+        require(new File(instance, "config/betamoon/settings_test.json").isFile(),
+                "A loaded script writes under its own instance's shared config folder");
     }
 
     private static void verifyDistributedExamples(File examples) throws IOException {

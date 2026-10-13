@@ -1,6 +1,7 @@
 package betamoon.luamodloader;
 
 import betamoon.luaapi.BetaMoonModule;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import org.luaj.vm2.Globals;
@@ -17,7 +18,9 @@ final class LuaModEnvironment {
 
     static Globals create(LuaModSource source) throws IOException {
         Globals globals = JsePlatform.standardGlobals();
-        globals.load(new BetaMoonModule(source.entrypointRelative()));
+        File instanceRoot = source.scriptsRoot().getAbsoluteFile().getParentFile();
+        File configRoot = new File(new File(instanceRoot, "config"), "betamoon");
+        globals.load(new BetaMoonModule(source.entrypointRelative(), configRoot));
 
         String prefix = source.modulePathPrefix();
         globals.package_.setLuaPath(prefix + "?.lua;" + prefix + "?/init.lua");
