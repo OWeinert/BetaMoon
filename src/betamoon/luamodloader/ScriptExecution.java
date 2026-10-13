@@ -12,8 +12,11 @@ public final class ScriptExecution {
     public static Varargs invoke(String source, LuaValue function, Varargs arguments) {
         Objects.requireNonNull(source, "Lua source");
         Objects.requireNonNull(function, "Lua function");
+        long startedNanos = System.nanoTime();
         try (ScriptExecutionScope ignored = ScriptExecutionScope.open(source)) {
             return function.invoke(arguments);
+        } finally {
+            SlowScriptCallbackMonitor.record(source, "callback", startedNanos);
         }
     }
 }

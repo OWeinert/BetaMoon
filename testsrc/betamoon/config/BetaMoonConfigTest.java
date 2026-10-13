@@ -4,7 +4,7 @@ import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 
-/** Verifies the persisted automatic-reload setting and its conservative default. */
+/** Verifies grouped Forge settings, defaults, validation, and legacy migration. */
 public final class BetaMoonConfigTest {
     public static void main(String[] args) throws Exception {
         File root = Files.createTempDirectory("betamoon-config-test").toFile();
@@ -14,19 +14,39 @@ public final class BetaMoonConfigTest {
                     "Automatic file-change reload must default to disabled");
             require(!defaults.getShowScriptWarningsOnLoad().getValue(),
                     "Script warning notifications must default to disabled");
+            require(defaults.getShowScriptErrorPopupOnStartup().getValue(), "Startup error popup must default on");
+            require(defaults.getReloadDebounceMs().getValue() == 500, "Reload debounce must default to 500 ms");
+            require(defaults.getShowSuccessfulReloadMessages().getValue(), "Successful reload notice must default on");
+            require(defaults.getDisabledScripts().getValue().isEmpty(), "No scripts should be disabled by default");
+            require(!defaults.getLogScriptLoadTimings().getValue(), "Timing log must default off");
+            require(!defaults.getAutoExportDiagnosticsOnScriptError().getValue(), "Auto report must default off");
+            require(defaults.getSlowCallbackWarningMs().getValue() == 0, "Slow callback warning must default off");
+            require(!defaults.getVerboseAssetDiagnostics().getValue(), "Verbose assets must default off");
 
             File configFile = new File(root, BetaMoonConfig.FILE_NAME);
             String contents = new String(Files.readAllBytes(configFile.toPath()), StandardCharsets.UTF_8);
-            require(contents.contains("hotReloadOnFileChange=false"), "Config must persist the disabled default");
-            require(contents.contains("showScriptWarningsOnLoad=false"), "Config must persist the errors-only default");
+            require(contents.contains("scripts.hotReloadOnFileChange=false"),
+                    "Config must persist the disabled default");
+            require(contents.contains("notifications.showScriptWarningsOnLoad=false"),
+                    "Config must persist the errors-only default");
+            require(contents.contains("# Automatically reload scripts after their files change."),
+                    "Forge property comments must be written");
+            require(contents.contains("diagnostics.verboseAssetDiagnostics=false"),
+                    "Diagnostic settings must be grouped by prefix");
             String defaultContents = contents;
-            contents = contents.replace("hotReloadOnFileChange=false", "hotReloadOnFileChange=true");
-            contents = contents.replace("showScriptWarningsOnLoad=false", "showScriptWarningsOnLoad=true");
+            contents = contents.replace("scripts.hotReloadOnFileChange=false", "scripts.hotReloadOnFileChange=true");
+            contents = contents.replace("notifications.showScriptWarningsOnLoad=false",
+                    "notifications.showScriptWarningsOnLoad=true");
+            contents = contents.replace("scripts.disabledScripts=", "scripts.disabledScripts=foo.lua, Pack, Pack.zip");
+            contents = contents.replace("scripts.reloadDebounceMs=500", "scripts.reloadDebounceMs=99999");
             Files.write(configFile.toPath(), contents.getBytes(StandardCharsets.UTF_8));
 
             BetaMoonConfig enabled = new BetaMoonConfig(root);
             require(enabled.getHotReloadOnFileChange().getValue(), "Config must accept enabled file-change reload");
             require(enabled.getShowScriptWarningsOnLoad().getValue(), "Config must accept script warning opt-in");
+            require(enabled.getReloadDebounceMs().getValue() == 500, "Out-of-range debounce must reset to default");
+            require(enabled.getDisabledScripts().getValue().contains("Pack.zip"),
+                    "Disabled script names must be parsed from the config");
 
             File migrationDirectory = new File(root, "migration");
             Files.createDirectories(migrationDirectory.toPath());
@@ -52,13 +72,27 @@ public final class BetaMoonConfigTest {
                     "An existing .cfg file must take precedence over the legacy file");
             require(existingLegacy.isFile(), "A conflicting legacy file must remain untouched");
 
-            contents = contents.replace("showScriptWarningsOnLoad=true", "showPopupOnWarnings=true");
+            contents = contents.replace("notifications.showScriptWarningsOnLoad=true", "showPopupOnWarnings=true");
             Files.write(configFile.toPath(), contents.getBytes(StandardCharsets.UTF_8));
             BetaMoonConfig migrated = new BetaMoonConfig(root);
             require(!migrated.getShowScriptWarningsOnLoad().getValue(),
                     "Existing unused warning setting must not keep notifications enabled");
             contents = new String(Files.readAllBytes(configFile.toPath()), StandardCharsets.UTF_8);
             require(!contents.contains("showPopupOnWarnings"), "Obsolete warning setting must be removed");
+            String flat = defaultContents.replace("scripts.hotReloadOnFileChange=false", "hotReloadOnFileChange=true")
+                    .replace("notifications.showScriptWarningsOnLoad=false", "showScriptWarningsOnLoad=true")
+                    .replace("updates.checkForUpdates=true", "checkForUpdates=false")
+                    .replace("updates.notifyUpdatesOnWorldJoin=true", "notifyUpdatesOnWorldJoin=false");
+            File flatFile = new File(root, "flat.cfg");
+            Files.write(flatFile.toPath(), flat.getBytes(StandardCharsets.UTF_8));
+            BetaMoonConfig flatMigrated = new BetaMoonConfig(root, "flat.cfg");
+            require(flatMigrated.getHotReloadOnFileChange().getValue(), "Flat reload setting must migrate");
+            require(flatMigrated.getShowScriptWarningsOnLoad().getValue(), "Flat warning setting must migrate");
+            require(!flatMigrated.getCheckForUpdates().getValue(), "Flat update check setting must migrate");
+            require(!flatMigrated.getNotifyUpdatesOnWorldJoin().getValue(), "Flat join notice must migrate");
+            String migratedContents = new String(Files.readAllBytes(flatFile.toPath()), StandardCharsets.UTF_8);
+            require(!migratedContents.contains("   hotReloadOnFileChange="),
+                    "Flat keys must be removed after migration");
             System.out.println("BetaMoon config passed: defaults, opt-in, legacy settings and filename migration.");
         } finally {
             deleteRecursively(root);

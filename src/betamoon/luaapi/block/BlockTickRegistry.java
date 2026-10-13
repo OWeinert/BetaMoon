@@ -9,6 +9,7 @@ import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptErrors;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptResourceTracker;
+import betamoon.luamodloader.SlowScriptCallbackMonitor;
 import betamoon.wrappers.BlockWrapper;
 import java.util.HashMap;
 import java.util.Map;
@@ -303,20 +304,26 @@ public final class BlockTickRegistry {
             if (!activeTick) {
                 return;
             }
+            long startedNanos = System.nanoTime();
             try (TickContext context = new TickContext(world, x, y, z, blockId, random, true)) {
                 tickAction.call(context);
             } catch (Throwable error) {
                 activeTick = false;
                 report(owner, "onTick", error);
+            } finally {
+                SlowScriptCallbackMonitor.record(owner, "block.onTick", startedNanos);
             }
         }
 
         private void invokeDisplay(World world, int x, int y, int z, Random random) {
+            long startedNanos = System.nanoTime();
             try (TickContext context = new TickContext(world, x, y, z, blockId, random, false)) {
                 displayAction.call(context);
             } catch (Throwable error) {
                 activeDisplay = false;
                 report(owner, "onDisplayTick", error);
+            } finally {
+                SlowScriptCallbackMonitor.record(owner, "block.onDisplayTick", startedNanos);
             }
         }
     }

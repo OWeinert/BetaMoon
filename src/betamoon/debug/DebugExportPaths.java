@@ -1,5 +1,6 @@
 package betamoon.debug;
 
+import betamoon.io.BetaMoonDirectories;
 import betamoon.io.IoUtils;
 import java.io.File;
 import net.minecraft.client.Minecraft;
@@ -8,8 +9,6 @@ import net.minecraft.client.Minecraft;
  * Resolves debug export paths under the Minecraft directory.
  */
 final class DebugExportPaths {
-    private static final String DEBUG_DIR = "betamoon_debug";
-
     private DebugExportPaths() {
     }
 
@@ -26,6 +25,6 @@ final class DebugExportPaths {
      */
     static File resolveDebugDir() {
         File minecraftDir = Minecraft.getMinecraftDir();
-        return IoUtils.resolveChildDirectory(minecraftDir, DEBUG_DIR, true);
+        return IoUtils.ensureDirectory(BetaMoonDirectories.debugDirectoryForInstance(minecraftDir));
     }
 }

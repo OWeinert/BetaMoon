@@ -44,6 +44,7 @@ public final class LuaModPackagesTest {
             verifyStableStructuralRetention(root);
             verifyDirectoryAssetIsolation(root);
             verifyZipPackages(root);
+            verifyDisabledSourcesAndReports(root);
             System.out.println("Lua mod packages passed: directories, ZIPs, require isolation, metadata and reload.");
         } finally {
             ScriptResourceTracker.unloadAll();
@@ -410,6 +411,16 @@ public final class LuaModPackagesTest {
         require(java.util.Arrays.equals(new byte[]{9, 8, 7}, overridden.getValue())
                 && "pack".equals(overridden.getSourceKind()),
                 "A texture-pack ZIP override must take priority over a mod-package ZIP default");
+        List<String> selections = new ArrayList<String>();
+        AssetResolver verboseResolver = resolver.withVerboseDiagnostics(selections::add);
+        verboseResolver.resolve("archive texture", fallback, fallback.getDirectOverridePath(), 1024, bytes -> bytes);
+        verboseResolver.resolve("archive texture", fallback, fallback.getDirectOverridePath(), 1024, bytes -> bytes);
+        require(selections.size() == 1 && selections.get(0).contains("selected pack"),
+                "Verbose asset diagnostics must name the selected source only once");
+        verboseResolver.resolve("default texture", fallback,
+                AssetPath.parse("mymod/textures/absent.png").getDirectOverridePath(), 1024, bytes -> bytes);
+        require(contains(selections, "not found") && contains(selections, "selected script"),
+                "Verbose asset diagnostics must explain a missing pack override and its fallback");
 
         long fingerprint = files.fingerprint(scripts);
         entries.put("content/value.lua", utf8("return 43 -- archive changed\n"));
@@ -483,6 +494,47 @@ public final class LuaModPackagesTest {
             }
         }
         throw new AssertionError("Expected a directory source");
+    }
+
+    private static void verifyDisabledSourcesAndReports(File root) throws IOException {
+        File instance = directory(root, "disabled_instance");
+        File scripts = directory(instance, "betamoon/scripts");
+        write(new File(scripts, "active.lua"), "name='Active'\nfunction modInit() end\n");
+        write(new File(scripts, "broken.lua"), "this is invalid Lua !!!\n");
+        writeBytes(new File(scripts, "Broken.zip"), new byte[]{1, 2, 3});
+        File brokenPackage = directory(scripts, "BrokenPackage");
+        write(new File(brokenPackage, "betamoon.mod.json"), "not JSON");
+
+        java.util.Set<String> disabled = new java.util.HashSet<String>(java.util.Arrays.asList(
+                "broken.lua", "Broken.zip", "BrokenPackage"));
+        LuaScriptFiles files = new LuaScriptFiles();
+        List<LuaScriptFiles.PreflightFailure> failures = new ArrayList<LuaScriptFiles.PreflightFailure>();
+        List<LuaModSource> sources = files.discover(scripts, failures, disabled);
+        require(failures.isEmpty() && sources.size() == 1 && "active.lua".equals(sources.get(0).entrypointRelative()),
+                "Disabled loose scripts, ZIPs, and package directories must be skipped before parsing");
+        long fingerprint = files.fingerprint(scripts, disabled);
+        write(new File(scripts, "broken.lua"), "still invalid Lua, now longer !!!\n");
+        require(fingerprint == files.fingerprint(scripts, disabled),
+                "Changes to disabled entries must not trigger an automatic reload");
+        require(files.preflight(scripts, disabled).isEmpty(),
+                "Disabled entries must not fail reload preflight");
+
+        LuaScriptErrors.clear();
+        LuaScriptErrors.add("active.lua", "Example failure");
+        File logsDirectory = directory(instance, "betamoon/logs");
+        File otherLog = new File(logsDirectory, "asset_warn_example.log");
+        write(otherLog, "Unrelated log\n");
+        for (int index = 0; index < 12; index++) {
+            ScriptErrorReport.write(scripts, "reload");
+        }
+        File[] reports = logsDirectory.listFiles(
+                file -> file.getName().startsWith("script_err_") && file.getName().endsWith(".log"));
+        require(reports != null && reports.length == 10, "Automatic script reports must retain only ten files");
+        require(otherLog.isFile(), "Script report retention must preserve other log types");
+        String report = new String(Files.readAllBytes(reports[0].toPath()), StandardCharsets.UTF_8);
+        require(report.contains("Example failure"), "Automatic reports must include script errors");
+        LuaScriptRegistry.clear();
+        LuaScriptErrors.clear();
     }
 
     private static File directory(File parent, String name) throws IOException {

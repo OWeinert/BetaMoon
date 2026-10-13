@@ -19,6 +19,7 @@ public final class BetaMoonServer {
         File scriptsDirectory = BetaMoonDirectories.scriptsDirectory(gameDirectory, true);
         this.common = new BetaMoonCommon(scriptsDirectory);
         this.config = new BetaMoonConfig(new File(gameDirectory, "config"));
+        common.configure(config);
     }
 
     public static synchronized BetaMoonServer create(File gameDirectory) {

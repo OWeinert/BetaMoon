@@ -97,11 +97,20 @@ units. The [example index](examples/README.md) explains which files belong to th
 same lesson, required assets and how to try the content. Check numeric content
 IDs when combining scripts with other mods.
 
-Saved script changes trigger hot reload after the save settles. You can also use **Reload** on the Scripts screen. Changes to persistent structural definitions, including tile entities, containers and GUIs, require a Minecraft restart. See [installing scripts](https://github.com/OWeinert/BetaMoon/wiki/Install-Scripts) and [reload and compatibility](https://github.com/OWeinert/BetaMoon/wiki/Hot-Reload-and-Compatibility).
+Set `scripts.hotReloadOnFileChange=true` to reload saved script changes automatically after they settle.
+You can also use **Reload** on the Scripts screen. Changes to persistent structural definitions, including tile
+entities, containers and GUIs, require a Minecraft restart. See [installing scripts](https://github.com/OWeinert/BetaMoon/wiki/Install-Scripts) and [reload and compatibility](https://github.com/OWeinert/BetaMoon/wiki/Hot-Reload-and-Compatibility).
 
 Startup and reload notifications show script errors by default. To include warnings in the popup and reload chat messages,
-set `showScriptWarningsOnLoad=true` in `.minecraft/config/betamoon.cfg` and restart Minecraft. Warnings remain
+set `notifications.showScriptWarningsOnLoad=true` in `.minecraft/config/betamoon.cfg` and restart Minecraft. Warnings remain
 available in the Scripts screen and launcher log when notifications are disabled.
+
+BetaMoon's `.cfg` groups settings with `notifications.`, `scripts.`, `diagnostics.`, and `updates.` key prefixes.
+Each field has a short comment in the file. Existing flat setting names migrate to these grouped names on startup.
+`scripts.disabledScripts` accepts comma-separated top-level names from `betamoon/scripts`, such as `foo.lua`,
+`Pack`, or `Pack.zip`. Skipping a script can leave dependents unavailable; restart after changing the list.
+Failed-load reports created by `diagnostics.autoExportDiagnosticsOnScriptError` are saved as
+`betamoon/logs/script_err_<timestamp>.log`, with the newest ten retained.
 
 ## Writing scripts
 

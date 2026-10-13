@@ -21,6 +21,10 @@ final class LuaScriptFiles {
     private static final long EMPTY_FINGERPRINT = 1125899906842597L;
 
     List<LuaModSource> discover(File directory, List<PreflightFailure> failures) {
+        return discover(directory, failures, Collections.<String>emptySet());
+    }
+
+    List<LuaModSource> discover(File directory, List<PreflightFailure> failures, Set<String> disabledEntries) {
         List<LuaModSource> sources = new ArrayList<>();
         if (directory == null || !directory.isDirectory()) {
             return sources;
@@ -43,6 +47,9 @@ final class LuaScriptFiles {
         Map<String, LuaModSource> owners = new HashMap<>();
         for (int i = 0; i < children.length; i++) {
             File child = children[i];
+            if (disabledEntries.contains(child.getName())) {
+                continue;
+            }
             try {
                 LuaModSource source = source(root, child);
                 if (source == null) {
@@ -66,8 +73,12 @@ final class LuaScriptFiles {
     }
 
     List<PreflightFailure> preflight(File directory) {
+        return preflight(directory, Collections.<String>emptySet());
+    }
+
+    List<PreflightFailure> preflight(File directory, Set<String> disabledEntries) {
         List<PreflightFailure> failures = new ArrayList<>();
-        List<LuaModSource> sources = discover(directory, failures);
+        List<LuaModSource> sources = discover(directory, failures, disabledEntries);
         for (int sourceIndex = 0; sourceIndex < sources.size(); sourceIndex++) {
             failures.addAll(preflight(sources.get(sourceIndex)));
         }
@@ -97,7 +108,11 @@ final class LuaScriptFiles {
     }
 
     long fingerprint(File directory) {
-        List<File> files = fingerprintFiles(directory);
+        return fingerprint(directory, Collections.<String>emptySet());
+    }
+
+    long fingerprint(File directory, Set<String> disabledEntries) {
+        List<File> files = fingerprintFiles(directory, disabledEntries);
         long value = EMPTY_FINGERPRINT;
         if (directory == null) {
             return value;
@@ -114,7 +129,7 @@ final class LuaScriptFiles {
         return value;
     }
 
-    private List<File> fingerprintFiles(File directory) {
+    private List<File> fingerprintFiles(File directory, Set<String> disabledEntries) {
         List<File> result = new ArrayList<>();
         if (directory == null || !directory.isDirectory()) {
             return result;
@@ -127,6 +142,9 @@ final class LuaScriptFiles {
             }
             for (int i = 0; i < children.length; i++) {
                 File child = children[i];
+                if (disabledEntries.contains(child.getName())) {
+                    continue;
+                }
                 if (isLuaScript(child)) {
                     result.add(child.getCanonicalFile());
                 } else if (isZipArchive(child)) {

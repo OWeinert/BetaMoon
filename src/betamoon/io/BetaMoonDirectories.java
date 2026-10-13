@@ -15,6 +15,9 @@ public final class BetaMoonDirectories {
     public static final String HOME_NAME = "betamoon";
     public static final String SCRIPTS_NAME = "scripts";
     public static final String CONFIG_NAME = "config";
+    public static final String DEBUG_NAME = "debug";
+    public static final String LOGS_NAME = "logs";
+    public static final String CONTROLS_FILE_NAME = "controls.json";
     private static final String LEGACY_SCRIPTS_NAME = "lua_scripts";
     private static final Map<Path, File> activeScriptsDirectories = new HashMap<>();
 
@@ -68,6 +71,27 @@ public final class BetaMoonDirectories {
             return null;
         }
         return new File(new File(instanceDirectory, HOME_NAME), CONFIG_NAME);
+    }
+
+    public static File debugDirectoryForInstance(File instanceDirectory) {
+        if (instanceDirectory == null) {
+            return null;
+        }
+        return new File(new File(instanceDirectory, HOME_NAME), DEBUG_NAME);
+    }
+
+    public static File logsDirectoryForInstance(File instanceDirectory) {
+        if (instanceDirectory == null) {
+            return null;
+        }
+        return new File(new File(instanceDirectory, HOME_NAME), LOGS_NAME);
+    }
+
+    public static File controlsFileForInstance(File instanceDirectory) {
+        if (instanceDirectory == null) {
+            return null;
+        }
+        return new File(new File(instanceDirectory, HOME_NAME), CONTROLS_FILE_NAME);
     }
 
     private static File createOrMigrateScriptsDirectory(File current, File legacy) {

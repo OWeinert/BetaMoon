@@ -7,6 +7,7 @@ import betamoon.event.context.EventContext;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptResourceTracker;
+import betamoon.luamodloader.SlowScriptCallbackMonitor;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
@@ -86,10 +87,13 @@ public final class EventsApi {
             final LuaValue callback = functionValue.checkfunction();
             final String owner = LuaScriptRegistry.getCurrentScriptFile();
             final IEventListener<TContext> listener = ctx -> {
+                long startedNanos = System.nanoTime();
                 try {
                     callback.call(contextFactory.apply(ctx));
                 } catch (LuaError e) {
                     LuaApiUtils.warnForScript(owner, "Events", name + " listener error: " + e.getMessage());
+                } finally {
+                    SlowScriptCallbackMonitor.record(owner, "events." + name, startedNanos);
                 }
             };
             channel.subscribe(listener);

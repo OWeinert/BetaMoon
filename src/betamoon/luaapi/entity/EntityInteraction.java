@@ -10,6 +10,7 @@ import betamoon.luaapi.utils.InteractionOutcome;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.luamodloader.SlowScriptCallbackMonitor;
 import java.util.Collections;
 import java.util.Set;
 import java.util.WeakHashMap;
@@ -45,6 +46,9 @@ public final class EntityInteraction {
 
     private static InteractionOutcome callback(Entity entity, EntityPlayer player, EntityInstanceState state,
             EntityTypeDefinition definition) {
+        long startedNanos = System.nanoTime();
+        String owner = EntityTypeRegistry.owner(definition.key);
+        String reportOwner = owner == null ? definition.key.toString() : owner;
         try (LuaCallbackScope scope = new LuaCallbackScope(entity.worldObj == null
                 || !entity.worldObj.multiplayerWorld)) {
             LuaTable context = new LuaTable();
@@ -61,11 +65,12 @@ public final class EntityInteraction {
         } catch (RuntimeException error) {
             if (DISABLED.add(definition)) {
                 String message = definition.key + ".onInteract disabled after error: " + error.getMessage();
-                String owner = EntityTypeRegistry.owner(definition.key);
-                LuaScriptErrors.add(owner == null ? definition.key.toString() : owner, message);
+                LuaScriptErrors.add(reportOwner, message);
                 BetaMoonCommon.LOGGER.warning(message);
             }
             return InteractionOutcome.DENY;
+        } finally {
+            SlowScriptCallbackMonitor.record(reportOwner, "entity.onInteract", startedNanos);
         }
     }
 }

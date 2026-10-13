@@ -1,7 +1,7 @@
 package betamoon.luamodloader;
 
 import betamoon.BetaMoonCommon;
-
+import betamoon.config.BetaMoonConfig;
 import betamoon.fluid.interaction.FluidInteractionRegistry;
 import betamoon.io.IoUtils;
 import betamoon.luaapi.block.BlockCallbackRegistry;
@@ -18,6 +18,7 @@ import betamoon.loot.LootTableRegistry;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +33,10 @@ public final class LuaModLoader {
     private final RetainedScriptCatalog retainedScripts = new RetainedScriptCatalog();
     private final ScriptLifecycleRunner lifecycleRunner = new ScriptLifecycleRunner(retainedScripts, this::reportError);
     private final File scriptsDirectory;
+    private Set<String> disabledScripts = Collections.emptySet();
+    private int reloadDebounceMs = 500;
+    private boolean logScriptLoadTimings;
+    private boolean autoExportDiagnosticsOnScriptError;
     private long lastScanTime;
     private long knownFingerprint = Long.MIN_VALUE;
     private long pendingFingerprint = Long.MIN_VALUE;
@@ -44,6 +49,13 @@ public final class LuaModLoader {
 
     public LuaModLoader(File scriptsDirectory) {
         this.scriptsDirectory = IoUtils.ensureDirectory(scriptsDirectory);
+    }
+
+    public void configure(BetaMoonConfig config) {
+        disabledScripts = config.getDisabledScripts().getValue();
+        reloadDebounceMs = config.getReloadDebounceMs().getValue();
+        logScriptLoadTimings = config.getLogScriptLoadTimings().getValue();
+        autoExportDiagnosticsOnScriptError = config.getAutoExportDiagnosticsOnScriptError().getValue();
     }
 
     /**
@@ -59,6 +71,7 @@ public final class LuaModLoader {
             loadAndRunInternal();
             knownFingerprint = calculateFingerprint();
         } finally {
+            exportFailedAttempt("startup");
             phase = LoaderPhase.IDLE;
         }
     }
@@ -167,6 +180,7 @@ public final class LuaModLoader {
             LuaScriptErrors.add("Hot reload", "Unexpected reload failure: " + error.getMessage());
             throw error;
         } finally {
+            exportFailedAttempt("reload");
             phase = LoaderPhase.IDLE;
             int errorCount = LuaScriptErrors.getErrorCount();
             ScriptReloadStatus.complete(!reloadFinished && errorCount == 0 ? 1 : errorCount);
@@ -179,18 +193,20 @@ public final class LuaModLoader {
      */
     public synchronized void pollForChanges() {
         long now = System.currentTimeMillis();
-        if (phase.isBusy() || now - lastScanTime < 500L) {
+        if (phase.isBusy() || now - lastScanTime < Math.min(250L, reloadDebounceMs / 2L)) {
             return;
         }
         lastScanTime = now;
         long fingerprint = calculateFingerprint();
         if (knownFingerprint == Long.MIN_VALUE) {
             knownFingerprint = fingerprint;
-        } else if (fingerprint != knownFingerprint) {
+        } else if (fingerprint == knownFingerprint) {
+            pendingFingerprint = Long.MIN_VALUE;
+        } else {
             if (fingerprint != pendingFingerprint) {
                 pendingFingerprint = fingerprint;
                 pendingSince = now;
-            } else if (now - pendingSince >= 500L) {
+            } else if (now - pendingSince >= reloadDebounceMs) {
                 pendingFingerprint = Long.MIN_VALUE;
                 reloadAll();
             }
@@ -199,7 +215,7 @@ public final class LuaModLoader {
 
     /** Compiles every script before active resources are touched. */
     private boolean preflightScripts() {
-        List<LuaScriptFiles.PreflightFailure> failures = scriptFiles.preflight(scriptsDirectory);
+        List<LuaScriptFiles.PreflightFailure> failures = scriptFiles.preflight(scriptsDirectory, disabledScripts);
         for (int i = 0; i < failures.size(); i++) {
             LuaScriptFiles.PreflightFailure failure = failures.get(i);
             String message = "Reload kept the active scripts because " + failure.getFileName() + " is invalid: "
@@ -211,7 +227,7 @@ public final class LuaModLoader {
     }
 
     private long calculateFingerprint() {
-        return scriptFiles.fingerprint(scriptsDirectory);
+        return scriptFiles.fingerprint(scriptsDirectory, disabledScripts);
     }
 
     /**
@@ -255,7 +271,14 @@ public final class LuaModLoader {
             return mods;
         }
         List<LuaScriptFiles.PreflightFailure> discoveryFailures = new ArrayList<>();
-        List<LuaModSource> discoveredSources = scriptFiles.discover(scriptsDir, discoveryFailures);
+        long discoveryStart = System.nanoTime();
+        List<LuaModSource> discoveredSources = scriptFiles.discover(scriptsDir, discoveryFailures, disabledScripts);
+        logTiming("discovery", discoveryStart);
+        for (String disabled : disabledScripts) {
+            if (new File(scriptsDir, disabled).exists()) {
+                LOGGER.info("Skipped disabled Lua mod source: " + disabled);
+            }
+        }
         for (int i = 0; i < discoveryFailures.size(); i++) {
             LuaScriptFiles.PreflightFailure failure = discoveryFailures.get(i);
             String message = failure.getFileName() + ": " + failure.getCause();
@@ -271,7 +294,9 @@ public final class LuaModLoader {
                 continue;
             }
             if (!phase.isHotReload()) {
+                long preflightStart = System.nanoTime();
                 List<LuaScriptFiles.PreflightFailure> sourceFailures = scriptFiles.preflight(source);
+                logTiming("preflight " + sourceName, preflightStart);
                 if (!sourceFailures.isEmpty()) {
                     for (int failureIndex = 0; failureIndex < sourceFailures.size(); failureIndex++) {
                         LuaScriptFiles.PreflightFailure failure = sourceFailures.get(failureIndex);
@@ -284,8 +309,10 @@ public final class LuaModLoader {
                 }
             }
             try {
+                long parseStart = System.nanoTime();
                 String scriptText = source.readEntrypoint();
                 ScriptMod mod = parseLuaMod(source, scriptText, errors);
+                logTiming("parse " + sourceName, parseStart);
                 if (mod != null) {
                     mods.add(mod);
                 }
@@ -367,7 +394,19 @@ public final class LuaModLoader {
      *            output list for names that fail during modInit
      */
     void runModsInOrder(List<ScriptMod> ordered, List<String> failedMods) {
-        lifecycleRunner.run(ordered, failedMods, phase.isHotReload());
+        lifecycleRunner.run(ordered, failedMods, phase.isHotReload(), logScriptLoadTimings);
+    }
+
+    private void logTiming(String stage, long startedNanos) {
+        if (logScriptLoadTimings) {
+            LOGGER.info("Lua mod " + stage + " took " + ((System.nanoTime() - startedNanos) / 1000000L) + " ms.");
+        }
+    }
+
+    private void exportFailedAttempt(String attempt) {
+        if (autoExportDiagnosticsOnScriptError && LuaScriptErrors.getErrorCount() > 0) {
+            ScriptErrorReport.write(scriptsDirectory, attempt);
+        }
     }
 
     /**

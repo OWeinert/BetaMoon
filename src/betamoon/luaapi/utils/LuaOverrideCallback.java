@@ -3,6 +3,7 @@ package betamoon.luaapi.utils;
 import betamoon.BetaMoonCommon;
 
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.luamodloader.SlowScriptCallbackMonitor;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -88,6 +89,7 @@ public final class LuaOverrideCallback {
         BaseCall base = new BaseCall(() -> invokeLayer(nextIndex, context, arguments, original, validate, fallbackOnNil,
                 interaction));
         context.set("base", base);
+        long startedNanos = System.nanoTime();
         try {
             LuaValue result = validate.apply(definition.getAction().invoke(arguments).arg1());
             if (fallbackOnNil && result.isnil() || interaction && result.raweq(LuaValue.valueOf("pass"))) {
@@ -101,6 +103,7 @@ public final class LuaOverrideCallback {
             BetaMoonCommon.LOGGER.warning(definition.getOwner() + ": " + message);
             return base.originalResult();
         } finally {
+            SlowScriptCallbackMonitor.record(definition.getOwner(), definition.getName(), startedNanos);
             base.active = false;
             context.set("base", previousBase);
         }
