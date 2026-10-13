@@ -1,6 +1,7 @@
 package betamoon.luaapi.config;
 
 import betamoon.BetaMoonCommon;
+import betamoon.io.BetaMoonDirectories;
 import betamoon.io.IoUtils;
 import betamoon.luamodloader.LuaScriptErrors;
 import java.io.File;
@@ -13,7 +14,7 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
-/** Callable Lua config namespace backed by the instance's shared config folder. */
+/** Callable Lua config namespace backed by the instance's BetaMoon content folder. */
 public final class ConfigApi {
     private ConfigApi() {
     }
@@ -51,9 +52,9 @@ public final class ConfigApi {
     private static File defaultRoot() {
         File instanceRoot = IoUtils.resolveMinecraftDirFromCodeSource(BetaMoonCommon.class);
         if (instanceRoot == null) {
-            throw new LuaError("Cannot locate the Minecraft instance config folder");
+            throw new LuaError("Cannot locate the Minecraft instance folder");
         }
-        return new File(new File(instanceRoot, "config"), "betamoon");
+        return BetaMoonDirectories.scriptConfigDirectoryForInstance(instanceRoot);
     }
 
     private static void reportLoadError(String owner, String message) {

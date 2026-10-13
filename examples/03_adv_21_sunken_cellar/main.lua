@@ -1,4 +1,4 @@
--- Copy this complete folder into lua_scripts. The structure is deliberately
+-- Copy this complete folder into betamoon/scripts. The structure is deliberately
 -- simple so the relationship between fitting, verticalOffset, and excavation
 -- remains visible.
 

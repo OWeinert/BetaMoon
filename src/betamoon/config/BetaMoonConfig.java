@@ -5,14 +5,30 @@ import betamoon.io.IoUtils;
 import forge.Configuration;
 import forge.Property;
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
 import java.util.Optional;
+import java.util.logging.Level;
 
 public final class BetaMoonConfig {
+    public static final String FILE_NAME = "betamoon.cfg";
+    private static final String LEGACY_FILE_NAME = "betamoon.config";
+
     private Configuration config;
     private ConfigField<Boolean> showScriptWarningsOnLoad;
     private ConfigField<Boolean> checkForUpdates;
     private ConfigField<Boolean> notifyUpdatesOnWorldJoin;
     private ConfigField<Boolean> hotReloadOnFileChange;
+
+    public BetaMoonConfig() {
+        this(resolveDefaultConfigDirectory(), FILE_NAME);
+    }
+
+    public BetaMoonConfig(File configDirectory) {
+        this(configDirectory, FILE_NAME);
+    }
 
     public BetaMoonConfig(String configFileName) {
         this(resolveDefaultConfigDirectory(), configFileName);
@@ -30,8 +46,42 @@ public final class BetaMoonConfig {
         if (directory == null) {
             throw new IllegalStateException("Unable to create BetaMoon config directory: " + configDirectory);
         }
-        config = new Configuration(new File(directory, configFileName));
+        config = new Configuration(resolveConfigFile(directory, configFileName));
         updateConfigFields();
+    }
+
+    private static File resolveConfigFile(File directory, String configFileName) {
+        File current = new File(directory, configFileName);
+        if (!FILE_NAME.equals(configFileName)) {
+            return current;
+        }
+
+        Path currentPath = current.toPath();
+        Path legacyPath = new File(directory, LEGACY_FILE_NAME).toPath();
+        if (Files.exists(currentPath, LinkOption.NOFOLLOW_LINKS)) {
+            if (Files.exists(legacyPath, LinkOption.NOFOLLOW_LINKS)) {
+                BetaMoonCommon.LOGGER.warning("Both BetaMoon config files exist; using " + currentPath
+                        + " and leaving " + legacyPath + " unchanged.");
+            }
+            return current;
+        }
+        if (!Files.exists(legacyPath, LinkOption.NOFOLLOW_LINKS)) {
+            return current;
+        }
+        if (!Files.isRegularFile(legacyPath)) {
+            BetaMoonCommon.LOGGER.warning("Legacy BetaMoon config is not a regular file: " + legacyPath);
+            return current;
+        }
+
+        try {
+            Files.move(legacyPath, currentPath);
+            BetaMoonCommon.LOGGER.info("Moved BetaMoon config from " + legacyPath + " to " + currentPath);
+            return current;
+        } catch (IOException | SecurityException e) {
+            BetaMoonCommon.LOGGER.log(Level.WARNING,
+                    "Could not move BetaMoon config to " + currentPath + "; using " + legacyPath + " instead.", e);
+            return legacyPath.toFile();
+        }
     }
 
     public void updateConfigFields() {

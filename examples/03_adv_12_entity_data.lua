@@ -1,4 +1,4 @@
--- Copy builtin_model_item/ beside this script in lua_scripts.
+-- Copy builtin_model_item/ beside this script in betamoon/scripts.
 -- Obtain the Data Totem Placer (5036), place a totem, and right-click it.
 
 name = "Entity Data Example"

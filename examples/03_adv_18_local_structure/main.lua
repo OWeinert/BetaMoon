@@ -1,4 +1,4 @@
--- Copy this complete folder into lua_scripts. The manifest makes main.lua the
+-- Copy this complete folder into betamoon/scripts. The manifest makes main.lua the
 -- entrypoint, while the structure key resolves its JSON under assets/example/.
 -- Local structures are ordinary feature references: they can be scheduled,
 -- composed, attached to a biome decorator, or placed directly from a callback.

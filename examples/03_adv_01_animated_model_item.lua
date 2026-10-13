@@ -1,4 +1,4 @@
--- Copy animated_model_item/ beside this script in lua_scripts.
+-- Copy animated_model_item/ beside this script in betamoon/scripts.
 -- The exported clip animates the head; onPose adds a small Lua-controlled turn.
 
 name = "Animated Model Item Example"

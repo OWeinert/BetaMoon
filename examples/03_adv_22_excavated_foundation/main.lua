@@ -1,4 +1,4 @@
--- Copy this complete folder into lua_scripts. This example keeps the authored
+-- Copy this complete folder into betamoon/scripts. This example keeps the authored
 -- two-dimensional foundation mask, exact clearance voxels, and reusable
 -- three-dimensional excavation mask beside one another for comparison.
 

@@ -5,6 +5,7 @@ import betamoon.assets.io.AssetResolver;
 import betamoon.assets.io.PackageAssetProvider;
 import betamoon.assets.io.ResolvedAsset;
 import betamoon.assets.io.ZipAssetProvider;
+import betamoon.io.BetaMoonDirectories;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -33,6 +34,7 @@ public final class LuaModPackagesTest {
         try {
             verifyDistributedExamples(new File("examples"));
             verifyDiscoveryAndManifestMetadata(root);
+            verifyScriptsDirectoryMigration(root);
             verifyScriptConfigPlacement(root);
             verifyRequireCachingAndInitModules(root);
             verifyPrivateModuleIsolation(root);
@@ -79,7 +81,7 @@ public final class LuaModPackagesTest {
 
     private static void verifyScriptConfigPlacement(File root) throws IOException {
         File instance = directory(root, "config_instance");
-        File scripts = directory(instance, "lua_scripts");
+        File scripts = directory(instance, "betamoon/scripts");
         write(new File(scripts, "settings.lua"), "name='Settings'\n"
                 + "local settings=betamoon.config('settings_test',{volume=0.75})\n"
                 + "function modInit() assert(settings.volume==0.75) end\n");
@@ -89,8 +91,47 @@ public final class LuaModPackagesTest {
         List<String> errors = new ArrayList<>();
         ScriptMod parsed = new ScriptModParser().parse(sources.get(0), sources.get(0).readEntrypoint(), errors);
         require(parsed != null && errors.isEmpty(), "Script must create its config from defaults: " + errors);
-        require(new File(instance, "config/betamoon/settings_test.json").isFile(),
-                "A loaded script writes under its own instance's shared config folder");
+        require(new File(instance, "betamoon/config/settings_test.json").isFile(),
+                "A loaded script writes under its own instance's BetaMoon config folder");
+    }
+
+    private static void verifyScriptsDirectoryMigration(File root) throws IOException {
+        File instance = directory(root, "migration_instance");
+        directory(instance, "betamoon/config");
+        File legacy = directory(instance, "lua_scripts");
+        write(new File(legacy, "migrated.lua"), "name='Migrated'\nfunction modInit() end\n");
+        write(new File(legacy, "assets/icon.txt"), "asset");
+
+        File selected = BetaMoonDirectories.scriptsDirectory(instance, true);
+        File current = new File(instance, "betamoon/scripts");
+        require(selected.equals(current), "Legacy scripts must move into betamoon/scripts");
+        require(new File(current, "migrated.lua").isFile(), "Migration must preserve loose scripts");
+        require(new File(current, "assets/icon.txt").isFile(), "Migration must preserve nested assets");
+        require(!legacy.exists(), "A successful migration must remove the old scripts path");
+        require(BetaMoonDirectories.scriptConfigDirectory(current).equals(new File(instance, "betamoon/config")),
+                "New scripts must resolve configs within the BetaMoon content directory");
+
+        File conflictInstance = directory(root, "conflict_instance");
+        File conflictCurrent = directory(conflictInstance, "betamoon/scripts");
+        File conflictLegacy = directory(conflictInstance, "lua_scripts");
+        write(new File(conflictCurrent, "current.lua"), "name='Current'\nfunction modInit() end\n");
+        write(new File(conflictLegacy, "legacy.lua"), "name='Legacy'\nfunction modInit() end\n");
+        require(BetaMoonDirectories.scriptsDirectory(conflictInstance, true).equals(conflictCurrent),
+                "The new scripts directory must take precedence when both exist");
+        require(new File(conflictLegacy, "legacy.lua").isFile(),
+                "A conflicting legacy directory must remain untouched");
+
+        File blockedInstance = directory(root, "blocked_instance");
+        directory(blockedInstance, "betamoon");
+        write(new File(blockedInstance, "betamoon/scripts"), "blocked");
+        File blockedLegacy = directory(blockedInstance, "lua_scripts");
+        require(BetaMoonDirectories.scriptsDirectory(blockedInstance, true).equals(blockedLegacy),
+                "An unusable destination must preserve legacy script loading");
+        require(BetaMoonDirectories.scriptsDirectory(blockedInstance, false).equals(blockedLegacy),
+                "The selected scripts directory must stay stable for the session");
+        require(BetaMoonDirectories.scriptConfigDirectory(blockedLegacy)
+                        .equals(new File(blockedInstance, "betamoon/config")),
+                "Legacy fallback must still use the new script config location");
     }
 
     private static void verifyDistributedExamples(File examples) throws IOException {

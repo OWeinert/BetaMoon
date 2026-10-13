@@ -163,7 +163,7 @@ public final class DebugExportSystemTest {
         String issues = new String(Files.readAllBytes(
                 new File(result.getDirectory(), "script_issues.txt").toPath()), StandardCharsets.UTF_8);
         require(!issues.contains(scriptsDirectory.getAbsolutePath()), "Script export disclosed its absolute root");
-        require(issues.contains("<lua_scripts>"), "Script export omitted the redacted path marker");
+        require(issues.contains("<betamoon/scripts>"), "Script export omitted the redacted path marker");
         LuaScriptErrors.clear();
     }
 

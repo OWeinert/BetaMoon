@@ -215,18 +215,18 @@ public final class LuaModLoader {
     }
 
     /**
-     * Resolves the .minecraft/luamods directory and creates it if missing.
+     * Resolves the instance's betamoon/scripts directory and creates it if missing.
      *
-     * @return the luamods directory or null if it cannot be resolved
+     * @return the scripts directory or null if it cannot be resolved
      */
     File getOrCreateLuaModsDir() {
         return scriptsDirectory;
     }
 
     /**
-     * Resolves the .minecraft/luamods directory for UI access.
+     * Resolves the instance's scripts directory for UI access.
      *
-     * @return the luamods directory or null if it cannot be resolved
+     * @return the scripts directory or null if it cannot be resolved
      */
     public static File getLuaModsDir() {
         return resolveLuaModsDir(true);

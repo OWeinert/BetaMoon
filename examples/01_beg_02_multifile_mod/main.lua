@@ -1,4 +1,4 @@
--- Copy this complete folder into .minecraft/lua_scripts. The manifest selects
+-- Copy this complete folder into .minecraft/betamoon/scripts. The manifest selects
 -- this file as the package entrypoint and supplies the metadata shown in the
 -- Scripts screen, so this file does not repeat name, version, or description.
 

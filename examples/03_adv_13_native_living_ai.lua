@@ -1,4 +1,4 @@
--- Copy animated_model_item/ beside this script in lua_scripts.
+-- Copy animated_model_item/ beside this script in betamoon/scripts.
 -- Obtain the Clockwork Watcher Placer (5039) and place it on a block.
 
 name = "Predefined Living AI Example"

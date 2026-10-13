@@ -57,7 +57,7 @@ public final class BetaMoonClient {
         BlockModelRegistry.initialize(baseMod);
         FluidRenderer.initialize(baseMod);
         this.agentRegistered = common.isAgentRegistered();
-        this.config = new BetaMoonConfig("betamoon.config");
+        this.config = new BetaMoonConfig();
         LuaLoaderClientFeedback.initialize(showScriptWarningsOnLoad());
         this.eventHandler = new BetaMoonEventHandler();
         setInitHooks(this.betaMoonBaseMod);

@@ -1,4 +1,4 @@
--- Copy animated_machine/ beside this script in lua_scripts.
+-- Copy animated_machine/ beside this script in betamoon/scripts.
 -- Its idle and running appearances both use dynamic rendering so visuals change
 -- without replacing the block. The sound is local feedback for the activating player.
 

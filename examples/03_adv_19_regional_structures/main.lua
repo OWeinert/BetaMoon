@@ -1,4 +1,4 @@
--- Copy this complete folder into lua_scripts. Four local structure templates
+-- Copy this complete folder into betamoon/scripts. Four local structure templates
 -- become the root and weighted connector-pool pieces of one regional structure.
 -- Regional starts are selected on a deterministic chunk grid and their complete
 -- plans are saved before individual chunk slices commit.
