@@ -1,8 +1,7 @@
 package betamoon.gui;
 
-import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiDialogScreen;
-import betamoon.gui.framework.GuiElement;
+import betamoon.gui.widget.GuiMessage;
 import betamoon.gui.widget.GuiButton;
 import betamoon.io.IoUtils;
 import betamoon.update.UpdateRelease;
@@ -21,16 +20,10 @@ final class GuiUpdateDetails extends GuiDialogScreen {
         status = browserFailed
                 ? "Could not open browser. Copy the link below."
                 : "Open the download page in your browser.";
-        dialog.setPanelSize(420, 210, 160);
-        dialog.setScreenMargins(16, 20);
-        dialog.setBody(new GuiElement() {
-            @Override
-            protected void renderElement(GuiContext context) {
-                String text = "Installed: " + installed + "\nAvailable: " + release.getVersion() + "\n\n" + status
-                        + "\n\n" + release.getPageUri();
-                context.getRenderer().drawWrappedText(text, getLeft(), getTop(), getWidth(), 0xFFFFFFFF);
-            }
-        });
+        dialog.setPanelSize(420, 210, 100);
+        dialog.setScreenMargins(32, 32);
+        dialog.setBody(new GuiMessage(() -> "Installed: " + installed + "\nAvailable: " + release.getVersion() + "\n\n"
+                + status + "\n\n" + release.getPageUri()));
         dialog.addFooterButton(new GuiButton("View on " + release.getSourceName(), this::openPage));
         dialog.addFooterButton(new GuiButton("Copy link", this::copyLink));
         dialog.addFooterButton(new GuiButton("Back", () -> showScreen(parent)));

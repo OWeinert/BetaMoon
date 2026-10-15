@@ -69,14 +69,13 @@ final class GuiUpdateNotice extends GuiContainer {
             return;
         }
         GuiRenderer renderer = context.getRenderer();
-        renderer.drawRect(getBounds(), 0xFF777777);
-        renderer.drawRect(getLeft() + 1, getTop() + 1, getRight() - 1, getBottom() - 1, 0xF51C1C1C);
+        renderer.drawPopupPanel(getBounds());
         int centerX = getLeft() + getWidth() / 2;
         int y = getTop() + 6;
         renderer.drawScaledCenteredText("BetaMoon update available", centerX, y, 0xFFFFCC55, 1.0F);
         String versions = installedVersion + " -> " + release.getVersion();
-        renderer.drawScaledCenteredText(renderer.trimToWidth(versions, getWidth() - 12), centerX, y + 12,
-                0xFFFFFFFF, 1.0F);
+        renderer.drawScaledCenteredText(renderer.trimToWidth(versions, getWidth() - 12), centerX, y + 12, 0xFFFFFFFF,
+                1.0F);
     }
 
     @Override

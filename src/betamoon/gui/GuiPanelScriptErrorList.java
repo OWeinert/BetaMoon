@@ -4,11 +4,16 @@ import betamoon.gui.framework.GuiContainer;
 import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiElement;
 import betamoon.gui.framework.GuiInputEvent;
+import betamoon.gui.framework.GuiGeometry.Rect;
+import betamoon.gui.framework.GuiGeometry.Constraints;
+import betamoon.gui.framework.GuiGeometry.Size;
 import betamoon.gui.widget.GuiScrollView;
 import betamoon.luamodloader.LuaScriptErrors;
 import java.util.List;
 
-/** Scrollable error and warning list with retained source-file link hitboxes. */
+/**
+ * Scrollable error and warning list with retained source-file link hitboxes.
+ */
 final class GuiPanelScriptErrorList extends GuiContainer {
     private static final int ENTRY_GAP = 10;
     private static final int ENTRY_SEPARATOR_OFFSET = 4;
@@ -18,6 +23,7 @@ final class GuiPanelScriptErrorList extends GuiContainer {
     private final GuiScrollView scrollView = new GuiScrollView(content, GuiScrollView.Policy.VERTICAL);
     private final boolean showWarnings;
     private GuiIssueLayout issueLayout;
+    private String summary = "";
 
     GuiPanelScriptErrorList(boolean showWarnings) {
         this.showWarnings = showWarnings;
@@ -25,12 +31,36 @@ final class GuiPanelScriptErrorList extends GuiContainer {
     }
 
     @Override
+    protected Size measureElement(GuiContext context, Constraints constraints) {
+        GuiIssueLayout layout = prepareIssues(context, constraints.getMaxWidth());
+        return new Size(constraints.getMaxWidth(), 16 + layout.getHeight());
+    }
+
+    private GuiIssueLayout prepareIssues(GuiContext context, int width) {
+        return GuiIssueLayout.prepare(context.getFont(), LuaScriptErrors.getNotificationEntries(showWarnings),
+                Math.max(1, width - CONTENT_PADDING * 2 - 4), ENTRY_GAP);
+    }
+
+    @Override
     protected void arrangeChildren(GuiContext context) {
-        int contentWidth = Math.max(0, getWidth() - CONTENT_PADDING);
-        issueLayout = GuiIssueLayout.prepare(context.getFont(),
-                LuaScriptErrors.getNotificationEntries(showWarnings), contentWidth, ENTRY_GAP);
+        issueLayout = prepareIssues(context, getWidth());
         scrollView.setContentSize(getWidth(), issueLayout.getHeight());
-        scrollView.arrange(context, getBounds());
+        int warnings = 0;
+        for (GuiIssueLayout.Entry entry : issueLayout.getEntries()) {
+            if (entry.isWarning()) {
+                warnings++;
+            }
+        }
+        int errors = issueLayout.getEntries().size() - warnings;
+        summary = errors + (errors == 1 ? " error, " : " errors, ") + warnings
+                + (warnings == 1 ? " warning" : " warnings");
+        scrollView.arrange(context, new Rect(getLeft(), getTop() + 16, getRight(), getBottom()));
+    }
+
+    @Override
+    protected void renderBeforeChildren(GuiContext context) {
+        context.getRenderer().drawText(summary, getLeft() + CONTENT_PADDING, getTop(),
+                context.getRenderer().getTheme().textMuted);
     }
 
     private final class ErrorListContent extends GuiElement {
@@ -39,19 +69,20 @@ final class GuiPanelScriptErrorList extends GuiContainer {
             if (issueLayout == null) {
                 return;
             }
-            int contentWidth = Math.max(0, getWidth() - CONTENT_PADDING);
+            int contentWidth = Math.max(1, getWidth() - CONTENT_PADDING * 2 - 4);
             int y = getTop();
             List<GuiIssueLayout.Entry> entries = issueLayout.getEntries();
             for (int i = 0; i < entries.size(); i++) {
                 GuiIssueLayout.Entry entry = entries.get(i);
-                int color = entry.isWarning() ? context.getRenderer().getTheme().textWarning
+                int color = entry.isWarning()
+                        ? context.getRenderer().getTheme().textWarning
                         : context.getRenderer().getTheme().textError;
                 int entryY = y;
                 entry.draw(context, getLeft() + CONTENT_PADDING, entryY, contentWidth, color);
                 y = entryY + entry.getHeight() + ENTRY_GAP;
                 if (i < entries.size() - 1) {
-                    context.getRenderer().drawHorizontalLine(getLeft() + CONTENT_PADDING,
-                            getRight() - CONTENT_PADDING, entryY + entry.getHeight() + ENTRY_SEPARATOR_OFFSET,
+                    context.getRenderer().drawHorizontalLine(getLeft() + CONTENT_PADDING, getRight() - CONTENT_PADDING,
+                            entryY + entry.getHeight() + ENTRY_SEPARATOR_OFFSET,
                             context.getRenderer().getTheme().listSeparator);
                 }
             }

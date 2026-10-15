@@ -178,7 +178,8 @@ final class GuiPanelScriptList extends GuiContainer {
             int hoveredIndex = rowAt(context.getMouseX(), context.getMouseY());
             for (int i = 0; i < entries.size(); i++) {
                 ScriptMod entry = entries.get(i);
-                int color = entry.isFailed() ? context.getRenderer().getTheme().textError
+                int color = entry.isFailed()
+                        ? context.getRenderer().getTheme().textError
                         : context.getRenderer().getTheme().textPrimary;
                 if (!entry.isFailed()
                         && LuaScriptErrors.hasWarningFor(entry.getDisplayName(), entry.getSourceFileName())) {
@@ -192,11 +193,13 @@ final class GuiPanelScriptList extends GuiContainer {
                 String displayName = context.getRenderer().trimToWidth(fullName, nameWidth);
                 int blockHeight = ROW_HEIGHT - 2;
                 if (i == selectedIndex) {
-                    context.getRenderer().drawRect(getLeft() + 1, y - 1, listContentRight - 1,
-                            y + blockHeight - 1, context.getRenderer().getTheme().listSelectedBackground);
+                    context.getRenderer().drawRect(getLeft() + 1, y - 1, listContentRight - 1, y + blockHeight - 1,
+                            context.getRenderer().getTheme().listSelectedBackground);
+                    context.getRenderer().drawRect(getLeft() + 2, y, listContentRight - 2, y + blockHeight - 2,
+                            0xFF101010);
                 } else if (i == hoveredIndex) {
-                    context.getRenderer().drawRect(getLeft() + 1, y - 1, listContentRight - 1,
-                            y + blockHeight - 1, context.getRenderer().getTheme().listHoverBackground);
+                    context.getRenderer().drawRect(getLeft() + 1, y - 1, listContentRight - 1, y + blockHeight - 1,
+                            context.getRenderer().getTheme().listHoverBackground);
                 }
                 int textHeight = context.getRenderer().lineHeight();
                 int textY = y + (blockHeight - textHeight) / 2;
@@ -208,8 +211,8 @@ final class GuiPanelScriptList extends GuiContainer {
                 }
                 context.getRenderer().drawText(displayName, nameLeft, textY, color);
                 int nameRight = nameLeft + context.getRenderer().textWidth(displayName);
-                if (!displayName.equals(fullName) && context.getMouseX() >= nameLeft
-                        && context.getMouseX() < nameRight && i == hoveredIndex) {
+                if (!displayName.equals(fullName) && context.getMouseX() >= nameLeft && context.getMouseX() < nameRight
+                        && i == hoveredIndex) {
                     context.showTooltip(fullName);
                 }
                 y += ROW_HEIGHT;

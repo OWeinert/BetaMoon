@@ -43,7 +43,10 @@ public abstract class GuiComponentScreen extends GuiScreen {
     public void initGui() {
         controlList.clear();
         updateSceneEnvironment();
-        scene.setContent(createContent());
+        GuiElement content = createContent();
+        if (scene.getContent() != content) {
+            scene.setContent(content);
+        }
     }
 
     @Override
@@ -52,6 +55,22 @@ public abstract class GuiComponentScreen extends GuiScreen {
         updateSceneState(mouseX, mouseY, partialTicks);
         drawSceneBackground(mouseX, mouseY, partialTicks);
         scene.render(mouseX, mouseY, partialTicks);
+    }
+
+    /**
+     * Render this scene without its background when another dialog owns the dim
+     * layer.
+     */
+    protected final void drawScene(int mouseX, int mouseY, float partialTicks) {
+        updateSceneEnvironment();
+        updateSceneState(mouseX, mouseY, partialTicks);
+        scene.render(mouseX, mouseY, partialTicks);
+    }
+
+    @Override
+    public void onGuiClosed() {
+        scene.cancelPointerCapture();
+        super.onGuiClosed();
     }
 
     @Override
