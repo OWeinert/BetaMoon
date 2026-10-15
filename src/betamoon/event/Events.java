@@ -7,6 +7,7 @@ public final class Events {
     public static final GuiCloseEvent GUI_CLOSED = new GuiCloseEvent();
     public static final GuiTickEvent GUI_TICK = new GuiTickEvent();
     public static final GameTickEvent GAME_TICK = new GameTickEvent();
+    public static final WorldTickEvent WORLD_TICK = new WorldTickEvent();
     public static final PlayerJoinEvent PLAYER_JOIN = new PlayerJoinEvent();
     public static final PlayerLeaveEvent PLAYER_LEAVE = new PlayerLeaveEvent();
     public static final ScreenChangedEvent SCREEN_CHANGED = new ScreenChangedEvent();

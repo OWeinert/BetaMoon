@@ -133,6 +133,14 @@ public final class BetaMoonClient {
         return true;
     }
 
+    /**
+     * Keeps join/leave and screen lifecycle observation ahead of logical tick
+     * callbacks.
+     */
+    public void synchronizeTickLifecycle(net.minecraft.client.Minecraft mc) {
+        eventHandler.synchronizeLifecycle(mc);
+    }
+
     public void reloadLuaScripts() {
         common.reloadScripts();
     }
@@ -200,7 +208,7 @@ public final class BetaMoonClient {
             return;
         }
         if (current instanceof GuiMainMenu) {
-            // onTickInGUI runs on every game tick when a GUI is open,
+            // The ModLoader GUI callback observes rendered frames with an open screen,
             // which is first after ModLoader/MinecraftForge loaded every mod and Minecraft
             // shows the main menu.
             // So we only call loadAndRun() once here to ensure BetaMoon loads and executes

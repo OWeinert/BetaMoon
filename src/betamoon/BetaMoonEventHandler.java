@@ -2,7 +2,6 @@ package betamoon;
 
 import betamoon.event.Events;
 import betamoon.event.context.DimensionEventCtx;
-import betamoon.event.context.GameEventCtx;
 import betamoon.event.context.GuiEventCtx;
 import betamoon.event.context.InputEventCtx;
 import betamoon.event.context.ItemUseEventCtx;
@@ -30,12 +29,28 @@ public final class BetaMoonEventHandler {
     private char[] lastKeyChars;
 
     public void handleGuiEvents(Minecraft mc, GuiScreen current) {
-        // screen changed event
+        synchronizeLifecycle(mc, current);
+    }
+
+    public void handleGameEvents(Minecraft mc) {
+        synchronizeLifecycle(mc);
+        publishKeyInputEvents(mc);
+        publishMouseInputEvents(mc, mc.theWorld);
+    }
+
+    /**
+     * Shared by render observation and native tick boundaries without publishing
+     * tick events.
+     */
+    public void synchronizeLifecycle(Minecraft mc) {
+        synchronizeLifecycle(mc, mc.currentScreen);
+    }
+
+    private void synchronizeLifecycle(Minecraft mc, GuiScreen current) {
         if (current != lastScreen) {
             Events.SCREEN_CHANGED.publish(new GuiEventCtx(mc, lastScreen, current));
             lastScreen = current;
         }
-        // Gui closed/opened events
         if (current != lastGui) {
             if (lastGui != null) {
                 Events.GUI_CLOSED.publish(new GuiEventCtx(mc, lastGui));
@@ -44,35 +59,6 @@ public final class BetaMoonEventHandler {
                 Events.GUI_OPENED.publish(new GuiEventCtx(mc, current));
             }
             lastGui = current;
-        }
-        // world leave event (makes sure that the event fires, because world leaving is
-        // triggered from the esc GUI)
-        World worldForLeave = lastWorld;
-        if (mc.theWorld == null && worldForLeave != null) {
-            WorldServiceRuntime.unload(worldForLeave);
-            Events.WORLD_LEAVE.publish(new WorldEventCtx(mc, worldForLeave));
-            lastWorld = null;
-        }
-        // player leave event when leaving to GUI
-        if (mc.thePlayer == null && lastPlayer != null) {
-            Events.PLAYER_LEAVE.publish(new PlayerEventCtx(mc, lastPlayer, worldForLeave));
-            lastPlayer = null;
-        }
-        // tick event
-        Events.GUI_TICK.publish(new GuiEventCtx(mc, current));
-    }
-
-    public void handleGameEvents(Minecraft mc) {
-        // screen changed event
-        GuiScreen currentScreen = mc.currentScreen;
-        if (currentScreen != lastScreen) {
-            Events.SCREEN_CHANGED.publish(new GuiEventCtx(mc, lastScreen, currentScreen));
-            lastScreen = currentScreen;
-        }
-        // gui closed event (this prevents in-game esc menu event spam)
-        if (lastGui != null && mc.currentScreen == null) {
-            Events.GUI_CLOSED.publish(new GuiEventCtx(mc, lastGui));
-            lastGui = null;
         }
         // world leave/join events
         World currentWorld = mc.theWorld;
@@ -111,12 +97,6 @@ public final class BetaMoonEventHandler {
         } else {
             lastDimension = null;
         }
-        // input events
-        publishKeyInputEvents(mc);
-        publishMouseInputEvents(mc, currentWorld);
-        // tick event
-        WorldServiceRuntime.tick(currentWorld);
-        Events.GAME_TICK.publish(new GameEventCtx(mc, currentWorld));
     }
 
     private void publishKeyInputEvents(Minecraft mc) {

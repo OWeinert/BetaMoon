@@ -10,6 +10,7 @@ import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.utils.LuaDeclarationValues;
 import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.luamodloader.ScriptExecution;
 import betamoon.system.BetaMoonWorldData;
 import betamoon.system.WorldServiceRuntime;
 import betamoon.tileentity.LuaTileEntity;
@@ -41,16 +42,17 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-/** Loaded-chunk indexes, component rebuilding, scheduling, links, state signals, and bounded pulses. */
+/**
+ * Loaded-chunk indexes, component rebuilding, scheduling, links, state signals,
+ * and bounded pulses.
+ */
 public final class LogicalNetworkRuntime {
     private static final int MAX_NODES = 4096;
     private static final int MAX_EDGES = 16384;
     private static final int MAX_PULSES = 1024;
     private static final int MAX_PULSE_HOPS = 16;
     private static final Map<World, RuntimeWorld> WORLDS = new WeakHashMap<>();
-    private static final int[][] OFFSETS = {
-        {0, -1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}
-    };
+    private static final int[][] OFFSETS = {{0, -1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}};
     private static final String[] FACES = {"down", "up", "north", "south", "west", "east"};
     private static final String[] OPPOSITE = {"up", "down", "south", "north", "east", "west"};
 
@@ -167,8 +169,8 @@ public final class LogicalNetworkRuntime {
     private static synchronized LuaValue localHandle(LuaCallbackScope scope, LuaTileEntity tile,
             LuaValue definitionValue, boolean required) {
         scope.requireActive();
-        LogicalNetworkDefinition definition = betamoon.luaapi.networking.LogicalNetworksApi.definition(
-                definitionValue, "networks");
+        LogicalNetworkDefinition definition = betamoon.luaapi.networking.LogicalNetworksApi.definition(definitionValue,
+                "networks");
         load(tile.worldObj);
         RuntimeWorld world = WORLDS.get(tile.worldObj);
         NetworkState state = world == null ? null : world.states.get(definition.key.toString());
@@ -199,8 +201,7 @@ public final class LogicalNetworkRuntime {
             public Varargs invoke(Varargs arguments) {
                 scope.requireMutable();
                 requireSignal(state);
-                if (!("state".equals(state.definition.signalMode)
-                        || "both".equals(state.definition.signalMode))) {
+                if (!("state".equals(state.definition.signalMode) || "both".equals(state.definition.signalMode))) {
                     throw new LuaError("Logical network does not accept persistent state publications.");
                 }
                 requireNode(state, node);
@@ -213,8 +214,7 @@ public final class LogicalNetworkRuntime {
             public Varargs invoke(Varargs arguments) {
                 scope.requireMutable();
                 requireSignal(state);
-                if (!("pulse".equals(state.definition.signalMode)
-                        || "both".equals(state.definition.signalMode))) {
+                if (!("pulse".equals(state.definition.signalMode) || "both".equals(state.definition.signalMode))) {
                     throw new LuaError("Logical network does not accept pulses.");
                 }
                 requireNode(state, node);
@@ -246,7 +246,9 @@ public final class LogicalNetworkRuntime {
                 if (target.isEmpty() || target.length() > 128 || target.equals(source)) {
                     throw new LuaError("Link target must be another endpoint identifier of at most 128 characters.");
                 }
-                boolean changed = add ? state.links.add(Link.of(source, target)) : state.links.remove(Link.of(source, target));
+                boolean changed = add
+                        ? state.links.add(Link.of(source, target))
+                        : state.links.remove(Link.of(source, target));
                 if (changed) {
                     state.dirty = true;
                     state.storage.markDirty();
@@ -263,8 +265,7 @@ public final class LogicalNetworkRuntime {
     }
 
     private static void requireNode(NetworkState state, Node node) {
-        if (node.tile.func_31006_g() || node.tile.worldObj != state.world
-                || state.nodes.get(node.position) != node
+        if (node.tile.func_31006_g() || node.tile.worldObj != state.world || state.nodes.get(node.position) != node
                 || node.tile.getCapability(state.definition.capability.key) != node.instance) {
             throw new LuaError("Logical-network node handle is stale.");
         }
@@ -324,8 +325,7 @@ public final class LogicalNetworkRuntime {
 
         private void dirty(LuaTileEntity tile, AssetKey capability, String field) {
             for (NetworkState state : states.values()) {
-                if (state.definition.capability.key.equals(capability)
-                        && state.definition.topologyDependsOn(field)
+                if (state.definition.capability.key.equals(capability) && state.definition.topologyDependsOn(field)
                         && tile.getCapability(capability) != null) {
                     state.dirty = true;
                 }
@@ -358,6 +358,7 @@ public final class LogicalNetworkRuntime {
         private boolean disabled;
         private int sequence;
         private long signalSequence;
+        private long simulationTicks;
         private int activePulseHop = -1;
 
         private NetworkState(World world, BetaMoonWorldData storage, LogicalNetworkDefinition definition) {
@@ -371,6 +372,7 @@ public final class LogicalNetworkRuntime {
             if (disabled) {
                 return;
             }
+            simulationTicks++;
             if (dirty) {
                 try {
                     rebuild();
@@ -380,7 +382,7 @@ public final class LogicalNetworkRuntime {
                 }
             }
             dispatchPulses();
-            if (definition.tickInterval > 0 && world.getWorldTime() % definition.tickInterval == 0) {
+            if (definition.tickInterval > 0 && simulationTicks % definition.tickInterval == 0) {
                 for (Component component : components) {
                     invoke(component, definition.onTick, null, null, "onTick");
                 }
@@ -466,8 +468,8 @@ public final class LogicalNetworkRuntime {
                 if (endpoint != null) {
                     Node previous = endpoints.put(endpoint, node);
                     if (previous != null) {
-                        throw new LuaError("Logical-network endpoint ID is used by more than one loaded node: "
-                                + endpoint);
+                        throw new LuaError(
+                                "Logical-network endpoint ID is used by more than one loaded node: " + endpoint);
                     }
                 }
             }
@@ -545,8 +547,7 @@ public final class LogicalNetworkRuntime {
             }
             int hop = activePulseHop + 1;
             if (hop > MAX_PULSE_HOPS) {
-                throw new LuaError("Logical-network pulse exceeded the forwarding limit of "
-                        + MAX_PULSE_HOPS + ".");
+                throw new LuaError("Logical-network pulse exceeded the forwarding limit of " + MAX_PULSE_HOPS + ".");
             }
             pulses.addLast(new Pulse(node.position, value, world.getWorldTime(), hop));
         }
@@ -598,8 +599,8 @@ public final class LogicalNetworkRuntime {
                 context.set("network", network);
                 context.set("nodes", nodeViews(scope, component.nodes, viewNodes));
                 Node origin = component.nodes.get(0);
-                context.set("world", LuaWorldActionAccess.create(scope, world,
-                        origin.position.x, origin.position.y, origin.position.z));
+                context.set("world", LuaWorldActionAccess.create(scope, world, origin.position.x, origin.position.y,
+                        origin.position.z));
                 Object signal = aggregate(component.nodes);
                 if (signal != null && definition.signalValue != null) {
                     context.set("signal", definition.signalValue.toLua(signal));
@@ -608,7 +609,7 @@ public final class LogicalNetworkRuntime {
                     context.set("pulse", definition.signalValue.toLua(pulse));
                     context.set("source", position(source));
                 }
-                callback.call(context);
+                ScriptExecution.invoke(definition.owner, "logicalNetworks." + name, callback, context);
             } catch (Throwable error) {
                 fail(name + " failed", error);
             }
@@ -664,13 +665,11 @@ public final class LogicalNetworkRuntime {
                     if (!config.isnil() && !config.istable()) {
                         throw new LuaError("network nodes query.config must be a table.");
                     }
-                    String endpoint = query.get("endpoint").isnil()
-                            ? null : query.get("endpoint").checkjstring();
+                    String endpoint = query.get("endpoint").isnil() ? null : query.get("endpoint").checkjstring();
                     LuaTable found = new LuaTable();
                     int foundIndex = 0;
                     for (Node node : members) {
-                        if ((endpoint == null || endpoint.equals(endpoint(node)))
-                                && configMatches(node, config)) {
+                        if ((endpoint == null || endpoint.equals(endpoint(node))) && configMatches(node, config)) {
                             found.set(++foundIndex, views.get(node));
                         }
                     }
@@ -752,12 +751,13 @@ public final class LogicalNetworkRuntime {
                 return Boolean.valueOf(result);
             }
             double result = "minimum".equals(definition.aggregate)
-                    ? Double.POSITIVE_INFINITY : "maximum".equals(definition.aggregate)
-                            ? Double.NEGATIVE_INFINITY : 0.0D;
+                    ? Double.POSITIVE_INFINITY
+                    : "maximum".equals(definition.aggregate) ? Double.NEGATIVE_INFINITY : 0.0D;
             for (SignalRecord record : records) {
                 Object value = record.value;
                 double number = ((Number) value).doubleValue();
-                result = "minimum".equals(definition.aggregate) ? Math.min(result, number)
+                result = "minimum".equals(definition.aggregate)
+                        ? Math.min(result, number)
                         : "maximum".equals(definition.aggregate) ? Math.max(result, number) : result + number;
             }
             if (definition.signalValue.type == DataField.Type.INTEGER) {
@@ -859,7 +859,8 @@ public final class LogicalNetworkRuntime {
 
         private void fail(String message, Throwable error) {
             disabled = true;
-            String detail = error == null ? message
+            String detail = error == null
+                    ? message
                     : message + ": " + (error.getMessage() == null ? error.toString() : error.getMessage());
             String report = "logical network " + definition.key + " disabled: " + detail;
             LuaScriptErrors.add(definition.owner, report);
@@ -892,7 +893,8 @@ public final class LogicalNetworkRuntime {
                             signalSequence = Math.max(signalSequence, record.sequence);
                         }
                     } catch (IllegalArgumentException ignored) {
-                        // Preserve the raw world payload; one invalid retained value is skipped at runtime.
+                        // Preserve the raw world payload; one invalid retained value is skipped at
+                        // runtime.
                     }
                 }
             }
@@ -955,21 +957,26 @@ public final class LogicalNetworkRuntime {
             this.y = y;
             this.z = z;
         }
+
         private static Position of(LuaTileEntity tile) {
             return new Position(tile.xCoord, tile.yCoord, tile.zCoord);
         }
+
         private Position offset(int[] offset) {
             return new Position(x + offset[0], y + offset[1], z + offset[2]);
         }
+
         private double distanceSquared(Position other) {
             double dx = x - other.x;
             double dy = y - other.y;
             double dz = z - other.z;
             return dx * dx + dy * dy + dz * dz;
         }
+
         private String token() {
             return x + "," + y + "," + z;
         }
+
         public int compareTo(Position other) {
             int xResult = Integer.compare(x, other.x);
             if (xResult != 0) {
@@ -978,6 +985,7 @@ public final class LogicalNetworkRuntime {
             int yResult = Integer.compare(y, other.y);
             return yResult != 0 ? yResult : Integer.compare(z, other.z);
         }
+
         @Override
         public boolean equals(Object other) {
             if (!(other instanceof Position)) {
@@ -986,6 +994,7 @@ public final class LogicalNetworkRuntime {
             Position position = (Position) other;
             return x == position.x && y == position.y && z == position.z;
         }
+
         @Override
         public int hashCode() {
             return 31 * (31 * x + y) + z;
@@ -999,24 +1008,31 @@ public final class LogicalNetworkRuntime {
             this.first = first;
             this.second = second;
         }
+
         private static Link of(String first, String second) {
             return first.compareTo(second) <= 0 ? new Link(first, second) : new Link(second, first);
         }
+
         private static Link parse(String token) {
             int separator = token.indexOf('\n');
-            return separator <= 0 || separator == token.length() - 1 ? null
+            return separator <= 0 || separator == token.length() - 1
+                    ? null
                     : of(token.substring(0, separator), token.substring(separator + 1));
         }
+
         private String token() {
             return first + "\n" + second;
         }
+
         private boolean contains(String endpoint) {
             return first.equals(endpoint) || second.equals(endpoint);
         }
+
         @Override
         public boolean equals(Object other) {
             return other instanceof Link && first.equals(((Link) other).first) && second.equals(((Link) other).second);
         }
+
         @Override
         public int hashCode() {
             return 31 * first.hashCode() + second.hashCode();
@@ -1038,6 +1054,7 @@ public final class LogicalNetworkRuntime {
             }
             this.edges = Collections.unmodifiableMap(componentEdges);
         }
+
         private Map<Node, Integer> distancesFrom(Node source) {
             Map<Node, Integer> distances = new IdentityHashMap<>();
             Deque<Node> queue = new ArrayDeque<>();
@@ -1057,7 +1074,10 @@ public final class LogicalNetworkRuntime {
         }
     }
 
-    /** Persistent publication plus the wireless membership facts captured when it was sent. */
+    /**
+     * Persistent publication plus the wireless membership facts captured when it
+     * was sent.
+     */
     private static final class SignalRecord {
         private final Object value;
         private final long sequence;
@@ -1067,8 +1087,8 @@ public final class LogicalNetworkRuntime {
         private final double range;
         private final boolean transmitter;
 
-        private SignalRecord(Object value, long sequence, Position position, String channel,
-                List<String> compatibility, double range, boolean transmitter) {
+        private SignalRecord(Object value, long sequence, Position position, String channel, List<String> compatibility,
+                double range, boolean transmitter) {
             this.value = value;
             this.sequence = sequence;
             this.position = position;
@@ -1085,20 +1105,21 @@ public final class LogicalNetworkRuntime {
             }
             Object configuredRange = state.field(node, state.definition.rangeField);
             double range = configuredRange instanceof Number
-                    ? ((Number) configuredRange).doubleValue() : state.definition.range;
+                    ? ((Number) configuredRange).doubleValue()
+                    : state.definition.range;
             return new SignalRecord(value, sequence, node.position,
                     token(state.field(node, state.definition.channelField)), compatibility, range,
                     state.canTransmit(node));
         }
 
         private boolean matches(NetworkState state, Node receiver) {
-            if (!state.enabled(receiver) || !channel.equals(token(state.field(receiver,
-                    state.definition.channelField)))) {
+            if (!state.enabled(receiver)
+                    || !channel.equals(token(state.field(receiver, state.definition.channelField)))) {
                 return false;
             }
             for (int index = 0; index < state.definition.compatibilityFields.size(); index++) {
-                if (!compatibility.get(index).equals(token(state.field(receiver,
-                        state.definition.compatibilityFields.get(index))))) {
+                if (!compatibility.get(index)
+                        .equals(token(state.field(receiver, state.definition.compatibilityFields.get(index))))) {
                     return false;
                 }
             }

@@ -27,6 +27,7 @@ public final class EventsApiTest {
     }
 
     public static void main(String[] arguments) throws Exception {
+        System.setProperty("betamoon.runtime.side", "unknown");
         Globals lua = JsePlatform.standardGlobals();
         new BetaMoonModule().call(LuaValue.NIL, lua);
         Method setOwner = LuaScriptRegistry.class.getDeclaredMethod("setCurrentScriptFile", String.class);
@@ -36,27 +37,27 @@ public final class EventsApiTest {
 
         lua.load("calls=0; subscriptions={}; names={"
                 + "'world_join','world_leave','player_join','player_leave','gui_opened','gui_closed','gui_tick',"
-                + "'game_tick','screen_changed','key_input','mouse_input','block_broken','block_placed','item_used',"
+                + "'game_tick','world_tick','screen_changed','key_input','mouse_input','block_broken','block_placed','item_used',"
                 + "'dimension_changed'}; for _,name in ipairs(names) do subscriptions[name]=betamoon.events:on(name,"
                 + "function(ctx) assert(type(ctx)=='table'); calls=calls+1 end) end").call();
 
         publishEveryEvent();
-        require(lua.get("calls").checkint() == 15, "An explicit event binding did not deliver its Lua context");
+        require(lua.get("calls").checkint() == 16, "An explicit event binding did not deliver its Lua context");
 
         lua.load("failing=betamoon.events:on('game_tick', function() error('event failure') end)").call();
         setOwner.invoke(null, new Object[]{null});
         Events.GAME_TICK.publish(new GameEventCtx(null, null));
-        require(lua.get("calls").checkint() == 16, "A failing listener prevented another listener from running");
+        require(lua.get("calls").checkint() == 17, "A failing listener prevented another listener from running");
         require(LuaScriptErrors.hasWarningFor(null, "events_test.lua"),
                 "An event listener error was not attributed to its declaring script");
 
         lua.load("subscriptions.world_join:unsubscribe(); assert(not subscriptions.world_join.active)").call();
         Events.WORLD_JOIN.publish(new WorldEventCtx(null, null));
-        require(lua.get("calls").checkint() == 16, "Explicit unsubscription left the listener active");
+        require(lua.get("calls").checkint() == 17, "Explicit unsubscription left the listener active");
 
         ScriptResourceTracker.unload("events_test.lua");
         Events.GAME_TICK.publish(new GameEventCtx(null, null));
-        require(lua.get("calls").checkint() == 16, "Script cleanup left event listeners active");
+        require(lua.get("calls").checkint() == 17, "Script cleanup left event listeners active");
         require(!lua.get("failing").get("active").toboolean(), "Cleanup did not update the Lua subscription handle");
 
         expectLuaError(lua, "return betamoon.events:on('unknown', function() end)");
@@ -66,6 +67,7 @@ public final class EventsApiTest {
     }
 
     private static void publishEveryEvent() {
+        Events.WORLD_TICK.publish(new WorldEventCtx(null, null));
         Events.WORLD_JOIN.publish(new WorldEventCtx(null, null));
         Events.WORLD_LEAVE.publish(new WorldEventCtx(null, null));
         Events.PLAYER_JOIN.publish(new PlayerEventCtx(null, null, null));

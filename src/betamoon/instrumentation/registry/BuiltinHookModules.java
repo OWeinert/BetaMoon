@@ -8,6 +8,7 @@ import betamoon.instrumentation.hooks.block.BlockPowerHook;
 import betamoon.instrumentation.hooks.block.BlockScheduleHook;
 import betamoon.instrumentation.hooks.block.ContentCallbackOverrideHook;
 import betamoon.instrumentation.hooks.control.ClientControlHook;
+import betamoon.instrumentation.hooks.event.TickEventHook;
 import betamoon.instrumentation.hooks.item.ItemHarvestHook;
 import betamoon.instrumentation.hooks.item.ItemInteractionHook;
 import betamoon.instrumentation.hooks.entity.EntityLifecycleHook;
@@ -66,6 +67,7 @@ public final class BuiltinHookModules {
         registry.registerModule(new ModelRenderHook());
         registry.registerModule(new FuelBurnTimeHook());
         registry.registerModule(new ClientControlHook());
+        registry.registerModule(new TickEventHook());
         registry.registerModule(new FluidCameraHook());
         registry.registerModule(new ParticleHook());
     }
