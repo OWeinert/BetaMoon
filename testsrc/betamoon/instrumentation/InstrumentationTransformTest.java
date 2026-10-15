@@ -276,6 +276,7 @@ public final class InstrumentationTransformTest {
                     || diagnostic.getHookId().startsWith("betamoon:entity_lifecycle")
                     || diagnostic.getHookId().startsWith("betamoon:entity_natural_spawn")
                     || diagnostic.getHookId().startsWith("betamoon:client_control")
+                    || diagnostic.getHookId().startsWith("betamoon:tick_events")
                     || diagnostic.getHookId().startsWith("betamoon:worldgen_surface")
                     || diagnostic.getHookId().startsWith("betamoon:regional_structure_chunk")
                     || diagnostic.getHookId().equals("betamoon:fluid_interactions")
@@ -423,17 +424,19 @@ public final class InstrumentationTransformTest {
 
     private static void verifyClientControlSeams(TinyMappingResolver mappings, String clientJarPath,
             BetaMoonTransformer transformer) throws Exception {
-        byte[] options = transformControlClass(mappings, clientJarPath, transformer,
-                "net/minecraft/src/GuiOptions");
-        MethodRef optionsControls = new MethodRef(new ClassRef("net/minecraft/src/GuiScreen"),
-                "actionPerformed", "(Lnet/minecraft/src/GuiButton;)V")
-                .implementedBy(new ClassRef("net/minecraft/src/GuiOptions"));
+        byte[] options = transformControlClass(mappings, clientJarPath, transformer, "net/minecraft/src/GuiOptions");
+        MethodRef optionsControls = new MethodRef(new ClassRef("net/minecraft/src/GuiScreen"), "actionPerformed",
+                "(Lnet/minecraft/src/GuiButton;)V").implementedBy(new ClassRef("net/minecraft/src/GuiOptions"));
         assertAroundCallbacks(mappings, options, optionsControls, "beforeOptionsControls", "afterOptionsControls");
 
         byte[] minecraft = transformControlClass(mappings, clientJarPath, transformer,
                 "net/minecraft/client/Minecraft");
         assertAroundCallbacks(mappings, minecraft, "net/minecraft/client/Minecraft", "runTick", "()V", "beginInputTick",
                 "finishInputTick");
+        assertAroundCallbacks(mappings, minecraft, "net/minecraft/client/Minecraft", "runTick", "()V", "begin",
+                "completed");
+        require(countCallbackCalls(minecraft, "advanceWorld") == 1,
+                "The native pause-guarded world update must use exactly one logical tick bridge");
         assertAroundCallbacks(mappings, minecraft, "net/minecraft/client/Minecraft", "clickMouse", "(I)V",
                 "beforeAction", "afterAction");
         assertAroundCallbacks(mappings, minecraft, "net/minecraft/client/Minecraft", "func_6254_a", "(IZ)V",

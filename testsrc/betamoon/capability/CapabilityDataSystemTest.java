@@ -162,6 +162,18 @@ public final class CapabilityDataSystemTest {
                     + "assert(not pcall(function() rawset(info,'day',4) end))").call();
         }
 
+        owner.invoke(null, "capability_data_test.lua");
+        globals.load("intervalCalls=0; intervalOverride=adjacent:override{tickInterval=2,"
+                + "onTick=function(ctx) intervalCalls=intervalCalls+1 end}").call();
+        owner.invoke(null, new Object[]{null});
+        for (int tick = 0; tick < 4; tick++) {
+            world.setWorldTime(tick < 2 ? 6000L : -1000L);
+            LogicalNetworkRuntime.tick(world);
+        }
+        require(globals.get("intervalCalls").toint() == 2,
+                "Network intervals must count actual updates independently of fixed or reversed world time");
+        globals.load("intervalOverride:remove()").call();
+
         try (LuaCallbackScope scope = new LuaCallbackScope(true)) {
             LuaTable worldApi = LuaWorldActionAccess.create(scope, world, 0, 64, 0);
             globals.set("worldApi", worldApi);

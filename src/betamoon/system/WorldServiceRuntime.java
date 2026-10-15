@@ -5,6 +5,7 @@ import betamoon.data.DataStore;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.luamodloader.ScriptExecution;
 import betamoon.networking.LogicalNetworkRuntime;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -16,7 +17,10 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-/** Owns one persistent runtime instance per declared service and authoritative world. */
+/**
+ * Owns one persistent runtime instance per declared service and authoritative
+ * world.
+ */
 public final class WorldServiceRuntime {
     private static final String STORAGE_KEY = "betamoon_systems";
     private static final Map<World, RuntimeWorld> WORLDS = new WeakHashMap<>();
@@ -110,12 +114,13 @@ public final class WorldServiceRuntime {
             return;
         }
         try (LuaCallbackScope scope = new LuaCallbackScope(true)) {
-            callback.call(context(world, instance, scope));
+            ScriptExecution.invoke(instance.definition.owner, "systems." + name, callback,
+                    context(world, instance, scope));
         } catch (Throwable error) {
             instance.disabled = true;
             String detail = error.getMessage() == null ? error.toString() : error.getMessage();
-            String message = "world service " + instance.definition.key + " " + name
-                    + " was disabled after an error: " + detail;
+            String message = "world service " + instance.definition.key + " " + name + " was disabled after an error: "
+                    + detail;
             LuaScriptErrors.add(instance.definition.owner, message);
             BetaMoonCommon.LOGGER.warning(instance.definition.owner + ": " + message);
         }
@@ -123,6 +128,7 @@ public final class WorldServiceRuntime {
 
     private static final class RuntimeWorld {
         private final World world;
+        private long simulationTicks;
         private final BetaMoonWorldData storage;
         private final Map<String, Instance> instances = new LinkedHashMap<>();
 
@@ -151,7 +157,7 @@ public final class WorldServiceRuntime {
         }
 
         private void tick() {
-            long tick = world.getWorldTime();
+            long tick = ++simulationTicks;
             for (Instance instance : instances.values()) {
                 if (instance.definition.tickInterval > 0 && tick % instance.definition.tickInterval == 0) {
                     invoke(world, instance, instance.definition.onTick, "onTick");

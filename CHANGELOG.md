@@ -2,6 +2,16 @@
 
 ## 0.9.0 (in development)
 
+### Logical tick events
+
+- Run `game_tick` once per logical client tick, including menus, screens, and paused gameplay.
+- Run `gui_tick` after `game_tick` while a screen is open, and add `world_tick` after actual client-world
+  simulation updates. Non-pausing screens and remote-world updates continue to receive world ticks.
+- Require the Java agent for logical tick subscriptions. These callbacks no longer follow rendered frames.
+- Detect runtime side without loading Minecraft before the agent transformer is installed.
+- Advance world services and logical networks from the world simulation boundary, with interval counters
+  independent of mutable world time. Preserve declaring-script identity during event/service/network callbacks.
+
 ### Script directory
 
 - Change script/mod package directory to `betamoon/scripts`. On startup, an existing `lua_scripts` directory will be migrated automatically to the new `betamoon/scripts` layout.
