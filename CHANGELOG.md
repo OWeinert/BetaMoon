@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.10.0-gui (in development)
+## 0.10.0 (in development)
 
 ### Minecraft-style interface
 

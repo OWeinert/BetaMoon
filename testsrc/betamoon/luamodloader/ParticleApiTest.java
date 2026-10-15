@@ -7,7 +7,7 @@ import betamoon.client.assets.ClientAssets;
 import betamoon.luaapi.BetaMoonModule;
 import betamoon.luaapi.block.BlockTickRegistry;
 import betamoon.instrumentation.hooks.block.BlockScheduleCallbacks;
-import betamoon.wrappers.BlockWrapper;
+import betamoon.luaapi.block.LuaBlock;
 import betamoon.recipes.RecipeModificationHandler;
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
@@ -346,7 +346,7 @@ public final class ParticleApiTest {
         near(sprite.rotation, 8, "The example's actual particle callback must update rotation");
         require(sprite.size > 0.1 && sprite.size < 0.22, "The example's actual particle callback must pulse size");
         displayRingReload(declaration[0], world, emitted);
-        scheduledBlockReload((BlockWrapper) Block.blocksList[242]);
+        scheduledBlockReload((LuaBlock) Block.blocksList[242]);
         LuaScriptRegistry.setCurrentScriptFile(OWNER);
     }
 
@@ -361,7 +361,7 @@ public final class ParticleApiTest {
                 return action.invoke(args);
             }
         });
-        BlockWrapper block = (BlockWrapper) Block.blocksList[242];
+        LuaBlock block = (LuaBlock) Block.blocksList[242];
         BlockTickRegistry.register(block, LuaValue.NIL, display);
         for (int visit = 0; visit < 2; visit++) {
             FixtureWorld world = new FixtureWorld();
@@ -380,7 +380,7 @@ public final class ParticleApiTest {
         }
     }
 
-    private static void scheduledBlockReload(BlockWrapper block) {
+    private static void scheduledBlockReload(LuaBlock block) {
         int[] ticks = new int[1];
         LuaTable tick = new LuaTable();
         tick.set("mode", "scheduled");
