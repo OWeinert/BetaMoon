@@ -217,39 +217,37 @@ public final class BlockItemApiTest {
 
     private static void verifyLootTableDrops(Globals lua) throws Exception {
         LootTableRegistry.clear();
-        try (LootTableRegistry.PublicationBatch batch = LootTableRegistry.beginPublication(
-                "block_item_api_test.lua", "Block/item test")) {
+        try (LootTableRegistry.PublicationBatch batch = LootTableRegistry.beginPublication("block_item_api_test.lua",
+                "Block/item test")) {
             String json = "{\"format\":\"betamoon_loot_table\",\"pools\":[{"
                     + "\"key\":\"main\",\"rolls\":1,\"entries\":[{\"type\":\"item\","
                     + "\"stack\":{\"item\":263,\"count\":2}}]}]}";
-            LootTableRegistry.add("test:block_drops",
-                    LootTableDefinition.read(json.getBytes(StandardCharsets.UTF_8)), "memory:block_drops");
+            LootTableRegistry.add("test:block_drops", LootTableDefinition.read(json.getBytes(StandardCharsets.UTF_8)),
+                    "memory:block_drops");
             batch.validate();
             batch.publish();
         }
 
-        BlockDefinition registered = new BlockDefinition(lua.load(
-                "return {drops={table='test:block_drops'}}").call());
+        BlockDefinition registered = new BlockDefinition(lua.load("return {drops={table='test:block_drops'}}").call());
         registered.drops.validateRegistered();
         CountingRandom random = new CountingRandom();
         List<ItemStack> first = registered.drops.sample(random, 1.0F);
         List<ItemStack> second = registered.drops.sample(random, 1.0F);
-        require(random.longCalls == 2 && first.size() == 1 && second.size() == 1
-                && first.get(0).itemID == 263 && first.get(0).stackSize == 2,
+        require(random.longCalls == 2 && first.size() == 1 && second.size() == 1 && first.get(0).itemID == 263
+                && first.get(0).stackSize == 2,
                 "Registered block loot tables must resample from runtime RNG for every drop request");
 
         BlockDefinition inline = new BlockDefinition(lua.load("return {drops={pools={{key='main',rolls=1,"
                 + "entries={{type='item',stack={item=264,count={min=1,max=1},damage=3}}}}}}}").call());
         List<ItemStack> inlineDrops = inline.drops.sample(new Random(4L), 1.0F);
-        require(inlineDrops.size() == 1 && inlineDrops.get(0).itemID == 264
-                && inlineDrops.get(0).stackSize == 1 && inlineDrops.get(0).getItemDamage() == 3,
+        require(inlineDrops.size() == 1 && inlineDrops.get(0).itemID == 264 && inlineDrops.get(0).stackSize == 1
+                && inlineDrops.get(0).getItemDamage() == 3,
                 "Inline block loot pools must use loot-table item-stack definitions");
 
-        BlockDefinition legacy = new BlockDefinition(lua.load(
-                "return {drops={{item=331,min=2,max=2,chance=1,damage=0}}}").call());
+        BlockDefinition legacy = new BlockDefinition(
+                lua.load("return {drops={{item=331,min=2,max=2,chance=1,damage=0}}}").call());
         List<ItemStack> legacyDrops = legacy.drops.sample(new Random(5L), 1.0F);
-        require(legacyDrops.size() == 1 && legacyDrops.get(0).itemID == 331
-                && legacyDrops.get(0).stackSize == 2,
+        require(legacyDrops.size() == 1 && legacyDrops.get(0).itemID == 331 && legacyDrops.get(0).stackSize == 2,
                 "Legacy block drop lists must remain supported as shorthand");
         LootTableRegistry.clear();
     }
@@ -270,8 +268,9 @@ public final class BlockItemApiTest {
         LuaContentRegistry.Entry blockEntry = LuaContentRegistry.remember("block", blockId, block, "block:rock");
         blockEntry.registered = true;
         ModLoader.AddName(block, "Original Block Name");
-        LuaValue reloadedBlock = lua.load("return {id=" + blockId
-                + ",key='test:block/reload_name',material='rock',texture=1,displayName='Reloaded Block Name'}")
+        LuaValue reloadedBlock = lua
+                .load("return {id=" + blockId
+                        + ",key='test:block/reload_name',material='rock',texture=1,displayName='Reloaded Block Name'}")
                 .call();
         Block retainedBlock = BlockApi.add(reloadedBlock);
         require(retainedBlock == block, "Block hot reload replaced its native identity");
@@ -453,41 +452,33 @@ public final class BlockItemApiTest {
     private static void verifyFacingShapes(Globals lua, TestWorld world, int id) {
         require(Block.blocksList[id] == null, "Expected unused facing-shape test block");
         BlockWrapper block = new BlockWrapper(id, 1, Material.rock, "facing_shape");
-        LuaValue declaration = lua.load("return {"
-                + "state={facing={type='enum',values={'north','east','south','west'}}},"
-                + "placement={facing='horizontal',facingFrom='player'},"
-                + "collision={boxes={"
-                + "{min={0,0,0},max={1,0.5,1}},"
-                + "{min={0,0.5,0.5},max={1,1,1}}"
-                + "}},selection={min={0,0.5,0.5},max={1,1,1}}}").call();
+        LuaValue declaration = lua
+                .load("return {" + "state={facing={type='enum',values={'north','east','south','west'}}},"
+                        + "placement={facing='horizontal',facingFrom='player'}," + "collision={boxes={"
+                        + "{min={0,0,0},max={1,0.5,1}}," + "{min={0,0.5,0.5},max={1,1,1}}"
+                        + "}},selection={min={0,0.5,0.5},max={1,1,1}}}")
+                .call();
         BlockDefinition definition = new BlockDefinition(declaration);
         BlockCallbackRegistry.install(id, definition);
         world.chunk.blocks[64] = (byte) id;
 
         String[] directions = {"north", "east", "south", "west"};
-        double[][] expectedUpperBounds = {
-                {0, 0.5, 1, 1},
-                {0, 0, 0.5, 1},
-                {0, 0, 1, 0.5},
-                {0.5, 0, 1, 1}
-        };
+        double[][] expectedUpperBounds = {{0, 0.5, 1, 1}, {0, 0, 0.5, 1}, {0, 0, 1, 0.5}, {0.5, 0, 1, 1}};
         for (int i = 0; i < directions.length; i++) {
             int metadata = definition.state.set(definition.state.defaults, "facing", LuaValue.valueOf(directions[i]));
             world.setBlockMetadataWithNotify(0, 64, 0, metadata);
             ArrayList boxes = new ArrayList();
-            block.getCollidingBoundingBoxes(world, 0, 64, 0,
-                    AxisAlignedBB.getBoundingBoxFromPool(-1, 63, -1, 2, 66, 2), boxes);
+            block.getCollidingBoundingBoxes(world, 0, 64, 0, AxisAlignedBB.getBoundingBoxFromPool(-1, 63, -1, 2, 66, 2),
+                    boxes);
             require(boxes.size() == 2, "Facing stair collision did not retain both boxes");
             AxisAlignedBB upper = (AxisAlignedBB) boxes.get(1);
             double[] expected = expectedUpperBounds[i];
-            require(upper.minX == expected[0] && upper.minZ == expected[1]
-                    && upper.maxX == expected[2] && upper.maxZ == expected[3],
-                    "Facing stair collision did not rotate toward " + directions[i]);
+            require(upper.minX == expected[0] && upper.minZ == expected[1] && upper.maxX == expected[2]
+                    && upper.maxZ == expected[3], "Facing stair collision did not rotate toward " + directions[i]);
 
             AxisAlignedBB selection = block.getSelectedBoundingBoxFromPool(world, 0, 64, 0);
-            require(selection.minX == expected[0] && selection.minZ == expected[1]
-                    && selection.maxX == expected[2] && selection.maxZ == expected[3],
-                    "Facing selection did not rotate toward " + directions[i]);
+            require(selection.minX == expected[0] && selection.minZ == expected[1] && selection.maxX == expected[2]
+                    && selection.maxZ == expected[3], "Facing selection did not rotate toward " + directions[i]);
         }
     }
 
@@ -758,6 +749,10 @@ public final class BlockItemApiTest {
 
         public void scheduleBlockUpdate(int x, int y, int z, int id, int delay) {
             // Tests deliver the scheduled update at an explicitly controlled world time.
+        }
+
+        public boolean checkChunksExist(int x1, int y1, int z1, int x2, int y2, int z2) {
+            return true;
         }
 
         public boolean isBlockIndirectlyProvidingPowerTo(int x, int y, int z, int side) {

@@ -1,26 +1,17 @@
 # Changelog
 
-## 0.9.0 (in development)
+## 0.10.0-wip (in development)
 
-### Script directory
+### Particles
 
-- Change script/mod package directory to `betamoon/scripts`. On startup, an existing `lua_scripts` directory will be migrated automatically to the new `betamoon/scripts` layout.
-
-### Engine settings
-
-- Change `config/betamoon.cfg` for BetaMoon's own settings. On startup, an existing `config/betamoon.config` is migrated automatically to the new filename when no `.cfg` file exists.
-- Group engine settings with commented `notifications.`, `scripts.`, `diagnostics.`, and `updates.` keys, migrating values from older flat keys.
-- Add startup error popup, reload debounce, successful reload notice, disabled script, load timing, automatic error report, slow callback warning, and verbose asset diagnostic settings.
-- Write Scripts screen debug exports under `betamoon/debug` and automatic script error reports as `betamoon/logs/script_err_<timestamp>.log`.
-
-### Player input and controls
-
-- Add named input actions with configurable keyboard, mouse-button, and wheel bindings, Hold/Toggle modes, action state, and priority-based capture of native controls.
-- Add staged player controllers for movement, looking, and world actions, with safe fallback to Minecraft behavior.
-- Add Minecraft and BetaMoon tabs to the Controls screen, including search, binding capture, conflict handling, per-action reset, and mode controls where an action allows both modes.
-- Store saved player controls in `betamoon/controls.json`.
-
-### Script configuration
-
-- Add `betamoon.config(key, defaults)` for JSON settings in the instance's `betamoon/config` folder. A short key creates one file; a named key places a file under that key's namespace folder.
-- Return an ordinary Lua table with direct field access and explicit `config.save()` and `config.reload()` methods. Preserve unsaved values on failed reload and reject saves that would overwrite a file changed on disk.
+- Use Minecraft display ticks for the decorative ring block, retaining ordinary Lua per-particle animation callbacks.
+- Restore automatic repeating block ticks when saved chunks load, so existing particle ring blocks resume
+  emission after rejoining a world. Retry schedules while surrounding chunks are unavailable.
+- Add registered particle sprite types and reusable burst/emitter effects, with custom PNGs, Minecraft atlas cells,
+  independent animation, color/alpha, rotation, size, motion, and collision policies.
+- Add optional per-instance Lua `onTick` updates with scoped particle controls and transient memory.
+- Default to admitting up to 1,024 new custom particles per client tick; configurable with `particles.maxPerTick`.
+- Allow client-wide particle budgets up to 65,535 active or new sprites per tick, retaining defaults of
+  4,096 active and 1,024 new sprites per tick.
+- Extend world particle spawning with custom references/keys and add effect handles, actor attachments,
+  client budgets, diagnostics, and owner/world cleanup. Custom presentation is local-client only.

@@ -1,6 +1,7 @@
 package betamoon.luamodloader;
 
 import betamoon.BetaMoonCommon;
+import betamoon.particles.ParticleRegistry;
 import betamoon.luaapi.module.ModuleRegistry;
 import betamoon.luaapi.audio.SoundEvents;
 import betamoon.tileentity.TileEntityRegistry;
@@ -41,12 +42,13 @@ final class ScriptLifecycleRunner {
             try (ScriptExecutionScope ignored = ScriptExecutionScope.open(mod.sourceFileName);
                     ScriptAssetScope assets = ScriptAssetScope.open(mod.sourceFileName);
                     ScriptEntityScope entities = ScriptEntityScope.open(mod.sourceFileName);
-                    LootTableRegistry.PublicationBatch lootTables = LootTableRegistry.beginPublication(
-                            mod.sourceFileName, mod.getDisplayName());
-                    WorldGenRegistry.PublicationBatch worldgen = WorldGenRegistry.beginPublication(
-                            mod.sourceFileName, mod.getDisplayName());
-                    BiomeGenRegistry.PublicationBatch biomes = BiomeGenRegistry.beginPublication(
-                            mod.sourceFileName, mod.getDisplayName())) {
+                    ParticleRegistry.Batch particles = ParticleRegistry.begin(mod.sourceFileName);
+                    LootTableRegistry.PublicationBatch lootTables = LootTableRegistry
+                            .beginPublication(mod.sourceFileName, mod.getDisplayName());
+                    WorldGenRegistry.PublicationBatch worldgen = WorldGenRegistry.beginPublication(mod.sourceFileName,
+                            mod.getDisplayName());
+                    BiomeGenRegistry.PublicationBatch biomes = BiomeGenRegistry.beginPublication(mod.sourceFileName,
+                            mod.getDisplayName())) {
                 mod.modInit.call();
                 if (hotReload && mod.modReload != null && mod.modReload.isfunction()) {
                     mod.modReload.call();
@@ -61,6 +63,7 @@ final class ScriptLifecycleRunner {
                 worldgen.publish();
                 biomes.publish();
                 SoundEvents.publish(mod.sourceFileName);
+                particles.publish();
                 LuaScriptRegistry.markLoadedByFile(mod.sourceFileName);
                 retainedScripts.rememberIfStructural(mod);
             } catch (LuaError error) {

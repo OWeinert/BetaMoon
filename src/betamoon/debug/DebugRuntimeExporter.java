@@ -1,6 +1,10 @@
 package betamoon.debug;
 
 import betamoon.assets.BuiltinAssets;
+import betamoon.particles.ParticleRegistry;
+import betamoon.client.particles.ClientParticles;
+import betamoon.client.particles.ParticleRuntime;
+import java.util.Map;
 import betamoon.client.control.input.ClientHotkeys;
 import betamoon.client.control.input.ClientInputRuntime;
 import betamoon.entity.EntityTypeRegistry;
@@ -89,6 +93,13 @@ final class DebugRuntimeExporter implements DebugExporter {
         rows.add("registry: script assets | entries: " + ScriptAssetScope.snapshot().size());
         rows.add("registry: built-in models | lookup keys: " + BuiltinAssets.models().size());
         rows.add("registry: sound events | entries: " + SoundEvents.snapshot().size());
+        rows.add("registry: particles and effects | entries: " + ParticleRegistry.snapshot().size());
+        for (Map.Entry<String, ParticleRuntime.Counters> entry : ClientParticles.runtime().snapshot().entrySet()) {
+            ParticleRuntime.Counters stats = entry.getValue();
+            rows.add("particles: owner=" + safe(entry.getKey()) + " | active=" + stats.active + " | emitted="
+                    + stats.emitted + " | distance culled=" + stats.distanceCulled + " | budget dropped="
+                    + stats.budgetDropped + " | failed=" + stats.failedDefinitions);
+        }
         rows.add("registry: input maps | entries: " + ClientInputRuntime.router().registrationCount());
         rows.add("runtime: input contexts | active: " + ClientInputRuntime.router().contextCount());
         rows.add("registry: native hotkeys | active: " + ClientHotkeys.activeCount() + " | retained: "

@@ -31,6 +31,9 @@ public final class BetaMoonConfig {
     private ConfigField<Boolean> autoExportDiagnosticsOnScriptError;
     private ConfigField<Integer> slowCallbackWarningMs;
     private ConfigField<Boolean> verboseAssetDiagnostics;
+    private ConfigField<Integer> particleMaxActive;
+    private ConfigField<Integer> particleMaxPerTick;
+    private ConfigField<Integer> particleViewDistance;
 
     public BetaMoonConfig() {
         this(resolveDefaultConfigDirectory(), FILE_NAME);
@@ -70,8 +73,8 @@ public final class BetaMoonConfig {
         Path legacyPath = new File(directory, LEGACY_FILE_NAME).toPath();
         if (Files.exists(currentPath, LinkOption.NOFOLLOW_LINKS)) {
             if (Files.exists(legacyPath, LinkOption.NOFOLLOW_LINKS)) {
-                BetaMoonCommon.LOGGER.warning("Both BetaMoon config files exist; using " + currentPath
-                        + " and leaving " + legacyPath + " unchanged.");
+                BetaMoonCommon.LOGGER.warning("Both BetaMoon config files exist; using " + currentPath + " and leaving "
+                        + legacyPath + " unchanged.");
             }
             return current;
         }
@@ -113,10 +116,9 @@ public final class BetaMoonConfig {
         showScriptErrorPopupOnStartup = bool("notifications.showScriptErrorPopupOnStartup", true,
                 "Open the script error popup on startup when visible issues exist.");
         showSuccessfulReloadMessages = bool("notifications.showSuccessfulReloadMessages", true,
-                        "Show a chat summary after a successful script reload; errors still appear.");
+                "Show a chat summary after a successful script reload; errors still appear.");
 
-        checkForUpdates = bool("updates.checkForUpdates", true,
-        "Check for BetaMoon updates when the client starts.");
+        checkForUpdates = bool("updates.checkForUpdates", true, "Check for BetaMoon updates when the client starts.");
         notifyUpdatesOnWorldJoin = bool("updates.notifyUpdatesOnWorldJoin", true,
                 "Show an available BetaMoon update when joining a world.");
 
@@ -136,6 +138,13 @@ public final class BetaMoonConfig {
                 "Warn when BetaMoon Lua callback dispatches repeatedly exceed this time in ms; 0 disables it.");
         verboseAssetDiagnostics = bool("diagnostics.verboseAssetDiagnostics", false,
                 "Log selected asset sources and texture-pack fallbacks during asset resolution.");
+
+        particleMaxActive = boundedInt("particles.maxActive", 4096, 1, 65535,
+                "Maximum active BetaMoon particle sprites on this client (1-65535; default 4096).");
+        particleMaxPerTick = boundedInt("particles.maxPerTick", 1024, 1, 65535,
+                "Maximum new BetaMoon particle sprites admitted per client tick (1-65535; default 1024).");
+        particleViewDistance = boundedInt("particles.viewDistance", 64, 1, 64,
+                "Upper distance limit for custom particle effects (1-64 blocks); ordinary effects default to 16.");
 
         config.save();
     }
@@ -194,6 +203,18 @@ public final class BetaMoonConfig {
             throw new IllegalStateException("Unable to resolve Minecraft directory for config.");
         }
         return new File(minecraftDir, "config");
+    }
+
+    public ConfigField<Integer> getParticleMaxActive() {
+        return particleMaxActive;
+    }
+
+    public ConfigField<Integer> getParticleMaxPerTick() {
+        return particleMaxPerTick;
+    }
+
+    public ConfigField<Integer> getParticleViewDistance() {
+        return particleViewDistance;
     }
 
     private void migrate(String oldKey, String newKey) {

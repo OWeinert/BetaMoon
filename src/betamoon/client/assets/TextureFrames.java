@@ -30,8 +30,8 @@ public final class TextureFrames {
         int width = image.getWidth();
         int height = image.getHeight();
         if (width < 1 || height < width || height % width != 0) {
-            throw new IOException("Vertical texture strip must have width W and height W × N; got "
-                    + width + " × " + height);
+            throw new IOException(
+                    "Vertical texture strip must have width W and height W × N; got " + width + " × " + height);
         }
         int count = height / width;
         if (count > 256) {
@@ -74,6 +74,14 @@ public final class TextureFrames {
 
     public int sequenceLength() {
         return sequence.length;
+    }
+
+    /**
+     * Source-strip index for consumers with an independent per-instance playback
+     * cursor.
+     */
+    public int sourceFrame(int position) {
+        return sequence[position];
     }
 
     public TextureAnimation animation() {

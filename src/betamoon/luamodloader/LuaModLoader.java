@@ -1,6 +1,7 @@
 package betamoon.luamodloader;
 
 import betamoon.BetaMoonCommon;
+import betamoon.particles.ParticleRegistry;
 import betamoon.config.BetaMoonConfig;
 import betamoon.fluid.interaction.FluidInteractionRegistry;
 import betamoon.io.IoUtils;
@@ -97,6 +98,7 @@ public final class LuaModLoader {
             presentScripts.add(mod.sourceFileName);
         }
         EntityTypeRegistry.retainOwners(presentScripts);
+        ParticleRegistry.retainOwners(presentScripts);
         LootTableRegistry.retainOwners(presentScripts);
         WorldGenRegistry.retainOwners(presentScripts);
         BiomeGenRegistry.retainOwners(presentScripts);
@@ -256,8 +258,8 @@ public final class LuaModLoader {
     }
 
     /**
-     * Discovers loose scripts and manifest-based mod directories, then parses
-     * each entrypoint into a ScriptMod.
+     * Discovers loose scripts and manifest-based mod directories, then parses each
+     * entrypoint into a ScriptMod.
      *
      * @param errors
      *            collector for human-readable load errors

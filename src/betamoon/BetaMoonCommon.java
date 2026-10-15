@@ -24,10 +24,11 @@ import net.minecraft.src.World;
 /**
  * Side-neutral BetaMoon lifecycle shared by the client and dedicated server.
  *
- * <p>This class must remain free of client-only and dedicated-server-only types.
+ * <p>
+ * This class must remain free of client-only and dedicated-server-only types.
  */
 public final class BetaMoonCommon {
-    public static final String VERSION = "0.9.0";
+    public static final String VERSION = "0.10.0-wip";
     public static final Logger LOGGER = Logger.getLogger("BetaMoon");
 
     private final LuaModLoader luaModLoader;
@@ -112,8 +113,8 @@ public final class BetaMoonCommon {
                 LOGGER.warning("The BetaMoon Java agent is not enabled. Some BetaMoon features may be unavailable!");
             }
         } else if (BetaMoonAgent.getStatus() == AgentStatus.DEGRADED) {
-            LOGGER.warning("The BetaMoon Java agent is active with hook failures: "
-                    + BetaMoonAgent.getFailureMessage());
+            LOGGER.warning(
+                    "The BetaMoon Java agent is active with hook failures: " + BetaMoonAgent.getFailureMessage());
         }
         return registered;
     }

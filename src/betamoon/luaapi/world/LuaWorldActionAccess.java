@@ -1,6 +1,7 @@
 package betamoon.luaapi.world;
 
 import betamoon.assets.AssetKey;
+import betamoon.luaapi.particle.ParticlesApi;
 import betamoon.entity.EntityKind;
 import betamoon.entity.EntitySpawner;
 import betamoon.entity.EntitySpatialQueries;
@@ -182,11 +183,10 @@ public final class LuaWorldActionAccess {
                 scope.requireActive();
                 boolean origin = argument(a, api, 1).isnil();
                 int bx = origin ? x : coordinate(argument(a, api, 1));
-                int by = origin ? y
-                        : integer(argument(a, api, 2), "isPowered.y", 0, 127);
+                int by = origin ? y : integer(argument(a, api, 2), "isPowered.y", 0, 127);
                 int bz = origin ? z : coordinate(argument(a, api, 3));
-                return valueOf((origin || world.blockExists(bx, by, bz))
-                        && world.isBlockIndirectlyGettingPowered(bx, by, bz));
+                return valueOf(
+                        (origin || world.blockExists(bx, by, bz)) && world.isBlockIndirectlyGettingPowered(bx, by, bz));
             }
         });
         api.set("getClosestPlayer", new VarArgFunction() {
@@ -248,8 +248,7 @@ public final class LuaWorldActionAccess {
                     pitch = (float) optionalNumber(second.get("pitch"), 1.0D, "playSound.options.pitch");
                 } else {
                     volume = second.isnil() ? 1.0F : (float) number(second, "playSound.volume");
-                    pitch = argument(a, api, 3).isnil()
-                            ? 1.0F : (float) number(argument(a, api, 3), "playSound.pitch");
+                    pitch = argument(a, api, 3).isnil() ? 1.0F : (float) number(argument(a, api, 3), "playSound.pitch");
                 }
                 world.playSoundEffect(sx, sy, sz, sound, volume, pitch);
                 return NIL;
@@ -267,8 +266,7 @@ public final class LuaWorldActionAccess {
                 double velocityY = 0.0D;
                 double velocityZ = 0.0D;
                 if (!options.isnil()) {
-                    fields(options, "spawnParticle.options", "x", "y", "z", "velocityX", "velocityY",
-                            "velocityZ");
+                    fields(options, "spawnParticle.options", "x", "y", "z", "velocityX", "velocityY", "velocityZ");
                     px = optionalNumber(options.get("x"), px, "spawnParticle.options.x");
                     py = optionalNumber(options.get("y"), py, "spawnParticle.options.y");
                     pz = optionalNumber(options.get("z"), pz, "spawnParticle.options.z");
@@ -285,8 +283,7 @@ public final class LuaWorldActionAccess {
                 scope.requireMutable();
                 boolean origin = argument(a, api, 1).isnil();
                 int bx = origin ? x : coordinate(argument(a, api, 1));
-                int by = origin ? y
-                        : integer(argument(a, api, 2), "notifyNeighbors.y", 0, 127);
+                int by = origin ? y : integer(argument(a, api, 2), "notifyNeighbors.y", 0, 127);
                 int bz = origin ? z : coordinate(argument(a, api, 3));
                 if (!origin && !world.blockExists(bx, by, bz)) {
                     return FALSE;
@@ -363,8 +360,7 @@ public final class LuaWorldActionAccess {
                 }
                 LuaTable result = new LuaTable();
                 int index = 0;
-                for (Entity entity : EntitySpatialQueries.nearby(world, null,
-                        x + 0.5, y + 0.5, z + 0.5, radius, 256)) {
+                for (Entity entity : EntitySpatialQueries.nearby(world, null, x + 0.5, y + 0.5, z + 0.5, radius, 256)) {
                     result.set(++index, LuaEntityActionAccess.create(scope, null, entity));
                 }
                 return result;
@@ -390,11 +386,15 @@ public final class LuaWorldActionAccess {
         double explosionY = defaultSource == null ? y + 0.5D : defaultSource.posY;
         double explosionZ = defaultSource == null ? z + 0.5D : defaultSource.posZ;
         LuaExplosionApi.install(api, scope, world, explosionX, explosionY, explosionZ, defaultSource);
+        ParticlesApi.attachWorld(api, scope, world, x, y, z, allowPresentation);
         return api;
 
     }
 
-    /** Resolves an authoritative live world without exposing it through ordinary Lua fields. */
+    /**
+     * Resolves an authoritative live world without exposing it through ordinary Lua
+     * fields.
+     */
     public static World requireMutableWorld(LuaValue value) {
         if (!(value instanceof ActionTable)) {
             throw LuaDeclarationValues.error("world", "expected a live world action handle");
@@ -404,7 +404,10 @@ public final class LuaWorldActionAccess {
         return action.world;
     }
 
-    /** Resolves a live world for a read-only operation while preserving callback lifetime checks. */
+    /**
+     * Resolves a live world for a read-only operation while preserving callback
+     * lifetime checks.
+     */
     public static World requireWorld(LuaValue value) {
         if (!(value instanceof ActionTable)) {
             throw LuaDeclarationValues.error("world", "expected a live world handle");

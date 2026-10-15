@@ -2,6 +2,7 @@ package betamoon;
 
 import betamoon.client.LuaLoaderClientFeedback;
 import betamoon.client.assets.ClientAssets;
+import betamoon.client.particles.ClientParticles;
 import betamoon.client.audio.ClientAudio;
 import betamoon.client.audio.ClientEntityEffects;
 import betamoon.client.control.input.ClientHotkeys;
@@ -59,6 +60,8 @@ public final class BetaMoonClient {
         this.agentRegistered = common.isAgentRegistered();
         this.config = new BetaMoonConfig();
         common.configure(config);
+        ClientParticles.runtime().configure(config.getParticleMaxActive().getValue(),
+                config.getParticleMaxPerTick().getValue(), config.getParticleViewDistance().getValue());
         ClientAssets.setVerboseDiagnostics(config.getVerboseAssetDiagnostics().getValue());
         LuaLoaderClientFeedback.initialize(showScriptWarningsOnLoad(),
                 config.getShowSuccessfulReloadMessages().getValue());

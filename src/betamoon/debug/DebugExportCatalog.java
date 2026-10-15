@@ -41,7 +41,7 @@ public final class DebugExportCatalog {
                 new DebugContentExporter(), "blocks.txt", "items.txt", "content_keys.txt"));
         values.add(new DebugExportDefinition("assets", "Assets and sounds",
                 "Asset keys, exact default and texture-pack paths, sound events, and built-in models.", true,
-                new DebugAssetExporter(), "assets.txt", "sound_events.txt", "builtin_models.txt"));
+                new DebugAssetExporter(), "assets.txt", "sound_events.txt", "builtin_models.txt", "particles.txt"));
         values.add(new DebugExportDefinition("recipes", "Recipes",
                 "Built-in and custom recipe types plus every currently registered recipe.", true,
                 new DebugRecipesExporter(), "recipe_types.txt", "recipes.txt"));
