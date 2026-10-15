@@ -20,7 +20,7 @@ final class GuiUpdateDetails extends GuiDialogScreen {
         status = browserFailed
                 ? "Could not open browser. Copy the link below."
                 : "Open the download page in your browser.";
-        dialog.setPanelSize(420, 210, 160);
+        dialog.setPanelSize(420, 210, 100);
         dialog.setScreenMargins(32, 32);
         dialog.setBody(new GuiMessage(() -> "Installed: " + installed + "\nAvailable: " + release.getVersion() + "\n\n"
                 + status + "\n\n" + release.getPageUri()));

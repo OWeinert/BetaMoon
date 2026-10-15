@@ -5,6 +5,8 @@ import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiElement;
 import betamoon.gui.framework.GuiInputEvent;
 import betamoon.gui.framework.GuiGeometry.Rect;
+import betamoon.gui.framework.GuiGeometry.Constraints;
+import betamoon.gui.framework.GuiGeometry.Size;
 import betamoon.gui.widget.GuiScrollView;
 import betamoon.luamodloader.LuaScriptErrors;
 import java.util.List;
@@ -29,10 +31,19 @@ final class GuiPanelScriptErrorList extends GuiContainer {
     }
 
     @Override
+    protected Size measureElement(GuiContext context, Constraints constraints) {
+        GuiIssueLayout layout = prepareIssues(context, constraints.getMaxWidth());
+        return new Size(constraints.getMaxWidth(), 16 + layout.getHeight());
+    }
+
+    private GuiIssueLayout prepareIssues(GuiContext context, int width) {
+        return GuiIssueLayout.prepare(context.getFont(), LuaScriptErrors.getNotificationEntries(showWarnings),
+                Math.max(1, width - CONTENT_PADDING * 2 - 4), ENTRY_GAP);
+    }
+
+    @Override
     protected void arrangeChildren(GuiContext context) {
-        int contentWidth = Math.max(0, getWidth() - CONTENT_PADDING);
-        issueLayout = GuiIssueLayout.prepare(context.getFont(), LuaScriptErrors.getNotificationEntries(showWarnings),
-                contentWidth, ENTRY_GAP);
+        issueLayout = prepareIssues(context, getWidth());
         scrollView.setContentSize(getWidth(), issueLayout.getHeight());
         int warnings = 0;
         for (GuiIssueLayout.Entry entry : issueLayout.getEntries()) {
@@ -58,7 +69,7 @@ final class GuiPanelScriptErrorList extends GuiContainer {
             if (issueLayout == null) {
                 return;
             }
-            int contentWidth = Math.max(0, getWidth() - CONTENT_PADDING);
+            int contentWidth = Math.max(1, getWidth() - CONTENT_PADDING * 2 - 4);
             int y = getTop();
             List<GuiIssueLayout.Entry> entries = issueLayout.getEntries();
             for (int i = 0; i < entries.size(); i++) {

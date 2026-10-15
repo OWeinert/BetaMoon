@@ -4,6 +4,8 @@ import betamoon.gui.framework.GuiContainer;
 import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiElement;
 import betamoon.gui.framework.GuiGeometry.Insets;
+import betamoon.gui.framework.GuiGeometry.Constraints;
+import betamoon.gui.framework.GuiGeometry.Size;
 import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.framework.GuiInputEvent;
 import betamoon.gui.framework.GuiLayouts;
@@ -142,7 +144,13 @@ public final class GuiCollectionsTest {
 
     private static void verifyDialogGeometry() throws Exception {
         GuiDialog dialog = new GuiDialog("Geometry");
-        RecordingElement body = new RecordingElement("body", new ArrayList<String>(), false);
+        final int[] contentHeight = {130};
+        GuiElement body = new GuiElement() {
+            @Override
+            protected Size measureElement(GuiContext context, Constraints constraints) {
+                return new Size(constraints.getMaxWidth(), contentHeight[0]);
+            }
+        };
         GuiButton first = new GuiButton("First", null);
         GuiButton second = new GuiButton("Second", null);
         dialog.setPanelSize(360, 200, 0);
@@ -157,6 +165,16 @@ public final class GuiCollectionsTest {
         require(first.getRight() + 10 == second.getLeft() && first.getLeft() == 30 && second.getRight() == 370,
                 "Footer fills its available width without overlapping");
         require(first.getBottom() == 240 && second.getBottom() == 240, "Native footer buttons remain 20px high");
+        contentHeight[0] = 20;
+        dialog.setPanelSize(360, 200, 0);
+        layoutScene(scene);
+        require(dialog.getPanelBounds().getHeight() == 90,
+                "Short dialogs fit their measured body instead of filling the height cap");
+        contentHeight[0] = 1000;
+        dialog.setPanelSize(360, 200, 0);
+        layoutScene(scene);
+        require(dialog.getPanelBounds().getHeight() == 200 && body.getHeight() == 130,
+                "Long content stays capped and reserves native footer space");
         dialog.setFooterLayout(GuiDialog.FooterAlignment.CENTER, 12, 6, 160);
         scene.updateEnvironment(null, null, 320, 240, 320, 240);
         layoutScene(scene);

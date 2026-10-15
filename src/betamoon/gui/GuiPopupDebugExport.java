@@ -37,7 +37,7 @@ public final class GuiPopupDebugExport extends GuiDialogScreen {
     }
 
     private void configure(GuiScreen parent) {
-        dialog.setPanelSize(420, 180, 150);
+        dialog.setPanelSize(420, 190, 100);
         dialog.setBodyInsets(14, 36, 8);
         dialog.setFooterLayout(FooterAlignment.CENTER, 12, 6, 90);
         dialog.setBody(new GuiMessage(() -> message + (showPath ? "\n\n" + exportPath : "")));

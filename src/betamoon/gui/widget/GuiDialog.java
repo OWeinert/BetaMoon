@@ -4,6 +4,7 @@ import betamoon.gui.framework.GuiContainer;
 import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiElement;
 import betamoon.gui.framework.GuiGeometry.Rect;
+import betamoon.gui.framework.GuiGeometry.Constraints;
 import betamoon.gui.framework.GuiTheme;
 import java.util.ArrayList;
 import java.util.List;
@@ -106,14 +107,19 @@ public final class GuiDialog extends GuiContainer {
         int availableWidth = Math.max(0, getWidth() - horizontalScreenMargin);
         int availableHeight = Math.max(0, getHeight() - verticalScreenMargin);
         int panelWidth = Math.min(maximumWidth, availableWidth);
-        int preferredHeight = Math.max(minimumHeight, maximumHeight);
-        int panelHeight = Math.min(preferredHeight, availableHeight);
+        int footerRows = footerRowCount(context, panelWidth);
+        int footerHeight = footerRows * footerButtonHeight + Math.max(0, footerRows - 1) * footerGap;
+        int bodyWidth = Math.max(0, panelWidth - bodyHorizontalInset * 2);
+        int bodyHeight = body == null
+                ? 0
+                : body.measure(context, Constraints.upTo(bodyWidth, Integer.MAX_VALUE)).getHeight();
+        int bottomHeight = footerButtons.isEmpty() ? bodyBottomGap : bodyBottomGap + footerHeight + footerBottomInset;
+        int preferredHeight = Math.max(minimumHeight, bodyTopOffset + bodyHeight + bottomHeight);
+        int panelHeight = Math.min(Math.min(maximumHeight, preferredHeight), availableHeight);
         int panelLeft = getLeft() + (getWidth() - panelWidth) / 2;
         int panelTop = getTop() + (getHeight() - panelHeight) / 2;
         panelBounds = Rect.fromPositionAndSize(panelLeft, panelTop, panelWidth, panelHeight);
 
-        int footerRows = footerRowCount(context);
-        int footerHeight = footerRows * footerButtonHeight + Math.max(0, footerRows - 1) * footerGap;
         int footerTop = panelBounds.getBottom() - footerBottomInset - footerHeight;
         arrangeFooter(context, footerTop);
         if (body != null) {
@@ -125,11 +131,11 @@ public final class GuiDialog extends GuiContainer {
         }
     }
 
-    private int footerRowCount(GuiContext context) {
+    private int footerRowCount(GuiContext context, int panelWidth) {
         if (footerButtons.isEmpty()) {
             return 0;
         }
-        return preferredFooterWidth(context) <= Math.max(0, panelBounds.getWidth() - footerHorizontalInset * 2)
+        return preferredFooterWidth(context) <= Math.max(0, panelWidth - footerHorizontalInset * 2)
                 ? 1
                 : footerButtons.size();
     }
@@ -148,7 +154,7 @@ public final class GuiDialog extends GuiContainer {
             return;
         }
         int available = Math.max(0, panelBounds.getWidth() - footerHorizontalInset * 2);
-        boolean stacked = footerRowCount(context) > 1;
+        boolean stacked = footerRowCount(context, panelBounds.getWidth()) > 1;
         int totalWidth = footerAlignment == FooterAlignment.CENTER && !stacked
                 ? Math.min(available, preferredFooterWidth(context))
                 : available;

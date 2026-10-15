@@ -24,7 +24,7 @@ public final class GuiPopupAgentWarning extends GuiDialogScreen {
         super(parent, "BetaMoon Agent Warning");
 
         dialog.setTitleColor(GuiTheme.DEFAULT.textWarning);
-        dialog.setPanelSize(360, 170, 150);
+        dialog.setPanelSize(360, 190, 100);
         dialog.setBodyInsets(14, 36, 8);
         dialog.setFooterLayout(FooterAlignment.FILL, 12, 6, 0);
         dialog.setBody(new GuiMessage(() -> MESSAGE + "\n\n" + AGENT_ARGUMENT + "\n\n" + status));

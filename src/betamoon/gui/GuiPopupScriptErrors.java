@@ -18,7 +18,7 @@ public final class GuiPopupScriptErrors extends GuiDialogScreen {
         super(parent, "Script Issues");
         errorList = new GuiPanelScriptErrorList(showWarnings);
 
-        dialog.setPanelSize(360, 220, 140);
+        dialog.setPanelSize(360, 220, 100);
         dialog.setScreenMargins(32, 64);
         dialog.setBody(errorList);
         dialog.setBodyInsets(10, 32, 8);

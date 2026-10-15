@@ -13,6 +13,9 @@ import betamoon.gui.framework.GuiComponentScreen;
 import betamoon.gui.framework.GuiDialogScreen;
 import betamoon.gui.framework.GuiElement;
 import betamoon.gui.widget.GuiButton;
+import betamoon.gui.widget.GuiMessage;
+import betamoon.gui.widget.GuiDialog;
+import betamoon.gui.widget.GuiScrollView;
 import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.framework.GuiRenderer;
@@ -177,6 +180,7 @@ public final class GuiShowcaseRenderTest {
             minecraft.renderEngine = engine;
             minecraft.fontRenderer = font;
             verifyIssueLayout(font);
+            verifyDialogContentSizing(minecraft, font);
             verifyTextureRenderState(minecraft, font);
             renderFrameworkScreens(minecraft, font, output);
             renderTextBox(minecraft, font, output);
@@ -384,6 +388,39 @@ public final class GuiShowcaseRenderTest {
         require(!Keyboard.areRepeatEventsEnabled(), "Closing a container GUI must disable held-key repeats");
     }
 
+    private static void verifyDialogContentSizing(Minecraft minecraft, FontRenderer font) {
+        final String[] text = {"Short message."};
+        GuiMessage message = new GuiMessage(() -> text[0]);
+        GuiDialog dialog = new GuiDialog("Measured content");
+        dialog.setPanelSize(280, 190, 80);
+        dialog.setBody(message);
+        GuiButton action = dialog.addFooterButton(new GuiButton("Close", null));
+        GuiScene scene = new GuiScene();
+        scene.setContent(dialog);
+        scene.updateEnvironment(minecraft, font, 320, 240, 320, 240);
+        setupFrame();
+        scene.render(0, 0, 0);
+        int shortHeight = dialog.getPanelBounds().getHeight();
+        require(shortHeight < 190, "Short dialog uses content height");
+        StringBuilder longText = new StringBuilder();
+        for (int i = 0; i < 30; i++) {
+            longText.append("A wrapped diagnostic line with details.\n");
+        }
+        text[0] = longText.toString();
+        scene.render(0, 0, 0);
+        scene.render(0, 0, 0);
+        require(dialog.getPanelBounds().getHeight() == 190 && message.getBottom() < action.getTop(),
+                "Changed message expands to the cap without covering actions");
+        GuiScrollView scroll = (GuiScrollView) message.getChildren().get(0);
+        require(scene.mouseScrolled(message.getLeft() + 5, message.getTop() + 5, -120, false)
+                && scroll.getScrollY() > 0, "Overflow message remains reachable by scrolling");
+        text[0] = "Short again.";
+        scene.render(0, 0, 0);
+        scene.render(0, 0, 0);
+        require(dialog.getPanelBounds().getHeight() == shortHeight && scroll.getScrollY() == 0,
+                "A shorter status message shrinks the panel and clamps old scroll state");
+    }
+
     private static void verifyIssueLayout(FontRenderer font) {
         LuaScriptErrors.clear();
         try {
@@ -392,6 +429,16 @@ public final class GuiShowcaseRenderTest {
             GuiIssueLayout layout = GuiIssueLayout.prepare(font, LuaScriptErrors.getEntries(), 80, 10);
             List<GuiIssueLayout.Entry> entries = layout.getEntries();
             require(entries.size() == 2, "Issue layout omitted an error or warning");
+            int expectedHeight = GuiRenderer.lineHeight(font) + 3 + font.func_27277_a("broken.lua:12", 80) + 3
+                    + font.func_27277_a("first line with wrapped details", 80) + font.func_27277_a("second line", 80);
+            require(entries.get(0).getHeight() == expectedHeight,
+                    "Source is presented once while complete multiline diagnostics retain their measured space");
+            require("Error".equals(entries.get(0).getSeverityLabel())
+                    && "Warning".equals(entries.get(1).getSeverityLabel()),
+                    "Severity is readable without relying on color");
+            GuiIssueLayout narrow = GuiIssueLayout.prepare(font, LuaScriptErrors.getEntries(), 30, 10);
+            require(narrow.getHeight() > layout.getHeight(),
+                    "Narrow source links and messages wrap into measured rows");
             require(layout.getHeight() == entries.get(0).getHeight() + 10 + entries.get(1).getHeight(),
                     "Issue list height must use the prepared entry heights and gap");
 

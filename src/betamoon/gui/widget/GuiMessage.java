@@ -3,6 +3,8 @@ package betamoon.gui.widget;
 import betamoon.gui.framework.GuiContainer;
 import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiElement;
+import betamoon.gui.framework.GuiGeometry.Constraints;
+import betamoon.gui.framework.GuiGeometry.Size;
 import java.util.function.Supplier;
 
 /**
@@ -35,6 +37,13 @@ public final class GuiMessage extends GuiContainer {
     }
 
     @Override
+    protected Size measureElement(GuiContext context, Constraints constraints) {
+        int width = constraints.getMaxWidth();
+        int height = context.getRenderer().wrappedTextHeight(value(), Math.max(1, width - 8));
+        return new Size(width, height);
+    }
+
+    @Override
     protected void arrangeChildren(GuiContext context) {
         measuredText = value();
         measuredWidth = getWidth();
@@ -47,6 +56,7 @@ public final class GuiMessage extends GuiContainer {
     protected void renderBeforeChildren(GuiContext context) {
         if (measuredWidth != getWidth() || !value().equals(measuredText)) {
             arrangeChildren(context);
+            requestLayout();
         }
     }
 }

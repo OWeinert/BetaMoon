@@ -8,6 +8,8 @@ import betamoon.gui.framework.GuiContainer;
 import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiDialogScreen;
 import betamoon.gui.framework.GuiGeometry.Rect;
+import betamoon.gui.framework.GuiGeometry.Constraints;
+import betamoon.gui.framework.GuiGeometry.Size;
 import betamoon.gui.widget.GuiButton;
 import betamoon.gui.widget.GuiDialog.FooterAlignment;
 import betamoon.gui.widget.GuiLink;
@@ -47,6 +49,12 @@ public final class GuiPopupDebugMenu extends GuiDialogScreen {
             directory.setText(path);
             directory.setVisible(!path.isEmpty());
             directory.setTooltip("Open the export directory");
+        }
+
+        @Override
+        protected Size measureElement(GuiContext context, Constraints constraints) {
+            return new Size(constraints.getMaxWidth(),
+                    context.getRenderer().lineHeight() + 8 + categories.contentHeight());
         }
 
         @Override

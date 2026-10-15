@@ -29,3 +29,7 @@ update notices and tooltips. It verifies native textbox frame pixels, bounded
 paste, caret blinking, disabled input, modal hover suppression, a single dim
 layer for nested dialogs, and retained focus after reopening/resizing. Inspect
 these captures at their native pixel size; they use the actual Minecraft font.
+
+Content sizing checks also cover short/long messages, dynamic status growth and
+shrinkage, capped body scrolling with fixed footer actions, explicit severity
+labels, and multiline source/message measurement without duplicate prefixes.
