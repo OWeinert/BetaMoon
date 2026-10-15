@@ -26,7 +26,7 @@ public final class GuiPopupDebugMenu extends GuiDialogScreen {
         dialog.setPanelSize(500, 340, 240);
         dialog.setScreenMargins(24, 36);
         dialog.setBodyInsets(14, 32, 8);
-        dialog.setFooterLayout(FooterAlignment.FILL, 14, 8, 0);
+        dialog.setFooterLayout(FooterAlignment.FILL, 12, 6, 0);
         dialog.setBody(new ExportMenuBody());
         dialog.addFooterButton(new GuiButton("Export All", () -> showResult(DebugExports.exportAll())));
         dialog.addFooterButton(new GuiButton("Close", () -> showScreen(parent)));
@@ -37,8 +37,8 @@ public final class GuiPopupDebugMenu extends GuiDialogScreen {
     }
 
     private final class ExportMenuBody extends GuiContainer {
-        private final GuiLink directory = add(new GuiLink(
-                () -> IoUtils.openPath(new File(DebugExports.getDebugDirPath()))));
+        private final GuiLink directory = add(
+                new GuiLink(() -> IoUtils.openPath(new File(DebugExports.getDebugDirPath()))));
         private final CategoryList categories = new CategoryList();
         private final GuiScrollView scroll = add(new GuiScrollView(categories, GuiScrollView.Policy.VERTICAL));
 
@@ -54,8 +54,8 @@ public final class GuiPopupDebugMenu extends GuiDialogScreen {
             String displayPath = context.getRenderer().trimToWidth(DebugExports.getDebugDirPath(), getWidth());
             directory.setText(displayPath);
             directory.setVisible(!displayPath.isEmpty());
-            directory.arrange(context, Rect.fromPositionAndSize(getLeft(), getTop(), getWidth(),
-                    context.getRenderer().lineHeight() + 2));
+            directory.arrange(context,
+                    Rect.fromPositionAndSize(getLeft(), getTop(), getWidth(), context.getRenderer().lineHeight() + 2));
             int listTop = getTop() + context.getRenderer().lineHeight() + 8;
             scroll.setContentSize(getWidth(), categories.contentHeight());
             scroll.arrange(context, new Rect(getLeft(), listTop, getRight(), getBottom()));
@@ -92,15 +92,14 @@ public final class GuiPopupDebugMenu extends GuiDialogScreen {
 
             private CategoryRow(DebugExportDefinition definition) {
                 this.definition = definition;
-                export = add(new GuiButton("Export", BUTTON_WIDTH,
-                        () -> showResult(DebugExports.export(definition))));
+                export = add(new GuiButton("Export", BUTTON_WIDTH, () -> showResult(DebugExports.export(definition))));
             }
 
             @Override
             protected void arrangeChildren(GuiContext context) {
                 int buttonY = getTop() + (getHeight() - 20) / 2;
-                export.arrange(context, Rect.fromPositionAndSize(getRight() - BUTTON_WIDTH - 4, buttonY,
-                        BUTTON_WIDTH, 20));
+                export.arrange(context,
+                        Rect.fromPositionAndSize(getRight() - BUTTON_WIDTH - 4, buttonY, BUTTON_WIDTH, 20));
             }
 
             @Override

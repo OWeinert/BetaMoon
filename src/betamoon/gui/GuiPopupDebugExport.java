@@ -2,21 +2,16 @@ package betamoon.gui;
 
 import betamoon.debug.DebugExportResult;
 import betamoon.debug.DebugExports;
-import betamoon.gui.framework.GuiContainer;
-import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiDialogScreen;
-import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.widget.GuiButton;
 import betamoon.gui.widget.GuiDialog.FooterAlignment;
-import betamoon.gui.widget.GuiLink;
+import betamoon.gui.widget.GuiMessage;
 import betamoon.io.IoUtils;
 import java.io.File;
 import net.minecraft.src.GuiScreen;
 
 /** Result dialog for complete, partial, and failed debug export runs. */
 public final class GuiPopupDebugExport extends GuiDialogScreen {
-    private static final String TOOLTIP_OPEN = "Open in File Explorer";
-
     private final String message;
     private final String exportPath;
     private final boolean showPath;
@@ -30,7 +25,9 @@ public final class GuiPopupDebugExport extends GuiDialogScreen {
         configure(parent);
     }
 
-    /** Compatibility constructor retained for the GUI showcase and older callers. */
+    /**
+     * Compatibility constructor retained for the GUI showcase and older callers.
+     */
     public GuiPopupDebugExport(GuiScreen parent, Exception error) {
         super(parent, error == null ? "Export Complete" : "Export Failed");
         message = error == null ? "Files exported to the debug directory." : String.valueOf(error);
@@ -42,8 +39,11 @@ public final class GuiPopupDebugExport extends GuiDialogScreen {
     private void configure(GuiScreen parent) {
         dialog.setPanelSize(420, 180, 150);
         dialog.setBodyInsets(14, 36, 8);
-        dialog.setFooterLayout(FooterAlignment.CENTER, 0, 0, 90);
-        dialog.setBody(new ExportMessage());
+        dialog.setFooterLayout(FooterAlignment.CENTER, 12, 6, 90);
+        dialog.setBody(new GuiMessage(() -> message + (showPath ? "\n\n" + exportPath : "")));
+        if (showPath) {
+            dialog.addFooterButton(new GuiButton("Open Folder", () -> IoUtils.openPath(new File(exportPath))));
+        }
         dialog.addFooterButton(new GuiButton("Close", () -> showScreen(parent)));
     }
 
@@ -77,32 +77,4 @@ public final class GuiPopupDebugExport extends GuiDialogScreen {
                 + (firstFailure == null ? "" : firstFailure + ". ") + "See manifest.txt for details.";
     }
 
-    private final class ExportMessage extends GuiContainer {
-        private final GuiLink pathLink = add(new GuiLink(() -> IoUtils.openPath(new File(exportPath))));
-
-        private ExportMessage() {
-            pathLink.setTooltip(TOOLTIP_OPEN);
-            pathLink.setVisible(showPath);
-        }
-
-        @Override
-        protected void arrangeChildren(GuiContext context) {
-            if (!showPath) {
-                return;
-            }
-            int messageHeight = context.getRenderer().wrappedTextHeight(message, getWidth());
-            int textY = getTop() + messageHeight + 8;
-            String displayPath = context.getRenderer().trimToWidth(exportPath, getWidth());
-            pathLink.setText(displayPath);
-            pathLink.arrange(context, Rect.fromPositionAndSize(getLeft(), textY,
-                    Math.min(getWidth(), context.getRenderer().textWidth(displayPath)),
-                    context.getRenderer().lineHeight() + 2));
-        }
-
-        @Override
-        protected void renderBeforeChildren(GuiContext context) {
-            context.getRenderer().drawWrappedText(message, getLeft(), getTop(), getWidth(),
-                    context.getRenderer().getTheme().textMuted);
-        }
-    }
 }

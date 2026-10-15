@@ -1,12 +1,25 @@
 package betamoon.gui;
 
+import betamoon.client.control.input.InputRouter;
+import betamoon.client.control.input.InputMapRegistration;
+import betamoon.client.control.input.InputMapDefinition;
+import betamoon.client.control.input.InputActionDefinition;
+import betamoon.client.control.input.InputBinding;
+import betamoon.content.ContentKey;
+import betamoon.content.ContentType;
+import java.lang.reflect.Constructor;
 import betamoon.gui.framework.GuiContainer;
+import betamoon.gui.framework.GuiComponentScreen;
+import betamoon.gui.framework.GuiDialogScreen;
+import betamoon.gui.framework.GuiElement;
+import betamoon.gui.widget.GuiButton;
 import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.framework.GuiRenderer;
 import betamoon.gui.framework.GuiScene;
 import betamoon.gui.framework.GuiTextureCache;
 import betamoon.gui.widget.GuiIcon;
+import betamoon.gui.widget.GuiTextBox;
 import betamoon.io.IoUtils;
 import betamoon.luaapi.minecraft.MinecraftApi;
 import betamoon.luaapi.tileentity.TileEntityApi;
@@ -166,6 +179,9 @@ public final class GuiShowcaseRenderTest {
             verifyIssueLayout(font);
             verifyTextureRenderState(minecraft, font);
             renderFrameworkScreens(minecraft, font, output);
+            renderTextBox(minecraft, font, output);
+            verifyModalScreens(minecraft, output);
+            renderControls(minecraft, output);
             renderUpdateNotice(minecraft, font, output);
             setupFrame();
             GL11.glEnable(GL11.GL_LIGHTING);
@@ -228,6 +244,116 @@ public final class GuiShowcaseRenderTest {
                             + "GUI pages rendered.");
         } finally {
             buffer.destroy();
+        }
+    }
+
+    private static void verifyModalScreens(Minecraft minecraft, File output) throws Exception {
+        final int[] mouse = new int[2];
+        GuiScreen parent = new GuiScreen() {
+            @Override
+            public void drawScreen(int x, int y, float partialTicks) {
+                mouse[0] = x;
+                mouse[1] = y;
+                drawRect(0, 0, width, height, 0xFF808080);
+            }
+        };
+        GuiDialogScreen first = new GuiDialogScreen(parent, "First") {
+        };
+        first.setWorldAndResolution(minecraft, 320, 240);
+        setupFrame();
+        first.drawScreen(100, 100, 0);
+        int single = capture().getRGB(2, 2);
+        require(mouse[0] == -1 && mouse[1] == -1, "Covered parent must not display hover effects");
+        GuiDialogScreen nested = new GuiDialogScreen(first, "Nested") {
+        };
+        renderScreen(nested, minecraft, output, "nested-dialog.png");
+        require(capture().getRGB(2, 2) == single, "Nested modals must apply the dim layer only once");
+
+        GuiButton button = new GuiButton("Remember focus", null);
+        GuiComponentScreen retained = new GuiComponentScreen() {
+            @Override
+            protected GuiElement createContent() {
+                return button;
+            }
+        };
+        retained.setWorldAndResolution(minecraft, 320, 240);
+        Field sceneField = GuiComponentScreen.class.getDeclaredField("scene");
+        sceneField.setAccessible(true);
+        GuiScene scene = (GuiScene) sceneField.get(retained);
+        scene.keyTyped('\t', Keyboard.KEY_TAB, false);
+        require(button.isFocused(), "Tab focuses retained control");
+        retained.onGuiClosed();
+        retained.setWorldAndResolution(minecraft, 427, 240);
+        require(button.isFocused(), "Returning or resizing must preserve focus in an existing scene");
+    }
+
+    private static void renderTextBox(Minecraft minecraft, FontRenderer font, File output) throws Exception {
+        GuiScreen parent = new GuiScreen();
+        GuiTextBox field = new GuiTextBox(parent, font, 30, 40, 180, 20, 64);
+        field.setFocused(true);
+        field.appendText("abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ!?");
+        String fullText = field.getText();
+        require(fullText.length() == 64, "Textbox supports the configured limit beyond native paste's 32");
+        field.appendText("overflow");
+        require(fullText.equals(field.getText()), "Paste cannot exceed the configured limit");
+        setupFrame();
+        field.drawTextBox();
+        BufferedImage focused = capture();
+        ImageIO.write(focused, "png", new File(output, "text-box-focused.png"));
+        require(fullText.equals(field.getText()), "Clipping must not modify the query");
+        require(focused.getRGB(29, 39) == 0xFFA0A0A0 && focused.getRGB(30, 40) == 0xFF000000,
+                "Textbox retains the native gray frame and black interior");
+        for (int tick = 0; tick < 6; tick++) {
+            field.updateCursorCounter();
+        }
+        setupFrame();
+        field.drawTextBox();
+        BufferedImage blink = capture();
+        boolean different = false;
+        for (int x = 34; x < 206; x++) {
+            for (int y = 46; y < 55; y++) {
+                different |= focused.getRGB(x, y) != blink.getRGB(x, y);
+            }
+        }
+        require(different, "Caret blinks after six logical ticks");
+        field.setFocused(false);
+        setupFrame();
+        field.drawTextBox();
+        ImageIO.write(capture(), "png", new File(output, "text-box-unfocused.png"));
+        field.setFocused(true);
+        field.setText("");
+        field.appendText("ab\n\tc");
+        require("abc".equals(field.getText()), "Paste filters unsupported control characters");
+        field.textboxKeyTyped('\b', Keyboard.KEY_BACK);
+        require("ab".equals(field.getText()), "Native backspace edits pasted text");
+        field.isEnabled = false;
+        field.appendText("ignored");
+        field.textboxKeyTyped('x', Keyboard.KEY_X);
+        require("ab".equals(field.getText()), "Disabled textboxes reject typing and paste");
+    }
+
+    private static void renderControls(Minecraft minecraft, File output) throws Exception {
+        InputRouter router = new InputRouter(null);
+        InputMapRegistration map = router
+                .register(
+                        new InputMapDefinition(ContentKey.parseForType("test:controls", ContentType.INPUT_MAP),
+                                Arrays.asList(
+                                        new InputActionDefinition("jump", Arrays.asList(InputBinding.parse("key.j"))))),
+                        "test.lua");
+        try {
+            Class<?> type = Class.forName("betamoon.client.control.input.GuiBetaMoonActions");
+            Constructor<?> constructor = type.getDeclaredConstructor(GuiScreen.class, GameSettings.class,
+                    InputRouter.class);
+            constructor.setAccessible(true);
+            GuiScreen controls = (GuiScreen) constructor.newInstance(null, minecraft.gameSettings, router);
+            renderScreen(controls, minecraft, output, "controls-search.png");
+            Method mouse = type.getDeclaredMethod("mouseClicked", int.class, int.class, int.class);
+            mouse.setAccessible(true);
+            mouse.invoke(controls, 100, 60, 0);
+            renderScreen(controls, minecraft, output, "controls-search-focused.png");
+            controls.onGuiClosed();
+        } finally {
+            map.close();
         }
     }
 

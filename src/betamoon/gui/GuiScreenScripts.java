@@ -25,7 +25,7 @@ import net.minecraft.src.GuiScreen;
 
 /** BetaMoon script overview backed by the retained GUI scene. */
 public final class GuiScreenScripts extends GuiComponentScreen {
-    private static final float HEADER_SCALE = 1.35F;
+    private static final float HEADER_SCALE = 1.0F;
 
     private final GuiScreen parent;
     private final GuiPanelScriptList listPanel = new GuiPanelScriptList();
@@ -44,8 +44,7 @@ public final class GuiScreenScripts extends GuiComponentScreen {
         backButton = new GuiButton("Back", 90, () -> showScreen(GuiScreenScripts.this.parent));
         openScriptsButton = new GuiButton("Open Scripts Folder", 140, this::openScriptsDirectory);
         reloadButton = new GuiButton("Reload Scripts", 100, this::requestReload);
-        debugButton = new GuiButton("Debug", 90,
-                () -> showScreen(new GuiPopupDebugMenu(GuiScreenScripts.this)));
+        debugButton = new GuiButton("Debug", 90, () -> showScreen(new GuiPopupDebugMenu(GuiScreenScripts.this)));
         bottomSeparator = new GuiDivider(Axis.HORIZONTAL, GuiTheme.DEFAULT.line);
         reloadIndicator = new GuiScriptReloadIndicator(this::showErrorPopup);
 
@@ -61,7 +60,6 @@ public final class GuiScreenScripts extends GuiComponentScreen {
 
     @Override
     protected GuiElement createContent() {
-        listPanel.reset();
         return content;
     }
 
@@ -141,23 +139,32 @@ public final class GuiScreenScripts extends GuiComponentScreen {
             backButton.arrange(context, Rect.fromPositionAndSize(10, buttonY, 90, buttonHeight));
 
             int scriptsButtonX = getLeft() + (getWidth() - 140) / 2;
-            openScriptsButton.arrange(context,
-                    Rect.fromPositionAndSize(scriptsButtonX, buttonY, 140, buttonHeight));
+            openScriptsButton.arrange(context, Rect.fromPositionAndSize(scriptsButtonX, buttonY, 140, buttonHeight));
 
             int debugButtonX = getRight() - 10 - 90;
             debugButton.arrange(context, Rect.fromPositionAndSize(debugButtonX, buttonY, 90, buttonHeight));
             int reloadButtonX = debugButtonX - 6 - 100;
             reloadButton.arrange(context, Rect.fromPositionAndSize(reloadButtonX, buttonY, 100, buttonHeight));
 
-            int indicatorRight = reloadButtonX - 6;
+            boolean narrow = getWidth() < 620;
+            if (narrow) {
+                int halfWidth = Math.max(0, (getWidth() - 26) / 2);
+                int left = getLeft() + 10;
+                int right = left + halfWidth + 6;
+                backButton.arrange(context, Rect.fromPositionAndSize(left, buttonY, halfWidth, buttonHeight));
+                openScriptsButton.arrange(context, Rect.fromPositionAndSize(right, buttonY, halfWidth, buttonHeight));
+                reloadButton.arrange(context, Rect.fromPositionAndSize(left, buttonY - 26, halfWidth, buttonHeight));
+                debugButton.arrange(context, Rect.fromPositionAndSize(right, buttonY - 26, halfWidth, buttonHeight));
+            }
+            int indicatorRight = narrow ? getRight() - 12 : reloadButtonX - 6;
             reloadIndicator.arrange(context, Rect.fromPositionAndSize(indicatorRight - 19,
-                    buttonY + (buttonHeight - 19) / 2, 19, 19));
+                    (narrow ? buttonY - 53 : buttonY) + (buttonHeight - 19) / 2, 19, 19));
 
-            int separatorY = buttonY - 8;
+            int separatorY = buttonY - (narrow ? 34 : 8);
             bottomSeparator.arrange(context, new Rect(10, separatorY, getRight() - 10, separatorY + 1));
 
             int listWidth = Math.min(200, Math.max(120, getWidth() / 4));
-            listPanel.arrange(context, new Rect(10, 10, 10 + listWidth, buttonY - 10));
+            listPanel.arrange(context, new Rect(10, 10, 10 + listWidth, separatorY - 2));
 
             int detailLeft = listPanel.getSeparatorX() + 8;
             infoPanel.setHeaderY(listPanel.getHeaderTextY());

@@ -2,6 +2,12 @@
 
 ## 0.9.0 (in development)
 
+### Minecraft-style interface
+
+- Use a native-based search textbox in BetaMoon Controls, with a blinking caret, bounded paste, and scrolling long queries.
+- Style diagnostic dialogs and update notices with compact charcoal pixel frames, native buttons, readable links, and restrained list selection and scrollbars.
+- Keep long dialog messages scrollable, adapt narrow-screen footer layouts, and preserve Scripts selection and scrolling when returning from dialogs.
+
 ### Script directory
 
 - Change script/mod package directory to `betamoon/scripts`. On startup, an existing `lua_scripts` directory will be migrated automatically to the new `betamoon/scripts` layout.

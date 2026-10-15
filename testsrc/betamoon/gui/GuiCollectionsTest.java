@@ -154,8 +154,18 @@ public final class GuiCollectionsTest {
 
         require(dialog.getPanelBounds().equals(new Rect(20, 50, 380, 250)), "Dialog panel must remain centered");
         expectBounds(body, 30, 82, 370, 212);
-        expectBounds(first, 30, 220, 195, 240);
-        expectBounds(second, 205, 220, 370, 240);
+        require(first.getRight() + 10 == second.getLeft() && first.getLeft() == 30 && second.getRight() == 370,
+                "Footer fills its available width without overlapping");
+        require(first.getBottom() == 240 && second.getBottom() == 240, "Native footer buttons remain 20px high");
+        dialog.setFooterLayout(GuiDialog.FooterAlignment.CENTER, 12, 6, 160);
+        scene.updateEnvironment(null, null, 320, 240, 320, 240);
+        layoutScene(scene);
+        require(first.getLeft() >= dialog.getPanelBounds().getLeft() + 12
+                && second.getRight() <= dialog.getPanelBounds().getRight() - 12,
+                "Narrow footers remain inside their panel");
+        require(first.getBottom() + 6 == second.getTop() && body.getBottom() < first.getTop(),
+                "Overflow actions stack and reserve space outside the body");
+
     }
 
     private static void verifyScriptOrdering() throws Exception {

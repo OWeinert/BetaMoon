@@ -9,9 +9,7 @@ import betamoon.gui.framework.GuiInputEvent;
 /** Clips and scrolls one retained element inside a fixed viewport. */
 public final class GuiScrollView extends GuiContainer {
     public enum Policy {
-        VERTICAL,
-        HORIZONTAL,
-        BOTH
+        VERTICAL, HORIZONTAL, BOTH
     }
 
     private static final int SCROLLBAR_SIZE = 4;
@@ -152,13 +150,17 @@ public final class GuiScrollView extends GuiContainer {
             Rect track = verticalTrack();
             Rect thumb = verticalThumb();
             context.getRenderer().drawRect(track, context.getRenderer().getTheme().scrollbarTrack);
-            context.getRenderer().drawRect(thumb, context.getRenderer().getTheme().scrollbarThumb);
+            context.getRenderer().drawRect(thumb, 0xFF555555);
+            context.getRenderer().drawRect(thumb.getLeft(), thumb.getTop(), thumb.getRight() - 1, thumb.getBottom() - 1,
+                    context.getRenderer().getTheme().scrollbarThumb);
         }
         if (maxScrollX > 0 && policy != Policy.VERTICAL) {
             Rect track = horizontalTrack();
             Rect thumb = horizontalThumb();
             context.getRenderer().drawRect(track, context.getRenderer().getTheme().scrollbarTrack);
-            context.getRenderer().drawRect(thumb, context.getRenderer().getTheme().scrollbarThumb);
+            context.getRenderer().drawRect(thumb, 0xFF555555);
+            context.getRenderer().drawRect(thumb.getLeft(), thumb.getTop(), thumb.getRight() - 1, thumb.getBottom() - 1,
+                    context.getRenderer().getTheme().scrollbarThumb);
         }
     }
 
@@ -218,8 +220,8 @@ public final class GuiScrollView extends GuiContainer {
     }
 
     private Rect horizontalTrack() {
-        return new Rect(getLeft(), getBottom() - SCROLLBAR_SIZE,
-                getRight() - (maxScrollY > 0 ? SCROLLBAR_SIZE : 0), getBottom());
+        return new Rect(getLeft(), getBottom() - SCROLLBAR_SIZE, getRight() - (maxScrollY > 0 ? SCROLLBAR_SIZE : 0),
+                getBottom());
     }
 
     private Rect horizontalThumb() {
@@ -242,7 +244,10 @@ public final class GuiScrollView extends GuiContainer {
         return Math.max(minimum, Math.min(maximum, value));
     }
 
-    /** Input layer kept above scroll content so content cannot consume scrollbar drags. */
+    /**
+     * Input layer kept above scroll content so content cannot consume scrollbar
+     * drags.
+     */
     private final class ScrollbarHandle extends GuiElement {
         private final boolean vertical;
 
@@ -253,7 +258,8 @@ public final class GuiScrollView extends GuiContainer {
         @Override
         protected boolean onInput(GuiContext context, GuiInputEvent event) {
             if (event.getType() == GuiInputEvent.Type.POINTER_DOWN && event.getButton() == 0) {
-                boolean started = vertical ? startVerticalDrag(event.getMouseX(), event.getMouseY())
+                boolean started = vertical
+                        ? startVerticalDrag(event.getMouseX(), event.getMouseY())
                         : startHorizontalDrag(event.getMouseX(), event.getMouseY());
                 if (started) {
                     capturePointer(context);

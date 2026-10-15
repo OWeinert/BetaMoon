@@ -25,13 +25,12 @@ public final class InputControlsGuiTest {
         InputPreferenceStore preferences = new InputPreferenceStore(file);
         InputRouter router = new InputRouter(null, preferences);
         InputMapRegistration map = router.register(new InputMapDefinition(
-                ContentKey.parseForType("test:gui", ContentType.INPUT_MAP), Arrays.asList(
-                        new InputActionDefinition("jump", Arrays.asList(InputBinding.parse("key.j"))),
+                ContentKey.parseForType("test:gui", ContentType.INPUT_MAP),
+                Arrays.asList(new InputActionDefinition("jump", Arrays.asList(InputBinding.parse("key.j"))),
                         new InputActionDefinition("rotate", Arrays.asList(InputBinding.parse("key.r"))),
                         new InputActionDefinition("dash", Arrays.asList(InputBinding.parse("key.d"))),
-                        new InputActionDefinition("sprint", Arrays.asList(InputBinding.parse("key.s")),
-                                "Sprint", "Move faster", true,
-                                EnumSet.of(InputActivationMode.HOLD, InputActivationMode.TOGGLE),
+                        new InputActionDefinition("sprint", Arrays.asList(InputBinding.parse("key.s")), "Sprint",
+                                "Move faster", true, EnumSet.of(InputActivationMode.HOLD, InputActivationMode.TOGGLE),
                                 InputActivationMode.HOLD),
                         new InputActionDefinition("use", Arrays.asList(InputBinding.parse("key.u"))),
                         new InputActionDefinition("interact", Arrays.asList(InputBinding.parse("key.i"))))),
@@ -43,9 +42,8 @@ public final class InputControlsGuiTest {
         minecraftTab.height = 240;
         minecraftTab.initGui();
         require(button(minecraftTab, GuiTabbedControls.MINECRAFT_TAB) != null
-                && button(minecraftTab, GuiTabbedControls.BETAMOON_TAB) != null
-                && button(minecraftTab, 0) != null && button(minecraftTab, 200) != null,
-                "Minecraft bindings remain the default Controls tab");
+                && button(minecraftTab, GuiTabbedControls.BETAMOON_TAB) != null && button(minecraftTab, 0) != null
+                && button(minecraftTab, 200) != null, "Minecraft bindings remain the default Controls tab");
         require(!button(minecraftTab, GuiTabbedControls.MINECRAFT_TAB).enabled
                 && button(minecraftTab, GuiTabbedControls.BETAMOON_TAB).enabled,
                 "The active Minecraft tab is distinguishable and BetaMoon is selectable");
@@ -58,7 +56,8 @@ public final class InputControlsGuiTest {
         scrollingTab.width = 320;
         scrollingTab.height = 240;
         scrollingTab.initGui();
-        require(!button(scrollingTab, 14).enabled2 && button(scrollingTab, 200).yPosition > button(scrollingTab, 10).yPosition,
+        require(!button(scrollingTab, 14).enabled2
+                && button(scrollingTab, 200).yPosition > button(scrollingTab, 10).yPosition,
                 "Overflow bindings stay clear of Done and the tabs");
         scrollingTab.scrollBindingRows(2);
         require(button(scrollingTab, 14).enabled2 && !button(scrollingTab, 0).enabled2,
@@ -67,16 +66,13 @@ public final class InputControlsGuiTest {
         editor.width = 320;
         editor.height = 240;
         editor.initGui();
-        require(Keyboard.areRepeatEventsEnabled(),
-                "The searchable Controls tab requests held-key repeat events");
+        require(Keyboard.areRepeatEventsEnabled(), "The searchable Controls tab requests held-key repeat events");
         require(GuiTabbedControls.isProtectedScreen(editor) && GuiTabbedControls.isProtectedScreen(minecraftTab),
                 "Engine Controls screens bypass script GUI capture");
         require(button(editor, GuiTabbedControls.MINECRAFT_TAB).enabled
                 && !button(editor, GuiTabbedControls.BETAMOON_TAB).enabled
-                && "+".equals(button(editor, 1001).displayString)
-                && "-".equals(button(editor, 1002).displayString)
-                && "R".equals(button(editor, 1003).displayString)
-                && button(editor, 1004) == null
+                && "+".equals(button(editor, 1001).displayString) && "-".equals(button(editor, 1002).displayString)
+                && "R".equals(button(editor, 1003).displayString) && button(editor, 1004) == null
                 && button(editor, 1000).yPosition == button(editor, 1003).yPosition
                 && button(editor, 1005).yPosition > button(editor, 1000).yPosition
                 && button(editor, 1003).xPosition + 22 <= editor.width
@@ -93,8 +89,8 @@ public final class InputControlsGuiTest {
 
         editor.actionPerformed(button(editor, 1000));
         editor.keyTyped('k', Keyboard.KEY_K);
-        require("key.k".equals(map.bindings("jump").get(0).toString())
-                && preferences.count() == 1, "Keyboard capture writes a saved binding");
+        require("key.k".equals(map.bindings("jump").get(0).toString()) && preferences.count() == 1,
+                "Keyboard capture writes a saved binding");
         editor.actionPerformed(button(editor, 1000));
         editor.captureKey(Keyboard.KEY_K, InputBinding.CONTROL | InputBinding.SHIFT);
         require("ctrl+shift+key.k".equals(map.bindings("jump").get(0).toString()),
@@ -149,33 +145,29 @@ public final class InputControlsGuiTest {
                 && "Left mouse".equals(InputBinding.parse("mouse.left").displayName()),
                 "Binding names use player-facing key and mouse labels");
         editor.actionPerformed(button(editor, 1019));
-        require(map.mode("sprint") == InputActivationMode.TOGGLE
-                && "Toggle".equals(button(editor, 1019).displayString),
+        require(map.mode("sprint") == InputActivationMode.TOGGLE && "Toggle".equals(button(editor, 1019).displayString),
                 "The compact mode button shows and updates Hold/Toggle state");
         editor.actionPerformed(button(editor, 1015));
         editor.captureWheel(120, 0);
         require("mouse.wheel_up".equals(map.bindings("sprint").get(0).toString()),
                 "Scrolling during capture saves a wheel binding even for a Toggle action");
-        InputMapRegistration restored = new InputRouter(null, new InputPreferenceStore(file))
-                .register(map.definition(), "gui.lua");
+        InputMapRegistration restored = new InputRouter(null, new InputPreferenceStore(file)).register(map.definition(),
+                "gui.lua");
         require(restored.mode("sprint") == InputActivationMode.TOGGLE
                 && "mouse.wheel_up".equals(restored.bindings("sprint").get(0).toString()),
                 "A Toggle wheel binding survives preference reload");
         restored.close();
 
-        Field searchFocused = GuiBetaMoonActions.class.getDeclaredField("searchFocused");
-        searchFocused.setAccessible(true);
-        searchFocused.setBoolean(editor, true);
-        require("Search: _".equals(editor.searchDisplayText()),
-                "Focused empty search shows its text caret");
+        editor.mouseClicked(100, 60, 0);
+        require("".equals(editor.searchDisplayText()), "Focusing search preserves its empty value");
         editor.keyTyped('z', Keyboard.KEY_Z);
-        require("Search: z_".equals(editor.searchDisplayText()) && button(editor, 1000) == null,
+        require("z".equals(editor.searchDisplayText()) && button(editor, 1000) == null,
                 "Typing keeps the search caret visible and filters binding rows");
         editor.keyTyped('o', Keyboard.KEY_O);
         editor.keyTyped('\b', Keyboard.KEY_BACK);
         editor.keyTyped('\b', Keyboard.KEY_BACK);
         editor.keyTyped('\b', Keyboard.KEY_BACK);
-        require("Search: _".equals(editor.searchDisplayText()) && button(editor, 1000) != null,
+        require("".equals(editor.searchDisplayText()) && button(editor, 1000) != null,
                 "Repeated Backspace clears search and restores the unfiltered actions");
         editor.keyTyped(' ', Keyboard.KEY_ESCAPE);
         editor.actionPerformed(button(editor, 2));

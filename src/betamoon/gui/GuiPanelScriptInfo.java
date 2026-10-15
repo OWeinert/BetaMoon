@@ -17,7 +17,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** Retained script detail panel with cached measurement and owned image textures. */
+/**
+ * Retained script detail panel with cached measurement and owned image
+ * textures.
+ */
 final class GuiPanelScriptInfo extends GuiContainer {
     private static final String LABEL_DESCRIPTION = "Description";
     private static final String LABEL_ERRORS = "Errors";
@@ -83,13 +86,12 @@ final class GuiPanelScriptInfo extends GuiContainer {
         int titleX = getLeft();
         if (warningIndicator.shouldRender()) {
             int iconY = headerY + ((int) (8 * headerScale) - WARNING_SIZE) / 2;
-            warningIndicator.arrange(context,
-                    Rect.fromPositionAndSize(getLeft(), iconY, WARNING_SIZE, WARNING_SIZE));
+            warningIndicator.arrange(context, Rect.fromPositionAndSize(getLeft(), iconY, WARNING_SIZE, WARNING_SIZE));
             warningIndicator.render(context);
             titleX += WARNING_SIZE + WARNING_GAP;
         }
-        context.getRenderer().drawScaledText(title, titleX, headerY,
-                context.getRenderer().getTheme().textPrimary, headerScale);
+        context.getRenderer().drawScaledText(title, titleX, headerY, context.getRenderer().getTheme().textPrimary,
+                headerScale);
     }
 
     private final class ScriptInfoContent extends GuiElement {
@@ -125,10 +127,10 @@ final class GuiPanelScriptInfo extends GuiContainer {
             }
 
             if (layout.hasIssues()) {
-                int headerColor = layout.hasErrors ? context.getRenderer().getTheme().textError
+                int headerColor = layout.hasErrors
+                        ? context.getRenderer().getTheme().textError
                         : context.getRenderer().getTheme().textWarning;
-                context.getRenderer().drawScaledUnderlinedText(LABEL_ERRORS, getLeft(), y, headerColor,
-                        sectionScale);
+                context.getRenderer().drawScaledUnderlinedText(LABEL_ERRORS, getLeft(), y, headerColor, sectionScale);
                 y += (int) (10 * sectionScale) + CONTENT_PADDING;
                 if (!layout.errorIssues.getEntries().isEmpty()) {
                     y += drawIssues(context, layout.errorIssues, getLeft(), y, contentWidth,
@@ -180,7 +182,8 @@ final class GuiPanelScriptInfo extends GuiContainer {
         private ScriptInfoLayout(GuiContext context, int contentWidth) {
             description = selected.getDescription();
             failure = selected.getFailureReason();
-            dependencies = selected.getDependencies() == null ? Collections.<String>emptyList()
+            dependencies = selected.getDependencies() == null
+                    ? Collections.<String>emptyList()
                     : selected.getDependencies();
             List<ScriptIssue> issues = LuaScriptErrors.getIssuesFor(selected.getDisplayName(),
                     selected.getSourceFileName());
@@ -255,15 +258,9 @@ final class GuiPanelScriptInfo extends GuiContainer {
             context.getRenderer().drawTexture(image, bounds);
             return;
         }
-        context.getRenderer().drawRect(bounds, context.getRenderer().getTheme().buttonBackground);
-        String mark = "?";
-        int textWidth = context.getRenderer().textWidth(mark);
-        float scale = size * 0.6F / Math.max(textWidth, 8);
-        if (scale < 1.0F) {
-            scale = 1.0F;
-        }
-        context.getRenderer().drawScaledCenteredText(mark, bounds,
-                context.getRenderer().getTheme().textPrimary, scale, false);
+        context.getRenderer().drawPopupPanel(bounds);
+        context.getRenderer().drawScaledCenteredText("?", bounds, context.getRenderer().getTheme().textMuted, 1.0F,
+                true);
     }
 
     private static GuiTextureCache.Texture resolveImageTexture(ScriptMod mod) {
@@ -308,20 +305,21 @@ final class GuiPanelScriptInfo extends GuiContainer {
         return value != null && !value.trim().isEmpty();
     }
 
-    private static int drawDependencies(GuiContext context, List<String> dependencies, List<String> missing,
-            int x, int y, int width) {
+    private static int drawDependencies(GuiContext context, List<String> dependencies, List<String> missing, int x,
+            int y, int width) {
         int startY = y;
         for (int i = 0; i < dependencies.size(); i++) {
             String dependency = dependencies.get(i);
             if (dependency == null) {
                 continue;
             }
-            boolean missingDependency = missing != null ? missing.contains(dependency)
+            boolean missingDependency = missing != null
+                    ? missing.contains(dependency)
                     : !LuaScriptRegistry.hasScriptName(dependency);
-            int color = missingDependency ? context.getRenderer().getTheme().textError
+            int color = missingDependency
+                    ? context.getRenderer().getTheme().textError
                     : context.getRenderer().getTheme().textPrimary;
-            String label = missingDependency ? "- " + dependency + " " + SUFFIX_DEPENDENCY_MISSING
-                    : "- " + dependency;
+            String label = missingDependency ? "- " + dependency + " " + SUFFIX_DEPENDENCY_MISSING : "- " + dependency;
             context.getRenderer().drawText(context.getRenderer().trimToWidth(label, width), x, y, color);
             y += DEPENDENCY_LINE_HEIGHT;
         }

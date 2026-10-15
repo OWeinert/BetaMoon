@@ -8,11 +8,12 @@ import betamoon.gui.framework.GuiTheme;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Centered modal panel with a title, body, and consistently arranged actions. */
+/**
+ * Centered modal panel with a title, body, and consistently arranged actions.
+ */
 public final class GuiDialog extends GuiContainer {
     public enum FooterAlignment {
-        FILL,
-        CENTER
+        FILL, CENTER
     }
 
     private final String title;
@@ -22,14 +23,13 @@ public final class GuiDialog extends GuiContainer {
     private int maximumWidth = 360;
     private int maximumHeight = 200;
     private int minimumHeight;
-    private int horizontalScreenMargin = 40;
-    private int verticalScreenMargin = 80;
-    private int framePadding = 4;
+    private int horizontalScreenMargin = 32;
+    private int verticalScreenMargin = 48;
     private int titleOffset = 8;
     private int titleLineOffset = 24;
     private int titleLineInset = 10;
     private int titleColor;
-    private float titleScale = 1.2F;
+    private float titleScale = 1.0F;
     private int bodyHorizontalInset = 10;
     private int bodyTopOffset = 32;
     private int bodyBottomGap = 8;
@@ -112,39 +112,63 @@ public final class GuiDialog extends GuiContainer {
         int panelTop = getTop() + (getHeight() - panelHeight) / 2;
         panelBounds = Rect.fromPositionAndSize(panelLeft, panelTop, panelWidth, panelHeight);
 
-        int footerTop = panelBounds.getBottom() - footerBottomInset - footerButtonHeight;
+        int footerRows = footerRowCount(context);
+        int footerHeight = footerRows * footerButtonHeight + Math.max(0, footerRows - 1) * footerGap;
+        int footerTop = panelBounds.getBottom() - footerBottomInset - footerHeight;
         arrangeFooter(context, footerTop);
         if (body != null) {
-            int bodyBottom = footerButtons.isEmpty() ? panelBounds.getBottom() - bodyBottomGap
+            int bodyBottom = footerButtons.isEmpty()
+                    ? panelBounds.getBottom() - bodyBottomGap
                     : footerTop - bodyBottomGap;
             bodySlot.arrange(context, new Rect(panelBounds.getLeft() + bodyHorizontalInset,
                     panelBounds.getTop() + bodyTopOffset, panelBounds.getRight() - bodyHorizontalInset, bodyBottom));
         }
     }
 
-    private void arrangeFooter(GuiContext context, int footerTop) {
+    private int footerRowCount(GuiContext context) {
         if (footerButtons.isEmpty()) {
+            return 0;
+        }
+        return preferredFooterWidth(context) <= Math.max(0, panelBounds.getWidth() - footerHorizontalInset * 2)
+                ? 1
+                : footerButtons.size();
+    }
+
+    private int preferredFooterWidth(GuiContext context) {
+        int width = Math.max(0, footerButtons.size() - 1) * footerGap;
+        for (GuiButton button : footerButtons) {
+            width += Math.max(centeredButtonWidth, context.getRenderer().textWidth(button.getLabel()) + 20);
+        }
+        return width;
+    }
+
+    private void arrangeFooter(GuiContext context, int footerTop) {
+        int count = footerButtons.size();
+        if (count == 0) {
             return;
         }
-        if (footerAlignment == FooterAlignment.CENTER) {
-            int totalWidth = footerButtons.size() * centeredButtonWidth
-                    + Math.max(0, footerButtons.size() - 1) * footerGap;
-            int x = panelBounds.getLeft() + (panelBounds.getWidth() - totalWidth) / 2;
-            for (int i = 0; i < footerButtons.size(); i++) {
-                footerButtons.get(i).arrange(context,
-                        Rect.fromPositionAndSize(x, footerTop, centeredButtonWidth, footerButtonHeight));
-                x += centeredButtonWidth + footerGap;
+        int available = Math.max(0, panelBounds.getWidth() - footerHorizontalInset * 2);
+        boolean stacked = footerRowCount(context) > 1;
+        int totalWidth = footerAlignment == FooterAlignment.CENTER && !stacked
+                ? Math.min(available, preferredFooterWidth(context))
+                : available;
+        int x = panelBounds.getLeft() + (panelBounds.getWidth() - totalWidth) / 2;
+        int remaining = totalWidth - (stacked ? 0 : (count - 1) * footerGap);
+        int preferred = Math.max(1, preferredFooterWidth(context) - (count - 1) * footerGap);
+        int distributable = remaining;
+        for (int i = 0; i < count; i++) {
+            GuiButton button = footerButtons.get(i);
+            int minimum = Math.max(centeredButtonWidth, context.getRenderer().textWidth(button.getLabel()) + 20);
+            int width = stacked
+                    ? totalWidth
+                    : i == count - 1 ? remaining : Math.min(remaining, distributable * minimum / preferred);
+            button.arrange(context, Rect.fromPositionAndSize(x, footerTop, width, footerButtonHeight));
+            if (stacked) {
+                footerTop += footerButtonHeight + footerGap;
+            } else {
+                x += width + footerGap;
+                remaining -= width;
             }
-            return;
-        }
-        int availableWidth = panelBounds.getWidth() - footerHorizontalInset * 2
-                - Math.max(0, footerButtons.size() - 1) * footerGap;
-        int buttonWidth = footerButtons.isEmpty() ? 0 : Math.max(0, availableWidth / footerButtons.size());
-        int x = panelBounds.getLeft() + footerHorizontalInset;
-        for (int i = 0; i < footerButtons.size(); i++) {
-            int right = x + buttonWidth;
-            footerButtons.get(i).arrange(context, new Rect(x, footerTop, right, footerTop + footerButtonHeight));
-            x = right + footerGap;
         }
     }
 
@@ -153,14 +177,12 @@ public final class GuiDialog extends GuiContainer {
         if (panelBounds.isEmpty()) {
             return;
         }
-        context.getRenderer().drawRect(new Rect(panelBounds.getLeft() - framePadding,
-                panelBounds.getTop() - framePadding, panelBounds.getRight() + framePadding,
-                panelBounds.getBottom() + framePadding), context.getRenderer().getTheme().popupShadow);
-        context.getRenderer().drawRect(panelBounds, context.getRenderer().getTheme().popupPanel);
+        context.getRenderer().drawPopupPanel(panelBounds);
         if (!title.isEmpty()) {
-            context.getRenderer().drawScaledCenteredText(title,
-                    panelBounds.getLeft() + panelBounds.getWidth() / 2, panelBounds.getTop() + titleOffset,
-                    titleColor, titleScale);
+            context.getRenderer().drawScaledCenteredText(
+                    context.getRenderer().trimToWidth(title, panelBounds.getWidth() - 24),
+                    panelBounds.getLeft() + panelBounds.getWidth() / 2, panelBounds.getTop() + titleOffset, titleColor,
+                    titleScale);
             context.getRenderer().drawHorizontalLine(panelBounds.getLeft() + titleLineInset,
                     panelBounds.getRight() - titleLineInset, panelBounds.getTop() + titleLineOffset,
                     context.getRenderer().getTheme().line);

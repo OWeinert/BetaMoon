@@ -1,5 +1,6 @@
 package betamoon.client.control.input;
 
+import betamoon.gui.widget.GuiTextBox;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -19,11 +20,10 @@ final class GuiBetaMoonActions extends GuiScreen {
     private final InputRouter router;
     private final List<Row> rows = new ArrayList<Row>();
     private final List<Line> lines = new ArrayList<Line>();
-    private String search = "";
+    private GuiTextBox searchBox;
     private String message = "";
     private boolean messageIsError;
     private int scroll;
-    private boolean searchFocused;
     private boolean resetPending;
     private Row capture;
     private int captureSlot;
@@ -45,6 +45,12 @@ final class GuiBetaMoonActions extends GuiScreen {
     @Override
     public void initGui() {
         Keyboard.enableRepeatEvents(true);
+        String query = searchBox == null ? "" : searchBox.getText();
+        boolean focused = searchBox != null && searchBox.isFocused;
+        int left = (width - rowWidth()) / 2;
+        searchBox = new GuiTextBox(this, fontRenderer, left + 48, 54, rowWidth() - 49, 18, 64);
+        searchBox.setText(query);
+        searchBox.setFocused(focused);
         rebuildRows();
         rebuildButtons();
     }
@@ -65,7 +71,7 @@ final class GuiBetaMoonActions extends GuiScreen {
     private void rebuildRows() {
         seenRevision = router.revision();
         rows.clear();
-        String query = search.toLowerCase(Locale.ENGLISH);
+        String query = searchBox.getText().toLowerCase(Locale.ENGLISH);
         for (InputMapRegistration map : router.registrations()) {
             if (!map.isActive() || !map.definition().configurable()) {
                 continue;
@@ -75,8 +81,8 @@ final class GuiBetaMoonActions extends GuiScreen {
                 if (!action.configurable()) {
                     continue;
                 }
-                String haystack = (map.definition().key() + " " + map.definition().label() + " "
-                        + action.name() + " " + action.label()).toLowerCase(Locale.ENGLISH);
+                String haystack = (map.definition().key() + " " + map.definition().label() + " " + action.name() + " "
+                        + action.label()).toLowerCase(Locale.ENGLISH);
                 if (haystack.contains(query)) {
                     matching.add(new Row(map, action));
                 }
@@ -98,6 +104,7 @@ final class GuiBetaMoonActions extends GuiScreen {
 
     @Override
     public void updateScreen() {
+        searchBox.updateCursorCounter();
         if (seenRevision != router.revision()) {
             if (capture != null && !capture.map.isActive()) {
                 capture = null;
@@ -116,16 +123,14 @@ final class GuiBetaMoonActions extends GuiScreen {
     private void rebuildButtons() {
         rebuildLines();
         controlList.clear();
-        controlList.add(new GuiButton(GuiTabbedControls.MINECRAFT_TAB,
-                width / 2 - GuiTabbedControls.TAB_WIDTH - 2, GuiTabbedControls.TAB_Y,
-                GuiTabbedControls.TAB_WIDTH, 20, "Minecraft"));
-        controlList.add(new GuiButton(GuiTabbedControls.BETAMOON_TAB,
-                width / 2 + 2, GuiTabbedControls.TAB_Y,
+        controlList.add(new GuiButton(GuiTabbedControls.MINECRAFT_TAB, width / 2 - GuiTabbedControls.TAB_WIDTH - 2,
+                GuiTabbedControls.TAB_Y, GuiTabbedControls.TAB_WIDTH, 20, "Minecraft"));
+        controlList.add(new GuiButton(GuiTabbedControls.BETAMOON_TAB, width / 2 + 2, GuiTabbedControls.TAB_Y,
                 GuiTabbedControls.TAB_WIDTH, 20, "BetaMoon"));
         ((GuiButton) controlList.get(1)).enabled = false;
         controlList.add(new GuiButton(1, width / 2 - 105, height - 27, 100, 20, "Done"));
-        controlList.add(new GuiButton(2, width / 2 + 5, height - 27, 100, 20,
-                resetPending ? "Confirm reset" : "Reset all"));
+        controlList.add(
+                new GuiButton(2, width / 2 + 5, height - 27, 100, 20, resetPending ? "Confirm reset" : "Reset all"));
         if (capture != null) {
             controlList.add(new GuiButton(7, width / 2 + 4, height - 50, 100, 18, "Bind Escape"));
             controlList.add(new GuiButton(10, width / 2 - 104, height - 50, 100, 18, "Cancel binding"));
@@ -154,8 +159,7 @@ final class GuiBetaMoonActions extends GuiScreen {
             int base = BUTTON_BASE + visible * 5;
             List<InputBinding> bindings = row.map.bindings(row.action.name());
             String binding = bindings.isEmpty() ? "Unbound" : bindings.get(line.slot).displayName();
-            controlList.add(new GuiButton(base, inputX, y + 1, inputWidth, 20,
-                    bindingButtonText(binding, inputWidth)));
+            controlList.add(new GuiButton(base, inputX, y + 1, inputWidth, 20, bindingButtonText(binding, inputWidth)));
             controlList.add(new GuiButton(base + 1, addX, y + 1, 20, 20, "+"));
             GuiButton remove = new GuiButton(base + 2, removeX, y + 1, 20, 20, "-");
             remove.enabled = !bindings.isEmpty();
@@ -266,8 +270,10 @@ final class GuiBetaMoonActions extends GuiScreen {
                 row.map.resetMode(row.action.name());
                 message = "Action restored to its default bindings and mode.";
             } else if (operation == 4) {
-                row.map.setMode(row.action.name(), row.map.mode(row.action.name()) == InputActivationMode.HOLD
-                        ? InputActivationMode.TOGGLE : InputActivationMode.HOLD);
+                row.map.setMode(row.action.name(),
+                        row.map.mode(row.action.name()) == InputActivationMode.HOLD
+                                ? InputActivationMode.TOGGLE
+                                : InputActivationMode.HOLD);
                 message = row.map.mode(row.action.name()) == InputActivationMode.HOLD
                         ? "Hold: active while pressed; wheel acts as a pulse."
                         : "Toggle: each press or wheel pulse switches the action.";
@@ -374,8 +380,8 @@ final class GuiBetaMoonActions extends GuiScreen {
         if (keyCode == Keyboard.KEY_ESCAPE) {
             if (conflict != null) {
                 clearConflict();
-            } else if (searchFocused) {
-                searchFocused = false;
+            } else if (searchBox.isFocused) {
+                searchBox.setFocused(false);
             } else {
                 mc.displayGuiScreen(parent);
             }
@@ -384,12 +390,13 @@ final class GuiBetaMoonActions extends GuiScreen {
         if (conflict != null) {
             return;
         }
-        if (searchFocused) {
-            if (keyCode == Keyboard.KEY_BACK && !search.isEmpty()) {
-                search = search.substring(0, search.length() - 1);
-            } else if (character >= 32 && character != 127 && search.length() < 64) {
-                search += character;
-            }
+        if (keyCode == Keyboard.KEY_TAB && !searchBox.isFocused) {
+            searchBox.setFocused(true);
+            return;
+        }
+        String previous = searchBox.getText();
+        searchBox.textboxKeyTyped(character, keyCode);
+        if (!previous.equals(searchBox.getText())) {
             scroll = 0;
             rebuildRows();
             rebuildButtons();
@@ -407,8 +414,9 @@ final class GuiBetaMoonActions extends GuiScreen {
             captureMouseButton(button, heldModifiers());
             return;
         }
-        int left = (width - rowWidth()) / 2;
-        searchFocused = mouseX >= left && mouseX < left + rowWidth() && mouseY >= 53 && mouseY < 72;
+        if (conflict == null) {
+            searchBox.mouseClicked(mouseX, mouseY, button);
+        }
         super.mouseClicked(mouseX, mouseY, button);
     }
 
@@ -426,8 +434,8 @@ final class GuiBetaMoonActions extends GuiScreen {
     }
 
     void captureKey(int keyCode, int modifierMask) {
-        finishCapture(InputBinding.parse(modifierPrefix(modifierMask) + "key."
-                + Keyboard.getKeyName(keyCode).toLowerCase(Locale.ENGLISH)));
+        finishCapture(InputBinding.parse(
+                modifierPrefix(modifierMask) + "key." + Keyboard.getKeyName(keyCode).toLowerCase(Locale.ENGLISH)));
     }
 
     void captureMouseButton(int button, int modifierMask) {
@@ -439,8 +447,8 @@ final class GuiBetaMoonActions extends GuiScreen {
             return;
         }
         if (capture != null) {
-            finishCapture(InputBinding.parse(modifierPrefix(modifierMask)
-                    + (wheel > 0 ? "mouse.wheel_up" : "mouse.wheel_down")));
+            finishCapture(InputBinding
+                    .parse(modifierPrefix(modifierMask) + (wheel > 0 ? "mouse.wheel_up" : "mouse.wheel_down")));
         } else {
             scroll = Math.max(0, Math.min(Math.max(0, lines.size() - visibleCount()), scroll + (wheel > 0 ? -1 : 1)));
             rebuildButtons();
@@ -484,9 +492,9 @@ final class GuiBetaMoonActions extends GuiScreen {
         drawCenteredString(fontRenderer, "Controls", width / 2, 10, 0xffffff);
         int rowWidth = rowWidth();
         int left = (width - rowWidth) / 2;
-        drawRect(left, 53, left + rowWidth, 72, searchFocused ? 0xff333e5b : 0xff222222);
-        drawString(fontRenderer, visibleSearchText(), left + 5, 59,
-                searchFocused || !search.isEmpty() ? 0xffffff : 0x999999);
+        drawString(fontRenderer, "Search:", left + 2, 59, 0xA0A0A0);
+        searchBox.isEnabled = capture == null && conflict == null;
+        searchBox.drawTextBox();
         int start = scroll;
         int end = Math.min(lines.size(), start + visibleCount());
         for (int index = start; index < end; index++) {
@@ -509,21 +517,12 @@ final class GuiBetaMoonActions extends GuiScreen {
     }
 
     String searchDisplayText() {
-        if (searchFocused) {
-            return "Search: " + search + "_";
-        }
-        return search.isEmpty() ? "Search BetaMoon actions..." : "Search: " + search;
+        return searchBox.getText();
     }
 
-    private String visibleSearchText() {
-        if (!searchFocused) {
-            return fitToWidth(searchDisplayText(), rowWidth() - 10);
-        }
-        String visible = search;
-        while (!visible.isEmpty() && fontRenderer.getStringWidth("Search: " + visible + "_") > rowWidth() - 10) {
-            visible = visible.substring(1);
-        }
-        return "Search: " + visible + "_";
+    @Override
+    public void selectNextField() {
+        searchBox.setFocused(!searchBox.isFocused);
     }
 
     private String fitToWidth(String value, int pixels) {
