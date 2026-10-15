@@ -33,3 +33,14 @@
 - Advance world services and logical networks from the world simulation boundary, with interval counters
   independent of mutable world time. Preserve declaring-script identity during event/service/network callbacks.
 
+
+### Internal organization
+
+- Move native block, item, and biome implementations into their domain packages and rename them with
+  descriptive `LuaBlock`, `Lua*Item`, and `LuaBiome` names.
+- Consolidate declared block drops into the active definition, removing stale legacy drop state on reload.
+- Share item interaction forwarding while preserving lazy vanilla fallback and callback ordering.
+- Resolve and cache mapped/obfuscated biome fields through a biome-specific helper.
+- Preserve declared block/item canonical keys for debug reports, including recipe stacks, fuel rules,
+  machine bindings, subtype rows, and world-generation references. Mark unkeyed content as not assigned.
+

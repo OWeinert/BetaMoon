@@ -7,16 +7,38 @@ import java.util.function.Supplier;
 import net.minecraft.src.Entity;
 import net.minecraft.src.EntityLiving;
 import net.minecraft.src.EntityPlayer;
+import net.minecraft.src.Block;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.MathHelper;
 import net.minecraft.src.World;
 
 /**
- * Shared item-wrapper policies. Superclass operations remain lazy and are
- * supplied by the wrapper that owns the appropriate Minecraft superclass.
+ * Shared native item policies. Superclass operations remain lazy and are
+ * supplied by the implementation that owns the appropriate Minecraft
+ * superclass.
  */
 public final class ItemBehavior {
     private ItemBehavior() {
+    }
+
+    public static boolean useFirst(ItemStack stack, EntityPlayer player, World world, int x, int y, int z, int side) {
+        return ItemCallbackRegistry.interact(ItemCallback.USE_FIRST, stack, player, world, x, y, z, side,
+                null) != InteractionOutcome.PASS;
+    }
+
+    public static boolean useOnBlock(ItemStack stack, EntityPlayer player, World world, int x, int y, int z, int side,
+            BooleanSupplier base) {
+        InteractionOutcome result = ItemCallbackRegistry.interact(ItemCallback.USE_ON_BLOCK, stack, player, world, x, y,
+                z, side, null);
+        return result != InteractionOutcome.PASS || base.getAsBoolean();
+    }
+
+    public static boolean canHarvest(int itemId, Block block, boolean base) {
+        return ItemCallbackRegistry.canHarvest(itemId, block, 0, base);
+    }
+
+    public static float miningSpeed(ItemStack stack, Block block, int metadata, float base) {
+        return ItemCallbackRegistry.miningSpeed(stack, block, metadata, base);
     }
 
     public static int icon(int itemId, int metadata, IntSupplier base) {

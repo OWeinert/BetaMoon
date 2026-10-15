@@ -1,7 +1,6 @@
 package betamoon.luaapi.block;
 
 import betamoon.client.render.ModelAppearanceSet;
-import betamoon.wrappers.BlockWrapper;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
@@ -45,7 +44,7 @@ public final class ModelVariantRenderTest {
         inventory.setInventorySlotContents(0, new ItemStack(1, 12, 0));
         world.chunk.chunkTileEntityMap.put(new ChunkPosition(0, 0, 0), inventory);
         byte[] originalBlocks = world.chunk.blocks.clone();
-        BlockWrapper block = new BlockWrapper(222, 1, Material.rock, "visual_reload");
+        LuaBlock block = new LuaBlock(222, 1, Material.rock, "visual_reload");
         Globals lua = JsePlatform.standardGlobals();
         lua.load("base={model='test.json',texture='test.png'}; "
                 + "animated={model='test.json',texture='test.png',onPose=function(ctx) drawn=ctx.state.metadata end}; "

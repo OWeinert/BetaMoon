@@ -1,11 +1,7 @@
-package betamoon.wrappers;
+package betamoon.luaapi.item;
 
 import betamoon.BetaMoonCommon;
 
-import betamoon.luaapi.item.ItemBehavior;
-import betamoon.luaapi.item.ItemCallback;
-import betamoon.luaapi.item.ItemCallbackRegistry;
-import betamoon.luaapi.utils.InteractionOutcome;
 import betamoon.resources.LuaTextureResources;
 import forge.IArmorTextureProvider;
 import java.lang.reflect.Field;
@@ -21,15 +17,15 @@ import net.minecraft.src.ItemStack;
 import net.minecraft.src.RenderPlayer;
 import net.minecraft.src.World;
 
-public class ItemArmorWrapper extends ItemArmor implements IArmorTextureProvider {
+public class LuaArmorItem extends ItemArmor implements IArmorTextureProvider {
     private static final Logger LOGGER = BetaMoonCommon.LOGGER;
     private static Field RENDER_INDEX_FIELD = resolveRenderIndexField();
     private int armorRenderIndex;
     private String customArmorTexture;
 
     /**
-     * Creates an armor wrapper with the provided id, material, render index, slot
-     * type, and internal name.
+     * Creates an armor implementation with the provided id, material, render index,
+     * slot type, and internal name.
      *
      * @param id
      *            numeric item id (unshifted)
@@ -42,7 +38,7 @@ public class ItemArmorWrapper extends ItemArmor implements IArmorTextureProvider
      * @param name
      *            internal armor name (unlocalized)
      */
-    public ItemArmorWrapper(int id, int material, int renderIndex, int armorType, String name) {
+    public LuaArmorItem(int id, int material, int renderIndex, int armorType, String name) {
         super(id, material, renderIndex, armorType);
         this.armorRenderIndex = renderIndex;
         setItemName(name);
@@ -54,9 +50,9 @@ public class ItemArmorWrapper extends ItemArmor implements IArmorTextureProvider
      *
      * @param renderIndex
      *            armor render index (0+)
-     * @return this wrapper for chaining
+     * @return this instance for chaining
      */
-    public ItemArmorWrapper setRenderIndex(int renderIndex) {
+    public LuaArmorItem setRenderIndex(int renderIndex) {
         this.armorRenderIndex = renderIndex;
         LuaTextureResources.release(this.customArmorTexture);
         this.customArmorTexture = null;
@@ -92,9 +88,9 @@ public class ItemArmorWrapper extends ItemArmor implements IArmorTextureProvider
      *
      * @param texture
      *            virtual texture resource path
-     * @return this wrapper for chaining
+     * @return this instance for chaining
      */
-    public ItemArmorWrapper setArmorTexture(String texture) {
+    public LuaArmorItem setArmorTexture(String texture) {
         if (texture != null && texture.equals(this.customArmorTexture)) {
             // register() acquired another reference for the same resource; balance it
             // immediately.
@@ -110,7 +106,7 @@ public class ItemArmorWrapper extends ItemArmor implements IArmorTextureProvider
      * Clears a custom model texture while retaining the current vanilla render
      * index.
      */
-    public ItemArmorWrapper useVanillaArmorTexture() {
+    public LuaArmorItem useVanillaArmorTexture() {
         LuaTextureResources.release(this.customArmorTexture);
         this.customArmorTexture = null;
         return this;
@@ -195,14 +191,12 @@ public class ItemArmorWrapper extends ItemArmor implements IArmorTextureProvider
     }
 
     public boolean onItemUseFirst(ItemStack stack, EntityPlayer player, World world, int x, int y, int z, int side) {
-        return ItemCallbackRegistry.interact(ItemCallback.USE_FIRST, stack, player, world, x, y, z, side,
-                null) != InteractionOutcome.PASS;
+        return ItemBehavior.useFirst(stack, player, world, x, y, z, side);
     }
 
     public boolean onItemUse(ItemStack stack, EntityPlayer player, World world, int x, int y, int z, int side) {
-        InteractionOutcome result = ItemCallbackRegistry.interact(ItemCallback.USE_ON_BLOCK, stack, player, world, x, y,
-                z, side, null);
-        return result != InteractionOutcome.PASS || super.onItemUse(stack, player, world, x, y, z, side);
+        return ItemBehavior.useOnBlock(stack, player, world, x, y, z, side,
+                () -> super.onItemUse(stack, player, world, x, y, z, side));
     }
 
     @Override
@@ -234,10 +228,10 @@ public class ItemArmorWrapper extends ItemArmor implements IArmorTextureProvider
     }
 
     public boolean canHarvestBlock(Block block) {
-        return ItemCallbackRegistry.canHarvest(shiftedIndex, block, 0, super.canHarvestBlock(block));
+        return ItemBehavior.canHarvest(shiftedIndex, block, super.canHarvestBlock(block));
     }
 
     public float getStrVsBlock(ItemStack stack, Block block, int metadata) {
-        return ItemCallbackRegistry.miningSpeed(stack, block, metadata, super.getStrVsBlock(stack, block, metadata));
+        return ItemBehavior.miningSpeed(stack, block, metadata, super.getStrVsBlock(stack, block, metadata));
     }
 }

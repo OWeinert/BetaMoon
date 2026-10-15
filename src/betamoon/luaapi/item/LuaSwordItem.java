@@ -1,47 +1,43 @@
-package betamoon.wrappers;
+package betamoon.luaapi.item;
 
-import betamoon.luaapi.item.ConfigurableAttackDamage;
-import betamoon.luaapi.item.ConfigurableItemDurability;
-import betamoon.luaapi.item.ConfigurableItemSubtypes;
-import betamoon.luaapi.item.ConfigurableMiningEfficiency;
-import betamoon.luaapi.item.ItemBehavior;
-import betamoon.luaapi.item.ItemCallback;
-import betamoon.luaapi.item.ItemCallbackRegistry;
-import betamoon.luaapi.utils.InteractionOutcome;
 import forge.IUseItemFirst;
+import java.lang.reflect.Field;
 import net.minecraft.src.Block;
 import net.minecraft.src.Entity;
 import net.minecraft.src.EntityLiving;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.EnumToolMaterial;
-import net.minecraft.src.ItemAxe;
 import net.minecraft.src.ItemStack;
+import net.minecraft.src.ItemSword;
 import net.minecraft.src.World;
 
-public class ItemAxeWrapper extends ItemAxe
+public class LuaSwordItem extends ItemSword
         implements
             IUseItemFirst,
             ConfigurableItemDurability,
             ConfigurableItemSubtypes,
-            ConfigurableMiningEfficiency,
             ConfigurableAttackDamage {
+    private static final Field WEAPON_DAMAGE_FIELD = resolveWeaponDamageField();
 
     /**
-     * Creates an axe wrapper with the provided item id, material, and internal
-     * name.
+     * Creates a sword implementation with the provided item id, material, damage
+     * value, and internal name.
      *
      * @param id
      *            numeric item id (unshifted)
      * @param material
      *            tool material to use
+     * @param damage
+     *            custom damage value to apply
      * @param name
      *            internal item name (unlocalized)
      */
-    public ItemAxeWrapper(int id, EnumToolMaterial material, String name) {
+    public LuaSwordItem(int id, EnumToolMaterial material, int damage, String name) {
         super(id, material);
         setItemName(name);
         setIconCoord(0, 0);
         setFull3D();
+        setDamageValue(damage);
     }
 
     /**
@@ -49,10 +45,10 @@ public class ItemAxeWrapper extends ItemAxe
      *
      * @param maxDamage
      *            durability value
-     * @return this wrapper for chaining
+     * @return this instance for chaining
      */
     @Override
-    public ItemAxeWrapper setMaxDamageValue(int maxDamage) {
+    public LuaSwordItem setMaxDamageValue(int maxDamage) {
         this.setMaxDamage(maxDamage);
         return this;
     }
@@ -62,38 +58,40 @@ public class ItemAxeWrapper extends ItemAxe
      *
      * @param hasSubtypes
      *            true to enable subtypes
-     * @return this wrapper for chaining
+     * @return this instance for chaining
      */
     @Override
-    public ItemAxeWrapper setHasSubtypesValue(boolean hasSubtypes) {
+    public LuaSwordItem setHasSubtypesValue(boolean hasSubtypes) {
         this.setHasSubtypes(hasSubtypes);
         return this;
     }
 
     /**
-     * Sets the tool efficiency applied on effective blocks.
-     *
-     * @param efficiency
-     *            efficiency value
-     * @return this wrapper for chaining
-     */
-    @Override
-    public ItemAxeWrapper setEfficiencyValue(float efficiency) {
-        this.efficiencyOnProperMaterial = efficiency;
-        return this;
-    }
-
-    /**
-     * Sets the damage applied when hitting entities.
+     * Overrides the weapon damage applied to entities.
      *
      * @param damage
      *            damage value
-     * @return this wrapper for chaining
+     * @return this instance for chaining
      */
     @Override
-    public ItemAxeWrapper setDamageValue(int damage) {
-        this.damageVsEntity = damage;
+    public LuaSwordItem setDamageValue(int damage) {
+        if (WEAPON_DAMAGE_FIELD != null) {
+            try {
+                WEAPON_DAMAGE_FIELD.setInt(this, damage);
+            } catch (IllegalAccessException ignored) {
+            }
+        }
         return this;
+    }
+
+    private static Field resolveWeaponDamageField() {
+        try {
+            Field field = ItemSword.class.getDeclaredField("weaponDamage");
+            field.setAccessible(true);
+            return field;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     @Override
@@ -107,14 +105,12 @@ public class ItemAxeWrapper extends ItemAxe
     }
 
     public boolean onItemUseFirst(ItemStack stack, EntityPlayer player, World world, int x, int y, int z, int side) {
-        return ItemCallbackRegistry.interact(ItemCallback.USE_FIRST, stack, player, world, x, y, z, side,
-                null) != InteractionOutcome.PASS;
+        return ItemBehavior.useFirst(stack, player, world, x, y, z, side);
     }
 
     public boolean onItemUse(ItemStack stack, EntityPlayer player, World world, int x, int y, int z, int side) {
-        InteractionOutcome result = ItemCallbackRegistry.interact(ItemCallback.USE_ON_BLOCK, stack, player, world, x, y,
-                z, side, null);
-        return result != InteractionOutcome.PASS || super.onItemUse(stack, player, world, x, y, z, side);
+        return ItemBehavior.useOnBlock(stack, player, world, x, y, z, side,
+                () -> super.onItemUse(stack, player, world, x, y, z, side));
     }
 
     @Override
@@ -146,10 +142,10 @@ public class ItemAxeWrapper extends ItemAxe
     }
 
     public boolean canHarvestBlock(Block block) {
-        return ItemCallbackRegistry.canHarvest(shiftedIndex, block, 0, super.canHarvestBlock(block));
+        return ItemBehavior.canHarvest(shiftedIndex, block, super.canHarvestBlock(block));
     }
 
     public float getStrVsBlock(ItemStack stack, Block block, int metadata) {
-        return ItemCallbackRegistry.miningSpeed(stack, block, metadata, super.getStrVsBlock(stack, block, metadata));
+        return ItemBehavior.miningSpeed(stack, block, metadata, super.getStrVsBlock(stack, block, metadata));
     }
 }

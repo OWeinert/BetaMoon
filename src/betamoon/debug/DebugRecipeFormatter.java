@@ -177,7 +177,8 @@ final class DebugRecipeFormatter {
     private static String formatSmeltingInput(int inputId) {
         String internalName = DebugExportNames.resolveInternalName(inputId, null);
         String displayName = DebugExportNames.resolveDisplayName(inputId, null);
-        return "[" + internalName + " / " + inputId + " / \"" + displayName + "\"]";
+        return "[" + internalName + " / " + inputId + " / \"" + displayName + "\" | canonical key: "
+                + DebugExportNames.itemKey(inputId) + "]";
     }
 
     private static final class ShapeData {

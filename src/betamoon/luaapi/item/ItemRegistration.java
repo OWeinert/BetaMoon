@@ -8,9 +8,6 @@ import java.io.IOException;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luamodloader.LuaContentRegistry;
 import betamoon.resources.EnumTexAtlas;
-import betamoon.wrappers.ItemArmorWrapper;
-import betamoon.wrappers.ItemFoodWrapper;
-import betamoon.wrappers.ItemWrapper;
 import net.minecraft.src.Item;
 import net.minecraft.src.ModLoader;
 import org.luaj.vm2.LuaError;
@@ -50,7 +47,7 @@ final class ItemRegistration {
         prepareFood(item, entry, definition);
         applyProperties(item, definition);
         if (definition.armor != null) {
-            ItemArmorApi.applyModel((ItemArmorWrapper) item, definition.armor);
+            ItemArmorApi.applyModel((LuaArmorItem) item, definition.armor);
         }
         if (definition.iconX != null) {
             item.setIconCoord(definition.iconX, definition.iconY);
@@ -86,7 +83,7 @@ final class ItemRegistration {
             return (Item) existing.value;
         }
         try {
-            ItemWrapper item = new ItemWrapper(definition.id - 256, definition.name);
+            LuaItem item = new LuaItem(definition.id - 256, definition.name);
             item.setIconCoord(0, 0);
             LuaContentRegistry.remember("item", definition.id, item, "item");
             return item;
@@ -102,15 +99,15 @@ final class ItemRegistration {
             }
             return;
         }
-        if (entry.registered && !(item instanceof ItemFoodWrapper)) {
+        if (entry.registered && !(item instanceof LuaFoodItem)) {
             throw new LuaError("Item: changing a registered normal item into food requires a restart.");
         }
         if (!entry.registered && !"item".equals(entry.kind)) {
             throw new LuaError("Item: incompatible hot-reload type for id " + definition.id);
         }
         item.setMaxStackSize(1);
-        if (item instanceof ItemFoodWrapper) {
-            ((ItemFoodWrapper) item).setFoodValues(definition.healing, definition.wolfFood);
+        if (item instanceof LuaFoodItem) {
+            ((LuaFoodItem) item).setFoodValues(definition.healing, definition.wolfFood);
         }
     }
 
@@ -119,8 +116,8 @@ final class ItemRegistration {
             return item;
         }
         Item.itemsList[definition.id] = null;
-        ItemFoodWrapper food = new ItemFoodWrapper(definition.id - 256, definition.healing, definition.wolfFood);
-        food.applyFrom((ItemWrapper) item);
+        LuaFoodItem food = new LuaFoodItem(definition.id - 256, definition.healing, definition.wolfFood);
+        food.applyFrom((LuaItem) item);
         LuaContentRegistry.replace(entry, food, "food");
         return food;
     }
@@ -129,7 +126,7 @@ final class ItemRegistration {
         if (definition.maxStackSize != null) {
             item.setMaxStackSize(definition.maxStackSize);
         }
-        boolean basicProperties = item instanceof ItemWrapper || item instanceof ItemFoodWrapper;
+        boolean basicProperties = item instanceof LuaItem || item instanceof LuaFoodItem;
         if (definition.maxDamage != null && (definition.kind.isTool() || basicProperties)) {
             ((ConfigurableItemDurability) item).setMaxDamageValue(definition.maxDamage);
         }

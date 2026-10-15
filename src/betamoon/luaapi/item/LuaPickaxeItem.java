@@ -1,13 +1,5 @@
-package betamoon.wrappers;
+package betamoon.luaapi.item;
 
-import betamoon.luaapi.item.ConfigurableAttackDamage;
-import betamoon.luaapi.item.ConfigurableItemDurability;
-import betamoon.luaapi.item.ConfigurableItemSubtypes;
-import betamoon.luaapi.item.ConfigurableMiningEfficiency;
-import betamoon.luaapi.item.ItemBehavior;
-import betamoon.luaapi.item.ItemCallback;
-import betamoon.luaapi.item.ItemCallbackRegistry;
-import betamoon.luaapi.utils.InteractionOutcome;
 import forge.IUseItemFirst;
 import net.minecraft.src.Block;
 import net.minecraft.src.Entity;
@@ -18,7 +10,7 @@ import net.minecraft.src.ItemPickaxe;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.World;
 
-public class ItemPickaxeWrapper extends ItemPickaxe
+public class LuaPickaxeItem extends ItemPickaxe
         implements
             IUseItemFirst,
             ConfigurableItemDurability,
@@ -27,8 +19,8 @@ public class ItemPickaxeWrapper extends ItemPickaxe
             ConfigurableAttackDamage {
 
     /**
-     * Creates a pickaxe wrapper with the provided item id, material, and internal
-     * name.
+     * Creates a pickaxe implementation with the provided item id, material, and
+     * internal name.
      *
      * @param id
      *            numeric item id (unshifted)
@@ -37,7 +29,7 @@ public class ItemPickaxeWrapper extends ItemPickaxe
      * @param name
      *            internal item name (unlocalized)
      */
-    public ItemPickaxeWrapper(int id, EnumToolMaterial material, String name) {
+    public LuaPickaxeItem(int id, EnumToolMaterial material, String name) {
         super(id, material);
         setItemName(name);
         setIconCoord(0, 0);
@@ -49,10 +41,10 @@ public class ItemPickaxeWrapper extends ItemPickaxe
      *
      * @param maxDamage
      *            durability value
-     * @return this wrapper for chaining
+     * @return this instance for chaining
      */
     @Override
-    public ItemPickaxeWrapper setMaxDamageValue(int maxDamage) {
+    public LuaPickaxeItem setMaxDamageValue(int maxDamage) {
         this.setMaxDamage(maxDamage);
         return this;
     }
@@ -62,10 +54,10 @@ public class ItemPickaxeWrapper extends ItemPickaxe
      *
      * @param hasSubtypes
      *            true to enable subtypes
-     * @return this wrapper for chaining
+     * @return this instance for chaining
      */
     @Override
-    public ItemPickaxeWrapper setHasSubtypesValue(boolean hasSubtypes) {
+    public LuaPickaxeItem setHasSubtypesValue(boolean hasSubtypes) {
         this.setHasSubtypes(hasSubtypes);
         return this;
     }
@@ -75,10 +67,10 @@ public class ItemPickaxeWrapper extends ItemPickaxe
      *
      * @param efficiency
      *            efficiency value
-     * @return this wrapper for chaining
+     * @return this instance for chaining
      */
     @Override
-    public ItemPickaxeWrapper setEfficiencyValue(float efficiency) {
+    public LuaPickaxeItem setEfficiencyValue(float efficiency) {
         this.efficiencyOnProperMaterial = efficiency;
         return this;
     }
@@ -88,10 +80,10 @@ public class ItemPickaxeWrapper extends ItemPickaxe
      *
      * @param damage
      *            damage value
-     * @return this wrapper for chaining
+     * @return this instance for chaining
      */
     @Override
-    public ItemPickaxeWrapper setDamageValue(int damage) {
+    public LuaPickaxeItem setDamageValue(int damage) {
         this.damageVsEntity = damage;
         return this;
     }
@@ -107,14 +99,12 @@ public class ItemPickaxeWrapper extends ItemPickaxe
     }
 
     public boolean onItemUseFirst(ItemStack stack, EntityPlayer player, World world, int x, int y, int z, int side) {
-        return ItemCallbackRegistry.interact(ItemCallback.USE_FIRST, stack, player, world, x, y, z, side,
-                null) != InteractionOutcome.PASS;
+        return ItemBehavior.useFirst(stack, player, world, x, y, z, side);
     }
 
     public boolean onItemUse(ItemStack stack, EntityPlayer player, World world, int x, int y, int z, int side) {
-        InteractionOutcome result = ItemCallbackRegistry.interact(ItemCallback.USE_ON_BLOCK, stack, player, world, x, y,
-                z, side, null);
-        return result != InteractionOutcome.PASS || super.onItemUse(stack, player, world, x, y, z, side);
+        return ItemBehavior.useOnBlock(stack, player, world, x, y, z, side,
+                () -> super.onItemUse(stack, player, world, x, y, z, side));
     }
 
     @Override
@@ -146,10 +136,10 @@ public class ItemPickaxeWrapper extends ItemPickaxe
     }
 
     public boolean canHarvestBlock(Block block) {
-        return ItemCallbackRegistry.canHarvest(shiftedIndex, block, 0, super.canHarvestBlock(block));
+        return ItemBehavior.canHarvest(shiftedIndex, block, super.canHarvestBlock(block));
     }
 
     public float getStrVsBlock(ItemStack stack, Block block, int metadata) {
-        return ItemCallbackRegistry.miningSpeed(stack, block, metadata, super.getStrVsBlock(stack, block, metadata));
+        return ItemBehavior.miningSpeed(stack, block, metadata, super.getStrVsBlock(stack, block, metadata));
     }
 }

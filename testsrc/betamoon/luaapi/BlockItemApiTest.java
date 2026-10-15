@@ -29,9 +29,9 @@ import betamoon.loot.LootTableRegistry;
 import betamoon.luamodloader.LuaScriptErrors;
 import betamoon.luamodloader.LuaContentRegistry;
 import betamoon.luamodloader.LuaScriptRegistry;
-import betamoon.wrappers.BlockWrapper;
-import betamoon.wrappers.ItemFoodWrapper;
-import betamoon.wrappers.ItemWrapper;
+import betamoon.luaapi.block.LuaBlock;
+import betamoon.luaapi.item.LuaFoodItem;
+import betamoon.luaapi.item.LuaItem;
 import java.io.File;
 import java.io.FileReader;
 import java.lang.reflect.Method;
@@ -44,6 +44,7 @@ import net.minecraft.src.Block;
 import net.minecraft.src.Chunk;
 import net.minecraft.src.CraftingManager;
 import net.minecraft.src.Entity;
+import net.minecraft.src.EntityItem;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.EntityPlayerSP;
 import net.minecraft.src.Session;
@@ -67,8 +68,8 @@ import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.jse.JsePlatform;
 
 /**
- * Exercises the actual wrapper paths with live Lua callbacks and a real
- * in-memory chunk.
+ * Exercises the actual native implementation paths with live Lua callbacks and
+ * a real in-memory chunk.
  */
 public final class BlockItemApiTest {
     public static void main(String[] arguments) throws Exception {
@@ -98,7 +99,7 @@ public final class BlockItemApiTest {
                 + "return {{item=4,min=ctx.state:get('active') and 2 or 1}} end}}").call();
         int id = 254;
         require(Block.blocksList[id] == null, "Expected unused test block");
-        BlockWrapper block = new BlockWrapper(id, 1, Material.rock, "switch");
+        LuaBlock block = new LuaBlock(id, 1, Material.rock, "switch");
         BlockDefinition definition = new BlockDefinition(declaration);
         BlockCallbackRegistry.install(id, definition);
         require(!block.renderAsNormalBlock(), "Partial collision must default to a non-normal cube");
@@ -172,7 +173,7 @@ public final class BlockItemApiTest {
                 + "assert(not pcall(function() savedTickSchedule(1) end)); "
                 + "assert(not pcall(function() savedTickRandom() end))").call();
 
-        ItemWrapper item = new ItemWrapper(5100 - 256, "test_item");
+        LuaItem item = new LuaItem(5100 - 256, "test_item");
         ItemDefinition itemDefinition = new ItemDefinition(lua.load(
                 "return {key='test_item',onUseFirst={action=function(ctx) assert(ctx.state==nil); ctx.stack:consume(1); return 'deny' end}}")
                 .call());
@@ -184,8 +185,9 @@ public final class BlockItemApiTest {
         require(!ItemInteractionRouting.complete(true), "Denied use was reported as success");
         require(ItemInteractionRouting.denyFallback(player, world), "Denied use allowed general-use fallback");
         require(held.stackSize == 1, "Live held-stack change was not applied exactly once");
+        verifyItemInteractionFallback(lua, item, held, player, world);
 
-        ItemFoodWrapper food = new ItemFoodWrapper(5101 - 256, 4, false);
+        LuaFoodItem food = new LuaFoodItem(5101 - 256, 4, false);
         ItemCallbackRegistry.install(5101, new ItemDefinition(
                 lua.load("return {key='food',type='food',use={consume=1,remainder=281,cooldown=20}}").call()));
         ItemStack meal = new ItemStack(food, 1);
@@ -197,7 +199,7 @@ public final class BlockItemApiTest {
         food.onItemRightClick(secondMeal, world, player);
         require(secondMeal.stackSize == 1 && player.health == 14, "Cooldown failed");
 
-        ItemWrapper launcher = new ItemWrapper(5102 - 256, "launcher");
+        LuaItem launcher = new LuaItem(5102 - 256, "launcher");
         ItemCallbackRegistry.install(5102, new ItemDefinition(
                 lua.load("return {key='launcher',use={consume=1,projectile='snowball',ammunition=5102}}").call()));
         ItemStack charges = new ItemStack(launcher, 1);
@@ -264,7 +266,7 @@ public final class BlockItemApiTest {
 
     private static void verifyDisplayNameReload(Globals lua) {
         int blockId = 250;
-        BlockWrapper block = new BlockWrapper(blockId, 1, Material.rock, "reload_name");
+        LuaBlock block = new LuaBlock(blockId, 1, Material.rock, "reload_name");
         LuaContentRegistry.Entry blockEntry = LuaContentRegistry.remember("block", blockId, block, "block:rock");
         blockEntry.registered = true;
         ModLoader.AddName(block, "Original Block Name");
@@ -276,6 +278,7 @@ public final class BlockItemApiTest {
         require(retainedBlock == block, "Block hot reload replaced its native identity");
         require("Reloaded Block Name".equals(block.translateBlockName()),
                 "Block hot reload did not replace its translated display name");
+        verifyDropReload(lua, block);
 
         int toolId = 5099;
         LuaValue firstTool = lua.load("return {id=" + toolId
@@ -291,6 +294,51 @@ public final class BlockItemApiTest {
         String translatedToolName = StatCollector.translateToLocal(tool.getItemNameIS(toolStack) + ".name");
         require("Reloaded Tool Name".equals(translatedToolName),
                 "Tool hot reload did not replace its translated display name");
+    }
+
+    private static void verifyItemInteractionFallback(Globals lua, LuaItem item, ItemStack stack, EntityPlayer player,
+            TestWorld world) {
+        for (String outcome : new String[]{"pass", "handled", "deny"}) {
+            lua.set("interactionCalls", LuaValue.ZERO);
+            ItemCallbackRegistry.install(item.shiftedIndex, new ItemDefinition(
+                    lua.load("return {onUseOnBlock={action=function(ctx) interactionCalls=interactionCalls+1; return '"
+                            + outcome + "' end}}").call()));
+            int[] fallbacks = new int[1];
+            ItemInteractionRouting.begin(player, world);
+            boolean result = ItemBehavior.useOnBlock(stack, player, world, 0, 64, 0, 1, () -> {
+                fallbacks[0]++;
+                require(lua.get("interactionCalls").toint() == 1, "Callback must precede native fallback");
+                return true;
+            });
+            ItemInteractionRouting.complete(result);
+            require(result && lua.get("interactionCalls").toint() == 1,
+                    "Interaction forwarding must invoke one callback per attempt");
+            require(fallbacks[0] == ("pass".equals(outcome) ? 1 : 0),
+                    "Handled and denied interactions must not evaluate the native fallback");
+        }
+    }
+
+    private static void verifyDropReload(Globals lua, LuaBlock block) {
+        String declaration = "return {id=" + block.blockID + ",key='test:block/reload_name',material='rock',texture=1";
+        TestWorld world = new TestWorld();
+        BlockApi.add(lua.load(declaration + ",drops={{item=331,min=2,max=2,damage=7}}}").call());
+        block.dropBlockAsItemWithChance(world, 0, 64, 0, 0, 1);
+        require(world.dropped.size() == 1 && world.dropped.get(0).stackSize == 2
+                && world.dropped.get(0).getItemDamage() == 7, "Declared drops must use the active definition");
+        world.dropped.clear();
+        BlockApi.add(lua.load(declaration + ",drops={{item=331,min=3,max=3,damage=9}}}").call());
+        block.dropBlockAsItemWithChance(world, 0, 64, 0, 0, 1);
+        require(world.dropped.size() == 1 && world.dropped.get(0).stackSize == 3
+                && world.dropped.get(0).getItemDamage() == 9, "Reload must replace drops without accumulating entries");
+        world.dropped.clear();
+        require(BlockApi.add(lua.load(declaration + "}").call()) == block, "Drop removal must retain block identity");
+        block.dropBlockAsItemWithChance(world, 0, 64, 0, 0, 1);
+        require(world.dropped.size() == 1 && world.dropped.get(0).itemID == block.blockID,
+                "Removing declared drops must restore native fallback without stale legacy entries");
+        BlockApi.add(lua.load(declaration + ",drops={}}").call());
+        world.dropped.clear();
+        block.dropBlockAsItemWithChance(world, 0, 64, 0, 0, 1);
+        require(world.dropped.isEmpty(), "An explicit empty drop list must suppress native drops");
     }
 
     private static void verifyTypedCallbackContracts(Globals lua) {
@@ -395,7 +443,7 @@ public final class BlockItemApiTest {
         int[] faces = {2, 5, 3, 4};
         for (String enumValues : new String[]{"'north','east','south','west'", "'west','south','east','north'"}) {
             require(Block.blocksList[id] == null, "Expected unused inventory test block");
-            BlockWrapper block = new BlockWrapper(id, 45, Material.rock, "inventory_furnace");
+            LuaBlock block = new LuaBlock(id, 45, Material.rock, "inventory_furnace");
             block.setSideTextureIndex(0, 62);
             block.setSideTextureIndex(1, 62);
             LuaValue declaration = lua.load("return {state={active={type='boolean'}," + "facing={type='enum',values={"
@@ -451,7 +499,7 @@ public final class BlockItemApiTest {
 
     private static void verifyFacingShapes(Globals lua, TestWorld world, int id) {
         require(Block.blocksList[id] == null, "Expected unused facing-shape test block");
-        BlockWrapper block = new BlockWrapper(id, 1, Material.rock, "facing_shape");
+        LuaBlock block = new LuaBlock(id, 1, Material.rock, "facing_shape");
         LuaValue declaration = lua
                 .load("return {" + "state={facing={type='enum',values={'north','east','south','west'}}},"
                         + "placement={facing='horizontal',facingFrom='player'}," + "collision={boxes={"
@@ -484,7 +532,7 @@ public final class BlockItemApiTest {
 
     private static void verifyItemBehavior(Globals lua, TestWorld world, EntityPlayer player) {
         int id = 31000;
-        ItemWrapper item = new ItemWrapper(id - 256, "quality_behavior");
+        LuaItem item = new LuaItem(id - 256, "quality_behavior");
         item.setMaxDamageValue(100);
         for (String result : new String[]{"pass", "handled", "deny"}) {
             LuaValue declaration = lua
@@ -529,7 +577,8 @@ public final class BlockItemApiTest {
         final LuaValue items = examples.get("betamoon").get("items");
 
         // Substitute client registration only. Parse real declarations, install real
-        // wrappers/callbacks and register recipes through the actual public API.
+        // native implementations/callbacks and register recipes through the actual
+        // public API.
         blocks.set("add", new VarArgFunction() {
             public Varargs invoke(Varargs arguments) {
                 LuaValue declaration = arguments.arg(arguments.arg1() == blocks ? 2 : 1);
@@ -538,7 +587,7 @@ public final class BlockItemApiTest {
                 Material material = declaration.get("material").optjstring("").equals("glass")
                         ? Material.glass
                         : Material.rock;
-                BlockWrapper block = new BlockWrapper(id, 1, material, declaration.get("key").checkjstring());
+                LuaBlock block = new LuaBlock(id, 1, material, declaration.get("key").checkjstring());
                 new ItemBlock(id - 256);
                 BlockCallbackRegistry.install(id, definition);
                 BlockTickRegistry.register(block, declaration.get("onTick"), declaration.get("onDisplayTick"));
@@ -549,7 +598,7 @@ public final class BlockItemApiTest {
             public Varargs invoke(Varargs arguments) {
                 LuaValue declaration = arguments.arg(arguments.arg1() == items ? 2 : 1);
                 int id = declaration.get("id").checkint();
-                ItemWrapper item = new ItemWrapper(id - 256, declaration.get("key").checkjstring());
+                LuaItem item = new LuaItem(id - 256, declaration.get("key").checkjstring());
                 item.setMaxDamageValue(declaration.get("maxDamage").optint(0));
                 ItemCallbackRegistry.install(id, new ItemDefinition(declaration));
                 return items.get("getRequired").call(items, LuaValue.valueOf(id));
@@ -600,7 +649,7 @@ public final class BlockItemApiTest {
         world.renderUpdates = 0;
         require(Item.itemsList[5021].onItemUse(wrench, player, world, 0, 64, 0, 1) == false,
                 "The wrench unexpectedly intercepted the later item-use path");
-        require(((ItemWrapper) Item.itemsList[5021]).onItemUseFirst(wrench, player, world, 0, 64, 0, 1),
+        require(((LuaItem) Item.itemsList[5021]).onItemUseFirst(wrench, player, world, 0, 64, 0, 1),
                 "Example wrench did not handle an oriented block");
         require(world.getBlockMetadata(0, 64, 0) == 1 && wrench.getItemDamage() == 1,
                 "Example wrench did not rotate and spend exactly one durability");
@@ -727,6 +776,7 @@ public final class BlockItemApiTest {
         private int projectiles;
         private int inputMask;
         private int renderUpdates;
+        private final List<ItemStack> dropped = new ArrayList<ItemStack>();
 
         private TestWorld() {
             super(null, "block_item_api_test", new WorldProvider() {
@@ -760,6 +810,9 @@ public final class BlockItemApiTest {
         }
 
         public boolean entityJoinedWorld(Entity entity) {
+            if (entity instanceof EntityItem) {
+                dropped.add(((EntityItem) entity).item);
+            }
             projectiles++;
             return true;
         }

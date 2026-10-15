@@ -10,7 +10,6 @@ import betamoon.luamodloader.LuaScriptErrors;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptResourceTracker;
 import betamoon.luamodloader.SlowScriptCallbackMonitor;
-import betamoon.wrappers.BlockWrapper;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -58,12 +57,12 @@ public final class BlockTickRegistry {
     /**
      * Validates and installs the tick definitions declared by the current script.
      */
-    public static synchronized void register(final BlockWrapper block, LuaValue onTick, LuaValue onDisplayTick) {
+    public static synchronized void register(final LuaBlock block, LuaValue onTick, LuaValue onDisplayTick) {
         register(block, parse(block.blockID, onTick, onDisplayTick));
     }
 
     /** Installs a definition that was already parsed with its block declaration. */
-    static synchronized void register(final BlockWrapper block, final ParsedDefinition definition) {
+    static synchronized void register(final LuaBlock block, final ParsedDefinition definition) {
         if (definition == null) {
             return;
         }
@@ -83,7 +82,7 @@ public final class BlockTickRegistry {
     }
 
     /** Starts scheduled definition when a configured block enters the world. */
-    public static void onBlockAdded(BlockWrapper block, World world, int x, int y, int z) {
+    public static void onBlockAdded(LuaBlock block, World world, int x, int y, int z) {
         ParsedDefinition definition = get(block.blockID);
         if (definition != null && definition.mode != null && definition.mode.isScheduled()
                 && definition.initialDelay > 0 && !world.multiplayerWorld) {
@@ -188,7 +187,7 @@ public final class BlockTickRegistry {
     }
 
     /** Runs a gameplay update and queues the next update for repeating modes. */
-    public static void update(BlockWrapper block, World world, int x, int y, int z, Random random) {
+    public static void update(LuaBlock block, World world, int x, int y, int z, Random random) {
         ParsedDefinition definition = get(block.blockID);
         if (definition == null || definition.tickAction == null || world.multiplayerWorld) {
             return;
@@ -215,7 +214,7 @@ public final class BlockTickRegistry {
     /**
      * Runs client-side display attempts using Minecraft's random display callback.
      */
-    public static void display(BlockWrapper block, World world, int x, int y, int z, Random random) {
+    public static void display(LuaBlock block, World world, int x, int y, int z, Random random) {
         ParsedDefinition definition = get(block.blockID);
         if (definition == null || definition.displayAction == null || !definition.activeDisplay) {
             return;

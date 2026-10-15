@@ -12,7 +12,6 @@ import betamoon.recipes.RecipeModificationHandler;
 import betamoon.tileentity.TileEntityRegistry;
 import betamoon.entity.EntityTypeRegistry;
 import betamoon.entity.EntityPresentationResources;
-import betamoon.wrappers.BlockWrapper;
 import betamoon.worldgen.BiomeGenRegistry;
 import betamoon.worldgen.WorldGenRegistry;
 import betamoon.loot.LootTableRegistry;
@@ -108,7 +107,6 @@ public final class LuaModLoader {
         BiomeGenRegistry.applyBiomeGenerators();
         List<String> dropErrors = new ArrayList<>();
         BlockCallbackRegistry.validateDrops(dropErrors);
-        BlockWrapper.validatePendingDrops(dropErrors);
         EntityTypeRegistry.validateDrops(dropErrors);
         if (!dropErrors.isEmpty()) {
             for (int i = 0; i < dropErrors.size(); i++) {

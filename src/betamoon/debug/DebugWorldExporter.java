@@ -43,13 +43,12 @@ final class DebugWorldExporter implements DebugExporter {
             }
         }
         for (BiomeGenRegistry.Description biome : BiomeGenRegistry.snapshot()) {
-            rows.add("origin: Lua overlay | key: " + biome.key + " | owner: " + safe(biome.owner)
-                    + " | biome name: " + safe(biome.name) + " | implementation: " + safe(biome.implementation)
-                    + " | tags: " + biome.tags + " | surface: " + safe(biome.surface) + " | decorators: "
-                    + biome.decorators + " | top/filler: " + biome.topBlock + "/" + biome.fillerBlock
-                    + " | legacy climate range: " + biome.legacyClimateRange + " | temperature: "
-                    + biome.minTemperature + ".." + biome.maxTemperature + " | humidity: " + biome.minHumidity
-                    + ".." + biome.maxHumidity);
+            rows.add("origin: Lua overlay | key: " + biome.key + " | owner: " + safe(biome.owner) + " | biome name: "
+                    + safe(biome.name) + " | implementation: " + safe(biome.implementation) + " | tags: " + biome.tags
+                    + " | surface: " + safe(biome.surface) + " | decorators: " + biome.decorators + " | top/filler: "
+                    + biome.topBlock + "/" + biome.fillerBlock + " | legacy climate range: " + biome.legacyClimateRange
+                    + " | temperature: " + biome.minTemperature + ".." + biome.maxTemperature + " | humidity: "
+                    + biome.minHumidity + ".." + biome.maxHumidity);
         }
         Collections.sort(rows);
         session.writeTextFile("biomes.txt", new DebugExportSession.TextContent() {
@@ -87,13 +86,18 @@ final class DebugWorldExporter implements DebugExporter {
                     writer.write("stage: " + generator.stage + " | source: " + safe(generator.sourceLocation)
                             + " | salt: " + generator.salt);
                     writer.newLine();
-                    writer.write("placed block ID: " + generator.blockId + " | dimension: " + generator.dimension);
+                    writer.write("placed block ID: " + generator.blockId + " | canonical key: "
+                            + DebugExportNames.blockKey(generator.blockId) + " | dimension: " + generator.dimension);
                     writer.newLine();
-                    writer.write("veins per chunk: " + generator.veinsPerChunk + " | vein size: "
-                            + generator.veinSize + " | height: " + generator.minY + ".." + generator.maxY);
+                    writer.write("veins per chunk: " + generator.veinsPerChunk + " | vein size: " + generator.veinSize
+                            + " | height: " + generator.minY + ".." + generator.maxY);
                     writer.newLine();
                     writer.write("replacement block ID: "
                             + (generator.targetBlockId == null ? "dimension default" : generator.targetBlockId)
+                            + " | replacement canonical key: "
+                            + (generator.targetBlockId == null
+                                    ? "dimension default"
+                                    : DebugExportNames.blockKey(generator.targetBlockId))
                             + " | biome filter: "
                             + (generator.biomes.isEmpty() ? "all" : String.join(", ", generator.biomes)));
                     writer.newLine();
@@ -113,8 +117,8 @@ final class DebugWorldExporter implements DebugExporter {
             @Override
             public int write(BufferedWriter writer) throws IOException {
                 for (WorldGenRegistry.FeatureDescription feature : features) {
-                    writer.write("key: " + feature.key + " | type: " + feature.type + " | owner: "
-                            + safe(feature.owner));
+                    writer.write(
+                            "key: " + feature.key + " | type: " + feature.type + " | owner: " + safe(feature.owner));
                     writer.newLine();
                     writer.write("source: " + safe(feature.source) + " | max blocks: " + feature.maxBlocks
                             + " | max radius: " + feature.maxRadius + " | dependencies: "
@@ -136,13 +140,13 @@ final class DebugWorldExporter implements DebugExporter {
                             + safe(placement.owner));
                     writer.newLine();
                     writer.write("requested stage: " + placement.stage + " | actual stage: " + placement.actualStage
-                            + " | dimensions: " + String.join(", ", placement.dimensions) + " | salt: "
-                            + placement.salt + " | site: " + placement.site);
+                            + " | dimensions: " + String.join(", ", placement.dimensions) + " | salt: " + placement.salt
+                            + " | site: " + placement.site);
                     writer.newLine();
                     writer.write("accepted: " + placement.accepted + " | rejected: " + placement.rejected
-                            + " | blocks changed: " + placement.blocksChanged + " | disabled: "
-                            + placement.disabled + " | biome decorator template: " + placement.template
-                            + " | rejection reasons: " + placement.rejectionReasons);
+                            + " | blocks changed: " + placement.blocksChanged + " | disabled: " + placement.disabled
+                            + " | biome decorator template: " + placement.template + " | rejection reasons: "
+                            + placement.rejectionReasons);
                     writer.newLine();
                 }
                 return placements.size();
@@ -160,17 +164,17 @@ final class DebugWorldExporter implements DebugExporter {
                             + safe(structure.assetSource));
                     writer.newLine();
                     writer.write("dimensions: " + structure.dimensions + " | blocks: " + structure.blocks
-                            + " | markers: " + structure.markers + " | palette entries: "
-                            + structure.paletteEntries + " | variants: " + structure.paletteVariants);
+                            + " | markers: " + structure.markers + " | palette entries: " + structure.paletteEntries
+                            + " | variants: " + structure.paletteVariants);
                     writer.newLine();
-                    writer.write("rotation: " + structure.rotation + " | mirror: " + structure.mirror
-                            + " | include air: " + structure.includeAir + " | decay: " + structure.decay
-                            + " | tile collision: " + structure.tileCollision + " | unknown metadata: "
-                            + structure.unknownMetadata + " | custom metadata transforms: "
-                            + structure.customMetadataTransforms);
+                    writer.write(
+                            "rotation: " + structure.rotation + " | mirror: " + structure.mirror + " | include air: "
+                                    + structure.includeAir + " | decay: " + structure.decay + " | tile collision: "
+                                    + structure.tileCollision + " | unknown metadata: " + structure.unknownMetadata
+                                    + " | custom metadata transforms: " + structure.customMetadataTransforms);
                     writer.newLine();
-                    writer.write("terrain mode/surface: " + structure.terrainMode + "/"
-                            + structure.terrainSurface + " | support columns: " + structure.supportColumns);
+                    writer.write("terrain mode/surface: " + structure.terrainMode + "/" + structure.terrainSurface
+                            + " | support columns: " + structure.supportColumns);
                     writer.newLine();
                 }
                 return structures.size();
@@ -186,7 +190,11 @@ final class DebugWorldExporter implements DebugExporter {
                 for (BiomeGenRegistry.SurfaceDescription surface : surfaces) {
                     writer.write("key: " + surface.key + " | owner: " + safe(surface.owner) + " | layers: "
                             + surface.layers + " | sea level: " + surface.seaLevel + " | underwater block: "
-                            + (surface.underwaterBlock == null ? "none" : surface.underwaterBlock));
+                            + (surface.underwaterBlock == null ? "none" : surface.underwaterBlock)
+                            + " | underwater canonical key: "
+                            + (surface.underwaterBlock == null
+                                    ? "none"
+                                    : DebugExportNames.blockKey(surface.underwaterBlock)));
                     writer.newLine();
                 }
                 return surfaces.size();
@@ -195,8 +203,8 @@ final class DebugWorldExporter implements DebugExporter {
     }
 
     private static void exportRegionalStructures(DebugExportSession session) throws Exception {
-        final List<WorldGenRegistry.RegionalStructureDescription> structures =
-                WorldGenRegistry.regionalStructureSnapshot();
+        final List<WorldGenRegistry.RegionalStructureDescription> structures = WorldGenRegistry
+                .regionalStructureSnapshot();
         session.writeTextFile("worldgen_regional_structures.txt", new DebugExportSession.TextContent() {
             @Override
             public int write(BufferedWriter writer) throws IOException {
@@ -205,8 +213,8 @@ final class DebugWorldExporter implements DebugExporter {
                             + structure.start + " | source: " + safe(structure.source));
                     writer.newLine();
                     writer.write("spacing/separation: " + structure.spacing + "/" + structure.separation
-                            + " | dimensions: " + String.join(", ", structure.dimensions) + " | salt: "
-                            + structure.salt + " | height: " + structure.height);
+                            + " | dimensions: " + String.join(", ", structure.dimensions) + " | salt: " + structure.salt
+                            + " | height: " + structure.height);
                     writer.newLine();
                     writer.write("piece choices: " + structure.pieceChoices + " | max depth/pieces/distance: "
                             + structure.maxDepth + "/" + structure.maxPieces + "/" + structure.maxDistance
@@ -216,11 +224,11 @@ final class DebugWorldExporter implements DebugExporter {
                             + structure.siteSearchAttempts + "/" + structure.siteSearchRadius
                             + " | connector vertical tolerance: " + structure.connectorVerticalTolerance);
                     writer.newLine();
-                    writer.write("starts: " + structure.starts + " | completed chunks: "
-                            + structure.completedChunks + " | recovered chunks: " + structure.recoveredChunks
-                            + " | rejected chunks: " + structure.rejectedChunks + " | blocks changed: "
-                            + structure.blocksChanged + " | disabled: " + structure.disabled
-                            + " | rejection reasons: " + structure.rejectionReasons);
+                    writer.write("starts: " + structure.starts + " | completed chunks: " + structure.completedChunks
+                            + " | recovered chunks: " + structure.recoveredChunks + " | rejected chunks: "
+                            + structure.rejectedChunks + " | blocks changed: " + structure.blocksChanged
+                            + " | disabled: " + structure.disabled + " | rejection reasons: "
+                            + structure.rejectionReasons);
                     writer.newLine();
                 }
                 return structures.size();
@@ -234,10 +242,10 @@ final class DebugWorldExporter implements DebugExporter {
             @Override
             public int write(BufferedWriter writer) throws IOException {
                 for (BiomeGenRegistry.SourceDescription source : sources) {
-                    writer.write("key: " + source.key + " | owner: " + safe(source.owner) + " | type: "
-                            + source.type + " | active: " + source.active + " | priority: " + source.priority
-                            + " | entries: " + source.entries + " | overlap cells: " + source.overlapCells
-                            + " | uncovered cells: " + source.uncoveredCells);
+                    writer.write("key: " + source.key + " | owner: " + safe(source.owner) + " | type: " + source.type
+                            + " | active: " + source.active + " | priority: " + source.priority + " | entries: "
+                            + source.entries + " | overlap cells: " + source.overlapCells + " | uncovered cells: "
+                            + source.uncoveredCells);
                     writer.newLine();
                 }
                 return sources.size();

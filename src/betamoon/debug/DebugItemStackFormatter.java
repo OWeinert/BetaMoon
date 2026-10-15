@@ -24,7 +24,8 @@ final class DebugItemStackFormatter {
         String internalName = DebugExportNames.safeString(DebugExportNames.resolveInternalName(id, stack));
         String displayName = DebugExportNames.safeString(DebugExportNames.resolveDisplayName(id, stack));
         String idText = anyDamage ? id + ":*" : DebugExportNames.formatIdWithDamage(id, stack.getItemDamage());
-        return "[item = [" + internalName + " / " + idText + " / \"" + displayName + "\"], amount = " + amount + "]";
+        return "[item = [" + internalName + " / " + idText + " / \"" + displayName + "\"], canonical key = "
+                + DebugExportNames.itemKey(id) + ", amount = " + amount + "]";
     }
 
     static String identifier(ItemStack stack) {

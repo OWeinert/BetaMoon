@@ -1,44 +1,50 @@
-package betamoon.wrappers;
+package betamoon.luaapi.item;
 
-import betamoon.luaapi.item.ConfigurableItemDurability;
-import betamoon.luaapi.item.ConfigurableItemSubtypes;
-import betamoon.luaapi.item.ItemBehavior;
-import betamoon.luaapi.item.ItemCallback;
-import betamoon.luaapi.item.ItemCallbackRegistry;
-import betamoon.luaapi.utils.InteractionOutcome;
 import forge.IUseItemFirst;
 import net.minecraft.src.Block;
 import net.minecraft.src.Entity;
 import net.minecraft.src.EntityLiving;
 import net.minecraft.src.EntityPlayer;
-import net.minecraft.src.Item;
+import net.minecraft.src.EnumToolMaterial;
+import net.minecraft.src.ItemAxe;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.World;
 
-public class ItemWrapper extends Item implements IUseItemFirst, ConfigurableItemDurability, ConfigurableItemSubtypes {
+public class LuaAxeItem extends ItemAxe
+        implements
+            IUseItemFirst,
+            ConfigurableItemDurability,
+            ConfigurableItemSubtypes,
+            ConfigurableMiningEfficiency,
+            ConfigurableAttackDamage {
 
     /**
-     * Creates an item wrapper for the provided item id and internal name.
+     * Creates an axe implementation with the provided item id, material, and
+     * internal name.
      *
      * @param id
      *            numeric item id (unshifted)
+     * @param material
+     *            tool material to use
      * @param name
      *            internal item name (unlocalized)
      */
-    public ItemWrapper(int id, String name) {
-        super(id);
-        this.setItemName(name);
+    public LuaAxeItem(int id, EnumToolMaterial material, String name) {
+        super(id, material);
+        setItemName(name);
+        setIconCoord(0, 0);
+        setFull3D();
     }
 
     /**
-     * Sets the maximum damage value for the item.
+     * Sets the maximum damage value for the tool.
      *
      * @param maxDamage
      *            durability value
-     * @return this wrapper for chaining
+     * @return this instance for chaining
      */
     @Override
-    public ItemWrapper setMaxDamageValue(int maxDamage) {
+    public LuaAxeItem setMaxDamageValue(int maxDamage) {
         this.setMaxDamage(maxDamage);
         return this;
     }
@@ -48,11 +54,37 @@ public class ItemWrapper extends Item implements IUseItemFirst, ConfigurableItem
      *
      * @param hasSubtypes
      *            true to enable subtypes
-     * @return this wrapper for chaining
+     * @return this instance for chaining
      */
     @Override
-    public ItemWrapper setHasSubtypesValue(boolean hasSubtypes) {
+    public LuaAxeItem setHasSubtypesValue(boolean hasSubtypes) {
         this.setHasSubtypes(hasSubtypes);
+        return this;
+    }
+
+    /**
+     * Sets the tool efficiency applied on effective blocks.
+     *
+     * @param efficiency
+     *            efficiency value
+     * @return this instance for chaining
+     */
+    @Override
+    public LuaAxeItem setEfficiencyValue(float efficiency) {
+        this.efficiencyOnProperMaterial = efficiency;
+        return this;
+    }
+
+    /**
+     * Sets the damage applied when hitting entities.
+     *
+     * @param damage
+     *            damage value
+     * @return this instance for chaining
+     */
+    @Override
+    public LuaAxeItem setDamageValue(int damage) {
+        this.damageVsEntity = damage;
         return this;
     }
 
@@ -67,14 +99,12 @@ public class ItemWrapper extends Item implements IUseItemFirst, ConfigurableItem
     }
 
     public boolean onItemUseFirst(ItemStack stack, EntityPlayer player, World world, int x, int y, int z, int side) {
-        return ItemCallbackRegistry.interact(ItemCallback.USE_FIRST, stack, player, world, x, y, z, side,
-                null) != InteractionOutcome.PASS;
+        return ItemBehavior.useFirst(stack, player, world, x, y, z, side);
     }
 
     public boolean onItemUse(ItemStack stack, EntityPlayer player, World world, int x, int y, int z, int side) {
-        InteractionOutcome result = ItemCallbackRegistry.interact(ItemCallback.USE_ON_BLOCK, stack, player, world, x, y,
-                z, side, null);
-        return result != InteractionOutcome.PASS || super.onItemUse(stack, player, world, x, y, z, side);
+        return ItemBehavior.useOnBlock(stack, player, world, x, y, z, side,
+                () -> super.onItemUse(stack, player, world, x, y, z, side));
     }
 
     @Override
@@ -106,10 +136,10 @@ public class ItemWrapper extends Item implements IUseItemFirst, ConfigurableItem
     }
 
     public boolean canHarvestBlock(Block block) {
-        return ItemCallbackRegistry.canHarvest(shiftedIndex, block, 0, super.canHarvestBlock(block));
+        return ItemBehavior.canHarvest(shiftedIndex, block, super.canHarvestBlock(block));
     }
 
     public float getStrVsBlock(ItemStack stack, Block block, int metadata) {
-        return ItemCallbackRegistry.miningSpeed(stack, block, metadata, super.getStrVsBlock(stack, block, metadata));
+        return ItemBehavior.miningSpeed(stack, block, metadata, super.getStrVsBlock(stack, block, metadata));
     }
 }

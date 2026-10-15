@@ -39,8 +39,8 @@ final class DebugEntityMachineExporter implements DebugExporter {
                     EntityTypeRegistry.Description entity = entities.get(index);
                     writer.write("key: " + entity.key + " | owner: " + safe(entity.owner));
                     writer.newLine();
-                    writer.write("kind: " + entity.kind + " | lifecycle: " + entity.lifecycle
-                            + " | display name: " + safe(entity.displayName));
+                    writer.write("kind: " + entity.kind + " | lifecycle: " + entity.lifecycle + " | display name: "
+                            + safe(entity.displayName));
                     writer.newLine();
                     writer.write("size: " + entity.width + " x " + entity.height + " | tick interval: "
                             + entity.tickInterval);
@@ -58,22 +58,21 @@ final class DebugEntityMachineExporter implements DebugExporter {
                     }
                     if (entity.spawning != null) {
                         EntityTypeRegistry.SpawnDescription spawn = entity.spawning;
-                        writer.write("spawning: category=" + spawn.category + ", weight=" + spawn.weight
-                                + ", group=" + spawn.groupMin + ".." + spawn.groupMax + ", cap=" + spawn.cap
-                                + ", light=" + spawn.minLight + ".." + spawn.maxLight + ", height=" + spawn.minY
-                                + ".." + spawn.maxY + ", dimensions=" + list(spawn.dimensions) + ", biomes="
-                                + list(spawn.biomes) + ", substrates=" + list(spawn.substrates)
-                                + ", native despawn=" + spawn.nativeDespawn);
+                        writer.write("spawning: category=" + spawn.category + ", weight=" + spawn.weight + ", group="
+                                + spawn.groupMin + ".." + spawn.groupMax + ", cap=" + spawn.cap + ", light="
+                                + spawn.minLight + ".." + spawn.maxLight + ", height=" + spawn.minY + ".." + spawn.maxY
+                                + ", dimensions=" + list(spawn.dimensions) + ", biomes=" + list(spawn.biomes)
+                                + ", substrates=" + list(spawn.substrates) + ", native despawn=" + spawn.nativeDespawn);
                         writer.newLine();
                     }
                     for (EntityTypeRegistry.DataDescription field : entity.data) {
-                        writer.write("data field: " + safe(field.name) + " | type: " + field.type
-                                + " | default: " + safe(field.defaultValue));
+                        writer.write("data field: " + safe(field.name) + " | type: " + field.type + " | default: "
+                                + safe(field.defaultValue));
                         writer.newLine();
                     }
                     for (EntityTypeRegistry.PartDescription part : entity.parts) {
-                        writer.write("part: " + safe(part.name) + " | hitbox: " + part.hitbox
-                                + " | interaction box: " + part.interactionBox);
+                        writer.write("part: " + safe(part.name) + " | hitbox: " + part.hitbox + " | interaction box: "
+                                + part.interactionBox);
                         writer.newLine();
                     }
                     writer.write("callbacks: " + list(entity.callbacks));
@@ -85,11 +84,11 @@ final class DebugEntityMachineExporter implements DebugExporter {
     }
 
     private static void exportTileEntities(DebugExportSession session) throws Exception {
-        final List<TileEntityRegistry.TileDescription> definitions =
-                new ArrayList<TileEntityRegistry.TileDescription>(TileEntityRegistry.tileEntityDescriptions());
+        final List<TileEntityRegistry.TileDescription> definitions = new ArrayList<TileEntityRegistry.TileDescription>(
+                TileEntityRegistry.tileEntityDescriptions());
         Collections.sort(definitions, namedTile());
-        final List<TileEntityRegistry.BlockBindingDescription> bindings =
-                new ArrayList<TileEntityRegistry.BlockBindingDescription>(TileEntityRegistry.blockBindings());
+        final List<TileEntityRegistry.BlockBindingDescription> bindings = new ArrayList<TileEntityRegistry.BlockBindingDescription>(
+                TileEntityRegistry.blockBindings());
         Collections.sort(bindings, new Comparator<TileEntityRegistry.BlockBindingDescription>() {
             @Override
             public int compare(TileEntityRegistry.BlockBindingDescription left,
@@ -108,23 +107,23 @@ final class DebugEntityMachineExporter implements DebugExporter {
                     writer.write("name: " + safe(definition.name) + " | owner: " + safe(definition.owner)
                             + " | inventory: " + safe(definition.inventoryName));
                     writer.newLine();
-                    writer.write("tick: initial=" + definition.initialTickDelay + ", repeat="
-                            + definition.repeatTickDelay + ", random=" + definition.randomTicks + ", chance="
-                            + definition.randomTickChance);
+                    writer.write(
+                            "tick: initial=" + definition.initialTickDelay + ", repeat=" + definition.repeatTickDelay
+                                    + ", random=" + definition.randomTicks + ", chance=" + definition.randomTickChance);
                     writer.newLine();
                     for (Map.Entry<String, Integer> slot : definition.slots.entrySet()) {
                         writer.write("slot: " + safe(slot.getKey()) + " | index: " + slot.getValue());
                         writer.newLine();
                     }
                     for (TileEntityRegistry.FieldDescription field : definition.fields) {
-                        writer.write("field: " + safe(field.name) + " | type: " + field.type
-                                + " | default: " + safe(field.defaultValue) + " | synchronized: "
-                                + field.synchronizedToClient);
+                        writer.write("field: " + safe(field.name) + " | type: " + field.type + " | default: "
+                                + safe(field.defaultValue) + " | synchronized: " + field.synchronizedToClient);
                         writer.newLine();
                     }
                     for (TileEntityRegistry.BlockBindingDescription binding : bindings) {
                         if (definition.name.equals(binding.tileEntity)) {
-                            writer.write("attached block ID: " + binding.blockId + " | container: "
+                            writer.write("attached block ID: " + binding.blockId + " | canonical key: "
+                                    + DebugExportNames.blockKey(binding.blockId) + " | container: "
                                     + safe(binding.container) + " | GUI: " + safe(binding.gui) + " | redstone: "
                                     + binding.redstone);
                             writer.newLine();
@@ -137,8 +136,8 @@ final class DebugEntityMachineExporter implements DebugExporter {
     }
 
     private static void exportContainers(DebugExportSession session) throws Exception {
-        final List<TileEntityRegistry.ContainerDescription> definitions =
-                new ArrayList<TileEntityRegistry.ContainerDescription>(TileEntityRegistry.containerDescriptions());
+        final List<TileEntityRegistry.ContainerDescription> definitions = new ArrayList<TileEntityRegistry.ContainerDescription>(
+                TileEntityRegistry.containerDescriptions());
         Collections.sort(definitions, new Comparator<TileEntityRegistry.ContainerDescription>() {
             @Override
             public int compare(TileEntityRegistry.ContainerDescription left,
@@ -171,8 +170,8 @@ final class DebugEntityMachineExporter implements DebugExporter {
     }
 
     private static void exportGuis(DebugExportSession session) throws Exception {
-        final List<TileEntityRegistry.GuiDescription> definitions =
-                new ArrayList<TileEntityRegistry.GuiDescription>(TileEntityRegistry.guiDescriptions());
+        final List<TileEntityRegistry.GuiDescription> definitions = new ArrayList<TileEntityRegistry.GuiDescription>(
+                TileEntityRegistry.guiDescriptions());
         Collections.sort(definitions, new Comparator<TileEntityRegistry.GuiDescription>() {
             @Override
             public int compare(TileEntityRegistry.GuiDescription left, TileEntityRegistry.GuiDescription right) {
@@ -188,8 +187,8 @@ final class DebugEntityMachineExporter implements DebugExporter {
                     }
                     TileEntityRegistry.GuiDescription definition = definitions.get(index);
                     writer.write("name: " + safe(definition.name) + " | owner: " + safe(definition.owner)
-                            + " | container: " + safe(definition.container) + " | size: " + definition.width
-                            + "x" + definition.height + " | pauses game: " + definition.pauseGame);
+                            + " | container: " + safe(definition.container) + " | size: " + definition.width + "x"
+                            + definition.height + " | pauses game: " + definition.pauseGame);
                     writer.newLine();
                     writer.write("background style: " + safe(definition.backgroundStyle) + " | slot frames: "
                             + definition.drawSlotFrames + " | elements: " + definition.elements.size());

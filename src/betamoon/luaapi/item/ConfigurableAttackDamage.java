@@ -2,7 +2,7 @@ package betamoon.luaapi.item;
 
 import net.minecraft.src.Item;
 
-/** Exposes attack damage only on wrappers that support it. */
+/** Exposes attack damage only on native items that support it. */
 @FunctionalInterface
 public interface ConfigurableAttackDamage {
     /** Updates the setting and returns the item for chaining. */

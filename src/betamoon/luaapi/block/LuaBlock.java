@@ -1,13 +1,6 @@
-package betamoon.wrappers;
+package betamoon.luaapi.block;
 
-import betamoon.luaapi.block.BlockBox;
-import betamoon.luaapi.block.BlockModelRegistry;
-import betamoon.luaapi.block.BlockCallbackRegistry;
-import betamoon.luaapi.block.BlockCallback;
 import betamoon.luaapi.utils.InteractionOutcome;
-import betamoon.luaapi.block.BlockDefinition;
-import betamoon.luaapi.block.BlockFace;
-import betamoon.luaapi.block.BlockTickRegistry;
 import betamoon.networking.LogicalNetworkRuntime;
 import betamoon.tileentity.LuaTileEntity;
 import betamoon.tileentity.TileEntityRegistry;
@@ -22,7 +15,6 @@ import net.minecraft.src.EntityItem;
 import net.minecraft.src.EntityLiving;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.IBlockAccess;
-import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.Material;
 import net.minecraft.src.MovingObjectPosition;
@@ -32,37 +24,13 @@ import net.minecraft.src.Vec3D;
 import net.minecraft.src.World;
 import org.luaj.vm2.LuaValue;
 
-public class BlockWrapper extends BlockContainer implements forge.IConnectRedstone {
-    private static final List<PendingDrop> PENDING_DROPS = new ArrayList<PendingDrop>();
-    private final List<CustomDrop> customDrops = new ArrayList<CustomDrop>();
+public class LuaBlock extends BlockContainer implements forge.IConnectRedstone {
     private final int[] sideTextures = new int[6];
     private final boolean[] sideTextureSet = new boolean[6];
 
-    private static final class PendingDrop {
-        private final int blockId;
-        private final int itemId;
-
-        private PendingDrop(int blockId, int itemId) {
-            this.blockId = blockId;
-            this.itemId = itemId;
-        }
-    }
-
-    private static final class CustomDrop {
-        private final int itemId;
-        private final int minQuantity;
-        private final int maxQuantity;
-
-        private CustomDrop(int itemId, int minQuantity, int maxQuantity) {
-            this.itemId = itemId;
-            this.minQuantity = minQuantity;
-            this.maxQuantity = maxQuantity;
-        }
-    }
-
     /**
-     * Creates a block wrapper with the provided block id, texture index, material,
-     * and internal name.
+     * Creates a block implementation with the provided block id, texture index,
+     * material, and internal name.
      *
      * @param id
      *            numeric block id
@@ -73,7 +41,7 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
      * @param name
      *            internal block name (unlocalized)
      */
-    public BlockWrapper(int id, int textureId, Material material, String name) {
+    public LuaBlock(int id, int textureId, Material material, String name) {
         super(id, textureId, material);
         // Tile entities are opt-in, but Chunk requires their blocks to extend
         // BlockContainer.
@@ -91,9 +59,9 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
      *            side index (0-5)
      * @param textureIndex
      *            texture index in the terrain atlas
-     * @return this wrapper for chaining
+     * @return this instance for chaining
      */
-    public BlockWrapper setSideTextureIndex(int side, int textureIndex) {
+    public LuaBlock setSideTextureIndex(int side, int textureIndex) {
         if (side >= 0 && side < sideTextures.length) {
             sideTextures[side] = textureIndex;
             sideTextureSet[side] = true;
@@ -106,9 +74,9 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
      *
      * @param textureIndex
      *            texture index in the terrain atlas
-     * @return this wrapper for chaining
+     * @return this instance for chaining
      */
-    public BlockWrapper setAllSideTextures(int textureIndex) {
+    public LuaBlock setAllSideTextures(int textureIndex) {
         for (int i = 0; i < sideTextures.length; i++) {
             sideTextures[i] = textureIndex;
             sideTextureSet[i] = true;
@@ -121,9 +89,9 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
      *
      * @param hardness
      *            hardness value
-     * @return this wrapper for chaining
+     * @return this instance for chaining
      */
-    public BlockWrapper setHardness(float hardness) {
+    public LuaBlock setHardness(float hardness) {
         this.blockHardness = hardness;
         return this;
     }
@@ -133,9 +101,9 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
      *
      * @param resistance
      *            resistance value
-     * @return this wrapper for chaining
+     * @return this instance for chaining
      */
-    public BlockWrapper setResistance(float resistance) {
+    public LuaBlock setResistance(float resistance) {
         this.blockResistance = resistance;
         return this;
     }
@@ -145,9 +113,9 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
      *
      * @param lightValue
      *            light value to assign
-     * @return this wrapper for chaining
+     * @return this instance for chaining
      */
-    public BlockWrapper setLightValue(int lightValue) {
+    public LuaBlock setLightValue(int lightValue) {
         Block.lightValue[this.blockID] = lightValue;
         return this;
     }
@@ -157,9 +125,9 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
      *
      * @param lightOpacity
      *            opacity value to assign
-     * @return this wrapper for chaining
+     * @return this instance for chaining
      */
-    public BlockWrapper setLightOpacity(int lightOpacity) {
+    public LuaBlock setLightOpacity(int lightOpacity) {
         Block.lightOpacity[this.blockID] = lightOpacity;
         return this;
     }
@@ -169,9 +137,9 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
      *
      * @param sound
      *            step sound instance
-     * @return this wrapper for chaining
+     * @return this instance for chaining
      */
-    public BlockWrapper setStepSound(StepSound sound) {
+    public LuaBlock setStepSound(StepSound sound) {
         this.stepSound = sound;
         return this;
     }
@@ -179,15 +147,15 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
     /**
      * Marks the block as unbreakable by setting hardness to -1.
      *
-     * @return this wrapper for chaining
+     * @return this instance for chaining
      */
-    public BlockWrapper setBlockUnbreakable() {
+    public LuaBlock setBlockUnbreakable() {
         this.setHardness(-1.0F);
         return this;
     }
 
     /** Enables or disables Minecraft's random update selection for this block. */
-    public BlockWrapper setRandomTicks(boolean enabled) {
+    public LuaBlock setRandomTicks(boolean enabled) {
         this.setTickOnLoad(enabled);
         return this;
     }
@@ -311,23 +279,6 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
         BlockTickRegistry.display(this, world, x, y, z, random);
     }
 
-    /**
-     * Adds a custom drop definition for this block.
-     *
-     * @param itemId
-     *            item id to drop (block id or item shifted index)
-     * @param minQuantity
-     *            minimum quantity to drop
-     * @param maxQuantity
-     *            maximum quantity to drop
-     * @return this wrapper for chaining
-     */
-    public BlockWrapper addCustomDrop(int itemId, int minQuantity, int maxQuantity) {
-        customDrops.add(new CustomDrop(itemId, minQuantity, maxQuantity));
-        PENDING_DROPS.add(new PendingDrop(this.blockID, itemId));
-        return this;
-    }
-
     @Override
     public void dropBlockAsItemWithChance(World world, int x, int y, int z, int metadata, float chance) {
         if (!world.multiplayerWorld) {
@@ -344,24 +295,6 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
             if (!world.multiplayerWorld) {
                 for (ItemStack drop : definition.drops.sample(world.rand, chance)) {
                     dropBlockAsItem_do(world, x, y, z, drop);
-                }
-            }
-            return;
-        }
-        if (!customDrops.isEmpty()) {
-            if (!world.multiplayerWorld) {
-                Random rand = world.rand;
-                for (int i = 0; i < customDrops.size(); i++) {
-                    CustomDrop drop = customDrops.get(i);
-                    if (rand.nextFloat() <= chance) {
-                        int qty = drop.minQuantity;
-                        if (drop.maxQuantity > drop.minQuantity) {
-                            qty = drop.minQuantity + rand.nextInt(drop.maxQuantity - drop.minQuantity + 1);
-                        }
-                        if (qty > 0) {
-                            dropBlockAsItem_do(world, x, y, z, new ItemStack(drop.itemId, qty, 0));
-                        }
-                    }
                 }
             }
             return;
@@ -522,18 +455,6 @@ public class BlockWrapper extends BlockContainer implements forge.IConnectRedsto
             AxisAlignedBB bounds = def.orient(box, world.getBlockMetadata(x, y, z)).boundsAt(x, y, z);
             if (bounds.intersectsWith(query)) {
                 output.add(bounds);
-            }
-        }
-    }
-
-    public static void validatePendingDrops(List<String> errors) {
-        for (int i = 0; i < PENDING_DROPS.size(); i++) {
-            PendingDrop drop = PENDING_DROPS.get(i);
-            int id = drop.itemId;
-            boolean validBlock = id >= 0 && id < Block.blocksList.length && Block.blocksList[id] != null;
-            boolean validItem = id >= 0 && id < Item.itemsList.length && Item.itemsList[id] != null;
-            if (!validBlock && !validItem) {
-                errors.add("Custom drop id not registered (block " + drop.blockId + "): " + id);
             }
         }
     }

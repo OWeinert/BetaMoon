@@ -125,7 +125,8 @@ final class DebugRuntimeExporter implements DebugExporter {
         }
         for (FuelRegistration registration : FuelRegistry.registrations()) {
             rows.add("fuel rule: set=" + registration.setKey + " | item registry ID=" + registration.itemId
-                    + " | damage=" + (registration.damage == null ? "any" : registration.damage) + " | burn time="
+                    + " | canonical key=" + DebugExportNames.itemKey(registration.itemId) + " | damage="
+                    + (registration.damage == null ? "any" : registration.damage) + " | burn time="
                     + registration.burnTime + " | owner=" + safe(registration.owner));
         }
         rows.addAll(eventRows());

@@ -6,7 +6,7 @@ import betamoon.worldgen.BiomeSpawnGroup;
 import betamoon.worldgen.BiomeTreeMode;
 import betamoon.worldgen.WorldGenKey;
 import betamoon.worldgen.biome.BiomeDefinition;
-import betamoon.wrappers.BiomeGenWrapper;
+import betamoon.worldgen.biome.LuaBiome;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -111,8 +111,8 @@ public final class BiomeReference extends LuaTable {
             range.set("humidity", range(entry.minHumidity, entry.maxHumidity));
             return range;
         }
-        if (name.equals("trees") && biome instanceof BiomeGenWrapper) {
-            BiomeGenWrapper wrapper = (BiomeGenWrapper) biome;
+        if (name.equals("trees") && biome instanceof LuaBiome) {
+            LuaBiome wrapper = (LuaBiome) biome;
             LuaTable trees = new LuaTable();
             trees.set("type", wrapper.treeMode().name().toLowerCase());
             trees.set("bigTreeChance", wrapper.bigTreeChance());
@@ -276,10 +276,10 @@ public final class BiomeReference extends LuaTable {
             return OverrideManager.request(identity, entry, property, parsed, priority);
         }
         if (path.equals("trees.type") || path.equals("trees.bigTreeChance")) {
-            if (!(biome instanceof BiomeGenWrapper)) {
+            if (!(biome instanceof LuaBiome)) {
                 throw new LuaError("Tree mode overrides require a BetaMoon biome.");
             }
-            final BiomeGenWrapper wrapper = (BiomeGenWrapper) biome;
+            final LuaBiome wrapper = (LuaBiome) biome;
             if (path.endsWith("type")) {
                 OverrideManager.Property<BiomeGenBase, BiomeTreeMode> property = new OverrideManager.Property<BiomeGenBase, BiomeTreeMode>(
                         path, new OverrideManager.PropertyAdapter<BiomeGenBase, BiomeTreeMode>() {
