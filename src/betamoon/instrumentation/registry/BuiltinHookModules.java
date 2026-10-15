@@ -5,6 +5,7 @@ import betamoon.instrumentation.hooks.block.BlockBrokenHook;
 import betamoon.instrumentation.hooks.block.BlockDisplayTickHook;
 import betamoon.instrumentation.hooks.block.BlockPlacedHook;
 import betamoon.instrumentation.hooks.block.BlockPowerHook;
+import betamoon.instrumentation.hooks.block.BlockScheduleHook;
 import betamoon.instrumentation.hooks.block.ContentCallbackOverrideHook;
 import betamoon.instrumentation.hooks.control.ClientControlHook;
 import betamoon.instrumentation.hooks.item.ItemHarvestHook;
@@ -21,6 +22,7 @@ import betamoon.instrumentation.hooks.model.ModelRenderHook;
 import betamoon.instrumentation.hooks.worldgen.WorldgenSurfaceHook;
 import betamoon.instrumentation.hooks.worldgen.RegionalStructureChunkHook;
 import betamoon.runtime.RuntimeSide;
+import betamoon.instrumentation.hooks.particle.ParticleHook;
 
 /** Registers the hooks shipped in the BetaMoon JAR. */
 public final class BuiltinHookModules {
@@ -45,6 +47,7 @@ public final class BuiltinHookModules {
         registry.registerModule(new ContentCallbackOverrideHook());
         registry.registerModule(new ItemHarvestHook());
         registry.registerModule(new BlockPowerHook());
+        registry.registerModule(new BlockScheduleHook());
         registry.registerModule(new FluidInteractionHook());
         registry.registerModule(new FluidContactHook());
         registry.registerModule(new EntityLifecycleHook());
@@ -64,6 +67,7 @@ public final class BuiltinHookModules {
         registry.registerModule(new FuelBurnTimeHook());
         registry.registerModule(new ClientControlHook());
         registry.registerModule(new FluidCameraHook());
+        registry.registerModule(new ParticleHook());
     }
 
     private static void registerServer(HookRegistry registry) {

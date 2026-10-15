@@ -27,6 +27,8 @@ build/
 
 # MCP / RetroMCP / Forge
 runtime/
+!/src/betamoon/runtime/
+!/src/betamoon/runtime/**
 jars/
 temp/
 reobf/

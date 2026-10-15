@@ -281,6 +281,8 @@ public final class InstrumentationTransformTest {
                     || diagnostic.getHookId().equals("betamoon:fluid_interactions")
                     || diagnostic.getHookId().startsWith("betamoon:fluid_contact")
                     || diagnostic.getHookId().startsWith("betamoon:fluid_camera")
+                    || diagnostic.getHookId().startsWith("betamoon:particles")
+                    || diagnostic.getHookId().startsWith("betamoon:block_schedule")
                     || diagnostic.getHookId().equals("betamoon:block_break_guard")
                     || diagnostic.getHookId().equals("betamoon:block_power")
                     || diagnostic.getHookId().equals("betamoon:block_display_tick")
@@ -345,6 +347,20 @@ public final class InstrumentationTransformTest {
         require(countCallbackCalls(renderEngineTransformed, "uploadLuaTexture") == 0,
                 "Cached texture lookups must not upload Lua textures again");
 
+        String effectsOwner = mappings.resolveClass(
+                new betamoon.instrumentation.api.ClassRef("net/minecraft/src/EffectRenderer"), RuntimeNamespace.CLIENT);
+        byte[] effects = transformer.transform(null, effectsOwner, null, null, readClass(clientJarPath, effectsOwner));
+        require(effects != null && countParticleCallbacks(effects, "tick") == 1
+                && countParticleCallbacks(effects, "clear") == 1 && countParticleCallbacks(effects, "render") == 1,
+                "Runtime particle renderer must contain one custom tick, clear, and render callback");
+        require(transformer.transform(null, effectsOwner, null, null, effects) == null,
+                "Particle renderer hooks must be idempotent");
+        String globalOwner = mappings.resolveClass(
+                new betamoon.instrumentation.api.ClassRef("net/minecraft/src/RenderGlobal"), RuntimeNamespace.CLIENT);
+        byte[] global = transformer.transform(null, globalOwner, null, null, readClass(clientJarPath, globalOwner));
+        require(global != null && countParticleCallbacks(global, "spawn") == 1,
+                "Runtime particle dispatch must contain exactly one custom-key interception");
+
         String survivalOwner = mappings.resolveClass(
                 new betamoon.instrumentation.api.ClassRef("net/minecraft/src/PlayerControllerSP"),
                 RuntimeNamespace.CLIENT);
@@ -377,6 +393,9 @@ public final class InstrumentationTransformTest {
             require(result != null && callbackCount == expectedCallbacks, "Missing runtime hook for " + target[0]
                     + " (transformed=" + (result != null) + ", callbacks=" + callbackCount + ")");
             if (target[0].equals("net/minecraft/src/Chunk")) {
+                require(countScheduleCallbacks(result, "loaded") == 1
+                        && countScheduleCallbacks(result, "unloaded") == 1,
+                        "Missing repeating block schedule chunk bridges");
                 require(countCallbackCalls(result, "chunkUnloaded") == 2,
                         "Missing model or entity chunk unload bridge");
                 require(countCallbackCalls(result, "chunkChanged") >= 2, "Missing chunk edit bridges");
@@ -385,6 +404,8 @@ public final class InstrumentationTransformTest {
                 require(countCallbackCalls(result, "ground") == 1, "Missing dropped model render callback");
             }
             if (target[0].equals("net/minecraft/src/World")) {
+                require(countScheduleCallbacks(result, "retry") == 1,
+                        "Native scheduled update processing must retry pending chunk admission");
                 ClassNode world = new ClassNode();
                 new ClassReader(result).accept(world, 0);
                 int redirects = 0;
@@ -423,11 +444,9 @@ public final class InstrumentationTransformTest {
 
     private static void verifyClientControlSeams(TinyMappingResolver mappings, String clientJarPath,
             BetaMoonTransformer transformer) throws Exception {
-        byte[] options = transformControlClass(mappings, clientJarPath, transformer,
-                "net/minecraft/src/GuiOptions");
-        MethodRef optionsControls = new MethodRef(new ClassRef("net/minecraft/src/GuiScreen"),
-                "actionPerformed", "(Lnet/minecraft/src/GuiButton;)V")
-                .implementedBy(new ClassRef("net/minecraft/src/GuiOptions"));
+        byte[] options = transformControlClass(mappings, clientJarPath, transformer, "net/minecraft/src/GuiOptions");
+        MethodRef optionsControls = new MethodRef(new ClassRef("net/minecraft/src/GuiScreen"), "actionPerformed",
+                "(Lnet/minecraft/src/GuiButton;)V").implementedBy(new ClassRef("net/minecraft/src/GuiOptions"));
         assertAroundCallbacks(mappings, options, optionsControls, "beforeOptionsControls", "afterOptionsControls");
 
         byte[] minecraft = transformControlClass(mappings, clientJarPath, transformer,
@@ -632,6 +651,43 @@ public final class InstrumentationTransformTest {
         node.instructions.add(new InsnNode(Opcodes.ICONST_1));
         node.instructions.add(new InsnNode(Opcodes.IRETURN));
         return node;
+    }
+
+    private static int countParticleCallbacks(byte[] bytecode, String methodName) {
+        ClassNode node = new ClassNode();
+        new ClassReader(bytecode).accept(node, 0);
+        int count = 0;
+        for (MethodNode method : node.methods) {
+            for (AbstractInsnNode instruction = method.instructions
+                    .getFirst(); instruction != null; instruction = instruction.getNext()) {
+                if (instruction instanceof MethodInsnNode) {
+                    MethodInsnNode call = (MethodInsnNode) instruction;
+                    if (methodName.equals(call.name)
+                            && "betamoon/instrumentation/hooks/particle/ParticleCallbacks".equals(call.owner)) {
+                        count++;
+                    }
+                }
+            }
+        }
+        return count;
+    }
+
+    private static int countScheduleCallbacks(byte[] bytecode, String methodName) {
+        ClassNode node = new ClassNode();
+        new ClassReader(bytecode).accept(node, 0);
+        int count = 0;
+        for (MethodNode method : node.methods) {
+            for (AbstractInsnNode instruction : method.instructions) {
+                if (instruction instanceof MethodInsnNode) {
+                    MethodInsnNode call = (MethodInsnNode) instruction;
+                    if (methodName.equals(call.name)
+                            && call.owner.equals("betamoon/instrumentation/hooks/block/BlockScheduleCallbacks")) {
+                        count++;
+                    }
+                }
+            }
+        }
+        return count;
     }
 
     private static int countCallbackCalls(byte[] bytecode, String methodName) {

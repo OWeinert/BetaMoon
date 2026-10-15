@@ -105,6 +105,8 @@ state, physical behavior, and event-driven logic.
 | 27 | `02_int_27_configurable_explosion.lua` | Selective explosion effects, attribution, and result snapshots |
 | 28 | `02_int_28_direct_feature_placement.lua` | Previewing and atomically placing a feature from an item callback |
 | 29 | `02_int_29_composite_and_ordered_features.lua` | Weighted/sequence features and explicit placement dependencies |
+| 30 | `02_int_30_named_actions_controller.lua` | Named input actions, configurable controls, and staged player movement |
+| 31 | `02_int_31_custom_particles.lua` | Custom PNG particles in a ring around a block, with per-instance rotation and size updates |
 
 ## Advanced
 
@@ -169,6 +171,7 @@ and, where useful, organize private modules with `require`.
 | Intermediate 26 | **Gem Dropper** (5038): place a typed pickup and collect its full stack. |
 | Intermediate 27 | **Configurable Charge** (5042): right-click for a concussive blast or sneak-right-click for demolition. |
 | Intermediate 28 | **Builder's Rod** (5044): stick + glowstone dust. Use it on the top of a block with four clear blocks above it. |
+| Intermediate 31 | **Particle Ring Block** (242): copy `custom_particles/` with the script, enable the Java agent, craft stone + redstone dust, then place it nearby to see rotating cyan sparks in a ring above its top. |
 | Advanced 01 | **Clockwork Bird Model Item** (5034): observe clip animation with Lua head movement. |
 | Advanced 02 | **Pulse Timer** (213): cobblestone + redstone. A rising north input produces a one-second south output. |
 | Advanced 03 | **Basic Storage** (224): chest surrounded by planks. Its screen reports occupied saved slots. |

@@ -21,6 +21,8 @@ public final class ContentType {
     public static final ContentType HOTKEY = new ContentType("hotkey");
     public static final ContentType FLUID = new ContentType("fluid");
     public static final ContentType FLUID_INTERACTION = new ContentType("fluid_interaction");
+    public static final ContentType PARTICLE = new ContentType("particle");
+    public static final ContentType PARTICLE_EFFECT = new ContentType("particle_effect");
 
     private final String value;
 
@@ -30,6 +32,12 @@ public final class ContentType {
 
     public static ContentType of(String value) {
         ContentKey.validateType(value, value);
+        if (PARTICLE.value.equals(value)) {
+            return PARTICLE;
+        }
+        if (PARTICLE_EFFECT.value.equals(value)) {
+            return PARTICLE_EFFECT;
+        }
         if (BLOCK.value.equals(value)) {
             return BLOCK;
         }
