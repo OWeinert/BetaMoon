@@ -2,6 +2,16 @@
 
 ## 0.9.0 (in development)
 
+### Internal organization
+
+- Move native block, item, and biome implementations into their domain packages and rename them with
+  descriptive `LuaBlock`, `Lua*Item`, and `LuaBiome` names.
+- Consolidate declared block drops into the active definition, removing stale legacy drop state on reload.
+- Share item interaction forwarding while preserving lazy vanilla fallback and callback ordering.
+- Resolve and cache mapped/obfuscated biome fields through a biome-specific helper.
+- Preserve declared block/item canonical keys for debug reports, including recipe stacks, fuel rules,
+  machine bindings, subtype rows, and world-generation references. Mark unkeyed content as not assigned.
+
 ### Script directory
 
 - Change script/mod package directory to `betamoon/scripts`. On startup, an existing `lua_scripts` directory will be migrated automatically to the new `betamoon/scripts` layout.

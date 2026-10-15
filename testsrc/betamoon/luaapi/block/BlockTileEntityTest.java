@@ -1,4 +1,4 @@
-package betamoon.wrappers;
+package betamoon.luaapi.block;
 
 import betamoon.tileentity.LuaTileEntity;
 import betamoon.tileentity.TileEntityDefinition;
@@ -26,7 +26,7 @@ public final class BlockTileEntityTest {
         if (id == 0) {
             throw new AssertionError("No free test block ID");
         }
-        BlockWrapper block = new BlockWrapper(id, 0, Material.rock, "tile_entity_test");
+        LuaBlock block = new LuaBlock(id, 0, Material.rock, "tile_entity_test");
         TestWorld world = new TestWorld();
         world.chunk.blocks[64] = (byte) id;
 

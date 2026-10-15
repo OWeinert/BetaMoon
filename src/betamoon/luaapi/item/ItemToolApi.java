@@ -1,11 +1,6 @@
 package betamoon.luaapi.item;
 
 import betamoon.luamodloader.LuaContentRegistry;
-import betamoon.wrappers.ItemAxeWrapper;
-import betamoon.wrappers.ItemHoeWrapper;
-import betamoon.wrappers.ItemPickaxeWrapper;
-import betamoon.wrappers.ItemSpadeWrapper;
-import betamoon.wrappers.ItemSwordWrapper;
 import forge.MinecraftForge;
 import java.util.Locale;
 import net.minecraft.src.EnumToolMaterial;
@@ -41,15 +36,15 @@ final class ItemToolApi {
         EnumToolMaterial material = definition.tool.material;
         switch (definition.kind) {
             case PICKAXE:
-                return new ItemPickaxeWrapper(id, material, name);
+                return new LuaPickaxeItem(id, material, name);
             case AXE:
-                return new ItemAxeWrapper(id, material, name);
+                return new LuaAxeItem(id, material, name);
             case SHOVEL:
-                return new ItemSpadeWrapper(id, material, name);
+                return new LuaSpadeItem(id, material, name);
             case HOE:
-                return new ItemHoeWrapper(id, material, name);
+                return new LuaHoeItem(id, material, name);
             case SWORD:
-                return new ItemSwordWrapper(id, material, material.getDamageVsEntity(), name);
+                return new LuaSwordItem(id, material, material.getDamageVsEntity(), name);
             default:
                 throw new IllegalArgumentException("Expected a tool kind: " + definition.kind);
         }

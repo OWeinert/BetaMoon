@@ -1,6 +1,7 @@
 package betamoon.luaapi.item;
 
 import net.minecraft.src.Item;
+import betamoon.luamodloader.LuaContentRegistry;
 import net.minecraft.src.ItemStack;
 import org.luaj.vm2.LuaValue;
 
@@ -15,9 +16,14 @@ public final class ItemApi {
     }
 
     public static Item add(LuaValue definition) {
+        Item item;
         if ("fluid_bucket".equals(definition.get("type").optjstring(""))) {
-            return FluidBucketRegistration.register(definition);
+            item = FluidBucketRegistration.register(definition);
+        } else {
+            item = ItemRegistration.register(new ItemDeclaration(definition));
         }
-        return ItemRegistration.register(new ItemDeclaration(definition));
+        LuaValue key = definition.get("key");
+        LuaContentRegistry.recordDeclaredKey("item", item.shiftedIndex, key.isstring() ? key.tojstring() : null);
+        return item;
     }
 }

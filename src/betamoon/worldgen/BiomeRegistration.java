@@ -1,7 +1,7 @@
 package betamoon.worldgen;
 
 import betamoon.luaapi.world.BiomeDeclaration;
-import betamoon.wrappers.BiomeGenWrapper;
+import betamoon.worldgen.biome.LuaBiome;
 import java.util.List;
 import java.util.Map;
 
@@ -13,12 +13,12 @@ public final class BiomeRegistration {
     }
 
     public static WorldGenKey register(BiomeDeclaration definition, WorldGenKey surface, int decoratorCount) {
-        BiomeGenWrapper biome;
+        LuaBiome biome;
         if (definition.basedOn == null) {
-            biome = new BiomeGenWrapper(definition.name);
+            biome = new LuaBiome(definition.name);
             biome.applyDefaultSurface();
         } else {
-            biome = new BiomeGenWrapper(definition.basedOn.biomeName);
+            biome = new LuaBiome(definition.basedOn.biomeName);
             biome.applyDefaultsFrom(definition.basedOn);
             biome.applyName(definition.name);
         }

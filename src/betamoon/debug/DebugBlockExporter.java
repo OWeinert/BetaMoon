@@ -41,8 +41,8 @@ final class DebugBlockExporter {
                             ? "Unknown Block (Probably only used internally)"
                             : DebugExportNames.safeString(rawDisplay);
                     LuaContentRegistry.ContentDescription content = ownership.get(Integer.valueOf(i));
-                    writer.write("block ID: " + i + " | canonical key: unavailable | internal name: " + internalName
-                            + " | display name: \"" + displayName + "\" | owner: "
+                    writer.write("block ID: " + i + " | canonical key: " + DebugExportNames.blockKey(i)
+                            + " | internal name: " + internalName + " | display name: \"" + displayName + "\" | owner: "
                             + (content == null ? "minecraft/foreign" : DebugExportNames.safeString(content.owner)));
                     writer.newLine();
                     records++;
@@ -63,8 +63,7 @@ final class DebugBlockExporter {
     }
 
     private static Map<Integer, LuaContentRegistry.ContentDescription> ownership(String namespace) {
-        Map<Integer, LuaContentRegistry.ContentDescription> result =
-                new HashMap<Integer, LuaContentRegistry.ContentDescription>();
+        Map<Integer, LuaContentRegistry.ContentDescription> result = new HashMap<Integer, LuaContentRegistry.ContentDescription>();
         List<LuaContentRegistry.ContentDescription> content = LuaContentRegistry.snapshot();
         for (LuaContentRegistry.ContentDescription entry : content) {
             if (namespace.equals(entry.namespace)) {

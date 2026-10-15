@@ -10,8 +10,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import net.minecraft.src.Block;
-import net.minecraft.src.Item;
 import net.minecraft.src.Material;
 import net.minecraft.src.StepSound;
 import org.luaj.vm2.LuaError;
@@ -39,7 +37,6 @@ final class BlockDeclaration {
     final Texture texture;
     final List<FaceTexture> textures;
     final Map<String, Integer> harvest;
-    final List<Drop> drops;
     final BlockDefinition callbacks;
     final BlockComponents components;
     final BlockTickRegistry.ParsedDefinition ticks;
@@ -74,7 +71,6 @@ final class BlockDeclaration {
         texture = Texture.read(definition.get("texture"));
         textures = readTextures(definition.get("textures"));
         harvest = readHarvest(definition.get("harvest"));
-        drops = readDrops(definition.get("drops"));
     }
 
     private static Float optionalFloat(LuaValue value) {
@@ -99,30 +95,6 @@ final class BlockDeclaration {
             }
         }
         return Collections.unmodifiableMap(result);
-    }
-
-    private List<Drop> readDrops(LuaValue value) {
-        List<Drop> result = new ArrayList<>();
-        if (value.istable()) {
-            for (int i = 1; i <= value.length(); i++) {
-                LuaValue entry = value.get(i);
-                int itemId = resolveDropId(required(entry, "item"));
-                int min = 1;
-                int max = 1;
-                if (!entry.get("min").isnil()) {
-                    if (entry.get("max").isnil()) {
-                        throw new LuaError("Block: maxQuantity is required when minQuantity is provided.");
-                    }
-                    min = entry.get("min").checkint();
-                    max = entry.get("max").checkint();
-                }
-                if (min > max) {
-                    throw new LuaError("Block: minQuantity must be less or equal to maxQuantity.");
-                }
-                result.add(new Drop(itemId, min, max));
-            }
-        }
-        return Collections.unmodifiableList(result);
     }
 
     private static List<FaceTexture> readTextures(LuaValue value) {
@@ -183,18 +155,6 @@ final class BlockDeclaration {
         }
     }
 
-    static final class Drop {
-        final int itemId;
-        final int min;
-        final int max;
-
-        Drop(int itemId, int min, int max) {
-            this.itemId = itemId;
-            this.min = min;
-            this.max = max;
-        }
-    }
-
     private static Material resolveMaterial(String name) {
         Material material = MinecraftBuiltins.resolveBlockMaterial(name);
         if (material == null) {
@@ -217,38 +177,4 @@ final class BlockDeclaration {
         }
         return sound;
     }
-
-    private int resolveDropId(LuaValue value) {
-        if (value.isnumber()) {
-            int id = value.toint();
-            if (id < 0) {
-                throw new LuaError("Block: drop id has to be positive: " + id);
-            }
-            if (id < Block.blocksList.length) {
-                if (Block.blocksList[id] == null && id != this.id) {
-                    throw new LuaError("Block: drop block id is not registered: " + id);
-                }
-                return id;
-            }
-            if (id >= Item.itemsList.length) {
-                throw new LuaError("Block: drop item id out of range: " + id);
-            }
-            if (Item.itemsList[id] == null) {
-                throw new LuaError("Block: drop item id is not registered: " + id);
-            }
-            return id;
-        }
-        if (value.istable()) {
-            LuaValue idValue = value.get("id");
-            if (!idValue.isnil()) {
-                return resolveDropId(idValue);
-            }
-            LuaValue getter = value.get("getId");
-            if (!getter.isnil()) {
-                return resolveDropId(getter.call(value));
-            }
-        }
-        throw new LuaError("Block: drop item must be an id or item/block handle.");
-    }
-
 }

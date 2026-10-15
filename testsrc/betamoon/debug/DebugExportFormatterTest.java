@@ -1,13 +1,26 @@
 package betamoon.debug;
 
 import betamoon.luaapi.BetaMoonModule;
+import betamoon.luaapi.block.BlockApi;
+import betamoon.luaapi.block.LuaBlock;
+import betamoon.luaapi.item.ItemApi;
+import betamoon.luamodloader.LuaContentRegistry;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptResourceTracker;
 import betamoon.recipes.RecipeModificationHandler;
+import betamoon.recipes.SmeltingRecipe;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import betamoon.recipes.custom.CustomRecipes;
 import betamoon.recipes.custom.RecipeTypes;
 import java.lang.reflect.Method;
 import net.minecraft.src.Block;
+import net.minecraft.src.Item;
+import net.minecraft.src.ItemStack;
+import net.minecraft.src.Material;
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.charset.StandardCharsets;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.jse.JsePlatform;
@@ -31,6 +44,7 @@ public final class DebugExportFormatterTest {
             verifyRecipeTypeFormatting();
             verifyBuiltInTypeFormatting();
             RecipeModificationHandler.createRecipeMap();
+            verifyCanonicalKeys(setOwner);
             DebugExportSystemTest.verifyLiveCatalogRun();
         } finally {
             ScriptResourceTracker.unload(OWNER);
@@ -38,6 +52,70 @@ public final class DebugExportFormatterTest {
         }
         DebugExportSystemTest.main(new String[0]);
         System.out.println("Recipe and recipe-type debug formatting checks passed.");
+    }
+
+    private static void verifyCanonicalKeys(Method setOwner) throws Exception {
+        Globals lua = JsePlatform.standardGlobals();
+        LuaBlock nativeBlock = new LuaBlock(239, 1, Material.rock, "misleading_name");
+        LuaContentRegistry.remember("block", 239, nativeBlock, "block:rock").registered = true;
+        Block block = BlockApi.add(lua.load("return {id=239,key='debugformat:block/keyed',"
+                + "internalName='misleading_name',material='rock',texture=1}").call());
+        Item item = ItemApi.add(
+                lua.load("return {id=5037,key='debugformat:keyed_item'," + "internalName='unrelated_name'}").call());
+        setOwner.invoke(null, new Object[]{null});
+        require(DebugExportNames.blockKey(block.blockID).equals("debugformat:block/keyed"),
+                "Canonical block lookup must preserve the declared namespace independently of internal names");
+        require(DebugExportNames.itemKey(item.shiftedIndex).equals("debugformat:item/keyed_item"),
+                "Short declared item keys must normalize to canonical typed keys");
+        Item.itemsList[item.shiftedIndex] = Item.stick;
+        try {
+            require(DebugExportNames.itemKey(item.shiftedIndex).equals("not assigned"),
+                    "A replaced native object must not inherit another object's diagnostic key");
+        } finally {
+            Item.itemsList[item.shiftedIndex] = item;
+        }
+        require(DebugItemStackFormatter.format(new ItemStack(block)).contains("debugformat:block/keyed"),
+                "Block-backed item stacks must resolve the block's canonical key");
+        require(DebugItemStackFormatter.format(new ItemStack(item, 2, 3)).contains("debugformat:item/keyed_item"),
+                "Item stack references must include the same key for metadata variants");
+        Map<Integer, ItemStack> smelting = new LinkedHashMap<Integer, ItemStack>();
+        smelting.put(item.shiftedIndex, new ItemStack(block));
+        require(DebugRecipeFormatter
+                .formatRecipeLine("key-test", new SmeltingRecipe(smelting, smelting.entrySet().iterator().next()))
+                .contains("debugformat:item/keyed_item"),
+                "Smelting inputs must include canonical keys as well as outputs");
+        File root = new File("build/debug-export-system-test/keys");
+        DebugExportResult result = DebugExportSession.run(root, "keys", DebugExportCatalog.completeDefinitions());
+        require(result.getStatus() == DebugExportResult.Status.COMPLETE, "Canonical-key export must complete");
+        String blocks = readExport(result, "blocks.txt");
+        String items = readExport(result, "items.txt");
+        String keys = readExport(result, "content_keys.txt");
+        require(blocks.contains("block ID: 239 | canonical key: debugformat:block/keyed"),
+                "Block lists must show the declared canonical key");
+        require(items.contains("canonical key: debugformat:item/keyed_item"),
+                "Item lists must show the declared canonical key");
+        require(keys.contains("canonical key: debugformat:block/keyed")
+                && keys.contains("canonical key: debugformat:item/keyed_item"),
+                "Combined content list must use the same canonical key resolver");
+        require(!blocks.contains("canonical key: unavailable") && !items.contains("canonical key: unavailable"),
+                "Exporters must not contain hard-coded unavailable keys");
+        require(DebugExportNames.blockKey(Block.stone.blockID).equals("not assigned"),
+                "Unkeyed vanilla content must not receive fabricated canonical registrations");
+        setOwner.invoke(null, OWNER);
+        ItemApi.add(lua.load("return {id=5037,key='debugformat:item/reloaded',internalName='unrelated_name'}").call());
+        require(DebugExportNames.itemKey(5037).equals("debugformat:item/reloaded"),
+                "Reload must replace diagnostic keys without changing the native object");
+        LuaContentRegistry.beginLoadPass();
+        LuaContentRegistry.finishLoadPass();
+        require(DebugExportNames.itemKey(5037).equals("debugformat:item/reloaded"),
+                "Retained native registrations must keep their diagnostic canonical key");
+        ItemApi.add(lua.load("return {id=5037,name='unrelated_name'}").call());
+        require(DebugExportNames.itemKey(5037).equals("not assigned"),
+                "Removing a declaration key must clear metadata");
+    }
+
+    private static String readExport(DebugExportResult result, String file) throws Exception {
+        return new String(Files.readAllBytes(new File(result.getDirectory(), file).toPath()), StandardCharsets.UTF_8);
     }
 
     private static void registerFixtures(Method setOwner) throws Exception {
@@ -49,8 +127,7 @@ public final class DebugExportFormatterTest {
                 + "        base = { type = 'item' },\n" + "        additive = { type = 'item' },\n"
                 + "        mold = { type = 'item', optional = true, consume = false }\n" + "    },\n"
                 + "    outputs = {\n" + "        result = { type = 'item' },\n"
-                + "        slag = { type = 'item', optional = true }\n"
-                + "    },\n" + "    primaryOutput = 'result',\n"
+                + "        slag = { type = 'item', optional = true }\n" + "    },\n" + "    primaryOutput = 'result',\n"
                 + "    data = {\n" + "        duration = { type = 'integer', default = 160, min = 1 },\n"
                 + "        label = { type = 'string' }\n" + "    },\n" + "    context = {\n"
                 + "        heat = { type = 'number', min = 0, max = 10 },\n"
@@ -128,8 +205,7 @@ public final class DebugExportFormatterTest {
         require(text.contains("\"result\": item [required, primary]"), "Primary output is not marked on its role");
         require(count(text, "primary") == 1, "Primary output is marked more than once");
         require(!text.contains("primary output"), "A duplicate primary-output field was emitted");
-        require(text.contains("duration: integer [default = 160, min = 1]"),
-                "Data defaults and bounds are incomplete");
+        require(text.contains("duration: integer [default = 160, min = 1]"), "Data defaults and bounds are incomplete");
         require(text.contains("label: string [required]"), "Required data field is not marked");
         require(text.contains("heat: number [min = 0, max = 10]"), "Context bounds are incomplete");
         require(!text.contains("built-in"), "Implementation origin leaked into the type export");

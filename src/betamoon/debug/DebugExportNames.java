@@ -6,6 +6,7 @@ import net.minecraft.src.Block;
 import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.StatCollector;
+import betamoon.luamodloader.LuaContentRegistry;
 
 /**
  * Formatting and name resolution helpers for debug exports.
@@ -20,6 +21,24 @@ final class DebugExportNames {
     }
 
     private DebugExportNames() {
+    }
+
+    static String blockKey(int id) {
+        Block block = id >= 0 && id < Block.blocksList.length ? Block.blocksList[id] : null;
+        return canonicalKey("block", id, block);
+    }
+
+    static String itemKey(int id) {
+        if (id >= 0 && id < Block.blocksList.length && Block.blocksList[id] != null) {
+            return blockKey(id);
+        }
+        Item item = id >= 0 && id < Item.itemsList.length ? Item.itemsList[id] : null;
+        return canonicalKey("item", id, item);
+    }
+
+    private static String canonicalKey(String namespace, int id, Object target) {
+        String key = target == null ? null : LuaContentRegistry.findCanonicalKey(namespace, id, target);
+        return key == null ? "not assigned" : safeString(key);
     }
 
     /**

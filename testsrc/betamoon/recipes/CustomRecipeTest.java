@@ -10,7 +10,7 @@ import betamoon.luamodloader.ScriptResourceTracker;
 import betamoon.tileentity.LuaTileEntity;
 import betamoon.tileentity.RecipeCommitResult;
 import betamoon.tileentity.TileEntityRegistry;
-import betamoon.wrappers.BlockWrapper;
+import betamoon.luaapi.block.LuaBlock;
 import java.io.File;
 import java.io.FileInputStream;
 import java.lang.reflect.Method;
@@ -173,8 +173,8 @@ public final class CustomRecipeTest {
                 int id = declaration.get("id").checkint();
                 String file = ownerForBlock(id);
                 owner.invoke(null, file);
-                new BlockWrapper(id, 45, Material.rock, declaration.get("key").checkjstring())
-                        .setSideTextureIndex(0, 62).setSideTextureIndex(1, 62);
+                new LuaBlock(id, 45, Material.rock, declaration.get("key").checkjstring()).setSideTextureIndex(0, 62)
+                        .setSideTextureIndex(1, 62);
                 BlockDefinition definition = new BlockDefinition(declaration);
                 BlockCallbackRegistry.install(id, definition);
                 BlockComponents components = new BlockComponents(declaration);
@@ -187,8 +187,8 @@ public final class CustomRecipeTest {
             world.metadata = 1;
             require(betamoon.luamodloader.NonReloadableScriptRegistry.contains("03_adv_04_custom_furnace.lua"),
                     "Machine callback was not pinned");
-            require(betamoon.luamodloader.NonReloadableScriptRegistry
-                    .contains("03_adv_08_simple_alloy/main.lua"), "Packaged machine owner was not pinned");
+            require(betamoon.luamodloader.NonReloadableScriptRegistry.contains("03_adv_08_simple_alloy/main.lua"),
+                    "Packaged machine owner was not pinned");
             world.tile = tileFor(blocks, 204);
             world.tile.worldObj = world;
             world.tile.setInventorySlotContents(0, new ItemStack(12, 1, 0));

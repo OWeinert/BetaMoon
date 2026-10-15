@@ -1,11 +1,5 @@
-package betamoon.wrappers;
+package betamoon.luaapi.item;
 
-import betamoon.luaapi.item.ConfigurableItemDurability;
-import betamoon.luaapi.item.ConfigurableItemSubtypes;
-import betamoon.luaapi.item.ItemBehavior;
-import betamoon.luaapi.item.ItemCallback;
-import betamoon.luaapi.item.ItemCallbackRegistry;
-import betamoon.luaapi.utils.InteractionOutcome;
 import forge.IUseItemFirst;
 import java.lang.reflect.Field;
 import net.minecraft.src.Block;
@@ -16,14 +10,14 @@ import net.minecraft.src.ItemFood;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.World;
 
-public class ItemFoodWrapper extends ItemFood
+public class LuaFoodItem extends ItemFood
         implements
             IUseItemFirst,
             ConfigurableItemDurability,
             ConfigurableItemSubtypes {
 
     /**
-     * Creates a food item wrapper with the provided item id and food values.
+     * Creates a food item implementation with the provided item id and food values.
      *
      * @param id
      *            numeric item id (unshifted)
@@ -32,7 +26,7 @@ public class ItemFoodWrapper extends ItemFood
      * @param isWolfFood
      *            true if wolves can eat this item
      */
-    public ItemFoodWrapper(int id, int healAmount, boolean isWolfFood) {
+    public LuaFoodItem(int id, int healAmount, boolean isWolfFood) {
         super(id, healAmount, isWolfFood);
     }
 
@@ -41,10 +35,10 @@ public class ItemFoodWrapper extends ItemFood
      *
      * @param maxDamage
      *            durability value
-     * @return this wrapper for chaining
+     * @return this instance for chaining
      */
     @Override
-    public ItemFoodWrapper setMaxDamageValue(int maxDamage) {
+    public LuaFoodItem setMaxDamageValue(int maxDamage) {
         this.setMaxDamage(maxDamage);
         return this;
     }
@@ -54,22 +48,22 @@ public class ItemFoodWrapper extends ItemFood
      *
      * @param hasSubtypes
      *            true to enable subtypes
-     * @return this wrapper for chaining
+     * @return this instance for chaining
      */
     @Override
-    public ItemFoodWrapper setHasSubtypesValue(boolean hasSubtypes) {
+    public LuaFoodItem setHasSubtypesValue(boolean hasSubtypes) {
         this.setHasSubtypes(hasSubtypes);
         return this;
     }
 
     /**
-     * Copies configuration fields from a non-food item wrapper.
+     * Copies configuration fields from a non-food item implementation.
      *
      * @param source
-     *            item wrapper to copy from
-     * @return this wrapper for chaining
+     *            item implementation to copy from
+     * @return this instance for chaining
      */
-    public ItemFoodWrapper applyFrom(ItemWrapper source) {
+    public LuaFoodItem applyFrom(LuaItem source) {
         int iconIndex = source.getIconFromDamage(0);
         this.setIconIndex(iconIndex);
         String itemName = source.getItemName();
@@ -87,7 +81,7 @@ public class ItemFoodWrapper extends ItemFood
     }
 
     /** Updates food definition without replacing the registered item identity. */
-    public ItemFoodWrapper setFoodValues(int healAmount, boolean wolfFood) {
+    public LuaFoodItem setFoodValues(int healAmount, boolean wolfFood) {
         setField("healAmount", "a", Integer.valueOf(healAmount));
         setField("isWolfsFavoriteMeat", "bk", Boolean.valueOf(wolfFood));
         return this;
@@ -119,14 +113,12 @@ public class ItemFoodWrapper extends ItemFood
     }
 
     public boolean onItemUseFirst(ItemStack stack, EntityPlayer player, World world, int x, int y, int z, int side) {
-        return ItemCallbackRegistry.interact(ItemCallback.USE_FIRST, stack, player, world, x, y, z, side,
-                null) != InteractionOutcome.PASS;
+        return ItemBehavior.useFirst(stack, player, world, x, y, z, side);
     }
 
     public boolean onItemUse(ItemStack stack, EntityPlayer player, World world, int x, int y, int z, int side) {
-        InteractionOutcome result = ItemCallbackRegistry.interact(ItemCallback.USE_ON_BLOCK, stack, player, world, x, y,
-                z, side, null);
-        return result != InteractionOutcome.PASS || super.onItemUse(stack, player, world, x, y, z, side);
+        return ItemBehavior.useOnBlock(stack, player, world, x, y, z, side,
+                () -> super.onItemUse(stack, player, world, x, y, z, side));
     }
 
     @Override
@@ -158,10 +150,10 @@ public class ItemFoodWrapper extends ItemFood
     }
 
     public boolean canHarvestBlock(Block block) {
-        return ItemCallbackRegistry.canHarvest(shiftedIndex, block, 0, super.canHarvestBlock(block));
+        return ItemBehavior.canHarvest(shiftedIndex, block, super.canHarvestBlock(block));
     }
 
     public float getStrVsBlock(ItemStack stack, Block block, int metadata) {
-        return ItemCallbackRegistry.miningSpeed(stack, block, metadata, super.getStrVsBlock(stack, block, metadata));
+        return ItemBehavior.miningSpeed(stack, block, metadata, super.getStrVsBlock(stack, block, metadata));
     }
 }

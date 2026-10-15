@@ -8,18 +8,25 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import net.minecraft.src.BiomeGenBase;
+import net.minecraft.src.EnumCreatureType;
+import net.minecraft.src.EntityPig;
+import net.minecraft.src.SpawnListEntry;
+import betamoon.worldgen.biome.LuaBiome;
 import net.minecraft.src.Block;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.jse.JsePlatform;
 
-/** Verifies keyed biomes, decorators, sources, tags, and raw-buffer surfaces. */
+/**
+ * Verifies keyed biomes, decorators, sources, tags, and raw-buffer surfaces.
+ */
 public final class BiomeSurfaceApiTest {
     private BiomeSurfaceApiTest() {
     }
 
     public static void main(String[] arguments) throws Exception {
+        verifyNativeBiomeCopy();
         require(Block.stone != null, "Vanilla blocks are initialized");
         Method owner = LuaScriptRegistry.class.getDeclaredMethod("setCurrentScriptFile", String.class);
         owner.setAccessible(true);
@@ -29,10 +36,10 @@ public final class BiomeSurfaceApiTest {
         try {
             Globals lua = JsePlatform.standardGlobals();
             new BetaMoonModule().call(LuaValue.NIL, lua);
-            try (WorldGenRegistry.PublicationBatch worldgen = WorldGenRegistry.beginPublication(
-                    "biome_surface_test.lua", "Biome surface test");
-                    BiomeGenRegistry.PublicationBatch biomes = BiomeGenRegistry.beginPublication(
-                            "biome_surface_test.lua", "Biome surface test")) {
+            try (WorldGenRegistry.PublicationBatch worldgen = WorldGenRegistry
+                    .beginPublication("biome_surface_test.lua", "Biome surface test");
+                    BiomeGenRegistry.PublicationBatch biomes = BiomeGenRegistry
+                            .beginPublication("biome_surface_test.lua", "Biome surface test")) {
                 lua.load("local w=betamoon.worldgen; "
                         + "local surface=w.surfaces:add{key='test:moon',layers={{block=12,depth={min=2,max=2}}},"
                         + "underwaterBlock=13}; "
@@ -56,8 +63,8 @@ public final class BiomeSurfaceApiTest {
             require(BiomeGenRegistry.snapshot().get(0).decorators == 2, "Biome records its compiled decorators");
             require(WorldGenRegistry.placementSnapshot().size() == 3,
                     "Referenced and inline biome decorators compile into the ordinary placement registry");
-            require(WorldGenRegistry.placementSnapshot().get(0).key
-                    .equals("test:placement/biome_decorators/grove/01"), "Decorator receives a stable derived key");
+            require(WorldGenRegistry.placementSnapshot().get(0).key.equals("test:placement/biome_decorators/grove/01"),
+                    "Decorator receives a stable derived key");
             require(WorldGenRegistry.placementSnapshot().get(2).template,
                     "Referenced placement becomes a reusable decorator template instead of running twice");
             BiomeGenRegistry.SourceDescription source = BiomeGenRegistry.sourceSnapshot().get(0);
@@ -66,18 +73,18 @@ public final class BiomeSurfaceApiTest {
 
             WorldGenKey biomeKey = WorldGenKey.parse("test:grove", WorldGenKind.BIOME);
             BiomeGenBase biome = BiomeGenRegistry.biomeFor(biomeKey);
-            require(BiomeGenRegistry.matchesSelectors(biome,
-                    Collections.singleton("#test:forest")), "Biome tags match placement/spawn selectors");
-            require(BiomeGenRegistry.matchesSelectors(biome,
-                    Collections.singleton("test:biome/grove")), "Biome keys match placement/spawn selectors");
+            require(BiomeGenRegistry.matchesSelectors(biome, Collections.singleton("#test:forest")),
+                    "Biome tags match placement/spawn selectors");
+            require(BiomeGenRegistry.matchesSelectors(biome, Collections.singleton("test:biome/grove")),
+                    "Biome keys match placement/spawn selectors");
 
             verifySurfaceApplication();
             int activeBiomes = BiomeGenRegistry.snapshot().size();
             expectFailure(new Runnable() {
                 @Override
                 public void run() {
-                    try (BiomeGenRegistry.PublicationBatch batch = BiomeGenRegistry.beginPublication(
-                            "biome_surface_test.lua", "Biome surface test")) {
+                    try (BiomeGenRegistry.PublicationBatch batch = BiomeGenRegistry
+                            .beginPublication("biome_surface_test.lua", "Biome surface test")) {
                         lua.load("betamoon.worldgen.biomeSources:add{key='test:broken',type='fixed',"
                                 + "biome='test:missing',active=true}").call();
                         batch.publish();
@@ -94,9 +101,32 @@ public final class BiomeSurfaceApiTest {
         }
     }
 
+    private static void verifyNativeBiomeCopy() {
+        LuaBiome source = new LuaBiome("Copy source");
+        source.applyRainEnabled(false);
+        source.applySnowEnabled(true);
+        source.clearSpawns(BiomeSpawnGroup.CREATURE);
+        source.addSpawn(BiomeSpawnGroup.CREATURE, EntityPig.class, 7);
+        LuaBiome copy = new LuaBiome("Copy target");
+        copy.applyDefaultsFrom(source);
+        require(copy.getEnableSnow() && !copy.canSpawnLightningBolt(), "Copied native weather flags must match");
+        SpawnListEntry original = (SpawnListEntry) source.getSpawnableList(EnumCreatureType.creature).get(0);
+        SpawnListEntry cloned = (SpawnListEntry) copy.getSpawnableList(EnumCreatureType.creature).get(0);
+        require(original != cloned && cloned.entityClass == EntityPig.class && cloned.spawnRarityRate == 7,
+                "Biome copies must clone spawn entries and preserve their values");
+        cloned.spawnRarityRate = 99;
+        copy.clearSpawns(BiomeSpawnGroup.CREATURE);
+        require(original.spawnRarityRate == 7 && source.getSpawnableList(EnumCreatureType.creature).size() == 1,
+                "Changing copied spawn entries or lists must not mutate the source biome");
+        copy.applySnowEnabled(false);
+        copy.applyRainEnabled(true);
+        require(!copy.getEnableSnow() && copy.canSpawnLightningBolt() && source.getEnableSnow(),
+                "Cached field access must update the selected instance without changing its source");
+    }
+
     private static void verifySurfaceApplication() {
-        SurfaceRuleSet surface = new SurfaceRuleSet(WorldGenKey.parse("test:direct", WorldGenKind.SURFACE),
-                "test.lua", "Test", "test", new BlockSet(Block.stone.blockID),
+        SurfaceRuleSet surface = new SurfaceRuleSet(WorldGenKey.parse("test:direct", WorldGenKind.SURFACE), "test.lua",
+                "Test", "test", new BlockSet(Block.stone.blockID),
                 Arrays.asList(new SurfaceRuleSet.Layer(Block.sand.blockID, new IntRange(2, 2))),
                 Integer.valueOf(Block.gravel.blockID), 64);
         byte[] first = new byte[32768];

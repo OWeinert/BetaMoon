@@ -9,7 +9,6 @@ import betamoon.luaapi.LuaApiUtils;
 import betamoon.luamodloader.LuaContentRegistry;
 import betamoon.resources.EnumTexAtlas;
 import betamoon.tileentity.TileEntityRegistry;
-import betamoon.wrappers.BlockWrapper;
 import forge.MinecraftForge;
 import java.util.Map;
 import net.minecraft.src.ModLoader;
@@ -23,7 +22,7 @@ final class BlockRegistration {
     private BlockRegistration() {
     }
 
-    static BlockWrapper register(BlockDeclaration definition) {
+    static LuaBlock register(BlockDeclaration definition) {
         if (definition.callbacks.visual.hasModels()) {
             ModelRenderingSupport.requireAvailable();
         }
@@ -45,15 +44,12 @@ final class BlockRegistration {
         }
     }
 
-    private static BlockWrapper registerPrepared(BlockDeclaration definition, ModelAppearanceSet appearance) {
-        BlockWrapper block = createOrRetain(definition);
+    private static LuaBlock registerPrepared(BlockDeclaration definition, ModelAppearanceSet appearance) {
+        LuaBlock block = createOrRetain(definition);
         applyProperties(block, definition);
         applyTextures(block, definition);
         for (Map.Entry<String, Integer> entry : definition.harvest.entrySet()) {
             MinecraftForge.setBlockHarvestLevel(block, entry.getKey(), entry.getValue());
-        }
-        for (BlockDeclaration.Drop drop : definition.drops) {
-            block.addCustomDrop(drop.itemId, drop.min, drop.max);
         }
 
         LuaContentRegistry.Entry entry = LuaContentRegistry.find("block", definition.id);
@@ -77,18 +73,18 @@ final class BlockRegistration {
         return block;
     }
 
-    private static BlockWrapper createOrRetain(BlockDeclaration definition) {
+    private static LuaBlock createOrRetain(BlockDeclaration definition) {
         String signature = "block:" + definition.materialName.toLowerCase();
         LuaContentRegistry.Entry existing = LuaContentRegistry.find("block", definition.id);
         if (existing != null) {
             LuaContentRegistry.remember("block", definition.id, existing.value, signature);
-            if (!(existing.value instanceof BlockWrapper)) {
+            if (!(existing.value instanceof LuaBlock)) {
                 throw new LuaError("Block: incompatible existing id: " + definition.id);
             }
-            return (BlockWrapper) existing.value;
+            return (LuaBlock) existing.value;
         }
         try {
-            BlockWrapper block = new BlockWrapper(definition.id, 0, definition.material, definition.name);
+            LuaBlock block = new LuaBlock(definition.id, 0, definition.material, definition.name);
             LuaContentRegistry.remember("block", definition.id, block, signature);
             return block;
         } catch (RuntimeException exception) {
@@ -96,7 +92,7 @@ final class BlockRegistration {
         }
     }
 
-    private static void applyProperties(BlockWrapper block, BlockDeclaration definition) {
+    private static void applyProperties(LuaBlock block, BlockDeclaration definition) {
         if (definition.hardness != null) {
             block.setHardness(definition.hardness);
         }
@@ -117,7 +113,7 @@ final class BlockRegistration {
         }
     }
 
-    private static void applyTextures(BlockWrapper block, BlockDeclaration definition) {
+    private static void applyTextures(LuaBlock block, BlockDeclaration definition) {
         if (definition.texture != null) {
             block.blockIndexInTexture = resolveTexture(definition.texture);
         }

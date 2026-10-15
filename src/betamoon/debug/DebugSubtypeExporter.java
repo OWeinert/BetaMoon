@@ -56,7 +56,8 @@ final class DebugSubtypeExporter {
                 }
                 seen.add(signature);
                 String idText = DebugExportNames.formatIdWithDamage(exportId, damage);
-                writer.write("    identifier: " + idText + " | metadata: " + damage + " | internal name: "
+                writer.write("    identifier: " + idText + " | metadata: " + damage + " | canonical key: "
+                        + DebugExportNames.itemKey(stackId) + " | internal name: "
                         + DebugExportNames.safeString(rawInternal) + " | display name: \""
                         + DebugExportNames.safeString(rawDisplay) + "\"");
                 writer.newLine();

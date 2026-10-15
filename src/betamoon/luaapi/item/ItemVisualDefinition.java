@@ -9,7 +9,7 @@ import static betamoon.luaapi.utils.LuaDeclarationValues.fields;
 import static betamoon.luaapi.utils.LuaDeclarationValues.integer;
 
 /**
- * Metadata-indexed item icons and tints, with the wrapper's normal icon as
+ * Metadata-indexed item icons and tints, with the native item's normal icon as
  * fallback.
  */
 public final class ItemVisualDefinition {
