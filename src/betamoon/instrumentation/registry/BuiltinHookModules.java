@@ -19,6 +19,7 @@ import betamoon.instrumentation.hooks.entity.EntityNaturalSpawnHook;
 import betamoon.instrumentation.hooks.entity.EntityTrackingHook;
 import betamoon.instrumentation.hooks.fluid.FluidInteractionHook;
 import betamoon.instrumentation.hooks.fluid.FluidContactHook;
+import betamoon.instrumentation.hooks.fluid.FluidEcologyHook;
 import betamoon.instrumentation.hooks.fluid.FluidCameraHook;
 import betamoon.instrumentation.hooks.fuel.FuelBurnTimeHook;
 import betamoon.instrumentation.hooks.texture.TextureResourceHook;
@@ -62,6 +63,7 @@ public final class BuiltinHookModules {
     }
 
     private static void registerClient(HookRegistry registry) {
+        registry.registerModule(new FluidEcologyHook(false));
         registry.registerModule(new BlockBrokenHook());
         registry.registerModule(new BlockDisplayTickHook());
         registry.registerModule(new BlockBreakGuardHook());
@@ -78,6 +80,7 @@ public final class BuiltinHookModules {
     }
 
     private static void registerServer(HookRegistry registry) {
+        registry.registerModule(new FluidEcologyHook(true));
         registry.registerModule(new EntityTrackingHook());
     }
 }
