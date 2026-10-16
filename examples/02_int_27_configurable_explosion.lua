@@ -13,7 +13,7 @@ function modInit()
     id = 5042,
     key = "example:item/configurable_charge",
     displayName = "Configurable Charge",
-    icon = { x = 8, y = 3 },
+    icon = { x = 5, y = 0 },
     maxStackSize = 16,
     use = { consume = 1, cooldown = 30 },
     onUse = {

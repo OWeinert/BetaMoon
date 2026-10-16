@@ -15,7 +15,7 @@ function modInit()
 
   betamoon.items:add {
     id = 5032, key = "example:item/lesson_clicker", displayName = "Clicker",
-    icon = { x = 10, y = 3 },
+    icon = { x = 0, y = 11 },
     onUse = {
       action = function(ctx)
         betamoon.audio:play(click, { volume = 0.6 })

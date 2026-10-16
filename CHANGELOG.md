@@ -15,7 +15,19 @@
 - Allow client-wide particle budgets up to 65,535 active or new sprites per tick, retaining defaults of
   4,096 active and 1,024 new sprites per tick.
 - Extend world particle spawning with custom references/keys and add effect handles, actor attachments,
-  client budgets, diagnostics, and owner/world cleanup. Custom presentation is local-client only.
+  client budgets, diagnostics, and owner/world cleanup.
+
+### Multiblocks
+
+- Define multiblocks in Lua with layers or sparse positions, block/state rules, count constraints,
+  horizontal orientation, optional mirrors, repeatable layers, and named groups of matching positions.
+- Add controllerless discovery, automatic/item activation, explicit deactivation, bounded manual searches,
+  member lookup, and owned activation fills that preserve player replacements (mechanics similar to minecraft's Nether Portal).
+- Detect controller completion, invalidation, and chunk suspension/resumption automatically.
+- Preserve multiblock identity and declared custom data across world reloads without changing controller
+  inventories, tile data, metadata, or appearances. Failed multiblock reloads retain working definitions.
+- Add optional exclusive membership and configurable pattern, processing, and instance limits.
+  Automatic completion targets singleplayer worlds; remote-world checks provide diagnostics only.
 
 ### Logical tick events
 
@@ -40,19 +52,3 @@
 - Resolve and cache mapped/obfuscated biome fields through a biome-specific helper.
 - Preserve declared block/item canonical keys for debug reports, including recipe stacks, fuel rules,
   machine bindings, subtype rows, and world-generation references. Mark unkeyed content as not assigned.
-
-### Multiblocks
-
-- Define multiblocks in Lua with layers or sparse positions, block/state rules, count constraints,
-  horizontal orientation, optional mirrors, repeatable layers, and named groups of matching positions.
-- Add controllerless discovery, automatic/item activation, explicit deactivation, bounded manual searches,
-  member lookup, and owned activation fills that preserve player replacements.
-- Detect controller completion, invalidation, and chunk suspension/resumption automatically. Use scoped
-  controller access to gate machine processing and inspect useful mismatch reports without loading terrain.
-- Preserve multiblock identity and declared custom data across world reloads without changing controller
-  inventories, tile data, metadata, or appearances. Failed multiblock reloads retain working definitions.
-- Add optional exclusive membership and configurable pattern, processing, and instance limits.
-  Automatic completion targets singleplayer worlds; remote-world checks provide diagnostics only.
-
-- Add Advanced 06, a controllerless visual portal activated with flint and steel, and Advanced 12, a brick charcoal kiln with fuel-free
-  log processing, flame progress and an invalid-structure warning. Renumber subsequent advanced lessons.

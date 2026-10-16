@@ -33,7 +33,7 @@ function modInit()
       id = 5047,
       key = "example:item/lesson_acid_bucket",
       displayName = "Acid Bucket",
-      icon = { x = 3, y = 4 }
+      icon = { x = 11, y = 4 }
     },
     appearance = {
       still = acidTexture,
