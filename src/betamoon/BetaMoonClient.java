@@ -2,6 +2,7 @@ package betamoon;
 
 import betamoon.client.LuaLoaderClientFeedback;
 import betamoon.client.assets.ClientAssets;
+import betamoon.client.particles.ClientParticles;
 import betamoon.client.audio.ClientAudio;
 import betamoon.client.audio.ClientEntityEffects;
 import betamoon.client.control.input.ClientHotkeys;
@@ -57,8 +58,13 @@ public final class BetaMoonClient {
         BlockModelRegistry.initialize(baseMod);
         FluidRenderer.initialize(baseMod);
         this.agentRegistered = common.isAgentRegistered();
-        this.config = new BetaMoonConfig("betamoon.config");
-        LuaLoaderClientFeedback.initialize(showScriptWarningsOnLoad());
+        this.config = new BetaMoonConfig();
+        common.configure(config);
+        ClientParticles.runtime().configure(config.getParticleMaxActive().getValue(),
+                config.getParticleMaxPerTick().getValue(), config.getParticleViewDistance().getValue());
+        ClientAssets.setVerboseDiagnostics(config.getVerboseAssetDiagnostics().getValue());
+        LuaLoaderClientFeedback.initialize(showScriptWarningsOnLoad(),
+                config.getShowSuccessfulReloadMessages().getValue());
         this.eventHandler = new BetaMoonEventHandler();
         setInitHooks(this.betaMoonBaseMod);
     }
@@ -125,6 +131,14 @@ public final class BetaMoonClient {
         eventHandler.handleGameEvents(mc);
         updateJoinNotification(mc);
         return true;
+    }
+
+    /**
+     * Keeps join/leave and screen lifecycle observation ahead of logical tick
+     * callbacks.
+     */
+    public void synchronizeTickLifecycle(net.minecraft.client.Minecraft mc) {
+        eventHandler.synchronizeLifecycle(mc);
     }
 
     public void reloadLuaScripts() {
@@ -194,7 +208,7 @@ public final class BetaMoonClient {
             return;
         }
         if (current instanceof GuiMainMenu) {
-            // onTickInGUI runs on every game tick when a GUI is open,
+            // The ModLoader GUI callback observes rendered frames with an open screen,
             // which is first after ModLoader/MinecraftForge loaded every mod and Minecraft
             // shows the main menu.
             // So we only call loadAndRun() once here to ensure BetaMoon loads and executes
@@ -203,6 +217,9 @@ public final class BetaMoonClient {
             // scripts is present.
             if (finishedLoading && !common.areScriptsLoaded()) {
                 common.loadScripts();
+                if (!config.getShowScriptErrorPopupOnStartup().getValue()) {
+                    LuaScriptErrors.ignore();
+                }
             }
 
             // Render custom Main Menu

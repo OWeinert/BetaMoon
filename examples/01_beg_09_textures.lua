@@ -1,4 +1,4 @@
--- Copy example_block.png alongside this script in lua_scripts before loading it.
+-- Copy example_block.png alongside this script in betamoon/scripts before loading it.
 -- Numeric texture values select cells in the vanilla atlas; quoted filenames load PNGs.
 -- The same image is reused here so you can compare a whole block, separate faces,
 -- and an inventory item. Texture settings change appearance, not block functionality.
@@ -16,7 +16,7 @@ description = "Adds Textured Block, Sided Block, and Textured Item to compare a 
     "source image."
 
 function modInit()
-  -- A file name loads a custom image from the lua_scripts folder.
+  -- A file name loads a custom image from the betamoon/scripts folder.
   -- blockMaterials contains the built-in material names accepted by blocks.
   -- These constants are strings, so the matching quoted name also works.
   betamoon.blocks:add {

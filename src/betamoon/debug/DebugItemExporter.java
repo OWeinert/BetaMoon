@@ -46,8 +46,8 @@ final class DebugItemExporter {
                             : DebugExportNames.safeString(rawDisplay);
                     LuaContentRegistry.ContentDescription content = ownership.get(Integer.valueOf(item.shiftedIndex));
                     writer.write("item registry ID: " + item.shiftedIndex + " | legacy constructor ID: " + itemId
-                            + " | canonical key: unavailable | internal name: " + internalName
-                            + " | display name: \"" + displayName + "\" | owner: "
+                            + " | canonical key: " + DebugExportNames.itemKey(item.shiftedIndex) + " | internal name: "
+                            + internalName + " | display name: \"" + displayName + "\" | owner: "
                             + (content == null ? "minecraft/foreign" : DebugExportNames.safeString(content.owner)));
                     writer.newLine();
                     records++;
@@ -68,8 +68,7 @@ final class DebugItemExporter {
     }
 
     private static Map<Integer, LuaContentRegistry.ContentDescription> ownership(String namespace) {
-        Map<Integer, LuaContentRegistry.ContentDescription> result =
-                new HashMap<Integer, LuaContentRegistry.ContentDescription>();
+        Map<Integer, LuaContentRegistry.ContentDescription> result = new HashMap<Integer, LuaContentRegistry.ContentDescription>();
         List<LuaContentRegistry.ContentDescription> content = LuaContentRegistry.snapshot();
         for (LuaContentRegistry.ContentDescription entry : content) {
             if (namespace.equals(entry.namespace)) {

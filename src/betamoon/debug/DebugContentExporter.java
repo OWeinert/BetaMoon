@@ -24,7 +24,9 @@ import java.util.Map;
 import net.minecraft.src.Block;
 import net.minecraft.src.Item;
 
-/** Exports lookup-oriented content identities with explicit identifier kinds. */
+/**
+ * Exports lookup-oriented content identities with explicit identifier kinds.
+ */
 final class DebugContentExporter implements DebugExporter {
     @Override
     public void export(DebugExportSession session) throws Exception {
@@ -48,15 +50,15 @@ final class DebugContentExporter implements DebugExporter {
         Map<String, String> owners = contentOwners();
         for (int id = 0; id < Block.blocksList.length; id++) {
             if (Block.blocksList[id] != null) {
-                rows.add("type: block | canonical key: unavailable | block ID: " + id + " | owner: "
-                        + owner(owners, "block", id));
+                rows.add("type: block | canonical key: " + DebugExportNames.blockKey(id) + " | block ID: " + id
+                        + " | owner: " + owner(owners, "block", id));
             }
         }
         for (Item item : Item.itemsList) {
             if (item != null && item.shiftedIndex >= 256) {
-                rows.add("type: item | canonical key: unavailable | item registry ID: " + item.shiftedIndex
-                        + " | legacy constructor ID: " + (item.shiftedIndex - 256) + " | owner: "
-                        + owner(owners, "item", item.shiftedIndex));
+                rows.add("type: item | canonical key: " + DebugExportNames.itemKey(item.shiftedIndex)
+                        + " | item registry ID: " + item.shiftedIndex + " | legacy constructor ID: "
+                        + (item.shiftedIndex - 256) + " | owner: " + owner(owners, "item", item.shiftedIndex));
             }
         }
         for (AssetRegistration registration : ScriptAssetScope.snapshot()) {
@@ -81,8 +83,7 @@ final class DebugContentExporter implements DebugExporter {
                     + safe(container.owner));
         }
         for (TileEntityRegistry.GuiDescription gui : TileEntityRegistry.guiDescriptions()) {
-            rows.add("type: container GUI | registration name: " + safe(gui.name) + " | owner: "
-                    + safe(gui.owner));
+            rows.add("type: container GUI | registration name: " + safe(gui.name) + " | owner: " + safe(gui.owner));
         }
         for (FuelSetDefinition set : FuelRegistry.sets()) {
             rows.add("type: fuel set | canonical key: " + set.key + " | owner: " + safe(set.owner));

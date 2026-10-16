@@ -1,5 +1,9 @@
 package betamoon.luamodloader;
 
+import betamoon.multiblock.MultiblockRegistry;
+
+import betamoon.BetaMoonCommon;
+import betamoon.particles.ParticleRegistry;
 import betamoon.luaapi.module.ModuleRegistry;
 import betamoon.luaapi.audio.SoundEvents;
 import betamoon.tileentity.TileEntityRegistry;
@@ -26,25 +30,33 @@ final class ScriptLifecycleRunner {
     }
 
     void run(List<ScriptMod> ordered, List<String> failedMods, boolean hotReload) {
+        run(ordered, failedMods, hotReload, false);
+    }
+
+    void run(List<ScriptMod> ordered, List<String> failedMods, boolean hotReload, boolean logTimings) {
         for (int i = 0; i < ordered.size(); i++) {
             ScriptMod mod = ordered.get(i);
             if (hotReload && NonReloadableScriptRegistry.contains(mod.sourceFileName)) {
                 continue;
             }
 
+            long startedNanos = System.nanoTime();
             try (ScriptExecutionScope ignored = ScriptExecutionScope.open(mod.sourceFileName);
                     ScriptAssetScope assets = ScriptAssetScope.open(mod.sourceFileName);
                     ScriptEntityScope entities = ScriptEntityScope.open(mod.sourceFileName);
-                    LootTableRegistry.PublicationBatch lootTables = LootTableRegistry.beginPublication(
-                            mod.sourceFileName, mod.getDisplayName());
-                    WorldGenRegistry.PublicationBatch worldgen = WorldGenRegistry.beginPublication(
-                            mod.sourceFileName, mod.getDisplayName());
-                    BiomeGenRegistry.PublicationBatch biomes = BiomeGenRegistry.beginPublication(
-                            mod.sourceFileName, mod.getDisplayName())) {
+                    ParticleRegistry.Batch particles = ParticleRegistry.begin(mod.sourceFileName);
+                    MultiblockRegistry.Batch multiblocks = MultiblockRegistry.begin(mod.sourceFileName);
+                    LootTableRegistry.PublicationBatch lootTables = LootTableRegistry
+                            .beginPublication(mod.sourceFileName, mod.getDisplayName());
+                    WorldGenRegistry.PublicationBatch worldgen = WorldGenRegistry.beginPublication(mod.sourceFileName,
+                            mod.getDisplayName());
+                    BiomeGenRegistry.PublicationBatch biomes = BiomeGenRegistry.beginPublication(mod.sourceFileName,
+                            mod.getDisplayName())) {
                 mod.modInit.call();
                 if (hotReload && mod.modReload != null && mod.modReload.isfunction()) {
                     mod.modReload.call();
                 }
+                multiblocks.validate();
                 lootTables.validate();
                 worldgen.validate();
                 biomes.validate();
@@ -55,12 +67,19 @@ final class ScriptLifecycleRunner {
                 worldgen.publish();
                 biomes.publish();
                 SoundEvents.publish(mod.sourceFileName);
+                particles.publish();
+                multiblocks.publish();
                 LuaScriptRegistry.markLoadedByFile(mod.sourceFileName);
                 retainedScripts.rememberIfStructural(mod);
             } catch (LuaError error) {
                 recordLoadFailure(mod, failedMods, error.getMessage());
             } catch (Throwable error) {
                 recordLoadFailure(mod, failedMods, error.toString());
+            } finally {
+                if (logTimings) {
+                    BetaMoonCommon.LOGGER.info("Lua mod init " + mod.getDisplayName() + " took "
+                            + ((System.nanoTime() - startedNanos) / 1000000L) + " ms.");
+                }
             }
         }
     }

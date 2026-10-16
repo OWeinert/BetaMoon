@@ -162,6 +162,18 @@ public final class CapabilityDataSystemTest {
                     + "assert(not pcall(function() rawset(info,'day',4) end))").call();
         }
 
+        owner.invoke(null, "capability_data_test.lua");
+        globals.load("intervalCalls=0; intervalOverride=adjacent:override{tickInterval=2,"
+                + "onTick=function(ctx) intervalCalls=intervalCalls+1 end}").call();
+        owner.invoke(null, new Object[]{null});
+        for (int tick = 0; tick < 4; tick++) {
+            world.setWorldTime(tick < 2 ? 6000L : -1000L);
+            LogicalNetworkRuntime.tick(world);
+        }
+        require(globals.get("intervalCalls").toint() == 2,
+                "Network intervals must count actual updates independently of fixed or reversed world time");
+        globals.load("intervalOverride:remove()").call();
+
         try (LuaCallbackScope scope = new LuaCallbackScope(true)) {
             LuaTable worldApi = LuaWorldActionAccess.create(scope, world, 0, 64, 0);
             globals.set("worldApi", worldApi);
@@ -179,11 +191,11 @@ public final class CapabilityDataSystemTest {
     }
 
     private static void testEnergyNetworkExample(Globals globals, Method owner, File examples) throws Exception {
-        owner.invoke(null, "03_adv_15_energy_network.lua");
+        owner.invoke(null, "03_adv_17_energy_network.lua");
         globals.load("betamoon.blocks={add=function(_,definition) return definition end}").call();
-        FileReader reader = new FileReader(new File(examples, "03_adv_15_energy_network.lua"));
+        FileReader reader = new FileReader(new File(examples, "03_adv_17_energy_network.lua"));
         try {
-            globals.load(reader, "03_adv_15_energy_network.lua").call();
+            globals.load(reader, "03_adv_17_energy_network.lua").call();
         } finally {
             reader.close();
         }

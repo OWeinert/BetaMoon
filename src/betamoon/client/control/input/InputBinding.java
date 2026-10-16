@@ -146,6 +146,35 @@ public final class InputBinding {
         return modifiers;
     }
 
+    public String displayName() {
+        StringBuilder label = new StringBuilder();
+        if ((modifiers & CONTROL) != 0) {
+            label.append("Ctrl + ");
+        }
+        if ((modifiers & SHIFT) != 0) {
+            label.append("Shift + ");
+        }
+        if ((modifiers & ALT) != 0) {
+            label.append("Alt + ");
+        }
+        if (device == InputDeviceEvent.Device.KEYBOARD) {
+            label.append(Keyboard.getKeyName(code));
+        } else if (device == InputDeviceEvent.Device.MOUSE_BUTTON) {
+            if (code == 0) {
+                label.append("Left mouse");
+            } else if (code == 1) {
+                label.append("Right mouse");
+            } else if (code == 2) {
+                label.append("Middle mouse");
+            } else {
+                label.append("Mouse button ").append(code + 1);
+            }
+        } else {
+            label.append(wheelDirection > 0 ? "Wheel up" : wheelDirection < 0 ? "Wheel down" : "Mouse wheel");
+        }
+        return label.toString();
+    }
+
     public boolean conflictsWith(InputBinding other) {
         if (other == null || device != other.device || code != other.code) {
             return false;

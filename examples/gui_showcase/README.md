@@ -1,7 +1,7 @@
 # GUI Showcase assets
 
-Copy `03_adv_06_gui_showcase.lua` and this entire `gui_showcase` folder into
-`.minecraft/lua_scripts`, then restart Minecraft with the updated BetaMoon JAR.
+Copy `03_adv_07_gui_showcase.lua` and this entire `gui_showcase` folder into
+`.minecraft/betamoon/scripts`, then restart Minecraft with the updated BetaMoon JAR.
 
 Craft a chest with one redstone dust in any arrangement to obtain the GUI
 Showcase block (ID 208). Place it and right-click to open the gallery.
@@ -24,7 +24,7 @@ the gallery canvas, with slot frames drawn at the container's actual positions.
 `state_on.png`, `state_off.png`, and `state_unknown.png` reuse BetaMoon's GUI
 symbols. The other PNGs are small, flat pixel textures for progress fills,
 empty meters, and the optional custom background. All PNG paths in the script
-are relative to `lua_scripts`, not to the script file or the game JAR.
+are relative to `betamoon/scripts`, not to the script file or the game JAR.
 
 ## License
 

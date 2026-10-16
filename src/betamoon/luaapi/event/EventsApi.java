@@ -7,6 +7,8 @@ import betamoon.event.context.EventContext;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptResourceTracker;
+import betamoon.luamodloader.ScriptExecution;
+import betamoon.client.tick.ClientTickEvents;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
@@ -31,6 +33,7 @@ public final class EventsApi {
         register(bindings, new EventBinding<>("gui_closed", Events.GUI_CLOSED, LuaGuiEventCtx::new));
         register(bindings, new EventBinding<>("gui_tick", Events.GUI_TICK, LuaGuiEventCtx::new));
         register(bindings, new EventBinding<>("game_tick", Events.GAME_TICK, LuaGameEventCtx::new));
+        register(bindings, new EventBinding<>("world_tick", Events.WORLD_TICK, LuaWorldEventCtx::new));
         register(bindings, new EventBinding<>("screen_changed", Events.SCREEN_CHANGED, LuaGuiEventCtx::new));
         register(bindings, new EventBinding<>("key_input", Events.KEY_INPUT, LuaInputEventCtx::new));
         register(bindings, new EventBinding<>("mouse_input", Events.MOUSE_INPUT, LuaInputEventCtx::new));
@@ -83,11 +86,14 @@ public final class EventsApi {
             if (!functionValue.isfunction()) {
                 throw new LuaError("Events: " + name + " listener must be a function.");
             }
+            if ("game_tick".equals(name) || "gui_tick".equals(name) || "world_tick".equals(name)) {
+                ClientTickEvents.requireAvailable();
+            }
             final LuaValue callback = functionValue.checkfunction();
             final String owner = LuaScriptRegistry.getCurrentScriptFile();
             final IEventListener<TContext> listener = ctx -> {
                 try {
-                    callback.call(contextFactory.apply(ctx));
+                    ScriptExecution.invoke(owner, "events." + name, callback, contextFactory.apply(ctx));
                 } catch (LuaError e) {
                     LuaApiUtils.warnForScript(owner, "Events", name + " listener error: " + e.getMessage());
                 }

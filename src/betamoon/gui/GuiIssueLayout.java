@@ -12,7 +12,9 @@ import java.util.Collections;
 import java.util.List;
 import net.minecraft.src.FontRenderer;
 
-/** Prepared issue text used consistently for measurement, rendering, and links. */
+/**
+ * Prepared issue text used consistently for measurement, rendering, and links.
+ */
 final class GuiIssueLayout {
     private final List<Entry> entries;
     private final int height;
@@ -53,36 +55,48 @@ final class GuiIssueLayout {
         private final File linkPath;
         private final int[] lineHeights;
         private final int height;
+        private final int linkHeight;
         private final boolean warning;
         private Rect linkBounds = Rect.EMPTY;
 
-        private Entry(String[] lines, String linkText, File linkPath, int[] lineHeights, int height, boolean warning) {
+        private Entry(String[] lines, String linkText, File linkPath, int[] lineHeights, int height, int linkHeight,
+                boolean warning) {
             this.lines = lines;
             this.linkText = linkText;
             this.linkPath = linkPath;
             this.lineHeights = lineHeights;
             this.height = height;
+            this.linkHeight = linkHeight;
             this.warning = warning;
         }
 
         static Entry prepare(FontRenderer font, ScriptIssue issue, int width) {
             String message = issue == null || issue.getMessage() == null ? "" : issue.getMessage();
-            String[] lines = message.split("\\n", -1);
             String linkText = buildLinkText(issue);
+            if (issue != null && issue.getScriptName().equals(issue.getSourceFile())) {
+                String prefix = issue.getScriptName() + ": ";
+                if (message.startsWith(prefix)) {
+                    message = message.substring(prefix.length());
+                }
+            }
+            if (linkText != null && message.startsWith(linkText)) {
+                message = message.substring(linkText.length());
+                if (message.startsWith(":")) {
+                    message = message.substring(1);
+                }
+                message = trimLeadingSpace(message);
+            }
+            String[] lines = message.split("\\n", -1);
             int[] lineHeights = new int[lines.length];
             int lineHeight = GuiRenderer.lineHeight(font);
-            int height = 0;
+            int safeWidth = Math.max(1, width);
+            int linkHeight = linkText == null ? 0 : font.func_27277_a(linkText, safeWidth) + 3;
+            int height = lineHeight + 3 + linkHeight;
             for (int i = 0; i < lines.length; i++) {
-                if (i == 0) {
-                    lineHeights[i] = Math.max(lineHeight, measureFirstLine(font, lines[i], linkText, width));
-                } else if (lines[i].isEmpty()) {
-                    lineHeights[i] = lineHeight;
-                } else {
-                    lineHeights[i] = font.func_27277_a(lines[i], width);
-                }
+                lineHeights[i] = lines[i].isEmpty() ? lineHeight : font.func_27277_a(lines[i], safeWidth);
                 height += lineHeights[i];
             }
-            return new Entry(lines, linkText, resolveScriptFile(issue), lineHeights, height,
+            return new Entry(lines, linkText, resolveScriptFile(issue), lineHeights, height, linkHeight,
                     issue != null && issue.isWarning());
         }
 
@@ -94,16 +108,29 @@ final class GuiIssueLayout {
             return warning;
         }
 
-        void draw(GuiContext context, int left, int top, int width, int color) {
-            if (lines.length == 0) {
+        String getSeverityLabel() {
+            return warning ? "Warning" : "Error";
+        }
+
+        void draw(GuiContext context, int left, int top, int width, int severityColor) {
+            int safeWidth = Math.max(1, width);
+            context.getRenderer().drawText(getSeverityLabel(), left, top, severityColor);
+            int y = top + context.getRenderer().lineHeight() + 3;
+            if (linkText != null) {
+                linkBounds = Rect.fromPositionAndSize(left, y,
+                        Math.min(safeWidth, context.getRenderer().textWidth(linkText)), Math.max(0, linkHeight - 3));
+                boolean hovered = linkBounds.contains(context.getMouseX(), context.getMouseY())
+                        && context.getRenderer().isPointVisible(context.getMouseX(), context.getMouseY());
+                context.getRenderer().drawWrappedText(linkText, left, y, safeWidth,
+                        hovered ? context.getRenderer().getTheme().linkHover : context.getRenderer().getTheme().link);
+                y += linkHeight;
+            } else {
                 linkBounds = Rect.EMPTY;
-                return;
             }
-            drawFirstLine(context, lines[0], left, top, width, color);
-            int y = top + lineHeights[0];
-            for (int i = 1; i < lines.length; i++) {
+            for (int i = 0; i < lines.length; i++) {
                 if (!lines[i].isEmpty()) {
-                    context.getRenderer().drawWrappedText(lines[i], left, y, width, color);
+                    context.getRenderer().drawWrappedText(lines[i], left, y, safeWidth,
+                            context.getRenderer().getTheme().textPrimary);
                 }
                 y += lineHeights[i];
             }
@@ -115,43 +142,6 @@ final class GuiIssueLayout {
             }
             IoUtils.openPath(linkPath);
             return true;
-        }
-
-        private void drawFirstLine(GuiContext context, String fullText, int left, int top, int width, int color) {
-            int linkIndex = linkText == null ? -1 : fullText.indexOf(linkText);
-            if (linkIndex < 0) {
-                linkBounds = Rect.EMPTY;
-                context.getRenderer().drawWrappedText(fullText, left, top, width, color);
-                return;
-            }
-            int linkWidth = context.getRenderer().textWidth(linkText);
-            int linkHeight = context.getRenderer().lineHeight();
-            linkBounds = Rect.fromPositionAndSize(left, top, linkWidth, linkHeight);
-            boolean hovered = linkBounds.contains(context.getMouseX(), context.getMouseY());
-            int linkColor = hovered ? context.getRenderer().getTheme().linkHover
-                    : context.getRenderer().getTheme().link;
-            context.getRenderer().drawText(linkText, left, top, linkColor);
-            if (hovered) {
-                context.getRenderer().drawHorizontalLine(left, left + linkWidth, top + linkHeight + 1,
-                        context.getRenderer().getTheme().linkUnderline);
-            }
-            String remainder = trimLeadingSpace(fullText.substring(linkIndex + linkText.length()));
-            if (!remainder.isEmpty()) {
-                int remainderX = left + linkWidth + 4;
-                context.getRenderer().drawWrappedText(remainder, remainderX, top,
-                        Math.max(10, width - linkWidth - 4), color);
-            }
-        }
-
-        private static int measureFirstLine(FontRenderer font, String fullText, String linkText, int width) {
-            int linkIndex = linkText == null ? -1 : fullText.indexOf(linkText);
-            if (linkIndex < 0) {
-                return fullText.isEmpty() ? GuiRenderer.lineHeight(font) : font.func_27277_a(fullText, width);
-            }
-            String remainder = trimLeadingSpace(fullText.substring(linkIndex + linkText.length()));
-            int remainderWidth = Math.max(10, width - font.getStringWidth(linkText) - 4);
-            int remainderHeight = remainder.isEmpty() ? 0 : font.func_27277_a(remainder, remainderWidth);
-            return Math.max(GuiRenderer.lineHeight(font), remainderHeight);
         }
 
         private static String trimLeadingSpace(String value) {

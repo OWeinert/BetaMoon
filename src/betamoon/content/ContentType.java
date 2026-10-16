@@ -17,9 +17,12 @@ public final class ContentType {
     public static final ContentType TEAM = new ContentType("team");
     public static final ContentType SHARED = new ContentType("shared");
     public static final ContentType INPUT_MAP = new ContentType("input_map");
+    public static final ContentType INPUT_CONTROLLER = new ContentType("input_controller");
     public static final ContentType HOTKEY = new ContentType("hotkey");
     public static final ContentType FLUID = new ContentType("fluid");
     public static final ContentType FLUID_INTERACTION = new ContentType("fluid_interaction");
+    public static final ContentType PARTICLE = new ContentType("particle");
+    public static final ContentType PARTICLE_EFFECT = new ContentType("particle_effect");
 
     private final String value;
 
@@ -29,6 +32,12 @@ public final class ContentType {
 
     public static ContentType of(String value) {
         ContentKey.validateType(value, value);
+        if (PARTICLE.value.equals(value)) {
+            return PARTICLE;
+        }
+        if (PARTICLE_EFFECT.value.equals(value)) {
+            return PARTICLE_EFFECT;
+        }
         if (BLOCK.value.equals(value)) {
             return BLOCK;
         }
@@ -64,6 +73,9 @@ public final class ContentType {
         }
         if (INPUT_MAP.value.equals(value)) {
             return INPUT_MAP;
+        }
+        if (INPUT_CONTROLLER.value.equals(value)) {
+            return INPUT_CONTROLLER;
         }
         if (HOTKEY.value.equals(value)) {
             return HOTKEY;

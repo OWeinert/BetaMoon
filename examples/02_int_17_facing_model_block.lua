@@ -1,4 +1,4 @@
--- Copy facing_model_block/ beside this script in lua_scripts.
+-- Copy facing_model_block/ beside this script in betamoon/scripts.
 -- One south-facing model is rotated through state-dependent appearances.
 
 name = "Facing Model Block Example"

@@ -11,7 +11,7 @@ public final class LuaLoaderClientFeedback {
     private LuaLoaderClientFeedback() {
     }
 
-    public static void initialize(boolean showWarnings) {
+    public static void initialize(boolean showWarnings, boolean showSuccessfulReloadMessages) {
         LuaLoaderFeedback.install(new LuaLoaderFeedback.Sink() {
             @Override
             public void reportIssues() {
@@ -32,6 +32,9 @@ public final class LuaLoaderClientFeedback {
                     return;
                 }
                 int errors = LuaScriptErrors.getErrorCount();
+                if (errors == 0 && !showSuccessfulReloadMessages) {
+                    return;
+                }
                 String color = errors == 0 ? "\u00a7f" : "\u00a7c";
                 minecraft.thePlayer.addChatMessage(
                         "\u00a7fBetaMoon reloaded with: " + color + errors + " Error/s\u00a7r");

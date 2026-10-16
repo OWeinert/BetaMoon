@@ -5,6 +5,7 @@ import betamoon.assets.io.AssetResolver;
 import betamoon.assets.io.PackageAssetProvider;
 import betamoon.assets.io.ResolvedAsset;
 import betamoon.assets.io.ZipAssetProvider;
+import betamoon.io.BetaMoonDirectories;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -22,8 +23,8 @@ import java.util.zip.ZipOutputStream;
 
 /** Verifies manifest-based Lua mods and their isolated private modules. */
 public final class LuaModPackagesTest {
-    private static final Pattern ENTRYPOINT_METADATA = Pattern.compile(
-            "(?m)^(?:name|version|description|dependencies|image)\\s*=");
+    private static final Pattern ENTRYPOINT_METADATA = Pattern
+            .compile("(?m)^(?:name|version|description|dependencies|image)\\s*=");
 
     private LuaModPackagesTest() {
     }
@@ -33,6 +34,8 @@ public final class LuaModPackagesTest {
         try {
             verifyDistributedExamples(new File("examples"));
             verifyDiscoveryAndManifestMetadata(root);
+            verifyScriptsDirectoryMigration(root);
+            verifyScriptConfigPlacement(root);
             verifyRequireCachingAndInitModules(root);
             verifyPrivateModuleIsolation(root);
             verifyMetadataConflicts(root);
@@ -41,6 +44,7 @@ public final class LuaModPackagesTest {
             verifyStableStructuralRetention(root);
             verifyDirectoryAssetIsolation(root);
             verifyZipPackages(root);
+            verifyDisabledSourcesAndReports(root);
             System.out.println("Lua mod packages passed: directories, ZIPs, require isolation, metadata and reload.");
         } finally {
             ScriptResourceTracker.unloadAll();
@@ -66,14 +70,67 @@ public final class LuaModPackagesTest {
 
         PackageAssetProvider assets = new PackageAssetProvider(scripts);
         AssetPath path = AssetPath.parse("shared/icon.png");
-        require(java.util.Arrays.equals(new byte[]{1, 2, 3},
-                assets.forSource("first/main.lua").read(path, 1024)),
+        require(java.util.Arrays.equals(new byte[]{1, 2, 3}, assets.forSource("first/main.lua").read(path, 1024)),
                 "A directory package must read defaults beneath its own assets root");
-        require(java.util.Arrays.equals(new byte[]{4, 5, 6},
-                assets.forSource("second/src/main.lua").read(path, 1024)),
+        require(java.util.Arrays.equals(new byte[]{4, 5, 6}, assets.forSource("second/src/main.lua").read(path, 1024)),
                 "Identical relative paths in different package asset roots must remain isolated");
         require(assets.forSource("first/main.lua").read(AssetPath.parse("shared/outside.png"), 1024) == null,
                 "Files outside a package's assets directory must not be exposed as game assets");
+    }
+
+    private static void verifyScriptConfigPlacement(File root) throws IOException {
+        File instance = directory(root, "config_instance");
+        File scripts = directory(instance, "betamoon/scripts");
+        write(new File(scripts, "settings.lua"),
+                "name='Settings'\n" + "local settings=betamoon.config('settings_test',{volume=0.75})\n"
+                        + "function modInit() assert(settings.volume==0.75) end\n");
+        List<LuaScriptFiles.PreflightFailure> failures = new ArrayList<>();
+        List<LuaModSource> sources = new LuaScriptFiles().discover(scripts, failures);
+        require(failures.isEmpty() && sources.size() == 1, "Config placement fixture must discover one script");
+        List<String> errors = new ArrayList<>();
+        ScriptMod parsed = new ScriptModParser().parse(sources.get(0), sources.get(0).readEntrypoint(), errors);
+        require(parsed != null && errors.isEmpty(), "Script must create its config from defaults: " + errors);
+        require(new File(instance, "betamoon/config/settings_test.json").isFile(),
+                "A loaded script writes under its own instance's BetaMoon config folder");
+    }
+
+    private static void verifyScriptsDirectoryMigration(File root) throws IOException {
+        File instance = directory(root, "migration_instance");
+        directory(instance, "betamoon/config");
+        File legacy = directory(instance, "lua_scripts");
+        write(new File(legacy, "migrated.lua"), "name='Migrated'\nfunction modInit() end\n");
+        write(new File(legacy, "assets/icon.txt"), "asset");
+
+        File selected = BetaMoonDirectories.scriptsDirectory(instance, true);
+        File current = new File(instance, "betamoon/scripts");
+        require(selected.equals(current), "Legacy scripts must move into betamoon/scripts");
+        require(new File(current, "migrated.lua").isFile(), "Migration must preserve loose scripts");
+        require(new File(current, "assets/icon.txt").isFile(), "Migration must preserve nested assets");
+        require(!legacy.exists(), "A successful migration must remove the old scripts path");
+        require(BetaMoonDirectories.scriptConfigDirectory(current).equals(new File(instance, "betamoon/config")),
+                "New scripts must resolve configs within the BetaMoon content directory");
+
+        File conflictInstance = directory(root, "conflict_instance");
+        File conflictCurrent = directory(conflictInstance, "betamoon/scripts");
+        File conflictLegacy = directory(conflictInstance, "lua_scripts");
+        write(new File(conflictCurrent, "current.lua"), "name='Current'\nfunction modInit() end\n");
+        write(new File(conflictLegacy, "legacy.lua"), "name='Legacy'\nfunction modInit() end\n");
+        require(BetaMoonDirectories.scriptsDirectory(conflictInstance, true).equals(conflictCurrent),
+                "The new scripts directory must take precedence when both exist");
+        require(new File(conflictLegacy, "legacy.lua").isFile(),
+                "A conflicting legacy directory must remain untouched");
+
+        File blockedInstance = directory(root, "blocked_instance");
+        directory(blockedInstance, "betamoon");
+        write(new File(blockedInstance, "betamoon/scripts"), "blocked");
+        File blockedLegacy = directory(blockedInstance, "lua_scripts");
+        require(BetaMoonDirectories.scriptsDirectory(blockedInstance, true).equals(blockedLegacy),
+                "An unusable destination must preserve legacy script loading");
+        require(BetaMoonDirectories.scriptsDirectory(blockedInstance, false).equals(blockedLegacy),
+                "The selected scripts directory must stay stable for the session");
+        require(BetaMoonDirectories.scriptConfigDirectory(blockedLegacy)
+                .equals(new File(blockedInstance, "betamoon/config")),
+                "Legacy fallback must still use the new script config location");
     }
 
     private static void verifyDistributedExamples(File examples) throws IOException {
@@ -87,15 +144,15 @@ public final class LuaModPackagesTest {
         List<String> expected = new ArrayList<>();
         expected.add("01_beg_02_multifile_mod");
         expected.add("03_adv_03_basic_storage");
-        expected.add("03_adv_08_simple_alloy");
-        expected.add("03_adv_09_contextual_processor");
-        expected.add("03_adv_10_advanced_fabrication");
-        expected.add("03_adv_11_matcher_cookbook");
-        expected.add("03_adv_18_local_structure");
-        expected.add("03_adv_19_regional_structures");
-        expected.add("03_adv_20_complete_worldgen_pack");
-        expected.add("03_adv_21_sunken_cellar");
-        expected.add("03_adv_22_excavated_foundation");
+        expected.add("03_adv_09_simple_alloy");
+        expected.add("03_adv_10_contextual_processor");
+        expected.add("03_adv_11_advanced_fabrication");
+        expected.add("03_adv_13_matcher_cookbook");
+        expected.add("03_adv_20_local_structure");
+        expected.add("03_adv_21_regional_structures");
+        expected.add("03_adv_22_complete_worldgen_pack");
+        expected.add("03_adv_23_sunken_cellar");
+        expected.add("03_adv_24_excavated_foundation");
         LuaScriptRegistry.clear();
         for (int i = 0; i < sources.size(); i++) {
             LuaModSource source = sources.get(i);
@@ -125,13 +182,10 @@ public final class LuaModPackagesTest {
         File ignored = directory(scripts, "assets_only");
         write(new File(ignored, "helper.lua"), "return true\n");
         File packaged = directory(scripts, "clockwork");
-        write(new File(packaged, "betamoon.mod.json"), "{\n"
-                + "  \"entrypoint\": \"src/clockwork.lua\",\n"
-                + "  \"name\": \"Clockwork\",\n"
-                + "  \"version\": \"1.2.0\",\n"
-                + "  \"description\": \"Machines\",\n"
-                + "  \"dependencies\": [\"Foundation\"],\n"
-                + "  \"image\": \"icon.png\"\n}\n");
+        write(new File(packaged, "betamoon.mod.json"),
+                "{\n" + "  \"entrypoint\": \"src/clockwork.lua\",\n" + "  \"name\": \"Clockwork\",\n"
+                        + "  \"version\": \"1.2.0\",\n" + "  \"description\": \"Machines\",\n"
+                        + "  \"dependencies\": [\"Foundation\"],\n" + "  \"image\": \"icon.png\"\n}\n");
         write(new File(packaged, "src/clockwork.lua"), "name='Clockwork'\nversion='1.2.0'\n"
                 + "dependencies={'Foundation'}\nimage='icon.png'\nfunction modInit() end\n");
 
@@ -145,8 +199,7 @@ public final class LuaModPackagesTest {
 
         LuaScriptRegistry.clear();
         List<String> errors = new ArrayList<>();
-        ScriptMod parsed = new ScriptModParser().parse(packageSource,
-                packageSource.readEntrypoint(), errors);
+        ScriptMod parsed = new ScriptModParser().parse(packageSource, packageSource.readEntrypoint(), errors);
         require(parsed != null && errors.isEmpty(), "Manifest-only metadata must produce a valid mod");
         require("Clockwork".equals(parsed.getDisplayName()) && "1.2.0".equals(parsed.getVersion())
                 && parsed.getDependencies().equals(Collections.singletonList("Foundation")),
@@ -158,11 +211,9 @@ public final class LuaModPackagesTest {
     private static void verifyRequireCachingAndInitModules(File root) throws IOException {
         File scripts = directory(root, "require_cache");
         File packaged = directory(scripts, "cache_test");
-        write(new File(packaged, "betamoon.mod.json"),
-                "{\"entrypoint\":\"entry.lua\",\"name\":\"Cache test\"}\n");
+        write(new File(packaged, "betamoon.mod.json"), "{\"entrypoint\":\"entry.lua\",\"name\":\"Cache test\"}\n");
         write(new File(packaged, "entry.lua"), "local first = require('content.value')\n"
-                + "local second = require('content.value')\n"
-                + "local nested = require('nested')\n"
+                + "local second = require('content.value')\n" + "local nested = require('nested')\n"
                 + "function modInit() assert(first == second and first.loads == 1 and nested.source == 'file') end\n");
         write(new File(packaged, "content/value.lua"),
                 "module_loads = (module_loads or 0) + 1\nreturn { loads = module_loads }\n");
@@ -171,8 +222,8 @@ public final class LuaModPackagesTest {
 
         ScriptMod mod = parseOnlyPackage(scripts);
         List<String> failures = new ArrayList<>();
-        new ScriptLifecycleRunner(new RetainedScriptCatalog(), failures::add)
-                .run(Collections.singletonList(mod), failures, false);
+        new ScriptLifecycleRunner(new RetainedScriptCatalog(), failures::add).run(Collections.singletonList(mod),
+                failures, false);
         require(mod.isLoaded() && failures.isEmpty(),
                 "Private require must cache modules and support the module/init.lua convention");
     }
@@ -191,8 +242,7 @@ public final class LuaModPackagesTest {
     private static ScriptMod createValuePackage(File scripts, String folder, String name, int expected)
             throws IOException {
         File packaged = directory(scripts, folder);
-        write(new File(packaged, "betamoon.mod.json"),
-                "{\"entrypoint\":\"entry.lua\",\"name\":\"" + name + "\"}\n");
+        write(new File(packaged, "betamoon.mod.json"), "{\"entrypoint\":\"entry.lua\",\"name\":\"" + name + "\"}\n");
         write(new File(packaged, "entry.lua"), "local value = require('shared.value')\n"
                 + "function modInit() assert(value == " + expected + ") end\n");
         write(new File(packaged, "shared/value.lua"), "return " + expected + "\n");
@@ -204,8 +254,7 @@ public final class LuaModPackagesTest {
         File packaged = directory(scripts, "conflict");
         write(new File(packaged, "betamoon.mod.json"),
                 "{\"entrypoint\":\"entry.lua\",\"name\":\"Manifest name\",\"dependencies\":[\"A\"]}\n");
-        write(new File(packaged, "entry.lua"),
-                "name='Lua name'\ndependencies={'A'}\nfunction modInit() end\n");
+        write(new File(packaged, "entry.lua"), "name='Lua name'\ndependencies={'A'}\nfunction modInit() end\n");
 
         LuaScriptRegistry.clear();
         List<LuaScriptFiles.PreflightFailure> discoveryFailures = new ArrayList<>();
@@ -215,8 +264,7 @@ public final class LuaModPackagesTest {
         require(parsed == null && contains(errors, "Metadata conflict for 'name'"),
                 "Differing manifest and entrypoint metadata must be rejected clearly");
 
-        write(new File(packaged, "entry.lua"),
-                "name='Manifest name'\ndependencies={'B'}\nfunction modInit() end\n");
+        write(new File(packaged, "entry.lua"), "name='Manifest name'\ndependencies={'B'}\nfunction modInit() end\n");
         LuaScriptRegistry.clear();
         errors.clear();
         parsed = new ScriptModParser().parse(source, source.readEntrypoint(), errors);
@@ -306,10 +354,10 @@ public final class LuaModPackagesTest {
         File scripts = directory(root, "zip_packages");
         File archive = new File(scripts, "clockwork.zip");
         Map<String, byte[]> entries = new LinkedHashMap<>();
-        entries.put("betamoon.mod.json", utf8("{\"entrypoint\":\"main.lua\",\"name\":\"ZIP Clockwork\","
-                + "\"image\":\"icon.png\"}\n"));
-        entries.put("main.lua", utf8("local value=require('content.value')\n"
-                + "function modInit() assert(value==42) end\n"));
+        entries.put("betamoon.mod.json",
+                utf8("{\"entrypoint\":\"main.lua\",\"name\":\"ZIP Clockwork\"," + "\"image\":\"icon.png\"}\n"));
+        entries.put("main.lua",
+                utf8("local value=require('content.value')\n" + "function modInit() assert(value==42) end\n"));
         entries.put("content/value.lua", utf8("return 42\n"));
         entries.put("icon.png", new byte[]{1, 2, 3, 4});
         entries.put("assets/mymod/textures/archive.png", new byte[]{5, 6, 7});
@@ -336,8 +384,9 @@ public final class LuaModPackagesTest {
         PackageAssetProvider assets = new PackageAssetProvider(scripts);
         AssetResolver packageResolver = new AssetResolver(assets, null, warning -> {
         }).forSource("clockwork.zip!/main.lua");
-        byte[] packagedAsset = packageResolver.resolveDefault("archive texture",
-                AssetPath.parse("mymod/textures/archive.png"), 1024, bytes -> bytes).getValue();
+        byte[] packagedAsset = packageResolver
+                .resolveDefault("archive texture", AssetPath.parse("mymod/textures/archive.png"), 1024, bytes -> bytes)
+                .getValue();
         require(java.util.Arrays.equals(new byte[]{5, 6, 7}, packagedAsset),
                 "Registered asset fallback paths must resolve beneath a ZIP package's assets root");
         File texturePack = new File(root, "texture_pack.zip");
@@ -352,6 +401,16 @@ public final class LuaModPackagesTest {
         require(java.util.Arrays.equals(new byte[]{9, 8, 7}, overridden.getValue())
                 && "pack".equals(overridden.getSourceKind()),
                 "A texture-pack ZIP override must take priority over a mod-package ZIP default");
+        List<String> selections = new ArrayList<String>();
+        AssetResolver verboseResolver = resolver.withVerboseDiagnostics(selections::add);
+        verboseResolver.resolve("archive texture", fallback, fallback.getDirectOverridePath(), 1024, bytes -> bytes);
+        verboseResolver.resolve("archive texture", fallback, fallback.getDirectOverridePath(), 1024, bytes -> bytes);
+        require(selections.size() == 1 && selections.get(0).contains("selected pack"),
+                "Verbose asset diagnostics must name the selected source only once");
+        verboseResolver.resolve("default texture", fallback,
+                AssetPath.parse("mymod/textures/absent.png").getDirectOverridePath(), 1024, bytes -> bytes);
+        require(contains(selections, "not found") && contains(selections, "selected script"),
+                "Verbose asset diagnostics must explain a missing pack override and its fallback");
 
         long fingerprint = files.fingerprint(scripts);
         entries.put("content/value.lua", utf8("return 43 -- archive changed\n"));
@@ -425,6 +484,46 @@ public final class LuaModPackagesTest {
             }
         }
         throw new AssertionError("Expected a directory source");
+    }
+
+    private static void verifyDisabledSourcesAndReports(File root) throws IOException {
+        File instance = directory(root, "disabled_instance");
+        File scripts = directory(instance, "betamoon/scripts");
+        write(new File(scripts, "active.lua"), "name='Active'\nfunction modInit() end\n");
+        write(new File(scripts, "broken.lua"), "this is invalid Lua !!!\n");
+        writeBytes(new File(scripts, "Broken.zip"), new byte[]{1, 2, 3});
+        File brokenPackage = directory(scripts, "BrokenPackage");
+        write(new File(brokenPackage, "betamoon.mod.json"), "not JSON");
+
+        java.util.Set<String> disabled = new java.util.HashSet<String>(
+                java.util.Arrays.asList("broken.lua", "Broken.zip", "BrokenPackage"));
+        LuaScriptFiles files = new LuaScriptFiles();
+        List<LuaScriptFiles.PreflightFailure> failures = new ArrayList<LuaScriptFiles.PreflightFailure>();
+        List<LuaModSource> sources = files.discover(scripts, failures, disabled);
+        require(failures.isEmpty() && sources.size() == 1 && "active.lua".equals(sources.get(0).entrypointRelative()),
+                "Disabled loose scripts, ZIPs, and package directories must be skipped before parsing");
+        long fingerprint = files.fingerprint(scripts, disabled);
+        write(new File(scripts, "broken.lua"), "still invalid Lua, now longer !!!\n");
+        require(fingerprint == files.fingerprint(scripts, disabled),
+                "Changes to disabled entries must not trigger an automatic reload");
+        require(files.preflight(scripts, disabled).isEmpty(), "Disabled entries must not fail reload preflight");
+
+        LuaScriptErrors.clear();
+        LuaScriptErrors.add("active.lua", "Example failure");
+        File logsDirectory = directory(instance, "betamoon/logs");
+        File otherLog = new File(logsDirectory, "asset_warn_example.log");
+        write(otherLog, "Unrelated log\n");
+        for (int index = 0; index < 12; index++) {
+            ScriptErrorReport.write(scripts, "reload");
+        }
+        File[] reports = logsDirectory
+                .listFiles(file -> file.getName().startsWith("script_err_") && file.getName().endsWith(".log"));
+        require(reports != null && reports.length == 10, "Automatic script reports must retain only ten files");
+        require(otherLog.isFile(), "Script report retention must preserve other log types");
+        String report = new String(Files.readAllBytes(reports[0].toPath()), StandardCharsets.UTF_8);
+        require(report.contains("Example failure"), "Automatic reports must include script errors");
+        LuaScriptRegistry.clear();
+        LuaScriptErrors.clear();
     }
 
     private static File directory(File parent, String name) throws IOException {

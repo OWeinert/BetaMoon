@@ -1,15 +1,32 @@
 package betamoon.gui;
 
+import betamoon.client.control.input.InputRouter;
+import betamoon.client.control.input.InputMapRegistration;
+import betamoon.client.control.input.InputMapDefinition;
+import betamoon.client.control.input.InputActionDefinition;
+import betamoon.client.control.input.InputBinding;
+import betamoon.content.ContentKey;
+import betamoon.content.ContentType;
+import java.lang.reflect.Constructor;
 import betamoon.gui.framework.GuiContainer;
+import betamoon.gui.framework.GuiComponentScreen;
+import betamoon.gui.framework.GuiDialogScreen;
+import betamoon.gui.framework.GuiElement;
+import betamoon.gui.widget.GuiButton;
+import betamoon.gui.widget.GuiMessage;
+import betamoon.gui.widget.GuiDialog;
+import betamoon.gui.widget.GuiScrollView;
 import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.framework.GuiRenderer;
 import betamoon.gui.framework.GuiScene;
 import betamoon.gui.framework.GuiTextureCache;
 import betamoon.gui.widget.GuiIcon;
+import betamoon.gui.widget.GuiTextBox;
 import betamoon.io.IoUtils;
 import betamoon.luaapi.minecraft.MinecraftApi;
 import betamoon.luaapi.tileentity.TileEntityApi;
+import betamoon.luamodloader.MultiblockExamplesTest;
 import betamoon.luamodloader.NonReloadableScriptRegistry;
 import betamoon.luamodloader.LuaScriptErrors;
 import betamoon.luamodloader.LuaScriptRegistry;
@@ -73,7 +90,8 @@ public final class GuiShowcaseRenderTest {
         File output = new File(args[1]);
         output.mkdirs();
         // Use only a build-owned scripts directory, never an installed player's files.
-        File scriptRoot = new File(IoUtils.resolveMinecraftDirFromCodeSource(LuaTextureResources.class), "lua_scripts");
+        File scriptRoot = new File(IoUtils.resolveMinecraftDirFromCodeSource(LuaTextureResources.class),
+                "betamoon/scripts");
         if (!scriptRoot.getCanonicalPath().startsWith(new File("build").getCanonicalPath() + File.separator)) {
             throw new IllegalStateException("Run with the Gradle build/classes outputs on the classpath");
         }
@@ -89,7 +107,7 @@ public final class GuiShowcaseRenderTest {
         registered.setBoolean(null, true);
         Method owner = LuaScriptRegistry.class.getDeclaredMethod("setCurrentScriptFile", String.class);
         owner.setAccessible(true);
-        owner.invoke(null, "03_adv_06_gui_showcase.lua");
+        owner.invoke(null, "03_adv_07_gui_showcase.lua");
         Globals globals = JsePlatform.standardGlobals();
         LuaTable api = new LuaTable();
         TileEntityApi.attach(api);
@@ -103,9 +121,9 @@ public final class GuiShowcaseRenderTest {
                 + "betamoon.recipes = {add=function(_, def) betamoon.recipe=def end}; "
                 + "betamoon.callbackResults = {pass='pass', handled='handled', deny='deny'}; "
                 + "betamoon.stack=function(item, count) return {id=item.id, count=count} end").call();
-        FileReader reader = new FileReader(new File(examples, "03_adv_06_gui_showcase.lua"));
+        FileReader reader = new FileReader(new File(examples, "03_adv_07_gui_showcase.lua"));
         try {
-            globals.load(reader, "03_adv_06_gui_showcase.lua").call();
+            globals.load(reader, "03_adv_07_gui_showcase.lua").call();
         } finally {
             reader.close();
         }
@@ -163,8 +181,12 @@ public final class GuiShowcaseRenderTest {
             minecraft.renderEngine = engine;
             minecraft.fontRenderer = font;
             verifyIssueLayout(font);
+            verifyDialogContentSizing(minecraft, font);
             verifyTextureRenderState(minecraft, font);
             renderFrameworkScreens(minecraft, font, output);
+            renderTextBox(minecraft, font, output);
+            verifyModalScreens(minecraft, output);
+            renderControls(minecraft, output);
             renderUpdateNotice(minecraft, font, output);
             setupFrame();
             GL11.glEnable(GL11.GL_LIGHTING);
@@ -221,12 +243,163 @@ public final class GuiShowcaseRenderTest {
                 }
             }
             verifyTextRepeatEvents(gui, definition);
+            renderKiln(minecraft, font, output, background, foreground, hover);
             require(GL11.glGetError() == GL11.GL_NO_ERROR, "OpenGL error during showcase rendering");
             System.out.println(
                     "Showcase parsed; 800 ticks and five selectors passed; framework screens, tooltip state and five "
                             + "GUI pages rendered.");
         } finally {
             buffer.destroy();
+        }
+    }
+
+    private static void renderKiln(Minecraft minecraft, FontRenderer font, File output, Method background,
+            Method foreground, Method hover) throws Exception {
+        MultiblockExamplesTest.main(new String[0]);
+        ContainerGuiDefinition definition = TileEntityRegistry.getGui("example:block/charcoal_kiln");
+        LuaTileEntity entity = new LuaTileEntity(definition.container.tileEntity.name);
+        entity.worldObj = new TestWorld();
+        GuiLuaContainer gui = new GuiLuaContainer(new InventoryPlayer(null), entity, definition);
+        setField(GuiScreen.class, gui, "mc", minecraft);
+        setField(GuiScreen.class, gui, "fontRenderer", font);
+        gui.width = 320;
+        gui.height = 240;
+        for (boolean formed : new boolean[]{false, true}) {
+            entity.setSyncedData("formed", formed ? 1 : 0);
+            entity.setSyncedData("duration", 200);
+            entity.setSyncedData("progress", formed ? 100 : 0);
+            setupFrame();
+            background.invoke(gui, 0.0F);
+            GL11.glPushMatrix();
+            GL11.glTranslatef(72, 37, 0);
+            foreground.invoke(gui);
+            GL11.glPopMatrix();
+            BufferedImage result = capture();
+            int amber = 0;
+            for (int x = 220; x < 232; x++) {
+                for (int y = 73; y < 85; y++) {
+                    int rgb = result.getRGB(x, y);
+                    if ((rgb >> 16 & 255) > 180 && (rgb >> 8 & 255) > 100 && (rgb & 255) < 100) {
+                        amber++;
+                    }
+                }
+            }
+            require(formed ? amber == 0 : amber > 20, "Kiln warning must track the synced formed flag");
+            ImageIO.write(result, "png", new File(output, formed ? "kiln-processing.png" : "kiln-invalid.png"));
+            if (!formed) {
+                hover.invoke(gui, 226, 78);
+                ImageIO.write(capture(), "png", new File(output, "kiln-warning-tooltip.png"));
+            }
+        }
+    }
+
+    private static void verifyModalScreens(Minecraft minecraft, File output) throws Exception {
+        final int[] mouse = new int[2];
+        GuiScreen parent = new GuiScreen() {
+            @Override
+            public void drawScreen(int x, int y, float partialTicks) {
+                mouse[0] = x;
+                mouse[1] = y;
+                drawRect(0, 0, width, height, 0xFF808080);
+            }
+        };
+        GuiDialogScreen first = new GuiDialogScreen(parent, "First") {
+        };
+        first.setWorldAndResolution(minecraft, 320, 240);
+        setupFrame();
+        first.drawScreen(100, 100, 0);
+        int single = capture().getRGB(2, 2);
+        require(mouse[0] == -1 && mouse[1] == -1, "Covered parent must not display hover effects");
+        GuiDialogScreen nested = new GuiDialogScreen(first, "Nested") {
+        };
+        renderScreen(nested, minecraft, output, "nested-dialog.png");
+        require(capture().getRGB(2, 2) == single, "Nested modals must apply the dim layer only once");
+
+        GuiButton button = new GuiButton("Remember focus", null);
+        GuiComponentScreen retained = new GuiComponentScreen() {
+            @Override
+            protected GuiElement createContent() {
+                return button;
+            }
+        };
+        retained.setWorldAndResolution(minecraft, 320, 240);
+        Field sceneField = GuiComponentScreen.class.getDeclaredField("scene");
+        sceneField.setAccessible(true);
+        GuiScene scene = (GuiScene) sceneField.get(retained);
+        scene.keyTyped('\t', Keyboard.KEY_TAB, false);
+        require(button.isFocused(), "Tab focuses retained control");
+        retained.onGuiClosed();
+        retained.setWorldAndResolution(minecraft, 427, 240);
+        require(button.isFocused(), "Returning or resizing must preserve focus in an existing scene");
+    }
+
+    private static void renderTextBox(Minecraft minecraft, FontRenderer font, File output) throws Exception {
+        GuiScreen parent = new GuiScreen();
+        GuiTextBox field = new GuiTextBox(parent, font, 30, 40, 180, 20, 64);
+        field.setFocused(true);
+        field.appendText("abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ!?");
+        String fullText = field.getText();
+        require(fullText.length() == 64, "Textbox supports the configured limit beyond native paste's 32");
+        field.appendText("overflow");
+        require(fullText.equals(field.getText()), "Paste cannot exceed the configured limit");
+        setupFrame();
+        field.drawTextBox();
+        BufferedImage focused = capture();
+        ImageIO.write(focused, "png", new File(output, "text-box-focused.png"));
+        require(fullText.equals(field.getText()), "Clipping must not modify the query");
+        require(focused.getRGB(29, 39) == 0xFFA0A0A0 && focused.getRGB(30, 40) == 0xFF000000,
+                "Textbox retains the native gray frame and black interior");
+        for (int tick = 0; tick < 6; tick++) {
+            field.updateCursorCounter();
+        }
+        setupFrame();
+        field.drawTextBox();
+        BufferedImage blink = capture();
+        boolean different = false;
+        for (int x = 34; x < 206; x++) {
+            for (int y = 46; y < 55; y++) {
+                different |= focused.getRGB(x, y) != blink.getRGB(x, y);
+            }
+        }
+        require(different, "Caret blinks after six logical ticks");
+        field.setFocused(false);
+        setupFrame();
+        field.drawTextBox();
+        ImageIO.write(capture(), "png", new File(output, "text-box-unfocused.png"));
+        field.setFocused(true);
+        field.setText("");
+        field.appendText("ab\n\tc");
+        require("abc".equals(field.getText()), "Paste filters unsupported control characters");
+        field.textboxKeyTyped('\b', Keyboard.KEY_BACK);
+        require("ab".equals(field.getText()), "Native backspace edits pasted text");
+        field.isEnabled = false;
+        field.appendText("ignored");
+        field.textboxKeyTyped('x', Keyboard.KEY_X);
+        require("ab".equals(field.getText()), "Disabled textboxes reject typing and paste");
+    }
+
+    private static void renderControls(Minecraft minecraft, File output) throws Exception {
+        InputRouter router = new InputRouter(null);
+        InputMapRegistration map = router
+                .register(
+                        new InputMapDefinition(ContentKey.parseForType("test:controls", ContentType.INPUT_MAP),
+                                Arrays.asList(
+                                        new InputActionDefinition("jump", Arrays.asList(InputBinding.parse("key.j"))))),
+                        "test.lua");
+        try {
+            Class<?> type = Class.forName("betamoon.client.control.input.GuiBetaMoonActions");
+            Constructor<?> constructor = type.getDeclaredConstructor(GuiScreen.class, GameSettings.class,
+                    InputRouter.class);
+            constructor.setAccessible(true);
+            GuiScreen controls = (GuiScreen) constructor.newInstance(null, minecraft.gameSettings, router);
+            renderScreen(controls, minecraft, output, "controls-search.png");
+            Method mouse = type.getDeclaredMethod("mouseClicked", int.class, int.class, int.class);
+            mouse.setAccessible(true);
+            mouse.invoke(controls, 100, 60, 0);
+            renderScreen(controls, minecraft, output, "controls-search-focused.png");
+            controls.onGuiClosed();
+        } finally {
+            map.close();
         }
     }
 
@@ -257,6 +430,39 @@ public final class GuiShowcaseRenderTest {
         require(!Keyboard.areRepeatEventsEnabled(), "Closing a container GUI must disable held-key repeats");
     }
 
+    private static void verifyDialogContentSizing(Minecraft minecraft, FontRenderer font) {
+        final String[] text = {"Short message."};
+        GuiMessage message = new GuiMessage(() -> text[0]);
+        GuiDialog dialog = new GuiDialog("Measured content");
+        dialog.setPanelSize(280, 190, 80);
+        dialog.setBody(message);
+        GuiButton action = dialog.addFooterButton(new GuiButton("Close", null));
+        GuiScene scene = new GuiScene();
+        scene.setContent(dialog);
+        scene.updateEnvironment(minecraft, font, 320, 240, 320, 240);
+        setupFrame();
+        scene.render(0, 0, 0);
+        int shortHeight = dialog.getPanelBounds().getHeight();
+        require(shortHeight < 190, "Short dialog uses content height");
+        StringBuilder longText = new StringBuilder();
+        for (int i = 0; i < 30; i++) {
+            longText.append("A wrapped diagnostic line with details.\n");
+        }
+        text[0] = longText.toString();
+        scene.render(0, 0, 0);
+        scene.render(0, 0, 0);
+        require(dialog.getPanelBounds().getHeight() == 190 && message.getBottom() < action.getTop(),
+                "Changed message expands to the cap without covering actions");
+        GuiScrollView scroll = (GuiScrollView) message.getChildren().get(0);
+        require(scene.mouseScrolled(message.getLeft() + 5, message.getTop() + 5, -120, false)
+                && scroll.getScrollY() > 0, "Overflow message remains reachable by scrolling");
+        text[0] = "Short again.";
+        scene.render(0, 0, 0);
+        scene.render(0, 0, 0);
+        require(dialog.getPanelBounds().getHeight() == shortHeight && scroll.getScrollY() == 0,
+                "A shorter status message shrinks the panel and clamps old scroll state");
+    }
+
     private static void verifyIssueLayout(FontRenderer font) {
         LuaScriptErrors.clear();
         try {
@@ -265,6 +471,16 @@ public final class GuiShowcaseRenderTest {
             GuiIssueLayout layout = GuiIssueLayout.prepare(font, LuaScriptErrors.getEntries(), 80, 10);
             List<GuiIssueLayout.Entry> entries = layout.getEntries();
             require(entries.size() == 2, "Issue layout omitted an error or warning");
+            int expectedHeight = GuiRenderer.lineHeight(font) + 3 + font.func_27277_a("broken.lua:12", 80) + 3
+                    + font.func_27277_a("first line with wrapped details", 80) + font.func_27277_a("second line", 80);
+            require(entries.get(0).getHeight() == expectedHeight,
+                    "Source is presented once while complete multiline diagnostics retain their measured space");
+            require("Error".equals(entries.get(0).getSeverityLabel())
+                    && "Warning".equals(entries.get(1).getSeverityLabel()),
+                    "Severity is readable without relying on color");
+            GuiIssueLayout narrow = GuiIssueLayout.prepare(font, LuaScriptErrors.getEntries(), 30, 10);
+            require(narrow.getHeight() > layout.getHeight(),
+                    "Narrow source links and messages wrap into measured rows");
             require(layout.getHeight() == entries.get(0).getHeight() + 10 + entries.get(1).getHeight(),
                     "Issue list height must use the prepared entry heights and gap");
 

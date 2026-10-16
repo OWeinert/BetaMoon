@@ -9,12 +9,16 @@ import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptErrors;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptResourceTracker;
-import betamoon.wrappers.BlockWrapper;
+import betamoon.luamodloader.SlowScriptCallbackMonitor;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Set;
 import java.util.Map;
 import java.util.Random;
 import java.util.WeakHashMap;
 import net.minecraft.src.Block;
+import net.minecraft.src.Chunk;
 import net.minecraft.src.World;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -33,6 +37,7 @@ public final class BlockTickRegistry {
 
     private static final Map<Integer, ParsedDefinition> DEFINITIONS = new HashMap<>();
     private static final Map<World, Map<String, ScheduledRun>> SCHEDULED = new WeakHashMap<World, Map<String, ScheduledRun>>();
+    private static final Map<World, Set<String>> WAITING_FOR_CHUNKS = new WeakHashMap<World, Set<String>>();
 
     private BlockTickRegistry() {
     }
@@ -52,12 +57,12 @@ public final class BlockTickRegistry {
     /**
      * Validates and installs the tick definitions declared by the current script.
      */
-    public static synchronized void register(final BlockWrapper block, LuaValue onTick, LuaValue onDisplayTick) {
+    public static synchronized void register(final LuaBlock block, LuaValue onTick, LuaValue onDisplayTick) {
         register(block, parse(block.blockID, onTick, onDisplayTick));
     }
 
     /** Installs a definition that was already parsed with its block declaration. */
-    static synchronized void register(final BlockWrapper block, final ParsedDefinition definition) {
+    static synchronized void register(final LuaBlock block, final ParsedDefinition definition) {
         if (definition == null) {
             return;
         }
@@ -77,7 +82,7 @@ public final class BlockTickRegistry {
     }
 
     /** Starts scheduled definition when a configured block enters the world. */
-    public static void onBlockAdded(BlockWrapper block, World world, int x, int y, int z) {
+    public static void onBlockAdded(LuaBlock block, World world, int x, int y, int z) {
         ParsedDefinition definition = get(block.blockID);
         if (definition != null && definition.mode != null && definition.mode.isScheduled()
                 && definition.initialDelay > 0 && !world.multiplayerWorld) {
@@ -85,8 +90,104 @@ public final class BlockTickRegistry {
         }
     }
 
+    /**
+     * Restarts automatic repeating schedules; chunk loading does not call
+     * onBlockAdded.
+     */
+    public static void chunkLoaded(Chunk chunk) {
+        World world = chunk.worldObj;
+        if (world.multiplayerWorld || chunk.blocks == null) {
+            return;
+        }
+        boolean[] repeating = new boolean[256];
+        boolean hasRepeating = false;
+        synchronized (BlockTickRegistry.class) {
+            for (Map.Entry<Integer, ParsedDefinition> entry : DEFINITIONS.entrySet()) {
+                ParsedDefinition definition = entry.getValue();
+                if (definition.activeTick && definition.initialDelay > 0 && definition.repeatDelay > 0
+                        && definition.mode != null && definition.mode.isScheduled()) {
+                    repeating[entry.getKey().intValue()] = true;
+                    hasRepeating = true;
+                }
+            }
+        }
+        if (!hasRepeating) {
+            return;
+        }
+        for (int index = 0; index < chunk.blocks.length; index++) {
+            int blockId = chunk.blocks[index] & 255;
+            if (!repeating[blockId]) {
+                continue;
+            }
+            int x = (chunk.xPosition << 4) + (index >> 11);
+            int y = index & 127;
+            int z = (chunk.zPosition << 4) + ((index >> 7) & 15);
+            schedule(world, x, y, z, blockId, get(blockId).initialDelay);
+        }
+    }
+
+    /**
+     * Native updates near an unloading chunk can be discarded until its neighbors
+     * return.
+     */
+    public static void chunkUnloaded(Chunk chunk) {
+        Map<String, ScheduledRun> runs = SCHEDULED.get(chunk.worldObj);
+        if (runs == null) {
+            return;
+        }
+        for (Map.Entry<String, ScheduledRun> entry : runs.entrySet()) {
+            ScheduledRun run = entry.getValue();
+            if (run.x >= (chunk.xPosition << 4) - 8 && run.x <= (chunk.xPosition << 4) + 23
+                    && run.z >= (chunk.zPosition << 4) - 8 && run.z <= (chunk.zPosition << 4) + 23) {
+                waiting(chunk.worldObj).add(entry.getKey());
+            }
+        }
+    }
+
+    /**
+     * Retries native admission only for schedules whose surrounding chunks were
+     * unavailable.
+     */
+    public static void retryWaitingSchedules(World world) {
+        Set<String> waiting = WAITING_FOR_CHUNKS.get(world);
+        Map<String, ScheduledRun> runs = SCHEDULED.get(world);
+        if (waiting == null || runs == null || world.multiplayerWorld) {
+            return;
+        }
+        Iterator<String> iterator = waiting.iterator();
+        while (iterator.hasNext()) {
+            String key = iterator.next();
+            ScheduledRun run = runs.get(key);
+            if (run == null || get(run.blockId) == null) {
+                iterator.remove();
+                runs.remove(key);
+            } else if (chunksReady(world, run)) {
+                if (world.getBlockId(run.x, run.y, run.z) == run.blockId) {
+                    int delay = (int) Math.min(Integer.MAX_VALUE, Math.max(1L, run.due - world.getWorldTime()));
+                    world.scheduleBlockUpdate(run.x, run.y, run.z, run.blockId, delay);
+                } else {
+                    runs.remove(key);
+                }
+                iterator.remove();
+            }
+        }
+    }
+
+    private static Set<String> waiting(World world) {
+        Set<String> keys = WAITING_FOR_CHUNKS.get(world);
+        if (keys == null) {
+            keys = new HashSet<String>();
+            WAITING_FOR_CHUNKS.put(world, keys);
+        }
+        return keys;
+    }
+
+    private static boolean chunksReady(World world, ScheduledRun run) {
+        return world.checkChunksExist(run.x - 8, run.y - 8, run.z - 8, run.x + 8, run.y + 8, run.z + 8);
+    }
+
     /** Runs a gameplay update and queues the next update for repeating modes. */
-    public static void update(BlockWrapper block, World world, int x, int y, int z, Random random) {
+    public static void update(LuaBlock block, World world, int x, int y, int z, Random random) {
         ParsedDefinition definition = get(block.blockID);
         if (definition == null || definition.tickAction == null || world.multiplayerWorld) {
             return;
@@ -113,7 +214,7 @@ public final class BlockTickRegistry {
     /**
      * Runs client-side display attempts using Minecraft's random display callback.
      */
-    public static void display(BlockWrapper block, World world, int x, int y, int z, Random random) {
+    public static void display(LuaBlock block, World world, int x, int y, int z, Random random) {
         ParsedDefinition definition = get(block.blockID);
         if (definition == null || definition.displayAction == null || !definition.activeDisplay) {
             return;
@@ -179,8 +280,13 @@ public final class BlockTickRegistry {
         if (previous != null && previous.blockId == blockId && previous.due <= due) {
             return;
         }
-        runs.put(key, new ScheduledRun(blockId, due));
-        world.scheduleBlockUpdate(x, y, z, blockId, delay);
+        ScheduledRun run = new ScheduledRun(blockId, due, x, y, z);
+        runs.put(key, run);
+        if (chunksReady(world, run)) {
+            world.scheduleBlockUpdate(x, y, z, blockId, delay);
+        } else {
+            waiting(world).add(key);
+        }
     }
 
     public static void removed(World world, int x, int y, int z) {
@@ -193,10 +299,16 @@ public final class BlockTickRegistry {
     private static final class ScheduledRun {
         private final int blockId;
         private final long due;
+        private final int x;
+        private final int y;
+        private final int z;
 
-        private ScheduledRun(int blockId, long due) {
+        private ScheduledRun(int blockId, long due, int x, int y, int z) {
             this.blockId = blockId;
             this.due = due;
+            this.x = x;
+            this.y = y;
+            this.z = z;
         }
     }
 
@@ -303,20 +415,26 @@ public final class BlockTickRegistry {
             if (!activeTick) {
                 return;
             }
+            long startedNanos = System.nanoTime();
             try (TickContext context = new TickContext(world, x, y, z, blockId, random, true)) {
                 tickAction.call(context);
             } catch (Throwable error) {
                 activeTick = false;
                 report(owner, "onTick", error);
+            } finally {
+                SlowScriptCallbackMonitor.record(owner, "block.onTick", startedNanos);
             }
         }
 
         private void invokeDisplay(World world, int x, int y, int z, Random random) {
+            long startedNanos = System.nanoTime();
             try (TickContext context = new TickContext(world, x, y, z, blockId, random, false)) {
                 displayAction.call(context);
             } catch (Throwable error) {
                 activeDisplay = false;
                 report(owner, "onDisplayTick", error);
+            } finally {
+                SlowScriptCallbackMonitor.record(owner, "block.onDisplayTick", startedNanos);
             }
         }
     }
@@ -346,8 +464,7 @@ public final class BlockTickRegistry {
             set("position", new PositionI(x, y, z));
             set("id", blockId);
             set("damage", world.getBlockMetadata(x, y, z));
-            set("world", LuaWorldActionAccess.create(
-                    actionContext.callbackScope(), world, x, y, z, null, true));
+            set("world", LuaWorldActionAccess.create(actionContext.callbackScope(), world, x, y, z, null, true));
             set("random", new RandomNumber(actionContext.callbackScope(), random));
             if (gameplay) {
                 set("schedule", new Schedule(this));

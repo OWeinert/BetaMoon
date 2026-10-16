@@ -9,7 +9,9 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.src.FontRenderer;
 import org.lwjgl.input.Keyboard;
 
-/** Owns one component tree and coordinates layout, rendering, focus, and input. */
+/**
+ * Owns one component tree and coordinates layout, rendering, focus, and input.
+ */
 public final class GuiScene {
     private final SceneRoot root = new SceneRoot(this);
     private final GuiRenderer renderer;
@@ -78,6 +80,16 @@ public final class GuiScene {
         if (!waitingForRender.isEmpty()) {
             readyActions.addAll(waitingForRender);
             waitingForRender.clear();
+        }
+    }
+
+    /**
+     * End an interrupted drag when this screen is covered or closed, retaining
+     * keyboard focus.
+     */
+    public void cancelPointerCapture() {
+        if (pointerCapture != null) {
+            mouseReleased(-1, -1, pointerCaptureButton);
         }
     }
 

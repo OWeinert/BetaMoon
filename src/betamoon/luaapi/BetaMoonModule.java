@@ -1,6 +1,10 @@
 package betamoon.luaapi;
 
+import betamoon.luaapi.multiblock.MultiblocksApi;
+
 import betamoon.luaapi.chat.ChatApi;
+import betamoon.luaapi.particle.ParticlesApi;
+import betamoon.luaapi.config.ConfigApi;
 import betamoon.luaapi.capability.CapabilitiesApi;
 import betamoon.luaapi.asset.AssetsApi;
 import betamoon.luaapi.audio.AudioApi;
@@ -27,6 +31,7 @@ import betamoon.luaapi.world.LootTablesApi;
 import betamoon.recipes.custom.RecipeBindings;
 import betamoon.recipes.custom.RecipeMatcherRegistry;
 import betamoon.luamodloader.ScriptExecution;
+import java.io.File;
 import java.util.IdentityHashMap;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -36,13 +41,19 @@ import org.luaj.vm2.lib.VarArgFunction;
 
 public final class BetaMoonModule extends TwoArgFunction {
     private final String source;
+    private final File configRoot;
 
     public BetaMoonModule() {
         this(null);
     }
 
     public BetaMoonModule(String source) {
+        this(source, null);
+    }
+
+    public BetaMoonModule(String source, File configRoot) {
         this.source = source;
+        this.configRoot = configRoot;
     }
 
     /**
@@ -59,8 +70,11 @@ public final class BetaMoonModule extends TwoArgFunction {
     public LuaValue call(LuaValue modname, LuaValue env) {
         LuaTable module = new LuaTable();
         CallbackResultsApi.attach(module);
+        ConfigApi.attach(module, configRoot, source);
         EventsApi.attach(module);
         AssetsApi.attach(module);
+        ParticlesApi.attach(module);
+        MultiblocksApi.attach(module);
         EntitiesApi.attach(module);
         FuelsApi.attach(module);
         FluidApi.attach(module);

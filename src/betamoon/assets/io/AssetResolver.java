@@ -2,7 +2,10 @@ package betamoon.assets.io;
 
 import betamoon.assets.AssetPath;
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -13,27 +16,36 @@ public final class AssetResolver {
     private final AssetProvider defaults;
     private final AssetProvider pack;
     private final Consumer<String> diagnostics;
+    private final Consumer<String> verboseDiagnostics;
+    private final Set<String> loggedSelections;
     private final String defaultKind;
 
     public AssetResolver(AssetProvider defaults, AssetProvider pack, Consumer<String> diagnostics) {
-        this(defaults, pack, diagnostics, "script");
+        this(defaults, pack, diagnostics, null, Collections.synchronizedSet(new HashSet<String>()), "script");
     }
 
     private AssetResolver(AssetProvider defaults, AssetProvider pack, Consumer<String> diagnostics,
-            String defaultKind) {
+            Consumer<String> verboseDiagnostics, Set<String> loggedSelections, String defaultKind) {
         this.defaults = Objects.requireNonNull(defaults, "Script asset provider");
         this.pack = pack;
         this.diagnostics = Objects.requireNonNull(diagnostics, "Asset diagnostics");
+        this.verboseDiagnostics = verboseDiagnostics;
+        this.loggedSelections = loggedSelections;
         this.defaultKind = defaultKind;
     }
 
+    public AssetResolver withVerboseDiagnostics(Consumer<String> consumer) {
+        return new AssetResolver(defaults, pack, diagnostics, consumer, loggedSelections, defaultKind);
+    }
+
     public AssetResolver withDefaults(AssetProvider provider, String sourceKind) {
-        return new AssetResolver(provider, pack, diagnostics, sourceKind);
+        return new AssetResolver(provider, pack, diagnostics, verboseDiagnostics, loggedSelections, sourceKind);
     }
 
     /** Selects the package-local default root associated with a Lua source. */
     public AssetResolver forSource(String source) throws IOException {
-        return new AssetResolver(defaults.forSource(source), pack, diagnostics, defaultKind);
+        return new AssetResolver(defaults.forSource(source), pack, diagnostics, verboseDiagnostics, loggedSelections,
+                defaultKind);
     }
 
     public boolean defaultExists(AssetPath path) throws IOException {
@@ -51,8 +63,11 @@ public final class AssetResolver {
             try {
                 ResolvedAsset<T> candidate = read(pack, "pack", override, byteLimit, packDecoder);
                 if (candidate != null) {
+                    logSelection(identity, candidate);
                     return candidate;
                 }
+                logOnce(identity + " | missing pack", "Asset " + identity + ": texture-pack entry '" + override
+                        + "' not found; using " + defaultKind + " default.");
             } catch (IOException | IllegalArgumentException error) {
                 diagnostics.accept("Asset " + identity + ": pack '" + pack.getName() + "', entry '" + override + "': "
                         + error.getMessage() + "; using " + defaultKind + " default");
@@ -67,7 +82,20 @@ public final class AssetResolver {
         if (result == null) {
             throw new IOException("Asset " + identity + ": default not found: " + fallback);
         }
+        logSelection(identity, result);
         return result;
+    }
+
+    private void logSelection(String identity, ResolvedAsset<?> result) {
+        logOnce(identity + " | " + result.getSourceKind() + " | " + result.getSourcePath(),
+                "Asset " + identity + ": selected " + result.getSourceKind() + " '" + result.getSourceName()
+                        + "', entry '" + result.getSourcePath() + "'.");
+    }
+
+    private void logOnce(String key, String message) {
+        if (verboseDiagnostics != null && loggedSelections.add(key)) {
+            verboseDiagnostics.accept(message);
+        }
     }
 
     private <T> ResolvedAsset<T> read(AssetProvider provider, String kind, AssetPath path, int limit,

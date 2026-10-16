@@ -2,7 +2,7 @@
 
 These examples form a tutorial as well as a capability reference. Copy the Lua
 files you want, or a complete manifested example folder, into
-`.minecraft/lua_scripts/`. Scripts hot reload after a file save settles, or
+`.minecraft/betamoon/scripts/`. Scripts hot reload after a file save settles, or
 through **Reload** on BetaMoon's Scripts screen. Structural tile-entity content
 is kept loaded for world safety and requires a Minecraft restart after changes.
 
@@ -105,6 +105,8 @@ state, physical behavior, and event-driven logic.
 | 27 | `02_int_27_configurable_explosion.lua` | Selective explosion effects, attribution, and result snapshots |
 | 28 | `02_int_28_direct_feature_placement.lua` | Previewing and atomically placing a feature from an item callback |
 | 29 | `02_int_29_composite_and_ordered_features.lua` | Weighted/sequence features and explicit placement dependencies |
+| 30 | `02_int_30_named_actions_controller.lua` | Named input actions, configurable controls, and staged player movement |
+| 31 | `02_int_31_custom_particles.lua` | Custom PNG particles in a ring around a block, with per-instance rotation and size updates |
 
 ## Advanced
 
@@ -119,23 +121,25 @@ and, where useful, organize private modules with `require`.
 | 03 | `03_adv_03_basic_storage/` (`betamoon.mod.json`, `main.lua`, `data.lua`, `layout.lua`) | Private declaration modules combined into saved storage, a container, and a GUI |
 | 04 | `03_adv_04_custom_furnace.lua` | A complete smelting machine with a composed private fuel set |
 | 05 | `03_adv_05_tile_redstone_controller.lua` | Persistent tile data controlling redstone output |
-| 06 | `03_adv_06_gui_showcase.lua` | Container GUI elements, interactive controls, session state, and synchronized presentation |
-| 07 | `03_adv_07_animated_machine.lua` | Animated block variants, material slots, glow, and sound |
-| 08 | `03_adv_08_simple_alloy/` (`betamoon.mod.json`, `main.lua`, `recipe_type.lua`, `recipes.lua`) | Simple named-slot recipe types, recipes, and a processing machine |
-| 09 | `03_adv_09_contextual_processor/` (`betamoon.mod.json`, `main.lua`, `recipe_type.lua`, `recipes.lua`) | Heat/power conditions and commit-time context revalidation |
-| 10 | `03_adv_10_advanced_fabrication/` (`betamoon.mod.json`, `main.lua`, `recipe_types.lua`, `recipes.lua`) | Pools, grids, custom matching, bindings, and atomic processing |
-| 11 | `03_adv_11_matcher_cookbook/` (`betamoon.mod.json`, `main.lua`, `recipe_type.lua`) | A context-driven custom allocation policy in a working machine |
-| 12 | `03_adv_12_entity_data.lua` | Model-backed entity with persistent interaction data |
-| 13 | `03_adv_13_native_living_ai.lua` | Native living behavior composed with custom Lua AI |
-| 14 | `03_adv_14_manual_multipart_ai.lua` | Fully manual multipart creature behavior and hit regions |
-| 15 | `03_adv_15_energy_network.lua` | GUI-guided generation, nearest-first flow, bounded rates, endpoint consumers, and adjacent cable grids |
-| 16 | `03_adv_16_wireless_trigger.lua` | Editable wireless channels, transmitter/receiver roles, retained state, and pulses |
-| 17 | `03_adv_17_world_service_and_data.lua` | Persistent per-world services and detached world, chunk, and player views |
-| 18 | `03_adv_18_local_structure/` | Packaged local JSON structure with a rounded stepped foundation, deterministic loot, and placement |
-| 19 | `03_adv_19_regional_structures/` | Regional assembly with bounded/authored foundations, selector-conforming roads, and lookup |
-| 20 | `03_adv_20_complete_worldgen_pack/` | Modular worldgen pack whose fitted stone circle deliberately performs no terrain mutation |
-| 21 | `03_adv_21_sunken_cellar/` | Minimal footprint-to-surface excavation for a negatively offset cellar |
-| 22 | `03_adv_22_excavated_foundation/` | Exact clearance voxels, a named 3D excavation mask, and an authored foundation footprint |
+| 06 | `03_adv_06_visual_portal.lua` | Controllerless custom frame with item activation and owned, pass-through portal panels |
+| 07 | `03_adv_07_gui_showcase.lua` | Container GUI elements, interactive controls, session state, and synchronized presentation |
+| 08 | `03_adv_08_animated_machine.lua` | Animated block variants, material slots, glow, and sound |
+| 09 | `03_adv_09_simple_alloy/` (`betamoon.mod.json`, `main.lua`, `recipe_type.lua`, `recipes.lua`) | Simple named-slot recipe types, recipes, and a processing machine |
+| 10 | `03_adv_10_contextual_processor/` (`betamoon.mod.json`, `main.lua`, `recipe_type.lua`, `recipes.lua`) | Heat/power conditions and commit-time context revalidation |
+| 11 | `03_adv_11_advanced_fabrication/` (`betamoon.mod.json`, `main.lua`, `recipe_types.lua`, `recipes.lua`) | Pools, grids, custom matching, bindings, and atomic processing |
+| 12 | `03_adv_12_charcoal_kiln.lua` | Exact brick multiblock, fuel-free charcoal processing, flame progress and a warning tooltip |
+| 13 | `03_adv_13_matcher_cookbook/` (`betamoon.mod.json`, `main.lua`, `recipe_type.lua`) | A context-driven custom allocation policy in a working machine |
+| 14 | `03_adv_14_entity_data.lua` | Model-backed entity with persistent interaction data |
+| 15 | `03_adv_15_native_living_ai.lua` | Native living behavior composed with custom Lua AI |
+| 16 | `03_adv_16_manual_multipart_ai.lua` | Fully manual multipart creature behavior and hit regions |
+| 17 | `03_adv_17_energy_network.lua` | GUI-guided generation, nearest-first flow, bounded rates, endpoint consumers, and adjacent cable grids |
+| 18 | `03_adv_18_wireless_trigger.lua` | Editable wireless channels, transmitter/receiver roles, retained state, and pulses |
+| 19 | `03_adv_19_world_service_and_data.lua` | Persistent per-world services and detached world, chunk, and player views |
+| 20 | `03_adv_20_local_structure/` | Packaged local JSON structure with a rounded stepped foundation, deterministic loot, and placement |
+| 21 | `03_adv_21_regional_structures/` | Regional assembly with bounded/authored foundations, selector-conforming roads, and lookup |
+| 22 | `03_adv_22_complete_worldgen_pack/` | Modular worldgen pack whose fitted stone circle deliberately performs no terrain mutation |
+| 23 | `03_adv_23_sunken_cellar/` | Minimal footprint-to-surface excavation for a negatively offset cellar |
+| 24 | `03_adv_24_excavated_foundation/` | Exact clearance voxels, a named 3D excavation mask, and an authored foundation footprint |
 
 ## Trying the interactive examples
 
@@ -169,26 +173,29 @@ and, where useful, organize private modules with `require`.
 | Intermediate 26 | **Gem Dropper** (5038): place a typed pickup and collect its full stack. |
 | Intermediate 27 | **Configurable Charge** (5042): right-click for a concussive blast or sneak-right-click for demolition. |
 | Intermediate 28 | **Builder's Rod** (5044): stick + glowstone dust. Use it on the top of a block with four clear blocks above it. |
+| Intermediate 31 | **Particle Ring Block** (242): copy `custom_particles/` with the script, enable the Java agent, craft stone + redstone dust, then place it nearby to see rotating cyan sparks in a ring above its top. |
 | Advanced 01 | **Clockwork Bird Model Item** (5034): observe clip animation with Lua head movement. |
 | Advanced 02 | **Pulse Timer** (213): cobblestone + redstone. A rising north input produces a one-second south output. |
 | Advanced 03 | **Basic Storage** (224): chest surrounded by planks. Its screen reports occupied saved slots. |
 | Advanced 04 | **Fast Furnace** (204): vanilla furnace surrounded by iron. It smelts in 100 ticks and also accepts redstone as its private fuel. |
 | Advanced 05 | **Tile Redstone Controller** (225): insert a control key, then use input edges to toggle persistent output. |
-| Advanced 06 | **GUI Showcase** (208): chest + redstone. Use its Page and Sample slots to explore five pages, including interactive controls. |
-| Advanced 07 | **Animated Machine** (234): right-click to toggle its rotor, glow, and click. |
-| Advanced 08 | **Alloy Furnace** (209): see the simple-alloy table below. |
-| Advanced 09 | **Contextual Processor** (226): process dirt cold/unpowered, or heat sand with fuel and redstone. |
-| Advanced 10 | **Advanced Fabricator** (216): see the fabrication table below. |
-| Advanced 11 | **Focused Press** (227): its matcher prefers material slot 1 unpowered and slot 5 powered. |
-| Advanced 12 | **Data Totem**: obtain Data Totem Placer (5036), place and click it to check saved data, then punch it to recover the placer. |
-| Advanced 13 | **Clockwork Watcher** (5039): copy `animated_model_item/`, place a living creature, and test its wandering and retaliation. |
-| Advanced 14 | **Manual Guardian** (5040): copy `animated_model_item/`, place it, and inspect Lua-controlled decisions and optional head/wing hitboxes. |
-| Advanced 15 | Connect an **Energy Generator**, **Energy Consumer**, and **Energy Battery** with an **Energy Cable** grid. Attach the battery directly to the grid rather than through the consumer: consumer faces accept energy but never bridge two cable grids. Right-click every block to see its live values and per-tick limits. Energy behaves like consumed flow: the nearest consumers receive their operating energy first, so distant consumers may remain unpowered during a shortage. Buffers fill and batteries charge only after all operating needs are met. Remove the generator to see battery backup. |
-| Advanced 18 | Copy the complete package and explore newly generated Overworld chunks for a compact shrine with a glowstone beacon. |
-| Advanced 19 | Copy the complete package, craft **Ruin Surveyor** (5045) from a compass and paper, use it on a block, then explore toward the reported branching Path Ruins. |
-| Advanced 20 | Copy the complete package and explore warm, moderately humid new chunks; its stone circle uses fit-only terrain placement as a contrast to the mutation examples that follow. |
-| Advanced 21 | Copy the complete package and explore new dry-land chunks for buried cellars whose footprint is excavated up to the original surface. |
-| Advanced 22 | Copy the complete package and explore new dry-land chunks for partially buried chambers with exact authored interior and entrance excavation. |
+| Advanced 06 | **Visual Portal Frame** (243): obsidian + redstone. Build the complete 4x5 frame from these blocks, leave a 2x3 opening clear, and use flint and steel against an inner frame face. The purple panels never teleport. |
+| Advanced 07 | **GUI Showcase** (208): chest + redstone. Use its Page and Sample slots to explore five pages, including interactive controls. |
+| Advanced 08 | **Animated Machine** (234): right-click to toggle its rotor, glow, and click. |
+| Advanced 09 | **Alloy Furnace** (209): see the simple-alloy table below. |
+| Advanced 10 | **Contextual Processor** (226): process dirt cold/unpowered, or heat sand with fuel and redstone. |
+| Advanced 11 | **Advanced Fabricator** (216): see the fabrication table below. |
+| Advanced 12 | **Charcoal Kiln** (246): furnace surrounded by eight brick blocks. Complete the exact 3x3x3 shell below, insert any vanilla log, and collect charcoal without fuel. Hover the warning triangle when the structure is incomplete. |
+| Advanced 13 | **Focused Press** (227): its matcher prefers material slot 1 unpowered and slot 5 powered. |
+| Advanced 14 | **Data Totem**: obtain Data Totem Placer (5036), place and click it to check saved data, then punch it to recover the placer. |
+| Advanced 15 | **Clockwork Watcher** (5039): copy `animated_model_item/`, place a living creature, and test its wandering and retaliation. |
+| Advanced 16 | **Manual Guardian** (5040): copy `animated_model_item/`, place it, and inspect Lua-controlled decisions and optional head/wing hitboxes. |
+| Advanced 17 | Connect an **Energy Generator**, **Energy Consumer**, and **Energy Battery** with an **Energy Cable** grid. Attach the battery directly to the grid rather than through the consumer: consumer faces accept energy but never bridge two cable grids. Right-click every block to see its live values and per-tick limits. Energy behaves like consumed flow: the nearest consumers receive their operating energy first, so distant consumers may remain unpowered during a shortage. Buffers fill and batteries charge only after all operating needs are met. Remove the generator to see battery backup. |
+| Advanced 20 | Copy the complete package and explore newly generated Overworld chunks for a compact shrine with a glowstone beacon. |
+| Advanced 21 | Copy the complete package, craft **Ruin Surveyor** (5045) from a compass and paper, use it on a block, then explore toward the reported branching Path Ruins. |
+| Advanced 22 | Copy the complete package and explore warm, moderately humid new chunks; its stone circle uses fit-only terrain placement as a contrast to the mutation examples that follow. |
+| Advanced 23 | Copy the complete package and explore new dry-land chunks for buried cellars whose footprint is excavated up to the original surface. |
+| Advanced 24 | Copy the complete package and explore new dry-land chunks for partially buried chambers with exact authored interior and entrance excavation. |
 
 ## Multi-file lesson details
 
@@ -200,24 +207,24 @@ and, where useful, organize private modules with `require`.
   mods. The exporter publishes a public table through `betamoon.modules`; the
   importer declares a dependency and reads that cross-mod export.
 
-- Advanced 03, 08 through 11, and 18 through 22 each demonstrate a packaged mod. Their
+- Advanced 03, 09 through 11, 13, and 20 through 24 each demonstrate a packaged mod. Their
   manifests select `main.lua`, while `require` loads private declarations and
   registration functions from neighboring files where the lesson needs them.
   Every file shares the package's lifecycle and resource owner. Copy the whole
-  folder into `lua_scripts`; restart after structural declaration or gameplay-data edits.
+  folder into `betamoon/scripts`; restart after structural declaration or gameplay-data edits.
 
 - Advanced 03 keeps its persistent inventory/data schema in `data.lua` and its
   container/GUI layout in `layout.lua`. `main.lua` composes both declarations and
   owns every registered resource.
 
-- Advanced 08 creates these simple alloy recipes:
+- Advanced 09 creates these simple alloy recipes:
 
   | Base | Additive | Retained mold | Results |
   | --- | --- | --- | --- |
   | 1 gold ore | 1 coal or charcoal | 1 stick | 3 gold ingots + 1 cobblestone |
   | 4 dirt or 4 cobblestone | 1 coal | Empty | 1 stone |
 
-- Advanced 09 demonstrates conditions independently of inventory matching:
+- Advanced 10 demonstrates conditions independently of inventory matching:
 
   | Input | Machine context | Result |
   | --- | --- | --- |
@@ -227,7 +234,7 @@ and, where useful, organize private modules with `require`.
   The processor passes a validated context during discovery and fresh values to
   `canApply` and `apply`, so a lost signal cannot commit a now-invalid hot recipe.
 
-- Advanced 10 uses one shared 3x3 work area:
+- Advanced 11 uses one shared 3x3 work area:
 
   | Rule | Work area | Result |
   | --- | --- | --- |
@@ -239,7 +246,7 @@ and, where useful, organize private modules with `require`.
   allocations. `main.lua` explains bindings, candidate order, signatures,
   preflight checks, and atomic application.
 
-- Advanced 11 narrows custom matching to one clear policy. One recipe consumes
+- Advanced 13 narrows custom matching to one clear policy. One recipe consumes
   four cobblestone from a single chosen material slot; the die recipe consumes four
   sand while retaining a stick. Extra occupied pool slots are allowed and untouched.
 
@@ -254,7 +261,35 @@ and, where useful, organize private modules with `require`.
 - Beginner 09 needs `example_block.png`. Beginner 16 needs the six
   `example_armor_*.png` files. Copy those files beside their scripts.
 
-- Advanced 06 needs the complete `gui_showcase/` directory beside its script.
+- Advanced 07 needs the complete `gui_showcase/` directory beside its script.
   Leave **Page** empty for an automatic tour, or insert 1–4 items to hold a page.
   Put any item in **Sample** to preview it. The adjacent comments document all four
   pages and the `BACKGROUND` setting.
+
+## Multiblock examples
+
+Advanced 06 uses the Java agent and a custom frame four blocks wide and five blocks high.
+Craft obsidian and redstone into Visual Portal Frame blocks (243) and build the entire frame from them.
+Its layers, from bottom to top, are `?@F?`, `FIIF`, `FIIF`, `FIIF`, `?FF?`: both `@` and `F` require
+that same frame block, `I` is the opening, and `?` corners are optional. No special controller position,
+placement order, facing direction, or tile entity is required. Use flint and steel on an inner frame face.
+The surface (244) animates and emits portal particles, but passing through has no travel effect.
+Breaking the frame or a panel extinguishes the surface; repair it and activate again. Cleanup preserves
+player replacements. The panels use Minecraft's portal texture, so no extra asset directory is needed.
+
+Advanced 12 uses the following exact layers, from bottom to top and with front rows listed first:
+
+| Layer | Front row | Middle row | Back row |
+| --- | --- | --- | --- |
+| Bottom | `BBB` | `B.B` | `BBB` |
+| Middle | `B@B` | `B.B` | `BBB` |
+| Top | `BBB` | `BBB` | `BBB` |
+
+`B` is a brick block, `.` must be air, and `@` is the outward-facing Charcoal Kiln controller.
+The finished structure uses 24 brick blocks and one controller. It processes oak, spruce and birch
+logs into charcoal, one log per 200 game ticks. The two-slot screen has no fuel slot. The vanilla
+flame fills at the furnace arrow's position; a small warning triangle identifies an incomplete or
+unverified structure. A full output pauses processing, while changed input or an invalid structure
+resets progress. Both multiblock scripts require a restart after edits.
+
+When updating these lessons, replace older advanced-script copies so renamed lessons are not loaded twice.

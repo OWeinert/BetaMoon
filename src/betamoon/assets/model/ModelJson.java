@@ -38,13 +38,13 @@ public final class ModelJson {
             }
             return object(result, "root");
         } catch (CharacterCodingException error) {
-            throw new IOException("Model JSON must be valid UTF-8", error);
+            throw new IOException("JSON must be valid UTF-8", error);
         }
     }
 
     private Object value(int depth) throws IOException {
         if (depth > 48 || ++nodes > 150000) {
-            throw error("JSON nesting or value count exceeds asset limits");
+            throw error("JSON nesting or value count exceeds limits");
         }
         space();
         if (cursor == text.length()) {

@@ -4,7 +4,7 @@ import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.worldgen.biome.BiomeDefinition;
 import betamoon.worldgen.biome.BiomeSourceDefinition;
 import betamoon.worldgen.surface.SurfaceRuleSet;
-import betamoon.wrappers.BiomeGenWrapper;
+import betamoon.worldgen.biome.LuaBiome;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -65,7 +65,7 @@ public final class BiomeGenRegistry {
         active = Snapshot.compile(biomes, surfaces, sources);
     }
 
-    public static WorldGenKey registerBiomeGenerator(String declaredKey, BiomeGenWrapper biome, Set<String> tags,
+    public static WorldGenKey registerBiomeGenerator(String declaredKey, LuaBiome biome, Set<String> tags,
             WorldGenKey surface, double minTemperature, double maxTemperature, double minHumidity, double maxHumidity,
             boolean legacyClimateRange, int decoratorCount) {
         PublicationBatch batch = CURRENT_BATCH.get();
@@ -85,10 +85,10 @@ public final class BiomeGenRegistry {
     /** Compatibility registration used by older internal callers. */
     public static void registerBiomeGenerator(BiomeGenBase biome, double minTemperature, double maxTemperature,
             double minHumidity, double maxHumidity) {
-        if (!(biome instanceof BiomeGenWrapper)) {
+        if (!(biome instanceof LuaBiome)) {
             return;
         }
-        registerBiomeGenerator(null, (BiomeGenWrapper) biome, Collections.<String>emptySet(), null, minTemperature,
+        registerBiomeGenerator(null, (LuaBiome) biome, Collections.<String>emptySet(), null, minTemperature,
                 maxTemperature, minHumidity, maxHumidity, true, 0);
     }
 
@@ -445,7 +445,7 @@ public final class BiomeGenRegistry {
             this.owner = required(owner);
         }
 
-        private WorldGenKey addBiome(String declaredKey, BiomeGenWrapper biome, Set<String> tags, WorldGenKey surface,
+        private WorldGenKey addBiome(String declaredKey, LuaBiome biome, Set<String> tags, WorldGenKey surface,
                 double minTemperature, double maxTemperature, double minHumidity, double maxHumidity,
                 boolean legacyClimateRange, int decoratorCount) {
             WorldGenKey key = biomeKey(declaredKey, resourceOwner, biome.biomeName);

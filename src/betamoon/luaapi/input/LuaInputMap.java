@@ -1,6 +1,7 @@
 package betamoon.luaapi.input;
 
 import betamoon.client.control.input.InputActionEvent;
+import betamoon.client.control.input.InputActivationMode;
 import betamoon.client.control.input.InputActionState;
 import betamoon.client.control.input.InputBinding;
 import betamoon.client.control.input.InputContext;
@@ -11,6 +12,7 @@ import betamoon.luaapi.utils.InteractionOutcome;
 import betamoon.luamodloader.ScriptExecution;
 import betamoon.luamodloader.ScriptResourceTracker;
 import java.util.EnumSet;
+import java.util.Collections;
 import java.util.List;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -36,6 +38,12 @@ final class LuaInputMap extends LuaTable {
         set("getBindings", getBindings());
         set("rebind", rebind());
         set("resetBinding", resetBinding());
+        set("setPreferredBindings", setPreferredBindings());
+        set("resetPreferredBindings", resetPreferredBindings());
+        set("getMode", getMode());
+        set("setMode", setMode());
+        set("resetMode", resetMode());
+        set("resetAllPreferences", resetAllPreferences());
         set("activate", activate());
         set("isActive", isActive());
         set("close", closeHandle());
@@ -104,6 +112,101 @@ final class LuaInputMap extends LuaTable {
                     return LuaInputMap.this;
                 } catch (IllegalArgumentException | IllegalStateException error) {
                     throw new LuaError("Input reset: " + error.getMessage());
+                }
+            }
+        };
+    }
+
+    private VarArgFunction getMode() {
+        return new VarArgFunction() {
+            public Varargs invoke(Varargs args) {
+                String action = argument(args, LuaInputMap.this, 1).checkjstring();
+                try {
+                    return LuaValue.valueOf(registration.mode(action).luaName());
+                } catch (IllegalArgumentException | IllegalStateException error) {
+                    throw new LuaError("Input mode: " + error.getMessage());
+                }
+            }
+        };
+    }
+
+    private VarArgFunction setPreferredBindings() {
+        return new VarArgFunction() {
+            public Varargs invoke(Varargs args) {
+                int offset = args.arg1() == LuaInputMap.this ? 1 : 0;
+                String action = args.arg(1 + offset).checkjstring();
+                LuaValue declared = args.arg(2 + offset);
+                List<InputBinding> bindings = declared.istable() && declared.checktable().length() == 0
+                        ? Collections.<InputBinding>emptyList()
+                        : InputApi.bindings(declared, "Saved input bindings for '" + action + "'");
+                LuaValue options = args.arg(3 + offset);
+                boolean allowConflict = false;
+                if (!options.isnil()) {
+                    LuaTable settings = InputApi.table(options, "Saved input binding options");
+                    InputApi.fields(settings, "Saved input binding options", "allowConflict");
+                    allowConflict = settings.get("allowConflict").optboolean(false);
+                }
+                try {
+                    registration.setPreferredBindings(action, bindings, allowConflict);
+                    return LuaInputMap.this;
+                } catch (IllegalArgumentException | IllegalStateException error) {
+                    throw new LuaError("Saved input bindings: " + error.getMessage());
+                }
+            }
+        };
+    }
+
+    private VarArgFunction resetPreferredBindings() {
+        return new VarArgFunction() {
+            public Varargs invoke(Varargs args) {
+                String action = argument(args, LuaInputMap.this, 1).checkjstring();
+                try {
+                    registration.resetPreferredBindings(action);
+                    return LuaInputMap.this;
+                } catch (IllegalArgumentException | IllegalStateException error) {
+                    throw new LuaError("Saved input bindings: " + error.getMessage());
+                }
+            }
+        };
+    }
+
+    private VarArgFunction setMode() {
+        return new VarArgFunction() {
+            public Varargs invoke(Varargs args) {
+                String action = argument(args, LuaInputMap.this, 1).checkjstring();
+                String mode = argument(args, LuaInputMap.this, 2).checkjstring();
+                try {
+                    registration.setMode(action, InputActivationMode.parse(mode));
+                    return LuaInputMap.this;
+                } catch (IllegalArgumentException | IllegalStateException error) {
+                    throw new LuaError("Input mode: " + error.getMessage());
+                }
+            }
+        };
+    }
+
+    private VarArgFunction resetMode() {
+        return new VarArgFunction() {
+            public Varargs invoke(Varargs args) {
+                String action = argument(args, LuaInputMap.this, 1).checkjstring();
+                try {
+                    registration.resetMode(action);
+                    return LuaInputMap.this;
+                } catch (IllegalArgumentException | IllegalStateException error) {
+                    throw new LuaError("Input mode: " + error.getMessage());
+                }
+            }
+        };
+    }
+
+    private VarArgFunction resetAllPreferences() {
+        return new VarArgFunction() {
+            public Varargs invoke(Varargs args) {
+                try {
+                    registration.resetAllPreferences();
+                    return LuaInputMap.this;
+                } catch (IllegalArgumentException | IllegalStateException error) {
+                    throw new LuaError("Input preferences: " + error.getMessage());
                 }
             }
         };
@@ -203,6 +306,10 @@ final class LuaInputMap extends LuaTable {
         result.set("held", LuaValue.valueOf(state.held()));
         result.set("released", LuaValue.valueOf(state.released()));
         result.set("amount", LuaValue.valueOf(state.amount()));
+        result.set("mode", LuaValue.valueOf(state.mode().luaName()));
+        result.set("active", LuaValue.valueOf(state.active()));
+        result.set("activated", LuaValue.valueOf(state.activated()));
+        result.set("deactivated", LuaValue.valueOf(state.deactivated()));
         return result;
     }
 

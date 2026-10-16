@@ -1,22 +1,48 @@
 package betamoon.luaapi.item;
 
 import betamoon.luaapi.utils.InteractionOutcome;
+import betamoon.multiblock.MultiblockItemUse;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 import net.minecraft.src.Entity;
 import net.minecraft.src.EntityLiving;
 import net.minecraft.src.EntityPlayer;
+import net.minecraft.src.Block;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.MathHelper;
 import net.minecraft.src.World;
 
 /**
- * Shared item-wrapper policies. Superclass operations remain lazy and are
- * supplied by the wrapper that owns the appropriate Minecraft superclass.
+ * Shared native item policies. Superclass operations remain lazy and are
+ * supplied by the implementation that owns the appropriate Minecraft
+ * superclass.
  */
 public final class ItemBehavior {
     private ItemBehavior() {
+    }
+
+    public static boolean useFirst(ItemStack stack, EntityPlayer player, World world, int x, int y, int z, int side) {
+        return MultiblockItemUse.block(world, player, stack, x, y, z, side, false,
+                () -> ItemCallbackRegistry.interact(ItemCallback.USE_FIRST, stack, player, world, x, y, z, side,
+                        null) != InteractionOutcome.PASS);
+    }
+
+    public static boolean useOnBlock(ItemStack stack, EntityPlayer player, World world, int x, int y, int z, int side,
+            BooleanSupplier base) {
+        return MultiblockItemUse.block(world, player, stack, x, y, z, side, true, () -> {
+            InteractionOutcome result = ItemCallbackRegistry.interact(ItemCallback.USE_ON_BLOCK, stack, player, world,
+                    x, y, z, side, null);
+            return MultiblockItemUse.handled() || result != InteractionOutcome.PASS || base.getAsBoolean();
+        });
+    }
+
+    public static boolean canHarvest(int itemId, Block block, boolean base) {
+        return ItemCallbackRegistry.canHarvest(itemId, block, 0, base);
+    }
+
+    public static float miningSpeed(ItemStack stack, Block block, int metadata, float base) {
+        return ItemCallbackRegistry.miningSpeed(stack, block, metadata, base);
     }
 
     public static int icon(int itemId, int metadata, IntSupplier base) {
@@ -30,6 +56,10 @@ public final class ItemBehavior {
     }
 
     public static ItemStack use(ItemStack stack, World world, EntityPlayer player, Supplier<ItemStack> base) {
+        return MultiblockItemUse.air(world, stack, () -> useInContext(stack, world, player, base));
+    }
+
+    private static ItemStack useInContext(ItemStack stack, World world, EntityPlayer player, Supplier<ItemStack> base) {
         if (ItemUseHandler.suppressDefaultUse(stack, world, player)) {
             return stack;
         }
@@ -37,10 +67,10 @@ public final class ItemBehavior {
         InteractionOutcome result = ItemCallbackRegistry.interact(ItemCallback.USE, stack, player, world,
                 MathHelper.floor_double(player.posX), MathHelper.floor_double(player.posY),
                 MathHelper.floor_double(player.posZ), -1, null);
-        if (result == InteractionOutcome.DENY) {
+        if (result == InteractionOutcome.DENY || MultiblockItemUse.handled()) {
             return stack;
         }
-        ItemStack after = result == InteractionOutcome.HANDLED ? stack : base.get();
+        ItemStack after = MultiblockItemUse.handled() || result == InteractionOutcome.HANDLED ? stack : base.get();
         return ItemUseHandler.finishUse(stack, after, oldCount, world, player);
     }
 

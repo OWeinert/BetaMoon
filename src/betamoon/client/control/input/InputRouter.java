@@ -38,7 +38,9 @@ public final class InputRouter {
     private final Map<ActionIdentity, MutableActionState> states = new HashMap<ActionIdentity, MutableActionState>();
     private final InputPhysicalState physical = new InputPhysicalState();
     private final FailureHandler failures;
+    private final InputPreferenceStore preferences;
     private long cycle;
+    private long revision;
     private long nextToken;
     private long nextSequence;
     private int transitions;
@@ -48,7 +50,12 @@ public final class InputRouter {
     private boolean focused = true;
 
     public InputRouter(FailureHandler failures) {
+        this(failures, null);
+    }
+
+    public InputRouter(FailureHandler failures, InputPreferenceStore preferences) {
         this.failures = failures;
+        this.preferences = preferences;
     }
 
     public InputMapRegistration register(InputMapDefinition definition, String owner) {
@@ -63,8 +70,10 @@ public final class InputRouter {
         }
         InputMapRegistration registration = new InputMapRegistration(this, definition, owner);
         registrations.put(definition.key(), registration);
+        revision++;
         for (InputActionDefinition action : definition.actions()) {
-            states.put(new ActionIdentity(registration, action.name()), new MutableActionState());
+            states.put(new ActionIdentity(registration, action.name()),
+                    new MutableActionState(registration.mode(action.name())));
         }
         return registration;
     }
@@ -127,9 +136,7 @@ public final class InputRouter {
             for (InputBinding binding : registration.bindings(action.name())) {
                 if (binding.matchesWheel(source, physical.modifiers())) {
                     update.matched(registration);
-                    state.pressed = true;
-                    state.released = true;
-                    state.amount += source.amount();
+                    state.pulseWheel(source.amount());
                     addTransition(update.transitions, registration, action.name(), InputPhase.PRESSED, source.amount(),
                             source, state, false);
                     break;
@@ -151,12 +158,17 @@ public final class InputRouter {
         if (sourceMatches) {
             update.matched(registration);
         }
+        if (state.ignoreUntilRelease) {
+            if (!active) {
+                state.ignoreUntilRelease = false;
+            }
+            return;
+        }
         if (active == state.held) {
             update.retainedConsumption |= sourceMatches && state.consumed;
             return;
         }
-        state.held = active;
-        state.amount = active ? 1 : 0;
+        state.changePhysical(active);
         if (active) {
             state.pressed = true;
             addTransition(update.transitions, registration, action.name(), InputPhase.PRESSED, 1, source, state, false);
@@ -235,15 +247,15 @@ public final class InputRouter {
                 new ArrayList<Map.Entry<ActionIdentity, MutableActionState>>(states.entrySet());
         for (Map.Entry<ActionIdentity, MutableActionState> entry : entries) {
             MutableActionState state = entry.getValue();
-            if (!state.held) {
+            if (!state.held && !state.active) {
+                state.ignoreUntilRelease = false;
                 continue;
             }
-            state.held = false;
-            state.released = true;
-            state.amount = 0;
+            boolean previouslyConsumed = state.consumed;
+            state.reset();
             ActionIdentity identity = entry.getKey();
             addTransition(pending, identity.registration, identity.action, InputPhase.RELEASED, 0, source, state,
-                    state.consumed);
+                    previouslyConsumed);
         }
         dispatch(pending);
     }
@@ -281,28 +293,37 @@ public final class InputRouter {
         return false;
     }
 
-    void refresh(InputMapRegistration registration) {
-        List<PendingTransition> pending = new ArrayList<PendingTransition>();
-        for (InputActionDefinition action : registration.definition().actions()) {
-            ActionIdentity identity = new ActionIdentity(registration, action.name());
-            MutableActionState state = states.get(identity);
-            boolean active = false;
-            for (InputBinding binding : registration.bindings(action.name())) {
+    void refreshMode(InputMapRegistration registration, String action) {
+        refreshBindings(registration, action);
+    }
+
+    void refreshBindings(InputMapRegistration registration, String action) {
+        revision++;
+        MutableActionState state = states.get(new ActionIdentity(registration, action));
+        if (state != null) {
+            boolean wasHeld = state.held;
+            boolean wasActive = state.active;
+            boolean wasConsumed = state.consumed;
+            boolean physicallyActive = false;
+            for (InputBinding binding : registration.bindings(action)) {
                 if (binding.isActive(physical)) {
-                    active = true;
+                    physicallyActive = true;
                     break;
                 }
             }
-            if (state != null && state.held != active) {
-                state.held = active;
-                state.amount = active ? 1 : 0;
-                state.pressed |= active;
-                state.released |= !active;
-                addTransition(pending, registration, action.name(), active ? InputPhase.PRESSED : InputPhase.RELEASED,
-                        state.amount, null, state, state.consumed);
+            state.mode = registration.mode(action);
+            state.reset();
+            state.ignoreUntilRelease = physicallyActive;
+            if (wasHeld || wasActive) {
+                List<PendingTransition> pending = new ArrayList<PendingTransition>();
+                addTransition(pending, registration, action, InputPhase.RELEASED, 0, null, state, wasConsumed);
+                dispatch(pending);
             }
         }
-        dispatch(pending);
+    }
+
+    public List<InputMapRegistration> registrations() {
+        return Collections.unmodifiableList(new ArrayList<InputMapRegistration>(registrations.values()));
     }
 
     InputActionState state(InputMapRegistration registration, String action) {
@@ -328,6 +349,7 @@ public final class InputRouter {
             states.remove(new ActionIdentity(registration, action.name()));
         }
         registrations.remove(registration.definition().key());
+        revision++;
         registration.deactivate();
     }
 
@@ -357,12 +379,20 @@ public final class InputRouter {
         return cycle;
     }
 
+    public long revision() {
+        return revision;
+    }
+
     public int registrationCount() {
         return registrations.size();
     }
 
     public int contextCount() {
         return contexts.size();
+    }
+
+    InputPreferenceStore preferences() {
+        return preferences;
     }
 
     private static final class ActionIdentity {
@@ -387,20 +417,75 @@ public final class InputRouter {
     }
 
     private static final class MutableActionState {
+        private InputActivationMode mode;
         private boolean pressed;
         private boolean held;
         private boolean released;
+        private boolean active;
+        private boolean activated;
+        private boolean deactivated;
         private boolean consumed;
+        private boolean ignoreUntilRelease;
         private float amount;
+
+        private MutableActionState(InputActivationMode mode) {
+            this.mode = mode;
+        }
 
         private void beginCycle() {
             pressed = false;
             released = false;
+            activated = false;
+            deactivated = false;
             amount = held ? 1 : 0;
         }
 
+        private void changePhysical(boolean nextHeld) {
+            if (held == nextHeld) {
+                return;
+            }
+            held = nextHeld;
+            amount = held ? 1 : 0;
+            pressed |= held;
+            released |= !held;
+            if (mode == InputActivationMode.HOLD) {
+                changeActive(held);
+            } else if (held) {
+                changeActive(!active);
+            }
+        }
+
+        private void pulseWheel(float wheelAmount) {
+            pressed = true;
+            released = true;
+            amount += wheelAmount;
+            if (mode == InputActivationMode.TOGGLE) {
+                changeActive(!active);
+            } else {
+                activated = true;
+                deactivated = true;
+            }
+        }
+
+        private void changeActive(boolean nextActive) {
+            if (active != nextActive) {
+                active = nextActive;
+                activated |= nextActive;
+                deactivated |= !nextActive;
+            }
+        }
+
+        private void reset() {
+            released |= held;
+            held = false;
+            amount = 0;
+            consumed = false;
+            ignoreUntilRelease = false;
+            changeActive(false);
+        }
+
         private InputActionState snapshot(long cycle) {
-            return new InputActionState(cycle, pressed, held, released, amount);
+            return new InputActionState(cycle, pressed, held, released, amount, mode, active, activated, deactivated);
         }
     }
 

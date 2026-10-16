@@ -127,8 +127,8 @@ public final class GuiRenderer {
         int textHeight = lineHeight();
         GL11.glPushMatrix();
         try {
-            GL11.glTranslatef(bounds.getLeft() + bounds.getWidth() / 2.0F,
-                    bounds.getTop() + bounds.getHeight() / 2.0F, 0.0F);
+            GL11.glTranslatef(bounds.getLeft() + bounds.getWidth() / 2.0F, bounds.getTop() + bounds.getHeight() / 2.0F,
+                    0.0F);
             GL11.glScalef(safeScale, safeScale, 1.0F);
             if (shadow) {
                 font.drawStringWithShadow(text, -textWidth / 2, -textHeight / 2, color);
@@ -179,6 +179,27 @@ public final class GuiRenderer {
         } finally {
             GL11.glPopAttrib();
         }
+    }
+
+    /** Pixel bevel used by modern Minecraft popup and notification surfaces. */
+    public void drawPopupPanel(Rect bounds) {
+        int x = bounds.getLeft();
+        int y = bounds.getTop();
+        int right = bounds.getRight();
+        int bottom = bounds.getBottom();
+        if (bounds.getWidth() < 8 || bounds.getHeight() < 8) {
+            drawRect(bounds, theme.popupPanel);
+            return;
+        }
+        drawRect(x + 2, y, right - 2, bottom, 0xFF080808);
+        drawRect(x, y + 2, right, bottom - 2, 0xFF080808);
+        drawRect(x + 2, y + 1, right - 2, bottom - 1, 0xFF555555);
+        drawRect(x + 1, y + 2, right - 1, bottom - 2, 0xFF555555);
+        drawRect(x + 2, y + 2, right - 2, bottom - 2, 0xFF1B1B1B);
+        drawRect(x + 3, y + 2, right - 3, y + 3, 0xFF3D3D3D);
+        drawRect(x + 2, y + 3, x + 3, bottom - 3, 0xFF3D3D3D);
+        drawRect(x + 3, bottom - 3, right - 3, bottom - 2, 0xFF101010);
+        drawRect(right - 3, y + 3, right - 2, bottom - 3, 0xFF101010);
     }
 
     public void drawHorizontalLine(int left, int right, int y, int color) {

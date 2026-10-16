@@ -6,6 +6,9 @@ import betamoon.assets.AssetRegistration;
 import betamoon.assets.BuiltinAssets;
 import betamoon.luaapi.audio.SoundEvents;
 import betamoon.luamodloader.ScriptAssetScope;
+import betamoon.particles.ParticleDefinition;
+import betamoon.particles.ParticleEffectDefinition;
+import betamoon.particles.ParticleRegistry;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -21,6 +24,31 @@ final class DebugAssetExporter implements DebugExporter {
         exportAssets(session);
         exportSoundEvents(session);
         exportBuiltInModels(session);
+        exportParticles(session);
+    }
+
+    private static void exportParticles(DebugExportSession session) throws Exception {
+        List<Object> definitions = ParticleRegistry.snapshot();
+        session.writeTextFile("particles.txt", new DebugExportSession.TextContent() {
+            public int write(BufferedWriter writer) throws IOException {
+                for (Object definition : definitions) {
+                    if (definition instanceof ParticleDefinition) {
+                        ParticleDefinition particle = (ParticleDefinition) definition;
+                        writer.write("type: " + particle.key + " | owner: " + safe(particle.owner) + " | texture: "
+                                + safe(particle.texture == null
+                                        ? particle.atlas
+                                        : particle.texture.getFallback().toString())
+                                + " | onTick: " + !particle.onTick.isnil());
+                    } else {
+                        ParticleEffectDefinition effect = (ParticleEffectDefinition) definition;
+                        writer.write("effect: " + effect.key + " | owner: " + safe(effect.owner) + " | emitters: "
+                                + effect.emitters.size() + " | view distance: " + effect.viewDistance);
+                    }
+                    writer.newLine();
+                }
+                return definitions.size();
+            }
+        });
     }
 
     private static void exportAssets(DebugExportSession session) throws Exception {
@@ -47,7 +75,8 @@ final class DebugAssetExporter implements DebugExporter {
                     writer.newLine();
                     writer.write("owner: " + safe(row.owner));
                     writer.newLine();
-                    writer.write("path source: " + (row.builtIn ? "built-in"
+                    writer.write("path source: " + (row.builtIn
+                            ? "built-in"
                             : row.definition.isPathDerived() ? "derived from key" : "explicit"));
                     writer.newLine();
                     writer.write("default path: " + row.definition.getFallbackPath());
@@ -103,8 +132,7 @@ final class DebugAssetExporter implements DebugExporter {
                 BuiltinAssets.models().entrySet());
         Collections.sort(models, new Comparator<Map.Entry<AssetId, AssetDefinition>>() {
             @Override
-            public int compare(Map.Entry<AssetId, AssetDefinition> left,
-                    Map.Entry<AssetId, AssetDefinition> right) {
+            public int compare(Map.Entry<AssetId, AssetDefinition> left, Map.Entry<AssetId, AssetDefinition> right) {
                 return left.getKey().getKey().toString().compareTo(right.getKey().getKey().toString());
             }
         });

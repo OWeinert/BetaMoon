@@ -7,6 +7,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.charset.StandardCharsets;
 import org.lwjgl.input.Keyboard;
 
 /** Standalone contracts for named action transitions and context ownership. */
@@ -14,12 +17,17 @@ public final class InputRouterTest {
     private InputRouterTest() {
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         verifyBindings();
         verifyTransitionsAndConsumption();
         verifyPriorityFailureAndCapture();
         verifyRebindingAndLifecycle();
-        System.out.println("Input router passed: bindings, transitions, contexts, rebinding and lifecycle.");
+        verifyToggleAndPreferences();
+        verifyWheelToggle();
+        verifyControllerContracts();
+        PlayerControllerRuntimeTest.main(new String[0]);
+        InputControlsGuiTest.main(new String[0]);
+        System.out.println("Input router passed: bindings, transitions, contexts, preferences and controller contracts.");
     }
 
     private static void verifyBindings() {
@@ -171,6 +179,113 @@ public final class InputRouterTest {
         router.unloadOwner("reloadable.lua");
         require(!map.isActive() && !context.isActive() && router.registrationCount() == 0 && router.contextCount() == 0,
                 "Owner unload closes maps and contexts without stale layers");
+    }
+
+    private static void verifyToggleAndPreferences() throws Exception {
+        File file = Files.createTempDirectory("betamoon-input-test").resolve("inputs.json").toFile();
+        InputPreferenceStore preferences = new InputPreferenceStore(file);
+        InputRouter router = new InputRouter(null, preferences);
+        InputActionDefinition toggle = new InputActionDefinition("sprint",
+                Collections.singletonList(InputBinding.parse("key.j")), "Sprint", "Movement", true,
+                EnumSet.of(InputActivationMode.HOLD, InputActivationMode.TOGGLE), InputActivationMode.HOLD);
+        InputMapDefinition definition = new InputMapDefinition(
+                ContentKey.parseForType("test:preferences", ContentType.INPUT_MAP),
+                Collections.singletonList(toggle));
+        InputMapRegistration map = router.register(definition, "test.lua");
+        map.setMode("sprint", InputActivationMode.TOGGLE);
+        map.setPreferredBindings("sprint", Collections.singletonList(InputBinding.parse("key.k")), false);
+        Object world = new Object();
+        Object player = new Object();
+        router.beginCycle(world, player, null, true);
+        router.accept(InputDeviceEvent.key(Keyboard.KEY_K, true));
+        require(map.state("sprint").held() && map.state("sprint").active()
+                && map.state("sprint").activated(), "Toggle press activates logical state");
+        router.accept(InputDeviceEvent.key(Keyboard.KEY_K, true));
+        require(map.state("sprint").active() && !map.state("sprint").deactivated(),
+                "Repeat does not flip toggle");
+        router.beginCycle(world, player, null, true);
+        router.accept(InputDeviceEvent.key(Keyboard.KEY_K, false));
+        require(!map.state("sprint").held() && map.state("sprint").active(),
+                "Physical release leaves toggle active");
+        router.beginCycle(world, player, null, true);
+        router.accept(InputDeviceEvent.key(Keyboard.KEY_K, true));
+        require(!map.state("sprint").active() && map.state("sprint").deactivated(),
+                "Second press deactivates toggle");
+        router.accept(InputDeviceEvent.key(Keyboard.KEY_K, false));
+        router.beginCycle(world, player, null, true);
+        router.accept(InputDeviceEvent.key(Keyboard.KEY_K, true));
+        require(map.state("sprint").active(), "A later press reactivates toggle");
+        map.setPreferredBindings("sprint", Collections.<InputBinding>emptyList(), false);
+        require(!map.state("sprint").active() && map.state("sprint").deactivated(),
+                "Unbinding a toggled action synthesizes logical deactivation");
+        map.setPreferredBindings("sprint", Collections.singletonList(InputBinding.parse("key.k")), false);
+        router.beginCycle(world, player, new Object(), true);
+        require(!map.state("sprint").held() && !map.state("sprint").active(),
+                "Screen change clears physical and logical state");
+        router.beginCycle(world, player, null, true);
+        router.accept(InputDeviceEvent.key(Keyboard.KEY_K, true));
+        require(map.state("sprint").active(), "A new press works after a lifecycle reset");
+        map.close();
+
+        InputRouter reloaded = new InputRouter(null, new InputPreferenceStore(file));
+        InputMapRegistration restored = reloaded.register(definition, "test.lua");
+        require(restored.mode("sprint") == InputActivationMode.TOGGLE
+                && "key.k".equals(restored.bindings("sprint").get(0).toString()),
+                "Mode and binding survive new router registration");
+        restored.rebind("sprint", Collections.singletonList(InputBinding.parse("key.r")), false);
+        restored.resetBinding("sprint");
+        require("key.j".equals(restored.bindings("sprint").get(0).toString()),
+                "Session reset keeps released declaration-default behavior");
+        restored.setPreferredBindings("sprint", Collections.<InputBinding>emptyList(), false);
+        require(restored.bindings("sprint").isEmpty(), "Empty saved override unbinds an action");
+        restored.resetAllPreferences();
+        require(restored.mode("sprint") == InputActivationMode.HOLD
+                && "key.j".equals(restored.bindings("sprint").get(0).toString()),
+                "Reset all returns to current declaration defaults");
+        require(new InputPreferenceStore(file).count() == 0, "Reset all removes persisted records");
+        InputPreferenceStore retained = new InputPreferenceStore(file);
+        retained.setMode(definition.key(), "sprint", InputActivationMode.TOGGLE);
+        Files.write(file.toPath(), "{broken".getBytes(StandardCharsets.UTF_8));
+        retained.load();
+        require(retained.get(definition.key(), "sprint").mode() == InputActivationMode.TOGGLE,
+                "Malformed preference files retain the last usable in-memory snapshot");
+    }
+
+    private static void verifyWheelToggle() {
+        InputRouter router = new InputRouter(null);
+        InputActionDefinition action = new InputActionDefinition("switch",
+                Collections.singletonList(InputBinding.parse("mouse.wheel_up")), null, null, true,
+                EnumSet.of(InputActivationMode.HOLD, InputActivationMode.TOGGLE), InputActivationMode.TOGGLE);
+        InputMapRegistration map = router.register(new InputMapDefinition(
+                ContentKey.parseForType("test:wheel_toggle", ContentType.INPUT_MAP),
+                Collections.singletonList(action)), "wheel.lua");
+        Object world = new Object();
+        Object player = new Object();
+        router.beginCycle(world, player, null, true);
+        router.accept(InputDeviceEvent.mouseWheel(120));
+        InputActionState enabled = map.state("switch");
+        require(enabled.active() && enabled.activated() && !enabled.deactivated()
+                && enabled.pressed() && enabled.released() && !enabled.held(),
+                "A matching wheel pulse activates a toggle without a held state");
+        router.beginCycle(world, player, null, true);
+        require(map.state("switch").active() && !map.state("switch").activated(),
+                "Wheel toggle activation persists into later cycles");
+        router.accept(InputDeviceEvent.mouseWheel(-120));
+        require(map.state("switch").active(), "The opposite wheel direction does not switch the action");
+        router.accept(InputDeviceEvent.mouseWheel(120));
+        InputActionState disabled = map.state("switch");
+        require(!disabled.active() && disabled.deactivated() && !disabled.activated(),
+                "The next matching wheel pulse deactivates a toggle");
+        map.close();
+    }
+
+    private static void verifyControllerContracts() {
+        expectFailure(() -> new PlayerControllerRuntime.Movement(Float.NaN, 0, false, false),
+                "Nonfinite manual movement is rejected");
+        expectFailure(() -> new PlayerControllerRuntime.Facing(0, 91),
+                "Out-of-range facing is rejected");
+        require(PlayerControllerRuntime.Stage.parse("worldActions") == PlayerControllerRuntime.Stage.WORLD_ACTIONS,
+                "Controller stage names are stable");
     }
 
     private static InputMapDefinition definition() {

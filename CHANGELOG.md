@@ -1,99 +1,54 @@
 # Changelog
 
-## 0.8.0
+## 0.9.0 (in development)
 
-BetaMoon 0.8.0 adds deterministic world generation, custom fluids, animated textures, and Lua input maps for
-game-specific controls.
 
-### Script diagnostics
+### Particles
 
-- Show script errors by default on startup and reload. Use `showScriptWarningsOnLoad=true` to include warnings in
-  automatic popups and reload chat messages; keep all warnings available in the Scripts screen and logs.
+- Use Minecraft display ticks for the decorative ring block, retaining ordinary Lua per-particle animation callbacks.
+- Restore automatic repeating block ticks when saved chunks load, so existing particle ring blocks resume
+  emission after rejoining a world. Retry schedules while surrounding chunks are unavailable.
+- Add registered particle sprite types and reusable burst/emitter effects, with custom PNGs, Minecraft atlas cells,
+  independent animation, color/alpha, rotation, size, motion, and collision policies.
+- Add optional per-instance Lua `onTick` updates with scoped particle controls and transient memory.
+- Default to admitting up to 1,024 new custom particles per client tick; configurable with `particles.maxPerTick`.
+- Allow client-wide particle budgets up to 65,535 active or new sprites per tick, retaining defaults of
+  4,096 active and 1,024 new sprites per tick.
+- Extend world particle spawning with custom references/keys and add effect handles, actor attachments,
+  client budgets, diagnostics, and owner/world cleanup.
 
-### Custom fluids
+### Multiblocks
 
-- Add keyed custom fluids with explicit non-adjacent flowing/still block pairs, bounded Beta-style flow policies,
-  renewable-source rules, safe displacement, and reload-retained native identities.
-- Add `flow.finite` as a simple source-renewal setting alongside the detailed `sourceCreation` rule.
-- Add identity-aware fluid rendering with independent still/flowing textures, tint, render pass, light, and opacity.
-- Keep rotated flow surfaces within a single atlas tile and let fluid spread over level ground when no downhill path
-  is available.
-- Add optional filled buckets, source-only vanilla-bucket collection, Nether evaporation for water-preset buckets,
-  fluid lookup/references, advanced block/item binding, and deterministic metadata-aware interaction rules.
-- Prevent vanilla bucket fallback from collecting custom sources without a valid bucket, check selected and destination
-  permissions, and preserve held containers whenever collection or placement mutation fails.
-- Route vanilla lava-water hardening through the shared identity-aware interaction evaluator when BetaMoon's native
-  hooks are active, preserving native metadata outcomes without matching custom fluids by carrier material.
-- Add identity-aware entity and eye contact policies for movement, current, breathing and air HUD, wetness, fire,
-  bounded interval damage, fog color/density, and a packaged first-person overlay.
-- Allow numbered bundled Lua lessons to declare `example` fluid and input keys while keeping that namespace reserved
-  for ordinary scripts.
-- Fluid declarations use water or lava block material. Minecraft behavior that checks material directly may still
-  treat a custom fluid like the selected vanilla material.
+- Define multiblocks in Lua with layers or sparse positions, block/state rules, count constraints,
+  horizontal orientation, optional mirrors, repeatable layers, and named groups of matching positions.
+- Add controllerless discovery, automatic/item activation, explicit deactivation, bounded manual searches,
+  member lookup, and owned activation fills that preserve player replacements (mechanics similar to minecraft's Nether Portal).
+- Detect controller completion, invalidation, and chunk suspension/resumption automatically.
+- Preserve multiblock identity and declared custom data across world reloads without changing controller
+  inventories, tile data, metadata, or appearances. Failed multiblock reloads retain working definitions.
+- Add optional exclusive membership and configurable pattern, processing, and instance limits.
+  Automatic completion targets singleplayer worlds; remote-world checks provide diagnostics only.
 
-### Animated textures
+### Logical tick events
 
-- Add reusable vertical frame-strip textures with registered or inline playback settings, client-tick timing,
-  optional frame sequence and pause behavior, and shared use across blocks, items, fluids, model materials, armor,
-  and GUI images.
-- Keep atlas slots and standalone texture bindings stable while frames advance, validate pack overrides before
-  selection, and retain the previous usable animation when a refresh fails.
-- Keep block, item, and fluid animations running without the optional client-control hook.
+- Run `game_tick` once per logical client tick, including menus, screens, and paused gameplay.
+- Run `gui_tick` after `game_tick` while a screen is open, and add `world_tick` after actual client-world
+  simulation updates. Non-pausing screens and remote-world updates continue to receive world ticks.
+- Require the Java agent for logical tick subscriptions. These callbacks no longer follow rendered frames.
+- Detect runtime side without loading Minecraft before the agent transformer is installed.
+- Advance world services and logical networks from the world simulation boundary, with interval counters
+  independent of mutable world time. Preserve declaring-script identity during event/service/network callbacks.
 
-### Input and control foundation
+### Minecraft-style interface
 
-- Add owner-scoped named input maps with keyboard, mouse-button, wheel, and modifier bindings; exact per-cycle
-  pressed/held/released state; priority-ordered consumable contexts; native-family capture; runtime rebinding and
-  conflict validation.
-- Add script-owned native hotkeys through ModLoader's key registration, including Controls-screen labels, persisted
-  player remaps, optional held repeat, reload-safe native binding reuse, and isolated callback failures.
-- Capture queued gameplay and GUI events before their native consumers, preserve native first-person behavior when no
-  context handles them, synthesize releases across focus/screen/world/player changes, and clean layers up on unload.
+- GUI style overhaul to match minecraft's native GUI better
 
-### World-generation foundation
+### Internal organization
 
-- Add typed worldgen keys, deterministic per-placement seeds, atomic publication, bounded placement plans, previews,
-  stable rejection diagnostics, and direct feature placement.
-- Add reusable feature and placement registries with ordering, biome and dimension filters, probability, grid sampling,
-  composite features, lookup references, and placement candidate location.
-- Preserve the approachable ore API while routing declarations through the shared worldgen foundation.
-
-### Trees, structures, biomes, and surfaces
-
-- Add procedural, vanilla-adapter, and structure-authored trees.
-- Add local structures from strict JSON, plain Lua tables, or a table-backed Lua builder, with named palettes,
-  deterministic variants and conditional geometry, compact shapes, reusable templates, ordered weathering processors,
-  transforms, tile data, metadata adapters, capture/export, and marker masks.
-- Protect tile-entity states, tile-data and loot targets, connectors, and terrain supports from document processors by
-  default, with `allowProtected` as an explicit opt-in override.
-- Add keyed biomes, reusable surface stacks, biome decorators, tags, climate biome sources, weather, and spawn lists.
-- Add persistent regional structures with random-spread starts, connector pools, weighted piece graphs, chunk-sliced
-  recovery, entity markers, definition signatures, and location queries.
-- Add reusable deterministic loot tables and dedicated structure loot elements with fixed, inline, or referenced
-  contents, item metadata and ranges, configurable insertion policies, and atomic inventory rollback for local and
-  regional placement.
-- Allow block and entity drops to reuse registered loot tables or declare the same weighted pools inline, with a fresh
-  runtime RNG sample for every drop event while preserving legacy drop lists as shorthand.
-
-### Terrain-aware structures
-
-- Add distinct world-surface, solid-surface, ocean-floor, fluid-surface, underground, and cave-floor sampling.
-- Add opt-in `fit`, `foundation`, `terrace`, and marker-driven `conform` structure modes with transformed support,
-  clearance, ignore, blend, and conform masks.
-- Add footprint-aware land, underwater, underground, cave, and fluid-surface site profiles for local and regional
-  structures.
-- Add bounded regional site fallback search, connector vertical tolerance, and persisted terrain mutations and
-  conform offsets for deterministic recovery.
-- Add terrain planning details to direct placement and preview results, plus focused site and terrain rejection reasons.
-- Add reusable transformed footprints, named and authored masks, rounded and convex foundation/terrace cores,
-  deterministic materials, hard/stepped/blended/natural/authored edges, and bounded transition grading.
-- Add selector-based conform columns with support/tag/state/bounds/height/marker filters, precise include/exclude
-  markers, deterministic smoothing, focused diagnostics, and persisted regional offsets.
-- Add independent atomic excavation for every terrain mode with footprint, box, cylinder, ellipsoid, authored voxel,
-  local/surface-relative bounds, replacement/fluid policies, protected-cell checks, regional recovery, and explicit
-  excavation < adaptation < structure write precedence.
-
-### Chat
-
-- Prefix script chat messages with the mod name declared by its metadata instead of its entrypoint filename, and avoid
-  applying the prefix twice when a singleplayer broadcast falls back to local chat.
+- Move native block, item, and biome implementations into their domain packages and rename them with
+  descriptive `LuaBlock`, `Lua*Item`, and `LuaBiome` names.
+- Consolidate declared block drops into the active definition, removing stale legacy drop state on reload.
+- Share item interaction forwarding while preserving lazy vanilla fallback and callback ordering.
+- Resolve and cache mapped/obfuscated biome fields through a biome-specific helper.
+- Preserve declared block/item canonical keys for debug reports, including recipe stacks, fuel rules,
+  machine bindings, subtype rows, and world-generation references. Mark unkeyed content as not assigned.

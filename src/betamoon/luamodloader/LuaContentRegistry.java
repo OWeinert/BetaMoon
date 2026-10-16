@@ -6,6 +6,9 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import betamoon.content.ContentKey;
+import betamoon.content.ContentKeyException;
+import betamoon.content.ContentType;
 import org.luaj.vm2.LuaError;
 
 /** Keeps Java content identities stable across Lua environment reloads. */
@@ -20,6 +23,7 @@ public final class LuaContentRegistry {
         private final String namespace;
         private final int id;
         private boolean seen = true;
+        private ContentKey canonicalKey;
 
         private Entry(Object value, String kind, String owner, String namespace, int id) {
             this.value = value;
@@ -30,7 +34,9 @@ public final class LuaContentRegistry {
         }
     }
 
-    /** Immutable diagnostic description that does not expose the registered object. */
+    /**
+     * Immutable diagnostic description that does not expose the registered object.
+     */
     public static final class ContentDescription {
         public final String owner;
         public final String namespace;
@@ -38,6 +44,7 @@ public final class LuaContentRegistry {
         public final String kind;
         public final boolean registered;
         public final boolean retained;
+        public final String canonicalKey;
 
         private ContentDescription(Entry entry) {
             owner = entry.owner;
@@ -46,6 +53,7 @@ public final class LuaContentRegistry {
             kind = entry.kind;
             registered = entry.registered;
             retained = !entry.seen;
+            canonicalKey = entry.canonicalKey == null ? null : entry.canonicalKey.toString();
         }
     }
 
@@ -85,6 +93,39 @@ public final class LuaContentRegistry {
     public static synchronized void replace(Entry entry, Object value, String kind) {
         entry.value = value;
         entry.kind = kind;
+    }
+
+    /**
+     * Records optional diagnostic identity without changing legacy declaration
+     * validation.
+     */
+    public static synchronized void recordDeclaredKey(String namespace, int id, String declaredKey) {
+        Entry entry = CONTENT.get(key(namespace, id));
+        if (entry == null) {
+            throw new IllegalStateException("Cannot record a key before native content is registered");
+        }
+        ContentKey canonicalKey = null;
+        if (declaredKey != null) {
+            try {
+                canonicalKey = ContentKey.parseForType(declaredKey, ContentType.of(namespace));
+            } catch (ContentKeyException ignored) {
+                // Legacy declarations can use unqualified names in their key field.
+            }
+        }
+        entry.canonicalKey = canonicalKey;
+    }
+
+    /**
+     * Resolves retained metadata for this exact native object without requiring a
+     * script scope.
+     */
+    public static synchronized String findCanonicalKey(String namespace, int id, Object target) {
+        for (Entry entry : CONTENT.values()) {
+            if (entry.id == id && namespace.equals(entry.namespace) && entry.value == target) {
+                return entry.canonicalKey == null ? null : entry.canonicalKey.toString();
+            }
+        }
+        return null;
     }
 
     /**

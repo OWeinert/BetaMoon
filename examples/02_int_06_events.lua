@@ -12,13 +12,13 @@ description = "Demonstrates subscribing to a broad selection of game events, inc
     "Enter a world, open and close screens, press keys, use items, and break blocks while " ..
     "comparing those actions with the corresponding callbacks in the source. The block-broken " ..
     "callback is the visible example: it prints the block name and coordinates in chat. Enable " ..
-    "BetaMoon's instrumentation agent for the global block hooks. No new items, blocks, or recipes " ..
+    "BetaMoon's instrumentation agent for logical ticks and global block hooks. No new items, blocks, or recipes " ..
     "are added."
 
 function modInit()
   -- Available events:
   -- world_join, world_leave, player_join, player_leave, gui_opened,
-  -- gui_closed, gui_tick, game_tick, screen_changed, key_input,
+  -- gui_closed, gui_tick, game_tick, world_tick, screen_changed, key_input,
   -- mouse_input, block_broken, block_placed, item_used, dimension_changed.
   --
   -- events:on runs a function whenever the named event happens.
@@ -57,16 +57,23 @@ function modInit()
   end)
 
   betamoon.events:on("gui_tick", function(event)
-    -- gui_tick runs every game tick while a menu or screen is open.
+    -- gui_tick follows each logical client tick while a menu or screen is open.
     local screenName = event.name
   end)
 
   -- Tick events are frequent. Keep their handlers small, and subscribe
   -- once during modInit rather than registering a new handler every tick.
   betamoon.events:on("game_tick", function(event)
-    -- game_tick runs every game tick while playing in a world.
+    -- game_tick also runs in menus and paused screens. These world fields
+    -- are nil when no world is active.
     local worldName = event.worldName
     local worldInfo = event.worldInfo
+  end)
+
+  betamoon.events:on("world_tick", function(event)
+    -- World simulation continues in non-pausing screens, and stops when paused.
+    local worldName = event.name
+    local worldInfo = event.info
   end)
 
   betamoon.events:on("screen_changed", function(event)

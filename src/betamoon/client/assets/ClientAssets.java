@@ -6,6 +6,7 @@ import betamoon.assets.io.AssetProvider;
 import betamoon.assets.io.PackageAssetProvider;
 import betamoon.assets.io.ResolvedAsset;
 import betamoon.assets.io.ZipAssetProvider;
+import betamoon.BetaMoonCommon;
 import betamoon.client.audio.ClientSounds;
 import betamoon.client.render.ModelAppearance;
 import betamoon.client.render.EntityVisuals;
@@ -37,9 +38,14 @@ public final class ClientAssets {
     private static boolean testProviders;
     private static boolean refreshRequested;
     private static boolean preparedRefresh;
+    private static boolean verboseDiagnostics;
     private static Consumer<String> diagnostics = message -> LuaApiUtils.warn("Assets", message);
 
     private ClientAssets() {
+    }
+
+    public static void setVerboseDiagnostics(boolean enabled) {
+        verboseDiagnostics = enabled;
     }
 
     public static TextureAsset acquireTexture(AssetLocation location) throws IOException {
@@ -207,6 +213,9 @@ public final class ClientAssets {
             }
         }
         resolver = new AssetResolver(new PackageAssetProvider(root), pack, diagnostics);
+        if (verboseDiagnostics) {
+            resolver = resolver.withVerboseDiagnostics(BetaMoonCommon.LOGGER::info);
+        }
     }
 
     /**

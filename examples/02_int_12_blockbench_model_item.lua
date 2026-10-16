@@ -1,4 +1,4 @@
--- Copy blockbench_model_item/ beside this script in lua_scripts.
+-- Copy blockbench_model_item/ beside this script in betamoon/scripts.
 -- The JSON uses the same Bedrock 1.12 geometry structure Blockbench exports.
 
 name = "Blockbench Model Item Example"

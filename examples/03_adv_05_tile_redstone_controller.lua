@@ -1,6 +1,6 @@
 -- Craft cobblestone + repeater + redstone for the controller. Open it and insert
--- any item as a retained control key. Power its north side to toggle a saved output
--- on each rising edge; connect output wire to the south.
+-- any item as a retained control key. The front faces the player on placement.
+-- Power the front to toggle a saved output on each rising edge; connect output wire to the back.
 -- Breaking and replacing the input signal without an off transition does not retrigger it.
 -- Structural tile data survives world saves and requires a restart after script edits.
 
@@ -11,8 +11,8 @@ description = "Adds Tile Redstone Controller, a saved toggle with a control-key 
     "redstone dust lower-left, and a repeater lower-right.\n\n" ..
     "Enable BetaMoon's instrumentation agent for custom solid-block redstone behavior. Place the " ..
     "controller, right-click it, and insert any item into the Control Key slot. The item is " ..
-    "retained, not consumed. Supply a switchable redstone input on its north side and connect " ..
-    "output wire to its south side. These directions are fixed in the world.\n\n" ..
+    "retained, not consumed. Its front faces you when placed, like a furnace. Supply a switchable " ..
+    "redstone input on the front and connect output wire to the back.\n\n" ..
     "Each new off-to-on input transition toggles the saved output and increments the counter shown " ..
     "in the GUI and chat. A held signal does not repeatedly toggle it. Removing the key prevents " ..
     "new accepted pulses but leaves the current output and count intact. Reinsert the key with the " ..
@@ -72,16 +72,27 @@ function modInit()
     harvest = { pickaxe = 0 },
     hardness = 1.5,
     resistance = 8,
-    texture = 1,
-    textures = { north = 93, south = 94 },
+    texture = 109,
+    state = {
+      facing = { type = "enum", values = { "north", "east", "south", "west" } }
+    },
+    placement = { facing = "horizontal", facingFrom = "player" },
+    render = {
+      variants = {
+        [0] = { textures = { north = 110, south = 45 } },
+        [1] = { textures = { east = 110, west = 45 } },
+        [2] = { textures = { south = 110, north = 45 } },
+        [3] = { textures = { west = 110, east = 45 } }
+      }
+    },
     tileEntity = tileEntity,
     container = container,
     gui = gui,
     piston = { reaction = "block" },
     redstone = {
-      -- blockFaces distinguishes this absolute face from the relative connection names.
-      weakPower = { data = "output", sides = { betamoon.mc.blockFaces.south } },
-      connections = { "north", "south" },
+      -- Relative faces follow the saved placement orientation.
+      weakPower = { data = "output", sides = { "back" } },
+      connections = { "front", "back" },
       onNeighborChanged = {
         action = function(ctx)
           local data = ctx.entity.data

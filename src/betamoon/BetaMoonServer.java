@@ -1,6 +1,7 @@
 package betamoon;
 
 import betamoon.config.BetaMoonConfig;
+import betamoon.io.BetaMoonDirectories;
 import java.io.File;
 
 /** Dedicated-server entry point. It contains no client or GUI dependencies. */
@@ -15,9 +16,10 @@ public final class BetaMoonServer {
         if (gameDirectory == null) {
             throw new IllegalArgumentException("gameDirectory cannot be null");
         }
-        File scriptsDirectory = new File(gameDirectory, BetaMoonCommon.LUA_SCRIPTS_DIR);
+        File scriptsDirectory = BetaMoonDirectories.scriptsDirectory(gameDirectory, true);
         this.common = new BetaMoonCommon(scriptsDirectory);
-        this.config = new BetaMoonConfig(new File(gameDirectory, "config"), "betamoon.config");
+        this.config = new BetaMoonConfig(new File(gameDirectory, "config"));
+        common.configure(config);
     }
 
     public static synchronized BetaMoonServer create(File gameDirectory) {

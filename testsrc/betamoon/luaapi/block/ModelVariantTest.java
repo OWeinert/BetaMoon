@@ -6,7 +6,6 @@ import betamoon.assets.model.ModelFoundationTest;
 import betamoon.client.assets.ClientAssets;
 import betamoon.client.render.ModelAppearanceSet;
 import betamoon.luaapi.item.ItemModelVariantTest;
-import betamoon.wrappers.BlockWrapper;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Field;
@@ -75,7 +74,7 @@ public final class ModelVariantTest {
     private static void verifyStatic(Globals lua) throws Exception {
         BlockDeclaration declaration = new BlockDeclaration(lua.get("definition"));
         require(!declaration.callbacks.visual.isDynamic(), "Static variants must not require dynamic rendering");
-        BlockWrapper block = new BlockWrapper(221, 0, Material.rock, "variants");
+        LuaBlock block = new LuaBlock(221, 0, Material.rock, "variants");
         int[] metadata = {0};
         IBlockAccess world = world(metadata);
         Capture capture = new Capture();

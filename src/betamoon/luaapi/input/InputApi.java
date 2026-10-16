@@ -5,6 +5,7 @@ import betamoon.client.control.input.ClientInputRuntime;
 import betamoon.client.control.input.HotkeyDefinition;
 import betamoon.client.control.input.HotkeyRegistration;
 import betamoon.client.control.input.InputActionDefinition;
+import betamoon.client.control.input.InputActivationMode;
 import betamoon.client.control.input.InputBinding;
 import betamoon.client.control.input.InputDeviceEvent;
 import betamoon.client.control.input.InputFamily;
@@ -46,6 +47,7 @@ public final class InputApi {
                 return registerHotkey(declaration);
             }
         });
+        LuaControllerApi.attach(input);
         module.set("input", input);
     }
 
@@ -55,7 +57,8 @@ public final class InputApi {
             throw new LuaError("Input maps may only be declared by a Lua script.");
         }
         LuaTable declaration = table(value, "input map");
-        fields(declaration, "input map", "key", "actions", "priority", "captures");
+        fields(declaration, "input map", "key", "actions", "priority", "captures", "label", "description",
+                "configurable");
         ContentKey key = contentKey(declaration.get("key"), ContentType.INPUT_MAP, "Input map key");
         List<InputActionDefinition> actions = actions(declaration.get("actions"));
         int priority = integer(declaration.get("priority"), 0, InputRouterLimits.MIN_PRIORITY,
@@ -63,7 +66,9 @@ public final class InputApi {
         EnumSet<InputFamily> captures = captures(declaration.get("captures"), "input map captures");
         try {
             InputMapRegistration registration = ClientInputRuntime.router()
-                    .register(new InputMapDefinition(key, actions), owner);
+                    .register(new InputMapDefinition(key, actions, optionalString(declaration.get("label")),
+                            optionalString(declaration.get("description")), declaration.get("configurable").optboolean(true)),
+                            owner);
             LuaInputMap handle = new LuaInputMap(registration, priority, captures, owner);
             ScriptResourceTracker.track(registration::close);
             return handle;
@@ -120,7 +125,19 @@ public final class InputApi {
         List<InputActionDefinition> actions = new ArrayList<InputActionDefinition>();
         for (String name : names) {
             try {
-                actions.add(new InputActionDefinition(name, actionBindings(declarations.get(name), name)));
+                LuaValue actionValue = declarations.get(name);
+                if (actionValue.isstring()) {
+                    actions.add(new InputActionDefinition(name, bindings(actionValue, "input action '" + name + "'")));
+                } else {
+                    LuaTable action = table(actionValue, "input action '" + name + "'");
+                    fields(action, "input action '" + name + "'", "default", "bindings", "label", "description",
+                            "configurable", "modes", "defaultMode");
+                    EnumSet<InputActivationMode> modes = modes(action.get("modes"), name);
+                    InputActivationMode defaultMode = defaultMode(action);
+                    actions.add(new InputActionDefinition(name, actionBindings(action, name),
+                            optionalString(action.get("label")), optionalString(action.get("description")),
+                            action.get("configurable").optboolean(true), modes, defaultMode));
+                }
             } catch (IllegalArgumentException error) {
                 throw new LuaError("Input action '" + name + "': " + error.getMessage());
             }
@@ -133,7 +150,6 @@ public final class InputApi {
             return bindings(value, "input action '" + action + "'");
         }
         LuaTable declaration = table(value, "input action '" + action + "'");
-        fields(declaration, "input action '" + action + "'", "default", "bindings");
         LuaValue defaults = declaration.get("default");
         LuaValue explicit = declaration.get("bindings");
         if (!defaults.isnil() && !explicit.isnil()) {
@@ -144,6 +160,43 @@ public final class InputApi {
             throw new LuaError("Input action '" + action + "' requires default or bindings.");
         }
         return bindings(selected, "input action '" + action + "'");
+    }
+
+    private static EnumSet<InputActivationMode> modes(LuaValue value, String action) {
+        EnumSet<InputActivationMode> result = EnumSet.noneOf(InputActivationMode.class);
+        if (value.isnil()) {
+            result.add(InputActivationMode.HOLD);
+            return result;
+        }
+        LuaTable entries = table(value, "input action '" + action + "' modes");
+        if (entries.length() == 0) {
+            throw new LuaError("Input action '" + action + "' modes cannot be empty.");
+        }
+        for (LuaValue key : entries.keys()) {
+            if (!key.isint() || key.checkint() < 1 || key.checkint() > entries.length()) {
+                throw new LuaError("Input action '" + action + "' modes must be a dense array.");
+            }
+        }
+        for (int index = 1; index <= entries.length(); index++) {
+            if (!result.add(InputActivationMode.parse(entries.get(index).checkjstring()))) {
+                throw new LuaError("Input action '" + action + "' contains a repeated mode.");
+            }
+        }
+        return result;
+    }
+
+    private static InputActivationMode defaultMode(LuaTable action) {
+        LuaValue explicit = action.get("defaultMode");
+        if (!explicit.isnil()) {
+            return InputActivationMode.parse(explicit.checkjstring());
+        }
+        LuaValue modes = action.get("modes");
+        return modes.isnil() ? InputActivationMode.HOLD
+                : InputActivationMode.parse(modes.checktable().get(1).checkjstring());
+    }
+
+    private static String optionalString(LuaValue value) {
+        return value.isnil() ? null : value.checkjstring();
     }
 
     static List<InputBinding> bindings(LuaValue value, String path) {

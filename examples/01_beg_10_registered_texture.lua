@@ -1,4 +1,4 @@
--- Copy example/textures/shared/mosaic.png into lua_scripts with its folders.
+-- Copy example/textures/shared/mosaic.png into betamoon/scripts with its folders.
 -- One registered PNG can be reused by both a block and an item.
 
 name = "Registered Texture Example"
