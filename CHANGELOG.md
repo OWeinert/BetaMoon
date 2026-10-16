@@ -1,13 +1,7 @@
 # Changelog
 
-## 0.10.0 (in development)
+## 0.9.0 (in development)
 
-### Minecraft-style interface
-
-- Use a Minecraft-style search textbox in BetaMoon Controls, with a blinking caret, bounded paste, and scrolling long queries.
-- Style diagnostic dialogs and update notices with compact charcoal pixel frames, native buttons, readable links, and restrained list selection and scrollbars.
-- Keep long dialog messages scrollable, adapt narrow-screen footer layouts, and preserve Scripts selection and scrolling when returning from dialogs.
-- Size dialogs to their wrapped content within viewport limits, and identify script issues with explicit severity labels and independently wrapped source links.
 
 ### Particles
 
@@ -29,15 +23,23 @@
 - Run `gui_tick` after `game_tick` while a screen is open, and add `world_tick` after actual client-world
   simulation updates. Non-pausing screens and remote-world updates continue to receive world ticks.
 - Require the Java agent for logical tick subscriptions. These callbacks no longer follow rendered frames.
-- Keep world-service and logical-network tick intervals consistent when world time changes.
-- Attribute event, world-service and network callback diagnostics to the declaring script.
+- Detect runtime side without loading Minecraft before the agent transformer is installed.
+- Advance world services and logical networks from the world simulation boundary, with interval counters
+  independent of mutable world time. Preserve declaring-script identity during event/service/network callbacks.
 
+### Minecraft-style interface
 
-### Drops and diagnostics
+- GUI style overhaul to match minecraft's native GUI better
 
-- Remove stale declared block drops when reloading scripts.
-- Show declared block/item canonical keys throughout debug reports, including recipe stacks, fuel rules,
-  machine bindings, subtype rows, and world-generation references. Identify content without an assigned key.
+### Internal organization
+
+- Move native block, item, and biome implementations into their domain packages and rename them with
+  descriptive `LuaBlock`, `Lua*Item`, and `LuaBiome` names.
+- Consolidate declared block drops into the active definition, removing stale legacy drop state on reload.
+- Share item interaction forwarding while preserving lazy vanilla fallback and callback ordering.
+- Resolve and cache mapped/obfuscated biome fields through a biome-specific helper.
+- Preserve declared block/item canonical keys for debug reports, including recipe stacks, fuel rules,
+  machine bindings, subtype rows, and world-generation references. Mark unkeyed content as not assigned.
 
 ### Multiblocks
 
