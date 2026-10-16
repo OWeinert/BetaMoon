@@ -14,6 +14,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import org.luaj.vm2.LuaError;
@@ -25,38 +26,36 @@ public final class SoundEvents {
     private static final Map<AssetKey, Entry> PUBLISHED = new LinkedHashMap<AssetKey, Entry>();
     private static final Random RANDOM = new Random();
 
-    static final OverrideManager.Property<Entry, SoundEventPatch> OVERRIDE_PROPERTY =
-            new OverrideManager.Property<Entry, SoundEventPatch>("definition",
-                    new OverrideManager.PropertyAdapter<Entry, SoundEventPatch>() {
-                        public SoundEventPatch read(Entry target) {
-                            SoundEventDefinition base = target.base;
-                            return new SoundEventPatch(base.clips, Float.valueOf(base.volume),
-                                    Float.valueOf(base.pitchMin), Float.valueOf(base.pitchMax),
-                                    Float.valueOf(base.range), Boolean.valueOf(base.enabled));
-                        }
+    static final OverrideManager.Property<Entry, SoundEventPatch> OVERRIDE_PROPERTY = new OverrideManager.Property<Entry, SoundEventPatch>(
+            "definition", new OverrideManager.PropertyAdapter<Entry, SoundEventPatch>() {
+                public SoundEventPatch read(Entry target) {
+                    SoundEventDefinition base = target.base;
+                    return new SoundEventPatch(base.clips, Float.valueOf(base.volume), Float.valueOf(base.pitchMin),
+                            Float.valueOf(base.pitchMax), Float.valueOf(base.range), Boolean.valueOf(base.enabled));
+                }
 
-                        public void write(Entry target, SoundEventPatch value) {
-                            target.effective = value.apply(target.base);
-                        }
-                    }, new OverrideManager.ValueResolver<SoundEventPatch>() {
-                        public SoundEventPatch resolve(SoundEventPatch base, List<SoundEventPatch> layers) {
-                            List<SoundEventDefinition.Clip> clips = base.clips;
-                            Float volume = base.volume;
-                            Float pitchMin = base.pitchMin;
-                            Float pitchMax = base.pitchMax;
-                            Float range = base.range;
-                            Boolean enabled = base.enabled;
-                            for (SoundEventPatch layer : layers) {
-                                clips = layer.clips == null ? clips : layer.clips;
-                                volume = layer.volume == null ? volume : layer.volume;
-                                pitchMin = layer.pitchMin == null ? pitchMin : layer.pitchMin;
-                                pitchMax = layer.pitchMax == null ? pitchMax : layer.pitchMax;
-                                range = layer.range == null ? range : layer.range;
-                                enabled = layer.enabled == null ? enabled : layer.enabled;
-                            }
-                            return new SoundEventPatch(clips, volume, pitchMin, pitchMax, range, enabled);
-                        }
-                    });
+                public void write(Entry target, SoundEventPatch value) {
+                    target.effective = value.apply(target.base);
+                }
+            }, new OverrideManager.ValueResolver<SoundEventPatch>() {
+                public SoundEventPatch resolve(SoundEventPatch base, List<SoundEventPatch> layers) {
+                    List<SoundEventDefinition.Clip> clips = base.clips;
+                    Float volume = base.volume;
+                    Float pitchMin = base.pitchMin;
+                    Float pitchMax = base.pitchMax;
+                    Float range = base.range;
+                    Boolean enabled = base.enabled;
+                    for (SoundEventPatch layer : layers) {
+                        clips = layer.clips == null ? clips : layer.clips;
+                        volume = layer.volume == null ? volume : layer.volume;
+                        pitchMin = layer.pitchMin == null ? pitchMin : layer.pitchMin;
+                        pitchMax = layer.pitchMax == null ? pitchMax : layer.pitchMax;
+                        range = layer.range == null ? range : layer.range;
+                        enabled = layer.enabled == null ? enabled : layer.enabled;
+                    }
+                    return new SoundEventPatch(clips, volume, pitchMin, pitchMax, range, enabled);
+                }
+            });
 
     private SoundEvents() {
     }
@@ -129,8 +128,29 @@ public final class SoundEvents {
         return key;
     }
 
-    public static void play(AssetKey key, double x, double y, double z,
-            float volumeOverride, float pitchOverride, float rangeOverride) throws IOException {
+    public static boolean exists(AssetKey key) {
+        return find(key) != null;
+    }
+
+    public static ClientAudio.ControlledVoice playControlled(AssetKey key, double x, double y, double z, float volume)
+            throws IOException {
+        SoundEventDefinition event = find(key);
+        if (event == null || !event.enabled) {
+            return null;
+        }
+        try (SoundAsset clip = ClientSounds.acquire(event.choose(RANDOM))) {
+            ClientAudio.ControlledVoice voice = ClientAudio.playControlled(clip.getContent().getValue(), (float) x,
+                    (float) y, (float) z, Math.min(4, volume * event.volume),
+                    event.pitchMin + RANDOM.nextFloat() * (event.pitchMax - event.pitchMin), event.range);
+            if (voice != null) {
+                voice.scale(event.volume);
+            }
+            return voice;
+        }
+    }
+
+    public static void play(AssetKey key, double x, double y, double z, float volumeOverride, float pitchOverride,
+            float rangeOverride) throws IOException {
         SoundEventDefinition event = find(key);
         if (event == null) {
             throw new IOException("Sound event is no longer registered: " + key);
@@ -147,15 +167,12 @@ public final class SoundEvents {
             if (clip.getContent().getValue().getFormat().getChannels() != 1) {
                 throw new IOException("Positional sounds require a mono clip");
             }
-            ClientAudio.play(clip.getContent().getValue(), (float) x, (float) y, (float) z,
-                    true, volume, pitch, range);
+            ClientAudio.play(clip.getContent().getValue(), (float) x, (float) y, (float) z, true, volume, pitch, range);
         }
     }
 
     static List<SoundAsset> acquire(SoundEventPatch patch) {
-        return patch.clips == null
-                ? Collections.<SoundAsset>emptyList()
-                : acquire(patch.clips, "Sound event override");
+        return patch.clips == null ? Collections.<SoundAsset>emptyList() : acquire(patch.clips, "Sound event override");
     }
 
     private static List<SoundAsset> acquire(List<SoundEventDefinition.Clip> clips, String context) {
@@ -218,7 +235,7 @@ public final class SoundEvents {
         public final double weight;
 
         private ClipDescription(SoundEventDefinition.Clip clip) {
-            kind = clip.location.getKind().name().toLowerCase(java.util.Locale.ROOT);
+            kind = clip.location.getKind().name().toLowerCase(Locale.ROOT);
             fallbackPath = clip.location.getFallback().toString();
             overridePath = clip.location.getOverride().toString();
             builtIn = clip.location.isBuiltin();

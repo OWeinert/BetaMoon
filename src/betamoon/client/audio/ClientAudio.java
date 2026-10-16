@@ -3,12 +3,12 @@ package betamoon.client.audio;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptResourceTracker;
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.ModLoader;
 
@@ -42,8 +42,24 @@ public final class ClientAudio {
 
     static void play(PlaybackBackend system, SoundClip clip, float x, float y, float z, boolean positional,
             float volume, float pitch, float range, float masterVolume) throws IOException {
+        createVoice(system, clip, x, y, z, positional, volume, pitch, range, masterVolume);
+    }
+
+    public static ControlledVoice playControlled(SoundClip clip, float x, float y, float z, float volume, float pitch,
+            float range) throws IOException {
+        Minecraft minecraft = ModLoader.getMinecraftInstance();
+        if (minecraft == null || minecraft.gameSettings == null) {
+            return null;
+        }
+        Voice voice = createVoice(MinecraftAudioBackend.find(), clip, x, y, z, false, volume, pitch, range,
+                minecraft.gameSettings.soundVolume);
+        return voice == null ? null : new ControlledVoice(voice);
+    }
+
+    private static Voice createVoice(PlaybackBackend system, SoundClip clip, float x, float y, float z,
+            boolean positional, float volume, float pitch, float range, float masterVolume) throws IOException {
         if (system == null || masterVolume == 0) {
-            return;
+            return null;
         }
         updateBackend(system);
         while (VOICES.size() >= MAX_VOICES || (!BUFFERS.containsKey(clip)
@@ -82,6 +98,7 @@ public final class ClientAudio {
                 TRACKED_OWNERS.remove(owner);
             });
         }
+        return voice;
     }
 
     /**
@@ -146,6 +163,33 @@ public final class ClientAudio {
         }
     }
 
+    public static final class ControlledVoice {
+        private final Voice voice;
+        private float scale = 1;
+
+        private ControlledVoice(Voice voice) {
+            this.voice = voice;
+        }
+
+        public void volume(float volume) {
+            voice.volume = Math.max(0, Math.min(4, volume * scale));
+        }
+
+        public void scale(float scale) {
+            this.scale = scale;
+        }
+
+        public boolean isPlaying() {
+            return VOICES.contains(voice);
+        }
+
+        public void close() {
+            if (VOICES.contains(voice)) {
+                remove(voice);
+            }
+        }
+    }
+
     private static final class Buffer {
         private final String name;
         private int references;
@@ -159,7 +203,7 @@ public final class ClientAudio {
         private final String owner = LuaScriptRegistry.getCurrentScriptFile();
         private final SoundClip clip;
         private final Buffer buffer;
-        private final float volume;
+        private float volume;
         private final long created = System.nanoTime();
         private boolean started;
         private Voice(String name, SoundClip clip, Buffer buffer, float volume) {
