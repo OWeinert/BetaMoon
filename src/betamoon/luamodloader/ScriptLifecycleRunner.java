@@ -1,5 +1,7 @@
 package betamoon.luamodloader;
 
+import betamoon.multiblock.MultiblockRegistry;
+
 import betamoon.BetaMoonCommon;
 import betamoon.particles.ParticleRegistry;
 import betamoon.luaapi.module.ModuleRegistry;
@@ -43,6 +45,7 @@ final class ScriptLifecycleRunner {
                     ScriptAssetScope assets = ScriptAssetScope.open(mod.sourceFileName);
                     ScriptEntityScope entities = ScriptEntityScope.open(mod.sourceFileName);
                     ParticleRegistry.Batch particles = ParticleRegistry.begin(mod.sourceFileName);
+                    MultiblockRegistry.Batch multiblocks = MultiblockRegistry.begin(mod.sourceFileName);
                     LootTableRegistry.PublicationBatch lootTables = LootTableRegistry
                             .beginPublication(mod.sourceFileName, mod.getDisplayName());
                     WorldGenRegistry.PublicationBatch worldgen = WorldGenRegistry.beginPublication(mod.sourceFileName,
@@ -53,6 +56,7 @@ final class ScriptLifecycleRunner {
                 if (hotReload && mod.modReload != null && mod.modReload.isfunction()) {
                     mod.modReload.call();
                 }
+                multiblocks.validate();
                 lootTables.validate();
                 worldgen.validate();
                 biomes.validate();
@@ -64,6 +68,7 @@ final class ScriptLifecycleRunner {
                 biomes.publish();
                 SoundEvents.publish(mod.sourceFileName);
                 particles.publish();
+                multiblocks.publish();
                 LuaScriptRegistry.markLoadedByFile(mod.sourceFileName);
                 retainedScripts.rememberIfStructural(mod);
             } catch (LuaError error) {

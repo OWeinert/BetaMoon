@@ -1,6 +1,7 @@
 package betamoon.config;
 
 import betamoon.BetaMoonCommon;
+import betamoon.multiblock.MultiblockLimits;
 import betamoon.io.IoUtils;
 import forge.Configuration;
 import forge.Property;
@@ -145,6 +146,16 @@ public final class BetaMoonConfig {
                 "Maximum new BetaMoon particle sprites admitted per client tick (1-65535; default 1024).");
         particleViewDistance = boundedInt("particles.viewDistance", 64, 1, 64,
                 "Upper distance limit for custom particle effects (1-64 blocks); ordinary effects default to 16.");
+
+        MultiblockLimits.configure(
+                boundedInt("multiblocks.maxRequiredCells", 4096, 1, 32768,
+                        "Maximum required cells per expanded multiblock pattern (1-32768).").getValue(),
+                boundedInt("multiblocks.visitsPerTick", 65536, 256, 1048576,
+                        "Shared recognition cell work per logical world tick (256-1048576).").getValue(),
+                boundedInt("multiblocks.maxInstances", 4096, 1, 65535,
+                        "Maximum managed multiblock instances in a loaded world.").getValue(),
+                boundedInt("multiblocks.maxInstancesPerOwner", 1024, 1, 65535,
+                        "Maximum managed multiblock instances belonging to one script.").getValue());
 
         config.save();
     }

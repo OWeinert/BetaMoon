@@ -3,6 +3,7 @@ package betamoon.luaapi.block;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.LuaTable;
 import static betamoon.luaapi.utils.LuaDeclarationValues.error;
 import static betamoon.luaapi.utils.LuaDeclarationValues.fields;
 import static betamoon.luaapi.utils.LuaDeclarationValues.keys;
@@ -92,6 +93,14 @@ public final class BlockStateSchema {
     public int set(int metadata, String name, LuaValue value) {
         Field field = field(name);
         return (metadata & ~(field.mask << field.shift)) | (field.index(value, name) << field.shift);
+    }
+
+    public LuaTable snapshot(int metadata) {
+        LuaTable result = new LuaTable();
+        for (String name : fields.keySet()) {
+            result.set(name, get(metadata, name));
+        }
+        return result;
     }
 
     private Field field(String name) {

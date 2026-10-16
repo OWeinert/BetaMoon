@@ -284,6 +284,7 @@ public final class InstrumentationTransformTest {
                     || diagnostic.getHookId().startsWith("betamoon:fluid_camera")
                     || diagnostic.getHookId().startsWith("betamoon:particles")
                     || diagnostic.getHookId().startsWith("betamoon:block_schedule")
+                    || diagnostic.getHookId().startsWith("betamoon:multiblock")
                     || diagnostic.getHookId().equals("betamoon:block_break_guard")
                     || diagnostic.getHookId().equals("betamoon:block_power")
                     || diagnostic.getHookId().equals("betamoon:block_display_tick")
@@ -397,6 +398,12 @@ public final class InstrumentationTransformTest {
                 require(countScheduleCallbacks(result, "loaded") == 1
                         && countScheduleCallbacks(result, "unloaded") == 1,
                         "Missing repeating block schedule chunk bridges");
+                require(countMultiblockCallbacks(result, "id") == 1 && countMultiblockCallbacks(result, "state") == 1
+                        && countMultiblockCallbacks(result, "metadata") == 1
+                        && countMultiblockCallbacks(result, "changed") >= 3
+                        && countMultiblockCallbacks(result, "loaded") == 1
+                        && countMultiblockCallbacks(result, "unloaded") == 1,
+                        "Missing native multiblock mutation and availability observers");
                 require(countCallbackCalls(result, "chunkUnloaded") == 2,
                         "Missing model or entity chunk unload bridge");
                 require(countCallbackCalls(result, "chunkChanged") >= 2, "Missing chunk edit bridges");
@@ -687,6 +694,24 @@ public final class InstrumentationTransformTest {
                     MethodInsnNode call = (MethodInsnNode) instruction;
                     if (methodName.equals(call.name)
                             && call.owner.equals("betamoon/instrumentation/hooks/block/BlockScheduleCallbacks")) {
+                        count++;
+                    }
+                }
+            }
+        }
+        return count;
+    }
+
+    private static int countMultiblockCallbacks(byte[] bytecode, String methodName) {
+        ClassNode node = new ClassNode();
+        new ClassReader(bytecode).accept(node, 0);
+        int count = 0;
+        for (MethodNode method : node.methods) {
+            for (AbstractInsnNode instruction : method.instructions) {
+                if (instruction instanceof MethodInsnNode) {
+                    MethodInsnNode call = (MethodInsnNode) instruction;
+                    if (methodName.equals(call.name) && call.owner
+                            .equals("betamoon/instrumentation/hooks/multiblock/MultiblockChunkCallbacks")) {
                         count++;
                     }
                 }

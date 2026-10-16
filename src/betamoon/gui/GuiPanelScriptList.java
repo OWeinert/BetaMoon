@@ -14,7 +14,7 @@ import java.util.List;
 
 /** Script selector with stable selection and retained scroll state. */
 final class GuiPanelScriptList extends GuiContainer {
-    private static final int ROW_HEIGHT = 16;
+    private static final int ROW_HEIGHT = 18;
     private static final int PADDING = 10;
     private static final int WARNING_SIZE = 12;
     private static final int WARNING_GAP = 3;
@@ -193,18 +193,18 @@ final class GuiPanelScriptList extends GuiContainer {
                 String displayName = context.getRenderer().trimToWidth(fullName, nameWidth);
                 int blockHeight = ROW_HEIGHT - 2;
                 if (i == selectedIndex) {
-                    context.getRenderer().drawRect(getLeft() + 1, y - 1, listContentRight - 1, y + blockHeight - 1,
+                    context.getRenderer().drawRect(getLeft() + 1, y, listContentRight - 1, y + blockHeight,
                             context.getRenderer().getTheme().listSelectedBackground);
-                    context.getRenderer().drawRect(getLeft() + 2, y, listContentRight - 2, y + blockHeight - 2,
+                    context.getRenderer().drawRect(getLeft() + 2, y + 1, listContentRight - 2, y + blockHeight - 1,
                             0xFF101010);
                 } else if (i == hoveredIndex) {
-                    context.getRenderer().drawRect(getLeft() + 1, y - 1, listContentRight - 1, y + blockHeight - 1,
+                    context.getRenderer().drawRect(getLeft() + 1, y, listContentRight - 1, y + blockHeight,
                             context.getRenderer().getTheme().listHoverBackground);
                 }
                 int textHeight = context.getRenderer().lineHeight();
                 int textY = y + (blockHeight - textHeight) / 2;
                 if (restartRequired) {
-                    int iconY = y + (blockHeight - WARNING_SIZE - 2) / 2;
+                    int iconY = y + (blockHeight - WARNING_SIZE) / 2;
                     indicator.arrange(context,
                             Rect.fromPositionAndSize(getLeft() + 4, iconY, WARNING_SIZE, WARNING_SIZE));
                     indicator.render(context);

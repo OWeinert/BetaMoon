@@ -1,5 +1,8 @@
 package betamoon.instrumentation.registry;
 
+import betamoon.instrumentation.hooks.multiblock.MultiblockChunkHook;
+import betamoon.instrumentation.hooks.multiblock.MultiblockClientChunkHook;
+
 import betamoon.instrumentation.hooks.block.BlockBreakGuardHook;
 import betamoon.instrumentation.hooks.block.BlockBrokenHook;
 import betamoon.instrumentation.hooks.block.BlockDisplayTickHook;
@@ -49,6 +52,7 @@ public final class BuiltinHookModules {
         registry.registerModule(new ItemHarvestHook());
         registry.registerModule(new BlockPowerHook());
         registry.registerModule(new BlockScheduleHook());
+        registry.registerModule(new MultiblockChunkHook());
         registry.registerModule(new FluidInteractionHook());
         registry.registerModule(new FluidContactHook());
         registry.registerModule(new EntityLifecycleHook());
@@ -70,6 +74,7 @@ public final class BuiltinHookModules {
         registry.registerModule(new TickEventHook());
         registry.registerModule(new FluidCameraHook());
         registry.registerModule(new ParticleHook());
+        registry.registerModule(new MultiblockClientChunkHook());
     }
 
     private static void registerServer(HookRegistry registry) {

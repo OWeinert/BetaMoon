@@ -93,7 +93,7 @@ public final class DeclarativeDomainTest {
                 + "assert(mc.entities.sheep=='Sheep' and mc.projectiles.snowball=='snowball'); "
                 + "assert(mc.particles.redstone_dust=='reddust'); " + "assert(mc.sounds.random.click=='random.click'); "
                 + "assert(mc.gui.backgrounds.container=='minecraft:container'); "
-                + "assert(mc.gui.sprites.furnace_arrow=='minecraft:furnace_arrow'); "
+                + "assert(mc.gui.sprites.furnace_arrow=='minecraft:furnace_arrow'); assert(mc.gui.sprites.furnace_arrow_background=='minecraft:furnace_arrow_background'); "
                 + "assert(betamoon.worldgen.treeModes.none=='none'); "
                 + "local found=false; for key,value in pairs(mc.blockMaterials) do "
                 + "if key=='rock' and value=='rock' then found=true end end; assert(found); "

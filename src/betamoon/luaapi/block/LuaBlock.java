@@ -516,18 +516,19 @@ public class LuaBlock extends BlockContainer implements forge.IConnectRedstone {
 
     @Override
     public void setBlockBoundsBasedOnState(IBlockAccess world, int x, int y, int z) {
-        applyRenderBounds();
+        applyRenderBounds(world.getBlockMetadata(x, y, z));
     }
 
     @Override
     public void setBlockBoundsForItemRender() {
-        applyRenderBounds();
+        BlockDefinition definition = BlockCallbackRegistry.get(blockID);
+        applyRenderBounds(definition == null ? 0 : definition.state.defaults);
     }
 
-    private void applyRenderBounds() {
+    private void applyRenderBounds(int metadata) {
         BlockDefinition definition = BlockCallbackRegistry.get(blockID);
         if (definition != null && definition.visual.bounds != null) {
-            BlockBox bounds = definition.visual.bounds;
+            BlockBox bounds = definition.orient(definition.visual.bounds, metadata);
             setBlockBounds((float) bounds.minX, (float) bounds.minY, (float) bounds.minZ, (float) bounds.maxX,
                     (float) bounds.maxY, (float) bounds.maxZ);
         } else {

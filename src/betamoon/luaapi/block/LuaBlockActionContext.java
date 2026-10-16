@@ -1,5 +1,7 @@
 package betamoon.luaapi.block;
 
+import betamoon.luaapi.multiblock.MultiblocksApi;
+
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.item.LuaItemStackAccess;
 import betamoon.luaapi.tileentity.LuaTileDataAccess;
@@ -70,6 +72,9 @@ public final class LuaBlockActionContext extends LuaTable implements AutoCloseab
             set("tileEntity", tileAccess);
         }
         set("world", LuaWorldActionAccess.create(scope, world, x, y, z));
+        if (world.getBlockId(x, y, z) == blockId) {
+            set("multiblock", MultiblocksApi.local(scope, world, x, y, z));
+        }
         ExplosionRequest explosion = ExplosionExecution.current();
         if (explosion != null) {
             set("explosion", LuaExplosionApi.context(scope, world, explosion));

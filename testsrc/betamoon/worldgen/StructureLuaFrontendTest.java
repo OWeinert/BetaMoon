@@ -34,9 +34,9 @@ public final class StructureLuaFrontendTest {
                             .beginPublication("structure_lua_frontend_test.lua", "Structure Lua frontend test")) {
                 lua.load(script()).call();
                 String example = new String(
-                        Files.readAllBytes(Paths.get("examples/03_adv_20_complete_worldgen_pack/structures.lua")),
+                        Files.readAllBytes(Paths.get("examples/03_adv_22_complete_worldgen_pack/structures.lua")),
                         StandardCharsets.UTF_8);
-                lua.load(example, "@examples/03_adv_20_complete_worldgen_pack/structures.lua").call().call();
+                lua.load(example, "@examples/03_adv_22_complete_worldgen_pack/structures.lua").call().call();
                 lootBatch.validate();
                 batch.validate();
                 lootBatch.publish();

@@ -1,5 +1,7 @@
 package betamoon.luaapi;
 
+import betamoon.luaapi.multiblock.MultiblocksApi;
+
 import betamoon.luaapi.chat.ChatApi;
 import betamoon.luaapi.particle.ParticlesApi;
 import betamoon.luaapi.config.ConfigApi;
@@ -72,6 +74,7 @@ public final class BetaMoonModule extends TwoArgFunction {
         EventsApi.attach(module);
         AssetsApi.attach(module);
         ParticlesApi.attach(module);
+        MultiblocksApi.attach(module);
         EntitiesApi.attach(module);
         FuelsApi.attach(module);
         FluidApi.attach(module);

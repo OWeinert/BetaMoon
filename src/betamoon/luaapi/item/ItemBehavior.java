@@ -1,6 +1,7 @@
 package betamoon.luaapi.item;
 
 import betamoon.luaapi.utils.InteractionOutcome;
+import betamoon.multiblock.MultiblockItemUse;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
@@ -22,15 +23,18 @@ public final class ItemBehavior {
     }
 
     public static boolean useFirst(ItemStack stack, EntityPlayer player, World world, int x, int y, int z, int side) {
-        return ItemCallbackRegistry.interact(ItemCallback.USE_FIRST, stack, player, world, x, y, z, side,
-                null) != InteractionOutcome.PASS;
+        return MultiblockItemUse.block(world, player, stack, x, y, z, side, false,
+                () -> ItemCallbackRegistry.interact(ItemCallback.USE_FIRST, stack, player, world, x, y, z, side,
+                        null) != InteractionOutcome.PASS);
     }
 
     public static boolean useOnBlock(ItemStack stack, EntityPlayer player, World world, int x, int y, int z, int side,
             BooleanSupplier base) {
-        InteractionOutcome result = ItemCallbackRegistry.interact(ItemCallback.USE_ON_BLOCK, stack, player, world, x, y,
-                z, side, null);
-        return result != InteractionOutcome.PASS || base.getAsBoolean();
+        return MultiblockItemUse.block(world, player, stack, x, y, z, side, true, () -> {
+            InteractionOutcome result = ItemCallbackRegistry.interact(ItemCallback.USE_ON_BLOCK, stack, player, world,
+                    x, y, z, side, null);
+            return MultiblockItemUse.handled() || result != InteractionOutcome.PASS || base.getAsBoolean();
+        });
     }
 
     public static boolean canHarvest(int itemId, Block block, boolean base) {
@@ -52,6 +56,10 @@ public final class ItemBehavior {
     }
 
     public static ItemStack use(ItemStack stack, World world, EntityPlayer player, Supplier<ItemStack> base) {
+        return MultiblockItemUse.air(world, stack, () -> useInContext(stack, world, player, base));
+    }
+
+    private static ItemStack useInContext(ItemStack stack, World world, EntityPlayer player, Supplier<ItemStack> base) {
         if (ItemUseHandler.suppressDefaultUse(stack, world, player)) {
             return stack;
         }
@@ -59,10 +67,10 @@ public final class ItemBehavior {
         InteractionOutcome result = ItemCallbackRegistry.interact(ItemCallback.USE, stack, player, world,
                 MathHelper.floor_double(player.posX), MathHelper.floor_double(player.posY),
                 MathHelper.floor_double(player.posZ), -1, null);
-        if (result == InteractionOutcome.DENY) {
+        if (result == InteractionOutcome.DENY || MultiblockItemUse.handled()) {
             return stack;
         }
-        ItemStack after = result == InteractionOutcome.HANDLED ? stack : base.get();
+        ItemStack after = MultiblockItemUse.handled() || result == InteractionOutcome.HANDLED ? stack : base.get();
         return ItemUseHandler.finishUse(stack, after, oldCount, world, player);
     }
 
