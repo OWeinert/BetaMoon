@@ -1,5 +1,6 @@
 package betamoon.instrumentation.hooks.fluid;
 
+import betamoon.client.atmosphere.AtmosphereRuntime;
 import betamoon.client.render.FluidCameraRuntime;
 import net.minecraft.src.EntityLiving;
 import net.minecraft.src.EntityPlayerSP;
@@ -31,11 +32,13 @@ public final class FluidCameraCallbacks {
         return FluidCameraRuntime.overlayTexture(engine, path);
     }
 
-    public static void fogColor() {
+    public static void fogColor(boolean cloud) {
+        AtmosphereRuntime.fogColor(cloud);
         FluidCameraRuntime.applyFogColor();
     }
 
-    public static void fog() {
+    public static void fog(boolean cloud) {
+        AtmosphereRuntime.fog(cloud);
         FluidCameraRuntime.applyFog();
     }
 }

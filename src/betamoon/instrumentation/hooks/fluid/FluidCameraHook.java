@@ -3,6 +3,7 @@ package betamoon.instrumentation.hooks.fluid;
 import betamoon.instrumentation.api.AroundHookDefinition;
 import betamoon.instrumentation.api.CallRedirectHookDefinition;
 import betamoon.instrumentation.api.ClassRef;
+import betamoon.instrumentation.api.FieldRef;
 import betamoon.instrumentation.api.HandlerRef;
 import betamoon.instrumentation.api.HookModule;
 import betamoon.instrumentation.api.HookRegistrar;
@@ -24,12 +25,11 @@ public final class FluidCameraHook implements HookModule {
 
     @Override
     public void register(HookRegistrar registrar) {
-        registrar.register(AroundHookDefinition.builder(ID + ":wet",
-                new MethodRef(ENTITY, "isWet", "()Z"))
+        registrar.register(AroundHookDefinition.builder(ID + ":wet", new MethodRef(ENTITY, "isWet", "()Z"))
                 .capture(HandlerRef.of("betamoon/instrumentation/hooks/fluid/FluidContactCallbacks", "pass", "()I"))
                 .onReturn(HandlerRef.of("betamoon/instrumentation/hooks/fluid/FluidContactCallbacks", "wet",
-                                "(Lnet/minecraft/src/Entity;Z)Z"),
-                        ValueBinding.thisValue(), ValueBinding.returnValue()).build());
+                        "(Lnet/minecraft/src/Entity;Z)Z"), ValueBinding.thisValue(), ValueBinding.returnValue())
+                .build());
         ClassRef renderer = new ClassRef("net/minecraft/src/EntityRenderer");
         for (String method : new String[]{"updateFogColor", "setupFog"}) {
             MethodRef target = new MethodRef(renderer, method, method.equals("updateFogColor") ? "(F)V" : "(IF)V");
@@ -40,8 +40,8 @@ public final class FluidCameraHook implements HookModule {
                     .withInvocationOwner(LIVING).allCallsInTarget());
             registrar.register(AroundHookDefinition.builder(ID + ":" + method, target)
                     .capture(HandlerRef.of(CALLBACKS, "pass", "()I"))
-                    .onReturn(HandlerRef.of(CALLBACKS,
-                            method.equals("updateFogColor") ? "fogColor" : "fog", "()V"))
+                    .onReturn(HandlerRef.of(CALLBACKS, method.equals("updateFogColor") ? "fogColor" : "fog", "(Z)V"),
+                            ValueBinding.instanceField(new FieldRef(renderer, "cloudFog", "Z")))
                     .build());
         }
 
