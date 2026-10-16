@@ -352,6 +352,8 @@ public final class InstrumentationTransformTest {
                     || diagnostic.getHookId().startsWith("betamoon:client_control")
                     || diagnostic.getHookId().startsWith("betamoon:tick_events")
                     || diagnostic.getHookId().startsWith("betamoon:worldgen_surface")
+                    || diagnostic.getHookId().startsWith("betamoon:world_generator")
+                    || diagnostic.getHookId().startsWith("betamoon:world_population")
                     || diagnostic.getHookId().startsWith("betamoon:fluid_ecology")
                     || diagnostic.getHookId().startsWith("betamoon:regional_structure_chunk")
                     || diagnostic.getHookId().equals("betamoon:fluid_interactions")
@@ -445,6 +447,13 @@ public final class InstrumentationTransformTest {
         require(transformer.transform(null, survivalOwner, null, null, survival) == null,
                 "Survival guard must be idempotent");
 
+        verifyWorldGeneratorSeams(mappings, clientJarPath, transformer);
+        String populationOwner = mappings.resolveClass(new ClassRef("net/minecraft/src/ChunkProviderGenerate"),
+                RuntimeNamespace.CLIENT);
+        byte[] population = transformer.transform(null, populationOwner, null, null,
+                readClass(clientJarPath, populationOwner));
+        require(population != null && countCallbackCalls(population, "generate") == 24
+                && countCallbackCalls(population, "snow") == 1, "Native population must expose every category gate");
         verifyClientControlSeams(mappings, clientJarPath, transformer);
         verifyFluidInteractionSeam(mappings, clientJarPath, transformer, RuntimeNamespace.CLIENT);
         verifyFluidContactSeams(mappings, clientJarPath, transformer, RuntimeNamespace.CLIENT);
@@ -644,6 +653,31 @@ public final class InstrumentationTransformTest {
             require(transformed != null, "Missing ecology seam: " + namespace + ":" + name);
             require(transformer.transform(null, owner, null, null, transformed) == null,
                     "Ecology seams must be idempotent");
+        }
+    }
+
+    private static void verifyWorldGeneratorSeams(TinyMappingResolver mappings, String jarPath,
+            BetaMoonTransformer transformer) throws Exception {
+        for (String namedOwner : new String[]{"net/minecraft/src/World", "net/minecraft/src/WorldProvider"}) {
+            String owner = mappings.resolveClass(new ClassRef(namedOwner), RuntimeNamespace.CLIENT);
+            byte[] transformed = transformer.transform(null, owner, null, null, readClass(jarPath, owner));
+            require(transformed != null, "World generator seam did not transform " + namedOwner);
+            ClassNode node = new ClassNode();
+            new ClassReader(transformed).accept(node, 0);
+            int calls = 0;
+            for (MethodNode method : node.methods) {
+                for (AbstractInsnNode instruction : method.instructions.toArray()) {
+                    if (instruction instanceof MethodInsnNode && ((MethodInsnNode) instruction).owner
+                            .equals("betamoon/instrumentation/hooks/worldgen/WorldGeneratorCallbacks")) {
+                        calls++;
+                    }
+                }
+            }
+            require(calls == (namedOwner.endsWith("/World") ? 9 : 2),
+                    "World generator factory/spawn callbacks must have exact mapped targets: " + namedOwner + " calls="
+                            + calls);
+            require(transformer.transform(null, owner, null, null, transformed) == null,
+                    "World generator seams must be idempotent");
         }
     }
 

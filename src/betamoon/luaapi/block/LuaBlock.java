@@ -1,5 +1,6 @@
 package betamoon.luaapi.block;
 
+import betamoon.loot.LootContext;
 import betamoon.luaapi.utils.InteractionOutcome;
 import betamoon.networking.LogicalNetworkRuntime;
 import betamoon.tileentity.LuaTileEntity;
@@ -293,7 +294,7 @@ public class LuaBlock extends BlockContainer implements forge.IConnectRedstone {
         BlockDefinition definition = BlockCallbackRegistry.get(blockID);
         if (definition != null && definition.drops.declared) {
             if (!world.multiplayerWorld) {
-                for (ItemStack drop : definition.drops.sample(world.rand, chance)) {
+                for (ItemStack drop : definition.drops.sample(world.rand, chance, LootContext.at(world, x, y, z))) {
                     dropBlockAsItem_do(world, x, y, z, drop);
                 }
             }

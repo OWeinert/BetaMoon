@@ -1,6 +1,7 @@
 package betamoon.luaapi.world;
 
 import betamoon.luaapi.resource.OverrideManager;
+import betamoon.luaapi.utils.LuaDataReference;
 import betamoon.worldgen.BiomeGenRegistry;
 import betamoon.worldgen.BiomeSpawnGroup;
 import betamoon.worldgen.BiomeTreeMode;
@@ -23,7 +24,7 @@ import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
 /** Stable live reference for a native or BetaMoon biome. */
-public final class BiomeReference extends LuaTable {
+public final class BiomeReference extends LuaTable implements LuaDataReference {
     private static final String[] SNOW = {"enableSnow", "v"};
     private static final String[] RAIN = {"enableRain", "w"};
     private static final String[] MONSTERS = {"spawnableMonsterList", "s"};
@@ -506,4 +507,12 @@ public final class BiomeReference extends LuaTable {
             target.addAll(copy(source));
         }
     }
+    @Override
+    public Object declarationValue() {
+        if (key == null) {
+            throw new LuaError("Native biomes do not have BetaMoon world-generation keys");
+        }
+        return key.toString();
+    }
+
 }

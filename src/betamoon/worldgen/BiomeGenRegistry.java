@@ -3,8 +3,8 @@ package betamoon.worldgen;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.worldgen.biome.BiomeDefinition;
 import betamoon.worldgen.biome.BiomeSourceDefinition;
-import betamoon.worldgen.surface.SurfaceRuleSet;
 import betamoon.worldgen.biome.LuaBiome;
+import betamoon.worldgen.surface.SurfaceRuleSet;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import net.minecraft.src.BiomeGenBase;
 import net.minecraft.src.World;
@@ -138,6 +139,55 @@ public final class BiomeGenRegistry {
             return true;
         }
         return active.sources.containsKey(key);
+    }
+
+    public static BiomeSourceDefinition sourceFor(WorldGenKey key) {
+        PublicationBatch batch = CURRENT_BATCH.get();
+        if (batch != null) {
+            for (BiomeSourceDefinition source : batch.sources) {
+                if (source.key.equals(key)) {
+                    return source;
+                }
+            }
+        }
+        return active.sources.get(key);
+    }
+
+    public static SurfaceRuleSet surfaceFor(WorldGenKey key) {
+        PublicationBatch batch = CURRENT_BATCH.get();
+        if (batch != null) {
+            for (SurfaceRuleSet surface : batch.surfaces) {
+                if (surface.key.equals(key)) {
+                    return surface;
+                }
+            }
+        }
+        return active.surfaces.get(key);
+    }
+
+    public static BiomeGenBase[] copyClimateLookup() {
+        return getBiomeLookupTable().clone();
+    }
+
+    public static Map<String, String> generationDependencies() {
+        Map<String, String> result = new TreeMap<String, String>();
+        for (BiomeDefinition biome : definitions()) {
+            result.put(biome.key.toString(),
+                    biome.biome.topBlock + ":" + biome.biome.fillerBlock + ":" + biome.surface + ":" + biome.tags + ":"
+                            + biome.minTemperature + ":" + biome.maxTemperature + ":" + biome.minHumidity + ":"
+                            + biome.maxHumidity + ":" + biome.legacyClimateRange);
+            SurfaceRuleSet surface = biome.surface == null ? null : surfaceFor(biome.surface);
+            if (surface != null) {
+                StringBuilder signature = new StringBuilder().append(surface.seaLevel).append(':')
+                        .append(surface.underwaterBlock);
+                for (SurfaceRuleSet.Layer layer : surface.layers) {
+                    signature.append(':').append(layer.blockId).append(':').append(layer.depth.min).append(':')
+                            .append(layer.depth.max);
+                }
+                result.put(surface.key.toString(), signature.toString());
+            }
+        }
+        return result;
     }
 
     public static WorldGenKey keyFor(BiomeGenBase biome) {
@@ -618,6 +668,10 @@ public final class BiomeGenRegistry {
         }
 
         private static void validateSource(BiomeSourceDefinition source, Map<WorldGenKey, BiomeDefinition> biomes) {
+            if (source.fallbackBiome != null && !biomes.containsKey(source.fallbackBiome)) {
+                throw new LuaError(
+                        "Biome source " + source.key + " references unknown fallback biome " + source.fallbackBiome);
+            }
             if (source.fixedBiome != null && !biomes.containsKey(source.fixedBiome)) {
                 throw new LuaError("Biome source " + source.key + " references unknown biome " + source.fixedBiome);
             }

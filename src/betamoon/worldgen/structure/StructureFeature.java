@@ -1,22 +1,32 @@
 package betamoon.worldgen.structure;
 
+import betamoon.assets.AssetKey;
+import betamoon.loot.LootTableDefinition;
 import betamoon.worldgen.BlockPosition;
 import betamoon.worldgen.FeatureContext;
 import betamoon.worldgen.FeatureResult;
 import betamoon.worldgen.PlacementPlan;
 import betamoon.worldgen.SeedMixer;
 import betamoon.worldgen.WorldFeature;
+import betamoon.worldgen.WorldGenLimits;
+import betamoon.worldgen.spatial.SpatialRegistry;
+import betamoon.worldgen.terrain.WorldGenerationRuntime;
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
+import net.minecraft.src.World;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
@@ -188,7 +198,7 @@ public final class StructureFeature implements WorldFeature {
                     SeedMixer.hash(loot.key == null ? loot.semantics() : loot.key));
             lootSeed = SeedMixer.derive(lootSeed, coordinateSeed(x, y, z));
             try {
-                if (!output.addInventoryLoot(x, y, z, loot.plan(lootSeed))) {
+                if (!output.addInventoryLoot(x, y, z, loot.plan(lootSeed, context.lootContext(x, y, z)))) {
                     return FeatureResult.rejected(output.failure());
                 }
             } catch (IllegalStateException error) {
@@ -301,14 +311,19 @@ public final class StructureFeature implements WorldFeature {
     }
 
     public String generationSignature() {
-        return generationSignature(template, processors, terrain);
+        return generationSignature(template, processors, terrain, null, null);
+    }
+
+    public String generationSignature(World world) {
+        return generationSignature(template, processors, terrain, WorldGenerationRuntime.lootDefinitions(world),
+                WorldGenerationRuntime.spatial(world));
     }
 
     /**
      * Resolves every external/nested loot dependency while the publication batch is
      * active.
      */
-    public void validateLootReferences() throws java.io.IOException {
+    public void validateLootReferences() throws IOException {
         for (StructureLoot loot : template.loots) {
             loot.validateReferences();
         }
@@ -377,34 +392,33 @@ public final class StructureFeature implements WorldFeature {
     }
 
     private static String generationSignature(StructureTemplate template, StructureProcessors processors,
-            TerrainPolicy terrain) {
+            TerrainPolicy terrain, Map<AssetKey, LootTableDefinition> definitions, SpatialRegistry.Snapshot spatial) {
         StringBuilder canonical = new StringBuilder(template.contentHash);
         canonical.append('|').append(processors.includeAir);
         canonical.append('|').append(Double.doubleToLongBits(processors.decay));
         canonical.append('|').append(processors.tileCollision).append('|').append(processors.unknownMetadata);
         canonical.append('|').append(terrain.signature());
         canonical.append('|').append(new TreeMap<Integer, Integer>(processors.replacements));
-        canonical.append('|')
-                .append(processors.allowedExisting == null
-                        ? "*"
-                        : java.util.Arrays.toString(processors.allowedExisting.values()));
+        canonical.append('|').append(
+                processors.allowedExisting == null ? "*" : Arrays.toString(processors.allowedExisting.values()));
         for (Map.Entry<Integer, CustomMetadataTransform> entry : new TreeMap<Integer, CustomMetadataTransform>(
                 processors.metadataTransforms).entrySet()) {
             canonical.append('|').append(entry.getKey()).append('=').append(entry.getValue().generationSignature());
         }
         for (StructureLoot loot : template.loots) {
-            canonical.append("|loot=").append(loot.semantics()).append(':').append(loot.dependencySignature());
+            canonical.append("|loot=").append(loot.semantics()).append(':').append(
+                    definitions == null ? loot.dependencySignature() : loot.dependencySignature(definitions, spatial));
         }
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(canonical.toString().getBytes("UTF-8"));
             StringBuilder result = new StringBuilder(digest.length * 2);
             for (byte value : digest) {
-                result.append(String.format(java.util.Locale.ROOT, "%02x", value & 0xff));
+                result.append(String.format(Locale.ROOT, "%02x", value & 0xff));
             }
             return result.toString();
         } catch (NoSuchAlgorithmException impossible) {
             throw new IllegalStateException("SHA-256 is unavailable", impossible);
-        } catch (java.io.UnsupportedEncodingException impossible) {
+        } catch (UnsupportedEncodingException impossible) {
             throw new IllegalStateException("UTF-8 is unavailable", impossible);
         }
     }
@@ -520,7 +534,7 @@ public final class StructureFeature implements WorldFeature {
         StructureTerrainMask resolvedTerrainMask = new StructureTerrainMask(resolved, template, processors,
                 placementSeed);
         PlacementPlan terrainChanges = new PlacementPlan(requestedOrigin, maximumBlocks(),
-                Math.min(betamoon.worldgen.WorldGenLimits.MAX_FEATURE_RADIUS, Math.max(1, maximumRadius())));
+                Math.min(WorldGenLimits.MAX_FEATURE_RADIUS, Math.max(1, maximumRadius())));
         StructureTerrainPlanner.Result result = StructureTerrainPlanner.prepare(context, requestedOrigin, transform,
                 terrain, site, resolvedTerrainMask, bounds(new BlockPosition(0, 0, 0), transform), terrainChanges,
                 placementSeed);
@@ -554,9 +568,9 @@ public final class StructureFeature implements WorldFeature {
     public int maximumBlocks() {
         long total = (long) template.blocks.size()
                 + terrain.extraBlocks(terrainMask.supportColumns(), template.sizeX, template.sizeZ);
-        if (total > betamoon.worldgen.WorldGenLimits.MAX_BLOCK_CHANGES_PER_FEATURE) {
+        if (total > WorldGenLimits.MAX_BLOCK_CHANGES_PER_FEATURE) {
             throw new IllegalArgumentException("structure and terrain policy may change more than "
-                    + betamoon.worldgen.WorldGenLimits.MAX_BLOCK_CHANGES_PER_FEATURE + " blocks");
+                    + WorldGenLimits.MAX_BLOCK_CHANGES_PER_FEATURE + " blocks");
         }
         return (int) Math.max(1L, total);
     }
@@ -572,9 +586,8 @@ public final class StructureFeature implements WorldFeature {
     public int maximumReads() {
         long footprintColumns = (long) template.sizeX * template.sizeZ;
         long volume = footprintColumns * template.sizeY;
-        long reads = volume + footprintColumns * (betamoon.worldgen.WorldGenLimits.MAX_HEIGHT + 1L) * 2L
-                + (long) maximumBlocks() * 4L;
-        return (int) Math.min(betamoon.worldgen.WorldGenLimits.MAX_TERRAIN_READS_PER_FEATURE, Math.max(256L, reads));
+        long reads = volume + footprintColumns * (WorldGenLimits.MAX_HEIGHT + 1L) * 2L + (long) maximumBlocks() * 4L;
+        return (int) Math.min(WorldGenLimits.MAX_TERRAIN_READS_PER_FEATURE, Math.max(256L, reads));
     }
 
     public static final class Description {

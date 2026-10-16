@@ -1,7 +1,7 @@
 package betamoon.entity;
 
 import betamoon.assets.AssetKey;
-import betamoon.worldgen.BiomeGenRegistry;
+import betamoon.worldgen.terrain.WorldGenerationRuntime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -26,8 +26,7 @@ public final class EntityNaturalSpawner {
     }
 
     public static int spawn(World world, boolean hostile, boolean peaceful) {
-        if (world == null || world.multiplayerWorld || world.playerEntities.isEmpty()
-                || (!hostile && !peaceful)) {
+        if (world == null || world.multiplayerWorld || world.playerEntities.isEmpty() || (!hostile && !peaceful)) {
             return 0;
         }
         List<EntityTypeDefinition> definitions = available(world, hostile, peaceful);
@@ -100,20 +99,28 @@ public final class EntityNaturalSpawner {
     private static EntityTypeDefinition select(World world, List<EntityTypeDefinition> definitions,
             Map<AssetKey, Integer> counts, int x, int y, int z) {
         List<EntityTypeDefinition> matching = new ArrayList<>();
-        int totalWeight = 0;
+        double totalWeight = 0;
+        List<Double> weights = new ArrayList<Double>();
+        boolean hasSpatial = false;
         for (EntityTypeDefinition definition : definitions) {
             EntitySpawnDefinition rule = definition.spawning;
             if (counts.getOrDefault(definition.key, 0) < rule.cap && matches(world, rule, x, y, z)) {
-                matching.add(definition);
-                totalWeight += rule.weight;
+                double weight = rule.weight * spatialWeight(world, rule, x, z);
+                if (weight > 0) {
+                    hasSpatial |= rule.spatial != null;
+                    matching.add(definition);
+                    weights.add(weight);
+                    totalWeight += weight;
+                }
             }
         }
         if (matching.isEmpty()) {
             return null;
         }
-        int choice = world.rand.nextInt(totalWeight);
-        for (EntityTypeDefinition definition : matching) {
-            choice -= definition.spawning.weight;
+        double choice = hasSpatial ? world.rand.nextDouble() * totalWeight : world.rand.nextInt((int) totalWeight);
+        for (int index = 0; index < matching.size(); index++) {
+            EntityTypeDefinition definition = matching.get(index);
+            choice -= weights.get(index);
             if (choice < 0) {
                 return definition;
             }
@@ -121,27 +128,30 @@ public final class EntityNaturalSpawner {
         throw new AssertionError("Weighted spawn selection exhausted");
     }
 
+    private static double spatialWeight(World world, EntitySpawnDefinition rule, int x, int z) {
+        return rule.spatial == null ? 1 : rule.spatial.weight(WorldGenerationRuntime.fieldContext(world), x, z);
+    }
+
     static boolean matches(World world, EntitySpawnDefinition rule, int x, int y, int z) {
-        if (y < rule.minY || y > rule.maxY
-                || !world.checkChunksExist(x - 1, 0, z - 1, x + 1, 127, z + 1)) {
+        if (y < rule.minY || y > rule.maxY || !world.checkChunksExist(x - 1, 0, z - 1, x + 1, 127, z + 1)) {
+            return false;
+        }
+        if (spatialWeight(world, rule, x, z) <= 0) {
             return false;
         }
         int light = world.getBlockLightValue(x, y, z);
         if (light < rule.minLight || light > rule.maxLight) {
             return false;
         }
-        if (!rule.biomes.isEmpty() && !BiomeGenRegistry.matchesSelectors(
-                world.getWorldChunkManager().getBiomeGenAt(x, z), rule.biomes)) {
+        if (!rule.biomes.isEmpty() && !WorldGenerationRuntime.biomeMatches(world, x, z, rule.biomes)) {
             return false;
         }
         int substrate = world.getBlockId(x, y - 1, z);
         if (!rule.substrates.isEmpty() && !rule.substrates.contains(substrate)) {
             return false;
         }
-        return world.isBlockNormalCube(x, y - 1, z)
-                && !world.isBlockNormalCube(x, y, z)
-                && world.getBlockMaterial(x, y, z) != Material.water
-                && world.getBlockMaterial(x, y, z) != Material.lava
+        return world.isBlockNormalCube(x, y - 1, z) && !world.isBlockNormalCube(x, y, z)
+                && world.getBlockMaterial(x, y, z) != Material.water && world.getBlockMaterial(x, y, z) != Material.lava
                 && !world.isBlockNormalCube(x, y + 1, z);
     }
 
@@ -159,14 +169,12 @@ public final class EntityNaturalSpawner {
                 double px = x + 0.5;
                 double pz = z + 0.5;
                 EntityPlayer player = world.getClosestPlayer(px, y, pz, 24);
-                double spawnDistance = square(px - worldSpawn.x) + square(y - worldSpawn.y)
-                        + square(pz - worldSpawn.z);
-                if (player != null || spawnDistance < MIN_PLAYER_DISTANCE_SQUARED
-                        || !matches(world, rule, x, y, z)) {
+                double spawnDistance = square(px - worldSpawn.x) + square(y - worldSpawn.y) + square(pz - worldSpawn.z);
+                if (player != null || spawnDistance < MIN_PLAYER_DISTANCE_SQUARED || !matches(world, rule, x, y, z)) {
                     continue;
                 }
-                EntitySpawner.Result result = EntitySpawner.spawn(world, definition.key,
-                        px, y, pz, world.rand.nextFloat() * 360, 0, null, "natural");
+                EntitySpawner.Result result = EntitySpawner.spawn(world, definition.key, px, y, pz,
+                        world.rand.nextFloat() * 360, 0, null, "natural");
                 if (result.entity != null) {
                     spawned++;
                     counts.put(definition.key, counts.getOrDefault(definition.key, 0) + 1);

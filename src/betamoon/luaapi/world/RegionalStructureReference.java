@@ -1,5 +1,6 @@
 package betamoon.luaapi.world;
 
+import betamoon.luaapi.utils.LuaDataReference;
 import betamoon.worldgen.WorldGenKey;
 import betamoon.worldgen.WorldGenRegistry;
 import net.minecraft.src.World;
@@ -11,7 +12,7 @@ import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
 /** Stable handle for one deterministic regional structure definition. */
-public final class RegionalStructureReference extends LuaTable {
+public final class RegionalStructureReference extends LuaTable implements LuaDataReference {
     private final WorldGenKey key;
 
     public RegionalStructureReference(WorldGenKey key) {
@@ -29,7 +30,8 @@ public final class RegionalStructureReference extends LuaTable {
                 World world = LuaWorldActionAccess.requireWorld(arguments.arg(1 + offset));
                 int x = coordinate(arguments.arg(2 + offset), "regionalStructure.locate.x");
                 int z = coordinate(arguments.arg(3 + offset), "regionalStructure.locate.z");
-                int maxRegions = arguments.arg(4 + offset).isnil() ? 32
+                int maxRegions = arguments.arg(4 + offset).isnil()
+                        ? 32
                         : integer(arguments.arg(4 + offset), "regionalStructure.locate.maxRegions", 0, 128);
                 WorldGenRegistry.RegionalStructureLocation location = WorldGenRegistry.locateRegionalStructure(world,
                         RegionalStructureReference.this.key, x, z, maxRegions);
@@ -66,4 +68,10 @@ public final class RegionalStructureReference extends LuaTable {
         }
         return result;
     }
+
+    @Override
+    public Object declarationValue() {
+        return key.toString();
+    }
+
 }

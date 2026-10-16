@@ -10,7 +10,10 @@ import java.util.Set;
 import net.minecraft.src.NBTTagCompound;
 import net.minecraft.src.NBTTagList;
 
-/** Saved deterministic piece graph and chunk completion state for one regional start. */
+/**
+ * Saved deterministic piece graph and chunk completion state for one regional
+ * start.
+ */
 final class RegionalStructurePlan {
     final WorldGenKey definitionKey;
     final String dimension;
@@ -21,15 +24,26 @@ final class RegionalStructurePlan {
     final long seed;
     final List<Piece> pieces;
     final String placementSignature;
+    final double spatialValue;
+    final String spatialSignature;
     final Set<Long> completedChunks = new LinkedHashSet<Long>();
 
-    RegionalStructurePlan(WorldGenKey definitionKey, String dimension, int regionX, int regionZ,
-            int startChunkX, int startChunkZ, long seed, List<Piece> pieces) {
+    RegionalStructurePlan(WorldGenKey definitionKey, String dimension, int regionX, int regionZ, int startChunkX,
+            int startChunkZ, long seed, List<Piece> pieces) {
         this(definitionKey, dimension, regionX, regionZ, startChunkX, startChunkZ, seed, pieces, "");
     }
 
-    RegionalStructurePlan(WorldGenKey definitionKey, String dimension, int regionX, int regionZ,
-            int startChunkX, int startChunkZ, long seed, List<Piece> pieces, String placementSignature) {
+    RegionalStructurePlan(WorldGenKey definitionKey, String dimension, int regionX, int regionZ, int startChunkX,
+            int startChunkZ, long seed, List<Piece> pieces, String placementSignature) {
+        this(definitionKey, dimension, regionX, regionZ, startChunkX, startChunkZ, seed, pieces, placementSignature,
+                Double.NaN, "");
+    }
+
+    RegionalStructurePlan(WorldGenKey definitionKey, String dimension, int regionX, int regionZ, int startChunkX,
+            int startChunkZ, long seed, List<Piece> pieces, String placementSignature, double spatialValue,
+            String spatialSignature) {
+        this.spatialValue = spatialValue;
+        this.spatialSignature = spatialSignature;
         this.definitionKey = definitionKey;
         this.dimension = dimension;
         this.regionX = regionX;
@@ -72,6 +86,10 @@ final class RegionalStructurePlan {
         tag.setInteger("StartChunkZ", startChunkZ);
         tag.setLong("Seed", seed);
         tag.setString("PlacementSignature", placementSignature);
+        if (!spatialSignature.isEmpty()) {
+            tag.setDouble("SpatialValue", spatialValue);
+            tag.setString("SpatialSignature", spatialSignature);
+        }
         NBTTagList savedPieces = new NBTTagList();
         for (Piece piece : pieces) {
             savedPieces.setTag(piece.write());
@@ -111,7 +129,12 @@ final class RegionalStructurePlan {
             }
             RegionalStructurePlan result = new RegionalStructurePlan(key, dimension, tag.getInteger("RegionX"),
                     tag.getInteger("RegionZ"), tag.getInteger("StartChunkX"), tag.getInteger("StartChunkZ"),
-                    tag.getLong("Seed"), pieces, tag.getString("PlacementSignature"));
+                    tag.getLong("Seed"), pieces, tag.getString("PlacementSignature"),
+                    tag.hasKey("SpatialSignature") ? tag.getDouble("SpatialValue") : Double.NaN,
+                    tag.getString("SpatialSignature"));
+            if (!result.spatialSignature.isEmpty() && !Double.isFinite(result.spatialValue)) {
+                return null;
+            }
             NBTTagList completed = tag.getTagList("Completed");
             for (int index = 0; index < completed.tagCount() && index < 8192; index++) {
                 NBTTagCompound chunk = (NBTTagCompound) completed.tagAt(index);
@@ -161,8 +184,8 @@ final class RegionalStructurePlan {
             this.bounds = bounds;
             this.generationSignature = generationSignature;
             this.terrainChanges = Collections.unmodifiableList(new ArrayList<TerrainChange>(terrainChanges));
-            this.conformOffsets = Collections.unmodifiableList(
-                    new ArrayList<StructureFeature.ConformOffset>(conformOffsets));
+            this.conformOffsets = Collections
+                    .unmodifiableList(new ArrayList<StructureFeature.ConformOffset>(conformOffsets));
         }
 
         private NBTTagCompound write() {
@@ -202,8 +225,7 @@ final class RegionalStructurePlan {
         private static Piece read(NBTTagCompound tag) {
             try {
                 WorldGenKey feature = WorldGenKey.parse(tag.getString("Feature"), WorldGenKind.STRUCTURE);
-                BlockPosition origin = new BlockPosition(tag.getInteger("X"), tag.getInteger("Y"),
-                        tag.getInteger("Z"));
+                BlockPosition origin = new BlockPosition(tag.getInteger("X"), tag.getInteger("Y"), tag.getInteger("Z"));
                 StructureTransform transform = new StructureTransform(
                         StructureTransform.Rotation.valueOf(tag.getString("Rotation")),
                         StructureTransform.Mirror.valueOf(tag.getString("Mirror")));
@@ -243,8 +265,7 @@ final class RegionalStructurePlan {
                 }
                 if (bounds.min.x < -30000000 || bounds.max.x > 30000000 || bounds.min.z < -30000000
                         || bounds.max.z > 30000000 || bounds.min.y < 0 || bounds.max.y > 127
-                        || bounds.min.x > bounds.max.x || bounds.min.y > bounds.max.y
-                        || bounds.min.z > bounds.max.z
+                        || bounds.min.x > bounds.max.x || bounds.min.y > bounds.max.y || bounds.min.z > bounds.max.z
                         || bounds.max.x - bounds.min.x > WorldGenLimits.MAX_FEATURE_RADIUS * 2
                         || bounds.max.z - bounds.min.z > WorldGenLimits.MAX_FEATURE_RADIUS * 2) {
                     return null;
@@ -296,15 +317,14 @@ final class RegionalStructurePlan {
                 int metadata = tag.getInteger("Metadata");
                 int expectedBlock = tag.getInteger("ExpectedBlock");
                 int expectedMetadata = tag.getInteger("ExpectedMetadata");
-                if (x < -30000000 || x > 30000000 || z < -30000000 || z > 30000000 || y < 0 || y > 127
-                        || block < 0 || block > 255 || metadata < 0 || metadata > 15) {
+                if (x < -30000000 || x > 30000000 || z < -30000000 || z > 30000000 || y < 0 || y > 127 || block < 0
+                        || block > 255 || metadata < 0 || metadata > 15) {
                     return null;
                 }
                 if (expectedBlock < -1 || expectedBlock > 255 || expectedMetadata < -1 || expectedMetadata > 15) {
                     return null;
                 }
-                return new TerrainChange(new BlockPosition(x, y, z), block, metadata, expectedBlock,
-                        expectedMetadata);
+                return new TerrainChange(new BlockPosition(x, y, z), block, metadata, expectedBlock, expectedMetadata);
             }
         }
     }

@@ -10,19 +10,34 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
-/** Strictly snapshots declarative Lua tables into JSON-compatible Java values. */
+/**
+ * Strictly snapshots declarative Lua tables into JSON-compatible Java values.
+ */
 public final class LuaDataSnapshot {
     private static final int MAX_DEPTH = 48;
     private static final int MAX_VALUES = 150000;
 
     private final IdentityHashMap<LuaTable, Boolean> visiting = new IdentityHashMap<LuaTable, Boolean>();
     private int values;
+    private final double maximumNumber;
 
     private LuaDataSnapshot() {
+        this(1000000.0D);
+    }
+
+    private LuaDataSnapshot(double maximumNumber) {
+        this.maximumNumber = maximumNumber;
     }
 
     public static Map<String, Object> object(LuaValue value, String path) {
-        LuaDataSnapshot converter = new LuaDataSnapshot();
+        return object(value, path, 1000000.0D);
+    }
+
+    public static Map<String, Object> object(LuaValue value, String path, double maximumNumber) {
+        if (!Double.isFinite(maximumNumber) || maximumNumber <= 0) {
+            throw new IllegalArgumentException("Snapshot numeric bound must be finite and positive");
+        }
+        LuaDataSnapshot converter = new LuaDataSnapshot(maximumNumber);
         Object result = converter.value(value, path, 0, Shape.OBJECT);
         @SuppressWarnings("unchecked")
         Map<String, Object> object = (Map<String, Object>) result;
@@ -41,8 +56,8 @@ public final class LuaDataSnapshot {
         }
         if (value.isnumber()) {
             double number = value.todouble();
-            if (!Double.isFinite(number) || Math.abs(number) > 1000000.0D) {
-                throw new LuaError(path + ": expected a finite number within +/-1000000");
+            if (!Double.isFinite(number) || Math.abs(number) > maximumNumber) {
+                throw new LuaError(path + ": expected a finite number within +/-" + maximumNumber);
             }
             return Double.valueOf(number);
         }
@@ -129,30 +144,27 @@ public final class LuaDataSnapshot {
     private static Shape childShape(String parentPath, String field) {
         if (field == null) {
             return parentPath.endsWith(".layers") || parentPath.matches(".*\\.layers\\[[0-9]+\\]")
-                    ? Shape.ARRAY : Shape.ANY;
+                    ? Shape.ARRAY
+                    : Shape.ANY;
         }
-        if (field.equals("elements") || field.equals("processors") || field.equals("variants")
-                || field.equals("tags") || field.equals("faces") || field.equals("caps")
-                || field.equals("layers") || field.equals("choices") || field.equals("replace")
-                || field.equals("pools") || field.equals("entries") || field.equals("items")
-                || field.equals("excludeStates") || field.equals("excludeTags")
-                || field.equals("excludeMarkers") || field.equals("states") && parentPath.endsWith(".select")) {
+        if (field.equals("elements") || field.equals("processors") || field.equals("variants") || field.equals("tags")
+                || field.equals("faces") || field.equals("caps") || field.equals("layers") || field.equals("choices")
+                || field.equals("replace") || field.equals("pools") || field.equals("entries") || field.equals("items")
+                || field.equals("excludeStates") || field.equals("excludeTags") || field.equals("excludeMarkers")
+                || field.equals("states") && parentPath.endsWith(".select")) {
             return Shape.ARRAY;
         }
-        if (field.equals("palette") || field.equals("templates") || field.equals("legend")
-                || field.equals("map") || field.equals("select") || field.equals("bounds")
-                || field.equals("height") || field.equals("nearMarker") || field.equals("data")
-                || field.equals("value") || field.equals("states") || field.equals("stack")
-                || field.equals("rolls")) {
+        if (field.equals("palette") || field.equals("templates") || field.equals("legend") || field.equals("map")
+                || field.equals("select") || field.equals("bounds") || field.equals("height")
+                || field.equals("nearMarker") || field.equals("data") || field.equals("value") || field.equals("states")
+                || field.equals("stack") || field.equals("rolls")) {
             return Shape.OBJECT;
         }
         return Shape.ANY;
     }
 
     private enum Shape {
-        ANY,
-        ARRAY,
-        OBJECT
+        ANY, ARRAY, OBJECT
     }
 
     private static final class TableShape {

@@ -1,11 +1,13 @@
 package betamoon.luaapi.world;
 
+import betamoon.luaapi.utils.LuaDataReference;
 import betamoon.worldgen.BlockPosition;
-import betamoon.worldgen.FeatureResult;
 import betamoon.worldgen.FeatureOptions;
+import betamoon.worldgen.FeatureResult;
 import betamoon.worldgen.SeedMixer;
 import betamoon.worldgen.WorldGenKey;
 import betamoon.worldgen.WorldGenRegistry;
+import java.util.Map;
 import net.minecraft.src.World;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -15,7 +17,7 @@ import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
 /** Stable key handle for a reusable compiled world feature. */
-public final class FeatureReference extends LuaTable {
+public final class FeatureReference extends LuaTable implements LuaDataReference {
     private final WorldGenKey key;
 
     public FeatureReference(WorldGenKey key) {
@@ -46,10 +48,10 @@ public final class FeatureReference extends LuaTable {
                 long seed = SeedMixer.generationSeed(world.getRandomSeed(), dimension, "direct", x >> 4, z >> 4,
                         FeatureReference.this.key, salt ^ (((long) x) << 32) ^ z ^ y);
                 FeatureResult outcome = preview
-                        ? WorldGenRegistry.previewFeature(FeatureReference.this.key, world,
-                                new BlockPosition(x, y, z), seed, featureOptions)
-                        : WorldGenRegistry.placeFeature(FeatureReference.this.key, world,
-                                new BlockPosition(x, y, z), seed, featureOptions);
+                        ? WorldGenRegistry.previewFeature(FeatureReference.this.key, world, new BlockPosition(x, y, z),
+                                seed, featureOptions)
+                        : WorldGenRegistry.placeFeature(FeatureReference.this.key, world, new BlockPosition(x, y, z),
+                                seed, featureOptions);
                 return result(outcome);
             }
         };
@@ -84,7 +86,7 @@ public final class FeatureReference extends LuaTable {
         }
         if (!result.details.isEmpty()) {
             LuaTable details = new LuaTable();
-            for (java.util.Map.Entry<String, Object> entry : result.details.entrySet()) {
+            for (Map.Entry<String, Object> entry : result.details.entrySet()) {
                 Object detail = entry.getValue();
                 if (detail instanceof Number) {
                     details.set(entry.getKey(), valueOf(((Number) detail).doubleValue()));
@@ -121,4 +123,10 @@ public final class FeatureReference extends LuaTable {
         }
         return result;
     }
+
+    @Override
+    public Object declarationValue() {
+        return key.toString();
+    }
+
 }

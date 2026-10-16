@@ -1,13 +1,14 @@
 package betamoon.luaapi.block;
 
+import betamoon.loot.LootContext;
 import betamoon.luaapi.item.ItemInteractionRouting;
 import betamoon.luaapi.utils.InteractionOutcome;
 import betamoon.luaapi.utils.LuaOverrideCallback;
 import betamoon.luamodloader.ScriptResourceTracker;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
@@ -18,6 +19,7 @@ import net.minecraft.src.ItemStack;
 import net.minecraft.src.World;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
+
 import static betamoon.luaapi.utils.LuaDeclarationValues.error;
 
 /** Registers block declarations and routes block lifecycle callbacks. */
@@ -129,7 +131,7 @@ public final class BlockCallbackRegistry {
             }
             BlockDropDefinition drops = new BlockDropDefinition(result);
             drops.validateRegistered();
-            return drops.sample(world.rand, chance);
+            return drops.sample(world.rand, chance, LootContext.at(world, x, y, z));
         } catch (RuntimeException error) {
             definition.callbacks.fail(BlockCallback.GET_DROPS, error);
             return null;

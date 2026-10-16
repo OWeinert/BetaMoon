@@ -1,5 +1,7 @@
 package betamoon.entity;
 
+import betamoon.luaapi.utils.LuaSpatialSelector;
+import betamoon.worldgen.spatial.SpatialSelector;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
@@ -17,8 +19,7 @@ import static betamoon.luaapi.utils.LuaDeclarationValues.string;
 /** Bounded natural-spawn rule for one living entity type. */
 public final class EntitySpawnDefinition {
     public enum Category {
-        HOSTILE,
-        PASSIVE
+        HOSTILE, PASSIVE
     }
 
     public final Category category;
@@ -33,11 +34,13 @@ public final class EntitySpawnDefinition {
     public final Set<Integer> dimensions;
     public final Set<String> biomes;
     public final Set<Integer> substrates;
+    public final SpatialSelector spatial;
     public final boolean nativeDespawn;
 
     public EntitySpawnDefinition(LuaValue value, boolean inheritedDespawn) {
-        fields(value, "entity.spawning", "category", "weight", "group", "cap", "light", "height",
-                "dimensions", "biomes", "substrates", "despawn");
+        fields(value, "entity.spawning", "category", "weight", "group", "cap", "light", "height", "dimensions",
+                "biomes", "substrates", "despawn", "spatial");
+        spatial = LuaSpatialSelector.read(value.get("spatial"), "entity.spawning.spatial");
         category = category(value.get("category"));
         weight = optionalInteger(value.get("weight"), "entity.spawning.weight", 1, 10000, 10);
         int[] group = range(value.get("group"), "entity.spawning.group", 1, 16, 1, 1);

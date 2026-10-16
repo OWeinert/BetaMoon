@@ -2,13 +2,17 @@ package betamoon.loot;
 
 import betamoon.assets.AssetKey;
 import betamoon.assets.model.ModelJson;
+import betamoon.worldgen.spatial.SpatialRegistry;
+import betamoon.worldgen.spatial.SpatialSelector;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-/** Strict reader shared by JSON assets, Lua data, and inline structure pools. */
+/**
+ * Strict reader shared by JSON assets, Lua data, and inline structure pools.
+ */
 final class LootTableReader {
     private static final int MAX_POOLS = 16;
     private static final int MAX_ENTRIES = 64;
@@ -40,14 +44,13 @@ final class LootTableReader {
         for (int poolIndex = 0; poolIndex < values.size(); poolIndex++) {
             String poolPath = path + "[" + poolIndex + "]";
             Map<String, Object> value = ModelJson.object(values.get(poolIndex), poolPath);
-            fields(value, poolPath, "key", "rolls", "entries");
+            fields(value, poolPath, "key", "rolls", "entries", "when");
             String key = identifier(value.get("key"), poolPath + ".key");
             if (keys.contains(key)) {
                 throw new IOException(poolPath + ".key: duplicate pool key " + key);
             }
             keys.add(key);
-            LootStackDefinition.IntRange rolls = range(value.get("rolls"), poolPath + ".rolls",
-                    0, MAX_ROLLS, 1, true);
+            LootStackDefinition.IntRange rolls = range(value.get("rolls"), poolPath + ".rolls", 0, MAX_ROLLS, 1, true);
             totalRolls += rolls.maximum;
             if (totalRolls > MAX_ROLLS) {
                 throw new IOException(path + ": total maximum rolls exceed " + MAX_ROLLS);
@@ -84,13 +87,24 @@ final class LootTableReader {
                     throw new IOException(entryPath + ".type: expected item, empty, or table");
                 }
             }
-            pools.add(new LootTableDefinition.Pool(key, rolls, entries, totalWeight));
+            SpatialSelector spatial = null;
+            if (value.containsKey("when")) {
+                Map<String, Object> when = ModelJson.object(value.get("when"), poolPath + ".when");
+                fields(when, poolPath + ".when", "spatial");
+                try {
+                    spatial = new SpatialSelector(when.get("spatial"), poolPath + ".when.spatial",
+                            SpatialRegistry.pendingSnapshot());
+                } catch (IllegalArgumentException exception) {
+                    throw new IOException(exception.getMessage(), exception);
+                }
+            }
+            pools.add(new LootTableDefinition.Pool(key, rolls, entries, totalWeight, spatial));
         }
         return new LootTableDefinition(pools);
     }
 
-    static LootStackDefinition.IntRange range(Object input, String path, int minimum, int maximum,
-            int fallback, boolean allowRange) throws IOException {
+    static LootStackDefinition.IntRange range(Object input, String path, int minimum, int maximum, int fallback,
+            boolean allowRange) throws IOException {
         if (input == null) {
             return new LootStackDefinition.IntRange(fallback, fallback);
         }
@@ -116,8 +130,7 @@ final class LootTableReader {
         return (int) value;
     }
 
-    static int optionalInteger(Object input, String path, int minimum, int maximum, int fallback)
-            throws IOException {
+    static int optionalInteger(Object input, String path, int minimum, int maximum, int fallback) throws IOException {
         return input == null ? fallback : integer(input, path, minimum, maximum);
     }
 

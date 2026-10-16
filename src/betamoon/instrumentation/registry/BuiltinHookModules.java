@@ -1,8 +1,5 @@
 package betamoon.instrumentation.registry;
 
-import betamoon.instrumentation.hooks.multiblock.MultiblockChunkHook;
-import betamoon.instrumentation.hooks.multiblock.MultiblockClientChunkHook;
-
 import betamoon.instrumentation.hooks.block.BlockBreakGuardHook;
 import betamoon.instrumentation.hooks.block.BlockBrokenHook;
 import betamoon.instrumentation.hooks.block.BlockDisplayTickHook;
@@ -11,23 +8,27 @@ import betamoon.instrumentation.hooks.block.BlockPowerHook;
 import betamoon.instrumentation.hooks.block.BlockScheduleHook;
 import betamoon.instrumentation.hooks.block.ContentCallbackOverrideHook;
 import betamoon.instrumentation.hooks.control.ClientControlHook;
-import betamoon.instrumentation.hooks.event.TickEventHook;
-import betamoon.instrumentation.hooks.item.ItemHarvestHook;
-import betamoon.instrumentation.hooks.item.ItemInteractionHook;
 import betamoon.instrumentation.hooks.entity.EntityLifecycleHook;
 import betamoon.instrumentation.hooks.entity.EntityNaturalSpawnHook;
 import betamoon.instrumentation.hooks.entity.EntityTrackingHook;
-import betamoon.instrumentation.hooks.fluid.FluidInteractionHook;
+import betamoon.instrumentation.hooks.event.TickEventHook;
+import betamoon.instrumentation.hooks.fluid.FluidCameraHook;
 import betamoon.instrumentation.hooks.fluid.FluidContactHook;
 import betamoon.instrumentation.hooks.fluid.FluidEcologyHook;
-import betamoon.instrumentation.hooks.fluid.FluidCameraHook;
+import betamoon.instrumentation.hooks.fluid.FluidInteractionHook;
 import betamoon.instrumentation.hooks.fuel.FuelBurnTimeHook;
-import betamoon.instrumentation.hooks.texture.TextureResourceHook;
+import betamoon.instrumentation.hooks.item.ItemHarvestHook;
+import betamoon.instrumentation.hooks.item.ItemInteractionHook;
 import betamoon.instrumentation.hooks.model.ModelRenderHook;
-import betamoon.instrumentation.hooks.worldgen.WorldgenSurfaceHook;
-import betamoon.instrumentation.hooks.worldgen.RegionalStructureChunkHook;
-import betamoon.runtime.RuntimeSide;
+import betamoon.instrumentation.hooks.multiblock.MultiblockChunkHook;
+import betamoon.instrumentation.hooks.multiblock.MultiblockClientChunkHook;
 import betamoon.instrumentation.hooks.particle.ParticleHook;
+import betamoon.instrumentation.hooks.texture.TextureResourceHook;
+import betamoon.instrumentation.hooks.worldgen.RegionalStructureChunkHook;
+import betamoon.instrumentation.hooks.worldgen.WorldGeneratorHook;
+import betamoon.instrumentation.hooks.worldgen.WorldPopulationHook;
+import betamoon.instrumentation.hooks.worldgen.WorldgenSurfaceHook;
+import betamoon.runtime.RuntimeSide;
 
 /** Registers the hooks shipped in the BetaMoon JAR. */
 public final class BuiltinHookModules {
@@ -64,6 +65,8 @@ public final class BuiltinHookModules {
 
     private static void registerClient(HookRegistry registry) {
         registry.registerModule(new FluidEcologyHook(false));
+        registry.registerModule(new WorldGeneratorHook());
+        registry.registerModule(new WorldPopulationHook());
         registry.registerModule(new BlockBrokenHook());
         registry.registerModule(new BlockDisplayTickHook());
         registry.registerModule(new BlockBreakGuardHook());
