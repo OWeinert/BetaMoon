@@ -4,7 +4,7 @@
 
 ### Minecraft-style interface
 
-- Use a native-based search textbox in BetaMoon Controls, with a blinking caret, bounded paste, and scrolling long queries.
+- Use a Minecraft-style search textbox in BetaMoon Controls, with a blinking caret, bounded paste, and scrolling long queries.
 - Style diagnostic dialogs and update notices with compact charcoal pixel frames, native buttons, readable links, and restrained list selection and scrollbars.
 - Keep long dialog messages scrollable, adapt narrow-screen footer layouts, and preserve Scripts selection and scrolling when returning from dialogs.
 - Size dialogs to their wrapped content within viewport limits, and identify script issues with explicit severity labels and independently wrapped source links.
@@ -29,18 +29,28 @@
 - Run `gui_tick` after `game_tick` while a screen is open, and add `world_tick` after actual client-world
   simulation updates. Non-pausing screens and remote-world updates continue to receive world ticks.
 - Require the Java agent for logical tick subscriptions. These callbacks no longer follow rendered frames.
-- Detect runtime side without loading Minecraft before the agent transformer is installed.
-- Advance world services and logical networks from the world simulation boundary, with interval counters
-  independent of mutable world time. Preserve declaring-script identity during event/service/network callbacks.
+- Keep world-service and logical-network tick intervals consistent when world time changes.
+- Attribute event, world-service and network callback diagnostics to the declaring script.
 
 
-### Internal organization
+### Drops and diagnostics
 
-- Move native block, item, and biome implementations into their domain packages and rename them with
-  descriptive `LuaBlock`, `Lua*Item`, and `LuaBiome` names.
-- Consolidate declared block drops into the active definition, removing stale legacy drop state on reload.
-- Share item interaction forwarding while preserving lazy vanilla fallback and callback ordering.
-- Resolve and cache mapped/obfuscated biome fields through a biome-specific helper.
-- Preserve declared block/item canonical keys for debug reports, including recipe stacks, fuel rules,
-  machine bindings, subtype rows, and world-generation references. Mark unkeyed content as not assigned.
+- Remove stale declared block drops when reloading scripts.
+- Show declared block/item canonical keys throughout debug reports, including recipe stacks, fuel rules,
+  machine bindings, subtype rows, and world-generation references. Identify content without an assigned key.
 
+### Multiblocks
+
+- Define multiblocks in Lua with layers or sparse positions, block/state rules, count constraints,
+  horizontal orientation, optional mirrors, repeatable layers, and named groups of matching positions.
+- Add controllerless discovery, automatic/item activation, explicit deactivation, bounded manual searches,
+  member lookup, and owned activation fills that preserve player replacements.
+- Detect controller completion, invalidation, and chunk suspension/resumption automatically. Use scoped
+  controller access to gate machine processing and inspect useful mismatch reports without loading terrain.
+- Preserve multiblock identity and declared custom data across world reloads without changing controller
+  inventories, tile data, metadata, or appearances. Failed multiblock reloads retain working definitions.
+- Add optional exclusive membership and configurable pattern, processing, and instance limits.
+  Automatic completion targets singleplayer worlds; remote-world checks provide diagnostics only.
+
+- Add Advanced 06, a controllerless visual portal activated with flint and steel, and Advanced 12, a brick charcoal kiln with fuel-free
+  log processing, flame progress and an invalid-structure warning. Renumber subsequent advanced lessons.

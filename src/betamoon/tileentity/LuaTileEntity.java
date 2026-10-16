@@ -1,5 +1,8 @@
 package betamoon.tileentity;
 
+import betamoon.luaapi.multiblock.MultiblocksApi;
+import betamoon.multiblock.MultiblockRuntime;
+
 import betamoon.BetaMoonCommon;
 import betamoon.assets.AssetKey;
 import betamoon.capability.CapabilityInstance;
@@ -126,8 +129,8 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
                 return;
             }
 
-            try (LuaBlockActionContext blockContext = new LuaBlockActionContext(worldObj, xCoord, yCoord, zCoord,
-                    null, null, -1, true)) {
+            try (LuaBlockActionContext blockContext = new LuaBlockActionContext(worldObj, xCoord, yCoord, zCoord, null,
+                    null, -1, true)) {
                 context.set("state", blockContext.get("state"));
                 definition.tickAction.call(context);
             }
@@ -151,8 +154,9 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
         }
         TileEntityDefinition definition = getDefinition();
         data.read(tag, definition);
-        capabilities.load(tag.hasKey("BetaMoonCapabilities")
-                ? tag.getCompoundTag("BetaMoonCapabilities") : new NBTTagCompound(), definition);
+        capabilities.load(
+                tag.hasKey("BetaMoonCapabilities") ? tag.getCompoundTag("BetaMoonCapabilities") : new NBTTagCompound(),
+                definition);
     }
 
     @Override
@@ -261,7 +265,9 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
         return data.get(getDefinition(), name);
     }
 
-    /** Applies a prevalidated primitive value from a declarative container control. */
+    /**
+     * Applies a prevalidated primitive value from a declarative container control.
+     */
     public void setDataValue(String name, Object value) {
         data.set(getDefinition(), name, value);
         super.onInventoryChanged();
@@ -358,6 +364,7 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
         LogicalNetworkRuntime.removed(this);
         super.func_31005_i();
     }
+
     public Context createScopedContext() {
         return new Context(this);
     }
@@ -402,8 +409,13 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
             set("x", entity.xCoord);
             set("y", entity.yCoord);
             set("z", entity.zCoord);
-            set("world", LuaWorldActionAccess.create(
-                    scope, entity.worldObj, entity.xCoord, entity.yCoord, entity.zCoord));
+            set("world",
+                    LuaWorldActionAccess.create(scope, entity.worldObj, entity.xCoord, entity.yCoord, entity.zCoord));
+            if (MultiblockRuntime.hasControllerAt(entity.worldObj, entity.xCoord, entity.yCoord, entity.zCoord)
+                    && entity.worldObj.getBlockTileEntity(entity.xCoord, entity.yCoord, entity.zCoord) == entity) {
+                set("multiblock",
+                        MultiblocksApi.local(scope, entity.worldObj, entity.xCoord, entity.yCoord, entity.zCoord));
+            }
             set("recipes", new RecipeAccess(scope, entity));
             set("fuels", new FuelAccess(scope));
         }

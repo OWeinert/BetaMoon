@@ -1,5 +1,7 @@
 package betamoon.client.tick;
 
+import betamoon.multiblock.MultiblockRuntime;
+
 import betamoon.BetaMoonClient;
 import betamoon.event.Events;
 import betamoon.event.context.GameEventCtx;
@@ -53,6 +55,7 @@ public final class ClientTickEvents {
             return;
         }
         synchronizeLifecycle(minecraft);
+        MultiblockRuntime.tick(world);
         WorldServiceRuntime.tick(world);
         if (minecraft.theWorld == world) {
             Events.WORLD_TICK.publish(new WorldEventCtx(minecraft, world));

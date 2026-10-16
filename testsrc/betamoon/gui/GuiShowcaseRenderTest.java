@@ -26,6 +26,7 @@ import betamoon.gui.widget.GuiTextBox;
 import betamoon.io.IoUtils;
 import betamoon.luaapi.minecraft.MinecraftApi;
 import betamoon.luaapi.tileentity.TileEntityApi;
+import betamoon.luamodloader.MultiblockExamplesTest;
 import betamoon.luamodloader.NonReloadableScriptRegistry;
 import betamoon.luamodloader.LuaScriptErrors;
 import betamoon.luamodloader.LuaScriptRegistry;
@@ -106,7 +107,7 @@ public final class GuiShowcaseRenderTest {
         registered.setBoolean(null, true);
         Method owner = LuaScriptRegistry.class.getDeclaredMethod("setCurrentScriptFile", String.class);
         owner.setAccessible(true);
-        owner.invoke(null, "03_adv_06_gui_showcase.lua");
+        owner.invoke(null, "03_adv_07_gui_showcase.lua");
         Globals globals = JsePlatform.standardGlobals();
         LuaTable api = new LuaTable();
         TileEntityApi.attach(api);
@@ -120,9 +121,9 @@ public final class GuiShowcaseRenderTest {
                 + "betamoon.recipes = {add=function(_, def) betamoon.recipe=def end}; "
                 + "betamoon.callbackResults = {pass='pass', handled='handled', deny='deny'}; "
                 + "betamoon.stack=function(item, count) return {id=item.id, count=count} end").call();
-        FileReader reader = new FileReader(new File(examples, "03_adv_06_gui_showcase.lua"));
+        FileReader reader = new FileReader(new File(examples, "03_adv_07_gui_showcase.lua"));
         try {
-            globals.load(reader, "03_adv_06_gui_showcase.lua").call();
+            globals.load(reader, "03_adv_07_gui_showcase.lua").call();
         } finally {
             reader.close();
         }
@@ -242,12 +243,53 @@ public final class GuiShowcaseRenderTest {
                 }
             }
             verifyTextRepeatEvents(gui, definition);
+            renderKiln(minecraft, font, output, background, foreground, hover);
             require(GL11.glGetError() == GL11.GL_NO_ERROR, "OpenGL error during showcase rendering");
             System.out.println(
                     "Showcase parsed; 800 ticks and five selectors passed; framework screens, tooltip state and five "
                             + "GUI pages rendered.");
         } finally {
             buffer.destroy();
+        }
+    }
+
+    private static void renderKiln(Minecraft minecraft, FontRenderer font, File output, Method background,
+            Method foreground, Method hover) throws Exception {
+        MultiblockExamplesTest.main(new String[0]);
+        ContainerGuiDefinition definition = TileEntityRegistry.getGui("example:block/charcoal_kiln");
+        LuaTileEntity entity = new LuaTileEntity(definition.container.tileEntity.name);
+        entity.worldObj = new TestWorld();
+        GuiLuaContainer gui = new GuiLuaContainer(new InventoryPlayer(null), entity, definition);
+        setField(GuiScreen.class, gui, "mc", minecraft);
+        setField(GuiScreen.class, gui, "fontRenderer", font);
+        gui.width = 320;
+        gui.height = 240;
+        for (boolean formed : new boolean[]{false, true}) {
+            entity.setSyncedData("formed", formed ? 1 : 0);
+            entity.setSyncedData("duration", 200);
+            entity.setSyncedData("progress", formed ? 100 : 0);
+            setupFrame();
+            background.invoke(gui, 0.0F);
+            GL11.glPushMatrix();
+            GL11.glTranslatef(72, 37, 0);
+            foreground.invoke(gui);
+            GL11.glPopMatrix();
+            BufferedImage result = capture();
+            int amber = 0;
+            for (int x = 220; x < 232; x++) {
+                for (int y = 73; y < 85; y++) {
+                    int rgb = result.getRGB(x, y);
+                    if ((rgb >> 16 & 255) > 180 && (rgb >> 8 & 255) > 100 && (rgb & 255) < 100) {
+                        amber++;
+                    }
+                }
+            }
+            require(formed ? amber == 0 : amber > 20, "Kiln warning must track the synced formed flag");
+            ImageIO.write(result, "png", new File(output, formed ? "kiln-processing.png" : "kiln-invalid.png"));
+            if (!formed) {
+                hover.invoke(gui, 226, 78);
+                ImageIO.write(capture(), "png", new File(output, "kiln-warning-tooltip.png"));
+            }
         }
     }
 

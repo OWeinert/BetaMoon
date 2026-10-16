@@ -12,6 +12,7 @@ import betamoon.luaapi.utils.LuaOverrideLayers;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
+import betamoon.multiblock.MultiblockItemUse;
 import net.minecraft.src.Block;
 import net.minecraft.src.Entity;
 import net.minecraft.src.EntityLiving;
@@ -111,11 +112,12 @@ public final class ItemCallbackOverrides {
 
     public static boolean useFirst(Item item, ItemStack stack, EntityPlayer player, World world, int x, int y, int z,
             int face) {
-        return handled(invoke(item, ItemCallback.USE_FIRST, world,
-                () -> new LuaItemActionContext(world, x, y, z, player, stack, face, true),
-                () -> interaction(item instanceof IUseItemFirst
-                        && ((IUseItemFirst) item).onItemUseFirst(stack, player, world, x, y, z, face)),
-                Result.INTERACTION));
+        return MultiblockItemUse.block(world, player, stack, x, y, z, face, false,
+                () -> handled(invoke(item, ItemCallback.USE_FIRST, world,
+                        () -> new LuaItemActionContext(world, x, y, z, player, stack, face, true),
+                        () -> interaction(MultiblockItemUse.handled() || item instanceof IUseItemFirst
+                                && ((IUseItemFirst) item).onItemUseFirst(stack, player, world, x, y, z, face)),
+                        Result.INTERACTION)));
     }
 
     public static int beginUseFirst(ItemStack stack, EntityPlayer player, World world, int x, int y, int z, int face) {
@@ -139,18 +141,25 @@ public final class ItemCallbackOverrides {
 
     public static boolean useOnBlock(Item item, ItemStack stack, EntityPlayer player, World world, int x, int y, int z,
             int face) {
-        return handled(invoke(item, ItemCallback.USE_ON_BLOCK, world,
-                () -> new LuaItemActionContext(world, x, y, z, player, stack, face, true),
-                () -> interaction(item.onItemUse(stack, player, world, x, y, z, face)), Result.INTERACTION));
+        return MultiblockItemUse.block(world, player, stack, x, y, z, face, true,
+                () -> handled(invoke(item, ItemCallback.USE_ON_BLOCK, world,
+                        () -> new LuaItemActionContext(world, x, y, z, player, stack, face, true),
+                        () -> interaction(
+                                MultiblockItemUse.handled() || item.onItemUse(stack, player, world, x, y, z, face)),
+                        Result.INTERACTION)));
     }
 
     public static ItemStack use(Item item, ItemStack stack, World world, EntityPlayer player) {
-        ItemStack[] result = {stack};
-        handled(invoke(item, ItemCallback.USE, world, () -> context(stack, world, player, null), () -> {
-            result[0] = item.onItemRightClick(stack, world, player);
-            return LuaValue.valueOf("handled");
-        }, Result.INTERACTION));
-        return result[0];
+        return MultiblockItemUse.air(world, stack, () -> {
+            ItemStack[] result = {stack};
+            handled(invoke(item, ItemCallback.USE, world, () -> context(stack, world, player, null), () -> {
+                if (!MultiblockItemUse.handled()) {
+                    result[0] = item.onItemRightClick(stack, world, player);
+                }
+                return LuaValue.valueOf("handled");
+            }, Result.INTERACTION));
+            return result[0];
+        });
     }
 
     public static boolean hit(Item item, ItemStack stack, EntityLiving target, EntityLiving attacker) {
@@ -180,9 +189,10 @@ public final class ItemCallbackOverrides {
         LuaOverrideCallback callback = get(item.shiftedIndex, ItemCallback.INVENTORY_TICK);
         LuaOverrideActionDefinition effective = callback == null ? null : callback.effectiveDefinition();
         LuaOverrideDefinition definition = effective instanceof LuaOverrideDefinition
-                ? (LuaOverrideDefinition) effective : null;
-        if (definition != null && (world.getWorldTime() % definition.interval != 0
-                || definition.selectedOnly && !selected)) {
+                ? (LuaOverrideDefinition) effective
+                : null;
+        if (definition != null
+                && (world.getWorldTime() % definition.interval != 0 || definition.selectedOnly && !selected)) {
             item.onUpdate(stack, world, entity, slot, selected);
             return;
         }

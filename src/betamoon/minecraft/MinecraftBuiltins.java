@@ -50,7 +50,9 @@ public final class MinecraftBuiltins {
                     {"dispenser", "minecraft:dispenser"}, {"furnace", "minecraft:furnace"},
                     {"crafting", "minecraft:crafting"}, {"inventory", "minecraft:inventory"}});
     private static final Map<String, String> GUI_SPRITES = names(
-            new String[][]{{"furnace_flame", "minecraft:furnace_flame"}, {"furnace_arrow", "minecraft:furnace_arrow"},
+            new String[][]{{"furnace_flame", "minecraft:furnace_flame"},
+                    {"furnace_flame_background", "minecraft:furnace_flame_background"}, {"furnace_arrow", "minecraft:furnace_arrow"},
+                    {"furnace_arrow_background", "minecraft:furnace_arrow_background"},
                     {"crafting_arrow", "minecraft:crafting_arrow"}, {"slot", "minecraft:slot"},
                     {"output_slot", "minecraft:output_slot"}});
     private static final Map<String, String> RANDOM_SOUNDS = names(

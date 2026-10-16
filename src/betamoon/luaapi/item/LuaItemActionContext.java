@@ -1,6 +1,7 @@
 package betamoon.luaapi.item;
 
 import betamoon.luaapi.block.LuaBlockActionContext;
+import betamoon.luaapi.multiblock.MultiblockQueryApi;
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.utils.LuaDeclarationValues;
@@ -37,6 +38,7 @@ public final class LuaItemActionContext extends LuaTable implements AutoCloseabl
         scope = new LuaCallbackScope(mutable && !world.multiplayerWorld);
         set("world", LuaWorldActionAccess.create(scope, world, x, y, z));
         set("stack", LuaItemStackAccess.create(scope, player, stack));
+        MultiblockQueryApi.attachItem(this, scope, world, player, stack, x, y, z, face);
         if (player != null) {
             set("player", entityAccess(player));
         }

@@ -1,5 +1,7 @@
 package betamoon.luamodloader;
 
+import betamoon.multiblock.MultiblockRegistry;
+
 import betamoon.BetaMoonCommon;
 import betamoon.particles.ParticleRegistry;
 import betamoon.config.BetaMoonConfig;
@@ -98,6 +100,7 @@ public final class LuaModLoader {
         }
         EntityTypeRegistry.retainOwners(presentScripts);
         ParticleRegistry.retainOwners(presentScripts);
+        MultiblockRegistry.retainOwners(presentScripts);
         LootTableRegistry.retainOwners(presentScripts);
         WorldGenRegistry.retainOwners(presentScripts);
         BiomeGenRegistry.retainOwners(presentScripts);

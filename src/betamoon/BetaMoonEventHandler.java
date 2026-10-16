@@ -1,5 +1,7 @@
 package betamoon;
 
+import betamoon.multiblock.MultiblockRuntime;
+
 import betamoon.event.Events;
 import betamoon.event.context.DimensionEventCtx;
 import betamoon.event.context.GuiEventCtx;
@@ -67,6 +69,7 @@ public final class BetaMoonEventHandler {
             // The world can be left unintentionally (server disconnect, etc.), so publish
             // WORLD_LEAVE here as well.
             if (previousWorld != null) {
+                MultiblockRuntime.unload(previousWorld);
                 WorldServiceRuntime.unload(previousWorld);
                 Events.WORLD_LEAVE.publish(new WorldEventCtx(mc, previousWorld));
             }

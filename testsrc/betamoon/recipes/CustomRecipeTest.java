@@ -164,10 +164,10 @@ public final class CustomRecipeTest {
             packageExample(globals, owner, new File(directory, "03_adv_03_basic_storage"));
             example(globals, owner, new File(directory, "03_adv_04_custom_furnace.lua"));
             example(globals, owner, new File(directory, "03_adv_05_tile_redstone_controller.lua"));
-            packageExample(globals, owner, new File(directory, "03_adv_08_simple_alloy"));
-            packageExample(globals, owner, new File(directory, "03_adv_09_contextual_processor"));
-            packageExample(globals, owner, new File(directory, "03_adv_10_advanced_fabrication"));
-            packageExample(globals, owner, new File(directory, "03_adv_11_matcher_cookbook"));
+            packageExample(globals, owner, new File(directory, "03_adv_09_simple_alloy"));
+            packageExample(globals, owner, new File(directory, "03_adv_10_contextual_processor"));
+            packageExample(globals, owner, new File(directory, "03_adv_11_advanced_fabrication"));
+            packageExample(globals, owner, new File(directory, "03_adv_13_matcher_cookbook"));
             require(blocks.size() == 7, "Examples did not declare all seven tested machines");
             for (LuaValue declaration : blocks) {
                 int id = declaration.get("id").checkint();
@@ -187,7 +187,7 @@ public final class CustomRecipeTest {
             world.metadata = 1;
             require(betamoon.luamodloader.NonReloadableScriptRegistry.contains("03_adv_04_custom_furnace.lua"),
                     "Machine callback was not pinned");
-            require(betamoon.luamodloader.NonReloadableScriptRegistry.contains("03_adv_08_simple_alloy/main.lua"),
+            require(betamoon.luamodloader.NonReloadableScriptRegistry.contains("03_adv_09_simple_alloy/main.lua"),
                     "Packaged machine owner was not pinned");
             world.tile = tileFor(blocks, 204);
             world.tile.worldObj = world;
@@ -382,17 +382,17 @@ public final class CustomRecipeTest {
             case 204:
                 return "03_adv_04_custom_furnace.lua";
             case 209:
-                return "03_adv_08_simple_alloy/main.lua";
+                return "03_adv_09_simple_alloy/main.lua";
             case 216:
-                return "03_adv_10_advanced_fabrication/main.lua";
+                return "03_adv_11_advanced_fabrication/main.lua";
             case 224:
                 return "03_adv_03_basic_storage/main.lua";
             case 225:
                 return "03_adv_05_tile_redstone_controller.lua";
             case 226:
-                return "03_adv_09_contextual_processor/main.lua";
+                return "03_adv_10_contextual_processor/main.lua";
             case 227:
-                return "03_adv_11_matcher_cookbook/main.lua";
+                return "03_adv_13_matcher_cookbook/main.lua";
             default:
                 throw new AssertionError("Unknown example block " + id);
         }

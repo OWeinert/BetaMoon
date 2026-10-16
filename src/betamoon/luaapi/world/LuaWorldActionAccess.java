@@ -1,5 +1,7 @@
 package betamoon.luaapi.world;
 
+import betamoon.luaapi.multiblock.MultiblocksApi;
+
 import betamoon.assets.AssetKey;
 import betamoon.luaapi.particle.ParticlesApi;
 import betamoon.entity.EntityKind;
@@ -387,6 +389,7 @@ public final class LuaWorldActionAccess {
         double explosionZ = defaultSource == null ? z + 0.5D : defaultSource.posZ;
         LuaExplosionApi.install(api, scope, world, explosionX, explosionY, explosionZ, defaultSource);
         ParticlesApi.attachWorld(api, scope, world, x, y, z, allowPresentation);
+        MultiblocksApi.attachWorld(api, scope, world);
         return api;
 
     }

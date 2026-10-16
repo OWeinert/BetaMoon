@@ -668,8 +668,14 @@ final class ContainerGuiParser {
         if ("minecraft:furnace_flame".equals(name)) {
             return atlas("/gui/furnace.png", 176, 0, 14, 14);
         }
+        if ("minecraft:furnace_flame_background".equals(name)) {
+            return atlas("/gui/furnace.png", 56, 36, 14, 14);
+        }
         if ("minecraft:furnace_arrow".equals(name)) {
             return atlas("/gui/furnace.png", 176, 14, 24, 16);
+        }
+        if ("minecraft:furnace_arrow_background".equals(name)) {
+            return atlas("/gui/furnace.png", 79, 34, 24, 16);
         }
         if ("minecraft:crafting_arrow".equals(name)) {
             return atlas("/gui/crafting.png", 89, 34, 24, 17);
