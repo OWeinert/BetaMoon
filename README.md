@@ -80,6 +80,12 @@ Use an absolute path to the same JAR installed in the instance. On Windows, use 
 
 Update the argument whenever you move or rename the JAR, including after a version upgrade, and restart Minecraft. If BetaMoon shows an agent warning, click its displayed argument to copy the detected JAR path, paste it into the instance's Java arguments and restart.
 
+## VS Code completion
+
+Install [BetaMoon API from the Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=OWeinert.betamoon-api). Select **Install** on the listing to open
+VS Code, then confirm installation. Open your scripts folder and run **BetaMoon: Enable API for Workspace Folder**
+for completion, hover documentation and type checking. See the [setup guide](https://github.com/OWeinert/BetaMoon/wiki/VS-Code-and-LuaLS).
+
 ## Installing scripts
 
 Place loose scripts, script mod folders, or packaged mod ZIPs directly inside
