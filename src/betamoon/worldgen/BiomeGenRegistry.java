@@ -208,7 +208,7 @@ public final class BiomeGenRegistry {
         }
         for (int x = 0; x < 16; x++) {
             for (int z = 0; z < 16; z++) {
-                BiomeDefinition biome = snapshot.byBiome.get(biomes[x + z * 16]);
+                BiomeDefinition biome = snapshot.byBiome.get(biomes[x * 16 + z]);
                 SurfaceRuleSet surface = biome == null || biome.surface == null
                         ? null
                         : snapshot.surfaces.get(biome.surface);
