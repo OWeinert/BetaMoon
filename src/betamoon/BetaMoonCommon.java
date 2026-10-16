@@ -1,7 +1,7 @@
 package betamoon;
 
-import betamoon.entity.EntityBootstrap;
 import betamoon.config.BetaMoonConfig;
+import betamoon.entity.EntityBootstrap;
 import betamoon.fluid.FluidRegistry;
 import betamoon.fluid.item.FluidBucketHandler;
 import betamoon.instrumentation.agent.AgentStatus;
@@ -28,7 +28,7 @@ import net.minecraft.src.World;
  * This class must remain free of client-only and dedicated-server-only types.
  */
 public final class BetaMoonCommon {
-    public static final String VERSION = "0.9.0";
+    public static final String VERSION = "0.10.0";
     public static final Logger LOGGER = Logger.getLogger("BetaMoon");
 
     private final LuaModLoader luaModLoader;
