@@ -21,6 +21,7 @@ import org.objectweb.asm.tree.JumpInsnNode;
 import org.objectweb.asm.tree.LabelNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.TryCatchBlockNode;
 import org.objectweb.asm.tree.VarInsnNode;
 
 /** Applies the entry-capture and normal-return portions of an around hook. */
@@ -64,6 +65,16 @@ final class AroundMethodInjector {
             throw failure(definition, "Return handler must return void or the target return type " + targetReturnType
                     + ": " + returnHandler);
         }
+        if (definition.cleansUpOnException()) {
+            if (targetReturnType.getSort() != Type.VOID || returnHandlerType.getSort() != Type.VOID) {
+                throw failure(definition, "Exceptional cleanup requires a void target and void cleanup handler");
+            }
+            for (ValueBinding binding : definition.getReturnBindings()) {
+                if (binding.getKind() == ValueBinding.Kind.RETURN_VALUE) {
+                    throw failure(definition, "Exceptional cleanup cannot bind a return value");
+                }
+            }
+        }
         List<AbstractInsnNode> returns = collectReturns(targetMatch.method, targetReturnType);
         if (returns.isEmpty()) {
             throw failure(definition,
@@ -72,7 +83,7 @@ final class AroundMethodInjector {
 
         int captureCalls = countHandlerCalls(targetMatch.method, captureHandler);
         int returnCalls = countHandlerCalls(targetMatch.method, returnHandler);
-        if (captureCalls == 1 && returnCalls == returns.size()) {
+        if (captureCalls == 1 && returnCalls == returns.size() + (definition.cleansUpOnException() ? 1 : 0)) {
             return HookTransformOutcome.ALREADY_APPLIED;
         }
         if (captureCalls != 0 || returnCalls != 0) {
@@ -93,12 +104,24 @@ final class AroundMethodInjector {
             targetMatch.method.maxLocals += targetReturnType.getSize();
         }
 
+        int cleanupLocal = -1;
+        int throwableLocal = -1;
+        LabelNode tryStart = new LabelNode();
+        if (definition.cleansUpOnException()) {
+            cleanupLocal = targetMatch.method.maxLocals++;
+            throwableLocal = targetMatch.method.maxLocals++;
+        }
         InsnList entry = new InsnList();
         emitBindings(definition, entry, definition.getCaptureBindings(), targetMatch, -1, captureLocal,
                 targetReturnType, captureType);
         entry.add(new MethodInsnNode(Opcodes.INVOKESTATIC, captureHandler.getOwner(), captureHandler.getName(),
                 captureHandler.getDescriptor(), false));
         entry.add(new VarInsnNode(captureType.getOpcode(Opcodes.ISTORE), captureLocal));
+        if (definition.cleansUpOnException()) {
+            entry.add(new InsnNode(Opcodes.ICONST_0));
+            entry.add(new VarInsnNode(Opcodes.ISTORE, cleanupLocal));
+            entry.add(tryStart);
+        }
         if (definition.skipsWhenCapturedNonZero()) {
             LabelNode continueOriginal = new LabelNode();
             entry.add(new VarInsnNode(Opcodes.ILOAD, captureLocal));
@@ -116,6 +139,10 @@ final class AroundMethodInjector {
             if (targetReturnType.getSort() != Type.VOID) {
                 exit.add(new VarInsnNode(targetReturnType.getOpcode(Opcodes.ISTORE), returnLocal));
             }
+            if (definition.cleansUpOnException()) {
+                exit.add(new InsnNode(Opcodes.ICONST_1));
+                exit.add(new VarInsnNode(Opcodes.ISTORE, cleanupLocal));
+            }
             emitBindings(definition, exit, definition.getReturnBindings(), targetMatch, returnLocal, captureLocal,
                     targetReturnType, captureType);
             exit.add(new MethodInsnNode(Opcodes.INVOKESTATIC, returnHandler.getOwner(), returnHandler.getName(),
@@ -124,6 +151,45 @@ final class AroundMethodInjector {
                 exit.add(new VarInsnNode(targetReturnType.getOpcode(Opcodes.ILOAD), returnLocal));
             }
             targetMatch.method.instructions.insertBefore(returnInstruction, exit);
+        }
+        if (definition.cleansUpOnException()) {
+            LabelNode tryEnd = new LabelNode();
+            LabelNode handler = new LabelNode();
+            LabelNode rethrow = new LabelNode();
+            InsnList exceptional = new InsnList();
+            exceptional.add(tryEnd);
+            exceptional.add(handler);
+            exceptional.add(new VarInsnNode(Opcodes.ASTORE, throwableLocal));
+            exceptional.add(new VarInsnNode(Opcodes.ILOAD, cleanupLocal));
+            exceptional.add(new JumpInsnNode(Opcodes.IFNE, rethrow));
+            exceptional.add(new InsnNode(Opcodes.ICONST_1));
+            exceptional.add(new VarInsnNode(Opcodes.ISTORE, cleanupLocal));
+            emitBindings(definition, exceptional, definition.getReturnBindings(), targetMatch, -1, captureLocal,
+                    targetReturnType, captureType);
+            LabelNode cleanupStart = new LabelNode();
+            LabelNode cleanupEnd = new LabelNode();
+            LabelNode cleanupFailed = new LabelNode();
+            exceptional.add(cleanupStart);
+            exceptional.add(new MethodInsnNode(Opcodes.INVOKESTATIC, returnHandler.getOwner(), returnHandler.getName(),
+                    returnHandler.getDescriptor(), false));
+            exceptional.add(cleanupEnd);
+            exceptional.add(new JumpInsnNode(Opcodes.GOTO, rethrow));
+            exceptional.add(cleanupFailed);
+            int cleanupFailureLocal = targetMatch.method.maxLocals++;
+            exceptional.add(new VarInsnNode(Opcodes.ASTORE, cleanupFailureLocal));
+            exceptional.add(new VarInsnNode(Opcodes.ALOAD, throwableLocal));
+            exceptional.add(new VarInsnNode(Opcodes.ALOAD, cleanupFailureLocal));
+            exceptional.add(new JumpInsnNode(Opcodes.IF_ACMPEQ, rethrow));
+            exceptional.add(new VarInsnNode(Opcodes.ALOAD, throwableLocal));
+            exceptional.add(new VarInsnNode(Opcodes.ALOAD, cleanupFailureLocal));
+            exceptional.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, "java/lang/Throwable", "addSuppressed",
+                    "(Ljava/lang/Throwable;)V", false));
+            exceptional.add(rethrow);
+            targetMatch.method.tryCatchBlocks.add(new TryCatchBlockNode(cleanupStart, cleanupEnd, cleanupFailed, null));
+            exceptional.add(new VarInsnNode(Opcodes.ALOAD, throwableLocal));
+            exceptional.add(new InsnNode(Opcodes.ATHROW));
+            targetMatch.method.instructions.add(exceptional);
+            targetMatch.method.tryCatchBlocks.add(new TryCatchBlockNode(tryStart, tryEnd, handler, null));
         }
         return HookTransformOutcome.APPLIED;
     }

@@ -1,9 +1,12 @@
 package betamoon.instrumentation;
 
+import betamoon.instrumentation.api.AroundHookDefinition;
 import betamoon.instrumentation.api.CallRedirectHookDefinition;
 import betamoon.instrumentation.api.ClassRef;
+import betamoon.instrumentation.api.FieldRef;
 import betamoon.instrumentation.api.HandlerRef;
 import betamoon.instrumentation.api.MethodRef;
+import betamoon.instrumentation.api.ValueBinding;
 import betamoon.instrumentation.diagnostics.HookDiagnostic;
 import betamoon.instrumentation.diagnostics.HookStatus;
 import betamoon.instrumentation.diagnostics.TransformationReport;
@@ -15,16 +18,22 @@ import betamoon.instrumentation.registry.BuiltinHookModules;
 import betamoon.instrumentation.registry.ClassTransformPlan;
 import betamoon.instrumentation.registry.HookRegistry;
 import betamoon.instrumentation.transform.BetaMoonTransformer;
+import betamoon.runtime.RuntimeSide;
+import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.lang.instrument.IllegalClassFormatException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Label;
+import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
@@ -63,6 +72,7 @@ public final class InstrumentationTransformTest {
         verifyNamespace(mappings, RuntimeNamespace.CLIENT);
         verifyRuntimeClient(mappings, args[1]);
         verifyRuntimeServer(mappings, args[2]);
+        verifyExceptionalCleanup(mappings);
         verifyEarlyReturnExecution(mappings);
         verifyFrozenRedirectAndNoMatch(mappings);
         System.out.println("BetaMoon instrumentation transformation tests passed.");
@@ -78,6 +88,80 @@ public final class InstrumentationTransformTest {
 
     public static String completeObjectDecision(Object original, int decision) {
         return decision == 0 ? (String) original : "replacement";
+    }
+
+    private static int cleanupCalls;
+    private static boolean cleanupThrows;
+
+    public static int captureCleanup() {
+        return 17;
+    }
+
+    public static void completeCleanup(int state) {
+        require(state == 17, "Cleanup lost its captured value");
+        cleanupCalls++;
+        if (cleanupThrows) {
+            throw new IllegalArgumentException("cleanup_failure");
+        }
+    }
+
+    private static void verifyExceptionalCleanup(TinyMappingResolver mappings) throws Exception {
+        String targetName = "fixture/ExceptionalAction";
+        String callbacks = "betamoon/instrumentation/InstrumentationTransformTest";
+        HookRegistry registry = new HookRegistry(new TransformationReport());
+        registry.register(
+                AroundHookDefinition.builder("test:cleanup", new MethodRef(new ClassRef(targetName), "run", "(Z)V"))
+                        .capture(HandlerRef.of(callbacks, "captureCleanup", "()I"))
+                        .onReturn(HandlerRef.of(callbacks, "completeCleanup", "(I)V"), ValueBinding.capturedValue())
+                        .cleanupOnException().build());
+        BetaMoonTransformer transformer = new BetaMoonTransformer(registry.freeze(mappings, RuntimeNamespace.NAMED),
+                mappings, new TransformationReport(), true, false);
+        ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
+        writer.visit(Opcodes.V1_6, Opcodes.ACC_PUBLIC, targetName, null, "java/lang/Object", null);
+        MethodVisitor method = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "run", "(Z)V", null, null);
+        method.visitCode();
+        Label normal = new Label();
+        method.visitVarInsn(Opcodes.ILOAD, 0);
+        method.visitJumpInsn(Opcodes.IFEQ, normal);
+        method.visitTypeInsn(Opcodes.NEW, "java/lang/IllegalStateException");
+        method.visitInsn(Opcodes.DUP);
+        method.visitLdcInsn("fixture_failure");
+        method.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/lang/IllegalStateException", "<init>",
+                "(Ljava/lang/String;)V", false);
+        method.visitInsn(Opcodes.ATHROW);
+        method.visitLabel(normal);
+        method.visitInsn(Opcodes.RETURN);
+        method.visitMaxs(0, 0);
+        method.visitEnd();
+        writer.visitEnd();
+        byte[] transformed = transformer.transform(null, targetName, null, null, writer.toByteArray());
+        class Loader extends ClassLoader {
+            Class<?> fixture() {
+                return defineClass("fixture.ExceptionalAction", transformed, 0, transformed.length);
+            }
+        }
+        Method run = new Loader().fixture().getMethod("run", boolean.class);
+        cleanupCalls = 0;
+        run.invoke(null, false);
+        require(cleanupCalls == 1, "Normal exit must clean up once");
+        for (boolean failingCleanup : new boolean[]{false, true}) {
+            cleanupThrows = failingCleanup;
+            cleanupCalls = 0;
+            try {
+                run.invoke(null, true);
+                throw new AssertionError("Original exception was swallowed");
+            } catch (InvocationTargetException expected) {
+                Throwable original = expected.getCause();
+                require(original instanceof IllegalStateException && "fixture_failure".equals(original.getMessage()),
+                        "Cleanup must preserve the original failure");
+                require(original.getSuppressed().length == (failingCleanup ? 1 : 0),
+                        "Cleanup failures must be retained as suppressed exceptions");
+                require(cleanupCalls == 1, "Exceptional exit must clean up once");
+            }
+        }
+        cleanupThrows = false;
+        require(transformer.transform(null, targetName, null, null, transformed) == null,
+                "Exceptional cleanup must remain idempotent");
     }
 
     private static void verifyEarlyReturnExecution(TinyMappingResolver mappings) throws Exception {
