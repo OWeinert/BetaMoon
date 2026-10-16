@@ -5,9 +5,6 @@
 
 ### Particles
 
-- Use Minecraft display ticks for the decorative ring block, retaining ordinary Lua per-particle animation callbacks.
-- Restore automatic repeating block ticks when saved chunks load, so existing particle ring blocks resume
-  emission after rejoining a world. Retry schedules while surrounding chunks are unavailable.
 - Add registered particle sprite types and reusable burst/emitter effects, with custom PNGs, Minecraft atlas cells,
   independent animation, color/alpha, rotation, size, motion, and collision policies.
 - Add optional per-instance Lua `onTick` updates with scoped particle controls and transient memory.
