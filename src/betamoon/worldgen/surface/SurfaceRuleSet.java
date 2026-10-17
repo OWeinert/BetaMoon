@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.function.IntConsumer;
 
 /**
  * Allocation-free compiled surface layers applied to the current raw chunk
@@ -36,6 +37,11 @@ public final class SurfaceRuleSet {
     }
 
     public void apply(long worldSeed, int chunkX, int chunkZ, byte[] blocks, int localX, int localZ) {
+        apply(worldSeed, chunkX, chunkZ, blocks, localX, localZ, null);
+    }
+
+    public void apply(long worldSeed, int chunkX, int chunkZ, byte[] blocks, int localX, int localZ,
+            IntConsumer changed) {
         long seed = SeedMixer.generationSeed(worldSeed, "minecraft:overworld", "surface", chunkX, chunkZ, key,
                 localX * 31L + localZ);
         Random random = new Random(seed);
@@ -64,7 +70,12 @@ public final class SurfaceRuleSet {
                         if (!replace.contains(blocks[target] & 255)) {
                             break;
                         }
-                        blocks[target] = (byte) block;
+                        if ((blocks[target] & 255) != block) {
+                            blocks[target] = (byte) block;
+                            if (changed != null) {
+                                changed.accept(target);
+                            }
+                        }
                     }
                 }
                 y = Math.min(y, cursor + 1);

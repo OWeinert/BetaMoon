@@ -25,6 +25,7 @@ import betamoon.worldgen.terrain.GeneratorPreview;
 import betamoon.worldgen.terrain.GeneratorSpawnSearch;
 import betamoon.worldgen.terrain.ProfileWorldChunkManager;
 import betamoon.worldgen.terrain.TerrainFoundationTest;
+import betamoon.worldgen.terrain.TerrainGenerationOptimizationTest;
 import betamoon.worldgen.terrain.TerrainRegistry;
 import betamoon.worldgen.terrain.WorldGenerationRuntime;
 import betamoon.worldgen.terrain.WorldGeneratorProfile;
@@ -92,6 +93,8 @@ public final class WorldgenExamplesTest {
         WorldGeneratorProfile complex = TerrainRegistry.snapshot().generator("example:generator/hollow_marches");
         verify(simple, false);
         verify(complex, true);
+        TerrainGenerationOptimizationTest.verifyProfileOutput(simple);
+        TerrainGenerationOptimizationTest.verifyProfileOutput(complex);
         surveyor(complex);
         GenerationDraft draft = new GenerationDraft(new GenerationCatalog(complex));
         require(draft.catalog.options.containsKey("placement/example:placement/marches_redstone"),

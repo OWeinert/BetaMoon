@@ -85,18 +85,11 @@ public strictfp final class CompiledCarver {
 
     public void apply(GenerationContext context, ChunkBlockBuffer buffer) {
         if (nativeCaves) {
-            byte[] original = buffer.copyBlocks();
-            byte[] carved = original.clone();
-            caveSampler.get().carve(context.fields.seed, context.chunkX, context.chunkZ, carved);
-            for (int index = 0; index < carved.length; index++) {
-                if (original[index] != carved[index]) {
-                    buffer.set(index >> 11, index & 127, (index >> 7) & 15, carved[index] & 255, 0);
-                }
-            }
+            buffer.carveNative(caveSampler.get(), context.fields.seed, context.chunkX, context.chunkZ);
             return;
         }
         BitSet selected = sampleMask(context);
-        byte[] original = avoidFluids ? buffer.copyBlocks() : null;
+        byte[] original = avoidFluids && context.rawNeighborhood == null ? buffer.copyBlocks() : null;
         for (int index = selected.nextSetBit(0); index >= 0; index = selected.nextSetBit(index + 1)) {
             int x = index >> 11;
             int y = index & 127;
@@ -116,15 +109,21 @@ public strictfp final class CompiledCarver {
     }
 
     private BitSet sampleMask(GenerationContext context) {
-        BitSet selected = mask.sample(context);
-        for (int x = 0; x < 16; x++) {
-            for (int z = 0; z < 16; z++) {
-                if (!matchesColumn(context, x, z)) {
-                    selected.clear((x << 11) | (z << 7), ((x << 11) | (z << 7)) + 128);
-                }
+        return sampleMask(context, null);
+    }
+
+    private BitSet sampleMask(GenerationContext context, BitSet parentColumns) {
+        BitSet columns = new BitSet(256);
+        for (int column = 0; column < 256; column++) {
+            if ((parentColumns == null || parentColumns.get(column))
+                    && matchesColumn(context, column >> 4, column & 15)) {
+                columns.set(column);
             }
         }
-        return selected;
+        if (columns.isEmpty()) {
+            return new BitSet(ChunkBlockBuffer.CELL_COUNT);
+        }
+        return mask.sample(context, columns);
     }
 
     private static void selectors(Object value, List<String> target, boolean tag, String path) {
@@ -212,10 +211,10 @@ public strictfp final class CompiledCarver {
             if (!operation.equals("union") && !operation.equals("intersection")) {
                 throw error(key + ".operation", "expected union or intersection");
             }
-            return context -> {
-                BitSet result = children.get(0).sampleMask(context);
+            return (context, columns) -> {
+                BitSet result = children.get(0).sampleMask(context, columns);
                 for (int i = 1; i < children.size(); i++) {
-                    BitSet next = children.get(i).sampleMask(context);
+                    BitSet next = children.get(i).sampleMask(context, columns);
                     if (operation.equals("union")) {
                         result.or(next);
                     } else {
@@ -235,14 +234,23 @@ public strictfp final class CompiledCarver {
             maximumMaskWork = (long) field.sampleWork * ChunkBlockBuffer.CELL_COUNT;
             int minY = integer(value.getOrDefault("minY", 0.0), key + ".minY", 0, 127);
             int maxY = integer(value.getOrDefault("maxY", 127.0), key + ".maxY", minY, 127);
-            return context -> {
+            return (context, columns) -> {
                 BitSet result = new BitSet(ChunkBlockBuffer.CELL_COUNT);
-                for (int x = 0; x < 16; x++) {
-                    for (int z = 0; z < 16; z++) {
+                double[] samples = (field.dependencies & 2) == 0 ? null : new double[128];
+                for (int column = columns.nextSetBit(0); column >= 0; column = columns.nextSetBit(column + 1)) {
+                    int x = context.worldX(column >> 4);
+                    int z = context.worldZ(column & 15);
+                    if ((field.dependencies & 2) == 0) {
+                        double sample = field.sample(context.fields, x, minY, z);
+                        if (sample >= min && sample <= max) {
+                            result.set((column << 7) | minY, (column << 7) + maxY + 1);
+                        }
+                    } else {
+                        field.sampleColumn(context.fields, x, z, minY, maxY, samples);
                         for (int y = minY; y <= maxY; y++) {
-                            double sample = field.sample(context.fields, context.worldX(x), y, context.worldZ(z));
+                            double sample = samples[y];
                             if (sample >= min && sample <= max) {
-                                result.set((x << 11) | (z << 7) | y);
+                                result.set((column << 7) | y);
                             }
                         }
                     }
@@ -270,7 +278,7 @@ public strictfp final class CompiledCarver {
             throw error(key, "carver exceeds the 32-million-operation mask work budget; reduce count, length or radii");
         }
         long salt = SeedMixer.hash(key + ":" + value.getOrDefault("salt", "0"));
-        return context -> {
+        return (context, columns) -> {
             BitSet result = new BitSet(ChunkBlockBuffer.CELL_COUNT);
             for (int ox = context.chunkX - reach; ox <= context.chunkX + reach; ox++) {
                 for (int oz = context.chunkZ - reach; oz <= context.chunkZ + reach; oz++) {
@@ -288,7 +296,7 @@ public strictfp final class CompiledCarver {
                         int steps = type.equals("room") ? 1 : length;
                         for (int step = 0; step < steps; step++) {
                             double shape = type.equals("room") ? 1 : 0.4 + 0.6 * Math.sin(Math.PI * step / steps);
-                            ellipsoid(result, context, x, y, z, radius * shape, vertical * shape);
+                            ellipsoid(result, context, columns, x, y, z, radius * shape, vertical * shape);
                             x += Math.cos(angle);
                             z += Math.sin(angle);
                             y += pitch;
@@ -301,8 +309,8 @@ public strictfp final class CompiledCarver {
         };
     }
 
-    private static void ellipsoid(BitSet result, GenerationContext context, double cx, double cy, double cz,
-            double radius, double vertical) {
+    private static void ellipsoid(BitSet result, GenerationContext context, BitSet columns, double cx, double cy,
+            double cz, double radius, double vertical) {
         int minX = Math.max(0, (int) Math.floor(cx - radius - context.chunkX * 16));
         int maxX = Math.min(15, (int) Math.floor(cx + radius - context.chunkX * 16));
         int minZ = Math.max(0, (int) Math.floor(cz - radius - context.chunkZ * 16));
@@ -312,7 +320,13 @@ public strictfp final class CompiledCarver {
         for (int x = minX; x <= maxX; x++) {
             double dx = (context.worldX(x) + 0.5 - cx) / radius;
             for (int z = minZ; z <= maxZ; z++) {
+                if (!columns.get(x * 16 + z)) {
+                    continue;
+                }
                 double dz = (context.worldZ(z) + 0.5 - cz) / radius;
+                if (dx * dx + dz * dz >= 1) {
+                    continue;
+                }
                 for (int y = minY; y <= maxY; y++) {
                     double dy = (y + 0.5 - cy) / vertical;
                     if (dx * dx + dy * dy + dz * dz < 1) {
@@ -377,6 +391,6 @@ public strictfp final class CompiledCarver {
     }
 
     private interface Mask {
-        BitSet sample(GenerationContext context);
+        BitSet sample(GenerationContext context, BitSet columns);
     }
 }

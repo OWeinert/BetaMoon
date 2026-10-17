@@ -197,11 +197,11 @@ final class RegionalStructureRegistry {
         int maxRegionZ = Math.floorDiv(chunkZ + radius, definition.spacing);
         for (int regionX = minRegionX; regionX <= maxRegionX; regionX++) {
             for (int regionZ = minRegionZ; regionZ <= maxRegionZ; regionZ++) {
-                Candidate candidate = candidate(definition, world.getRandomSeed(), dimension, regionX, regionZ);
                 String id = id(definition.key, dimension, regionX, regionZ);
                 if (index.contains(id)) {
                     continue;
                 }
+                Candidate candidate = candidate(definition, world.getRandomSeed(), dimension, regionX, regionZ);
                 int startX = (candidate.chunkX << 4) + 8;
                 int startZ = (candidate.chunkZ << 4) + 8;
                 if (!definition.heightType.equals("fixed") && !world.blockExists(startX, 64, startZ)) {

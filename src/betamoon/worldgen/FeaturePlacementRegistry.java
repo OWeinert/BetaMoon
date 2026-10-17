@@ -2,6 +2,7 @@ package betamoon.worldgen;
 
 import betamoon.BetaMoonCommon;
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.worldgen.spatial.FieldContext;
 import betamoon.worldgen.spatial.NoiseDefinition;
 import betamoon.worldgen.spatial.SpatialRegistry;
 import betamoon.worldgen.structure.SitePolicy;
@@ -10,6 +11,7 @@ import betamoon.worldgen.terrain.WorldGenerationRuntime;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -288,7 +290,8 @@ final class FeaturePlacementRegistry {
         String dimension = nether ? "minecraft:nether" : "minecraft:overworld";
         int logicalChunkX = Math.floorDiv(chunkX, 16);
         int logicalChunkZ = Math.floorDiv(chunkZ, 16);
-        for (PlacementDefinition placement : snapshot.placements) {
+        FieldContext generationFields = null;
+        for (PlacementDefinition placement : snapshot.forStage(stage, nether)) {
             if (stage != null && placement.stage != stage) {
                 continue;
             }
@@ -319,6 +322,7 @@ final class FeaturePlacementRegistry {
             int successes = 0;
             int attempts = placement.sampleAttempts(random);
             for (int attempt = 0; attempt < attempts && successes < placement.successLimit; attempt++) {
+                GenerationMetrics.record(GenerationMetrics.Counter.FEATURE_ATTEMPTS, 1);
                 FeatureContext context = context(snapshot, world, random, feature, FeatureOptions.DEFAULT,
                         placement.conditions.site).forGeneration();
                 BlockPosition origin = placement.sampleOrigin(context, chunkX, chunkZ, attempt);
@@ -327,8 +331,10 @@ final class FeaturePlacementRegistry {
                     continue;
                 }
                 if (placement.conditions.spatial != null) {
-                    double weight = placement.conditions.spatial.weight(WorldGenerationRuntime.fieldContext(world),
-                            origin.x, origin.z);
+                    if (generationFields == null) {
+                        generationFields = WorldGenerationRuntime.fieldContext(world);
+                    }
+                    double weight = placement.conditions.spatial.weight(generationFields, origin.x, origin.z);
                     double selection = NoiseDefinition.unit(seed, origin.x, attempt, origin.z);
                     if (weight <= 0 || selection >= Math.min(1, placement.probability * weight)) {
                         reject(placement.key, "spatial");
@@ -533,6 +539,8 @@ final class FeaturePlacementRegistry {
         private final Map<WorldGenKey, FeatureDefinition> features;
         private final List<PlacementDefinition> placements;
         private final Map<WorldGenKey, PlacementDefinition> placementsByKey;
+        private final Map<GenerationStage, List<PlacementDefinition>> overworld;
+        private final Map<GenerationStage, List<PlacementDefinition>> nether;
 
         private Snapshot(Map<WorldGenKey, FeatureDefinition> features, List<PlacementDefinition> placements) {
             this.features = Collections.unmodifiableMap(features);
@@ -542,6 +550,29 @@ final class FeaturePlacementRegistry {
                 keyed.put(placement.key, placement);
             }
             placementsByKey = Collections.unmodifiableMap(keyed);
+            overworld = indexStages(placements, "minecraft:overworld");
+            nether = indexStages(placements, "minecraft:nether");
+        }
+
+        private List<PlacementDefinition> forStage(GenerationStage stage, boolean inNether) {
+            return stage == null ? placements : (inNether ? nether : overworld).get(stage);
+        }
+
+        private static Map<GenerationStage, List<PlacementDefinition>> indexStages(List<PlacementDefinition> placements,
+                String dimension) {
+            Map<GenerationStage, List<PlacementDefinition>> result = new EnumMap<GenerationStage, List<PlacementDefinition>>(
+                    GenerationStage.class);
+            for (GenerationStage stage : GenerationStage.values()) {
+                List<PlacementDefinition> eligible = new ArrayList<PlacementDefinition>();
+                for (PlacementDefinition placement : placements) {
+                    if (placement.stage == stage
+                            && (placement.dimensions.isEmpty() || placement.dimensions.contains(dimension))) {
+                        eligible.add(placement);
+                    }
+                }
+                result.put(stage, Collections.unmodifiableList(eligible));
+            }
+            return Collections.unmodifiableMap(result);
         }
 
         private static Snapshot empty() {

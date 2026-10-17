@@ -1,5 +1,6 @@
 package betamoon.worldgen.terrain;
 
+import betamoon.worldgen.GenerationMetrics;
 import betamoon.worldgen.GenerationStage;
 import betamoon.worldgen.WorldGenRegistry;
 import net.minecraft.src.BlockSand;
@@ -17,6 +18,7 @@ public final class BetaMoonChunkProvider implements IChunkProvider {
     private final IChunkProvider nativeProvider;
     private final WorldGeneratorProfile profile;
     private final World world;
+    private final RawTerrainCache rawTerrain = new RawTerrainCache();
 
     public BetaMoonChunkProvider(IChunkProvider nativeProvider, WorldGeneratorProfile profile) {
         this(null, nativeProvider, profile);
@@ -53,20 +55,36 @@ public final class BetaMoonChunkProvider implements IChunkProvider {
         }
         GenerationContext context = new GenerationContext(WorldGenerationRuntime.fieldContext(world), x, z,
                 world.getWorldChunkManager().loadBlockGeneratorData(null, x * 16, z * 16, 16, 16));
-        return RawChunkFinalizer.build(world, x, z, generateRaw(profile, context));
+        return RawChunkFinalizer.build(world, x, z, generateRaw(profile, context, rawTerrain));
     }
 
     public static ChunkBlockBuffer generateRaw(WorldGeneratorProfile profile, GenerationContext context) {
+        return generateRaw(profile, context, null);
+    }
+
+    static ChunkBlockBuffer generateRaw(WorldGeneratorProfile profile, GenerationContext context,
+            RawTerrainCache cache) {
         ChunkBlockBuffer buffer = new ChunkBlockBuffer();
         context.terrainSource = profile.terrain;
-        profile.terrain.fill(context, buffer);
-        context.rawNeighborhood = new RawGenerationNeighborhood(profile.terrain, context, buffer);
+        long started = GenerationMetrics.start();
+        if (cache == null) {
+            profile.terrain.fill(context, buffer);
+            context.rawNeighborhood = new RawGenerationNeighborhood(profile.terrain, context, buffer);
+        } else {
+            BaseTerrainSnapshot base = cache.base(profile.terrain, context, buffer);
+            context.rawNeighborhood = new RawGenerationNeighborhood(profile.terrain, context, base.blocks, cache);
+        }
+        GenerationMetrics.finish(GenerationMetrics.Counter.BASE_NANOS, started);
+        started = GenerationMetrics.start();
         for (CompiledCarver carver : profile.carvers) {
             carver.apply(context, buffer);
         }
+        GenerationMetrics.finish(GenerationMetrics.Counter.CARVER_NANOS, started);
+        started = GenerationMetrics.start();
         if (profile.applySurfaces) {
             profile.surfaces.apply(context, buffer);
         }
+        GenerationMetrics.finish(GenerationMetrics.Counter.SURFACE_NANOS, started);
         return buffer;
     }
 

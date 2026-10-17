@@ -27,11 +27,15 @@ import static betamoon.worldgen.spatial.GenerationValues.string;
  * Compiled deterministic material decisions, separate from terrain occupancy.
  */
 public final class MaterialRule {
+    static final int FROZEN_BLOCKS = 1;
+    static final int DERIVED_SURFACE = 2;
     private final Evaluator evaluator;
     public final Set<String> identities;
     public final boolean requiresEnvelope;
     public final int nodeCount;
     public final long sampleWork;
+    final int inputRequirements;
+    final TerrainBlockState constantState;
 
     private MaterialRule(Evaluator evaluator, Set<String> identities) {
         this(evaluator, identities, false, 1);
@@ -43,6 +47,11 @@ public final class MaterialRule {
 
     private MaterialRule(Evaluator evaluator, Set<String> identities, boolean requiresEnvelope, int nodeCount,
             long sampleWork) {
+        this(evaluator, identities, requiresEnvelope, nodeCount, sampleWork, 0, null);
+    }
+
+    private MaterialRule(Evaluator evaluator, Set<String> identities, boolean requiresEnvelope, int nodeCount,
+            long sampleWork, int inputRequirements, TerrainBlockState constantState) {
         this.sampleWork = sampleWork;
         if (sampleWork > 2048) {
             throw error("material", "material rule exceeds its 2048-operation per-cell work budget");
@@ -54,6 +63,8 @@ public final class MaterialRule {
         this.nodeCount = nodeCount;
         this.evaluator = evaluator;
         this.identities = Collections.unmodifiableSet(new TreeSet<String>(identities));
+        this.inputRequirements = inputRequirements;
+        this.constantState = constantState;
     }
 
     public TerrainBlockState sample(GenerationContext context, int x, int y, int z) {
@@ -61,7 +72,8 @@ public final class MaterialRule {
     }
 
     public static MaterialRule constant(TerrainBlockState state) {
-        return new MaterialRule((context, x, y, z) -> state, Collections.singleton(state.identity));
+        return new MaterialRule((context, x, y, z) -> state, Collections.singleton(state.identity), false, 1, 1, 0,
+                state);
     }
 
     public static MaterialRule compile(Object value, String path, Resolver resolver, SpatialRegistry.Snapshot spatial,
@@ -133,10 +145,12 @@ public final class MaterialRule {
             boolean needsEnvelope = false;
             int nodes = 1;
             long work = 1;
+            int requirements = 0;
             for (MaterialRule rule : rules) {
                 needsEnvelope |= rule.requiresEnvelope;
                 nodes += rule.nodeCount;
                 work += rule.sampleWork;
+                requirements |= rule.inputRequirements;
             }
             return new MaterialRule((context, x, y, z) -> {
                 for (MaterialRule rule : rules) {
@@ -146,7 +160,7 @@ public final class MaterialRule {
                     }
                 }
                 return null;
-            }, identities, needsEnvelope, nodes, work);
+            }, identities, needsEnvelope, nodes, work, requirements, null);
         }
         if (type.equals("when")) {
             fields(object, path, "type", "condition", "thenRule", "elseRule");
@@ -168,7 +182,9 @@ public final class MaterialRule {
                     identities,
                     condition.requiresEnvelope() || yes.requiresEnvelope || no != null && no.requiresEnvelope,
                     1 + condition.nodeCount() + yes.nodeCount + (no == null ? 0 : no.nodeCount),
-                    1 + condition.sampleWork() + Math.max(yes.sampleWork, no == null ? 0 : no.sampleWork));
+                    1 + condition.sampleWork() + Math.max(yes.sampleWork, no == null ? 0 : no.sampleWork),
+                    condition.inputRequirements() | yes.inputRequirements | (no == null ? 0 : no.inputRequirements),
+                    null);
         }
         throw error(path, "unknown material rule: " + type);
     }
@@ -194,10 +210,12 @@ public final class MaterialRule {
                 boolean needsEnvelope = false;
                 int nodes = 1;
                 long work = 1;
+                int requirements = 0;
                 for (Condition child : conditions) {
                     needsEnvelope |= child.requiresEnvelope();
                     nodes += child.nodeCount();
                     work += child.sampleWork();
+                    requirements |= child.inputRequirements();
                 }
                 return checked((context, x, y, z) -> {
                     for (Condition child : conditions) {
@@ -210,13 +228,13 @@ public final class MaterialRule {
                         }
                     }
                     return type.equals("all");
-                }, needsEnvelope, nodes, work);
+                }, needsEnvelope, nodes, work, requirements);
             }
             case "not": {
                 fields(value, path, "type", "condition");
                 Condition child = condition(object(required(value, "condition", path), path), path, spatial, depth + 1);
                 return checked((context, x, y, z) -> !child.matches(context, x, y, z), child.requiresEnvelope(),
-                        child.nodeCount() + 1, child.sampleWork() + 1);
+                        child.nodeCount() + 1, child.sampleWork() + 1, child.inputRequirements());
             }
             case "stone_depth":
             case "liquid_depth":
@@ -228,7 +246,7 @@ public final class MaterialRule {
                 if (min > max) {
                     throw error(path, "material condition range must be ordered");
                 }
-                return checked((context, x, y, z) -> {
+                Condition condition = checked((context, x, y, z) -> {
                     double sample;
                     if (type.equals("derived_surface_depth")) {
                         sample = context.inputSurface(x, z) - y;
@@ -238,7 +256,11 @@ public final class MaterialRule {
                         sample = context.depthAbove(x, y, z, type.equals("liquid_depth"));
                     }
                     return sample >= min && sample <= max;
-                }, type.equals("slope"), 1, type.equals("slope") ? 1024 : 128);
+                }, type.equals("slope"), 1, type.equals("slope") ? 1024 : 128,
+                        type.equals("slope")
+                                ? 0
+                                : type.equals("derived_surface_depth") ? DERIVED_SURFACE : FROZEN_BLOCKS);
+                return type.equals("slope") ? new ColumnCondition(condition) : condition;
             }
             case "exposure": {
                 fields(value, path, "type", "to");
@@ -246,10 +268,10 @@ public final class MaterialRule {
                 if (!target.equals("air") && !target.equals("fluid")) {
                     throw error(path, "exposure target must be air or fluid");
                 }
-                return (context, x, y, z) -> {
+                return checked((context, x, y, z) -> {
                     int id = context.inputBlock(x, y + 1, z);
                     return target.equals("air") ? id == 0 : id != 0 && Block.blocksList[id].blockMaterial.getIsLiquid();
-                };
+                }, false, 1, 1, FROZEN_BLOCKS);
             }
             case "below_y": {
                 fields(value, path, "type", "y");
@@ -272,7 +294,7 @@ public final class MaterialRule {
             case "biome": {
                 fields(value, path, "type", "selector");
                 String selector = string(required(value, "selector", path), path + ".selector");
-                return (context, x, y, z) -> context.biomeMatches(x, z, selector);
+                return new ColumnCondition((context, x, y, z) -> context.biomeMatches(x, z, selector));
             }
             case "field": {
                 fields(value, path, "type", "field", "min", "max");
@@ -282,10 +304,11 @@ public final class MaterialRule {
                 if (min > max) {
                     throw error(path, "material field range must be ordered");
                 }
-                return checked((context, x, y, z) -> {
+                Condition condition = checked((context, x, y, z) -> {
                     double sample = field.sample(context.fields, context.worldX(x), y, context.worldZ(z));
                     return sample >= min && sample <= max;
                 }, false, 1, field.sampleWork);
+                return (field.dependencies & 2) == 0 ? new ColumnCondition(condition) : condition;
             }
             default:
                 throw error(path, "unknown material condition: " + type);
@@ -305,6 +328,11 @@ public final class MaterialRule {
     }
 
     private static Condition checked(Condition delegate, boolean requiresEnvelope, int nodes, long work) {
+        return checked(delegate, requiresEnvelope, nodes, work, 0);
+    }
+
+    private static Condition checked(Condition delegate, boolean requiresEnvelope, int nodes, long work,
+            int requirements) {
         if (work > 2048) {
             throw error("material.condition", "condition exceeds its 2048-operation per-cell work budget");
         }
@@ -327,7 +355,47 @@ public final class MaterialRule {
             public long sampleWork() {
                 return work;
             }
+
+            public int inputRequirements() {
+                return requirements;
+            }
         };
+    }
+
+    private static final class ColumnCondition implements Condition {
+        private final Condition delegate;
+
+        private ColumnCondition(Condition delegate) {
+            this.delegate = delegate;
+        }
+
+        public boolean matches(GenerationContext context, int x, int y, int z) {
+            if (context.fields.trace != null) {
+                return delegate.matches(context, x, y, z);
+            }
+            byte[] values = context.columnConditionValues(this);
+            int column = x * 16 + z;
+            if (values[column] == 0) {
+                values[column] = (byte) (delegate.matches(context, x, y, z) ? 2 : 1);
+            }
+            return values[column] == 2;
+        }
+
+        public boolean requiresEnvelope() {
+            return delegate.requiresEnvelope();
+        }
+
+        public long sampleWork() {
+            return delegate.sampleWork();
+        }
+
+        public int nodeCount() {
+            return delegate.nodeCount();
+        }
+
+        public int inputRequirements() {
+            return delegate.inputRequirements();
+        }
     }
 
     private interface Condition {
@@ -343,6 +411,10 @@ public final class MaterialRule {
 
         default int nodeCount() {
             return 1;
+        }
+
+        default int inputRequirements() {
+            return 0;
         }
     }
 }

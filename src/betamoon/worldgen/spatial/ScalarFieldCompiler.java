@@ -70,7 +70,7 @@ public strictfp final class ScalarFieldCompiler {
         if (work != result.sampleWork) {
             ScalarField compiled = result;
             result = new ScalarField(result.min, result.max, result.dependencies, result.nodeCount, compiled::sample,
-                    work);
+                    work).withColumnFactory(compiled.columnFactory);
         }
         result.label(path);
         interned.put(canonical, result);
@@ -401,7 +401,11 @@ public strictfp final class ScalarFieldCompiler {
             throw error(path, "noise scale exceeds limits or 2D noise has a Y scale");
         }
         return field(-noise.bound(), noise.bound(), (sx != 0 ? 1 : 0) | (sy != 0 ? 2 : 0) | (sz != 0 ? 4 : 0) | 8, 1,
-                (context, x, y, z) -> noise.sample(context.seed, x * sx, y * sy, z * sz));
+                (context, x, y, z) -> noise.sample(context.seed, x * sx, y * sy, z * sz))
+                .withColumnFactory((context, x, z, initialY) -> {
+                    DoubleUnaryOperator prepared = noise.prepareColumn(context.seed, x * sx, z * sz);
+                    return y -> prepared.applyAsDouble(y * sy);
+                });
     }
 
     private ScalarField distance(Map<String, Object> value, String path) {
@@ -524,7 +528,7 @@ public strictfp final class ScalarFieldCompiler {
         if (type.equals("rotate_2d") && (input.dependencies & 5) != 0) {
             dependencies |= 5;
         }
-        return field(input.min, input.max, dependencies,
+        ScalarField result = field(input.min, input.max, dependencies,
                 1 + input.nodeCount + dx.nodeCount + dy.nodeCount + dz.nodeCount, (context, x, y, z) -> {
                     if (type.equals("rotate_2d")) {
                         return input.sample(context, x * cos - z * sin, y, x * sin + z * cos);
@@ -536,6 +540,21 @@ public strictfp final class ScalarFieldCompiler {
                             ? input.sample(context, x + ox, y + oy, z + oz)
                             : input.sample(context, x * ox, y * oy, z * oz);
                 });
+        if (input.columnFactory != null && ((dx.dependencies | dy.dependencies | dz.dependencies) & 2) == 0) {
+            result.withColumnFactory((context, x, z, initialY) -> {
+                if (type.equals("rotate_2d")) {
+                    return input.prepareColumn(context, x * cos - z * sin, x * sin + z * cos, initialY);
+                }
+                double ox = dx.sample(context, x, initialY, z);
+                double oy = dy.sample(context, x, initialY, z);
+                double oz = dz.sample(context, x, initialY, z);
+                boolean shift = type.equals("shift");
+                DoubleUnaryOperator prepared = input.prepareColumn(context, shift ? x + ox : x * ox,
+                        shift ? z + oz : z * oz, shift ? initialY + oy : initialY * oy);
+                return y -> prepared.applyAsDouble(shift ? y + oy : y * oy);
+            });
+        }
+        return result;
     }
 
     private static ScalarField binary(String type, ScalarField left, ScalarField right, String path) {
@@ -595,15 +614,17 @@ public strictfp final class ScalarFieldCompiler {
     }
 
     private static ScalarField cached(ScalarField input) {
-        ThreadLocal<SampleCache> cache = ThreadLocal.withInitial(SampleCache::new);
         return new ScalarField(input.min, input.max, input.dependencies, input.nodeCount, (context, x, y, z) -> {
-            SampleCache saved = cache.get();
+            if (context.trace != null) {
+                return input.sample(context, x, y, z);
+            }
+            SampleCache saved = context.samplingData(input, SampleCache::new);
             double cacheX = (input.dependencies & 1) == 0 ? 0 : x;
             double cacheY = (input.dependencies & 2) == 0 ? 0 : y;
             double cacheZ = (input.dependencies & 4) == 0 ? 0 : z;
-            if (saved.context != context || saved.x != cacheX || saved.y != cacheY || saved.z != cacheZ) {
+            if (!saved.valid || saved.x != cacheX || saved.y != cacheY || saved.z != cacheZ) {
                 saved.value = input.sample(context, x, y, z);
-                saved.context = context;
+                saved.valid = true;
                 saved.x = cacheX;
                 saved.y = cacheY;
                 saved.z = cacheZ;
@@ -613,7 +634,7 @@ public strictfp final class ScalarFieldCompiler {
     }
 
     private static final class SampleCache {
-        private FieldContext context;
+        private boolean valid;
         private double x;
         private double y;
         private double z;

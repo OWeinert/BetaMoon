@@ -1,5 +1,6 @@
 package betamoon.worldgen.terrain;
 
+import betamoon.worldgen.GenerationMetrics;
 import betamoon.worldgen.spatial.FieldContext;
 import betamoon.worldgen.spatial.ScalarField;
 import betamoon.worldgen.spatial.ScalarFieldCompiler;
@@ -64,42 +65,56 @@ public final class ComposedTerrainSource implements TerrainSource {
 
     @Override
     public void fill(GenerationContext context, ChunkBlockBuffer buffer) {
+        GenerationMetrics.record(GenerationMetrics.Counter.COMPOSED_FILLS, 1);
         for (Layer layer : layers) {
+            if (layer.mask == null && layer.operation.equals("replace")) {
+                buffer.clear();
+                layer.source.fill(context, buffer);
+                continue;
+            }
             ChunkBlockBuffer input = new ChunkBlockBuffer();
             layer.source.fill(context, input);
             for (int x = 0; x < 16; x++) {
                 for (int z = 0; z < 16; z++) {
+                    boolean columnMask = layer.mask != null && (layer.mask.dependencies & 2) == 0
+                            && context.fields.trace == null;
+                    double selected = columnMask
+                            ? layer.mask.sample(context.fields, context.worldX(x), 0, context.worldZ(z))
+                            : 0;
                     for (int y = 0; y < 128; y++) {
                         if (layer.mask != null) {
-                            double sample = layer.mask.sample(context.fields, context.worldX(x), y, context.worldZ(z));
+                            double sample = columnMask
+                                    ? selected
+                                    : layer.mask.sample(context.fields, context.worldX(x), y, context.worldZ(z));
                             if (sample < layer.min || sample > layer.max) {
                                 continue;
                             }
                         }
                         int id = input.blockId(x, y, z);
                         if (layer.operation.equals("replace") || layer.operation.equals("union") && id != 0) {
-                            buffer.set(x, y, z, id, input.metadata(x, y, z));
+                            buffer.setGenerated((x << 11) | (z << 7) | y, id, input.metadata(x, y, z));
                         } else if (layer.operation.equals("subtract") && id != 0
                                 || layer.operation.equals("intersection") && id == 0) {
-                            buffer.set(x, y, z, 0, 0);
+                            buffer.setGenerated((x << 11) | (z << 7) | y, 0, 0);
                         }
                     }
                 }
             }
         }
-        TerrainHeightmaps heights = new TerrainHeightmaps(buffer);
         for (int x = 0; x < 16; x++) {
             for (int z = 0; z < 16; z++) {
-                context.preliminarySurface[z * 16 + x] = heights.worldSurface(x, z);
+                int y = 127;
+                while (y >= 0 && buffer.blockId(x, y, z) == 0) {
+                    y--;
+                }
+                context.preliminarySurface[z * 16 + x] = y;
             }
         }
     }
 
     @Override
     public double height(FieldContext context, int x, int z) {
-        ChunkBlockBuffer buffer = new ChunkBlockBuffer();
-        fill(GenerationContext.preview(context, x >> 4, z >> 4), buffer);
-        return new TerrainHeightmaps(buffer).worldSurface(x & 15, z & 15);
+        return TerrainHeightPreview.heights(this, context, x >> 4, z >> 4).worldSurface(x & 15, z & 15);
     }
 
     @Override

@@ -10,9 +10,11 @@ import net.minecraft.src.WorldChunkManager;
  */
 public final class NativeBiomeEnvironment implements FieldContext.Environment {
     private final WorldChunkManager manager;
+    private final NativeClimateSamples climate;
 
     public NativeBiomeEnvironment(WorldChunkManager manager) {
         this.manager = manager;
+        climate = new NativeClimateSamples(manager);
     }
 
     public WorldChunkManager manager() {
@@ -21,8 +23,7 @@ public final class NativeBiomeEnvironment implements FieldContext.Environment {
 
     @Override
     public double biomeValue(String property, int x, int z) {
-        manager.loadBlockGeneratorData(null, x, z, 1, 1);
-        return property.equals("temperature") ? manager.temperature[0] : manager.humidity[0];
+        return climate.value(property, x, z);
     }
 
     @Override

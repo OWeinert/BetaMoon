@@ -91,10 +91,16 @@ final class RegionalStructurePlan {
             tag.setString("SpatialSignature", spatialSignature);
         }
         NBTTagList savedPieces = new NBTTagList();
+        GenerationMetrics.record(GenerationMetrics.Counter.REGIONAL_PIECES_SERIALIZED, pieces.size());
         for (Piece piece : pieces) {
             savedPieces.setTag(piece.write());
         }
         tag.setTag("Pieces", savedPieces);
+        writeCompletion(tag);
+        return tag;
+    }
+
+    void writeCompletion(NBTTagCompound tag) {
         NBTTagList completed = new NBTTagList();
         for (Long value : completedChunks) {
             NBTTagCompound chunk = new NBTTagCompound();
@@ -103,7 +109,6 @@ final class RegionalStructurePlan {
             completed.setTag(chunk);
         }
         tag.setTag("Completed", completed);
-        return tag;
     }
 
     static RegionalStructurePlan read(NBTTagCompound tag) {

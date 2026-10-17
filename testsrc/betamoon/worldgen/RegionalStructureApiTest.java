@@ -2,19 +2,24 @@ package betamoon.worldgen;
 
 import betamoon.luaapi.BetaMoonModule;
 import betamoon.luamodloader.LuaScriptRegistry;
+import betamoon.system.BetaMoonWorldData;
 import betamoon.worldgen.structure.StructureFeature;
 import betamoon.worldgen.structure.StructureProcessors;
 import betamoon.worldgen.structure.StructureTemplate;
 import betamoon.worldgen.structure.StructureTransform;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
-import java.util.ArrayList;
 import net.minecraft.src.Block;
 import net.minecraft.src.IChunkProvider;
+import net.minecraft.src.NBTTagCompound;
+import net.minecraft.src.NBTTagList;
 import net.minecraft.src.World;
 import net.minecraft.src.WorldProvider;
 import org.luaj.vm2.Globals;
@@ -112,8 +117,7 @@ public final class RegionalStructureApiTest {
                     && restored.pieces.get(0).generationSignature.equals(plan.pieces.get(0).generationSignature),
                     "Saved piece graphs preserve transforms, seeds, bounds, and completion state");
             RegionalStructurePlan.Piece firstPiece = plan.pieces.get(0);
-            java.util.List<RegionalStructurePlan.Piece.TerrainChange> terrain =
-                    new ArrayList<RegionalStructurePlan.Piece.TerrainChange>();
+            java.util.List<RegionalStructurePlan.Piece.TerrainChange> terrain = new ArrayList<RegionalStructurePlan.Piece.TerrainChange>();
             terrain.add(new RegionalStructurePlan.Piece.TerrainChange(firstPiece.origin.offset(0, -1, 0),
                     Block.cobblestone.blockID, 0, 0, 0));
             terrain.add(new RegionalStructurePlan.Piece.TerrainChange(firstPiece.origin.offset(1, 0, 0), 0, 0,
@@ -137,6 +141,7 @@ public final class RegionalStructureApiTest {
                     && restoredTerrain.pieces.get(0).terrainChanges.get(1).expectedBlockId == Block.dirt.blockID
                     && restoredTerrain.pieces.get(0).conformOffsets.get(0).y == 1,
                     "Saved regional plans preserve adaptation, excavation, expected world state, and conform offsets");
+            verifyCompletionUpdates(terrainPlan, chunkX, chunkZ);
 
             expectFailure(new Runnable() {
                 @Override
@@ -158,6 +163,36 @@ public final class RegionalStructureApiTest {
             WorldGenRegistry.clear();
             owner.invoke(null, new Object[]{null});
         }
+    }
+
+    private static void verifyCompletionUpdates(RegionalStructurePlan plan, int chunkX, int chunkZ) throws Exception {
+        BetaMoonWorldData storage = new BetaMoonWorldData("regional-test");
+        Constructor<RegionalStructureIndex> constructor = RegionalStructureIndex.class
+                .getDeclaredConstructor(BetaMoonWorldData.class);
+        constructor.setAccessible(true);
+        RegionalStructureIndex index = constructor.newInstance(storage);
+        index.add(plan);
+        NBTTagCompound saved = storage.structures().getCompoundTag("Starts").getCompoundTag(plan.id());
+        NBTTagList pieces = saved.getTagList("Pieces");
+        List<RegionalStructurePlan> stable = index.forChunk(chunkX, chunkZ);
+        try {
+            stable.clear();
+            throw new AssertionError("The chunk index must not expose a mutable list");
+        } catch (UnsupportedOperationException expected) {
+            require(stable.size() == 1, "Rejected mutations must leave the shared index intact");
+        }
+        plan.complete(chunkX, chunkZ);
+        index.changed(plan);
+        require(saved.getTagList("Pieces") == pieces && saved.getTagList("Completed").tagCount() == 1,
+                "Completion must update saved slices without reserializing the immutable piece graph");
+        BetaMoonWorldData reopened = new BetaMoonWorldData("regional-test");
+        NBTTagCompound root = new NBTTagCompound();
+        storage.writeToNBT(root);
+        reopened.readFromNBT(root);
+        RegionalStructureIndex restored = constructor.newInstance(reopened);
+        require(restored.find(plan.id()).isComplete(chunkX, chunkZ)
+                && restored.find(plan.id()).pieces.get(0).terrainChanges.size() == 2,
+                "Incremental completion updates must preserve full plans after storage reload");
     }
 
     private static RegionalStructureDefinition definition() {

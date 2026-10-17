@@ -98,10 +98,15 @@ public final class GeneratorPreview {
         Map<String, Object> materials = new TreeMap<String, Object>();
         byte[] blocks = buffer.copyBlocks();
         byte[] metadata = buffer.copyMetadata();
+        int[] materialCounts = new int[4096];
         for (int i = 0; i < blocks.length; i++) {
             int state = metadata[i >> 1] >> ((i & 1) * 4) & 15;
-            String material = (blocks[i] & 255) + ":" + state;
-            materials.put(material, ((Number) materials.getOrDefault(material, 0)).intValue() + 1);
+            materialCounts[((blocks[i] & 255) << 4) | state]++;
+        }
+        for (int state = 0; state < materialCounts.length; state++) {
+            if (materialCounts[state] > 0) {
+                materials.put((state >> 4) + ":" + (state & 15), materialCounts[state]);
+            }
         }
         result.put("materials", materials);
         Map<String, String> raw = new LinkedHashMap<String, String>();

@@ -1,8 +1,6 @@
 package betamoon.worldgen.terrain;
 
 import betamoon.worldgen.spatial.FieldContext;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * At most the four directly adjacent base buffers, sampled without world chunk
@@ -14,14 +12,26 @@ public final class RawGenerationNeighborhood {
     private final int centerX;
     private final int centerZ;
     private final byte[] centerBlocks;
-    private final Map<Long, byte[]> chunks = new HashMap<Long, byte[]>();
+    private final byte[][] neighbors = new byte[4][];
+    private final RawTerrainCache cache;
 
     public RawGenerationNeighborhood(TerrainSource source, GenerationContext context, ChunkBlockBuffer buffer) {
+        this(source, context, buffer, null);
+    }
+
+    RawGenerationNeighborhood(TerrainSource source, GenerationContext context, ChunkBlockBuffer buffer,
+            RawTerrainCache cache) {
+        this(source, context, cache == null ? buffer.copyBlocks() : cache.capture(source, context, buffer).blocks,
+                cache);
+    }
+
+    RawGenerationNeighborhood(TerrainSource source, GenerationContext context, byte[] original, RawTerrainCache cache) {
         this.source = source;
+        this.cache = cache;
         fields = context.fields;
         centerX = context.chunkX;
         centerZ = context.chunkZ;
-        centerBlocks = buffer.copyBlocks();
+        centerBlocks = original;
     }
 
     public int block(int x, int y, int z) {
@@ -36,17 +46,26 @@ public final class RawGenerationNeighborhood {
         if (cx < -1875000 || cx > 1874999 || cz < -1875000 || cz > 1874999) {
             return 0;
         }
-        byte[] blocks = cx == centerX && cz == centerZ ? centerBlocks : chunks.get(key(cx, cz));
+        if (cx == centerX && cz == centerZ) {
+            return centerBlocks[((x & 15) << 11) | ((z & 15) << 7) | y] & 255;
+        }
+        int side = cx < centerX ? 0 : cx > centerX ? 1 : cz < centerZ ? 2 : 3;
+        byte[] blocks = neighbors[side];
         if (blocks == null) {
-            ChunkBlockBuffer neighbor = new ChunkBlockBuffer();
-            source.fill(GenerationContext.preview(fields, cx, cz), neighbor);
-            blocks = neighbor.copyBlocks();
-            chunks.put(key(cx, cz), blocks);
+            blocks = cache == null ? null : cache.get(source, fields, cx, cz);
+            if (blocks == null) {
+                ChunkBlockBuffer neighbor = new ChunkBlockBuffer();
+                GenerationContext context = GenerationContext.preview(fields, cx, cz);
+                if (cache == null) {
+                    source.fill(context, neighbor);
+                    blocks = neighbor.copyBlocks();
+                } else {
+                    blocks = cache.base(source, context, neighbor).blocks;
+                }
+            }
+            neighbors[side] = blocks;
         }
         return blocks[((x & 15) << 11) | ((z & 15) << 7) | y] & 255;
     }
 
-    private static long key(int x, int z) {
-        return ((long) x << 32) ^ (z & 0xffffffffL);
-    }
 }

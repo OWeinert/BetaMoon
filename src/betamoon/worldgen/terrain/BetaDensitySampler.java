@@ -14,6 +14,7 @@ public strictfp final class BetaDensitySampler {
     private final NoiseGeneratorOctaves blend;
     private final NoiseGeneratorOctaves scale;
     private final NoiseGeneratorOctaves depth;
+    private final ThreadLocal<Workspace> workspaces = ThreadLocal.withInitial(Workspace::new);
 
     public BetaDensitySampler(long seed) {
         Random random = new Random(seed);
@@ -32,17 +33,29 @@ public strictfp final class BetaDensitySampler {
 
     public double[] sample(GenerationContext context, double baseHeight, double heightScale, double detailScale,
             ScalarField continental, ScalarField erosion) {
+        Workspace shared = workspaces.get();
+        Workspace workspace = shared.inUse ? new Workspace() : shared;
+        workspace.inUse = true;
+        try {
+            return sample(context, baseHeight, heightScale, detailScale, continental, erosion, workspace);
+        } finally {
+            workspace.inUse = false;
+        }
+    }
+
+    private double[] sample(GenerationContext context, double baseHeight, double heightScale, double detailScale,
+            ScalarField continental, ScalarField erosion, Workspace workspace) {
         int originX = context.chunkX * 4;
         int originZ = context.chunkZ * 4;
-        double[] scales = scale.func_4109_a(null, originX, originZ, 5, 5, 1.121, 1.121, 0.5);
-        double[] depths = depth.func_4109_a(null, originX, originZ, 5, 5, 200, 200, 0.5);
+        double[] scales = scale.func_4109_a(workspace.scales, originX, originZ, 5, 5, 1.121, 1.121, 0.5);
+        double[] depths = depth.func_4109_a(workspace.depths, originX, originZ, 5, 5, 200, 200, 0.5);
         double frequency = 684.412;
-        double[] blends = blend.generateNoiseOctaves(null, originX, 0, originZ, 5, 17, 5, frequency / 80,
+        double[] blends = blend.generateNoiseOctaves(workspace.blends, originX, 0, originZ, 5, 17, 5, frequency / 80,
                 frequency / 160, frequency / 80);
-        double[] lows = lower.generateNoiseOctaves(null, originX, 0, originZ, 5, 17, 5, frequency, frequency,
+        double[] lows = lower.generateNoiseOctaves(workspace.lows, originX, 0, originZ, 5, 17, 5, frequency, frequency,
                 frequency);
-        double[] highs = upper.generateNoiseOctaves(null, originX, 0, originZ, 5, 17, 5, frequency, frequency,
-                frequency);
+        double[] highs = upper.generateNoiseOctaves(workspace.highs, originX, 0, originZ, 5, 17, 5, frequency,
+                frequency, frequency);
         double[] output = new double[425];
         int index = 0;
         int column = 0;
@@ -113,5 +126,14 @@ public strictfp final class BetaDensitySampler {
             }
         }
         return output;
+    }
+
+    private static final class Workspace {
+        private final double[] scales = new double[25];
+        private final double[] depths = new double[25];
+        private final double[] blends = new double[425];
+        private final double[] lows = new double[425];
+        private final double[] highs = new double[425];
+        private boolean inUse;
     }
 }

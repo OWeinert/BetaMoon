@@ -1,5 +1,8 @@
 package betamoon.worldgen.spatial;
 
+import betamoon.worldgen.GenerationMetrics;
+import java.util.function.DoubleUnaryOperator;
+
 /**
  * Compiled finite scalar graph. Dependency bits X/Y/Z are 1/2/4; seed and
  * anchor are 8/16.
@@ -11,6 +14,9 @@ public strictfp final class ScalarField {
     public final int nodeCount;
     public final long sampleWork;
     private final Evaluator evaluator;
+    private final double minimumSample;
+    private final double maximumSample;
+    ColumnFactory columnFactory;
     private String debugLabel;
 
     ScalarField(double min, double max, int dependencies, int nodeCount, Evaluator evaluator) {
@@ -27,9 +33,13 @@ public strictfp final class ScalarField {
         this.dependencies = dependencies;
         this.nodeCount = nodeCount;
         this.evaluator = evaluator;
+        double tolerance = Math.max(1, Math.max(Math.abs(min), Math.abs(max))) * 1.0e-12;
+        minimumSample = min - tolerance;
+        maximumSample = max + tolerance;
     }
 
     public double sample(FieldContext context, double x, double y, double z) {
+        GenerationMetrics.record(GenerationMetrics.Counter.FIELD_SAMPLES, 1);
         if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z) || Math.abs(x) > 1.0e12
                 || Math.abs(y) > 1.0e12 || Math.abs(z) > 1.0e12) {
             throw new IllegalStateException("Field sampling domain exceeds +/-1e12");
@@ -38,14 +48,52 @@ public strictfp final class ScalarField {
         if (!Double.isFinite(value)) {
             throw new IllegalStateException("Non-finite field result at " + x + "," + y + "," + z);
         }
-        double tolerance = Math.max(1, Math.max(Math.abs(min), Math.abs(max))) * 1.0e-12;
-        if (value < min - tolerance || value > max + tolerance) {
+        if (value < minimumSample || value > maximumSample) {
             throw new IllegalStateException("Field escaped its compiled range at " + x + "," + y + "," + z);
         }
         if (context.trace != null && debugLabel != null) {
             context.trace.record(debugLabel, x, y, z, value);
         }
         return value;
+    }
+
+    ScalarField withColumnFactory(ColumnFactory factory) {
+        columnFactory = factory;
+        return this;
+    }
+
+    DoubleUnaryOperator prepareColumn(FieldContext context, double x, double z, double initialY) {
+        if (!Double.isFinite(x) || !Double.isFinite(z) || Math.abs(x) > 1.0e12 || Math.abs(z) > 1.0e12) {
+            throw new IllegalStateException("Field sampling domain exceeds +/-1e12");
+        }
+        DoubleUnaryOperator prepared = columnFactory.prepare(context, x, z, initialY);
+        return y -> {
+            if (!Double.isFinite(y) || Math.abs(y) > 1.0e12) {
+                throw new IllegalStateException("Field sampling domain exceeds +/-1e12");
+            }
+            return prepared.applyAsDouble(y);
+        };
+    }
+
+    public void sampleColumn(FieldContext context, double x, double z, int minY, int maxY, double[] output) {
+        if (minY < 0 || maxY > 127 || minY > maxY || output == null || output.length <= maxY) {
+            throw new IllegalArgumentException("Invalid field column range or output buffer");
+        }
+        if (columnFactory == null || context.trace != null) {
+            for (int y = minY; y <= maxY; y++) {
+                output[y] = sample(context, x, y, z);
+            }
+            return;
+        }
+        DoubleUnaryOperator prepared = prepareColumn(context, x, z, minY);
+        GenerationMetrics.record(GenerationMetrics.Counter.PREPARED_COLUMN_SAMPLES, maxY - minY + 1);
+        for (int y = minY; y <= maxY; y++) {
+            double value = prepared.applyAsDouble(y);
+            if (!Double.isFinite(value) || value < minimumSample || value > maximumSample) {
+                throw new IllegalStateException("Field escaped its compiled range at " + x + "," + y + "," + z);
+            }
+            output[y] = value;
+        }
     }
 
     void label(String label) {
@@ -80,5 +128,9 @@ public strictfp final class ScalarField {
 
     interface Evaluator {
         double sample(FieldContext context, double x, double y, double z);
+    }
+
+    interface ColumnFactory {
+        DoubleUnaryOperator prepare(FieldContext context, double x, double z, double initialY);
     }
 }

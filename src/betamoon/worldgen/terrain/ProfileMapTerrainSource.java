@@ -1,5 +1,6 @@
 package betamoon.worldgen.terrain;
 
+import betamoon.worldgen.GenerationMetrics;
 import betamoon.worldgen.SeedMixer;
 import betamoon.worldgen.spatial.FieldContext;
 import betamoon.worldgen.spatial.NoiseDefinition;
@@ -98,8 +99,9 @@ public strictfp final class ProfileMapTerrainSource implements TerrainSource {
 
     @Override
     public boolean usesHeightProfile(FieldContext context, int x, int z, String key) {
-        for (Map.Entry<HeightEnvelope, Double> entry : weights(context, x, z).entrySet()) {
-            if (entry.getKey() != null && entry.getKey().key.equals(key) && entry.getValue() > 0) {
+        Contributions values = contributions(context, x, z);
+        for (int index = 0; index < values.size; index++) {
+            if (values.profiles[index] != null && values.profiles[index].key.equals(key) && values.weights[index] > 0) {
                 return true;
             }
         }
@@ -108,20 +110,42 @@ public strictfp final class ProfileMapTerrainSource implements TerrainSource {
 
     @Override
     public double height(FieldContext context, int x, int z) {
-        double result = 0;
-        for (Map.Entry<HeightEnvelope, Double> entry : weights(context, x, z).entrySet()) {
-            double height = entry.getKey() == null
-                    ? nativeEnvelope.height(context, x, z)
-                    : entry.getKey().height(context, x, z);
-            result += height * entry.getValue();
+        Contributions values = contributions(context, x, z);
+        if (values.hasHeight) {
+            return values.height;
         }
+        double result = 0;
+        for (int index = 0; index < values.size; index++) {
+            double height = values.profiles[index] == null
+                    ? nativeEnvelope.height(context, x, z)
+                    : values.profiles[index].height(context, x, z);
+            result += height * values.weights[index];
+        }
+        values.height = result;
+        values.hasHeight = true;
         return result;
     }
 
     public Map<HeightEnvelope, Double> weights(FieldContext context, int x, int z) {
+        Contributions values = contributions(context, x, z);
         Map<HeightEnvelope, Double> result = new LinkedHashMap<HeightEnvelope, Double>();
+        for (int index = 0; index < values.size; index++) {
+            result.put(values.profiles[index], values.weights[index]);
+        }
+        return result;
+    }
+
+    private Contributions contributions(FieldContext context, int x, int z) {
+        Sampling sampling = context.samplingData(this, Sampling::new);
+        int slot = ((x & 31) << 4) | (z & 15);
+        Contributions result = sampling.columns[slot];
+        if (result != null && result.x == x && result.z == z) {
+            return result;
+        }
+        result = new Contributions(x, z);
+        sampling.columns[slot] = result;
         if (blendWidth == 0) {
-            result.put(select(context, x, z), 1.0);
+            result.add(select(context, x, z), 1.0);
             return result;
         }
         int gx = Math.floorDiv(x, blendWidth) * blendWidth;
@@ -134,15 +158,59 @@ public strictfp final class ProfileMapTerrainSource implements TerrainSource {
             for (int dz = 0; dz < 2; dz++) {
                 double weight = (dx == 0 ? 1 - tx : tx) * (dz == 0 ? 1 - tz : tz);
                 if (weight > 0) {
-                    HeightEnvelope selected = select(context, gx + dx * blendWidth, gz + dz * blendWidth);
-                    result.put(selected, result.getOrDefault(selected, 0.0) + weight);
+                    int cornerX = gx + dx * blendWidth;
+                    int cornerZ = gz + dz * blendWidth;
+                    int corner = ((Math.floorDiv(cornerX, blendWidth) & 7) << 3)
+                            | (Math.floorDiv(cornerZ, blendWidth) & 7);
+                    if (!sampling.valid[corner] || sampling.x[corner] != cornerX || sampling.z[corner] != cornerZ) {
+                        sampling.selected[corner] = select(context, cornerX, cornerZ);
+                        sampling.x[corner] = cornerX;
+                        sampling.z[corner] = cornerZ;
+                        sampling.valid[corner] = true;
+                    }
+                    result.add(sampling.selected[corner], weight);
                 }
             }
         }
         return result;
     }
 
+    private static final class Sampling {
+        private final Contributions[] columns = new Contributions[512];
+        private final HeightEnvelope[] selected = new HeightEnvelope[64];
+        private final boolean[] valid = new boolean[64];
+        private final int[] x = new int[64];
+        private final int[] z = new int[64];
+    }
+
+    private static final class Contributions {
+        private final int x;
+        private final int z;
+        private final HeightEnvelope[] profiles = new HeightEnvelope[4];
+        private final double[] weights = new double[4];
+        private int size;
+        private boolean hasHeight;
+        private double height;
+
+        private Contributions(int x, int z) {
+            this.x = x;
+            this.z = z;
+        }
+
+        private void add(HeightEnvelope profile, double weight) {
+            for (int index = 0; index < size; index++) {
+                if (profiles[index] == profile) {
+                    weights[index] += weight;
+                    return;
+                }
+            }
+            profiles[size] = profile;
+            weights[size++] = 0.0 + weight;
+        }
+    }
+
     private HeightEnvelope select(FieldContext context, int x, int z) {
+        GenerationMetrics.record(GenerationMetrics.Counter.PROFILE_CORNER_SELECTIONS, 1);
         double total = 0;
         double[] weights = new double[entries.size()];
         for (int i = 0; i < entries.size(); i++) {

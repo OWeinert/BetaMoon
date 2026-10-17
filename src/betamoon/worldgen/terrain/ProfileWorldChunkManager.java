@@ -1,13 +1,14 @@
 package betamoon.worldgen.terrain;
 
 import betamoon.worldgen.BiomeGenRegistry;
-import betamoon.worldgen.creation.GenerationSelection;
-import betamoon.worldgen.creation.GenerationBiomes;
 import betamoon.worldgen.SeedMixer;
 import betamoon.worldgen.WorldGenKey;
 import betamoon.worldgen.biome.BiomeDefinition;
 import betamoon.worldgen.biome.BiomeSourceDefinition;
+import betamoon.worldgen.creation.GenerationBiomes;
+import betamoon.worldgen.creation.GenerationSelection;
 import betamoon.worldgen.spatial.FieldContext;
+import betamoon.worldgen.spatial.NativeClimateSamples;
 import betamoon.worldgen.spatial.NoiseDefinition;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -26,6 +27,7 @@ import net.minecraft.src.WorldChunkManager;
 public final class ProfileWorldChunkManager extends WorldChunkManager implements FieldContext.Environment {
     private final GenerationSelection selection;
     private final WorldChunkManager climate;
+    private final NativeClimateSamples climateSamples;
     private final BiomeSourceDefinition source;
     private final Map<WorldGenKey, BiomeGenBase> resolved = new LinkedHashMap<WorldGenKey, BiomeGenBase>();
     private FieldContext fields;
@@ -50,6 +52,7 @@ public final class ProfileWorldChunkManager extends WorldChunkManager implements
             GenerationSelection selection, boolean minecraftOnly) {
         this.selection = selection;
         this.climate = climate;
+        climateSamples = new NativeClimateSamples(climate);
         this.source = source;
         selectionSalt = SeedMixer.hash(source == null ? "native" : source.key.toString());
         for (BiomeDefinition definition : BiomeGenRegistry.definitions()) {
@@ -128,6 +131,13 @@ public final class ProfileWorldChunkManager extends WorldChunkManager implements
                 eligible[i] = null;
             }
         }
+        int[] eligibleCells = new int[eligible.length];
+        int eligibleCount = 0;
+        for (int i = 0; i < eligible.length; i++) {
+            if (eligible[i] != null) {
+                eligibleCells[eligibleCount++] = i;
+            }
+        }
         for (int i = 0; i < lookup.length; i++) {
             if (eligible[i] != null) {
                 lookup[i] = eligible[i];
@@ -135,7 +145,8 @@ public final class ProfileWorldChunkManager extends WorldChunkManager implements
             }
             BiomeGenBase nearest = fallback;
             int distance = Integer.MAX_VALUE;
-            for (int j = 0; j < eligible.length; j++) {
+            for (int candidateIndex = 0; candidateIndex < eligibleCount; candidateIndex++) {
+                int j = eligibleCells[candidateIndex];
                 int dt = i % 64 - j % 64;
                 int dh = i / 64 - j / 64;
                 int candidate = dt * dt + dh * dh;
@@ -171,13 +182,15 @@ public final class ProfileWorldChunkManager extends WorldChunkManager implements
 
     @Override
     public double biomeValue(String property, int x, int z) {
-        climate.loadBlockGeneratorData(null, x, z, 1, 1);
-        return property.equals("temperature") ? climate.temperature[0] : climate.humidity[0];
+        return climateSamples.value(property, x, z);
     }
 
     @Override
     public boolean biomeMatches(String selector, int x, int z) {
-        BiomeGenBase biome = getBiomeGenAt(x, z);
+        return matchesBiome(getBiomeGenAt(x, z), selector);
+    }
+
+    boolean matchesBiome(BiomeGenBase biome, String selector) {
         Set<String> names = selectors.get(biome);
         String normalized = selector.toLowerCase(Locale.ROOT);
         return biome.biomeName != null && biome.biomeName.equalsIgnoreCase(normalized)
@@ -249,9 +262,15 @@ public final class ProfileWorldChunkManager extends WorldChunkManager implements
         if (output == null || output.length < count) {
             output = new BiomeGenBase[count];
         }
-        temperature = new double[count];
-        humidity = new double[count];
-        field_4196_c = new double[count];
+        if (temperature == null || temperature.length < count) {
+            temperature = new double[count];
+        }
+        if (humidity == null || humidity.length < count) {
+            humidity = new double[count];
+        }
+        if (field_4196_c == null || field_4196_c.length < count) {
+            field_4196_c = new double[count];
+        }
         if (width == depth) {
             climate.loadBlockGeneratorData(null, x, z, width, depth);
             System.arraycopy(climate.temperature, 0, temperature, 0, count);

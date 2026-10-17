@@ -1,9 +1,13 @@
 package betamoon.worldgen.terrain;
 
 import betamoon.worldgen.BiomeGenRegistry;
+import betamoon.worldgen.GenerationMetrics;
 import betamoon.worldgen.biome.BiomeDefinition;
 import betamoon.worldgen.spatial.FieldContext;
 import java.util.Arrays;
+import java.util.BitSet;
+import java.util.IdentityHashMap;
+import java.util.Map;
 import net.minecraft.src.BiomeGenBase;
 import net.minecraft.src.Block;
 import net.minecraft.src.WorldChunkManager;
@@ -19,6 +23,9 @@ public final class GenerationContext {
     private final BiomeGenBase[] biomes;
     public final double[] preliminarySurface = new double[256];
     private byte[] materialInput;
+    private boolean hasMaterialSurface;
+    private final Map<Object, byte[]> columnConditions = new IdentityHashMap<Object, byte[]>();
+    private final BitSet validatedBlocks = new BitSet(256);
     private final int[] materialSurface = new int[256];
     private CompiledTerrainSource.HeightSampler envelope;
     private byte[] solidDepth;
@@ -43,6 +50,36 @@ public final class GenerationContext {
         return biomes[x * 16 + z];
     }
 
+    BiomeGenBase[] copyBiomes() {
+        return biomes.clone();
+    }
+
+    boolean matchesBiomes(BiomeGenBase[] other) {
+        return Arrays.equals(biomes, other);
+    }
+
+    boolean hasReproducibleBiomes() {
+        if (fields.environment != null) {
+            return true;
+        }
+        // A detached preview without an environment synthesizes Plains. Manually
+        // supplied other biomes cannot seed reusable neighbor data for that preview.
+        for (BiomeGenBase biome : biomes) {
+            if (biome != BiomeGenBase.plains) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    void writeGenerated(ChunkBlockBuffer buffer, int x, int y, int z, TerrainBlockState state) {
+        if (!validatedBlocks.get(state.id)) {
+            ChunkBlockBuffer.validateState(state.id, state.metadata);
+            validatedBlocks.set(state.id);
+        }
+        buffer.setGenerated((x << 11) | (z << 7) | y, state.id, state.metadata);
+    }
+
     public static GenerationContext preview(FieldContext fields, int chunkX, int chunkZ) {
         BiomeGenBase[] biomes;
         if (fields.environment instanceof WorldChunkManager) {
@@ -62,19 +99,40 @@ public final class GenerationContext {
     }
 
     public void captureMaterialInput(ChunkBlockBuffer buffer, CompiledTerrainSource.HeightSampler envelope) {
-        materialInput = buffer.copyBlocks();
+        captureMaterialInput(buffer, envelope, MaterialRule.FROZEN_BLOCKS | MaterialRule.DERIVED_SURFACE);
+    }
+
+    void captureMaterialInput(ChunkBlockBuffer buffer, CompiledTerrainSource.HeightSampler envelope, int requirements) {
+        materialInput = (requirements & MaterialRule.FROZEN_BLOCKS) != 0 ? buffer.copyBlocks() : null;
+        if (materialInput != null) {
+            GenerationMetrics.record(GenerationMetrics.Counter.MATERIAL_SNAPSHOTS, 1);
+        }
+        hasMaterialSurface = (requirements & MaterialRule.DERIVED_SURFACE) != 0;
+        columnConditions.clear();
         solidDepth = null;
         liquidDepth = null;
         Arrays.fill(sampledSlopes, false);
-        TerrainHeightmaps materialHeights = new TerrainHeightmaps(buffer);
         this.envelope = envelope;
-        // Resolve all maps before material writes begin; conditions share one occupancy
-        // snapshot.
-        for (int x = 0; x < 16; x++) {
-            for (int z = 0; z < 16; z++) {
-                materialSurface[z * 16 + x] = materialHeights.worldSurface(x, z);
+        if (hasMaterialSurface) {
+            for (int x = 0; x < 16; x++) {
+                for (int z = 0; z < 16; z++) {
+                    int y = 127;
+                    while (y >= 0 && buffer.blockId(x, y, z) == 0) {
+                        y--;
+                    }
+                    materialSurface[z * 16 + x] = y;
+                }
             }
         }
+    }
+
+    byte[] columnConditionValues(Object condition) {
+        byte[] values = columnConditions.get(condition);
+        if (values == null) {
+            values = new byte[256];
+            columnConditions.put(condition, values);
+        }
+        return values;
     }
 
     public int inputBlock(int x, int y, int z) {
@@ -85,7 +143,7 @@ public final class GenerationContext {
     }
 
     public int inputSurface(int x, int z) {
-        if (materialInput == null) {
+        if (!hasMaterialSurface) {
             throw new IllegalStateException("Material occupancy context is unavailable");
         }
         return materialSurface[z * 16 + x];
@@ -133,6 +191,9 @@ public final class GenerationContext {
     }
 
     public boolean biomeMatches(int x, int z, String selector) {
+        if (fields.environment instanceof ProfileWorldChunkManager) {
+            return ((ProfileWorldChunkManager) fields.environment).matchesBiome(biome(x, z), selector);
+        }
         if (fields.environment != null) {
             return fields.environment.biomeMatches(selector, worldX(x), worldZ(z));
         }

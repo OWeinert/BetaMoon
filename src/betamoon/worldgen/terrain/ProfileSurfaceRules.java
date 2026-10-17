@@ -60,13 +60,12 @@ public final class ProfileSurfaceRules {
     }
 
     public void apply(GenerationContext context, ChunkBlockBuffer buffer) {
-        byte[] blocks = buffer.copyBlocks();
         for (int x = 0; x < 16; x++) {
             for (int z = 0; z < 16; z++) {
                 BiomeGenBase biome = context.biome(x, z);
                 SurfaceRuleSet rule = rules.get(biome);
                 if (rule != null) {
-                    rule.apply(context.fields.seed, context.chunkX, context.chunkZ, blocks, x, z);
+                    buffer.applySurface(rule, context, x, z);
                     continue;
                 }
                 int[] material = materials.get(biome);
@@ -75,28 +74,18 @@ public final class ProfileSurfaceRules {
                 int remaining = 0;
                 boolean underwater = false;
                 for (int y = 127; y >= 0; y--) {
-                    int index = (x << 11) | (z << 7) | y;
-                    int block = blocks[index] & 255;
+                    int block = buffer.blockId(x, y, z);
                     if (block == 0 || Block.blocksList[block].blockMaterial.getIsLiquid()) {
                         remaining = 0;
                         underwater = block != 0;
                     } else if (block == Block.stone.blockID) {
-                        blocks[index] = (byte) (remaining == 0
-                                ? underwater ? filler : top
-                                : remaining < 4 ? filler : block);
+                        int replacement = remaining == 0 ? underwater ? filler : top : remaining < 4 ? filler : block;
+                        if (replacement != block) {
+                            buffer.set(x, y, z, replacement, 0);
+                        }
                         remaining++;
                     } else {
                         remaining = 4;
-                    }
-                }
-            }
-        }
-        for (int x = 0; x < 16; x++) {
-            for (int z = 0; z < 16; z++) {
-                for (int y = 0; y < 128; y++) {
-                    int id = blocks[(x << 11) | (z << 7) | y] & 255;
-                    if (id != buffer.blockId(x, y, z)) {
-                        buffer.set(x, y, z, id, 0);
                     }
                 }
             }

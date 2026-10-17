@@ -1,5 +1,6 @@
 package betamoon.worldgen.terrain;
 
+import betamoon.worldgen.GenerationMetrics;
 import betamoon.worldgen.spatial.FieldContext;
 import betamoon.worldgen.spatial.ScalarField;
 import betamoon.worldgen.spatial.ScalarFieldCompiler;
@@ -60,7 +61,6 @@ public strictfp final class CompiledTerrainSource implements TerrainSource {
     private final double betaHeightScale;
     private final double betaDetailScale;
     private static final ThreadLocal<BetaCache> BETA_CACHE = new ThreadLocal<BetaCache>();
-    private static final ThreadLocal<HeightPreviewCache> HEIGHT_PREVIEWS = new ThreadLocal<HeightPreviewCache>();
 
     public CompiledTerrainSource(String key, Map<String, Object> value, SpatialRegistry.Snapshot spatial,
             MaterialRule.Resolver materials, Map<String, String> dependencies) {
@@ -273,23 +273,7 @@ public strictfp final class CompiledTerrainSource implements TerrainSource {
                     : Math.min(maxY, upper);
         }
         if ((type.equals("beta_compatible") || type.equals("density")) && height == null) {
-            HeightPreviewCache cache = HEIGHT_PREVIEWS.get();
-            if (cache == null || cache.context != context) {
-                cache = new HeightPreviewCache(context);
-                HEIGHT_PREVIEWS.set(cache);
-            }
-            HeightPreviewKey key = new HeightPreviewKey(this, x >> 4, z >> 4);
-            TerrainHeightmaps heights = cache.chunks.get(key);
-            if (heights == null) {
-                ChunkBlockBuffer buffer = new ChunkBlockBuffer();
-                fill(GenerationContext.preview(context, x >> 4, z >> 4), buffer);
-                heights = new TerrainHeightmaps(buffer);
-                cache.chunks.put(key, heights);
-                if (cache.chunks.size() > 16) {
-                    cache.chunks.remove(cache.chunks.keySet().iterator().next());
-                }
-            }
-            return heights.oceanFloor(x & 15, z & 15);
+            return TerrainHeightPreview.heights(this, context, x >> 4, z >> 4).oceanFloor(x & 15, z & 15);
         }
         if (heightSampler != null) {
             return Math.max(minY - 1, Math.min(maxY, heightSampler.height(context, x, z)));
@@ -318,6 +302,7 @@ public strictfp final class CompiledTerrainSource implements TerrainSource {
 
     @Override
     public void fill(GenerationContext context, ChunkBlockBuffer buffer) {
+        GenerationMetrics.record(GenerationMetrics.Counter.SOURCE_FILLS, 1);
         if (isNative()) {
             throw new IllegalStateException("Native terrain requires provider delegation");
         }
@@ -334,6 +319,7 @@ public strictfp final class CompiledTerrainSource implements TerrainSource {
             volume = cached.sampler.sample(context, betaBaseHeight, betaHeightScale, betaDetailScale, continental,
                     erosion);
         }
+        BitSet densityCells = volume == null ? null : densityOccupancy(volume);
         BitSet materialCells = new BitSet(ChunkBlockBuffer.CELL_COUNT);
         for (int x = 0; x < 16; x++) {
             for (int z = 0; z < 16; z++) {
@@ -363,19 +349,26 @@ public strictfp final class CompiledTerrainSource implements TerrainSource {
                 double upper = ceiling == null
                         ? h
                         : ceiling.sample(context.fields, context.worldX(x), 0, context.worldZ(z));
+                if (ceiling == null
+                        && (type.equals("void") || type.equals("heightmap") && solid.constantState != null)) {
+                    fillConstantColumn(context, buffer, x, z, h, fluidY);
+                    continue;
+                }
                 for (int y = minY; y <= maxY; y++) {
                     TerrainBlockState block;
                     boolean occupied = volume == null
                             ? y <= Math.floor(h) && !type.equals("void")
-                            : interpolate(volume, x, y, z) > 0;
+                            : densityCells.get((x << 11) | (z << 7) | y);
                     if (ceiling != null) {
                         occupied = outside
                                 ? y <= Math.floor(lower) || y >= Math.ceil(upper)
                                 : y >= Math.ceil(lower) && y <= Math.floor(upper);
                     }
                     if (occupied) {
-                        block = occupancyStone;
-                        materialCells.set((x << 11) | (z << 7) | y);
+                        block = solid.constantState == null ? occupancyStone : solid.constantState;
+                        if (solid.constantState == null) {
+                            materialCells.set((x << 11) | (z << 7) | y);
+                        }
                     } else {
                         block = y <= fluidY ? fluid : air;
                     }
@@ -395,12 +388,13 @@ public strictfp final class CompiledTerrainSource implements TerrainSource {
                         materialCells.clear((x << 11) | (z << 7) | y);
                         block = platform;
                     }
-                    block.set(buffer, x, y, z);
+                    context.writeGenerated(buffer, x, y, z, block);
                 }
             }
         }
         if (!materialCells.isEmpty()) {
-            context.captureMaterialInput(buffer, height != null || heightSampler != null ? this::height : null);
+            context.captureMaterialInput(buffer, height != null || heightSampler != null ? this::height : null,
+                    solid.inputRequirements);
             for (int index = materialCells.nextSetBit(0); index >= 0; index = materialCells.nextSetBit(index + 1)) {
                 int x = index >> 11;
                 int y = index & 127;
@@ -410,8 +404,38 @@ public strictfp final class CompiledTerrainSource implements TerrainSource {
                     throw new IllegalStateException(
                             "No material rule matched at " + context.worldX(x) + "," + y + "," + context.worldZ(z));
                 }
-                block.set(buffer, x, y, z);
+                context.writeGenerated(buffer, x, y, z, block);
             }
+        }
+    }
+
+    private void fillConstantColumn(GenerationContext context, ChunkBlockBuffer buffer, int x, int z, double height,
+            int fluidY) {
+        int solidTop = type.equals("void") ? minY - 1 : Math.min(maxY, (int) Math.floor(height));
+        int first = minY;
+        // Floor precedence also avoids touching an otherwise unreachable material
+        // state.
+        if (floorHeight >= first) {
+            int end = Math.min(maxY, floorHeight);
+            buffer.fillColumn(x, z, first, end, floor.id, floor.metadata);
+            first = end + 1;
+        }
+        if (solidTop >= first) {
+            buffer.fillColumn(x, z, first, solidTop, solid.constantState.id, solid.constantState.metadata);
+            first = solidTop + 1;
+        }
+        if (fluidY >= first && first <= maxY) {
+            int end = Math.min(maxY, fluidY);
+            buffer.fillColumn(x, z, first, end, fluid.id, fluid.metadata);
+            first = end + 1;
+        }
+        if (first <= maxY) {
+            buffer.fillColumn(x, z, first, maxY, air.id, air.metadata);
+        }
+        if (platform != null && context.fields.hasOriginalSpawn
+                && Math.abs((long) context.worldX(x) - context.fields.spawnX) <= platformSize / 2
+                && Math.abs((long) context.worldZ(z) - context.fields.spawnZ) <= platformSize / 2) {
+            context.writeGenerated(buffer, x, platformY, z, platform);
         }
     }
 
@@ -432,6 +456,52 @@ public strictfp final class CompiledTerrainSource implements TerrainSource {
         return result;
     }
 
+    private BitSet densityOccupancy(double[] data) {
+        BitSet occupied = new BitSet(ChunkBlockBuffer.CELL_COUNT);
+        int ny = 128 / cellY + 1;
+        int nz = 16 / cellZ + 1;
+        for (int cx = 0; cx < 16 / cellX; cx++) {
+            for (int cz = 0; cz < 16 / cellZ; cz++) {
+                for (int cy = minY / cellY; cy <= maxY / cellY; cy++) {
+                    double a = data[(cx * nz + cz) * ny + cy];
+                    double b = data[(cx * nz + cz + 1) * ny + cy];
+                    double c = data[((cx + 1) * nz + cz) * ny + cy];
+                    double d = data[((cx + 1) * nz + cz + 1) * ny + cy];
+                    double da = (data[(cx * nz + cz) * ny + cy + 1] - a) / cellY;
+                    double db = (data[(cx * nz + cz + 1) * ny + cy + 1] - b) / cellY;
+                    double dc = (data[((cx + 1) * nz + cz) * ny + cy + 1] - c) / cellY;
+                    double dd = (data[((cx + 1) * nz + cz + 1) * ny + cy + 1] - d) / cellY;
+                    for (int dy = 0; dy < cellY; dy++) {
+                        int y = cy * cellY + dy;
+                        if (y >= minY && y <= maxY) {
+                            double ax = (c - a) / cellX;
+                            double bx = (d - b) / cellX;
+                            double va = a;
+                            double vb = b;
+                            for (int dx = 0; dx < cellX; dx++) {
+                                double az = (vb - va) / cellZ;
+                                double value = va;
+                                for (int dz = 0; dz < cellZ; dz++) {
+                                    if (value > 0) {
+                                        occupied.set(((cx * cellX + dx) << 11) | ((cz * cellZ + dz) << 7) | y);
+                                    }
+                                    value += az;
+                                }
+                                va += ax;
+                                vb += bx;
+                            }
+                        }
+                        a += da;
+                        b += db;
+                        c += dc;
+                        d += dd;
+                    }
+                }
+            }
+        }
+        return occupied;
+    }
+
     private static final class BetaCache {
         private final long seed;
         private final BetaDensitySampler sampler;
@@ -442,72 +512,4 @@ public strictfp final class CompiledTerrainSource implements TerrainSource {
         }
     }
 
-    private static final class HeightPreviewCache {
-        private final FieldContext context;
-        private final Map<HeightPreviewKey, TerrainHeightmaps> chunks = new LinkedHashMap<HeightPreviewKey, TerrainHeightmaps>(
-                16, 0.75f, true);
-
-        private HeightPreviewCache(FieldContext context) {
-            this.context = context;
-        }
-    }
-
-    private static final class HeightPreviewKey {
-        private final CompiledTerrainSource source;
-        private final int x;
-        private final int z;
-
-        private HeightPreviewKey(CompiledTerrainSource source, int x, int z) {
-            this.source = source;
-            this.x = x;
-            this.z = z;
-        }
-
-        @Override
-        public int hashCode() {
-            return (System.identityHashCode(source) * 31 + x) * 31 + z;
-        }
-
-        @Override
-        public boolean equals(Object value) {
-            if (!(value instanceof HeightPreviewKey)) {
-                return false;
-            }
-            HeightPreviewKey other = (HeightPreviewKey) value;
-            return source == other.source && x == other.x && z == other.z;
-        }
-    }
-
-    private double interpolate(double[] data, int x, int y, int z) {
-        int sx = x / cellX;
-        int sy = y / cellY;
-        int sz = z / cellZ;
-        int ny = 128 / cellY + 1;
-        int nz = 16 / cellZ + 1;
-        double a = data[(sx * nz + sz) * ny + sy];
-        double b = data[(sx * nz + sz + 1) * ny + sy];
-        double c = data[((sx + 1) * nz + sz) * ny + sy];
-        double d = data[((sx + 1) * nz + sz + 1) * ny + sy];
-        double da = (data[(sx * nz + sz) * ny + sy + 1] - a) / cellY;
-        double db = (data[(sx * nz + sz + 1) * ny + sy + 1] - b) / cellY;
-        double dc = (data[((sx + 1) * nz + sz) * ny + sy + 1] - c) / cellY;
-        double dd = (data[((sx + 1) * nz + sz + 1) * ny + sy + 1] - d) / cellY;
-        for (int step = 0; step < y % cellY; step++) {
-            a += da;
-            b += db;
-            c += dc;
-            d += dd;
-        }
-        double ax = (c - a) / cellX;
-        double bx = (d - b) / cellX;
-        for (int step = 0; step < x % cellX; step++) {
-            a += ax;
-            b += bx;
-        }
-        double az = (b - a) / cellZ;
-        for (int step = 0; step < z % cellZ; step++) {
-            a += az;
-        }
-        return a;
-    }
 }

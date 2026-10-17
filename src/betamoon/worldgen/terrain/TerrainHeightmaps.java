@@ -1,5 +1,6 @@
 package betamoon.worldgen.terrain;
 
+import betamoon.worldgen.GenerationMetrics;
 import java.util.Arrays;
 import net.minecraft.src.Block;
 
@@ -60,6 +61,7 @@ public final class TerrainHeightmaps {
     }
 
     private void refresh(int x, int z) {
+        GenerationMetrics.record(GenerationMetrics.Counter.HEIGHTMAP_COLUMNS, 1);
         int column = ChunkBlockBuffer.columnIndex(x, z);
         worldSurface[column] = -1;
         oceanFloor[column] = -1;

@@ -4,6 +4,7 @@ import betamoon.assets.AssetKey;
 import betamoon.loot.LootTableDefinition;
 import betamoon.loot.LootTableRegistry;
 import betamoon.worldgen.GenerationStage;
+import betamoon.worldgen.WorldGenRegistry;
 import betamoon.worldgen.creation.GenerationCatalog;
 import betamoon.worldgen.creation.GenerationDraft;
 import betamoon.worldgen.creation.GenerationSelection;
@@ -11,7 +12,6 @@ import betamoon.worldgen.creation.GenerationSelectionStore;
 import betamoon.worldgen.creation.MissingWorldGenerator;
 import betamoon.worldgen.creation.WorldCreationSelection;
 import betamoon.worldgen.creation.WorldGeneratorFallback;
-import betamoon.worldgen.WorldGenRegistry;
 import betamoon.worldgen.spatial.FieldContext;
 import betamoon.worldgen.spatial.NativeBiomeEnvironment;
 import betamoon.worldgen.spatial.SpatialRegistry;
@@ -23,7 +23,6 @@ import java.util.Set;
 import java.util.WeakHashMap;
 import net.minecraft.src.Chunk;
 import net.minecraft.src.ChunkCoordinates;
-import net.minecraft.src.EnumSkyBlock;
 import net.minecraft.src.IChunkProvider;
 import net.minecraft.src.ISaveHandler;
 import net.minecraft.src.World;
@@ -286,9 +285,7 @@ public final class WorldGenerationRuntime {
         if (binding == null || !isCustom(binding.profile)) {
             return;
         }
-        int x = chunk.xPosition * 16;
-        int z = chunk.zPosition * 16;
-        chunk.worldObj.scheduleLightingUpdate(EnumSkyBlock.Block, x, 0, z, x + 15, 127, z + 15);
+        GeneratedChunkLighting.chunkLoaded(chunk);
     }
 
     public static synchronized void requireSelectedProvider(World world) {

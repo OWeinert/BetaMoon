@@ -1,5 +1,8 @@
 package betamoon.worldgen.terrain;
 
+import betamoon.worldgen.GenerationMetrics;
+import betamoon.worldgen.surface.SurfaceRuleSet;
+import java.util.Arrays;
 import net.minecraft.src.Block;
 import net.minecraft.src.NibbleArray;
 
@@ -27,10 +30,20 @@ public final class ChunkBlockBuffer {
     public void set(int x, int y, int z, int id, int damage) {
         int index = index(x, y, z);
         validateState(id, damage);
-        if ((blocks[index] & 255) != id || metadata.getNibble(x, y, z) != damage) {
+        setGenerated(index, id, damage);
+    }
+
+    /**
+     * Coordinates and immutable states are validated by the compiled generation
+     * caller.
+     */
+    void setGenerated(int index, int id, int damage) {
+        int shift = (index & 1) * 4;
+        int previous = (metadata.data[index >> 1] >> shift) & 15;
+        if ((blocks[index] & 255) != id || previous != damage) {
             blocks[index] = (byte) id;
-            metadata.setNibble(x, y, z, damage);
-            columnRevisions[columnIndex(x, z)]++;
+            metadata.data[index >> 1] = (byte) ((metadata.data[index >> 1] & ~(15 << shift)) | (damage << shift));
+            columnRevisions[((index >> 7) & 15) * 16 + (index >> 11)]++;
         }
     }
 
@@ -41,19 +54,72 @@ public final class ChunkBlockBuffer {
             throw new IllegalArgumentException("Raw column minimum exceeds maximum");
         }
         validateState(id, damage);
-        for (int y = minY; y <= maxY; y++) {
-            blocks[index(x, y, z)] = (byte) id;
-            metadata.setNibble(x, y, z, damage);
+        int columnStart = (x << 11) | (z << 7);
+        int start = columnStart + minY;
+        int end = columnStart + maxY + 1;
+        Arrays.fill(blocks, start, end, (byte) id);
+        if ((start & 1) != 0) {
+            metadata.data[start >> 1] = (byte) ((metadata.data[start >> 1] & 15) | (damage << 4));
+            start++;
         }
+        if ((end & 1) != 0) {
+            metadata.data[end >> 1] = (byte) ((metadata.data[end >> 1] & 240) | damage);
+            end--;
+        }
+        Arrays.fill(metadata.data, start >> 1, end >> 1, (byte) (damage * 17));
         columnRevisions[columnIndex(x, z)]++;
     }
 
     public byte[] copyBlocks() {
+        GenerationMetrics.record(GenerationMetrics.Counter.BLOCK_BYTES_COPIED, blocks.length);
         return blocks.clone();
     }
 
     public byte[] copyMetadata() {
+        GenerationMetrics.record(GenerationMetrics.Counter.METADATA_BYTES_COPIED, metadata.data.length);
         return metadata.data.clone();
+    }
+
+    void copyMetadataTo(byte[] target) {
+        GenerationMetrics.record(GenerationMetrics.Counter.METADATA_BYTES_COPIED, metadata.data.length);
+        System.arraycopy(metadata.data, 0, target, 0, metadata.data.length);
+    }
+
+    void restore(byte[] sourceBlocks, byte[] sourceMetadata) {
+        System.arraycopy(sourceBlocks, 0, blocks, 0, CELL_COUNT);
+        System.arraycopy(sourceMetadata, 0, metadata.data, 0, metadata.data.length);
+        for (int column = 0; column < columnRevisions.length; column++) {
+            columnRevisions[column]++;
+        }
+    }
+
+    void clear() {
+        Arrays.fill(blocks, (byte) 0);
+        Arrays.fill(metadata.data, (byte) 0);
+        for (int column = 0; column < columnRevisions.length; column++) {
+            columnRevisions[column]++;
+        }
+    }
+
+    void carveNative(NativeCaveSampler sampler, long seed, int chunkX, int chunkZ) {
+        byte[] original = blocks.clone();
+        sampler.carve(seed, chunkX, chunkZ, blocks);
+        for (int index = 0; index < blocks.length; index++) {
+            if (blocks[index] != original[index]) {
+                int shift = (index & 1) * 4;
+                metadata.data[index >> 1] &= ~(15 << shift);
+                columnRevisions[((index >> 7) & 15) * 16 + (index >> 11)]++;
+            }
+        }
+    }
+
+    void applySurface(SurfaceRuleSet rule, GenerationContext context, int x, int z) {
+        rule.apply(context.fields.seed, context.chunkX, context.chunkZ, blocks, x, z, index -> {
+            validateState(blocks[index] & 255, 0);
+            int shift = (index & 1) * 4;
+            metadata.data[index >> 1] &= ~(15 << shift);
+            columnRevisions[((index >> 7) & 15) * 16 + (index >> 11)]++;
+        });
     }
 
     long columnRevision(int x, int z) {

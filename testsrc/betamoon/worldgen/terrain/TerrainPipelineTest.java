@@ -11,6 +11,7 @@ import betamoon.worldgen.creation.GenerationDraft;
 import betamoon.worldgen.creation.GenerationSelection;
 import betamoon.worldgen.creation.WorldCreationSelection;
 import betamoon.worldgen.spatial.FieldContext;
+import betamoon.worldgen.spatial.NoiseSamplerCompatibilityTest;
 import betamoon.worldgen.spatial.SpatialRegistry;
 import betamoon.worldgen.surface.SurfaceRuleSet;
 import java.nio.file.Files;
@@ -169,6 +170,9 @@ public final class TerrainPipelineTest {
             }
         }
         heightPreviewEviction(world, definitions);
+        TerrainGenerationOptimizationTest.verify();
+        NoiseSamplerCompatibilityTest.verify();
+        GeneratedChunkLightingTest.verify();
         GeneratorProfileRegistry.replaceOwner("terrain.lua", Collections.<WorldGeneratorProfile>emptyList());
         require(Arrays.equals(chunk.blocks, provider.provideChunk(-2, 3).blocks),
                 "Active world must retain its compiled profile after owner removal");
