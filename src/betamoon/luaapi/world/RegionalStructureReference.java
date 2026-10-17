@@ -17,6 +17,7 @@ public final class RegionalStructureReference extends LuaTable implements LuaDat
 
     public RegionalStructureReference(WorldGenKey key) {
         this.key = key;
+        set("displayName", WorldGenRegistry.displayName(key.toString()));
         set("getKey", new ZeroArgFunction() {
             @Override
             public LuaValue call() {

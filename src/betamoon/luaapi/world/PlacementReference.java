@@ -18,6 +18,7 @@ public class PlacementReference extends LuaTable implements LuaDataReference {
 
     public PlacementReference(WorldGenKey key, WorldGenKey featureKey) {
         this.key = key;
+        set("displayName", WorldGenRegistry.displayName(key.toString()));
         this.featureKey = featureKey;
         set("getKey", new ZeroArgFunction() {
             @Override

@@ -90,6 +90,7 @@ public final class StructureGenApi {
                     }
                     WorldGenRegistry.addFeature(declaredKey, WorldGenKind.STRUCTURE, "local_structure", feature,
                             Collections.<WorldGenKey>emptyList(), feature.maximumBlocks(), radius);
+                    WorldGenRegistry.setDisplayName(key, definition.get("displayName").optjstring(null));
                     WorldGenRegistry.recordDeclaration(key, LuaGenerationSignature.of(definition));
                     return new FeatureReference(key);
                 } catch (IOException | IllegalArgumentException error) {
@@ -188,6 +189,7 @@ public final class StructureGenApi {
                         GenerationStage.parse(definition.get("stage").optjstring("surface_structures")),
                         LuaSpatialSelector.read(definition.get("spatial"), "RegionalStructure.spatial"),
                         LuaNamespacedTags.read(definition.get("tags"), "RegionalStructure.tags"));
+                WorldGenRegistry.setDisplayName(key, definition.get("displayName").optjstring(null));
                 WorldGenRegistry.recordDeclaration(key, LuaGenerationSignature.of(definition));
                 return new RegionalStructureReference(key);
             }

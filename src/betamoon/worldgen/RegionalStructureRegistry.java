@@ -818,6 +818,8 @@ final class RegionalStructureRegistry {
         final String owner;
         final String source;
         final String start;
+        final String stage;
+        final List<String> dependencies;
         final Set<String> dimensions;
         final int spacing;
         final int separation;
@@ -845,6 +847,13 @@ final class RegionalStructureRegistry {
             owner = definition.owner;
             source = definition.sourceLocation;
             start = definition.startFeature.toString();
+            stage = definition.stage.getName();
+            List<String> referenced = new ArrayList<String>();
+            referenced.add(start);
+            for (RegionalStructureDefinition.PieceChoice piece : definition.pieces) {
+                referenced.add(piece.feature.toString());
+            }
+            dependencies = Collections.unmodifiableList(referenced);
             dimensions = definition.dimensions;
             spacing = definition.spacing;
             separation = definition.separation;

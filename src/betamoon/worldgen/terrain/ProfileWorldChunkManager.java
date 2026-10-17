@@ -1,6 +1,8 @@
 package betamoon.worldgen.terrain;
 
 import betamoon.worldgen.BiomeGenRegistry;
+import betamoon.worldgen.creation.GenerationSelection;
+import betamoon.worldgen.creation.GenerationBiomes;
 import betamoon.worldgen.SeedMixer;
 import betamoon.worldgen.WorldGenKey;
 import betamoon.worldgen.biome.BiomeDefinition;
@@ -22,6 +24,7 @@ import net.minecraft.src.WorldChunkManager;
  * arrays.
  */
 public final class ProfileWorldChunkManager extends WorldChunkManager implements FieldContext.Environment {
+    private final GenerationSelection selection;
     private final WorldChunkManager climate;
     private final BiomeSourceDefinition source;
     private final Map<WorldGenKey, BiomeGenBase> resolved = new LinkedHashMap<WorldGenKey, BiomeGenBase>();
@@ -31,6 +34,21 @@ public final class ProfileWorldChunkManager extends WorldChunkManager implements
     private final Map<BiomeGenBase, Set<String>> selectors = new IdentityHashMap<BiomeGenBase, Set<String>>();
 
     public ProfileWorldChunkManager(WorldChunkManager climate, BiomeSourceDefinition source) {
+        this(climate, source, null);
+    }
+
+    public ProfileWorldChunkManager(WorldChunkManager climate, BiomeSourceDefinition source,
+            GenerationSelection selection) {
+        this(climate, source, selection, false);
+    }
+
+    public static ProfileWorldChunkManager minecraftFallback(WorldChunkManager climate) {
+        return new ProfileWorldChunkManager(climate, null, null, true);
+    }
+
+    private ProfileWorldChunkManager(WorldChunkManager climate, BiomeSourceDefinition source,
+            GenerationSelection selection, boolean minecraftOnly) {
+        this.selection = selection;
         this.climate = climate;
         this.source = source;
         selectionSalt = SeedMixer.hash(source == null ? "native" : source.key.toString());
@@ -44,6 +62,20 @@ public final class ProfileWorldChunkManager extends WorldChunkManager implements
         }
         if (source == null) {
             lookup = BiomeGenRegistry.copyClimateLookup();
+            if (minecraftOnly) {
+                for (int t = 0; t < 64; t++) {
+                    for (int h = 0; h < 64; h++) {
+                        lookup[t + h * 64] = BiomeGenBase.getBiome(t / 63.0f, h / 63.0f);
+                    }
+                }
+            }
+            if (selection != null) {
+                for (int i = 0; i < lookup.length; i++) {
+                    String key = selection.climate.get(i);
+                    lookup[i] = selection.enabled("biome/" + key) ? GenerationBiomes.resolve(key) : null;
+                }
+                filterLookup();
+            }
             return;
         }
         lookup = new BiomeGenBase[4096];
@@ -55,7 +87,9 @@ public final class ProfileWorldChunkManager extends WorldChunkManager implements
             resolved.put(source.fallbackBiome, requiredBiome(source.fallbackBiome));
         }
         for (BiomeSourceDefinition.ClimateEntry entry : source.entries) {
-            resolved.put(entry.biome, requiredBiome(entry.biome));
+            if (selection == null || selection.enabled("biome/" + entry.biome)) {
+                resolved.put(entry.biome, requiredBiome(entry.biome));
+            }
         }
         for (int t = 0; t < 64; t++) {
             for (int h = 0; h < 64; h++) {
@@ -65,7 +99,7 @@ public final class ProfileWorldChunkManager extends WorldChunkManager implements
                 } else if (!source.type.equals("spatial_climate")) {
                     BiomeSourceDefinition.ClimateEntry selected = null;
                     for (BiomeSourceDefinition.ClimateEntry entry : source.entries) {
-                        if (entry.contains(t / 63.0, h / 63.0) && (selected == null
+                        if (resolved.containsKey(entry.biome) && entry.contains(t / 63.0, h / 63.0) && (selected == null
                                 || entry.priority > selected.priority
                                 || entry.priority == selected.priority && entry.biome.compareTo(selected.biome) < 0)) {
                             selected = entry;
@@ -77,6 +111,53 @@ public final class ProfileWorldChunkManager extends WorldChunkManager implements
                 }
                 lookup[t + h * 64] = biome;
             }
+        }
+        filterLookup();
+    }
+
+    private void filterLookup() {
+        if (selection == null) {
+            return;
+        }
+        BiomeGenBase[] eligible = lookup.clone();
+        BiomeGenBase fallback = source != null && source.fallbackBiome != null
+                ? resolved.get(source.fallbackBiome)
+                : null;
+        for (int i = 0; i < eligible.length; i++) {
+            if (eligible[i] != null && !selection.biomeEnabled(eligible[i])) {
+                eligible[i] = null;
+            }
+        }
+        for (int i = 0; i < lookup.length; i++) {
+            if (eligible[i] != null) {
+                lookup[i] = eligible[i];
+                continue;
+            }
+            BiomeGenBase nearest = fallback;
+            int distance = Integer.MAX_VALUE;
+            for (int j = 0; j < eligible.length; j++) {
+                int dt = i % 64 - j % 64;
+                int dh = i / 64 - j / 64;
+                int candidate = dt * dt + dh * dh;
+                if (eligible[j] != null && candidate < distance) {
+                    nearest = eligible[j];
+                    distance = candidate;
+                }
+            }
+            if (nearest == null) {
+                for (String key : selection.enabled) {
+                    if (key.startsWith("biome/")) {
+                        nearest = GenerationBiomes.resolve(key.substring(6));
+                        if (nearest != null) {
+                            break;
+                        }
+                    }
+                }
+            }
+            if (nearest == null) {
+                throw new IllegalStateException("Selected biomes cannot cover the climate map");
+            }
+            lookup[i] = nearest;
         }
     }
 
@@ -121,7 +202,7 @@ public final class ProfileWorldChunkManager extends WorldChunkManager implements
         int priority = Integer.MIN_VALUE;
         for (int i = 0; i < weights.length; i++) {
             BiomeSourceDefinition.ClimateEntry entry = source.entries.get(i);
-            if (!entry.contains(temperature, humidity)) {
+            if (!resolved.containsKey(entry.biome) || !entry.contains(temperature, humidity)) {
                 continue;
             }
             double weight = entry.weight * (entry.spatial == null ? 1 : entry.spatial.weight(fields, x, z));

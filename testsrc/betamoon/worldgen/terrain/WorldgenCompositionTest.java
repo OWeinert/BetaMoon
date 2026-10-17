@@ -19,6 +19,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import net.minecraft.src.BiomeGenBase;
 import net.minecraft.src.Block;
@@ -79,7 +80,7 @@ public final class WorldgenCompositionTest {
                     + "w.generatorProfiles:add{key='test:generator/inline',dimensions={overworld={terrain=inline,"
                     + "biomeSource={type='fixed',biome=left},surfaces='none',population={native='none'},"
                     + "carvers={{type='compose',children={{type='field',field=1,minY=10,maxY=10,avoidFluids=false}}}}}}};"
-                    + "w.generatorProfiles:add{key='test:generator/report',priority=1,dimensions={overworld={"
+                    + "w.generatorProfiles:add{key='test:generator/report',dimensions={overworld={"
                     + "terrain=mapped,biomeSource=climate,surfaces='none',population={native='none'},"
                     + "heightOutputs={east=side},features={includeTags={'test:plants'}}}}};"
                     + "betamoon.lootTables:add{key='test:child',pools={{key='gated',when={spatial={field=side,min=0}},"
@@ -170,7 +171,7 @@ public final class WorldgenCompositionTest {
         Path chunkExport = Paths.get(GenerationDiagnosticExport.chunk(root, first));
         require(chunkExport.getParent().equals(root.toRealPath()) && Files.readAllLines(chunkExport).size() == 257,
                 "Chunk CSV must remain inside the debug root and contain exactly 256 columns");
-        Map<String, Object> excessiveSlice = new java.util.LinkedHashMap<String, Object>();
+        Map<String, Object> excessiveSlice = new LinkedHashMap<String, Object>();
         excessiveSlice.put("width", 256);
         excessiveSlice.put("height", 256);
         try {

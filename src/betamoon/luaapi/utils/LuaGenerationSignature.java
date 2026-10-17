@@ -65,7 +65,9 @@ public final class LuaGenerationSignature {
             if (key.isnil()) {
                 break;
             }
-            entries.put(encode(key, depth + 1), encode(entry.arg(2), depth + 1));
+            if (depth != 0 || !key.isstring() || !key.tojstring().equals("displayName")) {
+                entries.put(encode(key, depth + 1), encode(entry.arg(2), depth + 1));
+            }
         }
         visiting.remove(value);
         return "table:" + GenerationSignature.of(entries);

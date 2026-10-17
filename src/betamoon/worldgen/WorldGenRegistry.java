@@ -1,5 +1,7 @@
 package betamoon.worldgen;
 
+import betamoon.worldgen.terrain.WorldGeneratorProfile;
+
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.minecraft.MinecraftBuiltins;
 import betamoon.worldgen.spatial.SpatialSelector;
@@ -30,6 +32,51 @@ public final class WorldGenRegistry {
     private static volatile Snapshot active = Snapshot.empty();
     private static long nextOreId = 1L;
     private static final Map<String, Map<String, String>> GENERATION_DECLARATIONS = new TreeMap<String, Map<String, String>>();
+
+    private static final Map<String, Map<String, String>> GENERATION_NAMES = new TreeMap<String, Map<String, String>>();
+
+    public static synchronized void setDisplayName(WorldGenKey key, String name) {
+        PublicationBatch batch = CURRENT_BATCH.get();
+        if (name == null) {
+            return;
+        }
+        if (name.isEmpty() || name.length() > 256 || name.matches(".*[\\p{Cntrl}\u00a7].*")) {
+            throw new LuaError("World generation displayName: expected 1..256 plain-text characters");
+        }
+        if (batch != null) {
+            batch.names.put(key.toString(), name);
+        } else {
+            String owner = requiredOwner(LuaScriptRegistry.getCurrentScriptFile());
+            Map<String, String> names = new TreeMap<String, String>();
+            if (GENERATION_NAMES.containsKey(owner)) {
+                names.putAll(GENERATION_NAMES.get(owner));
+            }
+            names.put(key.toString(), name);
+            GENERATION_NAMES.put(owner, Collections.unmodifiableMap(names));
+        }
+    }
+
+    public static synchronized String displayName(String key) {
+        PublicationBatch batch = CURRENT_BATCH.get();
+        if (batch != null && batch.names.containsKey(key)) {
+            return batch.names.get(key);
+        }
+        for (Map<String, String> names : GENERATION_NAMES.values()) {
+            String name = names.get(key);
+            if (name != null) {
+                return name;
+            }
+        }
+        return key;
+    }
+
+    public static boolean creationContentAllowed(WorldGeneratorProfile profile, boolean structure, String key,
+            String featureKey) {
+        FeatureDefinition feature = FeaturePlacementRegistry.findFeature(WorldGenKey.parseFeature(featureKey));
+        return profile == null || profile.settings == null
+                || (structure ? profile.settings.structures : profile.settings.features).matches(key, featureKey,
+                        feature == null ? Collections.<String>emptySet() : feature.tags);
+    }
 
     public static void recordDeclaration(WorldGenKey key, String signature) {
         PublicationBatch batch = CURRENT_BATCH.get();
@@ -232,6 +279,7 @@ public final class WorldGenRegistry {
         private final List<PlacementDefinition> placements = new ArrayList<PlacementDefinition>();
         private final List<RegionalStructureDefinition> regionalStructures = new ArrayList<RegionalStructureDefinition>();
         private final Set<WorldGenKey> biomeDecoratorTemplates = new HashSet<WorldGenKey>();
+        private final Map<String, String> names = new TreeMap<String, String>();
         private final Map<String, String> declarations = new TreeMap<String, String>();
         private int declarationIndex;
         private boolean published;
@@ -248,6 +296,7 @@ public final class WorldGenRegistry {
             FeaturePlacementRegistry.publishOwner(resourceOwner, features, placements, biomeDecoratorTemplates);
             RegionalStructureRegistry.publishOwner(resourceOwner, regionalStructures);
             publishBatch(this);
+            GENERATION_NAMES.put(resourceOwner, Collections.unmodifiableMap(new TreeMap<String, String>(names)));
             GENERATION_DECLARATIONS.put(resourceOwner,
                     Collections.unmodifiableMap(new TreeMap<String, String>(declarations)));
             published = true;
@@ -390,6 +439,7 @@ public final class WorldGenRegistry {
     public static synchronized void clear() {
         active = Snapshot.empty();
         GENERATION_DECLARATIONS.clear();
+        GENERATION_NAMES.clear();
         FeaturePlacementRegistry.clear();
         RegionalStructureRegistry.clear();
     }
@@ -399,6 +449,7 @@ public final class WorldGenRegistry {
      */
     public static synchronized void retainOwners(Set<String> resourceOwners) {
         GENERATION_DECLARATIONS.keySet().retainAll(resourceOwners);
+        GENERATION_NAMES.keySet().retainAll(resourceOwners);
         List<OreGenEntry> retained = new ArrayList<OreGenEntry>();
         for (OreGenEntry entry : active.ores) {
             if (resourceOwners.contains(entry.resourceOwner)) {
@@ -587,6 +638,8 @@ public final class WorldGenRegistry {
         public final String owner;
         public final String source;
         public final String start;
+        public final List<String> dependencies;
+        public final String stage;
         public final Set<String> dimensions;
         public final int spacing;
         public final int separation;
@@ -614,6 +667,8 @@ public final class WorldGenRegistry {
             owner = description.owner;
             source = description.source;
             start = description.start;
+            dependencies = description.dependencies;
+            stage = description.stage;
             dimensions = description.dimensions;
             spacing = description.spacing;
             separation = description.separation;
@@ -775,9 +830,14 @@ public final class WorldGenRegistry {
                 original.requireAir, original.requireWater, original.requireLava, original.minLight, original.maxLight,
                 Collections.singleton(biomeSelector), original.excludeBiomes, original.site, original.spatial,
                 original.fluid);
-        return addPlacement(key, source.featureKey, source.stage, source.dimensions, source.attempts,
+        WorldGenKey derived = addPlacement(key, source.featureKey, source.stage, source.dimensions, source.attempts,
                 source.extraChance, source.probability, source.height, conditions, source.before, source.after,
                 source.priority, source.salt, source.successLimit, source.horizontal, source.gridSpacing);
+        batch.declarations.put("decorator_source:" + derived, sourceKey.toString());
+        if (!displayName(sourceKey.toString()).equals(sourceKey.toString())) {
+            setDisplayName(derived, displayName(sourceKey.toString()));
+        }
+        return derived;
     }
 
     public static boolean hasFeature(WorldGenKey key) {

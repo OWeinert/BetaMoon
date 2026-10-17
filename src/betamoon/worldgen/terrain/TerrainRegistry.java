@@ -89,8 +89,7 @@ public final class TerrainRegistry {
             if (declaration.kind == WorldGenKind.GENERATOR) {
                 WorldGeneratorProfile profile = snapshot.generator(declaration.key);
                 row.put("signature", profile.signature);
-                row.put("defaultForNewWorlds", profile.defaultForNewWorlds);
-                row.put("priority", profile.priority);
+                row.put("displayName", profile.displayName);
                 List<String> stages = new ArrayList<String>();
                 if (profile.population != null) {
                     for (GenerationStage stage : profile.population.stages) {
@@ -379,7 +378,7 @@ public final class TerrainRegistry {
         private void profile(Declaration declaration) {
             String key = declaration.key;
             Map<String, Object> value = declaration.value;
-            fields(value, key, "key", "defaultForNewWorlds", "priority", "dimensions");
+            fields(value, key, "key", "displayName", "dimensions");
             Map<String, Object> dimensions = object(required(value, "dimensions", key), key + ".dimensions");
             fields(dimensions, key + ".dimensions", "overworld");
             Map<String, Object> dimension = object(required(dimensions, "overworld", key),
@@ -444,8 +443,7 @@ public final class TerrainRegistry {
             }
             Map<String, String> signature = new TreeMap<String, String>(BiomeGenRegistry.generationDependencies());
             Map<String, Object> generationDefinition = new LinkedHashMap<String, Object>(value);
-            generationDefinition.remove("defaultForNewWorlds");
-            generationDefinition.remove("priority");
+            generationDefinition.remove("displayName");
             signature.put("profile_definition", canonical(generationDefinition));
             signature.put("population_catalog", GenerationSignature.of(WorldGenRegistry.generationDependencies()));
             signature.putAll(spatial.dependenciesIn(dimension));
@@ -466,14 +464,17 @@ public final class TerrainRegistry {
                 signature.put("biome_source", source.toString());
                 signature.put("biome_fallback", String.valueOf(biomes.fallbackBiome));
             }
-            int priority = value.containsKey("priority")
-                    ? integer(value.get("priority"), key + ".priority", -1000000, 1000000)
-                    : 0;
-            profiles.put(key,
-                    new WorldGeneratorProfile(key, declaration.owner, bool(value, "defaultForNewWorlds", false, key),
-                            priority, signature, terrain, population, biomes, spatial, surface.equals("inherit"),
-                            bool(spawn, "requireSafeGround", true, key), selectedCarvers,
-                            new GeneratorSettings(dimension, spatial, key)));
+            Map<String, Object> creationDimension = new LinkedHashMap<String, Object>(dimension);
+            creationDimension.remove("population");
+            Map<String, Object> creationDimensions = new LinkedHashMap<String, Object>();
+            creationDimensions.put("overworld", creationDimension);
+            Map<String, Object> creationDefinition = new LinkedHashMap<String, Object>(generationDefinition);
+            creationDefinition.put("dimensions", creationDimensions);
+            WorldGeneratorProfile compiled = new WorldGeneratorProfile(key, declaration.owner, signature, terrain,
+                    population, biomes, spatial, surface.equals("inherit"), bool(spawn, "requireSafeGround", true, key),
+                    selectedCarvers, new GeneratorSettings(dimension, spatial, key),
+                    string(value, "displayName", key, key), canonical(creationDefinition));
+            profiles.put(key, compiled);
         }
 
         private TerrainSource terrain(Object value, String path) {

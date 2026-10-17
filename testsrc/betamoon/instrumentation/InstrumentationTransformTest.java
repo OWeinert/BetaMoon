@@ -353,6 +353,8 @@ public final class InstrumentationTransformTest {
                     || diagnostic.getHookId().startsWith("betamoon:tick_events")
                     || diagnostic.getHookId().startsWith("betamoon:worldgen_surface")
                     || diagnostic.getHookId().startsWith("betamoon:world_generator")
+                    || diagnostic.getHookId().startsWith("betamoon:world_creation")
+                    || diagnostic.getHookId().startsWith("betamoon:world_join")
                     || diagnostic.getHookId().startsWith("betamoon:world_population")
                     || diagnostic.getHookId().startsWith("betamoon:fluid_ecology")
                     || diagnostic.getHookId().startsWith("betamoon:atmosphere")
@@ -659,7 +661,9 @@ public final class InstrumentationTransformTest {
 
     private static void verifyWorldGeneratorSeams(TinyMappingResolver mappings, String jarPath,
             BetaMoonTransformer transformer) throws Exception {
-        for (String namedOwner : new String[]{"net/minecraft/src/World", "net/minecraft/src/WorldProvider"}) {
+        for (String namedOwner : new String[]{"net/minecraft/src/World", "net/minecraft/src/WorldProvider",
+                "net/minecraft/src/GuiCreateWorld", "net/minecraft/src/GuiSelectWorld",
+                "net/minecraft/client/Minecraft"}) {
             String owner = mappings.resolveClass(new ClassRef(namedOwner), RuntimeNamespace.CLIENT);
             byte[] transformed = transformer.transform(null, owner, null, null, readClass(jarPath, owner));
             require(transformed != null, "World generator seam did not transform " + namedOwner);
@@ -668,13 +672,15 @@ public final class InstrumentationTransformTest {
             int calls = 0;
             for (MethodNode method : node.methods) {
                 for (AbstractInsnNode instruction : method.instructions.toArray()) {
-                    if (instruction instanceof MethodInsnNode && ((MethodInsnNode) instruction).owner
-                            .equals("betamoon/instrumentation/hooks/worldgen/WorldGeneratorCallbacks")) {
+                    if (instruction instanceof MethodInsnNode && ((MethodInsnNode) instruction).owner.matches(
+                            "betamoon/instrumentation/hooks/worldgen/World(Generator|Creation|Join)Callbacks")) {
                         calls++;
                     }
                 }
             }
-            require(calls == (namedOwner.endsWith("/World") ? 9 : 2),
+            require(calls == (namedOwner.endsWith("/World")
+                    ? 9
+                    : namedOwner.endsWith("/GuiSelectWorld") ? 4 : namedOwner.contains("/Gui") ? 3 : 2),
                     "World generator factory/spawn callbacks must have exact mapped targets: " + namedOwner + " calls="
                             + calls);
             require(transformer.transform(null, owner, null, null, transformed) == null,

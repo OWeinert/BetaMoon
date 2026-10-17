@@ -52,6 +52,7 @@ public final class FeaturePlacementApi {
                 WorldGenKey key = WorldGenRegistry.addFeature(parsed.key, parsed.type, parsed.feature,
                         parsed.dependencies, parsed.maxBlocks, parsed.maxRadius);
                 WorldGenRegistry.setFeatureTags(key, tags);
+                WorldGenRegistry.setDisplayName(key, definition.get("displayName").optjstring(null));
                 WorldGenRegistry.recordDeclaration(key, LuaGenerationSignature.of(definition));
                 return new FeatureReference(key);
             }
@@ -69,6 +70,8 @@ public final class FeaturePlacementApi {
                         parsed.dimensions, parsed.attempts, parsed.extraChance, parsed.probability, parsed.height,
                         parsed.conditions, parsed.before, parsed.after, parsed.priority, parsed.salt,
                         parsed.successLimit, parsed.horizontal, parsed.gridSpacing);
+                WorldGenRegistry.setDisplayName(key,
+                        argument(arguments, placements, 1).get("displayName").optjstring(null));
                 WorldGenRegistry.recordDeclaration(key, LuaGenerationSignature.of(argument(arguments, placements, 1)));
                 return new PlacementReference(key, parsed.feature);
             }
@@ -112,10 +115,12 @@ public final class FeaturePlacementApi {
             selectors.set("include", include);
             definition.set("biomes", selectors);
             ParsedPlacement parsed = placement(definition);
-            WorldGenRegistry.addPlacement(parsed.key, parsed.feature, parsed.stage, parsed.dimensions, parsed.attempts,
-                    parsed.extraChance, parsed.probability, parsed.height, parsed.conditions, parsed.before,
-                    parsed.after, parsed.priority, parsed.salt, parsed.successLimit, parsed.horizontal,
-                    parsed.gridSpacing);
+            WorldGenKey registered = WorldGenRegistry.addPlacement(parsed.key, parsed.feature, parsed.stage,
+                    parsed.dimensions, parsed.attempts, parsed.extraChance, parsed.probability, parsed.height,
+                    parsed.conditions, parsed.before, parsed.after, parsed.priority, parsed.salt, parsed.successLimit,
+                    parsed.horizontal, parsed.gridSpacing);
+            WorldGenRegistry.setDisplayName(registered, definition.get("displayName").optjstring(null));
+            WorldGenRegistry.recordDeclaration(registered, LuaGenerationSignature.of(definition));
         }
     }
 

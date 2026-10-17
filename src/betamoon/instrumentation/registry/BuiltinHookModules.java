@@ -27,6 +27,8 @@ import betamoon.instrumentation.hooks.texture.TextureResourceHook;
 import betamoon.instrumentation.hooks.worldgen.AtmosphereHook;
 import betamoon.instrumentation.hooks.worldgen.RegionalStructureChunkHook;
 import betamoon.instrumentation.hooks.worldgen.WorldGeneratorHook;
+import betamoon.instrumentation.hooks.worldgen.WorldCreationHook;
+import betamoon.instrumentation.hooks.worldgen.WorldJoinHook;
 import betamoon.instrumentation.hooks.worldgen.WorldPopulationHook;
 import betamoon.instrumentation.hooks.worldgen.WorldgenSurfaceHook;
 import betamoon.runtime.RuntimeSide;
@@ -67,6 +69,8 @@ public final class BuiltinHookModules {
     private static void registerClient(HookRegistry registry) {
         registry.registerModule(new FluidEcologyHook(false));
         registry.registerModule(new WorldGeneratorHook());
+        registry.registerModule(new WorldCreationHook());
+        registry.registerModule(new WorldJoinHook());
         registry.registerModule(new WorldPopulationHook());
         registry.registerModule(new AtmosphereHook());
         registry.registerModule(new BlockBrokenHook());

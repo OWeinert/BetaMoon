@@ -63,11 +63,11 @@ final class DebugWorldExporter implements DebugExporter {
         }
         for (BiomeGenRegistry.Description biome : BiomeGenRegistry.snapshot()) {
             rows.add("origin: Lua overlay | key: " + biome.key + " | owner: " + safe(biome.owner) + " | biome name: "
-                    + safe(biome.name) + " | implementation: " + safe(biome.implementation) + " | tags: " + biome.tags
-                    + " | surface: " + safe(biome.surface) + " | decorators: " + biome.decorators + " | top/filler: "
-                    + biome.topBlock + "/" + biome.fillerBlock + " | legacy climate range: " + biome.legacyClimateRange
-                    + " | temperature: " + biome.minTemperature + ".." + biome.maxTemperature + " | humidity: "
-                    + biome.minHumidity + ".." + biome.maxHumidity);
+                    + safe(biome.displayName) + " | implementation: " + safe(biome.implementation) + " | tags: "
+                    + biome.tags + " | surface: " + safe(biome.surface) + " | decorators: " + biome.decorators
+                    + " | top/filler: " + biome.topBlock + "/" + biome.fillerBlock + " | legacy climate range: "
+                    + biome.legacyClimateRange + " | temperature: " + biome.minTemperature + ".." + biome.maxTemperature
+                    + " | humidity: " + biome.minHumidity + ".." + biome.maxHumidity);
         }
         Collections.sort(rows);
         session.writeTextFile("biomes.txt", new DebugExportSession.TextContent() {

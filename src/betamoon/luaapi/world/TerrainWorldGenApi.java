@@ -155,7 +155,7 @@ public final class TerrainWorldGenApi {
                 set("exportChunk", new VarArgFunction() {
                     @Override
                     public Varargs invoke(Varargs args) {
-                        Varargs preview = get("previewChunk").invoke(args);
+                        Varargs preview = Reference.this.get("previewChunk").invoke(args);
                         if (preview.arg1().isnil()) {
                             return preview;
                         }

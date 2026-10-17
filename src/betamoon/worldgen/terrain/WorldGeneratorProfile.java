@@ -17,9 +17,9 @@ import java.util.TreeMap;
 public final class WorldGeneratorProfile {
     public final String key;
     public final String owner;
-    public final boolean defaultForNewWorlds;
-    public final int priority;
+    public final String displayName;
     public final String signature;
+    public final String creationDefinition;
     public final Map<String, String> dependencies;
     public final TerrainSource terrain;
     public final PopulationPolicy population;
@@ -31,32 +31,49 @@ public final class WorldGeneratorProfile {
     public final List<CompiledCarver> carvers;
     public final GeneratorSettings settings;
 
-    public WorldGeneratorProfile(String key, String owner, boolean defaultForNewWorlds, int priority,
-            Map<String, String> dependencies) {
-        this(key, owner, defaultForNewWorlds, priority, dependencies, null, null, null, null, true, true);
+    public WorldGeneratorProfile(String key, String owner, Map<String, String> dependencies) {
+        this(key, owner, dependencies, null, null, null, null, true, true);
     }
 
-    public WorldGeneratorProfile(String key, String owner, boolean defaultForNewWorlds, int priority,
-            Map<String, String> dependencies, TerrainSource terrain, PopulationPolicy population,
-            BiomeSourceDefinition biomeSource, SpatialRegistry.Snapshot spatial, boolean applySurfaces,
-            boolean requireSafeSpawn) {
-        this(key, owner, defaultForNewWorlds, priority, dependencies, terrain, population, biomeSource, spatial,
-                applySurfaces, requireSafeSpawn, Collections.<CompiledCarver>emptyList());
+    public WorldGeneratorProfile(String key, String owner, Map<String, String> dependencies, TerrainSource terrain,
+            PopulationPolicy population, BiomeSourceDefinition biomeSource, SpatialRegistry.Snapshot spatial,
+            boolean applySurfaces, boolean requireSafeSpawn) {
+        this(key, owner, dependencies, terrain, population, biomeSource, spatial, applySurfaces, requireSafeSpawn,
+                Collections.<CompiledCarver>emptyList());
     }
 
-    public WorldGeneratorProfile(String key, String owner, boolean defaultForNewWorlds, int priority,
-            Map<String, String> dependencies, TerrainSource terrain, PopulationPolicy population,
-            BiomeSourceDefinition biomeSource, SpatialRegistry.Snapshot spatial, boolean applySurfaces,
-            boolean requireSafeSpawn, List<CompiledCarver> carvers) {
-        this(key, owner, defaultForNewWorlds, priority, dependencies, terrain, population, biomeSource, spatial,
-                applySurfaces, requireSafeSpawn, carvers, null);
+    public WorldGeneratorProfile(String key, String owner, Map<String, String> dependencies, TerrainSource terrain,
+            PopulationPolicy population, BiomeSourceDefinition biomeSource, SpatialRegistry.Snapshot spatial,
+            boolean applySurfaces, boolean requireSafeSpawn, List<CompiledCarver> carvers) {
+        this(key, owner, dependencies, terrain, population, biomeSource, spatial, applySurfaces, requireSafeSpawn,
+                carvers, null);
     }
 
-    public WorldGeneratorProfile(String key, String owner, boolean defaultForNewWorlds, int priority,
-            Map<String, String> dependencies, TerrainSource terrain, PopulationPolicy population,
-            BiomeSourceDefinition biomeSource, SpatialRegistry.Snapshot spatial, boolean applySurfaces,
-            boolean requireSafeSpawn, List<CompiledCarver> carvers, GeneratorSettings settings) {
+    public WorldGeneratorProfile(String key, String owner, Map<String, String> dependencies, TerrainSource terrain,
+            PopulationPolicy population, BiomeSourceDefinition biomeSource, SpatialRegistry.Snapshot spatial,
+            boolean applySurfaces, boolean requireSafeSpawn, List<CompiledCarver> carvers, GeneratorSettings settings) {
+        this(key, owner, dependencies, terrain, population, biomeSource, spatial, applySurfaces, requireSafeSpawn,
+                carvers, settings, key);
+    }
+
+    public WorldGeneratorProfile(String key, String owner, Map<String, String> dependencies, TerrainSource terrain,
+            PopulationPolicy population, BiomeSourceDefinition biomeSource, SpatialRegistry.Snapshot spatial,
+            boolean applySurfaces, boolean requireSafeSpawn, List<CompiledCarver> carvers, GeneratorSettings settings,
+            String displayName) {
+        this(key, owner, dependencies, terrain, population, biomeSource, spatial, applySurfaces, requireSafeSpawn,
+                carvers, settings, displayName, dependencies.get("profile_definition"));
+    }
+
+    public WorldGeneratorProfile(String key, String owner, Map<String, String> dependencies, TerrainSource terrain,
+            PopulationPolicy population, BiomeSourceDefinition biomeSource, SpatialRegistry.Snapshot spatial,
+            boolean applySurfaces, boolean requireSafeSpawn, List<CompiledCarver> carvers, GeneratorSettings settings,
+            String displayName, String creationDefinition) {
+        this.creationDefinition = creationDefinition;
         this.settings = settings;
+        if (displayName == null || displayName.isEmpty() || displayName.length() > 256
+                || displayName.matches(".*[\\p{Cntrl}\u00a7].*")) {
+            throw new IllegalArgumentException("Generator displayName requires 1..256 plain-text characters");
+        }
         if (key == null || key.length() > 256) {
             throw new IllegalArgumentException("Invalid generator profile key: " + key);
         }
@@ -71,8 +88,7 @@ public final class WorldGeneratorProfile {
         resolved.put("population", population == null ? "native_all" : population.signature);
         this.key = key;
         this.owner = owner;
-        this.defaultForNewWorlds = defaultForNewWorlds;
-        this.priority = priority;
+        this.displayName = displayName;
         this.dependencies = Collections.unmodifiableMap(resolved);
         this.signature = GenerationSignature.of(resolved);
         this.terrain = terrain;
@@ -96,11 +112,33 @@ public final class WorldGeneratorProfile {
         return new WorldGeneratorProfile(this, populationSignature);
     }
 
+    public WorldGeneratorProfile withCreationSettings(PopulationPolicy policy, Map<String, String> pinnedDependencies) {
+        return new WorldGeneratorProfile(this, policy, pinnedDependencies);
+    }
+
+    private WorldGeneratorProfile(WorldGeneratorProfile source, PopulationPolicy policy, Map<String, String> pinned) {
+        key = source.key;
+        owner = source.owner;
+        displayName = source.displayName;
+        creationDefinition = source.creationDefinition;
+        dependencies = Collections.unmodifiableMap(new TreeMap<String, String>(pinned));
+        signature = GenerationSignature.of(dependencies);
+        terrain = source.terrain;
+        population = policy;
+        biomeSource = source.biomeSource;
+        spatial = source.spatial;
+        applySurfaces = source.applySurfaces;
+        requireSafeSpawn = source.requireSafeSpawn;
+        surfaces = source.surfaces;
+        carvers = source.carvers;
+        settings = source.settings;
+    }
+
     private WorldGeneratorProfile(WorldGeneratorProfile source, String populationSignature) {
         key = source.key;
         owner = source.owner;
-        defaultForNewWorlds = source.defaultForNewWorlds;
-        priority = source.priority;
+        displayName = source.displayName;
+        creationDefinition = source.creationDefinition;
         TreeMap<String, String> resolved = new TreeMap<String, String>(source.dependencies);
         resolved.put("population_catalog", populationSignature);
         dependencies = Collections.unmodifiableMap(resolved);

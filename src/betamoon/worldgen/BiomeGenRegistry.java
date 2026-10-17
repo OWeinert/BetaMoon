@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicLong;
 import net.minecraft.src.BiomeGenBase;
 import net.minecraft.src.World;
 import org.luaj.vm2.LuaError;
@@ -26,6 +27,7 @@ public final class BiomeGenRegistry {
     private static final String[] FIELD_BIOME_LOOKUP_TABLE = new String[]{"biomeLookupTable", "x"};
     private static final ThreadLocal<PublicationBatch> CURRENT_BATCH = new ThreadLocal<PublicationBatch>();
     private static volatile Snapshot active = Snapshot.empty();
+    private static final AtomicLong TERRAIN_REVISION = new AtomicLong();
 
     private BiomeGenRegistry() {
     }
@@ -39,9 +41,19 @@ public final class BiomeGenRegistry {
         return batch;
     }
 
+    public static long terrainRevision() {
+        return TERRAIN_REVISION.get();
+    }
+
+    /** Invalidates detached raw snapshots after mutable biome inputs change. */
+    public static void invalidateTerrainSnapshots() {
+        TERRAIN_REVISION.incrementAndGet();
+    }
+
     public static synchronized void clear() {
         active = Snapshot.empty();
-        getBiomeLookupTable();
+        invalidateTerrainSnapshots();
+        BiomeGenBase.generateBiomeLookup();
     }
 
     public static synchronized void retainOwners(Set<String> owners) {
@@ -64,6 +76,7 @@ public final class BiomeGenRegistry {
             }
         }
         active = Snapshot.compile(biomes, surfaces, sources);
+        invalidateTerrainSnapshots();
     }
 
     public static WorldGenKey registerBiomeGenerator(String declaredKey, LuaBiome biome, Set<String> tags,
@@ -165,6 +178,7 @@ public final class BiomeGenRegistry {
         return active.surfaces.get(key);
     }
 
+    /** Returns the applied climate selection without resetting scripted entries. */
     public static BiomeGenBase[] copyClimateLookup() {
         return getBiomeLookupTable().clone();
     }
@@ -270,7 +284,9 @@ public final class BiomeGenRegistry {
     }
 
     public static void applyBiomeGenerators() {
+        invalidateTerrainSnapshots();
         Snapshot snapshot = active;
+        BiomeGenBase.generateBiomeLookup();
         BiomeGenBase[] table = getBiomeLookupTable();
         if (table == null || table.length == 0) {
             return;
@@ -343,10 +359,12 @@ public final class BiomeGenRegistry {
             sources.add(source);
         }
         active = Snapshot.compile(biomes, surfaces, sources);
+        invalidateTerrainSnapshots();
     }
 
     private static synchronized void publishOwner(PublicationBatch batch) {
         active = ownerSnapshot(batch);
+        invalidateTerrainSnapshots();
     }
 
     private static synchronized void validateOwner(PublicationBatch batch) {
@@ -450,7 +468,6 @@ public final class BiomeGenRegistry {
 
     private static BiomeGenBase[] getBiomeLookupTable() {
         try {
-            BiomeGenBase.generateBiomeLookup();
             Field field = resolveField(BiomeGenBase.class, FIELD_BIOME_LOOKUP_TABLE);
             return (BiomeGenBase[]) field.get(null);
         } catch (Exception ignored) {
@@ -686,7 +703,7 @@ public final class BiomeGenRegistry {
     public static final class Description {
         public final String key;
         public final String owner;
-        public final String name;
+        public final String displayName;
         public final String implementation;
         public final int topBlock;
         public final int fillerBlock;
@@ -702,7 +719,7 @@ public final class BiomeGenRegistry {
         private Description(BiomeDefinition entry) {
             key = entry.key.toString();
             owner = entry.owner;
-            name = entry.biome.biomeName;
+            displayName = entry.biome.biomeName;
             implementation = entry.biome.getClass().getName();
             topBlock = entry.biome.topBlock & 255;
             fillerBlock = entry.biome.fillerBlock & 255;

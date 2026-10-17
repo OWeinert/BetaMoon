@@ -1,6 +1,10 @@
 package betamoon.worldgen.terrain;
 
 import betamoon.instrumentation.agent.AgentRuntime;
+import betamoon.worldgen.creation.GenerationCatalog;
+import betamoon.worldgen.creation.GenerationDraft;
+import betamoon.worldgen.creation.GenerationSelection;
+import betamoon.worldgen.creation.WorldCreationSelection;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -49,7 +53,7 @@ public final class TerrainFoundationTest {
     }
 
     private static WorldGeneratorProfile profile(String key, String owner, boolean active, int priority) {
-        return new WorldGeneratorProfile(key, owner, active, priority, Collections.<String, String>emptyMap());
+        return new WorldGeneratorProfile(key, owner, Collections.<String, String>emptyMap());
     }
 
     private static void profiles() {
@@ -69,10 +73,10 @@ public final class TerrainFoundationTest {
         WorldGeneratorProfile high = profile("fixture:generator/high", owner, true, 2);
         GeneratorProfileRegistry.replaceOwner(owner, Arrays.asList(low, high));
         GeneratorProfileRegistry.Snapshot snapshot = GeneratorProfileRegistry.snapshot();
-        require(snapshot.defaultForNewWorld() == high, "Highest priority chooses new-world default");
-        expect(IllegalArgumentException.class, () -> GeneratorProfileRegistry.replaceOwner(owner,
-                Arrays.asList(low, profile("fixture:generator/tie", owner, true, 1))));
-        require(GeneratorProfileRegistry.snapshot() == snapshot, "Failed publication must retain active snapshot");
+        require(snapshot.profiles().size() == 2, "Every registered profile is explicitly selectable");
+        expect(IllegalArgumentException.class,
+                () -> GeneratorProfileRegistry.replaceOwner(owner, Arrays.asList(low, low)));
+        require(GeneratorProfileRegistry.snapshot() == snapshot, "Failed publication retains the active snapshot");
         GeneratorProfileRegistry.replaceOwner(owner, Collections.<WorldGeneratorProfile>emptyList());
         require(snapshot.get(high.key) == high && GeneratorProfileRegistry.snapshot().get(high.key) == null,
                 "World snapshots must survive owner removal without becoming mutable catalogs");
@@ -97,7 +101,7 @@ public final class TerrainFoundationTest {
         expect(IllegalStateException.class, () -> loaded.requireCompatible(3, 0, profile));
         expect(IllegalStateException.class, () -> loaded.requireCompatible(pending.worldSeed, 0, null));
         expect(IllegalStateException.class, () -> loaded.withOriginalSpawn(0, 64, 0));
-        WorldGeneratorProfile changed = new WorldGeneratorProfile(profile.key, profile.owner, true, 1,
+        WorldGeneratorProfile changed = new WorldGeneratorProfile(profile.key, profile.owner,
                 Collections.singletonMap("changed_material", "fixture:block/stone@191"));
         expect(IllegalStateException.class, () -> loaded.requireCompatible(pending.worldSeed, 0, changed));
         byte[] valid = Files.readAllBytes(file);
@@ -215,8 +219,10 @@ public final class TerrainFoundationTest {
                 "Existing native saves must not adopt a newly registered default");
         Fixture world = new Fixture(save, 7);
         world.isNewWorld = true;
-        WorldGenerationRuntime.prepare(world, save);
-        require(WorldGenerationRuntime.manifest(world) != null && save.locks == 1,
+        try (WorldCreationSelection pending = choose(profile, 7)) {
+            WorldGenerationRuntime.prepare(world, save);
+        }
+        require(WorldGenerationRuntime.manifest(world) != null && save.locks >= 1,
                 "Selected profile must be durable under the native session lock before generation");
         expect(IllegalStateException.class, () -> WorldGenerationRuntime.prepare(new Fixture(save, 7), save));
         expect(IllegalStateException.class, () -> WorldGenerationRuntime.requireSelectedProvider(world));
@@ -270,7 +276,9 @@ public final class TerrainFoundationTest {
         world.isNewWorld = true;
         WorldGeneratorProfile profile = profile("fixture:generator/hooked", "hooked.lua", true, 1);
         GeneratorProfileRegistry.replaceOwner(profile.owner, Collections.singletonList(profile));
-        world.createOuterProvider();
+        try (WorldCreationSelection pending = choose(profile, 17)) {
+            world.createOuterProvider();
+        }
         require(WorldGenerationRuntime.manifest(world) != null, "World factory hook must capture its save handler");
         require(world.worldProvider.getChunkProvider() instanceof BetaMoonChunkProvider,
                 "Native factory return hook must select the pinned provider");
@@ -278,6 +286,11 @@ public final class TerrainFoundationTest {
         require(WorldGenerationRuntime.manifest(world).originalSpawn != null,
                 "Actual native initial-spawn boundary must persist the original anchor");
         GeneratorProfileRegistry.replaceOwner(profile.owner, Collections.<WorldGeneratorProfile>emptyList());
+    }
+
+    private static WorldCreationSelection choose(WorldGeneratorProfile profile, long seed) {
+        return WorldCreationSelection
+                .begin(GenerationSelection.create(new GenerationDraft(new GenerationCatalog(profile)), seed));
     }
 
     private static void expect(Class<? extends Exception> type, CheckedAction action) {
@@ -302,8 +315,8 @@ public final class TerrainFoundationTest {
         void run() throws Exception;
     }
 
-    static final class Fixture extends World {
-        Fixture(Save save, long seed) {
+    public static final class Fixture extends World {
+        public Fixture(Save save, long seed) {
             super(save, "terrain-fixture", new WorldProvider() {
                 @Override
                 public boolean canCoordinateBeSpawn(int x, int z) {
@@ -337,11 +350,11 @@ public final class TerrainFoundationTest {
         }
     }
 
-    static final class Save implements ISaveHandler {
+    public static final class Save implements ISaveHandler {
         private final Path directory;
         private int locks;
 
-        Save(Path directory) {
+        public Save(Path directory) {
             this.directory = directory;
         }
 

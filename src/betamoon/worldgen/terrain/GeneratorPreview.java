@@ -22,6 +22,7 @@ public final class GeneratorPreview {
     public static Map<String, Object> describe(WorldGeneratorProfile profile) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("key", profile.key);
+        result.put("displayName", profile.displayName);
         result.put("signature", profile.signature);
         result.put("owner", profile.owner);
         result.put("nativeTerrain", profile.terrain == null || profile.terrain.isNative());

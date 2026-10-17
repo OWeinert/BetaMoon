@@ -22,6 +22,7 @@ public final class FeatureReference extends LuaTable implements LuaDataReference
 
     public FeatureReference(WorldGenKey key) {
         this.key = key;
+        set("displayName", WorldGenRegistry.displayName(key.toString()));
         set("getKey", new ZeroArgFunction() {
             @Override
             public LuaValue call() {

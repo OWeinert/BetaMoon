@@ -1,10 +1,15 @@
 package betamoon.worldgen.terrain;
 
+import betamoon.assets.model.ModelJson;
 import betamoon.luaapi.world.WorldGenApi;
 import betamoon.worldgen.BlockSet;
 import betamoon.worldgen.IntRange;
 import betamoon.worldgen.WorldGenKey;
 import betamoon.worldgen.WorldGenKind;
+import betamoon.worldgen.creation.GenerationCatalog;
+import betamoon.worldgen.creation.GenerationDraft;
+import betamoon.worldgen.creation.GenerationSelection;
+import betamoon.worldgen.creation.WorldCreationSelection;
 import betamoon.worldgen.spatial.FieldContext;
 import betamoon.worldgen.spatial.SpatialRegistry;
 import betamoon.worldgen.surface.SurfaceRuleSet;
@@ -12,6 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 import net.minecraft.src.BiomeGenBase;
 import net.minecraft.src.Block;
 import net.minecraft.src.Chunk;
@@ -51,7 +57,7 @@ public final class TerrainPipelineTest {
                     + "field={type='y'},min=20,max=30,replaceable={35},avoidFluids=false};"
                     + "betamoon.worldgen.carvers:add{key='test:carver/tunnels',type='tunnel',probability=1,"
                     + "length=40,radius=4,minY=20,maxY=40,replaceable={35}};"
-                    + "betamoon.worldgen.generatorProfiles:add{key='test:generator/flat',defaultForNewWorlds=true,"
+                    + "betamoon.worldgen.generatorProfiles:add{key='test:generator/flat',"
                     + "dimensions={overworld={terrain=flat,surfaces='none',population={native='none'}}}}").call();
             spatial.validate();
             terrain.validate();
@@ -88,7 +94,13 @@ public final class TerrainPipelineTest {
         TerrainFoundationTest.Save save = new TerrainFoundationTest.Save(directory);
         TerrainFoundationTest.Fixture world = new TerrainFoundationTest.Fixture(save, 42);
         world.isNewWorld = true;
-        world.createOuterProvider();
+        try (WorldCreationSelection pending = WorldCreationSelection
+                .begin(GenerationSelection.create(
+                        new GenerationDraft(
+                                new GenerationCatalog(GeneratorProfileRegistry.snapshot().get("test:generator/flat"))),
+                        42))) {
+            world.createOuterProvider();
+        }
         WorldGeneratorManifest manifest = WorldGenerationRuntime.manifest(world);
         require(manifest != null && manifest.originalSpawn != null && manifest.originalSpawn.y < 10,
                 "Low flat world must persist its original spawn before chunk generation");
@@ -166,7 +178,7 @@ public final class TerrainPipelineTest {
 
     private static void heightPreviewEviction(TerrainFoundationTest.Fixture world, TerrainRegistry.Snapshot definitions)
             throws java.io.IOException {
-        java.util.Map<String, Object> value = betamoon.assets.model.ModelJson.read(("{\"type\":\"profile_map\","
+        Map<String, Object> value = ModelJson.read(("{\"type\":\"profile_map\","
                 + "\"entries\":[{\"profile\":{\"baseHeight\":30},\"biomes\":{\"include\":[\"test:absent\"]}}],"
                 + "\"material\":{\"type\":\"when\",\"condition\":{\"type\":\"slope\",\"min\":0,\"max\":0},"
                 + "\"thenRule\":{\"block\":35,\"metadata\":2},\"elseRule\":{\"block\":35,\"metadata\":3}}}")

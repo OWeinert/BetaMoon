@@ -4,6 +4,13 @@ import betamoon.assets.AssetKey;
 import betamoon.loot.LootTableDefinition;
 import betamoon.loot.LootTableRegistry;
 import betamoon.worldgen.GenerationStage;
+import betamoon.worldgen.creation.GenerationCatalog;
+import betamoon.worldgen.creation.GenerationDraft;
+import betamoon.worldgen.creation.GenerationSelection;
+import betamoon.worldgen.creation.GenerationSelectionStore;
+import betamoon.worldgen.creation.MissingWorldGenerator;
+import betamoon.worldgen.creation.WorldCreationSelection;
+import betamoon.worldgen.creation.WorldGeneratorFallback;
 import betamoon.worldgen.WorldGenRegistry;
 import betamoon.worldgen.spatial.FieldContext;
 import betamoon.worldgen.spatial.NativeBiomeEnvironment;
@@ -27,6 +34,8 @@ import net.minecraft.src.WorldProvider;
  * original spawn once.
  */
 public final class WorldGenerationRuntime {
+    private static final Map<World, GenerationSelection> SELECTIONS = new WeakHashMap<World, GenerationSelection>();
+    private static final Map<World, Boolean> FALLBACK_WORLDS = new WeakHashMap<World, Boolean>();
     private static final String MANIFEST_NAME = "betamoon_generator_overworld";
     private static final String NATIVE_ANCHOR_NAME = "betamoon_original_spawn_overworld";
     private static final String NATIVE_ANCHOR_KEY = "betamoon:generator/native_anchor";
@@ -39,35 +48,100 @@ public final class WorldGenerationRuntime {
     }
 
     public static synchronized void prepare(World world, ISaveHandler saveHandler) {
-        if (world.multiplayerWorld || world.worldProvider.worldType != 0 || WORLDS.containsKey(world)) {
+        if (world.multiplayerWorld || world.worldProvider.worldType != 0 || WORLDS.containsKey(world)
+                || NATIVE_ANCHORS.containsKey(world) || FALLBACK_WORLDS.containsKey(world)) {
             return;
         }
         GeneratorProfileRegistry.Snapshot snapshot = GeneratorProfileRegistry.snapshot();
         File location = saveHandler == null ? null : saveHandler.func_28113_a(MANIFEST_NAME);
         if (location == null) {
-            if (world.isNewWorld && snapshot.defaultForNewWorld() != null) {
+            if (world.isNewWorld) {
                 throw new IllegalStateException("Selected generator profile requires persistent world storage");
             }
             return;
         }
         GeneratorManifestStore store = new GeneratorManifestStore(location);
         try {
+            File selectionFile = saveHandler.func_28113_a("betamoon_generation_settings");
+            if (selectionFile == null) {
+                throw new IllegalStateException("World generation settings require persistent world storage");
+            }
+            GenerationSelectionStore selections = new GenerationSelectionStore(selectionFile);
+            GenerationSelection selection = selections.read(false);
+            if (selection != null && !world.isNewWorld && !selection.preset.equals(GenerationCatalog.MINECRAFT)
+                    && (snapshot.get(selection.preset) == null || WorldGeneratorFallback.activeSession(saveHandler))
+                    && WorldGeneratorFallback.approved(saveHandler, selectionFile, selection.preset,
+                            world.getRandomSeed())) {
+                if (selection.seed != world.getRandomSeed()) {
+                    throw new IllegalStateException("Generation settings belong to another world seed");
+                }
+                MissingWorldGenerator.requireMatchingManifest(location, selection.preset, world.getRandomSeed());
+                bindFallback(world);
+                return;
+            }
+            GenerationSelection requested = world.isNewWorld ? WorldCreationSelection.consume() : null;
+            if (selection != null && requested != null) {
+                throw new IllegalStateException("This creation folder already contains generation settings; "
+                        + "choose another world name or restore its incomplete save");
+            }
+            if (selection == null && world.isNewWorld) {
+                selection = requested;
+                if (selection == null) {
+                    selection = GenerationSelection.create(new GenerationDraft(new GenerationCatalog(null)),
+                            world.getRandomSeed());
+                }
+                selection.validate(world.getRandomSeed());
+                saveHandler.func_22150_b();
+                selections.write(selection);
+            }
+            if (selection != null) {
+                selection = selections.read();
+                selection.validate(world.getRandomSeed());
+                SELECTIONS.put(world, selection);
+            }
+            if (selection != null && selection.preset.equals(GenerationCatalog.MINECRAFT)
+                    && selection.population().nativeCategories.size() == 9
+                    && selection.population().stages.size() == GenerationStage.values().length) {
+                prepareNativeAnchor(world, saveHandler);
+                WorldGenRegistry.pinGenerationCatalogs(world);
+                ProfileWorldChunkManager manager = new ProfileWorldChunkManager(world.getWorldChunkManager(), null,
+                        selection);
+                world.worldProvider.worldChunkMgr = manager;
+                manager.setFieldContext(fieldContext(world));
+                return;
+            }
             WorldGeneratorManifest manifest = store.read();
+            if (selection == null && manifest != null && !world.isNewWorld
+                    && (snapshot.get(manifest.profileKey) == null || WorldGeneratorFallback.activeSession(saveHandler))
+                    && WorldGeneratorFallback.approved(saveHandler, selectionFile, manifest.profileKey,
+                            world.getRandomSeed())) {
+                if (manifest.worldSeed != world.getRandomSeed() || manifest.dimension != 0) {
+                    throw new IllegalStateException("Generator manifest belongs to another world");
+                }
+                bindFallback(world);
+                return;
+            }
+            if (selection != null && manifest == null && !world.isNewWorld) {
+                throw new IllegalStateException("World generation settings have no matching generator manifest; "
+                        + "restore a consistent world backup");
+            }
             WorldGeneratorProfile profile;
             if (manifest == null) {
-                profile = world.isNewWorld ? snapshot.defaultForNewWorld() : null;
+                profile = selection == null ? null : selection.profile();
                 if (profile == null) {
                     prepareNativeAnchor(world, saveHandler);
                     return;
                 }
-                profile = profile.withPopulationCatalog(WorldGenRegistry.generationDependencies());
+                if (selection == null) {
+                    profile = profile.withPopulationCatalog(WorldGenRegistry.generationDependencies());
+                }
                 if (profile.terrain != null) {
                     GenerationHookAvailability.requireReady();
                 }
                 manifest = new WorldGeneratorManifest(world.getRandomSeed(), 0, profile.key, profile.signature, null);
                 if (isCustom(profile)) {
                     ProfileWorldChunkManager biomes = new ProfileWorldChunkManager(world.getWorldChunkManager(),
-                            profile.biomeSource);
+                            profile.biomeSource, selection);
                     WorldGeneratorManifest.OriginalSpawn spawn = GeneratorSpawnSearch.find(world.getRandomSeed(),
                             profile, biomes);
                     manifest = manifest.withOriginalSpawn(spawn.x, spawn.y, spawn.z);
@@ -75,8 +149,8 @@ public final class WorldGenerationRuntime {
                 saveHandler.func_22150_b();
                 store.write(manifest);
             } else {
-                profile = snapshot.get(manifest.profileKey);
-                if (profile != null) {
+                profile = selection == null ? snapshot.get(manifest.profileKey) : selection.profile();
+                if (profile != null && selection == null) {
                     profile = profile.withPopulationCatalog(WorldGenRegistry.generationDependencies());
                 }
                 manifest.requireCompatible(world.getRandomSeed(), 0, profile);
@@ -90,9 +164,9 @@ public final class WorldGenerationRuntime {
             }
             WORLDS.put(world, new Binding(profile, manifest, store, saveHandler));
             WorldGenRegistry.pinGenerationCatalogs(world);
-            if (profile.terrain != null) {
+            if (profile.terrain != null || selection != null) {
                 ProfileWorldChunkManager manager = new ProfileWorldChunkManager(world.getWorldChunkManager(),
-                        profile.biomeSource);
+                        profile.biomeSource, selection);
                 world.worldProvider.worldChunkMgr = manager;
                 manager.setFieldContext(fieldContext(world));
             }
@@ -133,7 +207,23 @@ public final class WorldGenerationRuntime {
         return new BetaMoonChunkProvider(provider.worldObj, nativeProvider, binding.profile);
     }
 
+    private static void bindFallback(World world) {
+        FALLBACK_WORLDS.put(world, true);
+        world.worldProvider.worldChunkMgr = ProfileWorldChunkManager.minecraftFallback(world.getWorldChunkManager());
+    }
+
+    public static synchronized boolean isFallback(World world) {
+        return FALLBACK_WORLDS.containsKey(world);
+    }
+
     public static synchronized boolean stageEnabled(World world, GenerationStage stage) {
+        if (isFallback(world)) {
+            return false;
+        }
+        GenerationSelection selection = SELECTIONS.get(world);
+        if (selection != null) {
+            return selection.enabled("stage/" + stage.getName());
+        }
         Binding binding = WORLDS.get(world);
         return binding == null || binding.profile.population == null
                 || binding.profile.population.stages.contains(stage);
@@ -248,8 +338,19 @@ public final class WorldGenerationRuntime {
         return binding == null ? null : binding.profile;
     }
 
+    public static synchronized boolean hasSavedSelection(World world) {
+        return SELECTIONS.containsKey(world);
+    }
+
     public static synchronized boolean contentEnabled(World world, boolean structure, String key, String secondaryKey,
             Set<String> tags) {
+        if (isFallback(world)) {
+            return false;
+        }
+        GenerationSelection selection = SELECTIONS.get(world);
+        if (selection != null && !selection.contentEnabled(key)) {
+            return false;
+        }
         WorldGeneratorProfile profile = profile(world);
         return profile == null || profile.settings == null
                 || (structure ? profile.settings.structures : profile.settings.features).matches(key, secondaryKey,
@@ -283,7 +384,10 @@ public final class WorldGenerationRuntime {
 
     public static synchronized SpatialRegistry.Snapshot spatial(World world) {
         Binding binding = WORLDS.get(world);
-        return binding == null ? SpatialRegistry.snapshot() : binding.spatial;
+        NativeAnchor nativeAnchor = NATIVE_ANCHORS.get(world);
+        return binding == null
+                ? nativeAnchor == null ? SpatialRegistry.snapshot() : nativeAnchor.spatial
+                : binding.spatial;
     }
 
     public static boolean biomeMatches(World world, int x, int z, Set<String> selectors) {
@@ -298,15 +402,24 @@ public final class WorldGenerationRuntime {
 
     public static synchronized TerrainRegistry.Snapshot terrainDefinitions(World world) {
         Binding binding = WORLDS.get(world);
-        return binding == null ? TerrainRegistry.snapshot() : binding.terrainDefinitions;
+        NativeAnchor nativeAnchor = NATIVE_ANCHORS.get(world);
+        return binding == null
+                ? nativeAnchor == null ? TerrainRegistry.snapshot() : nativeAnchor.terrainDefinitions
+                : binding.terrainDefinitions;
     }
 
     public static synchronized Map<AssetKey, LootTableDefinition> lootDefinitions(World world) {
         Binding binding = WORLDS.get(world);
-        return binding == null ? LootTableRegistry.captureDefinitions() : binding.lootDefinitions;
+        NativeAnchor nativeAnchor = NATIVE_ANCHORS.get(world);
+        return binding == null
+                ? nativeAnchor == null ? LootTableRegistry.captureDefinitions() : nativeAnchor.lootDefinitions
+                : binding.lootDefinitions;
     }
 
     private static final class NativeAnchor {
+        private final SpatialRegistry.Snapshot spatial = SpatialRegistry.snapshot();
+        private final TerrainRegistry.Snapshot terrainDefinitions = TerrainRegistry.snapshot();
+        private final Map<AssetKey, LootTableDefinition> lootDefinitions = LootTableRegistry.captureDefinitions();
         private WorldGeneratorManifest manifest;
         private final GeneratorManifestStore store;
         private final ISaveHandler saveHandler;

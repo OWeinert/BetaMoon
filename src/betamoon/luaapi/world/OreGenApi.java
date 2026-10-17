@@ -40,6 +40,7 @@ public final class OreGenApi {
                         declaration.veinsPerChunk, declaration.veinSize, declaration.minY, declaration.maxY,
                         declaration.dimension, declaration.targetBlockId, declaration.getAllowedBiomes(),
                         declaration.salt);
+                WorldGenRegistry.setDisplayName(key, argument(args, ores).get("displayName").optjstring(null));
                 return reference(WorldGenRegistry.oreEntry(key));
             }
         });

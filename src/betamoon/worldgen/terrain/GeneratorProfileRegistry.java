@@ -71,37 +71,24 @@ public final class GeneratorProfileRegistry {
 
     public static final class Snapshot {
         private final Map<String, WorldGeneratorProfile> profiles;
-        private final WorldGeneratorProfile defaultProfile;
 
         private Snapshot(Collection<WorldGeneratorProfile> declarations) {
             TreeMap<String, WorldGeneratorProfile> resolved = new TreeMap<String, WorldGeneratorProfile>();
-            WorldGeneratorProfile selected = null;
             for (WorldGeneratorProfile profile : declarations) {
                 if (resolved.put(profile.key, profile) != null) {
                     throw new IllegalArgumentException("Duplicate generator profile: " + profile.key);
                 }
-                if (profile.defaultForNewWorlds && (selected == null || profile.priority > selected.priority)) {
-                    selected = profile;
-                }
-            }
-            if (selected != null) {
-                for (WorldGeneratorProfile profile : resolved.values()) {
-                    if (profile != selected && profile.defaultForNewWorlds && profile.priority == selected.priority) {
-                        throw new IllegalArgumentException(
-                                "Ambiguous default generator profiles: " + selected.key + " and " + profile.key);
-                    }
-                }
             }
             profiles = Collections.unmodifiableMap(resolved);
-            defaultProfile = selected;
         }
 
         public WorldGeneratorProfile get(String key) {
             return profiles.get(key);
         }
 
-        public WorldGeneratorProfile defaultForNewWorld() {
-            return defaultProfile;
+        public Collection<WorldGeneratorProfile> profiles() {
+            return profiles.values();
         }
+
     }
 }

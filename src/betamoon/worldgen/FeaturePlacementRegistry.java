@@ -292,7 +292,9 @@ final class FeaturePlacementRegistry {
             if (stage != null && placement.stage != stage) {
                 continue;
             }
-            if (!placement.dimensions.isEmpty() && !placement.dimensions.contains(dimension) || isDisabled(placement)
+            if (!placement.dimensions.isEmpty() && !placement.dimensions.contains(dimension)
+                    || failed.contains(placement)
+                    || !WorldGenerationRuntime.hasSavedSelection(world) && isDisabled(placement)
                     || isTemplate(world, placement.key)) {
                 continue;
             }
@@ -300,8 +302,9 @@ final class FeaturePlacementRegistry {
             if (feature == null) {
                 continue;
             }
-            if (!WorldGenerationRuntime.contentEnabled(world, feature.feature instanceof StructureFeature,
-                    placement.key.toString(), feature.key.toString(), feature.tags)) {
+            if (!WorldGenerationRuntime.stageEnabled(world, placement.stage)
+                    || !WorldGenerationRuntime.contentEnabled(world, feature.feature instanceof StructureFeature,
+                            placement.key.toString(), feature.key.toString(), feature.tags)) {
                 reject(placement.key, "generator_filter");
                 continue;
             }
