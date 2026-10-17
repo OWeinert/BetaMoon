@@ -1,0 +1,14 @@
+{
+  "key": "example:carver/meadow_tunnels",
+  "type": "tunnel",
+  "probability": 0.12,
+  "count": 1,
+  "minY": 12,
+  "maxY": 42,
+  "radius": 2.5,
+  "length": 36,
+  "replaceable": [
+    1
+  ],
+  "salt": 1701
+}

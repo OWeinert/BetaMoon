@@ -1,0 +1,61 @@
+{
+  "key": "example:generator/hollow_marches",
+  "displayName": "Hollow Marches",
+  "dimensions": {
+    "overworld": {
+      "terrain": "example:terrain_source/hollow_marches",
+      "surfaces": "none",
+      "biomeSource": {
+        "type": "spatial_climate",
+        "fallback": "example:biome/marches_lowlands",
+        "entries": [
+          {
+            "biome": "example:biome/marches_mesas",
+            "temperature": [
+              0,
+              1
+            ],
+            "humidity": [
+              0,
+              1
+            ],
+            "spatial": {
+              "field": "example:field/marches_regions",
+              "min": 0.55
+            }
+          }
+        ]
+      },
+      "carvers": [
+        "example:carver/marches_sheets"
+      ],
+      "heightOutputs": {
+        "lanterns": "example:field/marches_lantern_height"
+      },
+      "population": {
+        "native": {
+          "lakes": false,
+          "dungeons": false,
+          "clay": false,
+          "ores": false,
+          "trees": true,
+          "vegetation": true,
+          "springs": false,
+          "snow": false,
+          "animals": true
+        }
+      },
+      "features": {
+        "include": [
+          "example:placement/marches_redstone",
+          "example:placement/marches_lanterns"
+        ]
+      },
+      "structures": {
+        "includeTags": [
+          "example:hollow_marches"
+        ]
+      }
+    }
+  }
+}

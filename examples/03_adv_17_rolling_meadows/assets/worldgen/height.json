@@ -1,0 +1,23 @@
+{
+  "key": "example:field/meadow_height",
+  "node": {
+    "type": "add",
+    "inputs": [
+      66,
+      {
+        "type": "multiply",
+        "inputs": [
+          10,
+          {
+            "type": "noise",
+            "noise": "example:noise/meadow_hills",
+            "scale": {
+              "x": 0.00625,
+              "z": 0.00625
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

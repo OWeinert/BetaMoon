@@ -1,0 +1,42 @@
+{
+  "key": "example:field/marches_regions",
+  "node": {
+    "type": "multiply",
+    "inputs": [
+      {
+        "type": "smoothstep",
+        "input": {
+          "type": "distance",
+          "anchor": "minecraft:anchor/original_spawn",
+          "blocksPerUnit": 1
+        },
+        "min": 192,
+        "max": 576
+      },
+      {
+        "type": "map_range",
+        "input": {
+          "type": "shift",
+          "x": "example:field/marches_warp",
+          "z": {
+            "type": "negate",
+            "input": "example:field/marches_warp"
+          },
+          "input": {
+            "type": "noise",
+            "noise": "example:noise/marches_regions",
+            "scale": {
+              "x": 0.003125,
+              "z": 0.003125
+            }
+          }
+        },
+        "fromMin": -1,
+        "fromMax": 1,
+        "toMin": 0.15,
+        "toMax": 1,
+        "clamp": true
+      }
+    ]
+  }
+}

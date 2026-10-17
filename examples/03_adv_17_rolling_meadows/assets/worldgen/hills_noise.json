@@ -1,0 +1,12 @@
+{
+  "key": "example:noise/meadow_hills",
+  "algorithm": "perlin_v1",
+  "seedSalt": "rolling_meadows_hills",
+  "firstOctave": 0,
+  "amplitudes": [
+    1,
+    0.5,
+    0.25
+  ],
+  "normalization": "bounded"
+}

@@ -1,0 +1,17 @@
+{
+  "key": "example:terrain/marches_lowlands",
+  "baseHeight": 67,
+  "layers": [
+    {
+      "key": "rolling_grass",
+      "type": "noise",
+      "scale": 160,
+      "amplitude": 5,
+      "salt": 2001
+    }
+  ],
+  "heightClamp": {
+    "min": 62,
+    "max": 74
+  }
+}

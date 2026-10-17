@@ -167,7 +167,7 @@ public final class CustomRecipeTest {
             packageExample(globals, owner, new File(directory, "03_adv_09_simple_alloy"));
             packageExample(globals, owner, new File(directory, "03_adv_10_contextual_processor"));
             packageExample(globals, owner, new File(directory, "03_adv_11_advanced_fabrication"));
-            packageExample(globals, owner, new File(directory, "03_adv_13_matcher_cookbook"));
+            packageExample(globals, owner, new File(directory, "03_adv_14_matcher_cookbook"));
             require(blocks.size() == 7, "Examples did not declare all seven tested machines");
             for (LuaValue declaration : blocks) {
                 int id = declaration.get("id").checkint();
@@ -392,7 +392,7 @@ public final class CustomRecipeTest {
             case 226:
                 return "03_adv_10_contextual_processor/main.lua";
             case 227:
-                return "03_adv_13_matcher_cookbook/main.lua";
+                return "03_adv_14_matcher_cookbook/main.lua";
             default:
                 throw new AssertionError("Unknown example block " + id);
         }

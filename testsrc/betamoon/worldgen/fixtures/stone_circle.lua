@@ -1,6 +1,4 @@
--- This capstone uses the table-backed builder because a short loop describes
--- the asymmetric pillars more clearly than a separate static asset. Builder
--- helpers append ordinary structure records and compile them once at startup.
+-- Focused structure-builder regression fixture.
 
 return function()
   local structures = betamoon.worldgen.structures
@@ -47,7 +45,7 @@ return function()
   }
 
   local stoneCircle = structures:add {
-    key = "example:structure/amber_stone_circle",
+    key = "test:structure/stone_circle",
     template = circle:compile(),
     rotation = "random_horizontal",
     mirror = "random",
