@@ -1,5 +1,7 @@
 package betamoon.client.control.input;
 
+import betamoon.gui.GuiTabbedControls;
+
 import betamoon.io.BetaMoonDirectories;
 import betamoon.luaapi.LuaApiUtils;
 import net.minecraft.client.Minecraft;
@@ -11,15 +13,15 @@ import org.lwjgl.opengl.Display;
 
 /** Connects verified native event seams to the game-thread input router. */
 public final class ClientInputRuntime {
-    private static final PlayerControllerRuntime CONTROLLERS = new PlayerControllerRuntime((registration, stage, error)
-            -> LuaApiUtils.warnForScript(registration.owner(), "Input controller",
-                    registration.definition().key + "." + stage.luaName() + " activation released after error: "
-                            + safeMessage(error)));
+    private static final PlayerControllerRuntime CONTROLLERS = new PlayerControllerRuntime((registration, stage,
+            error) -> LuaApiUtils.warnForScript(registration.owner(), "Input controller", registration.definition().key
+                    + "." + stage.luaName() + " activation released after error: " + safeMessage(error)));
     private static final InputPreferenceStore PREFERENCES = new InputPreferenceStore(
             BetaMoonDirectories.controlsFileForInstance(Minecraft.getMinecraftDir()));
     private static final InputRouter ROUTER = new InputRouter((context, action, error) -> LuaApiUtils
             .warnForScript(context.owner(), "Input", context.registration().definition().key() + "." + action
-                    + " context disabled after error: " + safeMessage(error)), PREFERENCES);
+                    + " context disabled after error: " + safeMessage(error)),
+            PREFERENCES);
     private static boolean keyboardConsumed;
     private static boolean mouseConsumed;
     private static Minecraft currentMinecraft;
@@ -60,8 +62,8 @@ public final class ClientInputRuntime {
             keyboardConsumed = ROUTER.accept(InputDeviceEvent.key(keyCode, Keyboard.getEventKeyState()));
             keyboardConsumed |= capturesGuiInput();
             keyboardConsumed |= ROUTER.captures(InputFamily.INVENTORY) && isInventoryKey(keyCode);
-            if (!keyboardConsumed && Keyboard.getEventKeyState() && isInventoryKey(keyCode)
-                    && currentMinecraft != null && currentMinecraft.currentScreen == null) {
+            if (!keyboardConsumed && Keyboard.getEventKeyState() && isInventoryKey(keyCode) && currentMinecraft != null
+                    && currentMinecraft.currentScreen == null) {
                 keyboardConsumed = !CONTROLLERS.allowInventory(currentMinecraft.thePlayer, inventoryAction(keyCode),
                         keyCode);
             }

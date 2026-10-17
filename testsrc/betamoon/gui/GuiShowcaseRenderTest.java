@@ -387,7 +387,7 @@ public final class GuiShowcaseRenderTest {
                                         new InputActionDefinition("jump", Arrays.asList(InputBinding.parse("key.j"))))),
                         "test.lua");
         try {
-            Class<?> type = Class.forName("betamoon.client.control.input.GuiBetaMoonActions");
+            Class<?> type = Class.forName("betamoon.gui.GuiBetaMoonActions");
             Constructor<?> constructor = type.getDeclaredConstructor(GuiScreen.class, GameSettings.class,
                     InputRouter.class);
             constructor.setAccessible(true);

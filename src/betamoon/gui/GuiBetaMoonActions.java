@@ -1,4 +1,11 @@
-package betamoon.client.control.input;
+package betamoon.gui;
+
+import betamoon.client.control.input.ClientInputRuntime;
+import betamoon.client.control.input.InputRouter;
+import betamoon.client.control.input.InputBinding;
+import betamoon.client.control.input.InputMapRegistration;
+import betamoon.client.control.input.InputActionDefinition;
+import betamoon.client.control.input.InputActivationMode;
 
 import betamoon.gui.widget.GuiTextBox;
 import java.util.ArrayList;
