@@ -6,6 +6,7 @@ import betamoon.worldgen.spatial.ScalarField;
 import betamoon.worldgen.spatial.ScalarFieldCompiler;
 import betamoon.worldgen.spatial.SpatialRegistry;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -124,12 +125,36 @@ public final class ComposedTerrainSource implements TerrainSource {
 
     @Override
     public boolean usesHeightProfile(FieldContext context, int x, int z, String key) {
+        return !heightProfileCells(context, x, z, key).isEmpty();
+    }
+
+    @Override
+    public BitSet heightProfileCells(FieldContext context, int x, int z, String key) {
+        BitSet cells = new BitSet(128);
         for (Layer layer : layers) {
-            if (layer.source.usesHeightProfile(context, x, z, key)) {
-                return true;
+            ChunkBlockBuffer input = TerrainHeightPreview.buffer(layer.source, context, x >> 4, z >> 4);
+            BitSet child = layer.operation.equals("replace") || layer.operation.equals("union")
+                    ? layer.source.heightProfileCells(context, x, z, key)
+                    : new BitSet(128);
+            boolean columnMask = layer.mask != null && (layer.mask.dependencies & 2) == 0;
+            double selected = columnMask ? layer.mask.sample(context, x, 0, z) : 0;
+            for (int y = 0; y < 128; y++) {
+                if (layer.mask != null) {
+                    double value = columnMask ? selected : layer.mask.sample(context, x, y, z);
+                    if (value < layer.min || value > layer.max) {
+                        continue;
+                    }
+                }
+                boolean occupied = input.blockId(x & 15, y, z & 15) != 0;
+                if (layer.operation.equals("replace") || layer.operation.equals("union") && occupied) {
+                    cells.set(y, child.get(y));
+                } else if (layer.operation.equals("subtract") && occupied
+                        || layer.operation.equals("intersection") && !occupied) {
+                    cells.clear(y);
+                }
             }
         }
-        return false;
+        return cells;
     }
 
     @Override

@@ -34,6 +34,7 @@ import org.luaj.vm2.lib.jse.JsePlatform;
 public final class WorldgenCompositionTest {
     public static void main(String[] args) throws Exception {
         require(Block.stone != null, "Initialize native blocks");
+        effectiveProfileMembership();
         Method owner = LuaScriptRegistry.class.getDeclaredMethod("setCurrentScriptFile", String.class);
         owner.setAccessible(true);
         owner.invoke(null, "composition.lua");
@@ -225,6 +226,61 @@ public final class WorldgenCompositionTest {
         require(map.height(fields, -16, 0) == 65, "Pinned compiled samplers must survive catalog cleanup");
         System.out.println("Worldgen composition passed: profile blends, spatial biomes, materials, exact carvers, "
                 + "contextual loot, previews/CSV and dependent-owner cleanup.");
+    }
+
+    private static void effectiveProfileMembership() throws Exception {
+        TerrainSource child = new TerrainSource() {
+            public boolean isNative() {
+                return false;
+            }
+
+            public void fill(GenerationContext context, ChunkBlockBuffer buffer) {
+                for (int x = 0; x < 16; x++) {
+                    for (int z = 0; z < 16; z++) {
+                        buffer.fillColumn(x, z, 1, 20, 1, 0);
+                    }
+                }
+            }
+
+            public double height(FieldContext context, int x, int z) {
+                return 20;
+            }
+
+            public String signature() {
+                return "profile-membership-test";
+            }
+
+            public boolean usesHeightProfile(FieldContext context, int x, int z, String key) {
+                return key.equals("test:terrain/profile");
+            }
+        };
+        FieldContext fields = new FieldContext(99, 0);
+        ComposedTerrainSource masked = composed("[{\"source\":\"test:child\",\"mask\":0,\"min\":1,\"max\":1}]", child);
+        require(!masked.usesHeightProfile(fields, -1, 0, "test:terrain/profile"),
+                "A wholly excluded child cannot enable profile-restricted carvers");
+        ComposedTerrainSource subtracted = composed("[{\"source\":\"test:child\"},"
+                + "{\"source\":\"test:child\",\"operation\":\"subtract\"}]", child);
+        require(!subtracted.usesHeightProfile(fields, 0, 0, "test:terrain/profile"),
+                "Subtraction erases membership when it removes all participating material");
+        ComposedTerrainSource nested = composed("[{\"source\":\"test:child\"}]", masked);
+        require(!nested.usesHeightProfile(fields, 16, -16, "test:terrain/profile"),
+                "Nested compositions retain effective membership");
+        ComposedTerrainSource intersected = composed("[{\"source\":\"test:child\"},"
+                + "{\"source\":\"test:child\",\"operation\":\"intersection\"}]", child);
+        require(intersected.usesHeightProfile(fields, 0, 0, "test:terrain/profile"),
+                "Intersection retains membership for surviving material");
+        ComposedTerrainSource replaced = new ComposedTerrainSource("test:terrain_source/replaced",
+                ModelJson.read(("{\"children\":[{\"source\":\"test:present\"},{\"source\":\"test:absent\","
+                        + "\"operation\":\"replace\"}]}").getBytes(StandardCharsets.UTF_8)),
+                SpatialRegistry.snapshot(), key -> key.equals("test:present") ? child : masked, Collections.emptyMap());
+        require(!replaced.usesHeightProfile(fields, 0, 0, "test:terrain/profile"),
+                "A later replacement removes earlier profile membership");
+    }
+
+    private static ComposedTerrainSource composed(String children, TerrainSource source) throws Exception {
+        return new ComposedTerrainSource("test:terrain_source/membership",
+                ModelJson.read(("{\"children\":" + children + "}").getBytes(StandardCharsets.UTF_8)),
+                SpatialRegistry.snapshot(), key -> source, Collections.emptyMap());
     }
 
     private static void require(boolean value, String message) {

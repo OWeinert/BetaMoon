@@ -15,21 +15,45 @@ final class TerrainHeightPreview {
     }
 
     static TerrainHeightmaps heights(TerrainSource source, FieldContext fields, int chunkX, int chunkZ) {
+        return entry(source, fields, chunkX, chunkZ).heights();
+    }
+
+    static ChunkBlockBuffer buffer(TerrainSource source, FieldContext fields, int chunkX, int chunkZ) {
+        return entry(source, fields, chunkX, chunkZ).buffer;
+    }
+
+    private static Entry entry(TerrainSource source, FieldContext fields, int chunkX, int chunkZ) {
         Cache cache = fields.samplingData(CACHE_KEY, Cache::new);
         Key key = new Key(source, chunkX, chunkZ);
-        TerrainHeightmaps heights = cache.values.get(key);
-        if (heights == null) {
+        Entry entry = cache.values.get(key);
+        if (entry == null) {
             ChunkBlockBuffer buffer = new ChunkBlockBuffer();
             source.fill(GenerationContext.preview(fields, chunkX, chunkZ), buffer);
-            heights = new TerrainHeightmaps(buffer);
-            cache.values.put(key, heights);
+            entry = new Entry(buffer);
+            cache.values.put(key, entry);
         }
-        return heights;
+        return entry;
+    }
+
+    private static final class Entry {
+        private final ChunkBlockBuffer buffer;
+        private TerrainHeightmaps heights;
+
+        private Entry(ChunkBlockBuffer buffer) {
+            this.buffer = buffer;
+        }
+
+        private TerrainHeightmaps heights() {
+            if (heights == null) {
+                heights = new TerrainHeightmaps(buffer);
+            }
+            return heights;
+        }
     }
 
     private static final class Cache {
-        private final Map<Key, TerrainHeightmaps> values = new LinkedHashMap<Key, TerrainHeightmaps>(16, 0.75f, true) {
-            protected boolean removeEldestEntry(Map.Entry<Key, TerrainHeightmaps> eldest) {
+        private final Map<Key, Entry> values = new LinkedHashMap<Key, Entry>(16, 0.75f, true) {
+            protected boolean removeEldestEntry(Map.Entry<Key, Entry> eldest) {
                 return size() > 16;
             }
         };
