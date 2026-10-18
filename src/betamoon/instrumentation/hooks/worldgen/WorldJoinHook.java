@@ -38,7 +38,11 @@ public final class WorldJoinHook implements HookModule {
                 .builder(getId() + ":session",
                         new MethodRef(new ClassRef("net/minecraft/client/Minecraft"), "startWorld",
                                 "(Ljava/lang/String;Ljava/lang/String;J)V"))
-                .capture(HandlerRef.of(CALLBACKS, "startingWorldLoad", "()I"))
+                .capture(HandlerRef.of(CALLBACKS, "startingWorldLoad",
+                        "(Lnet/minecraft/client/Minecraft;Ljava/lang/String;Ljava/lang/String;J)I"),
+                        ValueBinding.thisValue(), ValueBinding.argument(0), ValueBinding.argument(1),
+                        ValueBinding.argument(2))
+                .skipWhenCapturedNonZero()
                 .onReturn(HandlerRef.of(CALLBACKS, "worldJoinFinished", "()V")).build());
     }
 }

@@ -680,7 +680,8 @@ public final class InstrumentationTransformTest {
             }
             require(calls == (namedOwner.endsWith("/World")
                     ? 9
-                    : namedOwner.endsWith("/GuiSelectWorld") ? 4 : namedOwner.contains("/Gui") ? 3 : 2),
+                    : namedOwner.endsWith("/GuiSelectWorld") ? 4
+                            : namedOwner.contains("/Gui") || namedOwner.endsWith("/Minecraft") ? 3 : 2),
                     "World generator factory/spawn callbacks must have exact mapped targets: " + namedOwner + " calls="
                             + calls);
             require(transformer.transform(null, owner, null, null, transformed) == null,

@@ -12,7 +12,7 @@ public final class GuiWorldGenerationError extends GuiDialogScreen {
         dialog.setPanelSize(400, 210, 100);
         dialog.setScreenMargins(24, 24);
         dialog.setBody(new GuiMessage(() -> message
-                + "\n\nThe generation records could not be read safely. Restore a consistent world backup."));
+                + "\n\nRestore the required scripts and their saved definitions, or restore a consistent world backup."));
         dialog.addFooterButton(new GuiButton("Cancel", () -> showScreen(parent)));
     }
 }

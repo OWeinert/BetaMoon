@@ -10,20 +10,39 @@ import java.nio.file.Path;
 import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.GuiSelectWorld;
+import net.minecraft.src.GuiScreen;
 import net.minecraft.src.PlayerControllerSP;
 import net.minecraft.src.SaveFormatComparator;
 import net.minecraft.src.WorldInfo;
 
 public final class WorldJoinCallbacks {
+    private static final ThreadLocal<Boolean> LOADING = new ThreadLocal<Boolean>();
     private WorldJoinCallbacks() {
     }
 
     public static void worldJoinFinished() {
     }
 
-    public static int startingWorldLoad() {
+    public static int startingWorldLoad(Minecraft minecraft, String folder, String name, long seed) {
+        if (Boolean.TRUE.equals(LOADING.get())) {
+            return 0;
+        }
         WorldGeneratorFallback.startingWorld();
-        return 0;
+        GuiScreen parent = minecraft.currentScreen;
+        LOADING.set(Boolean.TRUE);
+        try {
+            minecraft.startWorld(folder, name, seed);
+        } catch (RuntimeException exception) {
+            // Native construction has not installed a world yet. Never save a partially
+            // constructed replacement while reporting an incompatible generator.
+            if (minecraft.theWorld != null) {
+                throw exception;
+            }
+            minecraft.displayGuiScreen(new GuiWorldGenerationError(parent, exception.getMessage()));
+        } finally {
+            LOADING.remove();
+        }
+        return 1;
     }
 
     public static int preflight(Minecraft minecraft, GuiSelectWorld parent, List<?> saves, int index) {
@@ -53,7 +72,7 @@ public final class WorldJoinCallbacks {
             }
             minecraft.displayGuiScreen(
                     new GuiMissingWorldGenerator(parent, name, missing, () -> load(minecraft, folder, name, missing)));
-        } catch (IOException | IllegalArgumentException exception) {
+        } catch (IOException | RuntimeException exception) {
             minecraft.displayGuiScreen(new GuiWorldGenerationError(parent, exception.getMessage()));
         }
         return 1;
@@ -65,7 +84,9 @@ public final class WorldJoinCallbacks {
         try (WorldGeneratorFallback permission = WorldGeneratorFallback.begin(missing)) {
             minecraft.startWorld(folder, name, 0L);
         }
-        minecraft.displayGuiScreen(null);
+        if (minecraft.theWorld != null) {
+            minecraft.displayGuiScreen(null);
+        }
     }
 
 }

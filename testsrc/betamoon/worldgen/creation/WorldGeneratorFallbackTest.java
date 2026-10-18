@@ -1,6 +1,12 @@
 package betamoon.worldgen.creation;
 
 import betamoon.worldgen.GenerationStage;
+import betamoon.worldgen.WorldGenRegistry;
+import betamoon.worldgen.WorldGenKey;
+import betamoon.worldgen.FeatureResult;
+import betamoon.worldgen.HeightProvider;
+import betamoon.worldgen.IntRange;
+import betamoon.worldgen.PlacementConditions;
 import betamoon.worldgen.terrain.GeneratorManifestStore;
 import betamoon.worldgen.terrain.GeneratorProfileRegistry;
 import betamoon.worldgen.terrain.TerrainFoundationTest;
@@ -23,8 +29,41 @@ public final class WorldGeneratorFallbackTest {
     public static void main(String[] args) throws Exception {
         savedSelection();
         legacyManifest();
+        incompatibleDependencies();
         System.out.println("Generator fallback passed: read-only preflight, explicit scoped consent, native routing, "
                 + "dimension return, restart isolation, corruption rejection and generator restoration.");
+    }
+
+    private static void incompatibleDependencies() throws Exception {
+        Path directory = Files.createTempDirectory("betamoon-preflight-dependencies-");
+        File settings = directory.resolve("settings.dat").toFile();
+        File manifest = directory.resolve("manifest.dat").toFile();
+        WorldGeneratorProfile profile = new WorldGeneratorProfile("test:generator/present", "present.lua",
+                Collections.<String, String>emptyMap());
+        GeneratorProfileRegistry.replaceOwner(profile.owner, Collections.singletonList(profile));
+        try (WorldGenRegistry.PublicationBatch batch = WorldGenRegistry.beginPublication("dependency.lua", "Test")) {
+            WorldGenKey feature = WorldGenRegistry.addFeature("test:feature/required", "test",
+                    (context, origin, plan) -> FeatureResult.rejected("test"), Collections.emptyList(), 1, 1);
+            WorldGenRegistry.addPlacement("test:placement/required", feature, GenerationStage.SURFACE_FEATURES,
+                    Collections.singleton("minecraft:overworld"), new IntRange(1, 1), 0, 1, HeightProvider.fixed(64),
+                    PlacementConditions.any(), Collections.emptyList(), Collections.emptyList(), 0, 0, 1, "chunk", 1);
+            batch.publish();
+        }
+        GenerationSelection selection = GenerationSelection.create(new GenerationDraft(new GenerationCatalog(profile)), 42);
+        new GenerationSelectionStore(settings).write(selection);
+        new GeneratorManifestStore(manifest).write(new WorldGeneratorManifest(42, 0, profile.key,
+                selection.profile().signature, new WorldGeneratorManifest.OriginalSpawn(0, 64, 0)));
+        byte[] before = Files.readAllBytes(settings.toPath());
+        require(MissingWorldGenerator.inspect(settings, manifest, 42) == null, "Complete selection passes preflight");
+        WorldGenRegistry.clear();
+        try {
+            MissingWorldGenerator.inspect(settings, manifest, 42);
+            throw new AssertionError("Missing dependency must fail before world construction");
+        } catch (IOException expected) {
+            require(expected.getMessage().contains("test:placement/required"), "Refusal identifies the dependency");
+        }
+        require(Arrays.equals(before, Files.readAllBytes(settings.toPath())), "Refusal cannot rewrite saved choices");
+        GeneratorProfileRegistry.replaceOwner(profile.owner, Collections.emptyList());
     }
 
     private static void savedSelection() throws Exception {
