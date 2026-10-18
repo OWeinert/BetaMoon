@@ -68,7 +68,8 @@ public final class WorldJoinCallbacks {
                     directory.resolve("data/betamoon_generation_settings.dat").toFile(),
                     directory.resolve("data/betamoon_generator_overworld.dat").toFile(), info.getRandomSeed());
             if (missing == null) {
-                return 0;
+                load(minecraft, folder, name, null);
+                return 1;
             }
             minecraft.displayGuiScreen(
                     new GuiMissingWorldGenerator(parent, name, missing, () -> load(minecraft, folder, name, missing)));
@@ -79,9 +80,8 @@ public final class WorldJoinCallbacks {
     }
 
     private static void load(Minecraft minecraft, String folder, String name, MissingWorldGenerator missing) {
-        minecraft.displayGuiScreen(null);
         minecraft.playerController = new PlayerControllerSP(minecraft);
-        try (WorldGeneratorFallback permission = WorldGeneratorFallback.begin(missing)) {
+        try (WorldGeneratorFallback permission = missing == null ? null : WorldGeneratorFallback.begin(missing)) {
             minecraft.startWorld(folder, name, 0L);
         }
         if (minecraft.theWorld != null) {

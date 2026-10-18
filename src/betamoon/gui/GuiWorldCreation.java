@@ -151,12 +151,15 @@ public final class GuiWorldCreation extends GuiScreen {
             String worldName = name.getText();
             String worldFolder = folder;
             drafts.clear();
-            mc.displayGuiScreen(null);
             mc.playerController = new PlayerControllerSP(mc);
             try (WorldCreationSelection ignored = WorldCreationSelection.begin(selection)) {
                 mc.startWorld(worldFolder, worldName, worldSeed);
             }
-            mc.displayGuiScreen(null);
+            if (mc.theWorld != null) {
+                mc.displayGuiScreen(null);
+            } else {
+                starting = false;
+            }
         }
     }
 

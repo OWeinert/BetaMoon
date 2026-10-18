@@ -7,6 +7,8 @@ import betamoon.worldgen.FeatureResult;
 import betamoon.worldgen.HeightProvider;
 import betamoon.worldgen.IntRange;
 import betamoon.worldgen.PlacementConditions;
+import betamoon.instrumentation.hooks.worldgen.WorldJoinCallbacks;
+import betamoon.gui.GuiWorldGenerationError;
 import betamoon.worldgen.terrain.GeneratorManifestStore;
 import betamoon.worldgen.terrain.GeneratorProfileRegistry;
 import betamoon.worldgen.terrain.TerrainFoundationTest;
@@ -15,11 +17,22 @@ import betamoon.worldgen.terrain.WorldGeneratorManifest;
 import betamoon.worldgen.terrain.WorldGeneratorProfile;
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import net.minecraft.src.ChunkProviderGenerate;
+import net.minecraft.client.Minecraft;
+import net.minecraft.src.GuiScreen;
+import net.minecraft.src.GuiSelectWorld;
+import net.minecraft.src.ISaveFormat;
+import net.minecraft.src.SaveOldDir;
+import net.minecraft.src.SaveFormatOld;
+import net.minecraft.src.SaveFormatComparator;
+import net.minecraft.src.WorldInfo;
+import net.minecraft.src.UnexpectedThrowable;
+import sun.misc.Unsafe;
 
 /**
  * Consent boundaries and byte-for-byte persistence across fallback and
@@ -30,8 +43,55 @@ public final class WorldGeneratorFallbackTest {
         savedSelection();
         legacyManifest();
         incompatibleDependencies();
+        loadErrorPresentation();
         System.out.println("Generator fallback passed: read-only preflight, explicit scoped consent, native routing, "
                 + "dimension return, restart isolation, corruption rejection and generator restoration.");
+    }
+
+    private static void loadErrorPresentation() throws Exception {
+        Field unsafe = Unsafe.class.getDeclaredField("theUnsafe");
+        unsafe.setAccessible(true);
+        LoadFailureMinecraft minecraft = (LoadFailureMinecraft) ((Unsafe) unsafe.get(null))
+                .allocateInstance(LoadFailureMinecraft.class);
+        Path directory = Files.createTempDirectory("betamoon-load-boundary-");
+        String folder = "review-" + directory.getFileName();
+        SaveOldDir save = new SaveOldDir(directory.toFile(), folder, false);
+        save.saveWorldInfo(new WorldInfo(42, "world"));
+        minecraft.saves = new SaveFormatOld(directory.toFile());
+        GuiSelectWorld parent = new GuiSelectWorld(null);
+        minecraft.currentScreen = parent;
+        int intercepted = WorldJoinCallbacks.preflight(minecraft, parent,
+                Collections.singletonList(new SaveFormatComparator(folder, "world", 0, 0, false)), 0);
+        require(intercepted == 1 && minecraft.currentScreen instanceof GuiWorldGenerationError,
+                "A selection-boundary construction failure retains its error screen instead of native close");
+        minecraft.currentScreen = parent;
+        require(WorldJoinCallbacks.startingWorldLoad(minecraft, folder, "world", 42) == 1
+                && minecraft.currentScreen instanceof GuiWorldGenerationError,
+                "Unexpected native construction failures become a safe refusal");
+    }
+
+    private static final class LoadFailureMinecraft extends Minecraft {
+        private ISaveFormat saves;
+
+        private LoadFailureMinecraft() {
+            super(null, null, null, 320, 240, false);
+        }
+
+        public ISaveFormat getSaveLoader() {
+            return saves;
+        }
+
+        public void startWorld(String folder, String name, long seed) {
+            throw new IllegalStateException("Injected generation setup failure");
+        }
+
+        public void displayGuiScreen(GuiScreen screen) {
+            currentScreen = screen;
+        }
+
+        public void displayUnexpectedThrowable(UnexpectedThrowable failure) {
+            throw new AssertionError(failure);
+        }
     }
 
     private static void incompatibleDependencies() throws Exception {
@@ -49,7 +109,8 @@ public final class WorldGeneratorFallbackTest {
                     PlacementConditions.any(), Collections.emptyList(), Collections.emptyList(), 0, 0, 1, "chunk", 1);
             batch.publish();
         }
-        GenerationSelection selection = GenerationSelection.create(new GenerationDraft(new GenerationCatalog(profile)), 42);
+        GenerationSelection selection = GenerationSelection.create(new GenerationDraft(new GenerationCatalog(profile)),
+                42);
         new GenerationSelectionStore(settings).write(selection);
         new GeneratorManifestStore(manifest).write(new WorldGeneratorManifest(42, 0, profile.key,
                 selection.profile().signature, new WorldGeneratorManifest.OriginalSpawn(0, 64, 0)));

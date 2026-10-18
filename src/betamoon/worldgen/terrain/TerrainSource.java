@@ -20,7 +20,10 @@ public interface TerrainSource {
         return false;
     }
 
-    /** Raw occupied cells attributed to a profile; composition retains only surviving material. */
+    /**
+     * Raw occupied cells attributed to a profile; composition retains only
+     * surviving material.
+     */
     default BitSet heightProfileCells(FieldContext context, int x, int z, String key) {
         BitSet cells = new BitSet(128);
         if (usesHeightProfile(context, x, z, key)) {

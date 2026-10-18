@@ -258,15 +258,15 @@ public final class WorldgenCompositionTest {
         ComposedTerrainSource masked = composed("[{\"source\":\"test:child\",\"mask\":0,\"min\":1,\"max\":1}]", child);
         require(!masked.usesHeightProfile(fields, -1, 0, "test:terrain/profile"),
                 "A wholly excluded child cannot enable profile-restricted carvers");
-        ComposedTerrainSource subtracted = composed("[{\"source\":\"test:child\"},"
-                + "{\"source\":\"test:child\",\"operation\":\"subtract\"}]", child);
+        ComposedTerrainSource subtracted = composed(
+                "[{\"source\":\"test:child\"}," + "{\"source\":\"test:child\",\"operation\":\"subtract\"}]", child);
         require(!subtracted.usesHeightProfile(fields, 0, 0, "test:terrain/profile"),
                 "Subtraction erases membership when it removes all participating material");
         ComposedTerrainSource nested = composed("[{\"source\":\"test:child\"}]", masked);
         require(!nested.usesHeightProfile(fields, 16, -16, "test:terrain/profile"),
                 "Nested compositions retain effective membership");
-        ComposedTerrainSource intersected = composed("[{\"source\":\"test:child\"},"
-                + "{\"source\":\"test:child\",\"operation\":\"intersection\"}]", child);
+        ComposedTerrainSource intersected = composed(
+                "[{\"source\":\"test:child\"}," + "{\"source\":\"test:child\",\"operation\":\"intersection\"}]", child);
         require(intersected.usesHeightProfile(fields, 0, 0, "test:terrain/profile"),
                 "Intersection retains membership for surviving material");
         ComposedTerrainSource replaced = new ComposedTerrainSource("test:terrain_source/replaced",
