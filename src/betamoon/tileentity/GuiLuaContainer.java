@@ -95,6 +95,9 @@ public final class GuiLuaContainer extends GuiContainer {
         ContainerGuiDefinition.ControlElement element = controlAt(mouseX, mouseY);
         if (element == null) {
             blurFocused();
+            if (overExpansionPanel(mouseX, mouseY)) {
+                return;
+            }
             super.mouseClicked(mouseX, mouseY, button);
             return;
         }
@@ -309,7 +312,9 @@ public final class GuiLuaContainer extends GuiContainer {
         int elementHeight = elementHeight(element);
         int x = anchoredX(element.anchor, element.x, elementWidth);
         int y = anchoredY(element.anchor, element.y, elementHeight);
-        if (element instanceof ContainerGuiDefinition.ImageElement) {
+        if (element instanceof ContainerGuiDefinition.PanelElement) {
+            drawPanel((ContainerGuiDefinition.PanelElement) element, x, y);
+        } else if (element instanceof ContainerGuiDefinition.ImageElement) {
             ContainerGuiDefinition.ImageElement image = (ContainerGuiDefinition.ImageElement) element;
             drawTexture(image.image, x, y, image.width, image.height);
         } else if (element instanceof ContainerGuiDefinition.TextElement) {
@@ -593,6 +598,9 @@ public final class GuiLuaContainer extends GuiContainer {
     }
 
     private int elementWidth(ContainerGuiDefinition.Element element) {
+        if (element instanceof ContainerGuiDefinition.PanelElement) {
+            return ((ContainerGuiDefinition.PanelElement) element).width;
+        }
         if (element instanceof ContainerGuiDefinition.ImageElement) {
             return ((ContainerGuiDefinition.ImageElement) element).width;
         }
@@ -623,6 +631,9 @@ public final class GuiLuaContainer extends GuiContainer {
     }
 
     private int elementHeight(ContainerGuiDefinition.Element element) {
+        if (element instanceof ContainerGuiDefinition.PanelElement) {
+            return ((ContainerGuiDefinition.PanelElement) element).height;
+        }
         if (element instanceof ContainerGuiDefinition.ImageElement) {
             return ((ContainerGuiDefinition.ImageElement) element).height;
         }
@@ -678,12 +689,30 @@ public final class GuiLuaContainer extends GuiContainer {
         return null;
     }
 
-    private boolean contains(ContainerGuiDefinition.ControlElement element, int mouseX, int mouseY) {
+    private boolean contains(ContainerGuiDefinition.Element element, int mouseX, int mouseY) {
         int originX = (width - xSize) / 2;
         int originY = (height - ySize) / 2;
-        int x = originX + anchoredX(element.anchor, element.x, element.width);
-        int y = originY + anchoredY(element.anchor, element.y, element.height);
-        return mouseX >= x && mouseX < x + element.width && mouseY >= y && mouseY < y + element.height;
+        int elementWidth = elementWidth(element);
+        int elementHeight = elementHeight(element);
+        int x = originX + anchoredX(element.anchor, element.x, elementWidth);
+        int y = originY + anchoredY(element.anchor, element.y, elementHeight);
+        return mouseX >= x && (long) mouseX < (long) x + elementWidth && mouseY >= y
+                && (long) mouseY < (long) y + elementHeight;
+    }
+
+    private boolean overExpansionPanel(int mouseX, int mouseY) {
+        int originX = (width - xSize) / 2;
+        int originY = (height - ySize) / 2;
+        if (mouseX >= originX && mouseX < originX + xSize && mouseY >= originY && mouseY < originY + ySize) {
+            return false;
+        }
+        for (ContainerGuiDefinition.Element element : definition.elements) {
+            if (element instanceof ContainerGuiDefinition.PanelElement && visible(element.visibleWhen)
+                    && contains(element, mouseX, mouseY)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean containsLocal(ContainerGuiDefinition.ControlElement element, int mouseX, int mouseY) {
@@ -1102,6 +1131,31 @@ public final class GuiLuaContainer extends GuiContainer {
                 texture.textureWidth, texture.textureHeight);
     }
 
+    private void drawPanel(ContainerGuiDefinition.PanelElement panel, int x, int y) {
+        ContainerGuiDefinition.Texture frame = panel.frame;
+        int border = 4;
+        int[] sourceX = {frame.u, frame.u + 8, frame.u + frame.width - border};
+        int[] sourceY = {frame.v, frame.v + 8, frame.v + frame.height - border};
+        int[] sourceWidths = {border, 1, border};
+        int[] sourceHeights = {border, 1, border};
+        int[] drawX = {x, x + border, x + panel.width - border};
+        int[] drawY = {y, y + border, y + panel.height - border};
+        int[] widths = {border, panel.width - border * 2, border};
+        int[] heights = {border, panel.height - border * 2, border};
+        GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_CURRENT_BIT | GL11.GL_COLOR_BUFFER_BIT | GL11.GL_TEXTURE_BIT);
+        try {
+            for (int row = 0; row < 3; row++) {
+                for (int column = 0; column < 3; column++) {
+                    drawTextureRegion(frame.resource, drawX[column], drawY[row], sourceX[column], sourceY[row],
+                            sourceWidths[column], sourceHeights[row], widths[column], heights[row], frame.textureWidth,
+                            frame.textureHeight, panel.color);
+                }
+            }
+        } finally {
+            GL11.glPopAttrib();
+        }
+    }
+
     private void drawNineSlice(ContainerGuiDefinition.Texture texture, int x, int y, int width, int height) {
         int border = texture.border;
         int middleSourceWidth = texture.width - border * 2;
@@ -1127,10 +1181,16 @@ public final class GuiLuaContainer extends GuiContainer {
 
     private void drawTextureRegion(String resource, int x, int y, int u, int v, int sourceWidth, int sourceHeight,
             int drawWidth, int drawHeight, int textureWidth, int textureHeight) {
+        drawTextureRegion(resource, x, y, u, v, sourceWidth, sourceHeight, drawWidth, drawHeight, textureWidth,
+                textureHeight, 0xFFFFFF);
+    }
+
+    private void drawTextureRegion(String resource, int x, int y, int u, int v, int sourceWidth, int sourceHeight,
+            int drawWidth, int drawHeight, int textureWidth, int textureHeight, int color) {
         mc.renderEngine.bindTexture(mc.renderEngine.getTexture(resource));
         GL11.glEnable(GL11.GL_BLEND);
         GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-        GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+        GL11.glColor4f((color >> 16 & 255) / 255.0F, (color >> 8 & 255) / 255.0F, (color & 255) / 255.0F, 1.0F);
         float minU = u / (float) textureWidth;
         float maxU = (u + sourceWidth) / (float) textureWidth;
         float minV = v / (float) textureHeight;

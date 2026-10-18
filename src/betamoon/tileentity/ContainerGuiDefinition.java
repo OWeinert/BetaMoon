@@ -86,6 +86,7 @@ public final class ContainerGuiDefinition {
         public Texture(String resource, int u, int v, int width, int height, int textureWidth, int textureHeight) {
             this(resource, u, v, width, height, textureWidth, textureHeight, 0);
         }
+
         public Texture(String resource, int u, int v, int width, int height, int textureWidth, int textureHeight,
                 int border) {
             this.resource = resource;
@@ -129,6 +130,25 @@ public final class ContainerGuiDefinition {
             this.image = image;
             this.width = width;
             this.height = height;
+        }
+    }
+
+    /**
+     * A resizable visual surface, which may extend the main container background.
+     */
+    public static final class PanelElement extends Element {
+        public final Texture frame;
+        public final int width;
+        public final int height;
+        public final int color;
+
+        public PanelElement(int x, int y, int layer, GuiAnchor anchor, Condition condition, List<String> tooltip,
+                Texture frame, int width, int height, int color) {
+            super(x, y, layer, anchor, condition, tooltip);
+            this.frame = frame;
+            this.width = width;
+            this.height = height;
+            this.color = color;
         }
     }
 
@@ -235,14 +255,7 @@ public final class ContainerGuiDefinition {
     /** Interactive view bound to one container-owned control. */
     public static final class ControlElement extends Element {
         public enum Presentation {
-            BUTTON,
-            ICON_BUTTON,
-            CHECKBOX,
-            TOGGLE_BUTTON,
-            SLIDER,
-            TEXT_BOX,
-            CHOICE,
-            INTERACTIVE
+            BUTTON, ICON_BUTTON, CHECKBOX, TOGGLE_BUTTON, SLIDER, TEXT_BOX, CHOICE, INTERACTIVE
         }
 
         public final String control;
@@ -283,8 +296,7 @@ public final class ContainerGuiDefinition {
     /** Recursive comparison tree used by visibleWhen. */
     public static final class Condition {
         public enum Source {
-            DATA,
-            SESSION
+            DATA, SESSION
         }
 
         public final Source source;
@@ -295,6 +307,7 @@ public final class ContainerGuiDefinition {
         public Condition(String field, GuiConditionOperator operator, Object expected, List<Condition> children) {
             this(Source.DATA, field, operator, expected, children);
         }
+
         public Condition(Source source, String field, GuiConditionOperator operator, Object expected,
                 List<Condition> children) {
             this.source = source;

@@ -73,6 +73,8 @@ import net.minecraft.src.GameSettings;
 import net.minecraft.src.GuiScreen;
 import net.minecraft.src.IChunkProvider;
 import net.minecraft.src.InventoryPlayer;
+import net.minecraft.src.EntityPlayer;
+import net.minecraft.src.PlayerController;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.RenderEngine;
 import net.minecraft.src.SaveConverterMcRegion;
@@ -200,6 +202,8 @@ public final class GuiShowcaseRenderTest {
             verifyModalScreens(minecraft, output);
             renderControls(minecraft, output);
             renderUpdateNotice(minecraft, font, output);
+            verifyVisualSlotFrames(minecraft, font, definition, entity, output);
+            verifyExpansionPanels(minecraft, font, output);
             setupFrame();
             GL11.glEnable(GL11.GL_LIGHTING);
             GL11.glEnable(GL11.GL_DEPTH_TEST);
@@ -262,6 +266,158 @@ public final class GuiShowcaseRenderTest {
                             + "GUI pages rendered.");
         } finally {
             buffer.destroy();
+        }
+    }
+
+    private static void verifyVisualSlotFrames(Minecraft minecraft, FontRenderer font, ContainerGuiDefinition source,
+            LuaTileEntity entity, File output) throws Exception {
+        Method owner = LuaScriptRegistry.class.getDeclaredMethod("setCurrentScriptFile", String.class);
+        owner.setAccessible(true);
+        owner.invoke(null, source.owner);
+        ContainerGuiDefinition definition;
+        try {
+            Globals lua = JsePlatform.standardGlobals();
+            LuaTable api = new LuaTable();
+            TileEntityApi.attach(api);
+            lua.set("betamoon", api);
+            lua.set("containerName", source.container.name);
+            LuaValue handle = lua.load("return betamoon.containerGuis:add{name='visual_slot_render_fixture',"
+                    + "container=betamoon.containers:getRequired(containerName),elements={"
+                    + "{type='slot',x=8,y=8}, {type='image',builtin='minecraft:slot',x=40,y=8},"
+                    + "{type='slot',width=32,height=8,x=8,y=40}," + "{type='slot',width=8,height=32,x=60,y=40},"
+                    + "{type='slot',width=1,height=1,x=100,y=40}}}").call();
+            definition = ((TileEntityApi.GuiHandle) handle).definition;
+        } finally {
+            owner.invoke(null, new Object[]{null});
+        }
+        GuiLuaContainer gui = new GuiLuaContainer(new InventoryPlayer(null), entity, definition);
+        setField(GuiScreen.class, gui, "mc", minecraft);
+        setField(GuiScreen.class, gui, "fontRenderer", font);
+        gui.width = 320;
+        gui.height = 240;
+        Method draw = GuiLuaContainer.class.getDeclaredMethod("drawElement", ContainerGuiDefinition.Element.class);
+        draw.setAccessible(true);
+        setupFrame();
+        for (ContainerGuiDefinition.Element element : definition.elements) {
+            draw.invoke(gui, element);
+        }
+        BufferedImage pixels = capture();
+        for (int y = 0; y < 18; y++) {
+            for (int x = 0; x < 18; x++) {
+                require(pixels.getRGB(8 + x, 8 + y) == pixels.getRGB(40 + x, 8 + y),
+                        "Default visual slot must match the legacy sprite pixel for pixel");
+            }
+        }
+        for (int index = 2; index < definition.elements.size(); index++) {
+            ContainerGuiDefinition.ImageElement frame = (ContainerGuiDefinition.ImageElement) definition.elements
+                    .get(index);
+            for (int y = 0; y < frame.height; y++) {
+                for (int x = 0; x < frame.width; x++) {
+                    int sourceX = x == 0 ? 0 : x == frame.width - 1 ? 17 : 8;
+                    int sourceY = y == 0 ? 0 : y == frame.height - 1 ? 17 : 8;
+                    require(pixels.getRGB(frame.x + x, frame.y + y) == pixels.getRGB(8 + sourceX, 8 + sourceY),
+                            "Resized slot must preserve one-pixel edges, corners and the interior fill");
+                }
+            }
+        }
+        ImageIO.write(pixels, "png", new File(output, "visual-slots.png"));
+    }
+
+    private static void verifyExpansionPanels(Minecraft minecraft, FontRenderer font, File output) throws Exception {
+        Method owner = LuaScriptRegistry.class.getDeclaredMethod("setCurrentScriptFile", String.class);
+        owner.setAccessible(true);
+        owner.invoke(null, "expansion_panels_test.lua");
+        ContainerGuiDefinition definition;
+        try {
+            Globals lua = JsePlatform.standardGlobals();
+            LuaTable api = new LuaTable();
+            TileEntityApi.attach(api);
+            lua.set("betamoon", api);
+            LuaValue handle = lua.load("local tile=betamoon.tileEntities:add{name='panels',inventory={slots={"
+                    + "input={index=0}}}}; local container=betamoon.containers:add{name='panels',tileEntity=tile,"
+                    + "slots={{slot='input',x=56,y=17}},playerInventory={x=8,y=84},"
+                    + "session={expanded={type='boolean',default=false}},"
+                    + "controls={open={type='toggle',bind={session='expanded'}}}};"
+                    + "return betamoon.containerGuis:add{name='panels',container=container,"
+                    + "layout={preset='minecraft:furnace',title='Panels',playerInventoryLabel=false},elements={"
+                    + "{type='panel',x=176,y=8,width=24,height=24,color=0x55AAFF},"
+                    + "{type='panel',x=176,y=36,width=24,height=24,color='dark_green',"
+                    + "visibleWhen={session='expanded',equals=false}},"
+                    + "{type='panel',x=176,y=64,width=24,height=24,color='dark_red',"
+                    + "visibleWhen={session='expanded',equals=false}},"
+                    + "{type='group',x=176,y=36,visibleWhen={session='expanded',equals=true},elements={"
+                    + "{type='panel',width=64,height=114,color=0x55CC55}," + "{type='text',text='Config',x=8,y=8},"
+                    + "{type='slot',x=12,y=30}," + "{type='text',text='Enabled',x=8,y=62}}},"
+                    + "{type='toggle_button',control='open',x=178,y=10,width=20,height=20,text='+'}}}").call();
+            definition = ((TileEntityApi.GuiHandle) handle).definition;
+        } finally {
+            owner.invoke(null, new Object[]{null});
+        }
+        LuaTileEntity entity = new LuaTileEntity(definition.container.tileEntity.name);
+        entity.worldObj = new TestWorld();
+        GuiLuaContainer gui = new GuiLuaContainer(new InventoryPlayer(null), entity, definition);
+        setField(GuiScreen.class, gui, "mc", minecraft);
+        setField(GuiScreen.class, gui, "fontRenderer", font);
+        gui.width = 320;
+        gui.height = 240;
+        Method background = GuiLuaContainer.class.getDeclaredMethod("drawGuiContainerBackgroundLayer", float.class);
+        Method foreground = GuiLuaContainer.class.getDeclaredMethod("drawGuiContainerForegroundLayer");
+        Method mouse = GuiLuaContainer.class.getDeclaredMethod("mouseClicked", int.class, int.class, int.class);
+        Method release = GuiLuaContainer.class.getDeclaredMethod("mouseMovedOrUp", int.class, int.class, int.class);
+        Method expanded = GuiLuaContainer.class.getDeclaredMethod("overExpansionPanel", int.class, int.class);
+        background.setAccessible(true);
+        foreground.setAccessible(true);
+        mouse.setAccessible(true);
+        release.setAccessible(true);
+        expanded.setAccessible(true);
+        int[] drops = {0};
+        Field keyboardCreated = Keyboard.class.getDeclaredField("created");
+        keyboardCreated.setAccessible(true);
+        boolean wasKeyboardCreated = keyboardCreated.getBoolean(null);
+        keyboardCreated.setBoolean(null, true);
+        PlayerController previous = minecraft.playerController;
+        minecraft.playerController = new PlayerController(minecraft) {
+            @Override
+            public ItemStack func_27174_a(int window, int slot, int button, boolean shift, EntityPlayer player) {
+                require(slot == -999, "Panel test must only dispatch true outside clicks to vanilla");
+                drops[0]++;
+                return null;
+            }
+        };
+        try {
+            for (int state = 0; state < 2; state++) {
+                setupFrame();
+                background.invoke(gui, 0.0F);
+                GL11.glPushMatrix();
+                GL11.glTranslatef(72, 37, 0);
+                foreground.invoke(gui);
+                GL11.glPopMatrix();
+                BufferedImage pixels = capture();
+                ImageIO.write(pixels, "png", new File(output, state == 0 ? "panels-closed.png" : "panels-open.png"));
+                require((Boolean) expanded.invoke(gui, 304, 177) == (state == 1),
+                        "Only visible expansion panels should count as GUI background");
+                if (state == 0) {
+                    mouse.invoke(gui, 258, 55, 0);
+                    release.invoke(gui, 258, 55, 0);
+                    require(drops[0] == 0, "Side-tab input must be handled before vanilla outside clicks");
+                } else {
+                    int color = pixels.getRGB(304, 177);
+                    require((color >> 8 & 255) > (color >> 16 & 255), "Expanded panel tint must be visible");
+                    mouse.invoke(gui, 304, 177, 0);
+                    mouse.invoke(gui, 304, 177, 1);
+                    require(drops[0] == 0, "Empty panel background clicks must not drop a held stack");
+                }
+            }
+            mouse.invoke(gui, 318, 228, 0);
+            require(drops[0] == 1, "True outside clicks must retain vanilla handling");
+            mouse.invoke(gui, 258, 55, 0);
+            release.invoke(gui, 258, 55, 0);
+            mouse.invoke(gui, 304, 177, 0);
+            require(drops[0] == 2, "Hidden panels must not consume outside clicks");
+            gui.onGuiClosed();
+        } finally {
+            minecraft.playerController = previous;
+            keyboardCreated.setBoolean(null, wasKeyboardCreated);
         }
     }
 

@@ -2,6 +2,9 @@
 
 ## 0.10.0
 
+- Add resizable, color-tinted panel elements for container GUI sections and expandable side tabs.
+- Add resizable visual slot elements with inner dimensions and fixed Minecraft-style borders to container GUIs.
+
 - Reduce cave-generation work and reuse neighboring base terrain for fluid-safety checks.
 - Improve custom terrain generation and lighting performance while preserving terrain output.
 - Correct emitted light spreading into already loaded chunks during custom terrain generation.
