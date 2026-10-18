@@ -65,10 +65,32 @@ public final class ModelVariantTest {
                 + "[1]={appearance=shifted},[2]={appearance=false,texture=5},[3]={color=0x123456}}}}").call();
         verifyStatic(lua);
         verifyDynamic(lua);
+        verifySubtypeSelection(lua);
         verifyDeclarationErrors(lua);
         ItemModelVariantTest.run(lua);
         System.out.println("Model variants passed: metadata selection, fallback, static/dynamic block policy, "
                 + "hot reload, and item selection.");
+    }
+
+    private static void verifySubtypeSelection(Globals lua) throws Exception {
+        new LuaBlock(222, 0, Material.rock, "subtype_models");
+        BlockDeclaration declaration = new BlockDeclaration(lua.load("return {id=222,key='subtype_models',"
+                + "material='rock',appearance=base,state={color={type='boolean'},"
+                + "facing={type='enum',values={'north','east','south','west'}}},"
+                + "placement={facing='horizontal'},subtypes={fields={'color'}},"
+                + "render={variantBy='subtype',variants={[1]={appearance=shifted}}}}").call());
+        try (ModelAppearanceSet appearances = new ModelAppearanceSet(declaration.appearance,
+                declaration.callbacks.visual.appearances())) {
+            BlockModelRegistry.install(222, appearances);
+            BlockCallbackRegistry.install(222, declaration.callbacks);
+            for (int direction = 0; direction < 4; direction++) {
+                require(BlockModelRegistry.get(222, direction * 2) == appearances.select(0),
+                        "Direction must not change the base subtype model");
+                require(BlockModelRegistry.get(222, direction * 2 + 1) == appearances.select(1),
+                        "World and inventory model selection must share the subtype mask");
+            }
+            BlockModelRegistry.install(222, null);
+        }
     }
 
     private static void verifyStatic(Globals lua) throws Exception {

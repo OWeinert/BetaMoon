@@ -2,6 +2,7 @@ package betamoon.luaapi.block;
 
 import betamoon.luaapi.utils.LuaCallbackDispatcher;
 import betamoon.luaapi.utils.LuaCallbackDeclarations;
+import betamoon.luaapi.item.ItemDisplayNames;
 import org.luaj.vm2.LuaValue;
 import static betamoon.luaapi.utils.LuaDeclarationValues.bool;
 import static betamoon.luaapi.utils.LuaDeclarationValues.error;
@@ -16,6 +17,9 @@ public final class BlockDefinition {
     public final BlockStateSchema state;
     public final BlockDropDefinition drops;
     public final BlockVisualDefinition visual;
+    public final BlockSubtypes subtypes;
+    public final ItemDisplayNames names;
+    public final boolean preserveDropMetadata;
     public final LuaCallbackDispatcher<BlockCallback> callbacks;
     public final BlockPlacementDefinition placement;
     public final BlockShapeDefinition shapes;
@@ -25,8 +29,18 @@ public final class BlockDefinition {
     public final int fireBurn;
     public BlockDefinition(LuaValue def) {
         drops = new BlockDropDefinition(def.get("drops"));
-        visual = new BlockVisualDefinition(def);
         state = new BlockStateSchema(def.get("state"));
+        placement = new BlockPlacementDefinition(def.get("placement"), state);
+        subtypes = new BlockSubtypes(def.get("subtypes"), state, placement);
+        visual = new BlockVisualDefinition(def, subtypes);
+        names = new ItemDisplayNames(def.get("displayNames"), 15);
+        if (subtypes.enabled) {
+            names.validateMetadata(subtypes::validItemMetadata);
+        }
+        preserveDropMetadata = bool(def.get("preserveDropMetadata"), "preserveDropMetadata", false);
+        if (preserveDropMetadata && !subtypes.enabled) {
+            throw error("preserveDropMetadata", "declare subtypes to preserve inventory variant metadata");
+        }
         LuaCallbackDeclarations.Builder<BlockCallback> callbackBuilder = LuaCallbackDeclarations
                 .builder(BlockCallback.class, "block " + def.get("key"));
         for (BlockCallback callback : BlockCallback.values()) {
@@ -34,7 +48,6 @@ public final class BlockDefinition {
                 callbackBuilder.parse(def, callback);
             }
         }
-        placement = new BlockPlacementDefinition(def.get("placement"), state);
         shapes = new BlockShapeDefinition(def);
         boolean fullCube = shapes.hasFullCubeCollision() && visual.renderType == 0
                 && (visual.bounds == null || visual.bounds.isFullCube());

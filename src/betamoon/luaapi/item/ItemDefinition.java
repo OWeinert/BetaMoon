@@ -13,6 +13,7 @@ public final class ItemDefinition {
     public final ItemUseDefinition use;
     public final ItemToolDefinition tool;
     public final ItemVisualDefinition visual;
+    public final ItemDisplayNames names;
     public final InventoryTickMode tickWhen;
     public ItemDefinition(LuaValue def) {
         LuaCallbackDeclarations.Builder<ItemCallback> callbackBuilder = LuaCallbackDeclarations
@@ -32,6 +33,7 @@ public final class ItemDefinition {
         use = new ItemUseDefinition(def);
         tool = new ItemToolDefinition(def.get("tool"), def.get("efficiency"));
         visual = new ItemVisualDefinition(def.get("render"));
+        names = new ItemDisplayNames(def.get("displayNames"), 32767);
         callbacks = new LuaCallbackDispatcher<ItemCallback>(callbackBuilder.build());
     }
 

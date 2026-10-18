@@ -74,6 +74,48 @@ public final class BlockStateSchema {
         return fields.containsKey(name);
     }
 
+    public int metadataMask(String name) {
+        Field field = field(name);
+        return field.mask << field.shift;
+    }
+
+    public int usedMask() {
+        int result = 0;
+        for (Field field : fields.values()) {
+            result |= field.mask << field.shift;
+        }
+        return result;
+    }
+
+    void validateSubtypeMask(int mask) {
+        for (Map.Entry<String, Field> entry : fields.entrySet()) {
+            int fieldMask = metadataMask(entry.getKey());
+            if ((mask & fieldMask) != 0 && (mask & fieldMask) != fieldMask) {
+                throw error("subtypes.mask", "cannot split state field " + entry.getKey());
+            }
+        }
+    }
+
+    boolean validMetadata(int metadata, int mask) {
+        for (Field field : fields.values()) {
+            if ((mask & (field.mask << field.shift)) != 0
+                    && ((metadata >> field.shift) & field.mask) >= field.values.length) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    int normalizeMetadata(int metadata, int mask) {
+        for (Field field : fields.values()) {
+            int fieldMask = field.mask << field.shift;
+            if ((mask & fieldMask) != 0 && ((metadata >> field.shift) & field.mask) >= field.values.length) {
+                metadata = (metadata & ~fieldMask) | (defaults & fieldMask);
+            }
+        }
+        return metadata;
+    }
+
     public void requireEnumValues(String name, String... expected) {
         Field field = field(name);
         if (field.values.length != expected.length) {

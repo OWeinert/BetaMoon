@@ -2,6 +2,10 @@
 
 ## 0.10.0
 
+- Add metadata-dependent block/item names and texture assets for visual variants.
+- Add block inventory subtypes with placement-state separation and explicitly enabled subtype-preserving drops.
+- Add metadata-aware resource lookups and discovery of declared custom variants.
+
 - Reduce cave-generation work and reuse neighboring base terrain for fluid-safety checks.
 - Improve custom terrain generation and lighting performance while preserving terrain output.
 - Correct emitted light spreading into already loaded chunks during custom terrain generation.
