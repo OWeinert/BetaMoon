@@ -773,8 +773,7 @@ public final class TeleportService {
             ticket.finish(null, departure, arrival, usedFallback, remember, respawning ? "respawn" : "teleport",
                     fallbackReason);
             active = null;
-            client.finishPreparation(true);
-            publishTerminal();
+            finishPreparationAndPublish(true);
         }
 
         private void fail(String failure) throws IOException {
@@ -797,10 +796,19 @@ public final class TeleportService {
             recovering |= recoveryNeeded;
             ticket.finish(failure == null ? "internal_error" : failure, departure, arrival, usedFallback, false);
             active = null;
-            client.finishPreparation(false);
-            publishTerminal();
+            finishPreparationAndPublish(false);
             if (recoveryNeeded) {
                 client.recovery("A safe respawn destination could not be prepared: " + failure);
+            }
+        }
+
+        private void finishPreparationAndPublish(boolean success) {
+            try {
+                client.finishPreparation(success);
+            } catch (Throwable presentationFailure) {
+                BetaMoonCommon.LOGGER.warning("Teleport loading screen cleanup failed: " + presentationFailure);
+            } finally {
+                publishTerminal();
             }
         }
 

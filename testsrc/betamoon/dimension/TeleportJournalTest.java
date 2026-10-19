@@ -130,8 +130,22 @@ public final class TeleportJournalTest {
         fails(() -> push(journal, "owner", "default"));
         require(!journal.pending() && journal.revision() == 0 && journal.previous("owner", "default") == null,
                 "Failed atomic write must not publish in-memory mutation");
+        NBTTagCompound cell = new NBTTagCompound();
+        cell.setInteger("X", 8);
+        cell.setInteger("Y", 63);
+        cell.setInteger("Z", 8);
+        cell.setInteger("OldId", 0);
+        cell.setInteger("OldMetadata", 0);
+        cell.setInteger("NewId", 1);
+        cell.setInteger("NewMetadata", 0);
+        NBTTagList cells = new NBTTagList();
+        cells.setTag(cell);
+        fails(() -> journal.preparePlatform(UUID.randomUUID().toString(), "test:flat", cells));
+        require(journal.preparation() == null, "Failed platform undo write cannot authorize terrain edits");
         Files.delete(file);
         Files.move(backup, file);
+        require(new TeleportJournal(new DimensionPaths(root)).preparation() == null,
+                "Reopen after a failed platform preparation must retain the original journal");
     }
 
     private static void structuralOptions() throws Exception {
