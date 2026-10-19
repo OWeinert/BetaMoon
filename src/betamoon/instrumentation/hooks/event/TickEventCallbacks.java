@@ -1,6 +1,7 @@
 package betamoon.instrumentation.hooks.event;
 
 import betamoon.client.tick.ClientTickEvents;
+import betamoon.teleport.TeleportRuntime;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.World;
@@ -19,6 +20,9 @@ public final class TickEventCallbacks {
     }
 
     public static void advanceWorld(World world) {
+        if (TeleportRuntime.frozen()) {
+            return;
+        }
         world.tick();
         ClientTickEvents.worldAdvanced(ModLoader.getMinecraftInstance(), world);
     }

@@ -10,6 +10,7 @@ import betamoon.instrumentation.agent.BetaMoonAgent;
 import betamoon.multiblock.MultiblockRuntime;
 import betamoon.runtime.RuntimeEnvironment;
 import betamoon.system.WorldServiceRuntime;
+import betamoon.teleport.TeleportRuntime;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.GuiScreen;
 import net.minecraft.src.World;
@@ -45,6 +46,7 @@ public final class ClientTickEvents {
         if (screen != null) {
             Events.GUI_TICK.publish(new GuiEventCtx(minecraft, screen));
         }
+        TeleportRuntime.tick(minecraft);
     }
 
     /**

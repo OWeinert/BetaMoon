@@ -1,18 +1,20 @@
 package betamoon.luaapi.world;
 
-import betamoon.luaapi.multiblock.MultiblocksApi;
-
 import betamoon.assets.AssetKey;
-import betamoon.luaapi.particle.ParticlesApi;
+import betamoon.dimension.DimensionGenerationBinding;
+import betamoon.dimension.DimensionIdentity;
+import betamoon.dimension.DimensionRuntime;
 import betamoon.entity.EntityKind;
-import betamoon.entity.EntitySpawner;
 import betamoon.entity.EntitySpatialQueries;
+import betamoon.entity.EntitySpawner;
 import betamoon.entity.EntityTypeDefinition;
 import betamoon.entity.EntityTypeRegistry;
 import betamoon.entity.LuaEntityPart;
+import betamoon.luaapi.capability.LuaCapabilityAccess;
 import betamoon.luaapi.entity.EntityTypeReference;
 import betamoon.luaapi.entity.LuaEntityActionAccess;
-import betamoon.luaapi.capability.LuaCapabilityAccess;
+import betamoon.luaapi.multiblock.MultiblocksApi;
+import betamoon.luaapi.particle.ParticlesApi;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.utils.LuaDeclarationValues;
 import net.minecraft.src.Block;
@@ -27,12 +29,13 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
+
+import static betamoon.luaapi.utils.LuaDeclarationValues.fields;
 import static betamoon.luaapi.utils.LuaDeclarationValues.id;
 import static betamoon.luaapi.utils.LuaDeclarationValues.integer;
 import static betamoon.luaapi.utils.LuaDeclarationValues.number;
-import static betamoon.luaapi.utils.LuaDeclarationValues.string;
-import static betamoon.luaapi.utils.LuaDeclarationValues.fields;
 import static betamoon.luaapi.utils.LuaDeclarationValues.required;
+import static betamoon.luaapi.utils.LuaDeclarationValues.string;
 
 /** Narrow live access for a single callback invocation. */
 public final class LuaWorldActionAccess {
@@ -89,6 +92,20 @@ public final class LuaWorldActionAccess {
             public Varargs invoke(Varargs a) {
                 scope.requireActive();
                 return valueOf(world.worldProvider.worldType);
+            }
+        });
+        api.set("getDimensionKey", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                scope.requireActive();
+                return valueOf(DimensionIdentity.key(world).toString());
+            }
+        });
+        api.set("getDimensionReference", new VarArgFunction() {
+            public Varargs invoke(Varargs a) {
+                scope.requireActive();
+                DimensionGenerationBinding binding = DimensionRuntime.generation(world);
+                return DimensionsApi.reference(DimensionIdentity.key(world),
+                        binding == null ? null : binding.definition);
             }
         });
         api.set("getWeather", new VarArgFunction() {

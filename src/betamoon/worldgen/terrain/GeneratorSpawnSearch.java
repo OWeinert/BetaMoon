@@ -53,14 +53,14 @@ public final class GeneratorSpawnSearch {
         return block == Block.cactus.blockID || block == Block.fire.blockID;
     }
 
-    static boolean safeGround(int id) {
+    public static boolean safeGround(int id) {
         Block block = Block.blocksList[id];
         if (block == null || harmful(id) || !block.blockMaterial.isSolid() || block.blockMaterial.getIsLiquid()) {
             return false;
         }
         BlockDefinition custom = BlockCallbackRegistry.get(id);
         return custom != null
-                ? custom.shapes.hasFullCubeCollision()
+                ? !custom.teleportHazard && custom.shapes.hasFullCubeCollision()
                 : block.isOpaqueCube() || id == Block.glass.blockID || id == Block.ice.blockID
                         || id == Block.leaves.blockID;
     }

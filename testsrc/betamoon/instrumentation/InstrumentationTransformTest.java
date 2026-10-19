@@ -353,6 +353,7 @@ public final class InstrumentationTransformTest {
                     || diagnostic.getHookId().startsWith("betamoon:tick_events")
                     || diagnostic.getHookId().startsWith("betamoon:worldgen_surface")
                     || diagnostic.getHookId().startsWith("betamoon:world_generator")
+                    || diagnostic.getHookId().startsWith("betamoon:dimensions")
                     || diagnostic.getHookId().startsWith("betamoon:world_creation")
                     || diagnostic.getHookId().startsWith("betamoon:world_join")
                     || diagnostic.getHookId().startsWith("betamoon:world_population")
@@ -415,6 +416,8 @@ public final class InstrumentationTransformTest {
         require(transformer.transform(null, runtimeOwner, null, null, transformed) == null,
                 "Applying the same hooks twice must be a no-op");
 
+        verifyDimensionCacheSeams(mappings, clientJarPath, transformer, report);
+
         ClassRef renderEngine = new ClassRef("net/minecraft/src/RenderEngine");
         String renderEngineOwner = mappings.resolveClass(renderEngine, RuntimeNamespace.CLIENT);
         byte[] renderEngineOriginal = readClass(clientJarPath, renderEngineOwner);
@@ -441,6 +444,21 @@ public final class InstrumentationTransformTest {
         byte[] global = transformer.transform(null, globalOwner, null, null, readClass(clientJarPath, globalOwner));
         require(global != null && countParticleCallbacks(global, "spawn") == 1,
                 "Runtime particle dispatch must contain exactly one custom-key interception");
+        require(countPolicyCalls(global, "hideSky") == 1 && countPolicyCalls(global, "hideClouds") == 1,
+                "Runtime sky and clouds must have independent dimension policies");
+        require(transformer.transform(null, globalOwner, null, null, global) == null,
+                "Mapped field policies must be idempotent");
+        for (String[] seam : new String[][]{{"TextureCompassFX", "randomCompass"}, {"TextureWatchFX", "randomClock"},
+                {"ItemBucket", "evaporatesWater"}, {"BlockFlowing", "fastLava"}}) {
+            String seamOwner = mappings.resolveClass(new ClassRef("net/minecraft/src/" + seam[0]),
+                    RuntimeNamespace.CLIENT);
+            byte[] transformedSeam = transformer.transform(null, seamOwner, null, null,
+                    readClass(clientJarPath, seamOwner));
+            require(transformedSeam != null && countPolicyCalls(transformedSeam, seam[1]) == 1,
+                    "Missing native dimension policy: " + seam[1]);
+            require(transformer.transform(null, seamOwner, null, null, transformedSeam) == null,
+                    "Native dimension policy must be idempotent: " + seam[1]);
+        }
 
         String survivalOwner = mappings.resolveClass(new ClassRef("net/minecraft/src/PlayerControllerSP"),
                 RuntimeNamespace.CLIENT);
@@ -622,6 +640,42 @@ public final class InstrumentationTransformTest {
                 "Client control seam " + returnCallback + " did not cover every return in " + target);
     }
 
+    private static void verifyDimensionCacheSeams(TinyMappingResolver mappings, String clientJarPath,
+            BetaMoonTransformer transformer, TransformationReport report) throws Exception {
+        String owner = mappings.resolveClass(new ClassRef("net/minecraft/src/ChunkProvider"), RuntimeNamespace.CLIENT);
+        byte[] transformed = transformer.transform(null, owner, null, null, readClass(clientJarPath, owner));
+        require(transformed != null, "The packaged client chunk cache must support dimension preparation");
+        require(countCallbackCalls(transformed, "beforeLoad") == 1
+                && countCallbackCalls(transformed, "deferPopulation") == 1,
+                "The packaged client must enforce acquisition and population budgets");
+        ClassNode node = new ClassNode();
+        new ClassReader(transformed).accept(node, 0);
+        int accessCalls = 0;
+        for (MethodNode method : node.methods) {
+            for (AbstractInsnNode instruction : method.instructions) {
+                if (instruction instanceof MethodInsnNode) {
+                    MethodInsnNode call = (MethodInsnNode) instruction;
+                    if (call.getOpcode() == Opcodes.INVOKESTATIC
+                            && call.owner.equals("betamoon/teleport/ChunkPreparation")
+                            && call.name.equals("beforeAccess")) {
+                        accessCalls++;
+                    }
+                }
+            }
+        }
+        require(accessCalls == 1, "The packaged client must guard chunk access exactly once");
+        for (HookDiagnostic diagnostic : report.snapshot()) {
+            if (diagnostic.getHookId().equals("betamoon:dimensions:chunk_access")
+                    || diagnostic.getHookId().equals("betamoon:dimensions:chunk_budget")
+                    || diagnostic.getHookId().equals("betamoon:dimensions:population_budget")) {
+                require(diagnostic.getStatus() == HookStatus.APPLIED,
+                        "Dimension cache hook did not apply to the packaged client: " + diagnostic.getHookId());
+            }
+        }
+        require(transformer.transform(null, owner, null, null, transformed) == null,
+                "Packaged client dimension cache hooks must be idempotent");
+    }
+
     private static void verifyRuntimeServer(TinyMappingResolver mappings, String serverJarPath) throws Exception {
         TransformationReport report = new TransformationReport();
         HookRegistry registry = new HookRegistry(report);
@@ -793,6 +847,24 @@ public final class InstrumentationTransformTest {
         node.instructions.add(new InsnNode(Opcodes.ICONST_1));
         node.instructions.add(new InsnNode(Opcodes.IRETURN));
         return node;
+    }
+
+    private static int countPolicyCalls(byte[] bytecode, String methodName) {
+        ClassNode node = new ClassNode();
+        new ClassReader(bytecode).accept(node, 0);
+        int count = 0;
+        for (MethodNode method : node.methods) {
+            for (AbstractInsnNode instruction : method.instructions) {
+                if (instruction instanceof MethodInsnNode) {
+                    MethodInsnNode call = (MethodInsnNode) instruction;
+                    if (call.getOpcode() == Opcodes.INVOKESTATIC && methodName.equals(call.name)
+                            && call.owner.equals("betamoon/dimension/DimensionRules")) {
+                        count++;
+                    }
+                }
+            }
+        }
+        return count;
     }
 
     private static int countParticleCallbacks(byte[] bytecode, String methodName) {

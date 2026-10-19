@@ -10,6 +10,7 @@ import betamoon.fluid.FluidEcologyPolicy;
 import betamoon.fluid.FluidEntityPolicy;
 import betamoon.fluid.FluidFlowPolicy;
 import betamoon.instrumentation.api.RequiredNativeHooks;
+import org.luaj.vm2.LuaError;
 
 /** Parsed fluid policy without native block/item identities. */
 public final class FluidDraft {
@@ -23,10 +24,11 @@ public final class FluidDraft {
     private final FluidEntityPolicy entity;
     private final FluidCameraPolicy camera;
     private final FluidEcologyPolicy ecology;
+    private final boolean safeTeleportArrival;
 
     FluidDraft(ContentKey key, String owner, String preset, FluidCarrier carrier, FluidFlowPolicy flow,
             FluidAppearance appearance, FluidDisplacementPolicy displacement, FluidEntityPolicy entity,
-            FluidCameraPolicy camera, FluidEcologyPolicy ecology) {
+            FluidCameraPolicy camera, FluidEcologyPolicy ecology, boolean safeTeleportArrival) {
         this.key = key;
         this.owner = owner;
         this.preset = preset;
@@ -37,6 +39,7 @@ public final class FluidDraft {
         this.entity = entity;
         this.camera = camera;
         this.ecology = ecology;
+        this.safeTeleportArrival = safeTeleportArrival;
     }
 
     public ContentKey key() {
@@ -83,7 +86,7 @@ public final class FluidDraft {
                     "betamoon:fluid_ecology:habitat_position", "betamoon:fluid_ecology:pathfinding",
                     "betamoon:fluid_ecology:sponge", "betamoon:fluid_ecology:boat");
         } catch (IllegalStateException exception) {
-            throw new org.luaj.vm2.LuaError(exception.getMessage());
+            throw new LuaError(exception.getMessage());
         }
         if (camera.fogColor() != null || camera.fogDensity() != null || camera.hasOverlay()) {
             FluidPolicyHookAvailability.requireCamera();
@@ -92,6 +95,6 @@ public final class FluidDraft {
 
     public FluidDefinition bind(int flowingBlockId, int stillBlockId, int bucketItemId) {
         return new FluidDefinition(key, owner, preset, carrier, flow, appearance, displacement, entity, camera, ecology,
-                flowingBlockId, stillBlockId, bucketItemId, false);
+                flowingBlockId, stillBlockId, bucketItemId, false, safeTeleportArrival);
     }
 }

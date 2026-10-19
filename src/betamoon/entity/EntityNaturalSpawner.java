@@ -1,6 +1,8 @@
 package betamoon.entity;
 
 import betamoon.assets.AssetKey;
+import betamoon.dimension.DimensionIdentity;
+import betamoon.dimension.DimensionSelector;
 import betamoon.worldgen.terrain.WorldGenerationRuntime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -54,12 +56,12 @@ public final class EntityNaturalSpawner {
 
     private static List<EntityTypeDefinition> available(World world, boolean hostile, boolean peaceful) {
         List<EntityTypeDefinition> result = new ArrayList<>();
-        int dimension = world.worldProvider.worldType;
+        String dimension = DimensionIdentity.key(world).toString();
         for (EntityTypeDefinition definition : EntityTypeRegistry.definitions()) {
             EntitySpawnDefinition rule = definition.spawning;
             if (rule == null || (rule.category == EntitySpawnDefinition.Category.HOSTILE && !hostile)
                     || (rule.category == EntitySpawnDefinition.Category.PASSIVE && !peaceful)
-                    || (!rule.dimensions.isEmpty() && !rule.dimensions.contains(dimension))) {
+                    || !DimensionSelector.matches(rule.dimensions, dimension)) {
                 continue;
             }
             result.add(definition);

@@ -2,6 +2,9 @@ package betamoon.worldgen.spatial;
 
 import betamoon.worldgen.GenerationMetrics;
 import java.util.function.DoubleUnaryOperator;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 /**
  * Compiled finite scalar graph. Dependency bits X/Y/Z are 1/2/4; seed and
@@ -18,6 +21,7 @@ public strictfp final class ScalarField {
     private final double maximumSample;
     ColumnFactory columnFactory;
     private String debugLabel;
+    private Set<String> requiredDimensions = Collections.emptySet();
 
     ScalarField(double min, double max, int dependencies, int nodeCount, Evaluator evaluator) {
         this(min, max, dependencies, nodeCount, evaluator, nodeCount);
@@ -39,6 +43,7 @@ public strictfp final class ScalarField {
     }
 
     public double sample(FieldContext context, double x, double y, double z) {
+        requireScope(context);
         GenerationMetrics.record(GenerationMetrics.Counter.FIELD_SAMPLES, 1);
         if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z) || Math.abs(x) > 1.0e12
                 || Math.abs(y) > 1.0e12 || Math.abs(z) > 1.0e12) {
@@ -57,12 +62,49 @@ public strictfp final class ScalarField {
         return value;
     }
 
+    ScalarField inDimension(String key) {
+        return requiringDimensions(Collections.singleton(key));
+    }
+
+    Set<String> requiredDimensions() {
+        return requiredDimensions;
+    }
+
+    ScalarField requiringDimensions(Set<String> keys) {
+        if (keys.isEmpty()) {
+            return this;
+        }
+        ScalarField scoped = new ScalarField(min, max, dependencies | 32, nodeCount, evaluator, sampleWork);
+        Set<String> combined = new LinkedHashSet<String>(requiredDimensions);
+        combined.addAll(keys);
+        scoped.requiredDimensions = Collections.unmodifiableSet(combined);
+        scoped.columnFactory = columnFactory;
+        scoped.debugLabel = debugLabel;
+        return scoped;
+    }
+
+    public boolean supports(FieldContext context) {
+        for (String key : requiredDimensions) {
+            if (!key.equals(context.dimensionKey)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void requireScope(FieldContext context) {
+        if (!supports(context)) {
+            throw new IllegalStateException("Field belongs to another dimension: " + requiredDimensions);
+        }
+    }
+
     ScalarField withColumnFactory(ColumnFactory factory) {
         columnFactory = factory;
         return this;
     }
 
     DoubleUnaryOperator prepareColumn(FieldContext context, double x, double z, double initialY) {
+        requireScope(context);
         if (!Double.isFinite(x) || !Double.isFinite(z) || Math.abs(x) > 1.0e12 || Math.abs(z) > 1.0e12) {
             throw new IllegalStateException("Field sampling domain exceeds +/-1e12");
         }

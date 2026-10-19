@@ -2,6 +2,8 @@ package betamoon.instrumentation.hooks.worldgen;
 
 import betamoon.gui.GuiMissingWorldGenerator;
 import betamoon.gui.GuiWorldGenerationError;
+import betamoon.teleport.SavedDimensionLoad;
+import betamoon.teleport.TeleportRuntime;
 import betamoon.worldgen.creation.MissingWorldGenerator;
 import betamoon.worldgen.creation.WorldGeneratorFallback;
 import java.io.File;
@@ -27,7 +29,13 @@ public final class WorldJoinCallbacks {
         if (Boolean.TRUE.equals(LOADING.get())) {
             return 0;
         }
+        if (!TeleportRuntime.startingWorldLoad()) {
+            return 1;
+        }
         WorldGeneratorFallback.startingWorld();
+        if (SavedDimensionLoad.start(minecraft, folder, name) != 0) {
+            return 1;
+        }
         GuiScreen parent = minecraft.currentScreen;
         LOADING.set(Boolean.TRUE);
         try {

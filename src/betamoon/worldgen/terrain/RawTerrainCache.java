@@ -21,6 +21,7 @@ final class RawTerrainCache {
     private TerrainSource source;
     private long seed;
     private int dimension;
+    private String dimensionKey;
     private boolean hasOriginalSpawn;
     private int spawnX;
     private int spawnZ;
@@ -85,13 +86,15 @@ final class RawTerrainCache {
     private void selectInputs(TerrainSource next, FieldContext fields) {
         long revision = BiomeGenRegistry.terrainRevision();
         if (source != next || seed != fields.seed || dimension != fields.dimension
-                || hasOriginalSpawn != fields.hasOriginalSpawn || spawnX != fields.spawnX || spawnZ != fields.spawnZ
-                || environment != fields.environment || spatial != fields.spatial || biomeRevision != revision) {
+                || !fields.dimensionKey.equals(dimensionKey) || hasOriginalSpawn != fields.hasOriginalSpawn
+                || spawnX != fields.spawnX || spawnZ != fields.spawnZ || environment != fields.environment
+                || spatial != fields.spatial || biomeRevision != revision) {
             chunks.clear();
             retainedBytes = 0;
             source = next;
             seed = fields.seed;
             dimension = fields.dimension;
+            dimensionKey = fields.dimensionKey;
             hasOriginalSpawn = fields.hasOriginalSpawn;
             spawnX = fields.spawnX;
             spawnZ = fields.spawnZ;

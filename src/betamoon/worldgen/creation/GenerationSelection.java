@@ -82,10 +82,7 @@ public final class GenerationSelection {
         for (GenerationOption option : draft.catalog.options.values()) {
             parents.put(option.key, option.parents);
         }
-        List<String> climate = new ArrayList<String>();
-        for (BiomeGenBase biome : BiomeGenRegistry.copyClimateLookup()) {
-            climate.add(GenerationBiomes.key(biome));
-        }
+        List<String> climate = draft.catalog.climate;
         Map<String, String> profile = new TreeMap<String, String>();
         if (draft.catalog.profile != null) {
             profile.putAll(draft.catalog.profile.dependencies);
@@ -176,6 +173,12 @@ public final class GenerationSelection {
             throw new IllegalStateException("This world requires missing generation preset " + preset);
         }
         if (profile != null) {
+            int nativeCategories = population().nativeCategories.size();
+            if (!profile.nativeBase.equals("overworld") && nativeCategories != 0
+                    && nativeCategories != GenerationCatalog.NATIVE.size()) {
+                throw new IllegalStateException("Saved settings select unsupported granular Minecraft population for "
+                        + profile.nativeBase + "; restore a compatible settings backup");
+            }
             Map<String, String> currentProfile = new TreeMap<String, String>(profile.dependencies);
             if (profile.creationDefinition != null) {
                 currentProfile.put("profile_definition", profile.creationDefinition);
@@ -288,7 +291,11 @@ public final class GenerationSelection {
         for (String name : GenerationCatalog.NATIVE) {
             nativeFlags.put(name, enabled("native/" + name));
         }
-        policy.put("native", nativeFlags);
+        Object nativeSelection = nativeFlags;
+        if (choices.containsKey("native/all")) {
+            nativeSelection = enabled("native/all") ? "all" : "none";
+        }
+        policy.put("native", nativeSelection);
         Map<String, Object> owned = new LinkedHashMap<String, Object>();
         String[] fields = {"undergroundStructures", "undergroundFeatures", "surfaceStructures", "surfaceFeatures",
                 "vegetation", "entities", "postProcess"};

@@ -1,13 +1,14 @@
 package betamoon.worldgen;
 
-import betamoon.worldgen.terrain.WorldGeneratorProfile;
-
+import betamoon.worldgen.terrain.PopulationPolicy;
+import betamoon.worldgen.structure.StructureProtection;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.minecraft.MinecraftBuiltins;
 import betamoon.worldgen.spatial.SpatialSelector;
 import betamoon.worldgen.structure.SitePolicy;
 import betamoon.worldgen.structure.StructureFeature;
 import betamoon.worldgen.terrain.WorldGenerationRuntime;
+import betamoon.worldgen.terrain.WorldGeneratorProfile;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -19,6 +20,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Consumer;
 import net.minecraft.src.BiomeGenBase;
 import net.minecraft.src.Block;
 import net.minecraft.src.Chunk;
@@ -141,12 +143,55 @@ public final class WorldGenRegistry {
     }
 
     /**
+     * Only declarations capable of affecting this dimension contribute to its saved
+     * compatibility contract.
+     */
+    public static synchronized Map<String, String> dimensionGenerationDependencies(String dimension,
+            PopulationPolicy policy) {
+        PublicationBatch batch = CURRENT_BATCH.get();
+        String owner = batch == null ? null : batch.resourceOwner;
+        Set<String> regional = RegionalStructureRegistry.dimensionDependencyKeys(dimension, policy, owner,
+                batch == null ? Collections.<RegionalStructureDefinition>emptyList() : batch.regionalStructures);
+        Set<String> keys = FeaturePlacementRegistry.dimensionDependencyKeys(dimension, policy, owner,
+                batch == null ? Collections.<FeatureDefinition>emptyList() : batch.features,
+                batch == null ? Collections.<PlacementDefinition>emptyList() : batch.placements, regional);
+        Map<String, String> result = new TreeMap<String, String>();
+        for (Map.Entry<String, String> dependency : generationDependencies().entrySet()) {
+            String key = dependency.getKey();
+            for (String prefix : new String[]{"structure_content:", "placement_spatial:", "regional:", "ore:"}) {
+                if (key.startsWith(prefix)) {
+                    key = key.substring(prefix.length());
+                    break;
+                }
+            }
+            if (keys.contains(key)) {
+                result.put(dependency.getKey(), dependency.getValue());
+            }
+        }
+        return Collections.unmodifiableMap(result);
+    }
+
+    /**
      * Retains immutable generation catalogs for the lifetime of a selected world
      * profile.
      */
     public static void pinGenerationCatalogs(World world) {
         FeaturePlacementRegistry.pin(world);
         RegionalStructureRegistry.pin(world);
+    }
+
+    /** Captures publication inputs without retaining a World or a script scope. */
+    public static Consumer<World> captureGenerationCatalogs() {
+        PublicationBatch batch = CURRENT_BATCH.get();
+        String owner = batch == null ? null : batch.resourceOwner;
+        List<FeatureDefinition> features = batch == null ? Collections.<FeatureDefinition>emptyList() : batch.features;
+        Consumer<World> placements = FeaturePlacementRegistry.capture(owner, features,
+                batch == null ? Collections.<PlacementDefinition>emptyList() : batch.placements,
+                batch == null ? Collections.<WorldGenKey>emptySet() : batch.biomeDecoratorTemplates);
+        Consumer<World> regions = RegionalStructureRegistry.capture(owner,
+                batch == null ? Collections.<RegionalStructureDefinition>emptyList() : batch.regionalStructures,
+                features);
+        return placements.andThen(regions);
     }
 
     public static final class OreGenEntry {
@@ -1021,6 +1066,11 @@ public final class WorldGenRegistry {
         return RegionalStructureRegistry.tagWeight(world, tag, x, y, z, blend);
     }
 
+    public static boolean reservedStructurePosition(World world, int x, int y, int z) {
+        return StructureProtection.contains(world, x, y, z)
+                || RegionalStructureRegistry.reservedPosition(world, x, y, z);
+    }
+
     public static void regionalStructureChunkLoaded(Chunk chunk) {
         RegionalStructureRegistry.chunkLoaded(chunk);
     }
@@ -1037,6 +1087,9 @@ public final class WorldGenRegistry {
     }
 
     public static void generateNether(World world, Random ignored, int chunkX, int chunkZ) {
+        if (WorldGenerationRuntime.ownsPopulation(world)) {
+            return;
+        }
         generate(world, chunkX, chunkZ, true);
     }
 
@@ -1157,6 +1210,11 @@ public final class WorldGenRegistry {
 
     private static Set<String> dimensionKeys(GenerationDimension dimension) {
         Set<String> result = new HashSet<String>();
+        if (dimension != GenerationDimension.OVERWORLD && dimension != GenerationDimension.NETHER
+                && dimension != GenerationDimension.BOTH) {
+            result.add(dimension.getLuaName());
+            return result;
+        }
         if (dimension.includes(false)) {
             result.add("minecraft:overworld");
         }

@@ -15,6 +15,7 @@ import betamoon.fluid.FluidFlowPolicy;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.asset.AssetInputs;
 import betamoon.luaapi.utils.LuaContentNamespaces;
+import betamoon.luaapi.utils.LuaDeclarationValues;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.resources.EnumTexAtlas;
 import betamoon.runtime.RuntimeEnvironment;
@@ -47,7 +48,8 @@ final class FluidDeclaration {
             throw new LuaError("Fluid definition must be a table.");
         }
         fields(value, "fluid", "key", "material", "preset", "appearance", "flow", "displacement", "entity", "camera",
-                "ecology", shorthand ? "blocks" : "__no_blocks", shorthand ? "bucket" : "__no_bucket");
+                "ecology", "safeTeleportArrival", shorthand ? "blocks" : "__no_blocks",
+                shorthand ? "bucket" : "__no_bucket");
 
         String owner = LuaScriptRegistry.getCurrentScriptFile();
         if (owner == null) {
@@ -67,7 +69,9 @@ final class FluidDeclaration {
             throw new LuaError("fluid.blocks must be a table with flowing and still declarations.");
         }
         return new FluidDeclaration(new FluidDraft(key, owner, preset, carrier, flow, appearance, displacement, entity,
-                camera, ecology(value.get("ecology"))), blocks, value.get("bucket"));
+                camera, ecology(value.get("ecology")),
+                LuaDeclarationValues.bool(value.get("safeTeleportArrival"), "fluid.safeTeleportArrival", false)),
+                blocks, value.get("bucket"));
     }
 
     private static FluidEcologyPolicy ecology(LuaValue value) {

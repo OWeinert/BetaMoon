@@ -1,7 +1,6 @@
 package betamoon.client.control.input;
 
 import betamoon.gui.GuiTabbedControls;
-
 import betamoon.io.BetaMoonDirectories;
 import betamoon.luaapi.LuaApiUtils;
 import net.minecraft.client.Minecraft;
@@ -31,6 +30,10 @@ public final class ClientInputRuntime {
 
     public static InputRouter router() {
         return ROUTER;
+    }
+
+    public static Minecraft client() {
+        return currentMinecraft;
     }
 
     public static PlayerControllerRuntime controllers() {

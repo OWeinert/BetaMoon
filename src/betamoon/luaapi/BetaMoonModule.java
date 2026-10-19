@@ -26,7 +26,9 @@ import betamoon.luaapi.tileentity.TileEntityApi;
 import betamoon.luaapi.utils.PositionF;
 import betamoon.luaapi.utils.PositionI;
 import betamoon.luaapi.world.AtmospheresApi;
+import betamoon.luaapi.world.DimensionsApi;
 import betamoon.luaapi.world.LootTablesApi;
+import betamoon.luaapi.world.TeleportApi;
 import betamoon.luaapi.world.WorldGenApi;
 import betamoon.luamodloader.ScriptExecution;
 import betamoon.recipes.custom.RecipeBindings;
@@ -80,6 +82,8 @@ public final class BetaMoonModule extends TwoArgFunction {
         FluidApi.attach(module);
         AudioApi.attach(module);
         AtmospheresApi.attach(module);
+        DimensionsApi.attach(module);
+        TeleportApi.attach(module);
         InputApi.attach(module);
         CapabilitiesApi.attach(module);
         SystemsApi.attach(module);

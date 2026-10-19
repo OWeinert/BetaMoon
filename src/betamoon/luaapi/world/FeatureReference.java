@@ -1,5 +1,6 @@
 package betamoon.luaapi.world;
 
+import betamoon.dimension.DimensionIdentity;
 import betamoon.luaapi.utils.LuaDataReference;
 import betamoon.worldgen.BlockPosition;
 import betamoon.worldgen.FeatureOptions;
@@ -45,7 +46,7 @@ public final class FeatureReference extends LuaTable implements LuaDataReference
                 LuaValue options = arguments.arg(5 + offset);
                 long salt = options.istable() && !options.get("seed").isnil() ? options.get("seed").checklong() : 0L;
                 FeatureOptions featureOptions = parseOptions(options, preview ? "feature.preview" : "feature.place");
-                String dimension = world.worldProvider.worldType == -1 ? "minecraft:nether" : "minecraft:overworld";
+                String dimension = DimensionIdentity.key(world).toString();
                 long seed = SeedMixer.generationSeed(world.getRandomSeed(), dimension, "direct", x >> 4, z >> 4,
                         FeatureReference.this.key, salt ^ (((long) x) << 32) ^ z ^ y);
                 FeatureResult outcome = preview

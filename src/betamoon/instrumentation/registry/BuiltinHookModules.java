@@ -8,6 +8,8 @@ import betamoon.instrumentation.hooks.block.BlockPowerHook;
 import betamoon.instrumentation.hooks.block.BlockScheduleHook;
 import betamoon.instrumentation.hooks.block.ContentCallbackOverrideHook;
 import betamoon.instrumentation.hooks.control.ClientControlHook;
+import betamoon.instrumentation.hooks.dimension.DimensionHook;
+import betamoon.instrumentation.hooks.dimension.DimensionMapHook;
 import betamoon.instrumentation.hooks.entity.EntityLifecycleHook;
 import betamoon.instrumentation.hooks.entity.EntityNaturalSpawnHook;
 import betamoon.instrumentation.hooks.entity.EntityTrackingHook;
@@ -26,8 +28,8 @@ import betamoon.instrumentation.hooks.particle.ParticleHook;
 import betamoon.instrumentation.hooks.texture.TextureResourceHook;
 import betamoon.instrumentation.hooks.worldgen.AtmosphereHook;
 import betamoon.instrumentation.hooks.worldgen.RegionalStructureChunkHook;
-import betamoon.instrumentation.hooks.worldgen.WorldGeneratorHook;
 import betamoon.instrumentation.hooks.worldgen.WorldCreationHook;
+import betamoon.instrumentation.hooks.worldgen.WorldGeneratorHook;
 import betamoon.instrumentation.hooks.worldgen.WorldJoinHook;
 import betamoon.instrumentation.hooks.worldgen.WorldPopulationHook;
 import betamoon.instrumentation.hooks.worldgen.WorldgenSurfaceHook;
@@ -69,6 +71,8 @@ public final class BuiltinHookModules {
     private static void registerClient(HookRegistry registry) {
         registry.registerModule(new FluidEcologyHook(false));
         registry.registerModule(new WorldGeneratorHook());
+        registry.registerModule(new DimensionHook());
+        registry.registerModule(new DimensionMapHook());
         registry.registerModule(new WorldCreationHook());
         registry.registerModule(new WorldJoinHook());
         registry.registerModule(new WorldPopulationHook());

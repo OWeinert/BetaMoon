@@ -14,6 +14,7 @@ import betamoon.content.ContentType;
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.utils.LuaContentNamespaces;
+import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptExecution;
 import betamoon.luamodloader.ScriptResourceTracker;
@@ -45,15 +46,15 @@ final class LuaControllerApi {
                 InputApi.fields(declaration, "controller", "key", "stages");
                 ContentKey key = key(declaration.get("key"), true);
                 LuaTable stages = InputApi.table(declaration.get("stages"), "controller stages");
-                EnumMap<Stage, PlayerControllerRuntime.Mode> modes =
-                        new EnumMap<Stage, PlayerControllerRuntime.Mode>(Stage.class);
+                EnumMap<Stage, PlayerControllerRuntime.Mode> modes = new EnumMap<Stage, PlayerControllerRuntime.Mode>(
+                        Stage.class);
                 for (LuaValue stageName : stages.keys()) {
                     Stage stage = Stage.parse(stageName.checkjstring());
                     modes.put(stage, PlayerControllerRuntime.Mode.parse(stages.get(stageName).checkjstring()));
                 }
                 try {
-                    Registration registration = ClientInputRuntime.controllers().register(
-                            new PlayerControllerRuntime.Definition(key, modes), owner);
+                    Registration registration = ClientInputRuntime.controllers()
+                            .register(new PlayerControllerRuntime.Definition(key, modes), owner);
                     ScriptResourceTracker.track(registration::close);
                     return new ControllerHandle(registration);
                 } catch (IllegalArgumentException | IllegalStateException error) {
@@ -109,9 +110,11 @@ final class LuaControllerApi {
                     Stage stage = Stage.parse(argument(args, ControllerHandle.this, 1).checkjstring());
                     LuaValue function = argument(args, ControllerHandle.this, 2);
                     try {
-                        registration.on(stage, function.isnil() ? null : snapshot -> invokeCallback(
-                                registration.owner(), function.checkfunction(), snapshot,
-                                registration.definition().mode(stage)));
+                        registration.on(stage,
+                                function.isnil()
+                                        ? null
+                                        : snapshot -> invokeCallback(registration.owner(), function.checkfunction(),
+                                                snapshot, registration.definition().mode(stage)));
                         return ControllerHandle.this;
                     } catch (IllegalArgumentException | IllegalStateException error) {
                         throw new LuaError("Input controller callback: " + error.getMessage());
@@ -128,7 +131,8 @@ final class LuaControllerApi {
                         throw new LuaError("Controller activation requires a local world.");
                     }
                     LuaValue requestedPlayer = options.get("player");
-                    Entity entity = requestedPlayer.isnil() ? minecraft.thePlayer
+                    Entity entity = requestedPlayer.isnil()
+                            ? minecraft.thePlayer
                             : LuaEntityActionAccess.target(requestedPlayer, minecraft.theWorld,
                                     "controller activation player");
                     if (!(entity instanceof EntityPlayerSP) || entity != minecraft.thePlayer) {
@@ -165,8 +169,7 @@ final class LuaControllerApi {
         private ActivationHandle(Activation activation, EntityPlayerSP player) {
             set("submitIntent", new VarArgFunction() {
                 public Varargs invoke(Varargs args) {
-                    LuaTable intent = InputApi.table(argument(args, ActivationHandle.this, 1),
-                            "controller intent");
+                    LuaTable intent = InputApi.table(argument(args, ActivationHandle.this, 1), "controller intent");
                     InputApi.fields(intent, "controller intent", "movement", "facing", "action");
                     Movement movement = intent.get("movement").isnil() ? null : movement(intent.get("movement"));
                     Facing facing = intent.get("facing").isnil() ? null : facing(intent.get("facing"));
@@ -227,11 +230,12 @@ final class LuaControllerApi {
 
     private static Decision invokeCallback(String owner, LuaValue callback, Snapshot snapshot,
             PlayerControllerRuntime.Mode mode) {
-        try (LuaCallbackScope scope = new LuaCallbackScope(false)) {
+        try (LuaCallbackScope scope = new LuaCallbackScope(false, true)) {
             LuaTable event = new LuaTable();
             event.set("stage", LuaValue.valueOf(snapshot.stage.luaName()));
             event.set("tick", LuaValue.valueOf(snapshot.tick));
             event.set("player", LuaEntityActionAccess.create(scope, snapshot.player, snapshot.player));
+            event.set("world", LuaWorldActionAccess.create(scope, snapshot.player.worldObj, 0, 0, 0));
             if (snapshot.nativeMovement != null) {
                 LuaTable movement = new LuaTable();
                 movement.set("forward", LuaValue.valueOf(snapshot.nativeMovement.forward));
@@ -278,8 +282,8 @@ final class LuaControllerApi {
         LuaTable table = InputApi.table(value, "controller movement");
         InputApi.fields(table, "controller movement", "forward", "strafe", "jump", "sneak");
         return new Movement((float) finite(table.get("forward"), "forward"),
-                (float) finite(table.get("strafe"), "strafe"),
-                table.get("jump").optboolean(false), table.get("sneak").optboolean(false));
+                (float) finite(table.get("strafe"), "strafe"), table.get("jump").optboolean(false),
+                table.get("sneak").optboolean(false));
     }
 
     private static Facing facing(LuaValue value) {

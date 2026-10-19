@@ -203,7 +203,7 @@ public final class OreGenApi {
                 return false;
             }
             if (!criteria.get("dimension").isnil()
-                    && entry.dimension != GenerationDimension.parse(criteria.get("dimension").checkjstring())) {
+                    && !entry.dimension.equals(OreDeclaration.dimension(criteria.get("dimension")))) {
                 return false;
             }
             return true;
@@ -288,7 +288,7 @@ public final class OreGenApi {
                         });
             }
             if (property.equals("dimension")) {
-                GenerationDimension parsed = GenerationDimension.parse(value.checkjstring());
+                GenerationDimension parsed = OreDeclaration.dimension(value);
                 return typedRequest(property, parsed, priority, target -> target.dimension,
                         (target, next) -> target.dimension = next);
             }

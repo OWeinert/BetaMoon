@@ -1,8 +1,9 @@
 package betamoon.luaapi.block;
 
-import betamoon.luaapi.utils.LuaCallbackDispatcher;
 import betamoon.luaapi.utils.LuaCallbackDeclarations;
+import betamoon.luaapi.utils.LuaCallbackDispatcher;
 import org.luaj.vm2.LuaValue;
+
 import static betamoon.luaapi.utils.LuaDeclarationValues.bool;
 import static betamoon.luaapi.utils.LuaDeclarationValues.error;
 import static betamoon.luaapi.utils.LuaDeclarationValues.fields;
@@ -21,6 +22,7 @@ public final class BlockDefinition {
     public final BlockShapeDefinition shapes;
     public final BlockRedstoneDefinition redstone;
     public final boolean normalCube;
+    public final boolean teleportHazard;
     public final int fireSpread;
     public final int fireBurn;
     public BlockDefinition(LuaValue def) {
@@ -39,6 +41,7 @@ public final class BlockDefinition {
         boolean fullCube = shapes.hasFullCubeCollision() && visual.renderType == 0
                 && (visual.bounds == null || visual.bounds.isFullCube());
         normalCube = bool(def.get("normalCube"), "normalCube", fullCube);
+        teleportHazard = bool(def.get("teleportHazard"), "teleportHazard", false);
         redstone = new BlockRedstoneDefinition(def, state, placement);
         if (!def.get("redstone").isnil()) {
             callbackBuilder.parse(def.get("redstone"), BlockCallback.INPUT_CHANGED);

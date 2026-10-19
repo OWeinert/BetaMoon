@@ -10,6 +10,7 @@ import net.minecraft.src.BiomeGenBase;
 public final class FieldContext {
     public final long seed;
     public final int dimension;
+    public final String dimensionKey;
     public final boolean hasOriginalSpawn;
     public final int spawnX;
     public final int spawnZ;
@@ -34,11 +35,24 @@ public final class FieldContext {
 
     public FieldContext(long seed, int dimension, boolean hasOriginalSpawn, int spawnX, int spawnZ,
             Environment environment, SpatialRegistry.Snapshot spatial) {
-        this(seed, dimension, hasOriginalSpawn, spawnX, spawnZ, environment, spatial, null);
+        this(seed, dimension,
+                dimension == -1
+                        ? "minecraft:nether"
+                        : dimension == 0 ? "minecraft:overworld" : "betamoon:unresolved/" + dimension,
+                hasOriginalSpawn, spawnX, spawnZ, environment, spatial, null);
     }
 
-    private FieldContext(long seed, int dimension, boolean hasOriginalSpawn, int spawnX, int spawnZ,
-            Environment environment, SpatialRegistry.Snapshot spatial, FieldTrace trace) {
+    public FieldContext(long seed, int dimension, String dimensionKey, boolean hasOriginalSpawn, int spawnX, int spawnZ,
+            Environment environment, SpatialRegistry.Snapshot spatial) {
+        this(seed, dimension, dimensionKey, hasOriginalSpawn, spawnX, spawnZ, environment, spatial, null);
+    }
+
+    private FieldContext(long seed, int dimension, String dimensionKey, boolean hasOriginalSpawn, int spawnX,
+            int spawnZ, Environment environment, SpatialRegistry.Snapshot spatial, FieldTrace trace) {
+        if (dimensionKey == null) {
+            throw new IllegalArgumentException("Field context requires canonical dimension identity");
+        }
+        this.dimensionKey = dimensionKey;
         this.trace = trace;
         this.spatial = spatial;
         this.seed = seed;
@@ -50,7 +64,8 @@ public final class FieldContext {
     }
 
     public FieldContext withTrace(FieldTrace trace) {
-        return new FieldContext(seed, dimension, hasOriginalSpawn, spawnX, spawnZ, environment, spatial, trace);
+        return new FieldContext(seed, dimension, dimensionKey, hasOriginalSpawn, spawnX, spawnZ, environment, spatial,
+                trace);
     }
 
     /**

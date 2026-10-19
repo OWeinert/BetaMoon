@@ -1,6 +1,8 @@
 package betamoon.luaapi.world;
 
 import betamoon.debug.DebugExports;
+import betamoon.dimension.DimensionIdentity;
+import betamoon.dimension.DimensionRuntime;
 import betamoon.luaapi.utils.LuaDataReference;
 import betamoon.luaapi.utils.LuaDataSnapshot;
 import betamoon.luaapi.utils.LuaDeclarationValues;
@@ -40,6 +42,17 @@ public final class SpatialWorldGenApi {
             @Override
             public Varargs invoke(Varargs arguments) {
                 World world = LuaWorldActionAccess.requireWorld(argument(arguments, anchors, 1));
+                DimensionRuntime.WorldBinding dimension = DimensionRuntime.binding(world);
+                if (dimension != null && dimension.save != null && dimension.save.metadata.hasAnchor()) {
+                    LuaTable result = new LuaTable();
+                    result.set("x", dimension.save.metadata.anchorX());
+                    result.set("y", dimension.save.metadata.anchorY());
+                    result.set("z", dimension.save.metadata.anchorZ());
+                    result.set("dimension", world.worldProvider.worldType);
+                    result.set("dimensionKey", DimensionIdentity.key(world).toString());
+                    result.set("source", "original_spawn");
+                    return result;
+                }
                 WorldGeneratorManifest manifest = WorldGenerationRuntime.manifest(world);
                 if (manifest == null || manifest.originalSpawn == null) {
                     return varargsOf(new LuaValue[]{NIL, valueOf("anchor_unavailable")});
@@ -49,6 +62,7 @@ public final class SpatialWorldGenApi {
                 result.set("y", manifest.originalSpawn.y);
                 result.set("z", manifest.originalSpawn.z);
                 result.set("dimension", manifest.dimension);
+                result.set("dimensionKey", DimensionIdentity.key(world).toString());
                 result.set("source", "original_spawn");
                 return result;
             }

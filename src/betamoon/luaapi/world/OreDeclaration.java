@@ -1,12 +1,16 @@
 package betamoon.luaapi.world;
 
-import betamoon.worldgen.WorldGenRegistry;
+import betamoon.dimension.DimensionSelector;
+import betamoon.luaapi.utils.LuaDataReference;
+import betamoon.luaapi.utils.LuaDeclarationValues;
 import betamoon.worldgen.GenerationDimension;
 import betamoon.worldgen.WorldGenLimits;
+import betamoon.worldgen.WorldGenRegistry;
 import net.minecraft.src.BiomeGenBase;
 import net.minecraft.src.Block;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
+
 import static betamoon.luaapi.utils.LuaDeclarationValues.required;
 
 /**
@@ -49,7 +53,7 @@ public final class OreDeclaration {
         if (veinSize < 1 || veinSize > WorldGenLimits.MAX_ORE_VEIN_SIZE) {
             throw new LuaError("OreGen: veinSize must be between 1 and " + WorldGenLimits.MAX_ORE_VEIN_SIZE + ".");
         }
-        dimension = GenerationDimension.parse(definition.get("dimension").optjstring("overworld"));
+        dimension = dimension(definition.get("dimension"));
         LuaValue replace = definition.get("replace");
         if (replace.isnil()) {
             targetBlockId = null;
@@ -66,6 +70,23 @@ public final class OreDeclaration {
 
     public BiomeGenBase[] getAllowedBiomes() {
         return allowedBiomes == null ? null : allowedBiomes.clone();
+    }
+
+    static GenerationDimension dimension(LuaValue value) {
+        if (value.isnil()) {
+            return GenerationDimension.OVERWORLD;
+        }
+        if (value instanceof LuaDataReference) {
+            return GenerationDimension.parse((String) ((LuaDataReference) value).declarationValue());
+        }
+        if (value.istable()) {
+            LuaDeclarationValues.fields(value, "OreGen.dimension", "type");
+            if (!"any_dimension".equals(value.get("type").checkjstring())) {
+                throw new LuaError("OreGen.dimension: expected type=any_dimension");
+            }
+            return GenerationDimension.parse(DimensionSelector.ANY);
+        }
+        return GenerationDimension.parse(value.checkjstring());
     }
 
     static String[] biomeNames(LuaValue value) {

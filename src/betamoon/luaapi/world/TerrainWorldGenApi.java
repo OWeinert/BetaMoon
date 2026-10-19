@@ -139,7 +139,7 @@ public final class TerrainWorldGenApi {
                         int z = LuaDeclarationValues.integer(argument(arguments, Reference.this, 3), "generator.chunkZ",
                                 -1875000, 1874999);
                         WorldGeneratorProfile profile = selected(world);
-                        if (profile == null || world.worldProvider.worldType != 0) {
+                        if (profile == null) {
                             return varargsOf(new LuaValue[]{NIL, valueOf("definition_unavailable")});
                         }
                         try {
@@ -204,9 +204,6 @@ public final class TerrainWorldGenApi {
                                 -30000000, 30000000);
                         int z = LuaDeclarationValues.integer(argument(arguments, Reference.this, 3), "terrain.z",
                                 -30000000, 30000000);
-                        if (world.worldProvider.worldType != 0) {
-                            return varargsOf(new LuaValue[]{NIL, valueOf("dimension")});
-                        }
                         TerrainSource source = kind == WorldGenKind.TERRAIN_SOURCE
                                 ? WorldGenerationRuntime.terrainDefinitions(world).source(key)
                                 : null;

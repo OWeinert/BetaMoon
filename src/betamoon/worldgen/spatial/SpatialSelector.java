@@ -103,7 +103,7 @@ public final class SpatialSelector {
 
     public double weight(FieldContext context, double x, double z) {
         ScalarField selected = field(context);
-        if (selected == null || context.dimension != 0
+        if (selected == null || !selected.supports(context)
                 || (selected.dependencies & 16) != 0 && !context.hasOriginalSpawn) {
             return 0;
         }

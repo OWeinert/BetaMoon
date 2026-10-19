@@ -1,5 +1,6 @@
 package betamoon.fluid.block;
 
+import betamoon.dimension.DimensionRules;
 import betamoon.fluid.FluidAppearance;
 import betamoon.fluid.FluidDefinition;
 import betamoon.fluid.FluidRegistration;
@@ -123,7 +124,7 @@ public abstract class FluidBlock extends Block {
     }
 
     public final int tickRate(World world) {
-        return definition().flow().tickRate(world.worldProvider.isHellWorld);
+        return definition().flow().tickRate(DimensionRules.fastLava(world.worldProvider));
     }
 
     @Override
@@ -165,8 +166,7 @@ public abstract class FluidBlock extends Block {
                 }
             } else {
                 int difference = neighbor - current;
-                result = result.addVector(offsetX[direction] * difference, 0.0D,
-                        offsetZ[direction] * difference);
+                result = result.addVector(offsetX[direction] * difference, 0.0D, offsetZ[direction] * difference);
             }
         }
 
@@ -191,13 +191,9 @@ public abstract class FluidBlock extends Block {
     }
 
     private boolean touchesSolidWall(IBlockAccess world, int x, int y, int z) {
-        return getIsBlockSolid(world, x, y, z - 1, 2)
-                || getIsBlockSolid(world, x, y, z + 1, 3)
-                || getIsBlockSolid(world, x - 1, y, z, 4)
-                || getIsBlockSolid(world, x + 1, y, z, 5)
-                || getIsBlockSolid(world, x, y + 1, z - 1, 2)
-                || getIsBlockSolid(world, x, y + 1, z + 1, 3)
-                || getIsBlockSolid(world, x - 1, y + 1, z, 4)
-                || getIsBlockSolid(world, x + 1, y + 1, z, 5);
+        return getIsBlockSolid(world, x, y, z - 1, 2) || getIsBlockSolid(world, x, y, z + 1, 3)
+                || getIsBlockSolid(world, x - 1, y, z, 4) || getIsBlockSolid(world, x + 1, y, z, 5)
+                || getIsBlockSolid(world, x, y + 1, z - 1, 2) || getIsBlockSolid(world, x, y + 1, z + 1, 3)
+                || getIsBlockSolid(world, x - 1, y + 1, z, 4) || getIsBlockSolid(world, x + 1, y + 1, z, 5);
     }
 }

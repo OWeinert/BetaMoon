@@ -3,6 +3,7 @@ package betamoon.luaapi.world;
 import betamoon.content.ContentKey;
 import betamoon.content.ContentType;
 import betamoon.fluid.FluidRegistry;
+import betamoon.luaapi.utils.LuaDimensionSelectors;
 import betamoon.luaapi.utils.LuaGenerationSignature;
 import betamoon.luaapi.utils.LuaNamespacedTags;
 import betamoon.luaapi.utils.LuaSpatialSelector;
@@ -483,32 +484,7 @@ public final class FeaturePlacementApi {
     }
 
     private static Set<String> dimensions(LuaValue value) {
-        Set<String> result = new HashSet<String>();
-        if (value.isnil()) {
-            result.add("minecraft:overworld");
-            return result;
-        }
-        table(value, "Placement.dimensions");
-        for (int index = 1; index <= value.length(); index++) {
-            String dimension = value.get(index).checkjstring().trim().toLowerCase(Locale.ROOT);
-            if (dimension.equals("overworld")) {
-                dimension = "minecraft:overworld";
-            } else if (dimension.equals("nether") || dimension.equals("hell")) {
-                dimension = "minecraft:nether";
-            } else if (dimension.equals("both") || dimension.equals("all")) {
-                result.add("minecraft:overworld");
-                result.add("minecraft:nether");
-                continue;
-            }
-            if (!dimension.equals("minecraft:overworld") && !dimension.equals("minecraft:nether")) {
-                throw new LuaError("Placement.dimensions: unsupported dimension: " + dimension);
-            }
-            result.add(dimension);
-        }
-        if (result.isEmpty()) {
-            throw new LuaError("Placement.dimensions: expected at least one dimension");
-        }
-        return result;
+        return LuaDimensionSelectors.parse(value, "Placement.dimensions");
     }
 
     static BlockSet blocks(LuaValue value, String path) {

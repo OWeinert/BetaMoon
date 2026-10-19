@@ -1,5 +1,6 @@
 package betamoon.entity;
 
+import betamoon.luaapi.utils.LuaDimensionSelectors;
 import betamoon.luaapi.utils.LuaSpatialSelector;
 import betamoon.worldgen.spatial.SpatialSelector;
 import java.util.Collections;
@@ -31,7 +32,7 @@ public final class EntitySpawnDefinition {
     public final int maxLight;
     public final int minY;
     public final int maxY;
-    public final Set<Integer> dimensions;
+    public final Set<String> dimensions;
     public final Set<String> biomes;
     public final Set<Integer> substrates;
     public final SpatialSelector spatial;
@@ -53,7 +54,9 @@ public final class EntitySpawnDefinition {
         int[] height = range(value.get("height"), "entity.spawning.height", 1, 126, 1, 126);
         minY = height[0];
         maxY = height[1];
-        dimensions = integers(value.get("dimensions"), "entity.spawning.dimensions", -128, 127);
+        dimensions = value.get("dimensions").isnil()
+                ? Collections.<String>emptySet()
+                : LuaDimensionSelectors.parse(value.get("dimensions"), "entity.spawning.dimensions");
         biomes = names(value.get("biomes"), "entity.spawning.biomes");
         substrates = blocks(value.get("substrates"), "entity.spawning.substrates");
         nativeDespawn = despawn(value.get("despawn"), inheritedDespawn);
