@@ -1,6 +1,8 @@
 package betamoon.instrumentation.hooks.worldgen;
 
 import betamoon.worldgen.BiomeGenRegistry;
+import betamoon.worldgen.terrain.WorldGenerationRuntime;
+import betamoon.worldgen.terrain.WorldGeneratorProfile;
 import net.minecraft.src.BiomeGenBase;
 import net.minecraft.src.World;
 
@@ -14,6 +16,13 @@ public final class WorldgenSurfaceCallbacks {
     }
 
     public static void after(World world, int chunkX, int chunkZ, byte[] blocks, BiomeGenBase[] biomes) {
+        WorldGeneratorProfile profile = WorldGenerationRuntime.profile(world);
+        if (profile != null && profile.terrain != null) {
+            if (profile.applySurfaces) {
+                profile.surfaces.applyDeclared(world.getRandomSeed(), chunkX, chunkZ, blocks, biomes);
+            }
+            return;
+        }
         BiomeGenRegistry.applySurfaces(world, chunkX, chunkZ, blocks, biomes);
     }
 }

@@ -1,5 +1,6 @@
 package betamoon.worldgen;
 
+import betamoon.fluid.FluidRegistry;
 import net.minecraft.src.Block;
 import net.minecraft.src.BlockContainer;
 import net.minecraft.src.Material;
@@ -103,16 +104,15 @@ final class TerrainColumn {
     }
 
     static boolean isFluid(int blockId) {
-        Material material = material(blockId);
-        return material == Material.water || material == Material.lava;
+        return FluidRegistry.instance().getByBlockId(blockId) != null || isWater(blockId) || isLava(blockId);
     }
 
     static boolean isWater(int blockId) {
-        return material(blockId) == Material.water;
+        return blockId == Block.waterMoving.blockID || blockId == Block.waterStill.blockID;
     }
 
     static boolean isLava(int blockId) {
-        return material(blockId) == Material.lava;
+        return blockId == Block.lavaMoving.blockID || blockId == Block.lavaStill.blockID;
     }
 
     static boolean isReplaceable(int blockId) {

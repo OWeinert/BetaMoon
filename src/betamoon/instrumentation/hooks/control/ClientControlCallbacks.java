@@ -1,7 +1,7 @@
 package betamoon.instrumentation.hooks.control;
 
 import betamoon.client.control.input.ClientInputRuntime;
-import betamoon.client.control.input.GuiTabbedControls;
+import betamoon.gui.GuiTabbedControls;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.EntityPlayerSP;

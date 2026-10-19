@@ -1,15 +1,17 @@
 package betamoon.luamodloader;
 
-import betamoon.multiblock.MultiblockRegistry;
-
 import betamoon.BetaMoonCommon;
-import betamoon.particles.ParticleRegistry;
-import betamoon.luaapi.module.ModuleRegistry;
-import betamoon.luaapi.audio.SoundEvents;
-import betamoon.tileentity.TileEntityRegistry;
-import betamoon.worldgen.WorldGenRegistry;
-import betamoon.worldgen.BiomeGenRegistry;
+import betamoon.atmosphere.AtmosphereRegistry;
 import betamoon.loot.LootTableRegistry;
+import betamoon.luaapi.audio.SoundEvents;
+import betamoon.luaapi.module.ModuleRegistry;
+import betamoon.multiblock.MultiblockRegistry;
+import betamoon.particles.ParticleRegistry;
+import betamoon.tileentity.TileEntityRegistry;
+import betamoon.worldgen.BiomeGenRegistry;
+import betamoon.worldgen.WorldGenRegistry;
+import betamoon.worldgen.spatial.SpatialRegistry;
+import betamoon.worldgen.terrain.TerrainRegistry;
 import java.util.List;
 import org.luaj.vm2.LuaError;
 
@@ -41,11 +43,15 @@ final class ScriptLifecycleRunner {
             }
 
             long startedNanos = System.nanoTime();
+            mod.generationCodeSignature = null;
             try (ScriptExecutionScope ignored = ScriptExecutionScope.open(mod.sourceFileName);
                     ScriptAssetScope assets = ScriptAssetScope.open(mod.sourceFileName);
                     ScriptEntityScope entities = ScriptEntityScope.open(mod.sourceFileName);
                     ParticleRegistry.Batch particles = ParticleRegistry.begin(mod.sourceFileName);
                     MultiblockRegistry.Batch multiblocks = MultiblockRegistry.begin(mod.sourceFileName);
+                    AtmosphereRegistry.Batch atmospheres = AtmosphereRegistry.begin(mod.sourceFileName);
+                    SpatialRegistry.Batch spatial = SpatialRegistry.begin(mod.sourceFileName);
+                    TerrainRegistry.Batch terrain = TerrainRegistry.begin(mod.sourceFileName);
                     LootTableRegistry.PublicationBatch lootTables = LootTableRegistry
                             .beginPublication(mod.sourceFileName, mod.getDisplayName());
                     WorldGenRegistry.PublicationBatch worldgen = WorldGenRegistry.beginPublication(mod.sourceFileName,
@@ -57,9 +63,12 @@ final class ScriptLifecycleRunner {
                     mod.modReload.call();
                 }
                 multiblocks.validate();
+                spatial.validate();
+                atmospheres.validate();
                 lootTables.validate();
                 worldgen.validate();
                 biomes.validate();
+                terrain.validate();
                 ModuleRegistry.publish(mod.sourceFileName);
                 assets.publish();
                 entities.publish();
@@ -69,6 +78,9 @@ final class ScriptLifecycleRunner {
                 SoundEvents.publish(mod.sourceFileName);
                 particles.publish();
                 multiblocks.publish();
+                spatial.publish();
+                terrain.publish();
+                atmospheres.publish();
                 LuaScriptRegistry.markLoadedByFile(mod.sourceFileName);
                 retainedScripts.rememberIfStructural(mod);
             } catch (LuaError error) {

@@ -2,8 +2,10 @@ package betamoon.worldgen;
 
 import betamoon.BetaMoonCommon;
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.worldgen.spatial.SpatialRegistry;
 import betamoon.worldgen.structure.StructureFeature;
 import betamoon.worldgen.structure.StructureTransform;
+import betamoon.worldgen.terrain.WorldGenerationRuntime;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -15,6 +17,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.WeakHashMap;
 import net.minecraft.src.Chunk;
 import net.minecraft.src.World;
 import org.luaj.vm2.LuaError;
@@ -25,8 +29,20 @@ import org.luaj.vm2.LuaError;
  */
 final class RegionalStructureRegistry {
     private static volatile Snapshot active = Snapshot.empty();
+    private static final Map<World, Snapshot> WORLD_SNAPSHOTS = new WeakHashMap<World, Snapshot>();
+
+    static synchronized void pin(World world) {
+        WORLD_SNAPSHOTS.put(world, active);
+    }
+
+    private static synchronized Snapshot snapshot(World world) {
+        Snapshot pinned = WORLD_SNAPSHOTS.get(world);
+        return pinned == null ? active : pinned;
+    }
+
     private static final Map<String, MutableDiagnostics> diagnostics = new LinkedHashMap<String, MutableDiagnostics>();
-    private static final Set<WorldGenKey> disabled = new HashSet<WorldGenKey>();
+    private static final Set<RegionalStructureDefinition> disabled = Collections
+            .newSetFromMap(new WeakHashMap<RegionalStructureDefinition, Boolean>());
 
     private RegionalStructureRegistry() {
     }
@@ -51,7 +67,7 @@ final class RegionalStructureRegistry {
     static synchronized void publishOwner(String owner, List<RegionalStructureDefinition> additions) {
         active = ownerSnapshot(owner, additions);
         for (RegionalStructureDefinition definition : additions) {
-            disabled.remove(definition.key);
+            disabled.remove(definition);
         }
     }
 
@@ -85,21 +101,73 @@ final class RegionalStructureRegistry {
         active = Snapshot.compile(values);
     }
 
+    static Map<String, String> generationDependencies(String owner, List<RegionalStructureDefinition> pending) {
+        Map<String, String> result = new TreeMap<String, String>();
+        for (RegionalStructureDefinition definition : active.definitions.values()) {
+            if (owner == null || !owner.equals(definition.resourceOwner)) {
+                result.put("regional:" + definition.key,
+                        definition.placementSignature(SpatialRegistry.pendingSnapshot()));
+            }
+        }
+        for (RegionalStructureDefinition definition : pending) {
+            result.put("regional:" + definition.key, definition.placementSignature(SpatialRegistry.pendingSnapshot()));
+        }
+        return result;
+    }
+
     static boolean has(WorldGenKey key) {
         return active.definitions.containsKey(key);
     }
 
+    static double tagWeight(World world, String tag, double x, double y, double z, double blend) {
+        RegionalStructureIndex index = RegionalStructureIndex.get(world);
+        if (index == null) {
+            return 0;
+        }
+        int cx = Math.floorDiv((int) Math.floor(x), 16);
+        int cz = Math.floorDiv((int) Math.floor(z), 16);
+        int reach = (int) Math.ceil(blend / 16);
+        double best = 0;
+        Set<String> visited = new HashSet<String>();
+        for (int dx = -reach; dx <= reach; dx++) {
+            for (int dz = -reach; dz <= reach; dz++) {
+                for (RegionalStructurePlan plan : index.forChunk(cx + dx, cz + dz)) {
+                    if (!visited.add(plan.id())) {
+                        continue;
+                    }
+                    RegionalStructureDefinition definition = snapshot(world).definitions.get(plan.definitionKey);
+                    if (definition == null || !definition.tags.contains(tag)) {
+                        continue;
+                    }
+                    for (RegionalStructurePlan.Piece piece : plan.pieces) {
+                        double px = Math.max(piece.bounds.min.x - x, Math.max(0, x - piece.bounds.max.x - 1));
+                        double py = Math.max(piece.bounds.min.y - y, Math.max(0, y - piece.bounds.max.y - 1));
+                        double pz = Math.max(piece.bounds.min.z - z, Math.max(0, z - piece.bounds.max.z - 1));
+                        double distance = StrictMath.sqrt(px * px + py * py + pz * pz);
+                        best = Math.max(best, distance == 0 ? 1 : blend == 0 ? 0 : Math.max(0, 1 - distance / blend));
+                    }
+                }
+            }
+        }
+        return best;
+    }
+
     static void generate(World world, int chunkX, int chunkZ, String dimension) {
+        generate(world, chunkX, chunkZ, dimension, null);
+    }
+
+    static void generate(World world, int chunkX, int chunkZ, String dimension, GenerationStage stage) {
         if (world == null || world.multiplayerWorld) {
             return;
         }
-        Snapshot snapshot = active;
+        Snapshot snapshot = snapshot(world);
         RegionalStructureIndex index = RegionalStructureIndex.get(world);
         if (index == null) {
             return;
         }
         for (RegionalStructureDefinition definition : snapshot.definitions.values()) {
-            if (disabled.contains(definition.key) || !matchesDimension(definition, dimension)) {
+            if (disabled.contains(definition) || !matchesDimension(definition, dimension)
+                    || stage != null && definition.stage != stage || !stageEnabled(world, definition)) {
                 continue;
             }
             discoverStarts(snapshot, index, world, definition, dimension, chunkX, chunkZ);
@@ -109,13 +177,14 @@ final class RegionalStructureRegistry {
 
     static void chunkLoaded(Chunk chunk) {
         if (chunk == null || chunk.worldObj == null || chunk.worldObj.multiplayerWorld || !chunk.isTerrainPopulated
-                || active.definitions.isEmpty()) {
+                || snapshot(chunk.worldObj).definitions.isEmpty()) {
             return;
         }
         String dimension = dimension(chunk.worldObj);
         RegionalStructureIndex index = RegionalStructureIndex.get(chunk.worldObj);
         if (index != null) {
-            applyChunk(active, index, chunk.worldObj, dimension, chunk.xPosition, chunk.zPosition, true);
+            applyChunk(snapshot(chunk.worldObj), index, chunk.worldObj, dimension, chunk.xPosition, chunk.zPosition,
+                    true);
         }
     }
 
@@ -128,17 +197,26 @@ final class RegionalStructureRegistry {
         int maxRegionZ = Math.floorDiv(chunkZ + radius, definition.spacing);
         for (int regionX = minRegionX; regionX <= maxRegionX; regionX++) {
             for (int regionZ = minRegionZ; regionZ <= maxRegionZ; regionZ++) {
-                Candidate candidate = candidate(definition, world.getRandomSeed(), dimension, regionX, regionZ);
                 String id = id(definition.key, dimension, regionX, regionZ);
                 if (index.contains(id)) {
                     continue;
                 }
+                Candidate candidate = candidate(definition, world.getRandomSeed(), dimension, regionX, regionZ);
                 int startX = (candidate.chunkX << 4) + 8;
                 int startZ = (candidate.chunkZ << 4) + 8;
                 if (!definition.heightType.equals("fixed") && !world.blockExists(startX, 64, startZ)) {
                     continue;
                 }
                 try {
+                    if (definition.spatial != null) {
+                        double weight = definition.spatial.weight(WorldGenerationRuntime.fieldContext(world), startX,
+                                startZ);
+                        if (weight <= 0 || new Random(candidate.seed).nextDouble() >= Math.min(1, weight)) {
+                            index.reject(id);
+                            reject(definition.key, "spatial");
+                            continue;
+                        }
+                    }
                     RegionalStructurePlan plan = plan(world, definition, dimension, regionX, regionZ, candidate);
                     if (plan != null) {
                         index.add(plan);
@@ -181,7 +259,7 @@ final class RegionalStructureRegistry {
 
     static RegionalStructurePlan plan(World world, RegionalStructureDefinition definition, String dimension,
             int regionX, int regionZ, Candidate candidate) {
-        FeatureDefinition rootDefinition = FeaturePlacementRegistry.findFeature(definition.startFeature);
+        FeatureDefinition rootDefinition = FeaturePlacementRegistry.findFeature(definition.startFeature, world);
         if (rootDefinition == null || !(rootDefinition.feature instanceof StructureFeature)) {
             throw new IllegalStateException("Missing root structure feature " + definition.startFeature);
         }
@@ -212,7 +290,7 @@ final class RegionalStructureRegistry {
         StructureFeature.Bounds rootBounds = rootPlacement.bounds;
         List<RegionalStructurePlan.Piece> pieces = new ArrayList<RegionalStructurePlan.Piece>();
         RegionalStructurePlan.Piece root = new RegionalStructurePlan.Piece(definition.startFeature, start,
-                rootTransform, rootSeed, 0, rootBounds, rootFeature.generationSignature(),
+                rootTransform, rootSeed, 0, rootBounds, rootFeature.generationSignature(world),
                 terrainChanges(world, rootPlacement), rootPlacement.conformOffsets);
         if (root.terrainChanges.size() > WorldGenLimits.MAX_REGIONAL_TERRAIN_CHANGES) {
             return null;
@@ -237,10 +315,10 @@ final class RegionalStructureRegistry {
             if (terrainChangeCount + attachment.terrainChanges.size() > WorldGenLimits.MAX_REGIONAL_TERRAIN_CHANGES) {
                 continue;
             }
-            StructureFeature feature = structureFeature(attachment.choice.feature);
+            StructureFeature feature = structureFeature(attachment.choice.feature, world);
             RegionalStructurePlan.Piece piece = new RegionalStructurePlan.Piece(attachment.choice.feature,
                     attachment.origin, attachment.transform, attachment.seed, parent.depth, attachment.bounds,
-                    feature.generationSignature(), attachment.terrainChanges, attachment.conformOffsets);
+                    feature.generationSignature(world), attachment.terrainChanges, attachment.conformOffsets);
             pieces.add(piece);
             terrainChangeCount += attachment.terrainChanges.size();
             for (StructureFeature.Connector connector : feature.connectors(attachment.origin, attachment.transform,
@@ -252,7 +330,15 @@ final class RegionalStructureRegistry {
             }
         }
         return new RegionalStructurePlan(definition.key, dimension, regionX, regionZ, candidate.chunkX,
-                candidate.chunkZ, candidate.seed, pieces, definition.placementSignature());
+                candidate.chunkZ, candidate.seed, pieces,
+                definition.placementSignature(WorldGenerationRuntime.spatial(world)),
+                definition.spatial == null
+                        ? Double.NaN
+                        : definition.spatial.value(WorldGenerationRuntime.fieldContext(world),
+                                (candidate.chunkX << 4) + 8, (candidate.chunkZ << 4) + 8),
+                definition.spatial == null
+                        ? ""
+                        : definition.spatial.signatureForSnapshot(WorldGenerationRuntime.spatial(world)));
     }
 
     private static Attachment selectAttachment(World world, RegionalStructureDefinition definition,
@@ -265,7 +351,7 @@ final class RegionalStructureRegistry {
             if (!choice.pool.equals(parent.pool)) {
                 continue;
             }
-            StructureFeature feature = structureFeature(choice.feature);
+            StructureFeature feature = structureFeature(choice.feature, world);
             if (feature == null) {
                 continue;
             }
@@ -279,7 +365,7 @@ final class RegionalStructureRegistry {
                     }
                     BlockPosition origin = new BlockPosition(targetX - relative.position.x,
                             parent.position.y - relative.position.y, targetZ - relative.position.z);
-                    FeatureDefinition featureDefinition = FeaturePlacementRegistry.findFeature(choice.feature);
+                    FeatureDefinition featureDefinition = FeaturePlacementRegistry.findFeature(choice.feature, world);
                     StructureFeature.RegionalPlacement placement = resolveRegional(world, definition, featureDefinition,
                             feature, origin, transform, pieceSeed);
                     if (!placement.accepted
@@ -361,7 +447,8 @@ final class RegionalStructureRegistry {
         } catch (IllegalArgumentException error) {
             return -1;
         }
-        FeatureContext context = new FeatureContext(world, new Random(seed), definition.key, 4096, null);
+        FeatureContext context = new FeatureContext(world, new Random(seed), definition.key, 4096, null)
+                .forGeneration();
         int height = context.surfaceHeight(x, z, surface);
         return height < 0 ? -1 : height + definition.heightValue;
     }
@@ -370,7 +457,7 @@ final class RegionalStructureRegistry {
             RegionalStructureDefinition definition, FeatureDefinition featureDefinition, StructureFeature feature,
             BlockPosition origin, StructureTransform transform, long seed) {
         FeatureContext context = new FeatureContext(world, new Random(seed), featureDefinition.key,
-                Math.max(4096, feature.maximumReads()), null, FeatureOptions.DEFAULT, definition.site);
+                Math.max(4096, feature.maximumReads()), null, FeatureOptions.DEFAULT, definition.site).forGeneration();
         return feature.resolveRegional(context, origin, transform, definition.site, seed);
     }
 
@@ -413,13 +500,17 @@ final class RegionalStructureRegistry {
             int chunkX, int chunkZ, boolean recovery) {
         for (RegionalStructurePlan plan : index.forChunk(chunkX, chunkZ)) {
             RegionalStructureDefinition definition = snapshot.definitions.get(plan.definitionKey);
-            if (definition == null || disabled.contains(plan.definitionKey) || !plan.dimension.equals(dimension)
-                    || plan.isComplete(chunkX, chunkZ)) {
+            if (definition == null || !stageEnabled(world, definition) || disabled.contains(definition)
+                    || !plan.dimension.equals(dimension) || plan.isComplete(chunkX, chunkZ)) {
                 continue;
             }
             try {
-                if (!plan.placementSignature.isEmpty()
-                        && !plan.placementSignature.equals(definition.placementSignature())) {
+                String spatialSignature = definition.spatial == null
+                        ? ""
+                        : definition.spatial.signatureForSnapshot(WorldGenerationRuntime.spatial(world));
+                if (!spatialSignature.equals(plan.spatialSignature)
+                        || !plan.placementSignature.isEmpty() && !plan.placementSignature
+                                .equals(definition.placementSignature(WorldGenerationRuntime.spatial(world)))) {
                     reject(definition.key, "definition_changed");
                     continue;
                 }
@@ -427,20 +518,20 @@ final class RegionalStructureRegistry {
                         WorldGenLimits.MAX_REGIONAL_BLOCKS_PER_CHUNK * 32, new FeatureContext.FeatureResolver() {
                             @Override
                             public FeatureDefinition find(WorldGenKey key) {
-                                return FeaturePlacementRegistry.findFeature(key);
+                                return FeaturePlacementRegistry.findFeature(key, world);
                             }
-                        });
+                        }).forGeneration();
                 PlacementPlan changes = new PlacementPlan(new BlockPosition((chunkX << 4) + 8, 64, (chunkZ << 4) + 8),
                         WorldGenLimits.MAX_REGIONAL_BLOCKS_PER_CHUNK, 128);
                 for (RegionalStructurePlan.Piece piece : plan.pieces) {
                     if (!piece.bounds.intersectsChunk(chunkX, chunkZ)) {
                         continue;
                     }
-                    StructureFeature feature = structureFeature(piece.featureKey);
+                    StructureFeature feature = structureFeature(piece.featureKey, world);
                     if (feature == null) {
                         throw new IllegalStateException("Missing structure feature " + piece.featureKey);
                     }
-                    if (!piece.generationSignature.equals(feature.generationSignature())) {
+                    if (!piece.generationSignature.equals(feature.generationSignature(world))) {
                         reject(definition.key, "definition_changed");
                         return;
                     }
@@ -502,7 +593,7 @@ final class RegionalStructureRegistry {
     }
 
     static Location locate(World world, WorldGenKey key, int blockX, int blockZ, int maxRegions) {
-        RegionalStructureDefinition definition = active.definitions.get(key);
+        RegionalStructureDefinition definition = snapshot(world).definitions.get(key);
         if (definition == null) {
             return null;
         }
@@ -560,9 +651,16 @@ final class RegionalStructureRegistry {
         List<Description> result = new ArrayList<Description>();
         for (RegionalStructureDefinition definition : active.definitions.values()) {
             result.add(new Description(definition, diagnostics.get(definition.key.toString()),
-                    disabled.contains(definition.key)));
+                    disabled.contains(definition)));
         }
         return Collections.unmodifiableList(result);
+    }
+
+    private static StructureFeature structureFeature(WorldGenKey key, World world) {
+        FeatureDefinition definition = FeaturePlacementRegistry.findFeature(key, world);
+        return definition != null && definition.feature instanceof StructureFeature
+                ? (StructureFeature) definition.feature
+                : null;
     }
 
     private static StructureFeature structureFeature(WorldGenKey key) {
@@ -570,6 +668,11 @@ final class RegionalStructureRegistry {
         return definition != null && definition.feature instanceof StructureFeature
                 ? (StructureFeature) definition.feature
                 : null;
+    }
+
+    private static boolean stageEnabled(World world, RegionalStructureDefinition definition) {
+        return WorldGenerationRuntime.stageEnabled(world, definition.stage) && WorldGenerationRuntime.contentEnabled(
+                world, true, definition.key.toString(), definition.startFeature.toString(), definition.tags);
     }
 
     private static boolean matchesDimension(RegionalStructureDefinition definition, String dimension) {
@@ -602,7 +705,7 @@ final class RegionalStructureRegistry {
     }
 
     private static synchronized void disable(RegionalStructureDefinition definition, Throwable error) {
-        disabled.add(definition.key);
+        disabled.add(definition);
         reject(definition.key, FeatureResult.RUNTIME_ERROR);
         String detail = error.getMessage() == null ? error.toString() : error.getMessage();
         String message = "Regional structure " + definition.key + " was disabled after an error: " + detail;
@@ -633,8 +736,7 @@ final class RegionalStructureRegistry {
                     return left.key.compareTo(right.key);
                 }
             });
-            Map<WorldGenKey, RegionalStructureDefinition> definitions =
-                    new LinkedHashMap<WorldGenKey, RegionalStructureDefinition>();
+            Map<WorldGenKey, RegionalStructureDefinition> definitions = new LinkedHashMap<WorldGenKey, RegionalStructureDefinition>();
             for (RegionalStructureDefinition definition : values) {
                 RegionalStructureDefinition conflict = definitions.put(definition.key, definition);
                 if (conflict != null) {
@@ -716,6 +818,8 @@ final class RegionalStructureRegistry {
         final String owner;
         final String source;
         final String start;
+        final String stage;
+        final List<String> dependencies;
         final Set<String> dimensions;
         final int spacing;
         final int separation;
@@ -743,6 +847,13 @@ final class RegionalStructureRegistry {
             owner = definition.owner;
             source = definition.sourceLocation;
             start = definition.startFeature.toString();
+            stage = definition.stage.getName();
+            List<String> referenced = new ArrayList<String>();
+            referenced.add(start);
+            for (RegionalStructureDefinition.PieceChoice piece : definition.pieces) {
+                referenced.add(piece.feature.toString());
+            }
+            dependencies = Collections.unmodifiableList(referenced);
             dimensions = definition.dimensions;
             spacing = definition.spacing;
             separation = definition.separation;

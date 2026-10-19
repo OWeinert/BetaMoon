@@ -210,7 +210,7 @@ public final class DeclarativeDomainTest {
             List<BiomeGenRegistry.Description> biomes = BiomeGenRegistry.snapshot();
             require(biomes.size() == 1, "Invalid biome declarations must not install overlays");
             BiomeGenRegistry.Description biome = biomes.get(0);
-            require("quality_biome".equals(biome.name), "Custom biome name");
+            require("quality_biome".equals(biome.displayName), "Custom biome name");
             require(biome.topBlock == Block.stone.blockID, "Surface override");
             require(biome.fillerBlock == (BiomeGenBase.desert.fillerBlock & 255), "Inherited surface");
             require(BiomeGenBase.desert.topBlock != Block.stone.blockID, "Source biome must remain unchanged");

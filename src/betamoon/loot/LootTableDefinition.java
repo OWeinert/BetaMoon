@@ -4,6 +4,8 @@ import betamoon.assets.AssetKey;
 import betamoon.assets.model.ModelJson;
 import betamoon.loot.LootStackDefinition.LootStack;
 import betamoon.worldgen.SeedMixer;
+import betamoon.worldgen.spatial.SpatialRegistry;
+import betamoon.worldgen.spatial.SpatialSelector;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -12,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
@@ -50,8 +53,12 @@ public final class LootTableDefinition {
     }
 
     public List<LootStack> generate(long seed) {
+        return generate(seed, null);
+    }
+
+    public List<LootStack> generate(long seed, LootContext context) {
         List<LootStack> output = new ArrayList<LootStack>();
-        generate(seed, output, new LinkedHashSet<AssetKey>(), 0);
+        generate(seed, output, new LinkedHashSet<AssetKey>(), 0, context);
         return Collections.unmodifiableList(output);
     }
 
@@ -80,8 +87,7 @@ public final class LootTableDefinition {
     void validateEmissionBudget(Set<AssetKey> visiting, int depth) throws IOException {
         long maximum = maximumEmittedStacks(visiting, depth);
         if (maximum > MAX_EMITTED_STACKS) {
-            throw new IOException("loot table can emit up to " + maximum + " stacks; maximum is "
-                    + MAX_EMITTED_STACKS);
+            throw new IOException("loot table can emit up to " + maximum + " stacks; maximum is " + MAX_EMITTED_STACKS);
         }
     }
 
@@ -93,20 +99,37 @@ public final class LootTableDefinition {
 
     public String dependencySignature() {
         StringBuilder result = new StringBuilder(semanticHash);
-        appendDependencies(result, new LinkedHashSet<AssetKey>(), 0);
+        appendDependencies(result, new LinkedHashSet<AssetKey>(), 0, null, SpatialRegistry.pendingSnapshot());
         return sha256(result.toString());
     }
 
-    private void appendDependencies(StringBuilder output, Set<AssetKey> visiting, int depth) {
+    public String dependencySignature(Map<AssetKey, LootTableDefinition> definitions) {
+        return dependencySignature(definitions, SpatialRegistry.pendingSnapshot());
+    }
+
+    public String dependencySignature(Map<AssetKey, LootTableDefinition> definitions,
+            SpatialRegistry.Snapshot spatial) {
+        StringBuilder result = new StringBuilder(semanticHash);
+        appendDependencies(result, new LinkedHashSet<AssetKey>(), 0, definitions, spatial);
+        return sha256(result.toString());
+    }
+
+    private void appendDependencies(StringBuilder output, Set<AssetKey> visiting, int depth,
+            Map<AssetKey, LootTableDefinition> definitions, SpatialRegistry.Snapshot spatial) {
         if (depth > MAX_NESTING) {
             throw new IllegalStateException("loot table nesting exceeds " + MAX_NESTING);
         }
         for (Pool pool : pools) {
+            if (pool.spatial != null) {
+                output.append("|spatial:").append(pool.spatial.signatureForSnapshot(spatial));
+            }
             for (Entry entry : pool.entries) {
                 if (entry.table == null) {
                     continue;
                 }
-                LootTableDefinition nested = LootTableRegistry.find(entry.table);
+                LootTableDefinition nested = definitions == null
+                        ? LootTableRegistry.find(entry.table)
+                        : definitions.get(entry.table);
                 if (nested == null) {
                     throw new IllegalStateException("unknown nested loot table " + entry.table);
                 }
@@ -114,17 +137,21 @@ public final class LootTableDefinition {
                     throw new IllegalStateException("loot table reference cycle at " + entry.table);
                 }
                 output.append('|').append(entry.table).append('=').append(nested.semanticHash);
-                nested.appendDependencies(output, visiting, depth + 1);
+                nested.appendDependencies(output, visiting, depth + 1, definitions, spatial);
                 visiting.remove(entry.table);
             }
         }
     }
 
-    private void generate(long seed, List<LootStack> output, Set<AssetKey> visiting, int depth) {
+    private void generate(long seed, List<LootStack> output, Set<AssetKey> visiting, int depth, LootContext context) {
         if (depth > MAX_NESTING) {
             throw new IllegalStateException("loot table nesting exceeds " + MAX_NESTING);
         }
         for (Pool pool : pools) {
+            if (pool.spatial != null
+                    && (context == null || pool.spatial.weight(context.fields, context.x, context.z) <= 0)) {
+                continue;
+            }
             long poolSeed = SeedMixer.derive(seed, SeedMixer.hash("pool:" + pool.key));
             int rolls = pool.rolls.sample(poolSeed, "rolls");
             for (int roll = 0; roll < rolls; roll++) {
@@ -132,12 +159,14 @@ public final class LootTableDefinition {
                 Entry selected = pool.select(rollSeed);
                 if (selected.stack != null) {
                     if (output.size() >= MAX_EMITTED_STACKS) {
-                        throw new IllegalStateException("loot table emitted more than " + MAX_EMITTED_STACKS
-                                + " stacks");
+                        throw new IllegalStateException(
+                                "loot table emitted more than " + MAX_EMITTED_STACKS + " stacks");
                     }
                     output.add(selected.stack.generate(rollSeed));
                 } else if (selected.table != null) {
-                    LootTableDefinition nested = LootTableRegistry.find(selected.table);
+                    LootTableDefinition nested = context == null
+                            ? LootTableRegistry.find(selected.table)
+                            : context.table(selected.table);
                     if (nested == null) {
                         throw new IllegalStateException("unknown nested loot table " + selected.table);
                     }
@@ -145,7 +174,7 @@ public final class LootTableDefinition {
                         throw new IllegalStateException("loot table reference cycle at " + selected.table);
                     }
                     nested.generate(SeedMixer.derive(rollSeed, SeedMixer.hash(selected.table.toString())), output,
-                            visiting, depth + 1);
+                            visiting, depth + 1, context);
                     visiting.remove(selected.table);
                 }
             }
@@ -187,8 +216,15 @@ public final class LootTableDefinition {
         private final LootStackDefinition.IntRange rolls;
         private final List<Entry> entries;
         private final int totalWeight;
+        private final SpatialSelector spatial;
 
         Pool(String key, LootStackDefinition.IntRange rolls, List<Entry> entries, int totalWeight) {
+            this(key, rolls, entries, totalWeight, null);
+        }
+
+        Pool(String key, LootStackDefinition.IntRange rolls, List<Entry> entries, int totalWeight,
+                SpatialSelector spatial) {
+            this.spatial = spatial;
             this.key = key;
             this.rolls = rolls;
             this.entries = Collections.unmodifiableList(new ArrayList<Entry>(entries));
@@ -207,6 +243,9 @@ public final class LootTableDefinition {
 
         private String semantics() {
             StringBuilder result = new StringBuilder(key).append(':').append(rolls.semantics());
+            if (spatial != null) {
+                result.append(":spatial:").append(spatial.declarationSignature());
+            }
             for (Entry entry : entries) {
                 result.append(':').append(entry.semantics());
             }
@@ -245,11 +284,10 @@ public final class LootTableDefinition {
 
     private static String sha256(String value) {
         try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest(value.getBytes(StandardCharsets.UTF_8));
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
             StringBuilder result = new StringBuilder(digest.length * 2);
             for (byte part : digest) {
-                result.append(String.format(java.util.Locale.ROOT, "%02x", part & 0xff));
+                result.append(String.format(Locale.ROOT, "%02x", part & 0xff));
             }
             return result.toString();
         } catch (NoSuchAlgorithmException impossible) {

@@ -2,9 +2,16 @@ package betamoon.worldgen;
 
 import betamoon.BetaMoonCommon;
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.worldgen.spatial.FieldContext;
+import betamoon.worldgen.spatial.NoiseDefinition;
+import betamoon.worldgen.spatial.SpatialRegistry;
+import betamoon.worldgen.structure.SitePolicy;
 import betamoon.worldgen.structure.StructureFeature;
+import betamoon.worldgen.terrain.WorldGenerationRuntime;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -12,6 +19,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.WeakHashMap;
 import net.minecraft.src.World;
 import org.luaj.vm2.LuaError;
 
@@ -22,9 +31,33 @@ import org.luaj.vm2.LuaError;
 final class FeaturePlacementRegistry {
     private static final String ACTUAL_STAGE = "after_vanilla_population";
     private static volatile Snapshot active = Snapshot.empty();
+    private static final Map<World, Snapshot> WORLD_SNAPSHOTS = new WeakHashMap<World, Snapshot>();
+    private static final Map<World, Set<WorldGenKey>> WORLD_TEMPLATES = new WeakHashMap<World, Set<WorldGenKey>>();
+
+    static synchronized void pin(World world) {
+        WORLD_SNAPSHOTS.put(world, active);
+        WORLD_TEMPLATES.put(world, decoratorTemplates);
+    }
+
+    private static synchronized Snapshot snapshot(World world) {
+        Snapshot pinned = WORLD_SNAPSHOTS.get(world);
+        return pinned == null ? active : pinned;
+    }
+
+    static FeatureDefinition findFeature(WorldGenKey key, World world) {
+        return snapshot(world).features.get(key);
+    }
+
+    private static synchronized boolean isTemplate(World world, WorldGenKey key) {
+        Set<WorldGenKey> pinned = WORLD_TEMPLATES.get(world);
+        return (pinned == null ? decoratorTemplates : pinned).contains(key);
+    }
+
     private static volatile Set<WorldGenKey> decoratorTemplates = Collections.emptySet();
     private static final Map<String, MutableDiagnostics> diagnostics = new LinkedHashMap<String, MutableDiagnostics>();
     private static final Set<WorldGenKey> disabled = new HashSet<WorldGenKey>();
+    private static final Set<PlacementDefinition> failed = Collections
+            .newSetFromMap(new WeakHashMap<PlacementDefinition, Boolean>());
     private static final Map<String, Set<WorldGenKey>> decoratorTemplatesByOwner = new LinkedHashMap<String, Set<WorldGenKey>>();
 
     private FeaturePlacementRegistry() {
@@ -36,6 +69,7 @@ final class FeaturePlacementRegistry {
         decoratorTemplatesByOwner.clear();
         diagnostics.clear();
         disabled.clear();
+        failed.clear();
     }
 
     static synchronized void retainOwners(Set<String> owners) {
@@ -71,7 +105,7 @@ final class FeaturePlacementRegistry {
             if (definition.feature instanceof StructureFeature) {
                 try {
                     ((StructureFeature) definition.feature).validateLootReferences();
-                } catch (java.io.IOException | IllegalStateException error) {
+                } catch (IOException | IllegalStateException error) {
                     throw new LuaError("Structure " + definition.key + ": " + error.getMessage());
                 }
             }
@@ -101,6 +135,17 @@ final class FeaturePlacementRegistry {
         features.addAll(ownerFeatures);
         placements.addAll(ownerPlacements);
         return Snapshot.compile(features, placements);
+    }
+
+    static synchronized void setFeatureTags(WorldGenKey key, Set<String> tags, String owner) {
+        FeatureDefinition current = active.features.get(key);
+        if (current == null || !current.resourceOwner.equals(owner)) {
+            throw new LuaError("Feature tags require an owned feature declaration");
+        }
+        Map<WorldGenKey, FeatureDefinition> replacement = new LinkedHashMap<WorldGenKey, FeatureDefinition>(
+                active.features);
+        replacement.put(key, current.withTags(tags));
+        active = new Snapshot(replacement, active.placements);
     }
 
     static synchronized void publishAddition(FeatureDefinition feature, PlacementDefinition placement) {
@@ -140,6 +185,7 @@ final class FeaturePlacementRegistry {
     static synchronized void setEnabled(WorldGenKey key, boolean enabled) {
         if (enabled) {
             disabled.remove(key);
+            failed.removeIf(definition -> definition.key.equals(key));
         } else {
             disabled.add(key);
         }
@@ -153,14 +199,12 @@ final class FeaturePlacementRegistry {
         return active.placementsByKey.get(key);
     }
 
-    static PlacementCandidate locateCandidate(World world, WorldGenKey key, int blockX, int blockZ,
-            int maxChunks) {
+    static PlacementCandidate locateCandidate(World world, WorldGenKey key, int blockX, int blockZ, int maxChunks) {
         PlacementDefinition placement = active.placementsByKey.get(key);
         if (placement == null || isDisabled(key) || decoratorTemplates.contains(key)) {
             return null;
         }
-        String dimension = world.worldProvider.worldType == -1
-                ? "minecraft:nether" : "minecraft:overworld";
+        String dimension = world.worldProvider.worldType == -1 ? "minecraft:nether" : "minecraft:overworld";
         if (!placement.dimensions.isEmpty() && !placement.dimensions.contains(dimension)) {
             return null;
         }
@@ -181,8 +225,8 @@ final class FeaturePlacementRegistry {
                     }
                     long candidateX = (long) chunkX * 16L + 8L;
                     long candidateZ = (long) chunkZ * 16L + 8L;
-                    if (candidateX < -30000000L || candidateX > 30000000L
-                            || candidateZ < -30000000L || candidateZ > 30000000L) {
+                    if (candidateX < -30000000L || candidateX > 30000000L || candidateZ < -30000000L
+                            || candidateZ > 30000000L) {
                         continue;
                     }
                     long deltaX = candidateX - blockX;
@@ -201,16 +245,16 @@ final class FeaturePlacementRegistry {
         return best;
     }
 
-    private static boolean passesProbability(World world, String dimension, PlacementDefinition placement,
-            int chunkX, int chunkZ) {
+    private static boolean passesProbability(World world, String dimension, PlacementDefinition placement, int chunkX,
+            int chunkZ) {
         if (placement.probability <= 0.0D) {
             return false;
         }
         if (placement.probability >= 1.0D) {
             return true;
         }
-        long seed = SeedMixer.generationSeed(world.getRandomSeed(), dimension, placement.stage.getName(),
-                chunkX, chunkZ, placement.key, placement.salt);
+        long seed = SeedMixer.generationSeed(world.getRandomSeed(), dimension, placement.stage.getName(), chunkX,
+                chunkZ, placement.key, placement.salt);
         return new Random(seed).nextDouble() < placement.probability;
     }
 
@@ -224,8 +268,7 @@ final class FeaturePlacementRegistry {
         if (definition == null) {
             return FeatureResult.rejected(FeatureResult.RUNTIME_ERROR);
         }
-        return executeFeature(snapshot, definition, world, origin, new Random(seed), options,
-                ExecutionMode.RUNTIME);
+        return executeFeature(snapshot, definition, world, origin, new Random(seed), options, ExecutionMode.RUNTIME);
     }
 
     static FeatureResult preview(WorldGenKey key, World world, BlockPosition origin, long seed,
@@ -235,40 +278,68 @@ final class FeaturePlacementRegistry {
         if (definition == null) {
             return FeatureResult.rejected(FeatureResult.RUNTIME_ERROR);
         }
-        return executeFeature(snapshot, definition, world, origin, new Random(seed), options,
-                ExecutionMode.PREVIEW);
+        return executeFeature(snapshot, definition, world, origin, new Random(seed), options, ExecutionMode.PREVIEW);
     }
 
     static void generate(World world, int chunkX, int chunkZ, boolean nether) {
-        Snapshot snapshot = active;
+        generateStage(world, chunkX, chunkZ, nether, null);
+    }
+
+    static void generateStage(World world, int chunkX, int chunkZ, boolean nether, GenerationStage stage) {
+        Snapshot snapshot = snapshot(world);
         String dimension = nether ? "minecraft:nether" : "minecraft:overworld";
         int logicalChunkX = Math.floorDiv(chunkX, 16);
         int logicalChunkZ = Math.floorDiv(chunkZ, 16);
-        for (PlacementDefinition placement : snapshot.placements) {
+        FieldContext generationFields = null;
+        for (PlacementDefinition placement : snapshot.forStage(stage, nether)) {
+            if (stage != null && placement.stage != stage) {
+                continue;
+            }
             if (!placement.dimensions.isEmpty() && !placement.dimensions.contains(dimension)
-                    || isDisabled(placement.key) || decoratorTemplates.contains(placement.key)) {
+                    || failed.contains(placement)
+                    || !WorldGenerationRuntime.hasSavedSelection(world) && isDisabled(placement)
+                    || isTemplate(world, placement.key)) {
                 continue;
             }
             FeatureDefinition feature = snapshot.features.get(placement.featureKey);
             if (feature == null) {
                 continue;
             }
+            if (!WorldGenerationRuntime.stageEnabled(world, placement.stage)
+                    || !WorldGenerationRuntime.contentEnabled(world, feature.feature instanceof StructureFeature,
+                            placement.key.toString(), feature.key.toString(), feature.tags)) {
+                reject(placement.key, "generator_filter");
+                continue;
+            }
             long seed = SeedMixer.generationSeed(world.getRandomSeed(), dimension, placement.stage.getName(),
                     logicalChunkX, logicalChunkZ, placement.key, placement.salt);
             Random random = new Random(seed);
-            if (placement.probability < 1.0D && random.nextDouble() >= placement.probability) {
+            boolean probabilityRejected = placement.probability < 1.0D && random.nextDouble() >= placement.probability;
+            if (probabilityRejected && placement.conditions.spatial == null) {
                 reject(placement.key, "probability");
                 continue;
             }
             int successes = 0;
             int attempts = placement.sampleAttempts(random);
             for (int attempt = 0; attempt < attempts && successes < placement.successLimit; attempt++) {
+                GenerationMetrics.record(GenerationMetrics.Counter.FEATURE_ATTEMPTS, 1);
                 FeatureContext context = context(snapshot, world, random, feature, FeatureOptions.DEFAULT,
-                        placement.conditions.site);
+                        placement.conditions.site).forGeneration();
                 BlockPosition origin = placement.sampleOrigin(context, chunkX, chunkZ, attempt);
                 if (origin == null) {
                     reject(placement.key, context.failure() == null ? FeatureResult.OUT_OF_BOUNDS : context.failure());
                     continue;
+                }
+                if (placement.conditions.spatial != null) {
+                    if (generationFields == null) {
+                        generationFields = WorldGenerationRuntime.fieldContext(world);
+                    }
+                    double weight = placement.conditions.spatial.weight(generationFields, origin.x, origin.z);
+                    double selection = NoiseDefinition.unit(seed, origin.x, attempt, origin.z);
+                    if (weight <= 0 || selection >= Math.min(1, placement.probability * weight)) {
+                        reject(placement.key, "spatial");
+                        continue;
+                    }
                 }
                 String rejection = placement.conditions.rejection(context, origin);
                 if (rejection != null) {
@@ -289,7 +360,28 @@ final class FeaturePlacementRegistry {
                 }
             }
         }
-        RegionalStructureRegistry.generate(world, logicalChunkX, logicalChunkZ, dimension);
+        if (stage == null || stage == GenerationStage.SURFACE_STRUCTURES
+                || stage == GenerationStage.UNDERGROUND_STRUCTURES) {
+            RegionalStructureRegistry.generate(world, logicalChunkX, logicalChunkZ, dimension, stage);
+        }
+    }
+
+    static Map<String, String> spatialDependencies(String owner, List<PlacementDefinition> pending) {
+        Map<String, String> result = new TreeMap<String, String>();
+        List<PlacementDefinition> definitions = new ArrayList<PlacementDefinition>();
+        for (PlacementDefinition definition : active.placements) {
+            if (owner == null || !owner.equals(definition.resourceOwner)) {
+                definitions.add(definition);
+            }
+        }
+        definitions.addAll(pending);
+        for (PlacementDefinition definition : definitions) {
+            if (definition.conditions.spatial != null) {
+                result.put("placement_spatial:" + definition.key,
+                        definition.conditions.spatial.signatureForSnapshot(SpatialRegistry.pendingSnapshot()));
+            }
+        }
+        return result;
     }
 
     static List<FeatureDescription> featureSnapshot() {
@@ -334,7 +426,8 @@ final class FeaturePlacementRegistry {
         PlacementPlan plan = new PlacementPlan(origin, definition.maxBlocks, definition.maxRadius);
         FeatureResult planned = definition.feature.plan(context, origin, plan);
         if (!planned.placed) {
-            return context.diagnostics().isEmpty() ? planned
+            return context.diagnostics().isEmpty()
+                    ? planned
                     : FeatureResult.rejected(planned.reason, context.diagnostics());
         }
         if (mode == ExecutionMode.PREVIEW) {
@@ -348,7 +441,8 @@ final class FeaturePlacementRegistry {
         PlacementPlan plan = new PlacementPlan(origin, definition.maxBlocks, definition.maxRadius);
         FeatureResult planned = definition.feature.plan(context, origin, plan);
         if (!planned.placed) {
-            return context.diagnostics().isEmpty() ? planned
+            return context.diagnostics().isEmpty()
+                    ? planned
                     : FeatureResult.rejected(planned.reason, context.diagnostics());
         }
         return plan.commit(context);
@@ -360,33 +454,34 @@ final class FeaturePlacementRegistry {
     }
 
     private enum ExecutionMode {
-        PREVIEW,
-        WORLD_GENERATION,
-        RUNTIME
+        PREVIEW, WORLD_GENERATION, RUNTIME
     }
 
     private static FeatureContext context(final Snapshot snapshot, World world, Random random,
             FeatureDefinition definition, FeatureOptions options) {
-        return context(snapshot, world, random, definition, options,
-                betamoon.worldgen.structure.SitePolicy.ANY);
+        return context(snapshot, world, random, definition, options, SitePolicy.ANY);
     }
 
     private static FeatureContext context(final Snapshot snapshot, World world, Random random,
-            FeatureDefinition definition, FeatureOptions options, betamoon.worldgen.structure.SitePolicy site) {
+            FeatureDefinition definition, FeatureOptions options, SitePolicy site) {
         int maxReads = definition.feature instanceof StructureFeature
                 ? ((StructureFeature) definition.feature).maximumReads()
                 : Math.max(256, definition.maxBlocks * 32);
-        return new FeatureContext(world, random, definition.key, maxReads,
-                new FeatureContext.FeatureResolver() {
-                    @Override
-                    public FeatureDefinition find(WorldGenKey key) {
-                        return snapshot.features.get(key);
-                    }
-                }, options, site);
+        return new FeatureContext(world, random, definition.key, maxReads, new FeatureContext.FeatureResolver() {
+            @Override
+            public FeatureDefinition find(WorldGenKey key) {
+                return snapshot.features.get(key);
+            }
+        }, options, site);
     }
 
     private static synchronized boolean isDisabled(WorldGenKey key) {
-        return disabled.contains(key);
+        PlacementDefinition definition = active.placementsByKey.get(key);
+        return disabled.contains(key) || definition != null && failed.contains(definition);
+    }
+
+    private static synchronized boolean isDisabled(PlacementDefinition definition) {
+        return disabled.contains(definition.key) || failed.contains(definition);
     }
 
     private static void rebuildDecoratorTemplates() {
@@ -402,7 +497,7 @@ final class FeaturePlacementRegistry {
     }
 
     private static synchronized void disable(PlacementDefinition placement, Throwable error) {
-        disabled.add(placement.key);
+        failed.add(placement);
         reject(placement.key, FeatureResult.RUNTIME_ERROR);
         String message = "Placement " + placement.key + " was disabled after an error: " + error.getMessage();
         BetaMoonCommon.LOGGER.warning(placement.owner + ": " + message);
@@ -444,6 +539,8 @@ final class FeaturePlacementRegistry {
         private final Map<WorldGenKey, FeatureDefinition> features;
         private final List<PlacementDefinition> placements;
         private final Map<WorldGenKey, PlacementDefinition> placementsByKey;
+        private final Map<GenerationStage, List<PlacementDefinition>> overworld;
+        private final Map<GenerationStage, List<PlacementDefinition>> nether;
 
         private Snapshot(Map<WorldGenKey, FeatureDefinition> features, List<PlacementDefinition> placements) {
             this.features = Collections.unmodifiableMap(features);
@@ -453,6 +550,29 @@ final class FeaturePlacementRegistry {
                 keyed.put(placement.key, placement);
             }
             placementsByKey = Collections.unmodifiableMap(keyed);
+            overworld = indexStages(placements, "minecraft:overworld");
+            nether = indexStages(placements, "minecraft:nether");
+        }
+
+        private List<PlacementDefinition> forStage(GenerationStage stage, boolean inNether) {
+            return stage == null ? placements : (inNether ? nether : overworld).get(stage);
+        }
+
+        private static Map<GenerationStage, List<PlacementDefinition>> indexStages(List<PlacementDefinition> placements,
+                String dimension) {
+            Map<GenerationStage, List<PlacementDefinition>> result = new EnumMap<GenerationStage, List<PlacementDefinition>>(
+                    GenerationStage.class);
+            for (GenerationStage stage : GenerationStage.values()) {
+                List<PlacementDefinition> eligible = new ArrayList<PlacementDefinition>();
+                for (PlacementDefinition placement : placements) {
+                    if (placement.stage == stage
+                            && (placement.dimensions.isEmpty() || placement.dimensions.contains(dimension))) {
+                        eligible.add(placement);
+                    }
+                }
+                result.put(stage, Collections.unmodifiableList(eligible));
+            }
+            return Collections.unmodifiableMap(result);
         }
 
         private static Snapshot empty() {

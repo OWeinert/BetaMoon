@@ -1,16 +1,20 @@
 package betamoon.luaapi.world;
 
+import betamoon.luaapi.utils.LuaGenerationSignature;
+import betamoon.luaapi.utils.LuaNamespacedTags;
+import betamoon.luaapi.utils.LuaSpatialSelector;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.worldgen.BlockPosition;
 import betamoon.worldgen.BlockSet;
+import betamoon.worldgen.GenerationStage;
 import betamoon.worldgen.RegionalStructureDefinition;
 import betamoon.worldgen.TerrainSurface;
 import betamoon.worldgen.WorldGenKey;
 import betamoon.worldgen.WorldGenKind;
 import betamoon.worldgen.WorldGenLimits;
 import betamoon.worldgen.WorldGenRegistry;
-import betamoon.worldgen.structure.CustomMetadataTransform;
 import betamoon.worldgen.structure.ConformPolicy;
+import betamoon.worldgen.structure.CustomMetadataTransform;
 import betamoon.worldgen.structure.ExcavationPolicy;
 import betamoon.worldgen.structure.FoundationPolicy;
 import betamoon.worldgen.structure.SitePolicy;
@@ -19,11 +23,11 @@ import betamoon.worldgen.structure.StructureFeature;
 import betamoon.worldgen.structure.StructureProcessors;
 import betamoon.worldgen.structure.StructureTemplate;
 import betamoon.worldgen.structure.StructureTransform;
-import betamoon.worldgen.structure.TerrainPolicy;
+import betamoon.worldgen.structure.TerracePolicy;
 import betamoon.worldgen.structure.TerrainFootprintPolicy;
 import betamoon.worldgen.structure.TerrainMaterialPolicy;
+import betamoon.worldgen.structure.TerrainPolicy;
 import betamoon.worldgen.structure.TerrainReplacementPolicy;
-import betamoon.worldgen.structure.TerracePolicy;
 import betamoon.worldgen.structure.WorldGenDataResolver;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,6 +35,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
@@ -42,8 +47,9 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
-import static betamoon.luaapi.utils.LuaDeclarationValues.required;
+
 import static betamoon.luaapi.utils.LuaDeclarationValues.fields;
+import static betamoon.luaapi.utils.LuaDeclarationValues.required;
 
 /**
  * Installs declarative structure authoring, registration, lookup, and capture
@@ -84,6 +90,8 @@ public final class StructureGenApi {
                     }
                     WorldGenRegistry.addFeature(declaredKey, WorldGenKind.STRUCTURE, "local_structure", feature,
                             Collections.<WorldGenKey>emptyList(), feature.maximumBlocks(), radius);
+                    WorldGenRegistry.setDisplayName(key, definition.get("displayName").optjstring(null));
+                    WorldGenRegistry.recordDeclaration(key, LuaGenerationSignature.of(definition));
                     return new FeatureReference(key);
                 } catch (IOException | IllegalArgumentException error) {
                     throw new LuaError("Structure " + key + ": " + error.getMessage());
@@ -177,7 +185,12 @@ public final class StructureGenApi {
                 WorldGenKey key = WorldGenRegistry.addRegionalStructure(declaredKey, start,
                         dimensions(definition.get("dimensions")), spacing, separation, salt, height.type, height.value,
                         maxDepth, maxPieces, maxDistance, termination, entities, pieces(definition.get("pieces")), site,
-                        searchAttempts, searchRadius, connectorTolerance);
+                        searchAttempts, searchRadius, connectorTolerance,
+                        GenerationStage.parse(definition.get("stage").optjstring("surface_structures")),
+                        LuaSpatialSelector.read(definition.get("spatial"), "RegionalStructure.spatial"),
+                        LuaNamespacedTags.read(definition.get("tags"), "RegionalStructure.tags"));
+                WorldGenRegistry.setDisplayName(key, definition.get("displayName").optjstring(null));
+                WorldGenRegistry.recordDeclaration(key, LuaGenerationSignature.of(definition));
                 return new RegionalStructureReference(key);
             }
         };
@@ -854,7 +867,7 @@ public final class StructureGenApi {
                     Collections.<String>emptySet(), Collections.<String>emptySet(), "any", null, null, null);
         }
         FeaturePlacementApi.table(value, path);
-        String sourceName = value.get("source").optjstring(defaultSource.name().toLowerCase(java.util.Locale.ROOT));
+        String sourceName = value.get("source").optjstring(defaultSource.name().toLowerCase(Locale.ROOT));
         String name = value.get("name").isnil() ? null : value.get("name").checkjstring();
         TerrainFootprintPolicy.Source source;
         if (sourceName.equals("authored") || sourceName.equals("named")) {
@@ -862,7 +875,7 @@ public final class StructureGenApi {
         } else {
             source = TerrainFootprintPolicy.Source.parse(sourceName);
         }
-        String shapeName = value.get("shape").optjstring(defaultShape.name().toLowerCase(java.util.Locale.ROOT));
+        String shapeName = value.get("shape").optjstring(defaultShape.name().toLowerCase(Locale.ROOT));
         TerrainFootprintPolicy.Shape shape = TerrainFootprintPolicy.Shape.parse(shapeName);
         if (shape == TerrainFootprintPolicy.Shape.AUTHORED && name != null) {
             source = TerrainFootprintPolicy.Source.NAMED;
@@ -1127,7 +1140,7 @@ public final class StructureGenApi {
     }
 
     private static String dimension(String value) {
-        String normalized = value.trim().toLowerCase(java.util.Locale.ROOT);
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
         if (normalized.equals("overworld")) {
             return "minecraft:overworld";
         }

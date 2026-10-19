@@ -47,6 +47,14 @@ public final class LootTableRegistry {
         return registered == null ? null : registered.definition;
     }
 
+    public static Map<AssetKey, LootTableDefinition> captureDefinitions() {
+        Map<AssetKey, LootTableDefinition> result = new LinkedHashMap<AssetKey, LootTableDefinition>();
+        for (Map.Entry<AssetKey, Registered> entry : active.entrySet()) {
+            result.put(entry.getKey(), entry.getValue().definition);
+        }
+        return Collections.unmodifiableMap(result);
+    }
+
     public static String dependencySignature(AssetKey key) {
         LootTableDefinition definition = find(key);
         if (definition == null) {

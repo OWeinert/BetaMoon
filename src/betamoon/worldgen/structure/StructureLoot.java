@@ -2,17 +2,19 @@ package betamoon.worldgen.structure;
 
 import betamoon.assets.AssetKey;
 import betamoon.assets.model.ModelJson;
-import betamoon.loot.InventoryLootOperation;
 import betamoon.loot.InventoryLootOperation.ExistingPolicy;
 import betamoon.loot.InventoryLootOperation.FixedStack;
 import betamoon.loot.InventoryLootOperation.OverflowPolicy;
 import betamoon.loot.InventoryLootOperation.SlotMode;
-import betamoon.loot.LootStackDefinition;
+import betamoon.loot.InventoryLootOperation;
+import betamoon.loot.LootContext;
 import betamoon.loot.LootStackDefinition.LootStack;
+import betamoon.loot.LootStackDefinition;
 import betamoon.loot.LootTableDefinition;
 import betamoon.loot.LootTableRegistry;
 import betamoon.worldgen.BlockPosition;
 import betamoon.worldgen.SeedMixer;
+import betamoon.worldgen.spatial.SpatialRegistry;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -33,9 +35,9 @@ public final class StructureLoot {
     private final ExistingPolicy existing;
     private final OverflowPolicy overflow;
 
-    private StructureLoot(BlockPosition position, String key, List<FixedStack> fixed,
-            LootTableDefinition inline, AssetKey table, SlotMode slots, List<Integer> explicitSlots,
-            ExistingPolicy existing, OverflowPolicy overflow) {
+    private StructureLoot(BlockPosition position, String key, List<FixedStack> fixed, LootTableDefinition inline,
+            AssetKey table, SlotMode slots, List<Integer> explicitSlots, ExistingPolicy existing,
+            OverflowPolicy overflow) {
         this.position = position;
         this.key = key;
         this.fixed = Collections.unmodifiableList(new ArrayList<FixedStack>(fixed));
@@ -64,15 +66,16 @@ public final class StructureLoot {
             if (value.get("key") != null) {
                 throw new IOException(path + ": fixed items do not use a random key");
             }
-            return new StructureLoot(position, null, fixed(itemsValue, path + ".items"), null, null,
-                    SlotMode.EXPLICIT, Collections.<Integer>emptyList(), existing, OverflowPolicy.REJECT);
+            return new StructureLoot(position, null, fixed(itemsValue, path + ".items"), null, null, SlotMode.EXPLICIT,
+                    Collections.<Integer>emptyList(), existing, OverflowPolicy.REJECT);
         }
         if (effectiveKey == null) {
             throw new IOException(path + ".key: randomized loot requires a stable key");
         }
         SlotSelection selection = slots(value.get("slots"), path + ".slots");
         OverflowPolicy overflow = overflow(value.get("overflow"), path + ".overflow");
-        LootTableDefinition inline = poolsValue == null ? null
+        LootTableDefinition inline = poolsValue == null
+                ? null
                 : LootTableDefinition.readInline(poolsValue, path + ".pools");
         AssetKey table = tableValue == null ? null : assetKey(tableValue, path + ".table");
         return new StructureLoot(position, effectiveKey, Collections.<FixedStack>emptyList(), inline, table,
@@ -80,16 +83,22 @@ public final class StructureLoot {
     }
 
     InventoryLootOperation plan(long seed) {
+        return plan(seed, null);
+    }
+
+    InventoryLootOperation plan(long seed, LootContext context) {
         if (!fixed.isEmpty()) {
             return InventoryLootOperation.fixed(fixed, existing);
         }
-        LootTableDefinition definition = inline == null ? LootTableRegistry.find(table) : inline;
+        LootTableDefinition definition = inline != null
+                ? inline
+                : context == null ? LootTableRegistry.find(table) : context.table(table);
         if (definition == null) {
             throw new IllegalStateException("Unknown loot table " + table);
         }
         String identity = inline == null ? "table:" + table : "inline:" + inline.semanticHash();
         long tableSeed = SeedMixer.derive(seed, SeedMixer.hash(identity));
-        List<LootStack> generated = definition.generate(tableSeed);
+        List<LootStack> generated = definition.generate(tableSeed, context);
         return InventoryLootOperation.random(generated, slots, explicitSlots, existing, overflow,
                 SeedMixer.derive(seed, SeedMixer.hash("slots")));
     }
@@ -97,8 +106,8 @@ public final class StructureLoot {
     String semantics() {
         StringBuilder result = new StringBuilder();
         result.append(position.x).append(',').append(position.y).append(',').append(position.z).append(':');
-        result.append(key == null ? "fixed" : key).append(':').append(existing).append(':').append(slots)
-                .append(':').append(explicitSlots).append(':').append(overflow);
+        result.append(key == null ? "fixed" : key).append(':').append(existing).append(':').append(slots).append(':')
+                .append(explicitSlots).append(':').append(overflow);
         for (FixedStack entry : fixed) {
             result.append(":f:").append(entry.slot).append(':').append(entry.stack.itemId).append(':')
                     .append(entry.stack.count).append(':').append(entry.stack.damage);
@@ -117,6 +126,20 @@ public final class StructureLoot {
             return inline.dependencySignature();
         }
         return table == null ? "fixed" : LootTableRegistry.dependencySignature(table);
+    }
+
+    String dependencySignature(Map<AssetKey, LootTableDefinition> definitions, SpatialRegistry.Snapshot spatial) {
+        if (inline != null) {
+            return inline.dependencySignature(definitions, spatial);
+        }
+        if (table == null) {
+            return "fixed";
+        }
+        LootTableDefinition definition = definitions.get(table);
+        if (definition == null) {
+            throw new IllegalStateException("Unknown pinned loot table " + table);
+        }
+        return definition.dependencySignature(definitions, spatial);
     }
 
     void validateReferences() throws IOException {

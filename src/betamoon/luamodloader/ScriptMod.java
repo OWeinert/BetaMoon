@@ -1,7 +1,10 @@
 package betamoon.luamodloader;
 
 import java.io.File;
+import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import org.luaj.vm2.LuaValue;
 
 public class ScriptMod {
@@ -19,6 +22,7 @@ public class ScriptMod {
     String failureReason;
     List<String> missingDependencies;
     LuaModSource source;
+    String generationCodeSignature;
 
     /**
      * Creates a script entry for a file that has not yet been parsed.
@@ -148,7 +152,8 @@ public class ScriptMod {
             return null;
         }
         File root = source != null && source.layout() == LuaModSource.Layout.DIRECTORY
-                ? source.moduleRoot() : scriptsDirectory;
+                ? source.moduleRoot()
+                : scriptsDirectory;
         if (root == null) {
             return null;
         }
@@ -160,13 +165,16 @@ public class ScriptMod {
                 return null;
             }
             return image;
-        } catch (java.io.IOException ignored) {
+        } catch (IOException ignored) {
             return null;
         }
     }
 
-    /** Reads a package image stored inside a ZIP, or returns null for file-backed mods. */
-    public byte[] readArchivedImage(int maxBytes) throws java.io.IOException {
+    /**
+     * Reads a package image stored inside a ZIP, or returns null for file-backed
+     * mods.
+     */
+    public byte[] readArchivedImage(int maxBytes) throws IOException {
         if (source == null || source.layout() != LuaModSource.Layout.ZIP || imagePath == null) {
             return null;
         }
@@ -181,9 +189,11 @@ public class ScriptMod {
         return source == null ? 0L : source.storageRevision();
     }
 
-    /** Returns single_file, directory, zip, or unknown without exposing disk paths. */
+    /**
+     * Returns single_file, directory, zip, or unknown without exposing disk paths.
+     */
     public String getPackageLayout() {
-        return source == null ? "unknown" : source.layout().name().toLowerCase(java.util.Locale.ROOT);
+        return source == null ? "unknown" : source.layout().name().toLowerCase(Locale.ROOT);
     }
 
     /** Returns the package-relative entrypoint used by the loader. */
@@ -193,7 +203,7 @@ public class ScriptMod {
 
     /** Returns package-relative Lua source paths as an immutable snapshot. */
     public List<String> getSourcePaths() {
-        return source == null ? java.util.Collections.singletonList(sourceFileName) : source.sourcePaths();
+        return source == null ? Collections.singletonList(sourceFileName) : source.sourcePaths();
     }
 
     public boolean supportsReload() {

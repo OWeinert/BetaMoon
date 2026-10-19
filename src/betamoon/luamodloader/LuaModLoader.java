@@ -1,22 +1,24 @@
 package betamoon.luamodloader;
 
-import betamoon.multiblock.MultiblockRegistry;
-
 import betamoon.BetaMoonCommon;
-import betamoon.particles.ParticleRegistry;
+import betamoon.atmosphere.AtmosphereRegistry;
 import betamoon.config.BetaMoonConfig;
+import betamoon.entity.EntityPresentationResources;
+import betamoon.entity.EntityTypeRegistry;
 import betamoon.fluid.interaction.FluidInteractionRegistry;
 import betamoon.io.IoUtils;
+import betamoon.loot.LootTableRegistry;
 import betamoon.luaapi.block.BlockCallbackRegistry;
 import betamoon.luaapi.fluid.FluidDefinitionTracker;
 import betamoon.luaapi.module.ModuleRegistry;
+import betamoon.multiblock.MultiblockRegistry;
+import betamoon.particles.ParticleRegistry;
 import betamoon.recipes.RecipeModificationHandler;
 import betamoon.tileentity.TileEntityRegistry;
-import betamoon.entity.EntityTypeRegistry;
-import betamoon.entity.EntityPresentationResources;
 import betamoon.worldgen.BiomeGenRegistry;
 import betamoon.worldgen.WorldGenRegistry;
-import betamoon.loot.LootTableRegistry;
+import betamoon.worldgen.spatial.SpatialRegistry;
+import betamoon.worldgen.terrain.TerrainRegistry;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -101,9 +103,12 @@ public final class LuaModLoader {
         EntityTypeRegistry.retainOwners(presentScripts);
         ParticleRegistry.retainOwners(presentScripts);
         MultiblockRegistry.retainOwners(presentScripts);
+        SpatialRegistry.retainOwners(presentScripts);
+        AtmosphereRegistry.retainOwners(presentScripts);
         LootTableRegistry.retainOwners(presentScripts);
         WorldGenRegistry.retainOwners(presentScripts);
         BiomeGenRegistry.retainOwners(presentScripts);
+        TerrainRegistry.retainOwners(presentScripts);
         EntityPresentationResources.prune();
         reportFailedMods(failedMods);
         reportLoadSummary(ordered, failedMods);

@@ -1,18 +1,19 @@
 package betamoon.luaapi.fluid;
 
+import betamoon.assets.io.FileAssetProvider;
+import betamoon.client.assets.AtlasTextures;
+import betamoon.client.assets.ClientAssets;
 import betamoon.fluid.FluidBlockRole;
+import betamoon.fluid.FluidEntityPolicy;
 import betamoon.fluid.FluidFlowPolicy;
 import betamoon.fluid.FluidRegistration;
 import betamoon.fluid.FluidRegistry;
 import betamoon.fluid.block.FluidBlock;
 import betamoon.fluid.interaction.FluidInteractionRegistry;
 import betamoon.fluid.item.FluidBucketItem;
-import betamoon.assets.io.FileAssetProvider;
-import betamoon.client.assets.AtlasTextures;
-import betamoon.client.assets.ClientAssets;
+import betamoon.instrumentation.agent.AgentRuntime;
 import betamoon.luaapi.BetaMoonModule;
 import betamoon.luamodloader.LuaScriptRegistry;
-import betamoon.instrumentation.agent.AgentRuntime;
 import betamoon.resources.EnumTexAtlas;
 import java.io.File;
 import java.io.FileReader;
@@ -26,7 +27,10 @@ import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.jse.JsePlatform;
 
-/** Exercises shorthand, advanced binding, preflight and retained native identities. */
+/**
+ * Exercises shorthand, advanced binding, preflight and retained native
+ * identities.
+ */
 public final class FluidLuaApiTest {
     private FluidLuaApiTest() {
     }
@@ -57,6 +61,10 @@ public final class FluidLuaApiTest {
 
     private static void installTestHookStatuses() {
         System.setProperty(AgentRuntime.STATUS_PROPERTY, "ACTIVE");
+        for (String id : new String[]{"falling", "farmland", "reeds", "habitat", "habitat_position", "pathfinding",
+                "sponge", "boat"}) {
+            AgentRuntime.getReport().applied("betamoon:fluid_ecology:" + id, "test");
+        }
         for (String id : new String[]{"water_movement", "lava_movement", "eye_material", "entity_tick",
                 "native_lava_damage", "breathing", "living_tick"}) {
             AgentRuntime.getReport().applied("betamoon:fluid_contact:" + id, "test");
@@ -112,8 +120,7 @@ public final class FluidLuaApiTest {
                 + "local flowing=betamoon.blocks:add{id=242,key='quality:block/brine_flowing',type='fluid',"
                 + "fluid=definition,fluidRole='flowing'};"
                 + "local still=betamoon.blocks:add{id=246,key='quality:block/brine_still',type='fluid',"
-                + "fluid=definition,fluidRole='still'};"
-                + "brine=definition:bind{flowing=flowing,still=still};"
+                + "fluid=definition,fluidRole='still'};" + "brine=definition:bind{flowing=flowing,still=still};"
                 + "assert(brine.flowingBlock.id==242 and brine.stillBlock.id==246 and brine.bucketItem==nil)").call();
         require(FluidRegistry.instance().isSameFluid(242, 246),
                 "Advanced binding supports deliberately non-adjacent pair IDs");
@@ -121,22 +128,21 @@ public final class FluidLuaApiTest {
 
     private static void verifyPolicyParsing(Globals lua) {
         require(policy(lua, "water", null).sourceCreation() == FluidFlowPolicy.SourceCreation.TWO_ADJACENT
-                        && policy(lua, "lava", null).sourceCreation() == FluidFlowPolicy.SourceCreation.NEVER,
+                && policy(lua, "lava", null).sourceCreation() == FluidFlowPolicy.SourceCreation.NEVER,
                 "Water is renewable by default and lava is finite by default");
         require(policy(lua, "water", "{finite=true}").sourceCreation() == FluidFlowPolicy.SourceCreation.NEVER
-                        && policy(lua, "lava", "{finite=false}").sourceCreation()
-                                == FluidFlowPolicy.SourceCreation.TWO_ADJACENT,
+                && policy(lua, "lava", "{finite=false}")
+                        .sourceCreation() == FluidFlowPolicy.SourceCreation.TWO_ADJACENT,
                 "Finite explicitly overrides either preset");
-        require(policy(lua, "water", "{sourceCreation='never'}").sourceCreation()
-                        == FluidFlowPolicy.SourceCreation.NEVER
-                        && policy(lua, "water", "{finite=false,sourceCreation='two_adjacent'}").sourceCreation()
-                                == FluidFlowPolicy.SourceCreation.TWO_ADJACENT,
+        require(policy(lua, "water", "{sourceCreation='never'}")
+                .sourceCreation() == FluidFlowPolicy.SourceCreation.NEVER
+                && policy(lua, "water", "{finite=false,sourceCreation='two_adjacent'}")
+                        .sourceCreation() == FluidFlowPolicy.SourceCreation.TWO_ADJACENT,
                 "Existing sourceCreation declarations and matching explicit settings remain valid");
         lua.load("local function invalid(flow) "
                 + "return not pcall(function() betamoon.fluids:define{key='quality:fluid/bad_finite',"
                 + "material='water',appearance={still=1,flowing=2},flow=flow} end) end;"
-                + "assert(invalid{finite='yes'});"
-                + "assert(invalid{finite=true,sourceCreation='two_adjacent'});"
+                + "assert(invalid{finite='yes'});" + "assert(invalid{finite=true,sourceCreation='two_adjacent'});"
                 + "assert(invalid{finite=false,sourceCreation='never'})").call();
 
         LuaValue declaration = lua.load("return {key='quality:fluid/policy',material='water',"
@@ -145,12 +151,12 @@ public final class FluidLuaApiTest {
                 + "contactDamage=3,contactIntervalTicks=15},"
                 + "camera={fogColor=0x123456,fogDensity=0.2,overlay=false}}").call();
         FluidDraft draft = FluidDeclaration.parse(declaration, false).draft;
-        require(draft.entity().movement() == betamoon.fluid.FluidEntityPolicy.Movement.LAVA
-                && draft.entity().contactDamage() == 3 && draft.entity().contactIntervalTicks() == 15,
+        require(draft.entity().movement() == FluidEntityPolicy.Movement.LAVA && draft.entity().contactDamage() == 3
+                && draft.entity().contactIntervalTicks() == 15,
                 "Entity policy compiles independently of fluid registration");
         require(draft.camera().fogColor().intValue() == 0x123456
-                && Math.abs(draft.camera().fogDensity().floatValue() - 0.2F) < 0.0001F
-                && !draft.camera().hasOverlay(), "Camera fields compile into an immutable render policy");
+                && Math.abs(draft.camera().fogDensity().floatValue() - 0.2F) < 0.0001F && !draft.camera().hasOverlay(),
+                "Camera fields compile into an immutable render policy");
         lua.load("local ok=pcall(function() betamoon.fluids:define{key='quality:fluid/bad_policy',"
                 + "material='water',appearance={still=1,flowing=2},"
                 + "entity={contactIntervalTicks=201}} end); assert(not ok)").call();
@@ -171,16 +177,16 @@ public final class FluidLuaApiTest {
 
     private static FluidFlowPolicy policy(Globals lua, String preset, String flow) {
         String flowField = flow == null ? "" : ",flow=" + flow;
-        LuaValue declaration = lua.load("return {key='quality:fluid/policy_parse',material='water',preset='"
-                + preset + "',appearance={still=1,flowing=2}" + flowField + "}").call();
+        LuaValue declaration = lua.load("return {key='quality:fluid/policy_parse',material='water',preset='" + preset
+                + "',appearance={still=1,flowing=2}" + flowField + "}").call();
         return FluidDeclaration.parse(declaration, false).draft.flow();
     }
 
     private static void verifyPreflight(Globals lua) {
         lua.load("local ok=pcall(function() betamoon.fluids:add{key='quality:fluid/invalid',material='water',"
                 + "blocks={flowing={id=243,key='quality:block/not_allocated'},"
-                + "still={id=1,key='quality:block/occupied'}},appearance={still=1,flowing=2}} end);"
-                + "assert(not ok)").call();
+                + "still={id=1,key='quality:block/occupied'}},appearance={still=1,flowing=2}} end);" + "assert(not ok)")
+                .call();
         require(Block.blocksList[243] == null, "Shorthand validates every nested block before allocating the first");
     }
 
@@ -208,14 +214,14 @@ public final class FluidLuaApiTest {
                 + "blocks={flowing={id=240,key='quality:block/acid_flowing'},"
                 + "still={id=241,key='quality:block/acid_still'}},"
                 + "bucket={id=28200,key='quality:item/acid_bucket',icon={x=3,y=4}},"
-                + "appearance={still=21,flowing=22},flow={tickRate=11}};"
-                + "assert(acid.flowingBlock.texture==21)").call();
+                + "appearance={still=21,flowing=22},flow={tickRate=11}};" + "assert(acid.flowingBlock.texture==21)")
+                .call();
         require(Block.blocksList[240] == flowing && Block.blocksList[241] == still && Item.itemsList[28200] == bucket,
                 "Reload preserves native block and item identity");
         require(FluidRegistry.instance().getByBlockId(240).definition().flow().tickRate() == 11,
                 "Reload atomically replaces the fluid policy snapshot");
-        require(FluidRegistry.instance().getByBlockId(240).definition().flow().sourceCreation()
-                        == FluidFlowPolicy.SourceCreation.TWO_ADJACENT,
+        require(FluidRegistry.instance().getByBlockId(240).definition().flow()
+                .sourceCreation() == FluidFlowPolicy.SourceCreation.TWO_ADJACENT,
                 "Reload restores the preset renewal rule when finite is omitted");
         require(FluidRegistry.instance().getByBlockId(240).definition().entity().drowning()
                 && FluidRegistry.instance().getByBlockId(240).definition().camera().hasOverlay(),

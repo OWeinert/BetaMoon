@@ -3,6 +3,7 @@ package betamoon.worldgen;
 import betamoon.system.BetaMoonWorldData;
 import betamoon.system.WorldServiceRuntime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -15,24 +16,24 @@ import net.minecraft.src.World;
 
 /** Per-world saved index of regional starts and completed chunk slices. */
 final class RegionalStructureIndex {
-    private static final Map<World, RegionalStructureIndex> WORLDS =
-            new WeakHashMap<World, RegionalStructureIndex>();
+    private static final Map<World, RegionalStructureIndex> WORLDS = new WeakHashMap<World, RegionalStructureIndex>();
 
     private final BetaMoonWorldData storage;
     private final NBTTagCompound savedStarts;
     private final NBTTagCompound savedRejected;
     private final Map<String, RegionalStructurePlan> starts = new LinkedHashMap<String, RegionalStructurePlan>();
     private final Set<String> rejectedStarts = new LinkedHashSet<String>();
-    private final Map<Long, List<RegionalStructurePlan>> byChunk =
-            new LinkedHashMap<Long, List<RegionalStructurePlan>>();
+    private final Map<Long, List<RegionalStructurePlan>> byChunk = new LinkedHashMap<Long, List<RegionalStructurePlan>>();
 
     private RegionalStructureIndex(BetaMoonWorldData storage) {
         this.storage = storage;
         savedStarts = storage.structures().hasKey("Starts")
-                ? storage.structures().getCompoundTag("Starts") : new NBTTagCompound();
+                ? storage.structures().getCompoundTag("Starts")
+                : new NBTTagCompound();
         storage.structures().setCompoundTag("Starts", savedStarts);
         savedRejected = storage.structures().hasKey("Rejected")
-                ? storage.structures().getCompoundTag("Rejected") : new NBTTagCompound();
+                ? storage.structures().getCompoundTag("Rejected")
+                : new NBTTagCompound();
         storage.structures().setCompoundTag("Rejected", savedRejected);
         int loaded = 0;
         for (Object value : savedStarts.func_28110_c()) {
@@ -89,7 +90,12 @@ final class RegionalStructureIndex {
     }
 
     synchronized void changed(RegionalStructurePlan plan) {
-        save(plan);
+        if (!savedStarts.hasKey(plan.id())) {
+            save(plan);
+        } else {
+            plan.writeCompletion(savedStarts.getCompoundTag(plan.id()));
+            storage.markDirty();
+        }
     }
 
     synchronized void reject(String id) {
@@ -104,12 +110,11 @@ final class RegionalStructureIndex {
 
     synchronized List<RegionalStructurePlan> forChunk(int chunkX, int chunkZ) {
         List<RegionalStructurePlan> values = byChunk.get(chunkKey(chunkX, chunkZ));
-        return values == null ? java.util.Collections.<RegionalStructurePlan>emptyList()
-                : new ArrayList<RegionalStructurePlan>(values);
+        return values == null ? Collections.<RegionalStructurePlan>emptyList() : values;
     }
 
     private void index(RegionalStructurePlan plan) {
-        java.util.Set<Long> occupied = new java.util.LinkedHashSet<Long>();
+        Set<Long> occupied = new LinkedHashSet<Long>();
         for (RegionalStructurePlan.Piece piece : plan.pieces) {
             int minX = Math.floorDiv(piece.bounds.min.x, 16);
             int maxX = Math.floorDiv(piece.bounds.max.x, 16);
@@ -123,11 +128,11 @@ final class RegionalStructureIndex {
         }
         for (Long chunk : occupied) {
             List<RegionalStructurePlan> values = byChunk.get(chunk);
-            if (values == null) {
-                values = new ArrayList<RegionalStructurePlan>();
-                byChunk.put(chunk, values);
-            }
-            values.add(plan);
+            List<RegionalStructurePlan> updated = values == null
+                    ? new ArrayList<RegionalStructurePlan>()
+                    : new ArrayList<RegionalStructurePlan>(values);
+            updated.add(plan);
+            byChunk.put(chunk, Collections.unmodifiableList(updated));
         }
     }
 

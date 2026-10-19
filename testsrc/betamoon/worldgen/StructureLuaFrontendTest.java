@@ -34,9 +34,9 @@ public final class StructureLuaFrontendTest {
                             .beginPublication("structure_lua_frontend_test.lua", "Structure Lua frontend test")) {
                 lua.load(script()).call();
                 String example = new String(
-                        Files.readAllBytes(Paths.get("examples/03_adv_22_complete_worldgen_pack/structures.lua")),
+                        Files.readAllBytes(Paths.get("testsrc/betamoon/worldgen/fixtures/stone_circle.lua")),
                         StandardCharsets.UTF_8);
-                lua.load(example, "@examples/03_adv_22_complete_worldgen_pack/structures.lua").call().call();
+                lua.load(example, "@testsrc/betamoon/worldgen/fixtures/stone_circle.lua").call().call();
                 lootBatch.validate();
                 batch.validate();
                 lootBatch.publish();
@@ -57,8 +57,8 @@ public final class StructureLuaFrontendTest {
                     "Lua geometry produces the same bounds as JSON geometry");
             require(description(structures, "test:structure/loot").blocks == 1,
                     "Builder loot helpers accept typed reusable table handles");
-            require(description(structures, "example:structure/amber_stone_circle").blocks > 0,
-                    "The bundled builder example compiles and publishes");
+            require(description(structures, "test:structure/stone_circle").blocks > 0,
+                    "The standalone builder fixture compiles and publishes");
             System.out.println("Structure Lua frontend checks passed.");
         } finally {
             LootTableRegistry.clear();

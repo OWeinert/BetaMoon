@@ -1,0 +1,35 @@
+{
+  "key": "example:terrain_source/hollow_marches",
+  "type": "profile_map",
+  "fallback": "example:terrain/marches_lowlands",
+  "blendWidth": 48,
+  "entries": [
+    {
+      "profile": "example:terrain/marches_mesas",
+      "spatial": {
+        "field": "example:field/marches_regions",
+        "weight": [
+          {
+            "at": 0,
+            "value": 0
+          },
+          {
+            "at": 0.3,
+            "value": 0
+          },
+          {
+            "at": 0.65,
+            "value": 2
+          },
+          {
+            "at": 1,
+            "value": 4
+          }
+        ]
+      }
+    }
+  ],
+  "material": "example:material/marches_strata",
+  "seaLevel": 60,
+  "floorHeight": 0
+}

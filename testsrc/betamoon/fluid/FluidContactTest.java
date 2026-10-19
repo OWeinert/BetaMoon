@@ -3,16 +3,19 @@ package betamoon.fluid;
 import betamoon.content.ContentKey;
 import betamoon.content.ContentType;
 import betamoon.fluid.contact.FluidContactResolver;
-import betamoon.fluid.contact.FluidContactSnapshot;
 import betamoon.fluid.contact.FluidContactRuntime;
+import betamoon.fluid.contact.FluidContactSnapshot;
+import betamoon.instrumentation.hooks.fluid.FluidEcologyCallbacks;
 import net.minecraft.src.AxisAlignedBB;
+import net.minecraft.src.Block;
+import net.minecraft.src.Chunk;
+import net.minecraft.src.Entity;
+import net.minecraft.src.IChunkProvider;
+import net.minecraft.src.IProgressUpdate;
+import net.minecraft.src.Material;
+import net.minecraft.src.NBTTagCompound;
 import net.minecraft.src.World;
 import net.minecraft.src.WorldProvider;
-import net.minecraft.src.IChunkProvider;
-import net.minecraft.src.Chunk;
-import net.minecraft.src.IProgressUpdate;
-import net.minecraft.src.Entity;
-import net.minecraft.src.NBTTagCompound;
 
 /** Contact coverage, eye depth, identity, and bounded sampling checks. */
 public final class FluidContactTest {
@@ -55,26 +58,25 @@ public final class FluidContactTest {
         actor.setPosition(0.5D, 0.0D, 0.5D);
         for (int tick = 1; tick <= 5; tick++) {
             actor.ticksExisted = tick;
-            betamoon.fluid.contact.FluidContactRuntime.finishEntityTick(actor, 0, false);
+            FluidContactRuntime.finishEntityTick(actor, 0, false);
         }
         require(actor.damage == 0, "Contact damage waits for the declared interval");
         actor.ticksExisted = 6;
-        betamoon.fluid.contact.FluidContactRuntime.finishEntityTick(actor, 0, false);
+        FluidContactRuntime.finishEntityTick(actor, 0, false);
         require(actor.damage == 2, "Touching one fluid applies one interval damage event");
         actor.setPosition(3.5D, 0.0D, 0.5D);
         actor.ticksExisted = 7;
-        betamoon.fluid.contact.FluidContactRuntime.finishEntityTick(actor, 0, false);
+        FluidContactRuntime.finishEntityTick(actor, 0, false);
         actor.setPosition(0.5D, 0.0D, 0.5D);
         actor.ticksExisted = 8;
-        betamoon.fluid.contact.FluidContactRuntime.finishEntityTick(actor, 0, false);
+        FluidContactRuntime.finishEntityTick(actor, 0, false);
         require(actor.damage == 2, "Leaving and reentering resets the interval timer");
 
         TestEntity neutralMover = new TestEntity(world);
         neutralMover.setPosition(1.5D, 0.0D, 0.5D);
         neutralMover.ticksExisted = 1;
         require(!FluidContactRuntime.movement(neutralMover, FluidEntityPolicy.Movement.WATER)
-                && !FluidContactRuntime.shouldDrown(neutralMover)
-                && !FluidContactRuntime.isWet(neutralMover, false),
+                && !FluidContactRuntime.shouldDrown(neutralMover) && !FluidContactRuntime.isWet(neutralMover, false),
                 "A water carrier does not force movement, drowning, or wetness");
         FluidContactRuntime.tickWithoutNativeUpdate(neutralMover);
         require(neutralMover.fire == 600, "Manual actors receive declared ignition without native entity ticks");
@@ -92,16 +94,43 @@ public final class FluidContactTest {
         } catch (IllegalArgumentException expected) {
             // Validation runs before registration.
         }
+        ecology(world, first);
         System.out.println("Fluid contact checks passed.");
+    }
+
+    private static void ecology(TestWorld world, FluidRegistration registration) {
+        world.firstMetadata = 0;
+        require(FluidEcologyCallbacks.farmland(world, 0, 0, 0) == Material.rock,
+                "A water carrier must not silently hydrate farmland");
+        require(FluidEcologyCallbacks.pathBlock(world, 0, 0, 0) == Block.obsidian.blockID,
+                "Custom-fluid pathfinding defaults to blocked");
+        FluidDefinition base = registration.definition();
+        FluidRegistry.instance()
+                .publish(new FluidDefinition(base.key(), base.owner(), base.preset(), base.carrier(), base.flow(),
+                        base.appearance(), base.displacement(), base.entity(), base.camera(),
+                        new FluidEcologyPolicy(true, true, true, false, true, true, "water"), base.flowingBlockId(),
+                        base.stillBlockId(), -1, false));
+        require(FluidEcologyCallbacks.farmland(world, 0, 0, 0) == Material.water,
+                "Explicit hydration policy follows stable fluid identity");
+        require(FluidEcologyCallbacks.reeds(world, 0, 0, 0) == Material.water,
+                "Explicit reed policy is independent of carrier");
+        require(FluidEcologyCallbacks.falling(world, 0, 0, 0) == 2,
+                "Falling blocks consult their dedicated fluid trait");
+        require(FluidEcologyCallbacks.pathBlock(world, 0, 0, 0) == Block.waterStill.blockID,
+                "Pathfinding uses the explicit avoidance category");
+        require(FluidEcologyCallbacks.boat(world, AxisAlignedBB.getBoundingBox(0.1, 0.1, 0.1, 0.9, 0.5, 0.9),
+                Material.water), "Boats float in an explicitly enabled custom fluid");
+        require(world.getBlockId(0, 0, 0) == base.stillBlockId(),
+                "Synthetic path materials must never change world blocks");
     }
 
     private static FluidDefinition definition(String name, int flowing, int still) {
         return new FluidDefinition(ContentKey.of("contact_test", ContentType.FLUID, name), "contact_test.lua",
-                "neutral", FluidCarrier.WATER, FluidFlowPolicy.neutral(),
-                new FluidAppearance(1, 2, 0xFFFFFF, 1, 0, 3), FluidDisplacementPolicy.DROP,
+                "neutral", FluidCarrier.WATER, FluidFlowPolicy.neutral(), new FluidAppearance(1, 2, 0xFFFFFF, 1, 0, 3),
+                FluidDisplacementPolicy.DROP,
                 new FluidEntityPolicy(FluidEntityPolicy.Movement.NONE, 0.0F, false, "first".equals(name),
-                        "first".equals(name), "second".equals(name),
-                        "first".equals(name) ? 2 : 0, 5), flowing, still, -1, false);
+                        "first".equals(name), "second".equals(name), "first".equals(name) ? 2 : 0, 5),
+                flowing, still, -1, false);
     }
 
     private static void require(boolean condition, String message) {
@@ -116,20 +145,43 @@ public final class FluidContactTest {
         private int firstMetadata;
 
         private TestWorld() {
-            super(null, "fluid_contact_test", new WorldProvider() { }, 123L);
+            super(null, "fluid_contact_test", new WorldProvider() {
+            }, 123L);
         }
 
         @Override
         protected IChunkProvider getChunkProvider() {
             return new IChunkProvider() {
-                public boolean chunkExists(int x, int z) { return true; }
-                public Chunk provideChunk(int x, int z) { return null; }
-                public Chunk prepareChunk(int x, int z) { return null; }
-                public void populate(IChunkProvider provider, int x, int z) { }
-                public boolean saveChunks(boolean force, IProgressUpdate progress) { return true; }
-                public boolean unload100OldestChunks() { return false; }
-                public boolean canSave() { return false; }
-                public String makeString() { return "FluidContactTest"; }
+                public boolean chunkExists(int x, int z) {
+                    return true;
+                }
+
+                public Chunk provideChunk(int x, int z) {
+                    return null;
+                }
+
+                public Chunk prepareChunk(int x, int z) {
+                    return null;
+                }
+
+                public void populate(IChunkProvider provider, int x, int z) {
+                }
+
+                public boolean saveChunks(boolean force, IProgressUpdate progress) {
+                    return true;
+                }
+
+                public boolean unload100OldestChunks() {
+                    return false;
+                }
+
+                public boolean canSave() {
+                    return false;
+                }
+
+                public String makeString() {
+                    return "FluidContactTest";
+                }
             };
         }
 

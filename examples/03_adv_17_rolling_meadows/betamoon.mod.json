@@ -1,0 +1,7 @@
+{
+  "entrypoint": "main.lua",
+  "name": "Rolling Meadows World Generation Example",
+  "version": "1.0.0",
+  "description": "A first owned terrain preset: bounded layered noise controls rolling hills, a fixed meadow biome supplies grass, and a tunnel carver adds caves. JSON holds the reusable generation definitions; main.lua registers them and selects an oak placement and a coal rule. Copy the complete 03_adv_17_rolling_meadows folder into betamoon/scripts.\n\nIn Create World, cycle World Generation to Rolling Meadows. Generation Settings lets you toggle this preset's ores, trees and native population categories. Create a new world and explore grassy hills, small lakes and caves. Existing worlds do not adopt this preset. Read README.md for the definition order and safe customization tips.",
+  "dependencies": []
+}

@@ -1,8 +1,12 @@
 package betamoon.luaapi.world;
 
+import static betamoon.luaapi.utils.LuaDeclarationValues.required;
+
 import betamoon.minecraft.MinecraftBuiltins;
 import betamoon.worldgen.BiomeSpawnGroup;
 import betamoon.worldgen.BiomeTreeMode;
+import betamoon.worldgen.WorldGenKey;
+import betamoon.worldgen.WorldGenKind;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -17,7 +21,6 @@ import net.minecraft.src.EntityLiving;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
-import static betamoon.luaapi.utils.LuaDeclarationValues.required;
 
 /**
  * Fully read biome settings; runtime installation is performed by
@@ -28,7 +31,7 @@ public final class BiomeDeclaration {
         INHERIT, SNOW, RAIN, DRY
     }
 
-    public final String name;
+    public final String displayName;
     public final String key;
     public final BiomeGenBase basedOn;
     public final Integer color;
@@ -50,8 +53,12 @@ public final class BiomeDeclaration {
         if (!definition.istable()) {
             throw new LuaError("worldgen.biomes:add expects a definition table.");
         }
-        name = required(definition, "name").checkjstring();
         key = definition.get("key").isnil() ? null : definition.get("key").checkjstring();
+        LuaValue label = displayNameValue(definition);
+        if (label.isnil() && key == null) {
+            throw new LuaError("Biome.displayName: expected a name for an unkeyed biome");
+        }
+        displayName = label.isnil() ? WorldGenKey.parse(key, WorldGenKind.BIOME).toString() : label.checkjstring();
         LuaValue source = definition.get("basedOn");
         basedOn = source.isnil() ? null : resolveBiome(source.checkjstring());
         if (!source.isnil() && basedOn == null) {
@@ -95,7 +102,17 @@ public final class BiomeDeclaration {
         }
         LuaValue decorator = definition.get("decorator");
         decorators = definition.get("decorators").isnil() && decorator.istable()
-                ? decorator.get("placements") : definition.get("decorators");
+                ? decorator.get("placements")
+                : definition.get("decorators");
+    }
+
+    /**
+     * Canonical spelling wins when both it and the compatibility alias are
+     * supplied.
+     */
+    static LuaValue displayNameValue(LuaValue definition) {
+        LuaValue value = definition.get("displayName");
+        return value.isnil() ? definition.get("name") : value;
     }
 
     private static Set<String> readTags(LuaValue value) {

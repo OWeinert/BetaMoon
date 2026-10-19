@@ -1,35 +1,36 @@
 package betamoon.gui;
 
-import betamoon.client.control.input.InputRouter;
-import betamoon.client.control.input.InputMapRegistration;
-import betamoon.client.control.input.InputMapDefinition;
 import betamoon.client.control.input.InputActionDefinition;
 import betamoon.client.control.input.InputBinding;
+import betamoon.client.control.input.InputMapDefinition;
+import betamoon.client.control.input.InputMapRegistration;
+import betamoon.client.control.input.InputRouter;
 import betamoon.content.ContentKey;
 import betamoon.content.ContentType;
-import java.lang.reflect.Constructor;
-import betamoon.gui.framework.GuiContainer;
+import betamoon.gui.framework.GuiAction;
 import betamoon.gui.framework.GuiComponentScreen;
+import betamoon.gui.framework.GuiContainer;
+import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiDialogScreen;
 import betamoon.gui.framework.GuiElement;
-import betamoon.gui.widget.GuiButton;
-import betamoon.gui.widget.GuiMessage;
-import betamoon.gui.widget.GuiDialog;
-import betamoon.gui.widget.GuiScrollView;
-import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.framework.GuiRenderer;
 import betamoon.gui.framework.GuiScene;
 import betamoon.gui.framework.GuiTextureCache;
+import betamoon.gui.widget.GuiButton;
+import betamoon.gui.widget.GuiMinecraftButton;
+import betamoon.gui.widget.GuiDialog;
 import betamoon.gui.widget.GuiIcon;
+import betamoon.gui.widget.GuiMessage;
+import betamoon.gui.widget.GuiScrollView;
 import betamoon.gui.widget.GuiTextBox;
 import betamoon.io.IoUtils;
 import betamoon.luaapi.minecraft.MinecraftApi;
 import betamoon.luaapi.tileentity.TileEntityApi;
-import betamoon.luamodloader.MultiblockExamplesTest;
-import betamoon.luamodloader.NonReloadableScriptRegistry;
 import betamoon.luamodloader.LuaScriptErrors;
 import betamoon.luamodloader.LuaScriptRegistry;
+import betamoon.luamodloader.MultiblockExamplesTest;
+import betamoon.luamodloader.NonReloadableScriptRegistry;
 import betamoon.luamodloader.ScriptMod;
 import betamoon.resources.LuaTextureResources;
 import betamoon.tileentity.ContainerControlRuntime;
@@ -39,13 +40,22 @@ import betamoon.tileentity.LuaTileEntity;
 import betamoon.tileentity.TileEntityRegistry;
 import betamoon.update.SemanticVersion;
 import betamoon.update.UpdateRelease;
+import betamoon.worldgen.creation.GenerationSelectionStore;
+import betamoon.worldgen.creation.GenerationSelection;
+import betamoon.worldgen.creation.GenerationDraft;
+import betamoon.worldgen.creation.GenerationCatalog;
+import betamoon.worldgen.creation.MissingWorldGenerator;
+import betamoon.worldgen.creation.GenerationDraft;
+import betamoon.worldgen.terrain.GeneratorProfileRegistry;
+import betamoon.worldgen.terrain.WorldGeneratorProfile;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileReader;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.net.URL;
 import java.net.URI;
+import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
@@ -65,6 +75,7 @@ import net.minecraft.src.IChunkProvider;
 import net.minecraft.src.InventoryPlayer;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.RenderEngine;
+import net.minecraft.src.SaveConverterMcRegion;
 import net.minecraft.src.Tessellator;
 import net.minecraft.src.TileEntity;
 import net.minecraft.src.UnexpectedThrowable;
@@ -185,6 +196,7 @@ public final class GuiShowcaseRenderTest {
             verifyTextureRenderState(minecraft, font);
             renderFrameworkScreens(minecraft, font, output);
             renderTextBox(minecraft, font, output);
+            renderCreationScreens(minecraft, font, output);
             verifyModalScreens(minecraft, output);
             renderControls(minecraft, output);
             renderUpdateNotice(minecraft, font, output);
@@ -387,7 +399,7 @@ public final class GuiShowcaseRenderTest {
                                         new InputActionDefinition("jump", Arrays.asList(InputBinding.parse("key.j"))))),
                         "test.lua");
         try {
-            Class<?> type = Class.forName("betamoon.client.control.input.GuiBetaMoonActions");
+            Class<?> type = Class.forName("betamoon.gui.GuiBetaMoonActions");
             Constructor<?> constructor = type.getDeclaredConstructor(GuiScreen.class, GameSettings.class,
                     InputRouter.class);
             constructor.setAccessible(true);
@@ -565,6 +577,204 @@ public final class GuiShowcaseRenderTest {
             LuaScriptErrors.clear();
             LuaScriptRegistry.clear();
             GuiTextureCache.shared().clear();
+        }
+    }
+
+    private static void renderCreationScreens(Minecraft base, FontRenderer font, File output) throws Exception {
+        CreationMinecraft minecraft = new CreationMinecraft();
+        minecraft.fontRenderer = font;
+        minecraft.renderEngine = base.renderEngine;
+        minecraft.gameSettings = base.gameSettings;
+        setField(Minecraft.class, minecraft, "saveLoader",
+                new SaveConverterMcRegion(Files.createTempDirectory("betamoon-creation-gui-").toFile()));
+        WorldGeneratorProfile profile = new WorldGeneratorProfile("test:generator/alternative", "creation_gui.lua",
+                Collections.<String, String>emptyMap());
+        WorldGeneratorProfile otherProfile = new WorldGeneratorProfile("test:generator/third", profile.owner,
+                Collections.<String, String>emptyMap());
+        GeneratorProfileRegistry.replaceOwner(profile.owner, Arrays.asList(profile, otherProfile));
+        verifyMissingGeneratorDialog(minecraft, output);
+        GuiScreen previous = new GuiScreen();
+        GuiScreen creation = new GuiWorldCreation(previous);
+        minecraft.displayGuiScreen(creation);
+        verifyProfileCycleDirections((GuiWorldCreation) creation);
+        renderScreen(creation, minecraft, output, "world-creation.png");
+        Field name = creation.getClass().getDeclaredField("name");
+        name.setAccessible(true);
+        ((GuiTextBox) name.get(creation)).setText("Remember My World");
+        creation.setWorldAndResolution(minecraft, 640, 360);
+        require(((GuiTextBox) name.get(creation)).getText().equals("Remember My World"),
+                "Creation resize erased the world name");
+        creation.setWorldAndResolution(minecraft, 320, 240);
+        creationAction(creation, 3);
+        GuiScreen settings = minecraft.currentScreen;
+        verifyGenerationSettingsAccordion((GuiGenerationSettings) settings);
+        renderScreen(settings, minecraft, output, "generation-settings.png");
+        verifyWideMinecraftButtons(minecraft, output);
+        creationAction(settings, 0);
+        require(presetCaption(creation).endsWith("*"), "Done failed to mark the preset modified");
+        creationAction(creation, 2);
+        require(!presetCaption(creation).endsWith("*"), "Draft modifications leaked to another preset");
+        Field presetField = GuiWorldCreation.class.getDeclaredField("preset");
+        presetField.setAccessible(true);
+        net.minecraft.src.GuiButton preset = (net.minecraft.src.GuiButton) presetField.get(creation);
+        ((GuiWorldCreation) creation).mouseClicked(preset.xPosition + 10, preset.yPosition + 10, 1);
+        require(presetCaption(creation).endsWith("*"), "Cycling lost the Minecraft draft");
+        creationAction(creation, 3);
+        creationAction(minecraft.currentScreen, 3);
+        creationAction(minecraft.currentScreen, 1);
+        require(presetCaption(creation).endsWith("*"), "Cancel committed the reset");
+        creationAction(creation, 3);
+        creationAction(minecraft.currentScreen, 3);
+        creationAction(minecraft.currentScreen, 0);
+        require(!presetCaption(creation).endsWith("*"), "Reset did not clear the modified marker");
+        creationAction(creation, 1);
+        require(minecraft.currentScreen == previous, "Cancel lost the world-selection parent");
+        GuiScreen fresh = new GuiWorldCreation(previous);
+        minecraft.displayGuiScreen(fresh);
+        require(presetCaption(fresh).equals("World Generation: Minecraft"), "A fresh creation flow did not reset");
+        GeneratorProfileRegistry.replaceOwner(profile.owner, Collections.<WorldGeneratorProfile>emptyList());
+    }
+
+    private static void verifyProfileCycleDirections(GuiWorldCreation screen) throws Exception {
+        Field presetField = GuiWorldCreation.class.getDeclaredField("preset");
+        presetField.setAccessible(true);
+        net.minecraft.src.GuiButton preset = (net.minecraft.src.GuiButton) presetField.get(screen);
+        Field selected = GuiWorldCreation.class.getDeclaredField("selected");
+        selected.setAccessible(true);
+        int x = preset.xPosition + 10;
+        int y = preset.yPosition + 10;
+        screen.mouseClicked(x, y, 0);
+        require(selected.getInt(screen) == 1, "Left click must select the next profile");
+        screen.mouseClicked(x, y, 1);
+        require(selected.getInt(screen) == 0, "Right click must select the previous profile");
+        screen.mouseClicked(x, y, 1);
+        require(selected.getInt(screen) == 2, "Right click must wrap from Minecraft to the last profile");
+        screen.mouseClicked(x - 250, y, 1);
+        screen.mouseClicked(x, y, 2);
+        require(selected.getInt(screen) == 2, "Outside and middle clicks must not cycle profiles");
+        screen.mouseClicked(x, y, 0);
+        require(selected.getInt(screen) == 0, "Left click must wrap back to Minecraft");
+    }
+
+    private static void verifyWideMinecraftButtons(Minecraft minecraft, File output) throws Exception {
+        for (int width : new int[]{201, 288, 420}) {
+            setupFrame();
+            new GuiMinecraftButton(0, 0, 90, width, 20, "").drawButton(minecraft, -1, -1);
+            BufferedImage image = capture();
+            require(whitePixels(image, width / 2 - 4, 92, 8, 16) == 0,
+                    "Wide native-style buttons must not sample white pixels outside the button atlas strip");
+        }
+        ImageIO.write(capture(), "png", new File(output, "wide-button-atlas-check.png"));
+    }
+
+    private static void verifyGenerationSettingsAccordion(GuiGenerationSettings screen) throws Exception {
+        Field treeField = GuiGenerationSettings.class.getDeclaredField("tree");
+        treeField.setAccessible(true);
+        GenerationSettingsTree tree = (GenerationSettingsTree) treeField.get(screen);
+        Field draftField = GuiGenerationSettings.class.getDeclaredField("draft");
+        draftField.setAccessible(true);
+        GenerationDraft draft = (GenerationDraft) draftField.get(screen);
+        int collapsedCount = tree.rows("").size();
+        creationAction(screen, 103);
+        require(tree.rows("").size() > collapsedCount, "Ore label must expand its children");
+        require(draft.selected("group/ores"), "Expanding a label must not toggle its checkbox");
+        creationAction(screen, 102);
+        require(!draft.enabled("native/ores") && draft.selected("native/ores"),
+                "Disabling a parent must preserve the child's remembered checkbox");
+        creationAction(screen, 103);
+        require(tree.rows("").size() == collapsedCount, "Disabled parent labels must still collapse");
+        require(tree.rows("Minecraft ores").stream().anyMatch(row -> row.entry.key.equals("native/ores")),
+                "Search must reveal children beneath collapsed parents");
+        require(tree.rows("").size() == collapsedCount, "Search must preserve the previous expansion choices");
+        creationAction(screen, 103);
+        require(!draft.selected("group/ores"), "Expansion must preserve a disabled parent's choice");
+    }
+
+    private static void verifyMissingGeneratorDialog(CreationMinecraft minecraft, File output) throws Exception {
+        java.nio.file.Path directory = Files.createTempDirectory("betamoon-fallback-gui-");
+        File settings = directory.resolve("settings.dat").toFile();
+        File manifest = directory.resolve("generator.dat").toFile();
+        WorldGeneratorProfile missingProfile = new WorldGeneratorProfile("test:generator/uninstalled", "absent.lua",
+                Collections.<String, String>emptyMap());
+        GeneratorProfileRegistry.replaceOwner(missingProfile.owner, Collections.singletonList(missingProfile));
+        new GenerationSelectionStore(settings)
+                .write(GenerationSelection.create(new GenerationDraft(new GenerationCatalog(missingProfile)), 42));
+        GeneratorProfileRegistry.replaceOwner(missingProfile.owner, Collections.<WorldGeneratorProfile>emptyList());
+        new betamoon.worldgen.terrain.GeneratorManifestStore(manifest)
+                .write(new betamoon.worldgen.terrain.WorldGeneratorManifest(42, 0, missingProfile.key,
+                        missingProfile.signature, null));
+        MissingWorldGenerator missing = MissingWorldGenerator.inspect(settings, manifest, 42);
+        GuiScreen selection = new GuiScreen();
+        final int[] loads = {0};
+        GuiScreen warning = new GuiMissingWorldGenerator(selection, "Missing preset world", missing, () -> loads[0]++);
+        minecraft.displayGuiScreen(warning);
+        renderScreen(warning, minecraft, output, "missing-generator-warning.png");
+        dialogAction(warning, "Load Anyway");
+        GuiScreen confirmation = minecraft.currentScreen;
+        require(confirmation != warning && loads[0] == 0, "Load Anyway must only open a confirmation");
+        renderScreen(confirmation, minecraft, output, "missing-generator-confirmation.png");
+        dialogAction(confirmation, "Cancel");
+        require(minecraft.currentScreen == warning && loads[0] == 0, "Popup Cancel must only dismiss the popup");
+        dialogAction(warning, "Load Anyway");
+        Method escape = GuiDialogScreen.class.getDeclaredMethod("keyTyped", char.class, int.class);
+        escape.setAccessible(true);
+        escape.invoke(minecraft.currentScreen, (char) 0, org.lwjgl.input.Keyboard.KEY_ESCAPE);
+        require(minecraft.currentScreen == warning && loads[0] == 0, "Popup Escape must not grant fallback consent");
+        dialogAction(warning, "Load Anyway");
+        confirmation = minecraft.currentScreen;
+        dialogAction(confirmation, "Yes");
+        dialogAction(confirmation, "Yes");
+        require(loads[0] == 1, "Confirmation Yes starts exactly one load");
+        minecraft.displayGuiScreen(warning);
+        dialogAction(warning, "Cancel");
+        require(minecraft.currentScreen == selection && loads[0] == 1, "Warning Cancel returns to world selection");
+    }
+
+    private static void dialogAction(GuiScreen screen, String label) throws Exception {
+        Field field = GuiDialogScreen.class.getDeclaredField("dialog");
+        field.setAccessible(true);
+        GuiDialog dialog = (GuiDialog) field.get(screen);
+        for (GuiElement element : dialog.getChildren()) {
+            if (element instanceof GuiButton && ((GuiButton) element).getLabel().equals(label)) {
+                Field action = GuiButton.class.getDeclaredField("action");
+                action.setAccessible(true);
+                ((GuiAction) action.get(element)).run();
+                return;
+            }
+        }
+        throw new AssertionError("Missing dialog action: " + label);
+    }
+
+    private static String presetCaption(GuiScreen screen) throws Exception {
+        Field field = screen.getClass().getDeclaredField("preset");
+        field.setAccessible(true);
+        return ((net.minecraft.src.GuiButton) field.get(screen)).displayString;
+    }
+
+    private static void creationAction(GuiScreen screen, int id) throws Exception {
+        Method method = screen.getClass().getDeclaredMethod("actionPerformed", net.minecraft.src.GuiButton.class);
+        method.setAccessible(true);
+        method.invoke(screen, new net.minecraft.src.GuiButton(id, 0, 0, ""));
+    }
+
+    private static final class CreationMinecraft extends Minecraft {
+        CreationMinecraft() {
+            super(null, null, null, 320, 240, false);
+        }
+
+        @Override
+        public void displayGuiScreen(GuiScreen screen) {
+            if (currentScreen != null) {
+                currentScreen.onGuiClosed();
+            }
+            currentScreen = screen;
+            if (screen != null) {
+                screen.setWorldAndResolution(this, 320, 240);
+            }
+        }
+
+        public void displayUnexpectedThrowable(UnexpectedThrowable error) {
+            throw new AssertionError(error);
         }
     }
 

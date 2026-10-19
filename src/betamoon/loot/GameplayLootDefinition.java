@@ -15,7 +15,10 @@ import net.minecraft.src.ItemStack;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 
-/** Inline or registered loot-table source sampled independently for runtime gameplay events. */
+/**
+ * Inline or registered loot-table source sampled independently for runtime
+ * gameplay events.
+ */
 public final class GameplayLootDefinition {
     private final LootTableDefinition inline;
     private final AssetKey table;
@@ -53,6 +56,10 @@ public final class GameplayLootDefinition {
 
     /** Samples once using a fresh value from the world's runtime random stream. */
     public List<ItemStack> sample(Random random) {
+        return sample(random, null);
+    }
+
+    public List<ItemStack> sample(Random random, LootContext context) {
         LootTableDefinition definition = definition();
         if (definition == null) {
             return Collections.emptyList();
@@ -60,7 +67,7 @@ public final class GameplayLootDefinition {
         long eventRandom = random.nextLong();
         long evaluationRandom = SeedMixer.derive(eventRandom, SeedMixer.hash(identity));
         List<ItemStack> result = new ArrayList<ItemStack>();
-        for (LootStack stack : definition.generate(evaluationRandom)) {
+        for (LootStack stack : definition.generate(evaluationRandom, context)) {
             result.add(stack.create());
         }
         return result;
