@@ -6,6 +6,7 @@ import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.luamodloader.ScriptExecution;
 import java.util.Collections;
 import java.util.Set;
 import java.util.WeakHashMap;
@@ -65,7 +66,8 @@ public final class ProjectileImpact {
             context.set("world", LuaWorldActionAccess.create(scope, projectile.worldObj,
                     (int) Math.floor(hit.position.xCoord), (int) Math.floor(hit.position.yCoord),
                     (int) Math.floor(hit.position.zCoord), projectile));
-            LuaValue result = definition.onImpact.call(context);
+            LuaValue result = ScriptExecution.invoke(EntityTypeRegistry.owner(definition.key),
+                    "entity.onImpact", definition.onImpact, context).arg1();
             if (result.isnil() || result.eq_b(LuaValue.valueOf("default"))) {
                 return Action.DEFAULT;
             }
