@@ -38,6 +38,25 @@ public final class ProfileSurfaceRules {
         }
     }
 
+    public ProfileSurfaceRules withCatalog(BiomeGenRegistry.WorldCatalog catalog) {
+        return new ProfileSurfaceRules(this, catalog);
+    }
+
+    private ProfileSurfaceRules(ProfileSurfaceRules source, BiomeGenRegistry.WorldCatalog catalog) {
+        rules.putAll(source.rules);
+        materials.putAll(source.materials);
+        for (BiomeDefinition definition : catalog.definitions()) {
+            if (definition.surface != null) {
+                SurfaceRuleSet surface = catalog.surface(definition.surface);
+                if (surface == null) {
+                    throw new IllegalArgumentException("Missing dimension surface: " + definition.surface);
+                }
+                rules.put(definition.biome, surface);
+            }
+            pinMaterials(definition.biome);
+        }
+    }
+
     private void pinMaterials(BiomeGenBase biome) {
         if (!materials.containsKey(biome)) {
             int top = biome.topBlock & 255;

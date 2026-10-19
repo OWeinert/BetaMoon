@@ -6,6 +6,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.LinkedHashSet;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoubleUnaryOperator;
 
@@ -31,6 +33,7 @@ public strictfp final class ScalarFieldCompiler {
     private final String key;
     private final Map<String, ScalarField> interned = new HashMap<String, ScalarField>();
     private int count;
+    private final Set<String> requiredDimensions = new LinkedHashSet<String>();
 
     public ScalarFieldCompiler(String key, Resolver resolver) {
         this.key = key;
@@ -38,7 +41,16 @@ public strictfp final class ScalarFieldCompiler {
     }
 
     public ScalarField compile(Object value) {
-        return node(value, key + ".node", 0);
+        count = 0;
+        interned.clear();
+        requiredDimensions.clear();
+        return node(value, key + ".node", 0).requiringDimensions(requiredDimensions);
+    }
+
+    private ScalarField reference(String key) {
+        ScalarField field = resolver.field(key);
+        requiredDimensions.addAll(field.requiredDimensions());
+        return field;
     }
 
     private ScalarField node(Object value, String path, int depth) {
@@ -54,7 +66,7 @@ public strictfp final class ScalarFieldCompiler {
         if (value instanceof Number) {
             result = constant(number(value, path));
         } else if (value instanceof String) {
-            result = resolver.field((String) value);
+            result = reference((String) value);
         } else {
             Map<String, Object> object = object(value, path);
             String type = string(required(object, "type", path), path + ".type");
@@ -134,7 +146,7 @@ public strictfp final class ScalarFieldCompiler {
                 return constant(number(required(value, "value", path), path + ".value"));
             case "reference":
                 fields(value, path, "type", "field");
-                return resolver.field(string(required(value, "field", path), path + ".field"));
+                return reference(string(required(value, "field", path), path + ".field"));
             case "x":
             case "y":
             case "z":
@@ -423,7 +435,7 @@ public strictfp final class ScalarFieldCompiler {
             if (original && !context.hasOriginalSpawn) {
                 throw new IllegalStateException("Original spawn anchor is unavailable; explicit migration is required");
             }
-            if (fixed != null && fixed.dimension != context.dimension) {
+            if (fixed != null && !fixed.dimensionKey.equals(context.dimensionKey)) {
                 throw new IllegalStateException("Field anchor belongs to another dimension");
             }
             double dx = Math.abs(x - (original ? context.spawnX : fixed.x));

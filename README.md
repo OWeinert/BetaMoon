@@ -15,6 +15,7 @@ Extensive Lua scripting for **Minecraft Beta 1.7.3**.
 - Custom particles, animated sprites and reusable bursts or emitters.
 - Deterministic ores, trees, structures, biomes, surfaces and placement rules.
 - Save-bound terrain generators, shared spatial fields, material rules, carvers and population controls.
+- Persistent custom dimensions with independent generation/environment and queued teleportation with safe return history.
 - Scoped fog, sky and light tints, plus ambient and weather sounds.
 - Input maps, hotkeys, event-driven behavior, and overrides for registered content.
 
@@ -72,7 +73,9 @@ Use these steps with a launcher that supports a modified `minecraft.jar` and cus
 
 ## Java agent setup notes
 
-The BetaMoon JAR serves as both the mod and its Java agent. The agent is required for callbacks on existing content and global block/item interaction events. Java loads it through the [`-javaagent` JVM option](https://docs.oracle.com/javase/8/docs/api/java/lang/instrument/package-summary.html).
+The BetaMoon JAR serves as both the mod and its Java agent. The agent is required for callbacks on existing content,
+global block/item interaction events, custom dimensions and teleportation. Java loads it through the
+[`-javaagent` JVM option](https://docs.oracle.com/javase/8/docs/api/java/lang/instrument/package-summary.html).
 
 Use an absolute path to the same JAR installed in the instance. On Windows, use forward slashes and quote the path as shown above, especially when it contains spaces. On macOS or Linux, substitute the corresponding absolute path, for example:
 

@@ -40,6 +40,7 @@ import betamoon.tileentity.LuaTileEntity;
 import betamoon.tileentity.TileEntityRegistry;
 import betamoon.update.SemanticVersion;
 import betamoon.update.UpdateRelease;
+import betamoon.teleport.TeleportTicket;
 import betamoon.worldgen.creation.GenerationSelectionStore;
 import betamoon.worldgen.creation.GenerationSelection;
 import betamoon.worldgen.creation.GenerationDraft;
@@ -195,6 +196,7 @@ public final class GuiShowcaseRenderTest {
             verifyDialogContentSizing(minecraft, font);
             verifyTextureRenderState(minecraft, font);
             renderFrameworkScreens(minecraft, font, output);
+            renderDimensionScreens(minecraft, output);
             renderTextBox(minecraft, font, output);
             renderCreationScreens(minecraft, font, output);
             verifyModalScreens(minecraft, output);
@@ -578,6 +580,40 @@ public final class GuiShowcaseRenderTest {
             LuaScriptRegistry.clear();
             GuiTextureCache.shared().clear();
         }
+    }
+
+    private static void renderDimensionScreens(Minecraft minecraft, File output) throws Exception {
+        TeleportTicket ticket = new TeleportTicket();
+        GuiTeleportProgress loading = new GuiTeleportProgress(ticket, "The Moon");
+        renderScreen(loading, minecraft, output, "teleport-progress.png");
+        Method advance = TeleportTicket.class.getDeclaredMethod("update", String.class, String.class, int.class,
+                int.class, int.class);
+        advance.setAccessible(true);
+        advance.invoke(ticket, "preparing", "spawn", 3, 12, 0);
+        loading.showStage("spawn", 60);
+        renderScreen(loading, minecraft, output, "teleport-generation-progress.png");
+        advance.invoke(ticket, "preparing", "destination", 4, 14, 0);
+        loading.showStage("destination", 70);
+        renderScreen(loading, minecraft, output, "teleport-restore-transition.png");
+        Field percent = GuiTeleportProgress.class.getDeclaredField("percent");
+        percent.setAccessible(true);
+        require(percent.getInt(loading) == 70, "An intervening GUI frame must retain the published restore progress");
+        Field controls = GuiScreen.class.getDeclaredField("controlList");
+        controls.setAccessible(true);
+        require(((List<?>) controls.get(loading)).isEmpty(), "The loading screen cannot offer cancellation controls");
+        Method key = GuiTeleportProgress.class.getDeclaredMethod("keyTyped", char.class, int.class);
+        key.setAccessible(true);
+        key.invoke(loading, '\0', Keyboard.KEY_ESCAPE);
+        Field cancellation = TeleportTicket.class.getDeclaredField("cancellationRequested");
+        cancellation.setAccessible(true);
+        require(!cancellation.getBoolean(ticket), "Escape cannot cancel a transfer from its loading screen");
+        GuiDimensionRecovery recovery = new GuiDimensionRecovery(null,
+                "The Moon cannot be loaded because example:generator/moon is unavailable.", () -> {
+                }, () -> {
+                });
+        renderScreen(recovery, minecraft, output, "dimension-recovery.png");
+        renderScreen(new GuiDimensionRescueConfirmation(recovery, () -> {
+        }), minecraft, output, "dimension-rescue-confirmation.png");
     }
 
     private static void renderCreationScreens(Minecraft base, FontRenderer font, File output) throws Exception {

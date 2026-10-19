@@ -77,6 +77,17 @@ public final class TerrainRegistry {
         return active;
     }
 
+    public static Snapshot pendingSnapshot() {
+        Batch pending = CURRENT.get();
+        if (pending == null) {
+            return active;
+        }
+        if (pending.resolved == null) {
+            pending.validate();
+        }
+        return pending.resolved;
+    }
+
     public static List<Map<String, Object>> describeDefinitions() {
         Snapshot snapshot = active;
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
@@ -359,7 +370,7 @@ public final class TerrainRegistry {
             return profiles.get(WorldGenKey.parse(key, WorldGenKind.GENERATOR).toString());
         }
 
-        private PopulationPolicy population(String key) {
+        public PopulationPolicy population(String key) {
             key = WorldGenKey.parse(key, WorldGenKind.POPULATION).toString();
             PopulationPolicy existing = populations.get(key);
             if (existing != null) {
@@ -378,7 +389,11 @@ public final class TerrainRegistry {
         private void profile(Declaration declaration) {
             String key = declaration.key;
             Map<String, Object> value = declaration.value;
-            fields(value, key, "key", "displayName", "dimensions");
+            fields(value, key, "key", "displayName", "nativeBase", "dimensions");
+            String nativeBase = string(value, "nativeBase", "overworld", key);
+            if (!nativeBase.equals("overworld") && !nativeBase.equals("nether") && !nativeBase.equals("sky")) {
+                throw error(key + ".nativeBase", "expected overworld, nether or sky");
+            }
             Map<String, Object> dimensions = object(required(value, "dimensions", key), key + ".dimensions");
             fields(dimensions, key + ".dimensions", "overworld");
             Map<String, Object> dimension = object(required(dimensions, "overworld", key),
@@ -389,6 +404,10 @@ public final class TerrainRegistry {
             PopulationPolicy population = dimension.containsKey("population")
                     ? policy(dimension.get("population"), key + ".population")
                     : new PopulationPolicy(key, Collections.<String, Object>emptyMap());
+            if (!nativeBase.equals("overworld") && !population.nativeCategories.isEmpty()
+                    && population.nativeCategories.size() != 9) {
+                throw error(key + ".population", "Hell and Sky native population supports only all or none");
+            }
             BiomeSourceDefinition biomes = null;
             if (dimension.containsKey("biomeSource")) {
                 Object biomeValue = dimension.get("biomeSource");
@@ -401,6 +420,9 @@ public final class TerrainRegistry {
                                 object(biomeValue, key + ".biomeSource"), spatial, false);
                 if (biomes == null) {
                     throw error(key + ".biomeSource", "unknown biome source");
+                }
+                if (terrain.isNative() && !nativeBase.equals("overworld") && biomes.type.equals("spatial_climate")) {
+                    throw error(key + ".biomeSource", "native Hell/Sky terrain requires its fixed climate");
                 }
                 if (terrain.isNative()) {
                     for (BiomeSourceDefinition.ClimateEntry entry : biomes.entries) {
@@ -444,6 +466,12 @@ public final class TerrainRegistry {
             Map<String, String> signature = new TreeMap<String, String>(BiomeGenRegistry.generationDependencies());
             Map<String, Object> generationDefinition = new LinkedHashMap<String, Object>(value);
             generationDefinition.remove("displayName");
+            if (nativeBase.equals("overworld")) {
+                generationDefinition.remove("nativeBase");
+            } else {
+                signature.put("native_base", nativeBase);
+                signature.put("native_base_algorithm", "beta_1.7.3_v1");
+            }
             signature.put("profile_definition", canonical(generationDefinition));
             signature.put("population_catalog", GenerationSignature.of(WorldGenRegistry.generationDependencies()));
             signature.putAll(spatial.dependenciesIn(dimension));

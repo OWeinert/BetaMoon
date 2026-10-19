@@ -1,7 +1,11 @@
 package betamoon.worldgen;
 
+import betamoon.worldgen.terrain.PopulationPolicy;
 import betamoon.BetaMoonCommon;
+import betamoon.dimension.DimensionIdentity;
+import betamoon.dimension.DimensionSelector;
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.teleport.ChunkPreparation;
 import betamoon.worldgen.spatial.FieldContext;
 import betamoon.worldgen.spatial.NoiseDefinition;
 import betamoon.worldgen.spatial.SpatialRegistry;
@@ -21,6 +25,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.WeakHashMap;
+import java.util.function.Consumer;
 import net.minecraft.src.World;
 import org.luaj.vm2.LuaError;
 
@@ -39,9 +44,54 @@ final class FeaturePlacementRegistry {
         WORLD_TEMPLATES.put(world, decoratorTemplates);
     }
 
+    static synchronized Consumer<World> capture(String owner, List<FeatureDefinition> features,
+            List<PlacementDefinition> placements, Set<WorldGenKey> templates) {
+        Snapshot selected = owner == null ? active : ownerSnapshot(owner, features, placements);
+        Set<WorldGenKey> selectedTemplates = new HashSet<WorldGenKey>();
+        for (Map.Entry<String, Set<WorldGenKey>> entry : decoratorTemplatesByOwner.entrySet()) {
+            if (!entry.getKey().equals(owner)) {
+                selectedTemplates.addAll(entry.getValue());
+            }
+        }
+        selectedTemplates.addAll(templates);
+        Set<WorldGenKey> immutableTemplates = Collections.unmodifiableSet(selectedTemplates);
+        return world -> {
+            synchronized (FeaturePlacementRegistry.class) {
+                WORLD_SNAPSHOTS.put(world, selected);
+                WORLD_TEMPLATES.put(world, immutableTemplates);
+            }
+        };
+    }
+
     private static synchronized Snapshot snapshot(World world) {
         Snapshot pinned = WORLD_SNAPSHOTS.get(world);
         return pinned == null ? active : pinned;
+    }
+
+    static synchronized Set<String> dimensionDependencyKeys(String dimension, PopulationPolicy policy, String owner,
+            List<FeatureDefinition> features, List<PlacementDefinition> placements, Set<String> regionalFeatures) {
+        Snapshot selected = owner == null ? active : ownerSnapshot(owner, features, placements);
+        Set<String> keys = new HashSet<String>(regionalFeatures);
+        List<WorldGenKey> pending = new ArrayList<WorldGenKey>();
+        for (PlacementDefinition placement : selected.placements) {
+            if (DimensionSelector.matches(placement.dimensions, dimension)
+                    && (policy == null || policy.stages.contains(placement.stage))) {
+                keys.add(placement.key.toString());
+                pending.add(placement.featureKey);
+            }
+        }
+        for (String key : regionalFeatures) {
+            pending.add(WorldGenKey.parseFeature(key));
+        }
+        for (int cursor = 0; cursor < pending.size(); cursor++) {
+            WorldGenKey key = pending.get(cursor);
+            FeatureDefinition feature = selected.features.get(key);
+            if (feature != null && keys.add("feature_dependency:" + key)) {
+                keys.add(key.toString());
+                pending.addAll(feature.dependencies);
+            }
+        }
+        return keys;
     }
 
     static FeatureDefinition findFeature(WorldGenKey key, World world) {
@@ -204,8 +254,8 @@ final class FeaturePlacementRegistry {
         if (placement == null || isDisabled(key) || decoratorTemplates.contains(key)) {
             return null;
         }
-        String dimension = world.worldProvider.worldType == -1 ? "minecraft:nether" : "minecraft:overworld";
-        if (!placement.dimensions.isEmpty() && !placement.dimensions.contains(dimension)) {
+        String dimension = DimensionIdentity.key(world).toString();
+        if (!DimensionSelector.matches(placement.dimensions, dimension)) {
             return null;
         }
 
@@ -287,16 +337,15 @@ final class FeaturePlacementRegistry {
 
     static void generateStage(World world, int chunkX, int chunkZ, boolean nether, GenerationStage stage) {
         Snapshot snapshot = snapshot(world);
-        String dimension = nether ? "minecraft:nether" : "minecraft:overworld";
+        String dimension = DimensionIdentity.key(world).toString();
         int logicalChunkX = Math.floorDiv(chunkX, 16);
         int logicalChunkZ = Math.floorDiv(chunkZ, 16);
         FieldContext generationFields = null;
-        for (PlacementDefinition placement : snapshot.forStage(stage, nether)) {
+        for (PlacementDefinition placement : snapshot.forStage(stage, dimension)) {
             if (stage != null && placement.stage != stage) {
                 continue;
             }
-            if (!placement.dimensions.isEmpty() && !placement.dimensions.contains(dimension)
-                    || failed.contains(placement)
+            if (!DimensionSelector.matches(placement.dimensions, dimension) || failed.contains(placement)
                     || !WorldGenerationRuntime.hasSavedSelection(world) && isDisabled(placement)
                     || isTemplate(world, placement.key)) {
                 continue;
@@ -323,30 +372,31 @@ final class FeaturePlacementRegistry {
             int attempts = placement.sampleAttempts(random);
             for (int attempt = 0; attempt < attempts && successes < placement.successLimit; attempt++) {
                 GenerationMetrics.record(GenerationMetrics.Counter.FEATURE_ATTEMPTS, 1);
-                FeatureContext context = context(snapshot, world, random, feature, FeatureOptions.DEFAULT,
-                        placement.conditions.site).forGeneration();
-                BlockPosition origin = placement.sampleOrigin(context, chunkX, chunkZ, attempt);
-                if (origin == null) {
-                    reject(placement.key, context.failure() == null ? FeatureResult.OUT_OF_BOUNDS : context.failure());
-                    continue;
-                }
-                if (placement.conditions.spatial != null) {
-                    if (generationFields == null) {
-                        generationFields = WorldGenerationRuntime.fieldContext(world);
-                    }
-                    double weight = placement.conditions.spatial.weight(generationFields, origin.x, origin.z);
-                    double selection = NoiseDefinition.unit(seed, origin.x, attempt, origin.z);
-                    if (weight <= 0 || selection >= Math.min(1, placement.probability * weight)) {
-                        reject(placement.key, "spatial");
+                try {
+                    FeatureContext context = context(snapshot, world, random, feature, FeatureOptions.DEFAULT,
+                            placement.conditions.site).forGeneration();
+                    BlockPosition origin = placement.sampleOrigin(context, chunkX, chunkZ, attempt);
+                    if (origin == null) {
+                        reject(placement.key,
+                                context.failure() == null ? FeatureResult.OUT_OF_BOUNDS : context.failure());
                         continue;
                     }
-                }
-                String rejection = placement.conditions.rejection(context, origin);
-                if (rejection != null) {
-                    reject(placement.key, rejection);
-                    continue;
-                }
-                try {
+                    if (placement.conditions.spatial != null) {
+                        if (generationFields == null) {
+                            generationFields = WorldGenerationRuntime.fieldContext(world);
+                        }
+                        double weight = placement.conditions.spatial.weight(generationFields, origin.x, origin.z);
+                        double selection = NoiseDefinition.unit(seed, origin.x, attempt, origin.z);
+                        if (weight <= 0 || selection >= Math.min(1, placement.probability * weight)) {
+                            reject(placement.key, "spatial");
+                            continue;
+                        }
+                    }
+                    String rejection = placement.conditions.rejection(context, origin);
+                    if (rejection != null) {
+                        reject(placement.key, rejection);
+                        continue;
+                    }
                     FeatureResult result = executeFeature(snapshot, feature, context, origin);
                     if (result.placed) {
                         successes++;
@@ -497,6 +547,7 @@ final class FeaturePlacementRegistry {
     }
 
     private static synchronized void disable(PlacementDefinition placement, Throwable error) {
+        ChunkPreparation.reportPopulationFailure(error);
         failed.add(placement);
         reject(placement.key, FeatureResult.RUNTIME_ERROR);
         String message = "Placement " + placement.key + " was disabled after an error: " + error.getMessage();
@@ -554,8 +605,10 @@ final class FeaturePlacementRegistry {
             nether = indexStages(placements, "minecraft:nether");
         }
 
-        private List<PlacementDefinition> forStage(GenerationStage stage, boolean inNether) {
-            return stage == null ? placements : (inNether ? nether : overworld).get(stage);
+        private List<PlacementDefinition> forStage(GenerationStage stage, String dimension) {
+            return stage == null || !dimension.equals("minecraft:nether") && !dimension.equals("minecraft:overworld")
+                    ? placements
+                    : (dimension.equals("minecraft:nether") ? nether : overworld).get(stage);
         }
 
         private static Map<GenerationStage, List<PlacementDefinition>> indexStages(List<PlacementDefinition> placements,
@@ -565,8 +618,7 @@ final class FeaturePlacementRegistry {
             for (GenerationStage stage : GenerationStage.values()) {
                 List<PlacementDefinition> eligible = new ArrayList<PlacementDefinition>();
                 for (PlacementDefinition placement : placements) {
-                    if (placement.stage == stage
-                            && (placement.dimensions.isEmpty() || placement.dimensions.contains(dimension))) {
+                    if (placement.stage == stage && DimensionSelector.matches(placement.dimensions, dimension)) {
                         eligible.add(placement);
                     }
                 }

@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Set;
 import net.minecraft.src.BiomeGenBase;
 import net.minecraft.src.WorldChunkManager;
+import net.minecraft.src.WorldChunkManagerHell;
 
 /**
  * Profile-bound biome lookup, preserving the native climate samplers and their
@@ -29,6 +30,7 @@ public final class ProfileWorldChunkManager extends WorldChunkManager implements
     private final WorldChunkManager climate;
     private final NativeClimateSamples climateSamples;
     private final BiomeSourceDefinition source;
+    private final BiomeGenRegistry.WorldCatalog catalog;
     private final Map<WorldGenKey, BiomeGenBase> resolved = new LinkedHashMap<WorldGenKey, BiomeGenBase>();
     private FieldContext fields;
     private final long selectionSalt;
@@ -41,21 +43,27 @@ public final class ProfileWorldChunkManager extends WorldChunkManager implements
 
     public ProfileWorldChunkManager(WorldChunkManager climate, BiomeSourceDefinition source,
             GenerationSelection selection) {
-        this(climate, source, selection, false);
+        this(climate, source, selection, false, BiomeGenRegistry.captureWorldCatalog());
+    }
+
+    public ProfileWorldChunkManager(WorldChunkManager climate, BiomeSourceDefinition source,
+            GenerationSelection selection, BiomeGenRegistry.WorldCatalog catalog) {
+        this(climate, source, selection, false, catalog);
     }
 
     public static ProfileWorldChunkManager minecraftFallback(WorldChunkManager climate) {
-        return new ProfileWorldChunkManager(climate, null, null, true);
+        return new ProfileWorldChunkManager(climate, null, null, true, BiomeGenRegistry.captureWorldCatalog());
     }
 
     private ProfileWorldChunkManager(WorldChunkManager climate, BiomeSourceDefinition source,
-            GenerationSelection selection, boolean minecraftOnly) {
+            GenerationSelection selection, boolean minecraftOnly, BiomeGenRegistry.WorldCatalog catalog) {
         this.selection = selection;
         this.climate = climate;
         climateSamples = new NativeClimateSamples(climate);
         this.source = source;
+        this.catalog = catalog;
         selectionSalt = SeedMixer.hash(source == null ? "native" : source.key.toString());
-        for (BiomeDefinition definition : BiomeGenRegistry.definitions()) {
+        for (BiomeDefinition definition : catalog.definitions()) {
             Set<String> names = new HashSet<String>();
             names.add(definition.key.toString());
             for (String tag : definition.tags) {
@@ -64,7 +72,10 @@ public final class ProfileWorldChunkManager extends WorldChunkManager implements
             selectors.put(definition.biome, names);
         }
         if (source == null) {
-            lookup = BiomeGenRegistry.copyClimateLookup();
+            lookup = catalog.copyClimate();
+            if (climate instanceof WorldChunkManagerHell) {
+                Arrays.fill(lookup, climate.getBiomeGenAt(0, 0));
+            }
             if (minecraftOnly) {
                 for (int t = 0; t < 64; t++) {
                     for (int h = 0; h < 64; h++) {
@@ -176,6 +187,10 @@ public final class ProfileWorldChunkManager extends WorldChunkManager implements
         return climate;
     }
 
+    public BiomeGenRegistry.WorldCatalog biomeCatalog() {
+        return catalog;
+    }
+
     public boolean usesSource(BiomeSourceDefinition definition) {
         return source == definition;
     }
@@ -243,8 +258,8 @@ public final class ProfileWorldChunkManager extends WorldChunkManager implements
         throw new AssertionError("Spatial biome choice exhausted");
     }
 
-    private static BiomeGenBase requiredBiome(WorldGenKey key) {
-        BiomeGenBase biome = BiomeGenRegistry.biomeFor(key);
+    private BiomeGenBase requiredBiome(WorldGenKey key) {
+        BiomeGenBase biome = catalog.biome(key);
         if (biome == null) {
             throw new IllegalStateException("Profile requires missing biome: " + key);
         }
@@ -275,7 +290,11 @@ public final class ProfileWorldChunkManager extends WorldChunkManager implements
             climate.loadBlockGeneratorData(null, x, z, width, depth);
             System.arraycopy(climate.temperature, 0, temperature, 0, count);
             System.arraycopy(climate.humidity, 0, humidity, 0, count);
-            System.arraycopy(climate.field_4196_c, 0, field_4196_c, 0, count);
+            if (climate.field_4196_c == null) {
+                Arrays.fill(field_4196_c, 0, count, 0);
+            } else {
+                System.arraycopy(climate.field_4196_c, 0, field_4196_c, 0, count);
+            }
         } else {
             for (int ix = 0; ix < width; ix++) {
                 for (int iz = 0; iz < depth; iz++) {
@@ -283,7 +302,7 @@ public final class ProfileWorldChunkManager extends WorldChunkManager implements
                     int index = ix * depth + iz;
                     temperature[index] = climate.temperature[0];
                     humidity[index] = climate.humidity[0];
-                    field_4196_c[index] = climate.field_4196_c[0];
+                    field_4196_c[index] = climate.field_4196_c == null ? 0 : climate.field_4196_c[0];
                 }
             }
         }

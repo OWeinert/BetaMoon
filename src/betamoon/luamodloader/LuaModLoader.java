@@ -3,6 +3,7 @@ package betamoon.luamodloader;
 import betamoon.BetaMoonCommon;
 import betamoon.atmosphere.AtmosphereRegistry;
 import betamoon.config.BetaMoonConfig;
+import betamoon.dimension.DimensionRegistry;
 import betamoon.entity.EntityPresentationResources;
 import betamoon.entity.EntityTypeRegistry;
 import betamoon.fluid.interaction.FluidInteractionRegistry;
@@ -109,6 +110,7 @@ public final class LuaModLoader {
         WorldGenRegistry.retainOwners(presentScripts);
         BiomeGenRegistry.retainOwners(presentScripts);
         TerrainRegistry.retainOwners(presentScripts);
+        DimensionRegistry.retainOwners(presentScripts);
         EntityPresentationResources.prune();
         reportFailedMods(failedMods);
         reportLoadSummary(ordered, failedMods);

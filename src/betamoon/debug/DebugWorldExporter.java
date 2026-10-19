@@ -1,5 +1,6 @@
 package betamoon.debug;
 
+import betamoon.dimension.DimensionDiagnostics;
 import betamoon.worldgen.BiomeGenRegistry;
 import betamoon.worldgen.WorldGenRegistry;
 import betamoon.worldgen.spatial.SpatialRegistry;
@@ -13,7 +14,9 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import net.minecraft.client.Minecraft;
 import net.minecraft.src.BiomeGenBase;
+import net.minecraft.src.ModLoader;
 
 /** Exports biome identities, Lua climate overlays, and world generators. */
 final class DebugWorldExporter implements DebugExporter {
@@ -28,6 +31,15 @@ final class DebugWorldExporter implements DebugExporter {
         exportSurfaces(session);
         exportBiomeSources(session);
         exportGenerationDefinitions(session);
+        Minecraft minecraft = ModLoader.getMinecraftInstance();
+        final List<String> dimensions = DimensionDiagnostics.rows(minecraft == null ? null : minecraft.theWorld);
+        session.writeTextFile("dimensions_and_teleport.txt", writer -> {
+            for (String row : dimensions) {
+                writer.write(row);
+                writer.newLine();
+            }
+            return dimensions.size();
+        });
     }
 
     private static void exportGenerationDefinitions(DebugExportSession session) throws Exception {

@@ -1,5 +1,6 @@
 package betamoon.luaapi.world;
 
+import betamoon.luaapi.utils.LuaDimensionSelectors;
 import betamoon.luaapi.utils.LuaGenerationSignature;
 import betamoon.luaapi.utils.LuaNamespacedTags;
 import betamoon.luaapi.utils.LuaSpatialSelector;
@@ -1120,37 +1121,7 @@ public final class StructureGenApi {
     }
 
     private static Set<String> dimensions(LuaValue value) {
-        Set<String> result = new LinkedHashSet<String>();
-        if (value.isnil()) {
-            result.add("minecraft:overworld");
-            return result;
-        }
-        if (value.isstring()) {
-            result.add(dimension(value.checkjstring()));
-            return result;
-        }
-        FeaturePlacementApi.table(value, "RegionalStructure.dimensions");
-        for (int index = 1; index <= value.length(); index++) {
-            result.add(dimension(value.get(index).checkjstring()));
-        }
-        if (result.isEmpty()) {
-            throw new LuaError("RegionalStructure.dimensions: expected at least one dimension");
-        }
-        return result;
-    }
-
-    private static String dimension(String value) {
-        String normalized = value.trim().toLowerCase(Locale.ROOT);
-        if (normalized.equals("overworld")) {
-            return "minecraft:overworld";
-        }
-        if (normalized.equals("nether")) {
-            return "minecraft:nether";
-        }
-        if (normalized.equals("minecraft:overworld") || normalized.equals("minecraft:nether")) {
-            return normalized;
-        }
-        throw new LuaError("RegionalStructure.dimensions: unsupported dimension " + value);
+        return LuaDimensionSelectors.parse(value, "RegionalStructure.dimensions");
     }
 
     private static Height height(LuaValue value) {

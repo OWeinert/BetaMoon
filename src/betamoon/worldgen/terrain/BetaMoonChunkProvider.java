@@ -43,6 +43,10 @@ public final class BetaMoonChunkProvider implements IChunkProvider {
         return profile;
     }
 
+    public IChunkProvider nativeDelegate() {
+        return nativeProvider;
+    }
+
     @Override
     public boolean chunkExists(int x, int z) {
         return nativeProvider.chunkExists(x, z);

@@ -1,5 +1,6 @@
 package betamoon.worldgen.terrain;
 
+import betamoon.worldgen.BiomeGenRegistry;
 import betamoon.worldgen.WorldGenKey;
 import betamoon.worldgen.WorldGenKind;
 import betamoon.worldgen.biome.BiomeSourceDefinition;
@@ -20,6 +21,7 @@ public final class WorldGeneratorProfile {
     public final String displayName;
     public final String signature;
     public final String creationDefinition;
+    public final String nativeBase;
     public final Map<String, String> dependencies;
     public final TerrainSource terrain;
     public final PopulationPolicy population;
@@ -69,6 +71,11 @@ public final class WorldGeneratorProfile {
             boolean applySurfaces, boolean requireSafeSpawn, List<CompiledCarver> carvers, GeneratorSettings settings,
             String displayName, String creationDefinition) {
         this.creationDefinition = creationDefinition;
+        nativeBase = dependencies.getOrDefault("native_base", "overworld");
+        if (!nativeBase.equals("overworld") && population != null && !population.nativeCategories.isEmpty()
+                && population.nativeCategories.size() != 9) {
+            throw new IllegalArgumentException("Native Hell/Sky generation requires population all or none");
+        }
         this.settings = settings;
         if (displayName == null || displayName.isEmpty() || displayName.length() > 256
                 || displayName.matches(".*[\\p{Cntrl}\u00a7].*")) {
@@ -112,11 +119,26 @@ public final class WorldGeneratorProfile {
         return new WorldGeneratorProfile(this, populationSignature);
     }
 
+    public WorldGeneratorProfile forDimension(Map<String, String> populationCatalog, Map<String, String> biomes,
+            BiomeGenRegistry.WorldCatalog catalog) {
+        Map<String, String> relevant = new TreeMap<String, String>(dependencies);
+        relevant.keySet().removeIf(key -> key.contains(":biome/") || key.contains(":surface/"));
+        relevant.putAll(biomes);
+        relevant.put("population_catalog", GenerationSignature.of(populationCatalog));
+        return new WorldGeneratorProfile(this, population, relevant, catalog);
+    }
+
     public WorldGeneratorProfile withCreationSettings(PopulationPolicy policy, Map<String, String> pinnedDependencies) {
         return new WorldGeneratorProfile(this, policy, pinnedDependencies);
     }
 
     private WorldGeneratorProfile(WorldGeneratorProfile source, PopulationPolicy policy, Map<String, String> pinned) {
+        this(source, policy, pinned, null);
+    }
+
+    private WorldGeneratorProfile(WorldGeneratorProfile source, PopulationPolicy policy, Map<String, String> pinned,
+            BiomeGenRegistry.WorldCatalog catalog) {
+        nativeBase = source.nativeBase;
         key = source.key;
         owner = source.owner;
         displayName = source.displayName;
@@ -129,12 +151,13 @@ public final class WorldGeneratorProfile {
         spatial = source.spatial;
         applySurfaces = source.applySurfaces;
         requireSafeSpawn = source.requireSafeSpawn;
-        surfaces = source.surfaces;
+        surfaces = catalog == null ? source.surfaces : source.surfaces.withCatalog(catalog);
         carvers = source.carvers;
         settings = source.settings;
     }
 
     private WorldGeneratorProfile(WorldGeneratorProfile source, String populationSignature) {
+        nativeBase = source.nativeBase;
         key = source.key;
         owner = source.owner;
         displayName = source.displayName;

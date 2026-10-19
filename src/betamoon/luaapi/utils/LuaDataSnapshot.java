@@ -33,6 +33,13 @@ public final class LuaDataSnapshot {
         return object(value, path, 1000000.0D);
     }
 
+    public static Object value(LuaValue value, String path, double maximumNumber) {
+        if (!Double.isFinite(maximumNumber) || maximumNumber <= 0) {
+            throw new IllegalArgumentException("Snapshot numeric bound must be finite and positive");
+        }
+        return new LuaDataSnapshot(maximumNumber).value(value, path, 0, Shape.ANY);
+    }
+
     public static Map<String, Object> object(LuaValue value, String path, double maximumNumber) {
         if (!Double.isFinite(maximumNumber) || maximumNumber <= 0) {
             throw new IllegalArgumentException("Snapshot numeric bound must be finite and positive");

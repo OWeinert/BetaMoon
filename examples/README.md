@@ -113,8 +113,8 @@ state, physical behavior, and event-driven logic.
 
 ## Advanced
 
-Advanced lessons build complete systems. Lessons 03, 08 through 11, and 18
-through 22 are manifested packages. Their entrypoints preserve gameplay assets
+Advanced lessons build complete systems. Lessons 03, 09 through 11, 13, 14, 17
+and 20 are manifested packages. Their entrypoints preserve gameplay assets
 and, where useful, organize private modules with `require`.
 
 | Lesson | File | Topic |
@@ -139,8 +139,9 @@ and, where useful, organize private modules with `require`.
 | 18 | `03_adv_18_manual_multipart_ai.lua` | Fully manual multipart creature behavior and hit regions |
 | 19 | `03_adv_19_energy_network.lua` | GUI-guided generation, nearest-first flow, bounded rates, endpoint consumers, and adjacent cable grids |
 | 20 | `03_adv_20_hollow_marches/` | Spawn-relative region fields, blended terraced mesas, stratified materials, cave sheets, authored heights and diagnostics |
-| 21 | `03_adv_21_wireless_trigger.lua` | Editable wireless channels, transmitter/receiver roles, retained state, and pulses |
-| 22 | `03_adv_22_world_service_and_data.lua` | Persistent per-world services and detached world, chunk, and player views |
+| 21 | `03_adv_21_flat_dimension.lua` | Superflat custom dimension, reusable item/block activation and persistent return travel |
+| 22 | `03_adv_22_wireless_trigger.lua` | Editable wireless channels, transmitter/receiver roles, retained state, and pulses |
+| 23 | `03_adv_23_world_service_and_data.lua` | Persistent per-world services and detached world, chunk, and player views |
 
 ## Trying the interactive examples
 
@@ -198,6 +199,7 @@ and, where useful, organize private modules with `require`.
 | Advanced 18 | **Manual Guardian** (5040): copy `animated_model_item/`, place it, and inspect Lua-controlled decisions and optional head/wing hitboxes. |
 | Advanced 19 | Connect an **Energy Generator**, **Energy Consumer**, and **Energy Battery** with an **Energy Cable** grid. Attach the battery directly to the grid rather than through the consumer: consumer faces accept energy but never bridge two cable grids. Right-click every block to see its live values and per-tick limits. Energy behaves like consumed flow: the nearest consumers receive their operating energy first, so distant consumers may remain unpowered during a shortage. Buffers fill and batteries charge only after all operating needs are met. Remove the generator to see battery backup. |
 | Advanced 20 | Copy `03_adv_20_hollow_marches/`, select **Hollow Marches**, and explore outward from spawn. Craft **Marches Surveyor** (5050) from a compass, paper and redstone; sneak-use it for a bounded raw preview export. |
+| Advanced 21 | Craft a **Flat Dimension Anchor** (247) from obsidian + a lapis block, and a **Flat Dimension Key** (5051) from a gold ingot + diamond. Place the anchor and use the key on it to enter **Flat Dimension**. Look down and use the key on the generated spawn anchor to return. Requires singleplayer and the Java agent. |
 
 ## Multi-file lesson details
 
@@ -209,7 +211,7 @@ and, where useful, organize private modules with `require`.
   mods. The exporter publishes a public table through `betamoon.modules`; the
   importer declares a dependency and reads that cross-mod export.
 
-- Advanced 03, 09 through 11, 13, and 20 through 24 each demonstrate a packaged mod. Their
+- Advanced 03, 09 through 11, 13, 14, 17 and 20 each demonstrate a packaged mod. Their
   manifests select `main.lua`, while `require` loads private declarations and
   registration functions from neighboring files where the lesson needs them.
   Every file shares the package's lifecycle and resource owner. Copy the whole
@@ -251,6 +253,27 @@ and, where useful, organize private modules with `require`.
 - Advanced 14 narrows custom matching to one clear policy. One recipe consumes
   four cobblestone from a single chosen material slot; the die recipe consumes four
   sand while retaining a stick. Extra occupied pool slots are allowed and untouched.
+
+## Flat Dimension example
+
+Advanced 21 is a single Lua file and requires singleplayer with the Java agent.
+Copy `03_adv_21_flat_dimension.lua` into the scripts directory. No extra assets are needed.
+
+1. Craft one obsidian block with one lapis block, in any arrangement, to make a **Flat Dimension Anchor**.
+2. Craft one gold ingot with one diamond to make a **Flat Dimension Key**.
+3. Place the anchor and right-click it with the key to enter **Flat Dimension**.
+4. You arrive standing on its return anchor at `(0, 3, 0)`, with your feet at Y=4.
+   Look down and right-click that anchor with the same key to return to where you left.
+
+The key is not consumed, has no durability or damage variants, and has a one-second use cooldown.
+Return history survives saving and reopening the world. If no return point exists, the key instead
+returns you to a safe Overworld spawn. Death in Flat Dimension also respawns you in the Overworld.
+The generated return anchor resists explosions and cannot be mined in survival; keep the two blocks
+above it clear for safe entry. Other anchors remain mineable.
+
+The terrain is bedrock at Y=0, two dirt layers, then grass at Y=3. Caves and population are disabled.
+For the normal demonstration, leave **World Generation: Minecraft** selected when creating your
+Overworld, then use the key. The example's **Flat Dimension** generator is also available as a preset.
 
 ## Assets
 

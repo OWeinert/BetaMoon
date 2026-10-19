@@ -1,5 +1,6 @@
 package betamoon.worldgen;
 
+import betamoon.worldgen.terrain.ProfileWorldChunkManager;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.worldgen.biome.BiomeDefinition;
 import betamoon.worldgen.biome.BiomeSourceDefinition;
@@ -183,14 +184,141 @@ public final class BiomeGenRegistry {
         return getBiomeLookupTable().clone();
     }
 
+    /**
+     * Immutable publication lookup for active/preparing dimension providers and
+     * detached previews.
+     */
+    public static WorldCatalog captureWorldCatalog() {
+        PublicationBatch batch = CURRENT_BATCH.get();
+        return new WorldCatalog(batch == null ? active : ownerSnapshot(batch));
+    }
+
+    public static WorldCatalog captureDimensionCatalog() {
+        PublicationBatch batch = CURRENT_BATCH.get();
+        Snapshot current = batch == null ? active : ownerSnapshot(batch);
+        List<BiomeDefinition> copies = new ArrayList<BiomeDefinition>();
+        for (BiomeDefinition entry : current.biomes.values()) {
+            LuaBiome biome = new LuaBiome(entry.biome.biomeName);
+            biome.applyDefaultsFrom(entry.biome);
+            biome.applyTreeMode(entry.biome.treeMode());
+            biome.applyBigTreeChance(entry.biome.bigTreeChance());
+            copies.add(new BiomeDefinition(entry.key, entry.resourceOwner, entry.owner, entry.source, biome, entry.tags,
+                    entry.surface, entry.minTemperature, entry.maxTemperature, entry.minHumidity, entry.maxHumidity,
+                    entry.legacyClimateRange, entry.decoratorCount));
+        }
+        return new WorldCatalog(Snapshot.compile(copies, new ArrayList<SurfaceRuleSet>(current.surfaces.values()),
+                new ArrayList<BiomeSourceDefinition>(current.sources.values())));
+    }
+
+    public static final class WorldCatalog {
+        private final Snapshot snapshot;
+        private final BiomeGenBase[] climate = new BiomeGenBase[4096];
+
+        private WorldCatalog(Snapshot snapshot) {
+            this.snapshot = snapshot;
+            for (int t = 0; t < 64; t++) {
+                for (int h = 0; h < 64; h++) {
+                    climate[t + h * 64] = BiomeGenBase.getBiome(t / 63.0f, h / 63.0f);
+                }
+            }
+            for (BiomeDefinition definition : snapshot.biomes.values()) {
+                if (definition.legacyClimateRange) {
+                    applyRange(climate, definition.biome, definition.minTemperature, definition.maxTemperature,
+                            definition.minHumidity, definition.maxHumidity);
+                }
+            }
+            BiomeSourceDefinition source = snapshot.selectedSource;
+            if (source != null) {
+                for (int t = 0; t < 64; t++) {
+                    for (int h = 0; h < 64; h++) {
+                        BiomeSourceDefinition.ClimateEntry entry = select(source.entries, t / 63.0, h / 63.0);
+                        if (source.fixedBiome != null) {
+                            climate[t + h * 64] = biome(source.fixedBiome);
+                        } else if (entry != null) {
+                            climate[t + h * 64] = biome(entry.biome);
+                        }
+                    }
+                }
+            }
+        }
+
+        public List<BiomeDefinition> definitions() {
+            return Collections.unmodifiableList(new ArrayList<BiomeDefinition>(snapshot.biomes.values()));
+        }
+
+        public BiomeGenBase[] copyClimate() {
+            return climate.clone();
+        }
+
+        public BiomeGenBase biome(WorldGenKey key) {
+            BiomeDefinition definition = snapshot.biomes.get(key);
+            return definition == null ? null : definition.biome;
+        }
+
+        public SurfaceRuleSet surface(WorldGenKey key) {
+            return snapshot.surfaces.get(key);
+        }
+
+        public Map<String, String> dependencies(BiomeSourceDefinition source, String nativeBase) {
+            Set<WorldGenKey> keys = new TreeSet<WorldGenKey>();
+            if (source == null && nativeBase.equals("overworld")) {
+                for (BiomeGenBase biome : climate) {
+                    WorldGenKey key = snapshot.keysByBiome.get(biome);
+                    if (key != null) {
+                        keys.add(key);
+                    }
+                }
+            } else if (source != null) {
+                if (source.fixedBiome != null) {
+                    keys.add(source.fixedBiome);
+                }
+                if (source.fallbackBiome != null) {
+                    keys.add(source.fallbackBiome);
+                }
+                for (BiomeSourceDefinition.ClimateEntry entry : source.entries) {
+                    keys.add(entry.biome);
+                }
+            }
+            Map<String, String> all = generationDependencies(snapshot);
+            Map<String, String> result = new TreeMap<String, String>();
+            if (source == null && nativeBase.equals("overworld")) {
+                StringBuilder distribution = new StringBuilder();
+                for (BiomeGenBase biome : climate) {
+                    WorldGenKey key = snapshot.keysByBiome.get(biome);
+                    distribution.append(key == null
+                            ? "minecraft:" + biome.biomeName + ':' + biome.topBlock + ':' + biome.fillerBlock
+                            : key.toString()).append(';');
+                }
+                result.put("dimension climate distribution", distribution.toString());
+            }
+            for (WorldGenKey key : keys) {
+                if (all.containsKey(key.toString())) {
+                    result.put(key.toString(), all.get(key.toString()));
+                }
+                BiomeDefinition definition = snapshot.biomes.get(key);
+                if (definition != null && definition.surface != null) {
+                    String surface = definition.surface.toString();
+                    result.put(surface, all.get(surface));
+                }
+            }
+            return result;
+        }
+    }
+
     public static Map<String, String> generationDependencies() {
+        PublicationBatch batch = CURRENT_BATCH.get();
+        return generationDependencies(batch == null ? active : ownerSnapshot(batch));
+    }
+
+    private static Map<String, String> generationDependencies(Snapshot snapshot) {
         Map<String, String> result = new TreeMap<String, String>();
-        for (BiomeDefinition biome : definitions()) {
+        for (BiomeDefinition biome : snapshot.biomes.values()) {
             result.put(biome.key.toString(),
                     biome.biome.topBlock + ":" + biome.biome.fillerBlock + ":" + biome.surface + ":" + biome.tags + ":"
                             + biome.minTemperature + ":" + biome.maxTemperature + ":" + biome.minHumidity + ":"
-                            + biome.maxHumidity + ":" + biome.legacyClimateRange);
-            SurfaceRuleSet surface = biome.surface == null ? null : surfaceFor(biome.surface);
+                            + biome.maxHumidity + ":" + biome.legacyClimateRange + ":" + biome.biome.treeMode() + ":"
+                            + biome.biome.bigTreeChance());
+            SurfaceRuleSet surface = biome.surface == null ? null : snapshot.surfaces.get(biome.surface);
             if (surface != null) {
                 StringBuilder signature = new StringBuilder().append(surface.seaLevel).append(':')
                         .append(surface.underwaterBlock);
@@ -266,7 +394,9 @@ public final class BiomeGenRegistry {
     }
 
     public static void applySurfaces(World world, int chunkX, int chunkZ, byte[] blocks, BiomeGenBase[] biomes) {
-        Snapshot snapshot = active;
+        Snapshot snapshot = world != null && world.getWorldChunkManager() instanceof ProfileWorldChunkManager
+                ? ((ProfileWorldChunkManager) world.getWorldChunkManager()).biomeCatalog().snapshot
+                : active;
         if (world == null || blocks == null || blocks.length != 32768 || biomes == null || biomes.length < 256) {
             return;
         }

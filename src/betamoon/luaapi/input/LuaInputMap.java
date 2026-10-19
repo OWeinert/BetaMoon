@@ -1,19 +1,24 @@
 package betamoon.luaapi.input;
 
+import betamoon.client.control.input.ClientInputRuntime;
 import betamoon.client.control.input.InputActionEvent;
-import betamoon.client.control.input.InputActivationMode;
 import betamoon.client.control.input.InputActionState;
+import betamoon.client.control.input.InputActivationMode;
 import betamoon.client.control.input.InputBinding;
 import betamoon.client.control.input.InputContext;
 import betamoon.client.control.input.InputDisposition;
 import betamoon.client.control.input.InputFamily;
 import betamoon.client.control.input.InputMapRegistration;
+import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.InteractionOutcome;
+import betamoon.luaapi.utils.LuaCallbackScope;
+import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.ScriptExecution;
 import betamoon.luamodloader.ScriptResourceTracker;
-import java.util.EnumSet;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
+import net.minecraft.client.Minecraft;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -263,9 +268,7 @@ final class LuaInputMap extends LuaTable {
                         }
                         final LuaValue function = callback.checkfunction();
                         final String callbackOwner = context.owner();
-                        context.on(action,
-                                event -> outcome(ScriptExecution.invoke(callbackOwner, function, event(event)).arg1(),
-                                        "Input action '" + action + "'"));
+                        context.on(action, event -> invokeCallback(callbackOwner, function, action, event));
                     }
                     return handle;
                 } catch (IllegalArgumentException | IllegalStateException error) {
@@ -273,6 +276,22 @@ final class LuaInputMap extends LuaTable {
                 }
             }
         };
+    }
+
+    private static InputDisposition invokeCallback(String owner, LuaValue callback, String action,
+            InputActionEvent input) {
+        Minecraft minecraft = ClientInputRuntime.client();
+        boolean current = minecraft != null && minecraft.theWorld != null && !minecraft.theWorld.multiplayerWorld;
+        try (LuaCallbackScope scope = new LuaCallbackScope(false, current)) {
+            LuaTable event = event(input);
+            if (current) {
+                event.set("world", LuaWorldActionAccess.create(scope, minecraft.theWorld, 0, 0, 0));
+                if (minecraft.thePlayer != null && minecraft.thePlayer.worldObj == minecraft.theWorld) {
+                    event.set("player", LuaEntityActionAccess.create(scope, minecraft.thePlayer, minecraft.thePlayer));
+                }
+            }
+            return outcome(ScriptExecution.invoke(owner, callback, event).arg1(), "Input action '" + action + "'");
+        }
     }
 
     private static InputDisposition outcome(LuaValue value, String path) {

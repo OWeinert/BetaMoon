@@ -19,6 +19,7 @@ public final class FluidDefinition {
     private final int stillBlockId;
     private final int bucketItemId;
     private final boolean vanilla;
+    private final boolean safeTeleportArrival;
 
     public FluidDefinition(ContentKey key, String owner, String preset, FluidCarrier carrier, FluidFlowPolicy flow,
             FluidAppearance appearance, FluidDisplacementPolicy displacement, int flowingBlockId, int stillBlockId,
@@ -45,6 +46,14 @@ public final class FluidDefinition {
             FluidAppearance appearance, FluidDisplacementPolicy displacement, FluidEntityPolicy entity,
             FluidCameraPolicy camera, FluidEcologyPolicy ecology, int flowingBlockId, int stillBlockId,
             int bucketItemId, boolean vanilla) {
+        this(key, owner, preset, carrier, flow, appearance, displacement, entity, camera, ecology, flowingBlockId,
+                stillBlockId, bucketItemId, vanilla, false);
+    }
+
+    public FluidDefinition(ContentKey key, String owner, String preset, FluidCarrier carrier, FluidFlowPolicy flow,
+            FluidAppearance appearance, FluidDisplacementPolicy displacement, FluidEntityPolicy entity,
+            FluidCameraPolicy camera, FluidEcologyPolicy ecology, int flowingBlockId, int stillBlockId,
+            int bucketItemId, boolean vanilla, boolean safeTeleportArrival) {
         if (key == null || !ContentType.FLUID.equals(key.type())) {
             throw new IllegalArgumentException("Fluid definition requires a fluid content key.");
         }
@@ -83,6 +92,11 @@ public final class FluidDefinition {
         this.stillBlockId = stillBlockId;
         this.bucketItemId = bucketItemId;
         this.vanilla = vanilla;
+        this.safeTeleportArrival = safeTeleportArrival;
+    }
+
+    public boolean safeTeleportArrival() {
+        return safeTeleportArrival;
     }
 
     private static void validateBlockId(int id, String role) {

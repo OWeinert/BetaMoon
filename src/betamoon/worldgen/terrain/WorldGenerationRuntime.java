@@ -1,6 +1,9 @@
 package betamoon.worldgen.terrain;
 
 import betamoon.assets.AssetKey;
+import betamoon.dimension.DimensionGenerationBinding;
+import betamoon.dimension.DimensionIdentity;
+import betamoon.dimension.DimensionRuntime;
 import betamoon.loot.LootTableDefinition;
 import betamoon.loot.LootTableRegistry;
 import betamoon.worldgen.GenerationStage;
@@ -47,6 +50,9 @@ public final class WorldGenerationRuntime {
     }
 
     public static synchronized void prepare(World world, ISaveHandler saveHandler) {
+        if (DimensionIdentity.isCustom(world)) {
+            return;
+        }
         if (world.multiplayerWorld || world.worldProvider.worldType != 0 || WORLDS.containsKey(world)
                 || NATIVE_ANCHORS.containsKey(world) || FALLBACK_WORLDS.containsKey(world)) {
             return;
@@ -139,8 +145,8 @@ public final class WorldGenerationRuntime {
                 }
                 manifest = new WorldGeneratorManifest(world.getRandomSeed(), 0, profile.key, profile.signature, null);
                 if (isCustom(profile)) {
-                    ProfileWorldChunkManager biomes = new ProfileWorldChunkManager(world.getWorldChunkManager(),
-                            profile.biomeSource, selection);
+                    ProfileWorldChunkManager biomes = new ProfileWorldChunkManager(
+                            NativeGeneratorFamily.climate(world, profile.nativeBase), profile.biomeSource, selection);
                     WorldGeneratorManifest.OriginalSpawn spawn = GeneratorSpawnSearch.find(world.getRandomSeed(),
                             profile, biomes);
                     manifest = manifest.withOriginalSpawn(spawn.x, spawn.y, spawn.z);
@@ -163,6 +169,9 @@ public final class WorldGenerationRuntime {
             }
             WORLDS.put(world, new Binding(profile, manifest, store, saveHandler));
             WorldGenRegistry.pinGenerationCatalogs(world);
+            if (!profile.nativeBase.equals("overworld")) {
+                world.worldProvider.worldChunkMgr = NativeGeneratorFamily.climate(world, profile.nativeBase);
+            }
             if (profile.terrain != null || selection != null) {
                 ProfileWorldChunkManager manager = new ProfileWorldChunkManager(world.getWorldChunkManager(),
                         profile.biomeSource, selection);
@@ -203,6 +212,9 @@ public final class WorldGenerationRuntime {
             return nativeProvider;
         }
         binding.providerSelected = true;
+        if (!binding.profile.nativeBase.equals("overworld")) {
+            nativeProvider = NativeGeneratorFamily.provider(provider.worldObj, binding.profile.nativeBase);
+        }
         return new BetaMoonChunkProvider(provider.worldObj, nativeProvider, binding.profile);
     }
 
@@ -223,9 +235,8 @@ public final class WorldGenerationRuntime {
         if (selection != null) {
             return selection.enabled("stage/" + stage.getName());
         }
-        Binding binding = WORLDS.get(world);
-        return binding == null || binding.profile.population == null
-                || binding.profile.population.stages.contains(stage);
+        PopulationPolicy policy = population(world);
+        return policy == null || policy.stages.contains(stage);
     }
 
     private static boolean isCustom(WorldGeneratorProfile profile) {
@@ -233,14 +244,21 @@ public final class WorldGenerationRuntime {
     }
 
     public static synchronized boolean ownsPopulation(World world) {
+        return population(world) != null;
+    }
+
+    private static PopulationPolicy population(World world) {
+        DimensionGenerationBinding custom = DimensionRuntime.generation(world);
+        if (custom != null) {
+            return custom.population;
+        }
         Binding binding = WORLDS.get(world);
-        return binding != null && binding.profile.population != null;
+        return binding == null ? null : binding.profile.population;
     }
 
     public static synchronized boolean nativeCategoryEnabled(World world, String category) {
-        Binding binding = WORLDS.get(world);
-        return binding == null || binding.profile.population == null
-                || binding.profile.population.nativeCategories.contains(category);
+        PopulationPolicy policy = population(world);
+        return policy == null || policy.nativeCategories.contains(category);
     }
 
     public static synchronized int initialSpawn(World world) {
@@ -281,8 +299,8 @@ public final class WorldGenerationRuntime {
     }
 
     public static synchronized void chunkLoaded(Chunk chunk) {
-        Binding binding = WORLDS.get(chunk.worldObj);
-        if (binding == null || !isCustom(binding.profile)) {
+        WorldGeneratorProfile profile = profile(chunk.worldObj);
+        if (profile == null || !isCustom(profile)) {
             return;
         }
         GeneratedChunkLighting.chunkLoaded(chunk);
@@ -331,6 +349,10 @@ public final class WorldGenerationRuntime {
     }
 
     public static synchronized WorldGeneratorProfile profile(World world) {
+        DimensionGenerationBinding custom = DimensionRuntime.generation(world);
+        if (custom != null) {
+            return custom.profile;
+        }
         Binding binding = WORLDS.get(world);
         return binding == null ? null : binding.profile;
     }
@@ -371,8 +393,14 @@ public final class WorldGenerationRuntime {
     public static synchronized FieldContext fieldContext(World world) {
         WorldGeneratorManifest manifest = manifest(world);
         WorldGeneratorManifest.OriginalSpawn spawn = manifest == null ? null : manifest.originalSpawn;
-        return new FieldContext(world.getRandomSeed(), world.worldProvider.worldType, spawn != null,
-                spawn == null ? 0 : spawn.x, spawn == null ? 0 : spawn.z,
+        DimensionRuntime.WorldBinding custom = DimensionRuntime.binding(world);
+        if (custom != null && custom.save != null && custom.save.metadata.hasAnchor()) {
+            spawn = new WorldGeneratorManifest.OriginalSpawn(custom.save.metadata.anchorX(),
+                    custom.save.metadata.anchorY(), custom.save.metadata.anchorZ());
+        }
+        return new FieldContext(world.getRandomSeed(), world.worldProvider.worldType,
+                DimensionIdentity.key(world).toString(), spawn != null, spawn == null ? 0 : spawn.x,
+                spawn == null ? 0 : spawn.z,
                 world.getWorldChunkManager() instanceof FieldContext.Environment
                         ? (FieldContext.Environment) world.getWorldChunkManager()
                         : new NativeBiomeEnvironment(world.getWorldChunkManager()),
@@ -380,6 +408,10 @@ public final class WorldGenerationRuntime {
     }
 
     public static synchronized SpatialRegistry.Snapshot spatial(World world) {
+        DimensionGenerationBinding custom = DimensionRuntime.generation(world);
+        if (custom != null) {
+            return custom.spatial;
+        }
         Binding binding = WORLDS.get(world);
         NativeAnchor nativeAnchor = NATIVE_ANCHORS.get(world);
         return binding == null
@@ -398,6 +430,10 @@ public final class WorldGenerationRuntime {
     }
 
     public static synchronized TerrainRegistry.Snapshot terrainDefinitions(World world) {
+        DimensionGenerationBinding custom = DimensionRuntime.generation(world);
+        if (custom != null) {
+            return custom.terrain;
+        }
         Binding binding = WORLDS.get(world);
         NativeAnchor nativeAnchor = NATIVE_ANCHORS.get(world);
         return binding == null
@@ -406,6 +442,10 @@ public final class WorldGenerationRuntime {
     }
 
     public static synchronized Map<AssetKey, LootTableDefinition> lootDefinitions(World world) {
+        DimensionGenerationBinding custom = DimensionRuntime.generation(world);
+        if (custom != null) {
+            return custom.loot;
+        }
         Binding binding = WORLDS.get(world);
         NativeAnchor nativeAnchor = NATIVE_ANCHORS.get(world);
         return binding == null

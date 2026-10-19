@@ -2,6 +2,7 @@ package betamoon.system;
 
 import betamoon.BetaMoonCommon;
 import betamoon.data.DataStore;
+import betamoon.dimension.DimensionRuntime;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptErrors;
@@ -29,14 +30,11 @@ public final class WorldServiceRuntime {
     }
 
     public static synchronized void load(World world) {
-        if (world == null || world.multiplayerWorld || WORLDS.containsKey(world)) {
+        if (world == null || world.multiplayerWorld || WORLDS.containsKey(world)
+                || DimensionRuntime.isPreparing(world)) {
             return;
         }
-        BetaMoonWorldData storage = (BetaMoonWorldData) world.loadItemData(BetaMoonWorldData.class, STORAGE_KEY);
-        if (storage == null) {
-            storage = new BetaMoonWorldData(STORAGE_KEY);
-            world.setItemData(STORAGE_KEY, storage);
-        }
+        BetaMoonWorldData storage = storedData(world);
         RuntimeWorld runtime = new RuntimeWorld(world, storage);
         WORLDS.put(world, runtime);
         runtime.load();
@@ -62,6 +60,26 @@ public final class WorldServiceRuntime {
         }
     }
 
+    /**
+     * Runs unload persistence while the source is still active, before a checked
+     * transfer save.
+     */
+    public static synchronized void prepareToLeave(World world) {
+        LogicalNetworkRuntime.unload(world);
+        RuntimeWorld runtime = WORLDS.get(world);
+        if (runtime != null) {
+            runtime.unload();
+        }
+    }
+
+    public static synchronized void resumeCancelledLeave(World world) {
+        RuntimeWorld runtime = WORLDS.get(world);
+        if (runtime != null && runtime.preparedToLeave) {
+            runtime.preparedToLeave = false;
+            runtime.load();
+        }
+    }
+
     public static synchronized LuaValue snapshot(World world, WorldServiceDefinition definition) {
         load(world);
         RuntimeWorld runtime = WORLDS.get(world);
@@ -70,9 +88,21 @@ public final class WorldServiceRuntime {
     }
 
     public static synchronized BetaMoonWorldData storage(World world) {
+        if (world != null && !world.multiplayerWorld && DimensionRuntime.isPreparing(world)) {
+            return storedData(world);
+        }
         load(world);
         RuntimeWorld runtime = WORLDS.get(world);
         return runtime == null ? null : runtime.storage;
+    }
+
+    private static BetaMoonWorldData storedData(World world) {
+        BetaMoonWorldData storage = (BetaMoonWorldData) world.loadItemData(BetaMoonWorldData.class, STORAGE_KEY);
+        if (storage == null) {
+            storage = new BetaMoonWorldData(STORAGE_KEY);
+            world.setItemData(STORAGE_KEY, storage);
+        }
+        return storage;
     }
 
     private static LuaTable context(World world, Instance instance, LuaCallbackScope scope) {
@@ -129,6 +159,7 @@ public final class WorldServiceRuntime {
     private static final class RuntimeWorld {
         private final World world;
         private long simulationTicks;
+        private boolean preparedToLeave;
         private final BetaMoonWorldData storage;
         private final Map<String, Instance> instances = new LinkedHashMap<>();
 
@@ -157,6 +188,9 @@ public final class WorldServiceRuntime {
         }
 
         private void tick() {
+            if (preparedToLeave) {
+                return;
+            }
             long tick = ++simulationTicks;
             for (Instance instance : instances.values()) {
                 if (instance.definition.tickInterval > 0 && tick % instance.definition.tickInterval == 0) {
@@ -166,6 +200,10 @@ public final class WorldServiceRuntime {
         }
 
         private void unload() {
+            if (preparedToLeave) {
+                return;
+            }
+            preparedToLeave = true;
             for (Instance instance : instances.values()) {
                 invoke(world, instance, instance.definition.onUnload, "onUnload");
                 storage.services().setCompoundTag(instance.definition.key.toString(), instance.data.raw());

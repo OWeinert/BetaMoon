@@ -123,7 +123,9 @@ public final class StructureFeature implements WorldFeature {
         for (StructureTemplate.TemplateBlock block : resolved.blocks) {
             Random random = new Random(blockSeed(placementSeed, block));
             StructureTemplate.State selected = template.palette.get(block.state).select(random);
-            if (selected.blockId == 0 && !processors.includeAir) {
+            boolean protectedCell = block.tags.contains("protected")
+                    || template.palette.get(block.state).tags.contains("protected");
+            if (selected.blockId == 0 && !processors.includeAir && !protectedCell) {
                 continue;
             }
             if (processors.decay > 0.0D && random.nextDouble() < processors.decay) {
@@ -141,6 +143,12 @@ public final class StructureFeature implements WorldFeature {
             int y = origin.y + relative.y + conformOffset;
             int z = origin.z + relative.z;
             if (x < minX || x > maxX || z < minZ || z > maxZ) {
+                continue;
+            }
+            if (protectedCell && !output.protect(x, y, z)) {
+                return FeatureResult.rejected(output.failure());
+            }
+            if (selected.blockId == 0 && !processors.includeAir) {
                 continue;
             }
             BlockPosition finalPosition = new BlockPosition(x, y, z);

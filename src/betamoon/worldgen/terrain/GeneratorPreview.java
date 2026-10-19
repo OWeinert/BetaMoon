@@ -1,5 +1,6 @@
 package betamoon.worldgen.terrain;
 
+import betamoon.worldgen.BiomeGenRegistry;
 import betamoon.worldgen.GenerationStage;
 import betamoon.worldgen.spatial.FieldContext;
 import betamoon.worldgen.spatial.NativeBiomeEnvironment;
@@ -127,10 +128,14 @@ public final class GeneratorPreview {
                         ? ((NativeBiomeEnvironment) environment).manager()
                         : null;
         ProfileWorldChunkManager preview = !matching && climate != null
-                ? new ProfileWorldChunkManager(climate, profile.biomeSource)
+                ? new ProfileWorldChunkManager(climate, profile.biomeSource, null,
+                        environment instanceof ProfileWorldChunkManager
+                                ? ((ProfileWorldChunkManager) environment).biomeCatalog()
+                                : BiomeGenRegistry.captureWorldCatalog())
                 : null;
-        FieldContext result = new FieldContext(fields.seed, fields.dimension, fields.hasOriginalSpawn, fields.spawnX,
-                fields.spawnZ, preview == null ? environment : preview, profile.spatial);
+        FieldContext result = new FieldContext(fields.seed, fields.dimension, fields.dimensionKey,
+                fields.hasOriginalSpawn, fields.spawnX, fields.spawnZ, preview == null ? environment : preview,
+                profile.spatial);
         if (preview != null) {
             preview.setFieldContext(result);
         }

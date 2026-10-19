@@ -33,10 +33,11 @@ public final class GenerationBiomes {
     private static Map<String, BiomeGenBase> createNativeBiomes() {
         Map<String, BiomeGenBase> result = new LinkedHashMap<String, BiomeGenBase>();
         String[] names = {"rainforest", "swampland", "seasonal_forest", "forest", "savanna", "shrubland", "taiga",
-                "desert", "plains", "ice_desert", "tundra"};
+                "desert", "plains", "ice_desert", "tundra", "hell", "sky"};
         BiomeGenBase[] biomes = {BiomeGenBase.rainforest, BiomeGenBase.swampland, BiomeGenBase.seasonalForest,
                 BiomeGenBase.forest, BiomeGenBase.savanna, BiomeGenBase.shrubland, BiomeGenBase.taiga,
-                BiomeGenBase.desert, BiomeGenBase.plains, BiomeGenBase.iceDesert, BiomeGenBase.tundra};
+                BiomeGenBase.desert, BiomeGenBase.plains, BiomeGenBase.iceDesert, BiomeGenBase.tundra,
+                BiomeGenBase.hell, BiomeGenBase.sky};
         for (int i = 0; i < names.length; i++) {
             result.put("minecraft:biome/" + names[i], biomes[i]);
         }

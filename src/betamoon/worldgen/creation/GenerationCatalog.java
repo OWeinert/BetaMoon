@@ -8,6 +8,7 @@ import betamoon.worldgen.biome.BiomeSourceDefinition;
 import betamoon.worldgen.terrain.PopulationPolicy;
 import betamoon.worldgen.terrain.WorldGeneratorProfile;
 import java.util.Collections;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.LinkedHashMap;
@@ -25,16 +26,22 @@ public final class GenerationCatalog {
     public final String key;
     public final String label;
     public final Map<String, GenerationOption> options;
+    public final List<String> climate;
 
     public GenerationCatalog(WorldGeneratorProfile profile) {
         this.profile = profile;
         key = profile == null ? MINECRAFT : profile.key;
         label = profile == null ? "Minecraft" : profile.displayName;
         Map<String, GenerationOption> values = new LinkedHashMap<String, GenerationOption>();
-        add(values, "group/ores", "Ore generation", "General", true, null);
-        add(values, "group/structures", "Structures", "General", true, null);
+        boolean granularNative = profile == null || profile.nativeBase.equals("overworld");
+        add(values, "group/ores", granularNative ? "Ore generation" : "Custom ore generation", "General", true, null);
+        add(values, "group/structures", granularNative ? "Structures" : "Custom structures", "General", true, null);
         PopulationPolicy policy = profile == null ? null : profile.population;
-        for (String name : NATIVE) {
+        if (!granularNative) {
+            add(values, "native/all", "Minecraft population", "Minecraft",
+                    policy == null || !policy.nativeCategories.isEmpty(), null);
+        }
+        for (String name : granularNative ? NATIVE : Collections.<String>emptyList()) {
             add(values, "native/" + name, "Minecraft " + name, "Minecraft",
                     policy == null || policy.nativeCategories.contains(name), null,
                     name.equals("ores")
@@ -79,11 +86,17 @@ public final class GenerationCatalog {
                     "group/structures", "stage/" + structure.stage);
         }
         BiomeSourceDefinition source = profile == null ? null : profile.biomeSource;
+        List<String> resolvedClimate = new ArrayList<String>();
+        BiomeGenBase fixedNative = source == null && !granularNative
+                ? profile.nativeBase.equals("nether") ? BiomeGenBase.hell : BiomeGenBase.sky
+                : null;
+        for (BiomeGenBase biome : BiomeGenRegistry.copyClimateLookup()) {
+            resolvedClimate.add(GenerationBiomes.key(fixedNative == null ? biome : fixedNative));
+        }
+        climate = Collections.unmodifiableList(resolvedClimate);
         Set<String> eligibleBiomes = new HashSet<String>();
         if (source == null) {
-            for (BiomeGenBase biome : BiomeGenRegistry.copyClimateLookup()) {
-                eligibleBiomes.add(GenerationBiomes.key(biome));
-            }
+            eligibleBiomes.addAll(climate);
         } else {
             for (int t = 0; t < 64; t++) {
                 for (int h = 0; h < 64; h++) {
@@ -94,7 +107,8 @@ public final class GenerationCatalog {
         if (source == null || source.fixedBiome == null && source.fallbackBiome == null) {
             for (Map.Entry<String, BiomeGenBase> entry : GenerationBiomes.nativeBiomes().entrySet()) {
                 if (eligibleBiomes.contains(entry.getKey())) {
-                    add(values, "biome/" + entry.getKey(), entry.getValue().biomeName, "Biomes", true, null);
+                    add(values, "biome/" + entry.getKey(), entry.getValue().biomeName, "Biomes", true,
+                            fixedNative == null ? null : "Required biome for this preset");
                 }
             }
         }

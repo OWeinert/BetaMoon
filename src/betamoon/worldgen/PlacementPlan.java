@@ -3,11 +3,14 @@ package betamoon.worldgen;
 import betamoon.loot.InventoryLootOperation;
 import betamoon.tileentity.LuaTileEntity;
 import betamoon.tileentity.TileEntityRegistry;
+import betamoon.worldgen.structure.StructureProtection;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import net.minecraft.src.IInventory;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.NBTTagCompound;
@@ -25,9 +28,9 @@ public final class PlacementPlan {
     private final int maxBlocks;
     private final int maxRadius;
     private final Map<BlockPosition, Change> changes = new LinkedHashMap<BlockPosition, Change>();
-    private final Map<BlockPosition, InventoryLootOperation> inventoryLoot =
-            new LinkedHashMap<BlockPosition, InventoryLootOperation>();
+    private final Map<BlockPosition, InventoryLootOperation> inventoryLoot = new LinkedHashMap<BlockPosition, InventoryLootOperation>();
     private String failure;
+    private final Set<BlockPosition> protectedPositions = new LinkedHashSet<BlockPosition>();
 
     public PlacementPlan(BlockPosition origin, int maxBlocks, int maxRadius) {
         this.origin = origin;
@@ -97,6 +100,21 @@ public final class PlacementPlan {
         return failure;
     }
 
+    public boolean protect(int x, int y, int z) {
+        if (y < 0 || y > 127 || Math.abs(x - origin.x) > maxRadius || Math.abs(y - origin.y) > maxRadius
+                || Math.abs(z - origin.z) > maxRadius) {
+            failure = FeatureResult.OUT_OF_BOUNDS;
+            return false;
+        }
+        BlockPosition position = new BlockPosition(x, y, z);
+        if (!protectedPositions.contains(position) && protectedPositions.size() >= maxBlocks) {
+            failure = FeatureResult.BUDGET_EXCEEDED;
+            return false;
+        }
+        protectedPositions.add(position);
+        return true;
+    }
+
     public boolean addInventoryLoot(int x, int y, int z, InventoryLootOperation operation) {
         if (failure != null) {
             return false;
@@ -121,7 +139,7 @@ public final class PlacementPlan {
     }
 
     public boolean hasPlannedChanges() {
-        return !changes.isEmpty() || !inventoryLoot.isEmpty();
+        return !changes.isEmpty() || !inventoryLoot.isEmpty() || !protectedPositions.isEmpty();
     }
 
     public int size() {
@@ -164,7 +182,7 @@ public final class PlacementPlan {
         if (context.failure() != null) {
             return FeatureResult.rejected(context.failure());
         }
-        if (changes.isEmpty() && inventoryLoot.isEmpty()) {
+        if (!hasPlannedChanges()) {
             return FeatureResult.rejected(FeatureResult.NO_CHANGES);
         }
 
@@ -172,6 +190,13 @@ public final class PlacementPlan {
         List<Original> originals = new ArrayList<Original>();
         BlockPosition min = null;
         BlockPosition max = null;
+        for (BlockPosition position : protectedPositions) {
+            if (!world.blockExists(position.x, position.y, position.z)) {
+                return FeatureResult.rejected(FeatureResult.UNLOADED_CHUNK);
+            }
+            min = min(min, position);
+            max = max(max, position);
+        }
         for (Change change : changes.values()) {
             if (!world.blockExists(change.position.x, change.position.y, change.position.z)) {
                 return FeatureResult.rejected(FeatureResult.UNLOADED_CHUNK);
@@ -246,6 +271,9 @@ public final class PlacementPlan {
         if (publishUpdates) {
             publishUpdates(world);
         }
+        for (BlockPosition position : protectedPositions) {
+            StructureProtection.mark(world, position.x, position.y, position.z);
+        }
         return FeatureResult.placed(committed, min, max, context.diagnostics());
     }
 
@@ -260,11 +288,18 @@ public final class PlacementPlan {
         if (context.failure() != null) {
             return FeatureResult.rejected(context.failure());
         }
-        if (changes.isEmpty() && inventoryLoot.isEmpty()) {
+        if (!hasPlannedChanges()) {
             return FeatureResult.rejected(FeatureResult.NO_CHANGES);
         }
         BlockPosition min = null;
         BlockPosition max = null;
+        for (BlockPosition position : protectedPositions) {
+            if (!context.world().blockExists(position.x, position.y, position.z)) {
+                return FeatureResult.rejected(FeatureResult.UNLOADED_CHUNK);
+            }
+            min = min(min, position);
+            max = max(max, position);
+        }
         for (Change change : changes.values()) {
             if (!context.world().blockExists(change.position.x, change.position.y, change.position.z)) {
                 return FeatureResult.rejected(FeatureResult.UNLOADED_CHUNK);
@@ -368,8 +403,8 @@ public final class PlacementPlan {
             this.blockId = blockId;
             this.metadata = metadata;
             this.tileData = tileData == null
-                    ? java.util.Collections.<String, LuaValue>emptyMap()
-                    : java.util.Collections.unmodifiableMap(new LinkedHashMap<String, LuaValue>(tileData));
+                    ? Collections.<String, LuaValue>emptyMap()
+                    : Collections.unmodifiableMap(new LinkedHashMap<String, LuaValue>(tileData));
             this.priority = priority;
         }
     }

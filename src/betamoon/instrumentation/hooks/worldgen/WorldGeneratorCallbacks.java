@@ -1,5 +1,8 @@
 package betamoon.instrumentation.hooks.worldgen;
 
+import betamoon.dimension.DimensionIdentity;
+import betamoon.dimension.DimensionRuntime;
+import betamoon.dimension.DimensionWorldAccess;
 import betamoon.worldgen.terrain.WorldGenerationRuntime;
 import net.minecraft.src.Chunk;
 import net.minecraft.src.IChunkProvider;
@@ -36,6 +39,10 @@ public final class WorldGeneratorCallbacks {
     }
 
     public static int prepare(World world, ISaveHandler saveHandler) {
+        DimensionRuntime.prepare(world, saveHandler);
+        if (DimensionIdentity.isCustom(world)) {
+            saveHandler = DimensionWorldAccess.save(world);
+        }
         WorldGenerationRuntime.prepare(world, saveHandler);
         return 0;
     }

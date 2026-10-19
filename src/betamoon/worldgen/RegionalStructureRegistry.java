@@ -1,7 +1,11 @@
 package betamoon.worldgen;
 
+import betamoon.worldgen.terrain.PopulationPolicy;
 import betamoon.BetaMoonCommon;
+import betamoon.dimension.DimensionIdentity;
+import betamoon.dimension.DimensionSelector;
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.teleport.ChunkPreparation;
 import betamoon.worldgen.spatial.SpatialRegistry;
 import betamoon.worldgen.structure.StructureFeature;
 import betamoon.worldgen.structure.StructureTransform;
@@ -19,6 +23,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.WeakHashMap;
+import java.util.function.Consumer;
 import net.minecraft.src.Chunk;
 import net.minecraft.src.World;
 import org.luaj.vm2.LuaError;
@@ -33,6 +38,23 @@ final class RegionalStructureRegistry {
 
     static synchronized void pin(World world) {
         WORLD_SNAPSHOTS.put(world, active);
+    }
+
+    static synchronized Consumer<World> capture(String owner, List<RegionalStructureDefinition> definitions,
+            List<FeatureDefinition> features) {
+        List<RegionalStructureDefinition> values = new ArrayList<RegionalStructureDefinition>();
+        for (RegionalStructureDefinition definition : active.definitions.values()) {
+            if (!definition.resourceOwner.equals(owner)) {
+                values.add(definition);
+            }
+        }
+        values.addAll(definitions);
+        Snapshot selected = owner == null ? active : Snapshot.compile(values, features);
+        return world -> {
+            synchronized (RegionalStructureRegistry.class) {
+                WORLD_SNAPSHOTS.put(world, selected);
+            }
+        };
     }
 
     private static synchronized Snapshot snapshot(World world) {
@@ -111,6 +133,29 @@ final class RegionalStructureRegistry {
         }
         for (RegionalStructureDefinition definition : pending) {
             result.put("regional:" + definition.key, definition.placementSignature(SpatialRegistry.pendingSnapshot()));
+        }
+        return result;
+    }
+
+    static synchronized Set<String> dimensionDependencyKeys(String dimension, PopulationPolicy policy, String owner,
+            List<RegionalStructureDefinition> pending) {
+        List<RegionalStructureDefinition> values = new ArrayList<RegionalStructureDefinition>();
+        for (RegionalStructureDefinition definition : active.definitions.values()) {
+            if (!definition.resourceOwner.equals(owner)) {
+                values.add(definition);
+            }
+        }
+        values.addAll(pending);
+        Set<String> result = new HashSet<String>();
+        for (RegionalStructureDefinition definition : values) {
+            if (DimensionSelector.matches(definition.dimensions, dimension)
+                    && (policy == null || policy.stages.contains(definition.stage))) {
+                result.add(definition.key.toString());
+                result.add(definition.startFeature.toString());
+                for (RegionalStructureDefinition.PieceChoice piece : definition.pieces) {
+                    result.add(piece.feature.toString());
+                }
+            }
         }
         return result;
     }
@@ -676,11 +721,27 @@ final class RegionalStructureRegistry {
     }
 
     private static boolean matchesDimension(RegionalStructureDefinition definition, String dimension) {
-        return definition.dimensions.isEmpty() || definition.dimensions.contains(dimension);
+        return DimensionSelector.matches(definition.dimensions, dimension);
+    }
+
+    static boolean reservedPosition(World world, int x, int y, int z) {
+        RegionalStructureIndex index = RegionalStructureIndex.get(world);
+        if (index != null) {
+            for (RegionalStructurePlan plan : index.forChunk(x >> 4, z >> 4)) {
+                for (RegionalStructurePlan.Piece piece : plan.pieces) {
+                    StructureFeature.Bounds bounds = piece.bounds;
+                    if (x >= bounds.min.x && x <= bounds.max.x && y >= bounds.min.y && y <= bounds.max.y
+                            && z >= bounds.min.z && z <= bounds.max.z) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     private static String dimension(World world) {
-        return world.worldProvider.worldType == -1 ? "minecraft:nether" : "minecraft:overworld";
+        return DimensionIdentity.key(world).toString();
     }
 
     private static String id(WorldGenKey key, String dimension, int regionX, int regionZ) {
@@ -705,6 +766,7 @@ final class RegionalStructureRegistry {
     }
 
     private static synchronized void disable(RegionalStructureDefinition definition, Throwable error) {
+        ChunkPreparation.reportPopulationFailure(error);
         disabled.add(definition);
         reject(definition.key, FeatureResult.RUNTIME_ERROR);
         String detail = error.getMessage() == null ? error.toString() : error.getMessage();

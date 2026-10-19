@@ -1,5 +1,7 @@
 package betamoon.atmosphere;
 
+import betamoon.dimension.DimensionIdentity;
+import betamoon.dimension.DimensionKey;
 import betamoon.worldgen.WorldGenRegistry;
 import betamoon.worldgen.terrain.WorldGenerationRuntime;
 import java.util.HashSet;
@@ -20,6 +22,7 @@ import static betamoon.worldgen.spatial.GenerationValues.string;
 public final class AtmosphereScope {
     private final String type;
     private final int dimension;
+    private final String dimensionKey;
     private final Set<String> biomes = new HashSet<String>();
     private final double[] center;
     private final double[] min;
@@ -29,9 +32,15 @@ public final class AtmosphereScope {
 
     public AtmosphereScope(Object declaration, boolean temporary, String path) {
         Map<String, Object> value = object(declaration, path);
-        fields(value, path, "type", "id", "keys", "tags", "center", "radius", "min", "max", "tag");
+        fields(value, path, "type", "id", "key", "keys", "tags", "center", "radius", "min", "max", "tag");
         type = string(required(value, "type", path), path + ".type");
         dimension = value.containsKey("id") ? integer(value.get("id"), path + ".id", -128, 127) : 0;
+        dimensionKey = value.containsKey("key")
+                ? DimensionKey.parse(string(value.get("key"), path + ".key")).toString()
+                : null;
+        if (value.containsKey("id") && dimensionKey != null || dimensionKey != null && !type.equals("dimension")) {
+            throw error(path, "dimension scope accepts either key or legacy id");
+        }
         center = type.equals("sphere") ? point(required(value, "center", path), path + ".center") : null;
         min = type.equals("box") ? point(required(value, "min", path), path + ".min") : null;
         max = type.equals("box") ? point(required(value, "max", path), path + ".max") : null;
@@ -61,7 +70,9 @@ public final class AtmosphereScope {
 
     public double weight(World world, double x, double y, double z, double blend) {
         if (type.equals("dimension")) {
-            return world.worldProvider.worldType == dimension ? 1 : 0;
+            return (dimensionKey == null
+                    ? world.worldProvider.worldType == dimension
+                    : DimensionIdentity.key(world).toString().equals(dimensionKey)) ? 1 : 0;
         }
         if (type.equals("biome")) {
             if (blend == 0) {

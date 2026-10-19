@@ -1,5 +1,6 @@
 package betamoon.worldgen.spatial;
 
+import betamoon.dimension.DimensionKey;
 import betamoon.worldgen.WorldGenKey;
 import betamoon.worldgen.WorldGenKind;
 import betamoon.worldgen.terrain.GenerationSignature;
@@ -211,11 +212,12 @@ public final class SpatialRegistry {
             }
             try {
                 fields(declaration.value, key, "key", "node", "range", "dimension");
-                if (declaration.value.containsKey("dimension")) {
-                    AnchorDefinition.dimension(declaration.value.get("dimension"), key + ".dimension");
-                }
                 ScalarField compiled = new ScalarFieldCompiler(key, this)
                         .compile(required(declaration.value, "node", key));
+                if (declaration.value.containsKey("dimension")) {
+                    compiled = compiled.inDimension(DimensionKey
+                            .parse(string(declaration.value.get("dimension"), key + ".dimension")).toString());
+                }
                 if (declaration.value.containsKey("range")) {
                     Map<String, Object> range = object(declaration.value.get("range"), key + ".range");
                     fields(range, key + ".range", "min", "max");

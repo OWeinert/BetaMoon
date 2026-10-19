@@ -1,5 +1,6 @@
 package betamoon.fluid.item;
 
+import betamoon.dimension.DimensionRules;
 import betamoon.fluid.FluidDefinition;
 import betamoon.fluid.FluidRegistration;
 import betamoon.fluid.FluidRegistry;
@@ -12,7 +13,10 @@ import net.minecraft.src.MovingObjectPosition;
 import net.minecraft.src.Vec3D;
 import net.minecraft.src.World;
 
-/** Filled bucket whose placed fluid is resolved through its stable registry slot. */
+/**
+ * Filled bucket whose placed fluid is resolved through its stable registry
+ * slot.
+ */
 public final class FluidBucketItem extends Item {
     public FluidBucketItem(int shiftedId) {
         super(shiftedId - 256);
@@ -72,7 +76,7 @@ public final class FluidBucketItem extends Item {
             return stack;
         }
 
-        if (world.worldProvider.isHellWorld && "water".equals(fluid.preset())) {
+        if (DimensionRules.evaporatesWater(world.worldProvider) && "water".equals(fluid.preset())) {
             evaporate(world, x, y, z);
             return new ItemStack(Item.bucketEmpty);
         }
@@ -89,16 +93,15 @@ public final class FluidBucketItem extends Item {
         if (targetId == 0) {
             return true;
         }
-        return FluidRegistry.instance().getByBlockId(targetId) == null
-                && !world.getBlockMaterial(x, y, z).isSolid();
+        return FluidRegistry.instance().getByBlockId(targetId) == null && !world.getBlockMaterial(x, y, z).isSolid();
     }
 
     private static void evaporate(World world, int x, int y, int z) {
         world.playSoundEffect(x + 0.5D, y + 0.5D, z + 0.5D, "random.fizz", 0.5F,
                 2.6F + (world.rand.nextFloat() - world.rand.nextFloat()) * 0.8F);
         for (int particle = 0; particle < 8; particle++) {
-            world.spawnParticle("largesmoke", x + Math.random(), y + Math.random(), z + Math.random(),
-                    0.0D, 0.0D, 0.0D);
+            world.spawnParticle("largesmoke", x + Math.random(), y + Math.random(), z + Math.random(), 0.0D, 0.0D,
+                    0.0D);
         }
     }
 }
