@@ -5,6 +5,7 @@ import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiElement;
 import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.framework.GuiInputEvent;
+import betamoon.gui.framework.GuiTheme;
 import betamoon.gui.widget.GuiScrollView;
 import betamoon.luamodloader.LuaScriptErrors;
 import betamoon.luamodloader.ScriptMod;
@@ -159,6 +160,14 @@ final class GuiPanelScriptList extends GuiContainer {
         return entry == null || entry.getSourceFileName() == null ? "" : entry.getSourceFileName();
     }
 
+    static int nameColor(ScriptMod entry, GuiTheme theme) {
+        if (entry.isFailed() || LuaScriptErrors.hasErrorFor(entry.getDisplayName(), entry.getSourceFileName())) {
+            return theme.textError;
+        }
+        return LuaScriptErrors.hasWarningFor(entry.getDisplayName(), entry.getSourceFileName())
+                ? theme.textWarning : theme.textPrimary;
+    }
+
     private static boolean sameEntries(List<ScriptMod> first, List<ScriptMod> second) {
         if (first.size() != second.size()) {
             return false;
@@ -178,13 +187,7 @@ final class GuiPanelScriptList extends GuiContainer {
             int hoveredIndex = rowAt(context.getMouseX(), context.getMouseY());
             for (int i = 0; i < entries.size(); i++) {
                 ScriptMod entry = entries.get(i);
-                int color = entry.isFailed()
-                        ? context.getRenderer().getTheme().textError
-                        : context.getRenderer().getTheme().textPrimary;
-                if (!entry.isFailed()
-                        && LuaScriptErrors.hasWarningFor(entry.getDisplayName(), entry.getSourceFileName())) {
-                    color = context.getRenderer().getTheme().textWarning;
-                }
+                int color = nameColor(entry, context.getRenderer().getTheme());
                 String fullName = entry.getDisplayName();
                 GuiScriptRestartIndicator indicator = warningIndicators.get(i);
                 boolean restartRequired = indicator.shouldRender();

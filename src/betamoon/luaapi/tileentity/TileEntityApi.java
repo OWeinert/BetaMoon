@@ -7,15 +7,18 @@ import betamoon.data.DataField;
 import betamoon.data.DataRecords;
 import betamoon.luaapi.capability.CapabilitiesApi;
 import betamoon.luaapi.fuel.FuelsApi;
+import betamoon.luaapi.gui.GuiMathApi;
 import betamoon.luaapi.resource.LuaResultList;
 import betamoon.luaapi.resource.OverrideManager;
 import betamoon.luaapi.utils.LuaDefinitionCallbackLayers;
+import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.utils.LuaOverrideDefinition;
 import betamoon.luaapi.utils.LuaOverrideLayers;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.tileentity.ContainerControlDefinition;
 import betamoon.tileentity.ContainerDefinition;
 import betamoon.tileentity.ContainerGuiDefinition;
+import betamoon.tileentity.ContainerGuiLayout;
 import betamoon.tileentity.TileEntityDefinition;
 import betamoon.tileentity.TileEntityRegistry;
 import java.util.ArrayList;
@@ -55,6 +58,7 @@ public final class TileEntityApi {
         root.set("tileEntities", new Registry("tileEntities"));
         root.set("containers", new Registry("containers"));
         root.set("containerGuis", new Registry("containerGuis"));
+        root.set("gui", new GuiMathApi());
     }
 
     private static final class Registry extends LuaTable {
@@ -509,7 +513,7 @@ public final class TileEntityApi {
                     acceptedFuelSet));
         }
         LuaValue player = requiredTable(def, "playerInventory");
-        Map<String, ContainerDefinition.SessionField> session = ContainerControlParser.parseSession(def.get("session"));
+        Map<String, ContainerDefinition.SessionField> session = ContainerControlParser.parseSession(def.get("state"));
         Map<String, betamoon.tileentity.ContainerControlDefinition> controls = ContainerControlParser.parseControls(
                 def.get("controls"), tile, session);
         ContainerDefinition definition = new ContainerDefinition(name, owner, tile, slots, requiredInt(player, "x"),
@@ -572,11 +576,15 @@ public final class TileEntityApi {
         List<ContainerGuiDefinition.Element> elements = new ArrayList<>();
         LuaValue elementDefs = def.get("elements");
         if (!elementDefs.isnil()) {
+            ContainerPresentationParser.validateHierarchy(elementDefs);
             ContainerGuiParser.parseElements(elementDefs, container, elements, 0, 0, null);
         }
         ContainerGuiParser.validateBounds(elements, width, height);
-        return new ContainerGuiDefinition(name, owner, container, width, height, title,
-                inventoryLabel, background, layout.get("pauseGame").optboolean(false), elements);
+        ContainerGuiDefinition gui = new ContainerGuiDefinition(name, owner, container, width, height, title,
+                inventoryLabel, background, layout.get("pauseGame").optboolean(false), elements,
+                ContainerPresentationParser.parse(def, elements, container));
+        ContainerGuiLayout.validateDefinition(gui);
+        return gui;
     }
 
     public static final class TileEntityHandle extends LuaTable {
@@ -627,6 +635,7 @@ public final class TileEntityApi {
         }
 
         private LuaValue override(LuaValue value) {
+            LuaCallbackScope.requireNoBindingMutation();
             if (TileEntityRegistry.getTileEntity(definition.name) != definition) {
                 throw new LuaError("Tile entity is no longer registered: " + definition.name);
             }
@@ -755,6 +764,7 @@ public final class TileEntityApi {
         }
 
         private LuaValue override(LuaValue value) {
+            LuaCallbackScope.requireNoBindingMutation();
             if (TileEntityRegistry.getContainer(definition.name) != definition) {
                 throw new LuaError("Container is no longer registered: " + definition.name);
             }
@@ -875,6 +885,7 @@ public final class TileEntityApi {
         }
 
         private LuaValue override(LuaValue value) {
+            LuaCallbackScope.requireNoBindingMutation();
             final TileEntityRegistry.GuiEntry entry = TileEntityRegistry.getGuiEntry(definition.name);
             if (entry == null) {
                 throw new LuaError("Container GUI is no longer registered: " + definition.name);
@@ -1111,6 +1122,7 @@ public final class TileEntityApi {
     }
 
     private static String requireOwner() {
+        LuaCallbackScope.requireNoBindingMutation();
         String owner = LuaScriptRegistry.getCurrentScriptFile();
         if (owner == null) {
             throw new LuaError("Structural content must be registered from modInit.");

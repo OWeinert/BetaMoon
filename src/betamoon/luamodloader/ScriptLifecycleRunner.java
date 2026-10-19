@@ -1,17 +1,21 @@
 package betamoon.luamodloader;
 
-import betamoon.multiblock.MultiblockRegistry;
-
 import betamoon.BetaMoonCommon;
-import betamoon.particles.ParticleRegistry;
-import betamoon.luaapi.module.ModuleRegistry;
-import betamoon.luaapi.audio.SoundEvents;
-import betamoon.tileentity.TileEntityRegistry;
-import betamoon.worldgen.WorldGenRegistry;
-import betamoon.worldgen.BiomeGenRegistry;
+import betamoon.atmosphere.AtmosphereRegistry;
+import betamoon.dimension.DimensionRegistry;
 import betamoon.loot.LootTableRegistry;
+import betamoon.luaapi.audio.SoundEvents;
+import betamoon.luaapi.module.ModuleRegistry;
+import betamoon.multiblock.MultiblockRegistry;
+import betamoon.particles.ParticleRegistry;
+import betamoon.tileentity.TileEntityRegistry;
+import betamoon.worldgen.BiomeGenRegistry;
+import betamoon.worldgen.WorldGenRegistry;
+import betamoon.worldgen.spatial.SpatialRegistry;
+import betamoon.worldgen.terrain.TerrainRegistry;
 import java.util.List;
 import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaValue;
 
 /**
  * Executes script lifecycle callbacks with consistent owner and failure
@@ -23,6 +27,10 @@ final class ScriptLifecycleRunner {
 
     private final RetainedScriptCatalog retainedScripts;
     private final ErrorReporter errorReporter;
+
+    ScriptLifecycleRunner(RetainedScriptCatalog retainedScripts) {
+        this(retainedScripts, null);
+    }
 
     ScriptLifecycleRunner(RetainedScriptCatalog retainedScripts, ErrorReporter errorReporter) {
         this.retainedScripts = retainedScripts;
@@ -41,25 +49,34 @@ final class ScriptLifecycleRunner {
             }
 
             long startedNanos = System.nanoTime();
+            mod.generationCodeSignature = null;
             try (ScriptExecutionScope ignored = ScriptExecutionScope.open(mod.sourceFileName);
                     ScriptAssetScope assets = ScriptAssetScope.open(mod.sourceFileName);
                     ScriptEntityScope entities = ScriptEntityScope.open(mod.sourceFileName);
                     ParticleRegistry.Batch particles = ParticleRegistry.begin(mod.sourceFileName);
                     MultiblockRegistry.Batch multiblocks = MultiblockRegistry.begin(mod.sourceFileName);
+                    AtmosphereRegistry.Batch atmospheres = AtmosphereRegistry.begin(mod.sourceFileName);
+                    SpatialRegistry.Batch spatial = SpatialRegistry.begin(mod.sourceFileName);
+                    TerrainRegistry.Batch terrain = TerrainRegistry.begin(mod.sourceFileName);
+                    DimensionRegistry.Batch dimensions = DimensionRegistry.begin(mod.sourceFileName);
                     LootTableRegistry.PublicationBatch lootTables = LootTableRegistry
                             .beginPublication(mod.sourceFileName, mod.getDisplayName());
                     WorldGenRegistry.PublicationBatch worldgen = WorldGenRegistry.beginPublication(mod.sourceFileName,
                             mod.getDisplayName());
                     BiomeGenRegistry.PublicationBatch biomes = BiomeGenRegistry.beginPublication(mod.sourceFileName,
                             mod.getDisplayName())) {
-                mod.modInit.call();
+                ScriptExecution.invoke(mod.sourceFileName, "modInit", mod.modInit, LuaValue.NONE);
                 if (hotReload && mod.modReload != null && mod.modReload.isfunction()) {
-                    mod.modReload.call();
+                    ScriptExecution.invoke(mod.sourceFileName, "modReload", mod.modReload, LuaValue.NONE);
                 }
                 multiblocks.validate();
+                spatial.validate();
+                atmospheres.validate();
                 lootTables.validate();
                 worldgen.validate();
                 biomes.validate();
+                terrain.validate();
+                dimensions.validate();
                 ModuleRegistry.publish(mod.sourceFileName);
                 assets.publish();
                 entities.publish();
@@ -69,12 +86,16 @@ final class ScriptLifecycleRunner {
                 SoundEvents.publish(mod.sourceFileName);
                 particles.publish();
                 multiblocks.publish();
+                spatial.publish();
+                terrain.publish();
+                dimensions.publish();
+                atmospheres.publish();
                 LuaScriptRegistry.markLoadedByFile(mod.sourceFileName);
                 retainedScripts.rememberIfStructural(mod);
             } catch (LuaError error) {
-                recordLoadFailure(mod, failedMods, error.getMessage());
+                recordLoadFailure(mod, failedMods, error.getMessage(), error);
             } catch (Throwable error) {
-                recordLoadFailure(mod, failedMods, error.toString());
+                recordLoadFailure(mod, failedMods, error.toString(), error);
             } finally {
                 if (logTimings) {
                     BetaMoonCommon.LOGGER.info("Lua mod init " + mod.getDisplayName() + " took "
@@ -94,24 +115,28 @@ final class ScriptLifecycleRunner {
             }
 
             try (ScriptExecutionScope ignored = ScriptExecutionScope.open(mod.sourceFileName)) {
-                mod.modUnload.call();
+                ScriptExecution.invoke(mod.sourceFileName, "modUnload", mod.modUnload, LuaValue.NONE);
             } catch (Throwable error) {
                 String message = "Unload hook failed: " + error.getMessage();
-                LuaScriptErrors.add(mod.getDisplayName(), message);
-                errorReporter.report(
-                        "Lua mod unload hook failed: " + mod.getDisplayName() + " (" + error.getMessage() + ")");
+                LuaScriptErrors.add(mod.getDisplayName(), message, LuaScriptErrors.Outcome.UNKNOWN, error);
+                if (errorReporter != null) {
+                    errorReporter.report(
+                            "Lua mod unload hook failed: " + mod.getDisplayName() + " (" + error.getMessage() + ")");
+                }
             }
         }
     }
 
-    private void recordLoadFailure(ScriptMod mod, List<String> failedMods, String message) {
+    private void recordLoadFailure(ScriptMod mod, List<String> failedMods, String message, Throwable error) {
         ModuleRegistry.discardPending(mod.sourceFileName);
         TileEntityRegistry.removeOwned(mod.sourceFileName);
         ScriptResourceTracker.unload(mod.sourceFileName);
         failedMods.add(mod.name);
-        LuaScriptErrors.add(mod.name, message);
+        LuaScriptErrors.add(mod.name, message, LuaScriptErrors.Outcome.LOAD_FAILED, error);
         LuaScriptRegistry.markFailedByFile(mod.sourceFileName, message);
-        errorReporter.report(SCRIPT_ERROR_PREFIX + mod.name + "\n" + SEPARATOR + message + "\n" + SEPARATOR);
+        if (errorReporter != null) {
+            errorReporter.report(SCRIPT_ERROR_PREFIX + mod.name + "\n" + SEPARATOR + message + "\n" + SEPARATOR);
+        }
     }
 
     @FunctionalInterface

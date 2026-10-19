@@ -1,18 +1,26 @@
 package betamoon.worldgen;
 
+import betamoon.worldgen.terrain.PopulationPolicy;
+import betamoon.worldgen.structure.StructureProtection;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.minecraft.MinecraftBuiltins;
+import betamoon.worldgen.spatial.SpatialSelector;
 import betamoon.worldgen.structure.SitePolicy;
 import betamoon.worldgen.structure.StructureFeature;
+import betamoon.worldgen.terrain.WorldGenerationRuntime;
+import betamoon.worldgen.terrain.WorldGeneratorProfile;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.function.Consumer;
 import net.minecraft.src.BiomeGenBase;
 import net.minecraft.src.Block;
 import net.minecraft.src.Chunk;
@@ -25,6 +33,166 @@ public final class WorldGenRegistry {
     private static final ThreadLocal<PublicationBatch> CURRENT_BATCH = new ThreadLocal<PublicationBatch>();
     private static volatile Snapshot active = Snapshot.empty();
     private static long nextOreId = 1L;
+    private static final Map<String, Map<String, String>> GENERATION_DECLARATIONS = new TreeMap<String, Map<String, String>>();
+
+    private static final Map<String, Map<String, String>> GENERATION_NAMES = new TreeMap<String, Map<String, String>>();
+
+    public static synchronized void setDisplayName(WorldGenKey key, String name) {
+        PublicationBatch batch = CURRENT_BATCH.get();
+        if (name == null) {
+            return;
+        }
+        if (name.isEmpty() || name.length() > 256 || name.matches(".*[\\p{Cntrl}\u00a7].*")) {
+            throw new LuaError("World generation displayName: expected 1..256 plain-text characters");
+        }
+        if (batch != null) {
+            batch.names.put(key.toString(), name);
+        } else {
+            String owner = requiredOwner(LuaScriptRegistry.getCurrentScriptFile());
+            Map<String, String> names = new TreeMap<String, String>();
+            if (GENERATION_NAMES.containsKey(owner)) {
+                names.putAll(GENERATION_NAMES.get(owner));
+            }
+            names.put(key.toString(), name);
+            GENERATION_NAMES.put(owner, Collections.unmodifiableMap(names));
+        }
+    }
+
+    public static synchronized String displayName(String key) {
+        PublicationBatch batch = CURRENT_BATCH.get();
+        if (batch != null && batch.names.containsKey(key)) {
+            return batch.names.get(key);
+        }
+        for (Map<String, String> names : GENERATION_NAMES.values()) {
+            String name = names.get(key);
+            if (name != null) {
+                return name;
+            }
+        }
+        return key;
+    }
+
+    public static boolean creationContentAllowed(WorldGeneratorProfile profile, boolean structure, String key,
+            String featureKey) {
+        FeatureDefinition feature = FeaturePlacementRegistry.findFeature(WorldGenKey.parseFeature(featureKey));
+        return profile == null || profile.settings == null
+                || (structure ? profile.settings.structures : profile.settings.features).matches(key, featureKey,
+                        feature == null ? Collections.<String>emptySet() : feature.tags);
+    }
+
+    public static void recordDeclaration(WorldGenKey key, String signature) {
+        PublicationBatch batch = CURRENT_BATCH.get();
+        if (batch != null) {
+            batch.declarations.put(key.toString(), signature);
+        }
+    }
+
+    public static synchronized Map<String, String> generationDependencies() {
+        Map<String, String> result = new TreeMap<String, String>();
+        PublicationBatch batch = CURRENT_BATCH.get();
+        for (Map.Entry<String, Map<String, String>> owner : GENERATION_DECLARATIONS.entrySet()) {
+            if (batch == null || !owner.getKey().equals(batch.resourceOwner)) {
+                result.putAll(owner.getValue());
+            }
+        }
+        if (batch != null) {
+            result.putAll(batch.declarations);
+        }
+        for (FeaturePlacementRegistry.StructureDescription structure : FeaturePlacementRegistry.structureSnapshot()) {
+            FeatureDefinition definition = FeaturePlacementRegistry
+                    .findFeature(WorldGenKey.parseFeature(structure.key));
+            if (definition != null && (batch == null || !definition.resourceOwner.equals(batch.resourceOwner))) {
+                result.put("structure_content:" + structure.key,
+                        ((StructureFeature) definition.feature).generationSignature());
+            }
+        }
+        if (batch != null) {
+            for (FeatureDefinition feature : batch.features) {
+                if (feature.feature instanceof StructureFeature) {
+                    result.put("structure_content:" + feature.key,
+                            ((StructureFeature) feature.feature).generationSignature());
+                }
+            }
+        }
+        result.putAll(FeaturePlacementRegistry.spatialDependencies(batch == null ? null : batch.resourceOwner,
+                batch == null ? Collections.<PlacementDefinition>emptyList() : batch.placements));
+        result.putAll(RegionalStructureRegistry.generationDependencies(batch == null ? null : batch.resourceOwner,
+                batch == null ? Collections.<RegionalStructureDefinition>emptyList() : batch.regionalStructures));
+        List<OreGenEntry> ores = new ArrayList<OreGenEntry>();
+        for (OreGenEntry ore : active.ores) {
+            if (batch == null || !ore.resourceOwner.equals(batch.resourceOwner)) {
+                ores.add(ore);
+            }
+        }
+        if (batch != null) {
+            ores.addAll(batch.ores);
+        }
+        for (OreGenEntry ore : ores) {
+            List<String> biomes = new ArrayList<String>();
+            for (BiomeGenBase biome : ore.getAllowedBiomes()) {
+                WorldGenKey biomeKey = BiomeGenRegistry.keyFor(biome);
+                biomes.add(biomeKey == null ? biome.biomeName : biomeKey.toString());
+            }
+            Collections.sort(biomes);
+            result.put("ore:" + ore.key,
+                    ore.enabled + ":" + ore.blockId + ":" + ore.veinsPerChunk + ":" + ore.veinSize + ":" + ore.minY
+                            + ":" + ore.maxY + ":" + ore.dimension + ":" + ore.targetBlockId + ":" + ore.salt + ":"
+                            + biomes);
+        }
+        return result;
+    }
+
+    /**
+     * Only declarations capable of affecting this dimension contribute to its saved
+     * compatibility contract.
+     */
+    public static synchronized Map<String, String> dimensionGenerationDependencies(String dimension,
+            PopulationPolicy policy) {
+        PublicationBatch batch = CURRENT_BATCH.get();
+        String owner = batch == null ? null : batch.resourceOwner;
+        Set<String> regional = RegionalStructureRegistry.dimensionDependencyKeys(dimension, policy, owner,
+                batch == null ? Collections.<RegionalStructureDefinition>emptyList() : batch.regionalStructures);
+        Set<String> keys = FeaturePlacementRegistry.dimensionDependencyKeys(dimension, policy, owner,
+                batch == null ? Collections.<FeatureDefinition>emptyList() : batch.features,
+                batch == null ? Collections.<PlacementDefinition>emptyList() : batch.placements, regional);
+        Map<String, String> result = new TreeMap<String, String>();
+        for (Map.Entry<String, String> dependency : generationDependencies().entrySet()) {
+            String key = dependency.getKey();
+            for (String prefix : new String[]{"structure_content:", "placement_spatial:", "regional:", "ore:"}) {
+                if (key.startsWith(prefix)) {
+                    key = key.substring(prefix.length());
+                    break;
+                }
+            }
+            if (keys.contains(key)) {
+                result.put(dependency.getKey(), dependency.getValue());
+            }
+        }
+        return Collections.unmodifiableMap(result);
+    }
+
+    /**
+     * Retains immutable generation catalogs for the lifetime of a selected world
+     * profile.
+     */
+    public static void pinGenerationCatalogs(World world) {
+        FeaturePlacementRegistry.pin(world);
+        RegionalStructureRegistry.pin(world);
+    }
+
+    /** Captures publication inputs without retaining a World or a script scope. */
+    public static Consumer<World> captureGenerationCatalogs() {
+        PublicationBatch batch = CURRENT_BATCH.get();
+        String owner = batch == null ? null : batch.resourceOwner;
+        List<FeatureDefinition> features = batch == null ? Collections.<FeatureDefinition>emptyList() : batch.features;
+        Consumer<World> placements = FeaturePlacementRegistry.capture(owner, features,
+                batch == null ? Collections.<PlacementDefinition>emptyList() : batch.placements,
+                batch == null ? Collections.<WorldGenKey>emptySet() : batch.biomeDecoratorTemplates);
+        Consumer<World> regions = RegionalStructureRegistry.capture(owner,
+                batch == null ? Collections.<RegionalStructureDefinition>emptyList() : batch.regionalStructures,
+                features);
+        return placements.andThen(regions);
+    }
 
     public static final class OreGenEntry {
         public final long id;
@@ -156,6 +324,8 @@ public final class WorldGenRegistry {
         private final List<PlacementDefinition> placements = new ArrayList<PlacementDefinition>();
         private final List<RegionalStructureDefinition> regionalStructures = new ArrayList<RegionalStructureDefinition>();
         private final Set<WorldGenKey> biomeDecoratorTemplates = new HashSet<WorldGenKey>();
+        private final Map<String, String> names = new TreeMap<String, String>();
+        private final Map<String, String> declarations = new TreeMap<String, String>();
         private int declarationIndex;
         private boolean published;
         private boolean closed;
@@ -171,6 +341,9 @@ public final class WorldGenRegistry {
             FeaturePlacementRegistry.publishOwner(resourceOwner, features, placements, biomeDecoratorTemplates);
             RegionalStructureRegistry.publishOwner(resourceOwner, regionalStructures);
             publishBatch(this);
+            GENERATION_NAMES.put(resourceOwner, Collections.unmodifiableMap(new TreeMap<String, String>(names)));
+            GENERATION_DECLARATIONS.put(resourceOwner,
+                    Collections.unmodifiableMap(new TreeMap<String, String>(declarations)));
             published = true;
         }
 
@@ -222,14 +395,15 @@ public final class WorldGenRegistry {
                 int spacing, int separation, long salt, String heightType, int heightValue, int maxDepth, int maxPieces,
                 int maxDistance, double terminationChance, boolean entityMarkers,
                 List<RegionalStructureDefinition.PieceChoice> pieces, SitePolicy site, int siteSearchAttempts,
-                int siteSearchRadius, int connectorVerticalTolerance) {
+                int siteSearchRadius, int connectorVerticalTolerance, GenerationStage stage, SpatialSelector spatial,
+                Set<String> tags) {
             ensureOpen();
             int index = declarationIndex++;
             WorldGenKey typedKey = parseKey(key, WorldGenKind.STRUCTURE, "RegionalStructure.key");
             regionalStructures.add(new RegionalStructureDefinition(typedKey, startFeature, resourceOwner, owner,
                     source(index), dimensions, spacing, separation, salt, heightType, heightValue, maxDepth, maxPieces,
-                    maxDistance, terminationChance, entityMarkers, pieces, site, siteSearchAttempts,
-                    siteSearchRadius, connectorVerticalTolerance));
+                    maxDistance, terminationChance, entityMarkers, pieces, site, siteSearchAttempts, siteSearchRadius,
+                    connectorVerticalTolerance, stage, spatial, tags));
             return typedKey;
         }
 
@@ -258,7 +432,7 @@ public final class WorldGenRegistry {
             Set<String> biomes = new HashSet<String>();
             if (allowedBiomes != null) {
                 for (BiomeGenBase biome : allowedBiomes) {
-                    biomes.add(biome.biomeName.toLowerCase(java.util.Locale.ROOT));
+                    biomes.add(biome.biomeName.toLowerCase(Locale.ROOT));
                 }
             }
             PlacementConditions conditions = new PlacementConditions(null, false, null, null, null, 0, 15, biomes,
@@ -309,6 +483,8 @@ public final class WorldGenRegistry {
     /** Removes all definitions, primarily for complete shutdown and tests. */
     public static synchronized void clear() {
         active = Snapshot.empty();
+        GENERATION_DECLARATIONS.clear();
+        GENERATION_NAMES.clear();
         FeaturePlacementRegistry.clear();
         RegionalStructureRegistry.clear();
     }
@@ -317,6 +493,8 @@ public final class WorldGenRegistry {
      * Removes definitions whose script package no longer exists after a load pass.
      */
     public static synchronized void retainOwners(Set<String> resourceOwners) {
+        GENERATION_DECLARATIONS.keySet().retainAll(resourceOwners);
+        GENERATION_NAMES.keySet().retainAll(resourceOwners);
         List<OreGenEntry> retained = new ArrayList<OreGenEntry>();
         for (OreGenEntry entry : active.ores) {
             if (resourceOwners.contains(entry.resourceOwner)) {
@@ -433,6 +611,23 @@ public final class WorldGenRegistry {
         }
     }
 
+    public static void setFeatureTags(WorldGenKey key, Set<String> tags) {
+        if (tags.isEmpty()) {
+            return;
+        }
+        PublicationBatch batch = CURRENT_BATCH.get();
+        if (batch != null) {
+            for (int i = 0; i < batch.features.size(); i++) {
+                FeatureDefinition feature = batch.features.get(i);
+                if (feature.key.equals(key)) {
+                    batch.features.set(i, feature.withTags(tags));
+                    return;
+                }
+            }
+        }
+        FeaturePlacementRegistry.setFeatureTags(key, tags, requiredOwner(LuaScriptRegistry.getCurrentScriptFile()));
+    }
+
     public static WorldGenKey addFeature(String key, String type, WorldFeature feature, List<WorldGenKey> dependencies,
             int maxBlocks, int maxRadius) {
         return addFeature(key, WorldGenKind.FEATURE, type, feature, dependencies, maxBlocks, maxRadius);
@@ -488,6 +683,8 @@ public final class WorldGenRegistry {
         public final String owner;
         public final String source;
         public final String start;
+        public final List<String> dependencies;
+        public final String stage;
         public final Set<String> dimensions;
         public final int spacing;
         public final int separation;
@@ -515,6 +712,8 @@ public final class WorldGenRegistry {
             owner = description.owner;
             source = description.source;
             start = description.start;
+            dependencies = description.dependencies;
+            stage = description.stage;
             dimensions = description.dimensions;
             spacing = description.spacing;
             separation = description.separation;
@@ -597,9 +796,8 @@ public final class WorldGenRegistry {
             int spacing, int separation, long salt, String heightType, int heightValue, int maxDepth, int maxPieces,
             int maxDistance, double terminationChance, boolean entityMarkers,
             List<RegionalStructureDefinition.PieceChoice> pieces) {
-        return addRegionalStructure(key, startFeature, dimensions, spacing, separation, salt, heightType,
-                heightValue, maxDepth, maxPieces, maxDistance, terminationChance, entityMarkers,
-                pieces, SitePolicy.ANY, 1, 0, 0);
+        return addRegionalStructure(key, startFeature, dimensions, spacing, separation, salt, heightType, heightValue,
+                maxDepth, maxPieces, maxDistance, terminationChance, entityMarkers, pieces, SitePolicy.ANY, 1, 0, 0);
     }
 
     public static WorldGenKey addRegionalStructure(String key, WorldGenKey startFeature, Set<String> dimensions,
@@ -607,6 +805,37 @@ public final class WorldGenRegistry {
             int maxDistance, double terminationChance, boolean entityMarkers,
             List<RegionalStructureDefinition.PieceChoice> pieces, SitePolicy site, int siteSearchAttempts,
             int siteSearchRadius, int connectorVerticalTolerance) {
+        return addRegionalStructure(key, startFeature, dimensions, spacing, separation, salt, heightType, heightValue,
+                maxDepth, maxPieces, maxDistance, terminationChance, entityMarkers, pieces, site, siteSearchAttempts,
+                siteSearchRadius, connectorVerticalTolerance, GenerationStage.SURFACE_STRUCTURES);
+    }
+
+    public static WorldGenKey addRegionalStructure(String key, WorldGenKey startFeature, Set<String> dimensions,
+            int spacing, int separation, long salt, String heightType, int heightValue, int maxDepth, int maxPieces,
+            int maxDistance, double terminationChance, boolean entityMarkers,
+            List<RegionalStructureDefinition.PieceChoice> pieces, SitePolicy site, int siteSearchAttempts,
+            int siteSearchRadius, int connectorVerticalTolerance, GenerationStage stage) {
+        return addRegionalStructure(key, startFeature, dimensions, spacing, separation, salt, heightType, heightValue,
+                maxDepth, maxPieces, maxDistance, terminationChance, entityMarkers, pieces, site, siteSearchAttempts,
+                siteSearchRadius, connectorVerticalTolerance, stage, null);
+    }
+
+    public static WorldGenKey addRegionalStructure(String key, WorldGenKey startFeature, Set<String> dimensions,
+            int spacing, int separation, long salt, String heightType, int heightValue, int maxDepth, int maxPieces,
+            int maxDistance, double terminationChance, boolean entityMarkers,
+            List<RegionalStructureDefinition.PieceChoice> pieces, SitePolicy site, int siteSearchAttempts,
+            int siteSearchRadius, int connectorVerticalTolerance, GenerationStage stage, SpatialSelector spatial) {
+        return addRegionalStructure(key, startFeature, dimensions, spacing, separation, salt, heightType, heightValue,
+                maxDepth, maxPieces, maxDistance, terminationChance, entityMarkers, pieces, site, siteSearchAttempts,
+                siteSearchRadius, connectorVerticalTolerance, stage, spatial, Collections.<String>emptySet());
+    }
+
+    public static WorldGenKey addRegionalStructure(String key, WorldGenKey startFeature, Set<String> dimensions,
+            int spacing, int separation, long salt, String heightType, int heightValue, int maxDepth, int maxPieces,
+            int maxDistance, double terminationChance, boolean entityMarkers,
+            List<RegionalStructureDefinition.PieceChoice> pieces, SitePolicy site, int siteSearchAttempts,
+            int siteSearchRadius, int connectorVerticalTolerance, GenerationStage stage, SpatialSelector spatial,
+            Set<String> tags) {
         validateRegionalStructure(spacing, separation, heightType, heightValue, maxDepth, maxPieces, maxDistance,
                 terminationChance, pieces);
         if (siteSearchAttempts < 1 || siteSearchAttempts > 32 || siteSearchRadius < 0 || siteSearchRadius > 7) {
@@ -618,16 +847,16 @@ public final class WorldGenRegistry {
         PublicationBatch batch = CURRENT_BATCH.get();
         if (batch != null) {
             return batch.addRegionalStructure(key, startFeature, dimensions, spacing, separation, salt, heightType,
-                    heightValue, maxDepth, maxPieces, maxDistance, terminationChance, entityMarkers,
-                    pieces, site, siteSearchAttempts, siteSearchRadius, connectorVerticalTolerance);
+                    heightValue, maxDepth, maxPieces, maxDistance, terminationChance, entityMarkers, pieces, site,
+                    siteSearchAttempts, siteSearchRadius, connectorVerticalTolerance, stage, spatial, tags);
         }
         String resourceOwner = requiredOwner(LuaScriptRegistry.getCurrentScriptFile());
         String owner = requiredOwner(LuaScriptRegistry.getCurrentScriptIdentity());
         WorldGenKey typedKey = parseKey(key, WorldGenKind.STRUCTURE, "RegionalStructure.key");
         RegionalStructureRegistry.publishAddition(new RegionalStructureDefinition(typedKey, startFeature, resourceOwner,
                 owner, resourceOwner + ":worldgen[regional_structure]", dimensions, spacing, separation, salt,
-                heightType, heightValue, maxDepth, maxPieces, maxDistance, terminationChance, entityMarkers,
-                pieces, site, siteSearchAttempts, siteSearchRadius, connectorVerticalTolerance));
+                heightType, heightValue, maxDepth, maxPieces, maxDistance, terminationChance, entityMarkers, pieces,
+                site, siteSearchAttempts, siteSearchRadius, connectorVerticalTolerance, stage, spatial, tags));
         return typedKey;
     }
 
@@ -644,10 +873,16 @@ public final class WorldGenRegistry {
         PlacementConditions original = source.conditions;
         PlacementConditions conditions = new PlacementConditions(original.ground, original.requireSky,
                 original.requireAir, original.requireWater, original.requireLava, original.minLight, original.maxLight,
-                Collections.singleton(biomeSelector), original.excludeBiomes, original.site);
-        return addPlacement(key, source.featureKey, source.stage, source.dimensions, source.attempts,
+                Collections.singleton(biomeSelector), original.excludeBiomes, original.site, original.spatial,
+                original.fluid);
+        WorldGenKey derived = addPlacement(key, source.featureKey, source.stage, source.dimensions, source.attempts,
                 source.extraChance, source.probability, source.height, conditions, source.before, source.after,
                 source.priority, source.salt, source.successLimit, source.horizontal, source.gridSpacing);
+        batch.declarations.put("decorator_source:" + derived, sourceKey.toString());
+        if (!displayName(sourceKey.toString()).equals(sourceKey.toString())) {
+            setDisplayName(derived, displayName(sourceKey.toString()));
+        }
+        return derived;
     }
 
     public static boolean hasFeature(WorldGenKey key) {
@@ -822,9 +1057,18 @@ public final class WorldGenRegistry {
 
     public static PlacementCandidateLocation locatePlacementCandidate(World world, WorldGenKey key, int x, int z,
             int maxChunks) {
-        FeaturePlacementRegistry.PlacementCandidate candidate = FeaturePlacementRegistry.locateCandidate(world, key,
-                x, z, maxChunks);
+        FeaturePlacementRegistry.PlacementCandidate candidate = FeaturePlacementRegistry.locateCandidate(world, key, x,
+                z, maxChunks);
         return candidate == null ? null : new PlacementCandidateLocation(candidate);
+    }
+
+    public static double regionTagWeight(World world, String tag, double x, double y, double z, double blend) {
+        return RegionalStructureRegistry.tagWeight(world, tag, x, y, z, blend);
+    }
+
+    public static boolean reservedStructurePosition(World world, int x, int y, int z) {
+        return StructureProtection.contains(world, x, y, z)
+                || RegionalStructureRegistry.reservedPosition(world, x, y, z);
     }
 
     public static void regionalStructureChunkLoaded(Chunk chunk) {
@@ -832,10 +1076,20 @@ public final class WorldGenRegistry {
     }
 
     public static void generateSurface(World world, Random ignored, int chunkX, int chunkZ) {
+        if (WorldGenerationRuntime.ownsPopulation(world)) {
+            return;
+        }
         generate(world, chunkX, chunkZ, false);
     }
 
+    public static void generateOwnedStage(World world, int chunkX, int chunkZ, GenerationStage stage) {
+        FeaturePlacementRegistry.generateStage(world, chunkX * 16, chunkZ * 16, false, stage);
+    }
+
     public static void generateNether(World world, Random ignored, int chunkX, int chunkZ) {
+        if (WorldGenerationRuntime.ownsPopulation(world)) {
+            return;
+        }
         generate(world, chunkX, chunkZ, true);
     }
 
@@ -956,6 +1210,11 @@ public final class WorldGenRegistry {
 
     private static Set<String> dimensionKeys(GenerationDimension dimension) {
         Set<String> result = new HashSet<String>();
+        if (dimension != GenerationDimension.OVERWORLD && dimension != GenerationDimension.NETHER
+                && dimension != GenerationDimension.BOTH) {
+            result.add(dimension.getLuaName());
+            return result;
+        }
         if (dimension.includes(false)) {
             result.add("minecraft:overworld");
         }

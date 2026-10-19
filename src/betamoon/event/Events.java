@@ -17,6 +17,8 @@ public final class Events {
     public static final BlockPlacedEvent BLOCK_PLACED = new BlockPlacedEvent();
     public static final ItemUseEvent ITEM_USE = new ItemUseEvent();
     public static final DimensionChangeEvent DIMENSION_CHANGE = new DimensionChangeEvent();
+    public static final TeleportEvent TELEPORT_COMPLETED = new TeleportEvent();
+    public static final TeleportEvent TELEPORT_FAILED = new TeleportEvent();
 
     private Events() {
     }

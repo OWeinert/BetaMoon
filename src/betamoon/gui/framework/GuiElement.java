@@ -95,6 +95,10 @@ public abstract class GuiElement {
         return scene != null && scene.getFocusedElement() == this;
     }
 
+    /** Called once per actual focus transition, including detachment and keyboard navigation. */
+    protected void onFocusChanged(GuiContext context, boolean focused) {
+    }
+
     public final boolean contains(int x, int y) {
         return visible && bounds.contains(x, y);
     }

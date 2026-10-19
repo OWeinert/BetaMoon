@@ -1,17 +1,30 @@
 package betamoon.luaapi.event;
 
+import betamoon.client.tick.ClientTickEvents;
+import betamoon.client.diagnostics.ClientScriptDiagnostics;
 import betamoon.event.Events;
 import betamoon.event.api.EventChannel;
 import betamoon.event.api.IEventListener;
 import betamoon.event.context.EventContext;
+import betamoon.event.context.GameEventCtx;
+import betamoon.event.context.PlayerEventCtx;
+import betamoon.event.context.WorldEventCtx;
 import betamoon.luaapi.LuaApiUtils;
+import betamoon.luaapi.entity.LuaEntityActionAccess;
+import betamoon.luaapi.utils.LuaCallbackScope;
+import betamoon.luaapi.utils.LuaDetachedData;
+import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptRegistry;
-import betamoon.luamodloader.ScriptResourceTracker;
 import betamoon.luamodloader.ScriptExecution;
-import betamoon.client.tick.ClientTickEvents;
+import betamoon.luamodloader.ScriptDiagnostics;
+import betamoon.luamodloader.ScriptResourceTracker;
+import betamoon.teleport.TeleportRuntime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+import net.minecraft.client.Minecraft;
+import net.minecraft.src.EntityPlayer;
+import net.minecraft.src.World;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -41,6 +54,10 @@ public final class EventsApi {
         register(bindings, new EventBinding<>("block_placed", Events.BLOCK_PLACED, LuaBlockEventCtx::new));
         register(bindings, new EventBinding<>("item_used", Events.ITEM_USE, LuaItemUseEventCtx::new));
         register(bindings, new EventBinding<>("dimension_changed", Events.DIMENSION_CHANGE, LuaDimensionEventCtx::new));
+        register(bindings, new EventBinding<>("teleport_completed", Events.TELEPORT_COMPLETED,
+                ctx -> LuaDetachedData.copy(ctx.result())));
+        register(bindings, new EventBinding<>("teleport_failed", Events.TELEPORT_FAILED,
+                ctx -> LuaDetachedData.copy(ctx.result())));
         events.set("on", new On(events, bindings));
         module.set("events", events);
     }
@@ -83,6 +100,7 @@ public final class EventsApi {
         }
 
         private LuaValue subscribe(LuaValue functionValue) {
+            LuaCallbackScope.requireNoBindingMutation();
             if (!functionValue.isfunction()) {
                 throw new LuaError("Events: " + name + " listener must be a function.");
             }
@@ -92,10 +110,33 @@ public final class EventsApi {
             final LuaValue callback = functionValue.checkfunction();
             final String owner = LuaScriptRegistry.getCurrentScriptFile();
             final IEventListener<TContext> listener = ctx -> {
-                try {
-                    ScriptExecution.invoke(owner, "events." + name, callback, contextFactory.apply(ctx));
+                Minecraft minecraft = ctx == null ? null : ctx.getMinecraft();
+                World world = ctx instanceof WorldEventCtx
+                        ? ((WorldEventCtx) ctx).getWorld()
+                        : ctx instanceof GameEventCtx
+                                ? ((GameEventCtx) ctx).getWorld()
+                                : ctx instanceof PlayerEventCtx
+                                        ? ((PlayerEventCtx) ctx).getWorld()
+                                        : minecraft == null ? null : minecraft.theWorld;
+                EntityPlayer player = ctx instanceof PlayerEventCtx
+                        ? ((PlayerEventCtx) ctx).getPlayer()
+                        : minecraft == null ? null : minecraft.thePlayer;
+                boolean current = world != null && !world.multiplayerWorld && minecraft != null
+                        && minecraft.theWorld == world;
+                try (ScriptDiagnostics.Scope diagnostic = ScriptDiagnostics.gameContext(
+                        () -> ClientScriptDiagnostics.occurrence(minecraft, world));
+                        LuaCallbackScope scope = LuaCallbackScope.withQueuedTeleport(
+                                current && !TeleportRuntime.frozen(), current)) {
+                    LuaValue view = contextFactory.apply(ctx);
+                    if (view.istable() && world != null) {
+                        view.set("world", LuaWorldActionAccess.create(scope, world, 0, 0, 0));
+                        if (player != null && player.worldObj == world) {
+                            view.set("player", LuaEntityActionAccess.create(scope, player, player));
+                        }
+                    }
+                    ScriptExecution.invoke(owner, "events." + name, callback, view);
                 } catch (LuaError e) {
-                    LuaApiUtils.warnForScript(owner, "Events", name + " listener error: " + e.getMessage());
+                    LuaApiUtils.warnForScript(owner, "Events", name + " listener error: " + e.getMessage(), e);
                 }
             };
             channel.subscribe(listener);
@@ -122,6 +163,7 @@ public final class EventsApi {
             handle.set("active", LuaValue.TRUE);
             handle.set("unsubscribe", new VarArgFunction() {
                 public Varargs invoke(Varargs args) {
+                    LuaCallbackScope.requireNoBindingMutation();
                     Subscription.this.run();
                     return LuaValue.NIL;
                 }

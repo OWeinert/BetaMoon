@@ -1,0 +1,16 @@
+{
+  "key": "example:field/marches_cave_sheet",
+  "node": {
+    "type": "shift",
+    "x": "example:field/marches_warp",
+    "input": {
+      "type": "noise",
+      "noise": "example:noise/marches_caves",
+      "scale": {
+        "x": 0.0238095238,
+        "y": 0.0384615385,
+        "z": 0.0238095238
+      }
+    }
+  }
+}

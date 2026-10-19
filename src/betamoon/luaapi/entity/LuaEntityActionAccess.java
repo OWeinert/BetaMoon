@@ -22,6 +22,7 @@ import betamoon.entity.TypedEntity;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.audio.SoundEvents;
 import betamoon.luaapi.utils.LuaCallbackScope;
+import betamoon.luaapi.utils.LuaDeclarationValues;
 import net.minecraft.src.Entity;
 import net.minecraft.src.EntityCreature;
 import net.minecraft.src.EntityList;
@@ -36,6 +37,7 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
+
 import static betamoon.luaapi.utils.LuaDeclarationValues.fields;
 import static betamoon.luaapi.utils.LuaDeclarationValues.integer;
 import static betamoon.luaapi.utils.LuaDeclarationValues.number;
@@ -49,6 +51,7 @@ public final class LuaEntityActionAccess {
     public static LuaTable create(LuaCallbackScope scope, EntityPlayer player, final Entity entity) {
 
         final LuaEntityReference api = new LuaEntityReference(scope, entity);
+        LuaEntityTransforms.attach(api, scope, entity);
         api.set("isPlayer", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 scope.requireActive();
@@ -135,8 +138,8 @@ public final class LuaEntityActionAccess {
             public Varargs invoke(Varargs a) {
                 scope.requireMutable();
                 int amount = integer(argument(a, api, 1), "damage", 0, 32767);
-                return valueOf(EntityDamageEvents.withOrigin(player, "script",
-                        () -> entity.attackEntityFrom(player, amount)));
+                return valueOf(
+                        EntityDamageEvents.withOrigin(player, "script", () -> entity.attackEntityFrom(player, amount)));
             }
         });
         api.set("kill", new VarArgFunction() {
@@ -194,7 +197,7 @@ public final class LuaEntityActionAccess {
                 double y = number(argument(a, api, 2), "velocity.y");
                 double z = number(argument(a, api, 3), "velocity.z");
                 if (Math.abs(x) > 16 || Math.abs(y) > 16 || Math.abs(z) > 16) {
-                    throw betamoon.luaapi.utils.LuaDeclarationValues.error("setVelocity",
+                    throw LuaDeclarationValues.error("setVelocity",
                             "each motion component must be within -16..16 blocks per tick");
                 }
                 entity.motionX = x;
@@ -219,11 +222,11 @@ public final class LuaEntityActionAccess {
                 double strafe = number(argument(a, api, 2), "setMovement.strafe");
                 LuaValue jump = argument(a, api, 3);
                 if (Math.abs(forward) > 1 || Math.abs(strafe) > 1 || !jump.isboolean()) {
-                    throw betamoon.luaapi.utils.LuaDeclarationValues.error("setMovement",
+                    throw LuaDeclarationValues.error("setMovement",
                             "forward and strafe must be -1..1 and jump must be a boolean");
                 }
-                return valueOf(((LuaLivingEntity) entity).setManualMovement((float) forward,
-                        (float) strafe, jump.toboolean()));
+                return valueOf(((LuaLivingEntity) entity).setManualMovement((float) forward, (float) strafe,
+                        jump.toboolean()));
             }
         });
         api.set("setFacing", new VarArgFunction() {
@@ -232,8 +235,7 @@ public final class LuaEntityActionAccess {
                 float yaw = (float) number(argument(a, api, 1), "setFacing.yaw");
                 float pitch = (float) number(argument(a, api, 2), "setFacing.pitch");
                 if (!Float.isFinite(yaw) || !Float.isFinite(pitch)) {
-                    throw betamoon.luaapi.utils.LuaDeclarationValues.error("setFacing",
-                            "angles exceed the supported range");
+                    throw LuaDeclarationValues.error("setFacing", "angles exceed the supported range");
                 }
                 entity.rotationYaw = yaw;
                 entity.rotationPitch = pitch;
@@ -246,13 +248,14 @@ public final class LuaEntityActionAccess {
                 double x = number(argument(a, api, 1), "facePosition.x");
                 double y = number(argument(a, api, 2), "facePosition.y");
                 double z = number(argument(a, api, 3), "facePosition.z");
-                float maxYaw = argument(a, api, 4).isnil() ? 180
+                float maxYaw = argument(a, api, 4).isnil()
+                        ? 180
                         : (float) number(argument(a, api, 4), "facePosition.maxYaw");
-                float maxPitch = argument(a, api, 5).isnil() ? 180
+                float maxPitch = argument(a, api, 5).isnil()
+                        ? 180
                         : (float) number(argument(a, api, 5), "facePosition.maxPitch");
                 if (maxYaw < 0 || maxYaw > 180 || maxPitch < 0 || maxPitch > 180) {
-                    throw betamoon.luaapi.utils.LuaDeclarationValues.error("facePosition",
-                            "maximum yaw and pitch must be 0..180 degrees");
+                    throw LuaDeclarationValues.error("facePosition", "maximum yaw and pitch must be 0..180 degrees");
                 }
                 double dx = x - entity.posX;
                 double dy = y - entity.posY;
@@ -274,13 +277,14 @@ public final class LuaEntityActionAccess {
                 if (other == null || !(entity instanceof EntityLiving)) {
                     return FALSE;
                 }
-                float maxYaw = argument(a, api, 2).isnil() ? 30
+                float maxYaw = argument(a, api, 2).isnil()
+                        ? 30
                         : (float) number(argument(a, api, 2), "faceToward.maxYaw");
-                float maxPitch = argument(a, api, 3).isnil() ? 30
+                float maxPitch = argument(a, api, 3).isnil()
+                        ? 30
                         : (float) number(argument(a, api, 3), "faceToward.maxPitch");
                 if (maxYaw < 0 || maxYaw > 180 || maxPitch < 0 || maxPitch > 180) {
-                    throw betamoon.luaapi.utils.LuaDeclarationValues.error("faceToward",
-                            "maximum yaw and pitch must be 0..180 degrees");
+                    throw LuaDeclarationValues.error("faceToward", "maximum yaw and pitch must be 0..180 degrees");
                 }
                 ((EntityLiving) entity).faceEntity(other, maxYaw, maxPitch);
                 return TRUE;
@@ -297,7 +301,7 @@ public final class LuaEntityActionAccess {
                 double y = number(argument(a, api, 3), "setPartOffset.y");
                 double z = number(argument(a, api, 4), "setPartOffset.z");
                 if (Math.abs(x) > 16 || Math.abs(y) > 16 || Math.abs(z) > 16) {
-                    throw betamoon.luaapi.utils.LuaDeclarationValues.error("setPartOffset",
+                    throw LuaDeclarationValues.error("setPartOffset",
                             "offset components must be within -16..16 blocks");
                 }
                 return valueOf(((MultipartEntity) entity).setPartOffset(name, x, y, z));
@@ -314,7 +318,7 @@ public final class LuaEntityActionAccess {
                 double y = number(argument(a, api, 3), "setInteractionOffset.y");
                 double z = number(argument(a, api, 4), "setInteractionOffset.z");
                 if (Math.abs(x) > 16 || Math.abs(y) > 16 || Math.abs(z) > 16) {
-                    throw betamoon.luaapi.utils.LuaDeclarationValues.error("setInteractionOffset",
+                    throw LuaDeclarationValues.error("setInteractionOffset",
                             "offset components must be within -16..16 blocks");
                 }
                 return valueOf(((MultipartEntity) entity).setInteractionOffset(name, x, y, z));
@@ -330,7 +334,7 @@ public final class LuaEntityActionAccess {
                     double y = number(argument(a, api, 3), "setSensorOffset.y");
                     double z = number(argument(a, api, 4), "setSensorOffset.z");
                     if (Math.abs(x) > 16 || Math.abs(y) > 16 || Math.abs(z) > 16) {
-                        throw betamoon.luaapi.utils.LuaDeclarationValues.error("setSensorOffset",
+                        throw LuaDeclarationValues.error("setSensorOffset",
                                 "offset components must be within -16..16 blocks");
                     }
                     return valueOf(typedState.setSensorOffset(entity, name, x, y, z));
@@ -346,24 +350,25 @@ public final class LuaEntityActionAccess {
                     }
                     String clip = argument(a, api, 1).checkjstring();
                     if (clip.isEmpty() || clip.length() > 256) {
-                        throw betamoon.luaapi.utils.LuaDeclarationValues.error("playAnimation.clip",
-                                "expected 1..256 characters");
+                        throw LuaDeclarationValues.error("playAnimation.clip", "expected 1..256 characters");
                     }
                     LuaValue value = argument(a, api, 2);
                     LuaTable options = value.isnil() ? new LuaTable() : value.checktable();
                     fields(options, "playAnimation", "speed", "startTime", "restart");
-                    double speed = options.get("speed").isnil() ? 1
+                    double speed = options.get("speed").isnil()
+                            ? 1
                             : number(options.get("speed"), "playAnimation.speed");
-                    double startTime = options.get("startTime").isnil() ? 0
+                    double startTime = options.get("startTime").isnil()
+                            ? 0
                             : number(options.get("startTime"), "playAnimation.startTime");
                     LuaValue restartValue = options.get("restart");
                     if (speed < 0 || speed > 100 || startTime < 0 || startTime > 3600
                             || !restartValue.isnil() && !restartValue.isboolean()) {
-                        throw betamoon.luaapi.utils.LuaDeclarationValues.error("playAnimation",
+                        throw LuaDeclarationValues.error("playAnimation",
                                 "speed must be 0..100, startTime 0..3600, and restart boolean");
                     }
-                    typedState.presentation().playAnimation(clip, speed, startTime,
-                            restartValue.optboolean(false), entity.ticksExisted);
+                    typedState.presentation().playAnimation(clip, speed, startTime, restartValue.optboolean(false),
+                            entity.ticksExisted);
                     return TRUE;
                 }
             });
@@ -395,7 +400,7 @@ public final class LuaEntityActionAccess {
                     scope.requireMutable();
                     LuaValue visible = argument(a, api, 1);
                     if (!visible.isboolean()) {
-                        throw betamoon.luaapi.utils.LuaDeclarationValues.error("setVisible", "expected a boolean");
+                        throw LuaDeclarationValues.error("setVisible", "expected a boolean");
                     }
                     typedState.presentation().visible(visible.toboolean());
                     return NONE;
@@ -410,8 +415,7 @@ public final class LuaEntityActionAccess {
                     float pitch = (float) number(argument(a, api, 2), "setVisualRotation.pitch");
                     float roll = (float) number(argument(a, api, 3), "setVisualRotation.roll");
                     if (!Float.isFinite(yaw) || !Float.isFinite(pitch) || !Float.isFinite(roll)) {
-                        throw betamoon.luaapi.utils.LuaDeclarationValues.error("setVisualRotation",
-                                "angles exceed the supported range");
+                        throw LuaDeclarationValues.error("setVisualRotation", "angles exceed the supported range");
                     }
                     typedState.presentation().visualRotation(yaw, pitch, roll);
                     return NONE;
@@ -504,7 +508,7 @@ public final class LuaEntityActionAccess {
             api.set("getPickupStack", new VarArgFunction() {
                 public Varargs invoke(Varargs a) {
                     scope.requireActive();
-                    net.minecraft.src.ItemStack stack = ((LuaPickupEntity) entity).item;
+                    ItemStack stack = ((LuaPickupEntity) entity).item;
                     if (stack == null) {
                         return NIL;
                     }
@@ -566,14 +570,14 @@ public final class LuaEntityActionAccess {
                 int x = integer(argument(a, api, 1), "navigateTo.x", -30000000, 30000000);
                 int y = integer(argument(a, api, 2), "navigateTo.y", 0, 127);
                 int z = integer(argument(a, api, 3), "navigateTo.z", -30000000, 30000000);
-                float range = argument(a, api, 4).isnil() ? 16
+                float range = argument(a, api, 4).isnil()
+                        ? 16
                         : (float) number(argument(a, api, 4), "navigateTo.range");
                 if (range <= 0 || range > 32 || !entity.worldObj.blockExists(x, y, z)
                         || !pathAreaLoaded(entity, range)) {
                     return FALSE;
                 }
-                if (entity instanceof LuaLivingEntity
-                        && ((LuaLivingEntity) entity).navigationStatus() != null) {
+                if (entity instanceof LuaLivingEntity && ((LuaLivingEntity) entity).navigationStatus() != null) {
                     return valueOf(((LuaLivingEntity) entity).requestNavigation(x, y, z, range));
                 }
                 PathEntity path = entity.worldObj.getEntityPathToXYZ(entity, x, y, z, range);
@@ -611,8 +615,7 @@ public final class LuaEntityActionAccess {
         api.set("cancelNavigation", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 scope.requireMutable();
-                return valueOf(entity instanceof LuaLivingEntity
-                        && ((LuaLivingEntity) entity).cancelNavigation());
+                return valueOf(entity instanceof LuaLivingEntity && ((LuaLivingEntity) entity).cancelNavigation());
             }
         });
         api.set("getPathTo", new VarArgFunction() {
@@ -624,8 +627,7 @@ public final class LuaEntityActionAccess {
                 int x = integer(argument(a, api, 1), "getPathTo.x", -30000000, 30000000);
                 int y = integer(argument(a, api, 2), "getPathTo.y", 0, 127);
                 int z = integer(argument(a, api, 3), "getPathTo.z", -30000000, 30000000);
-                float range = argument(a, api, 4).isnil() ? 16
-                        : (float) number(argument(a, api, 4), "getPathTo.range");
+                float range = argument(a, api, 4).isnil() ? 16 : (float) number(argument(a, api, 4), "getPathTo.range");
                 if (range <= 0 || range > 32 || !entity.worldObj.blockExists(x, y, z)
                         || !pathAreaLoaded(entity, range)) {
                     return NIL;
@@ -748,13 +750,12 @@ public final class LuaEntityActionAccess {
                 scope.requireActive();
                 double radius = number(argument(a, api, 1), "getNearbyEntities.radius");
                 if (radius <= 0 || radius > 32) {
-                    throw betamoon.luaapi.utils.LuaDeclarationValues.error("getNearbyEntities.radius",
-                            "expected a radius > 0 and <= 32");
+                    throw LuaDeclarationValues.error("getNearbyEntities.radius", "expected a radius > 0 and <= 32");
                 }
                 LuaTable found = new LuaTable();
                 int index = 0;
-                for (Entity candidate : EntitySpatialQueries.nearby(entity.worldObj, entity,
-                        entity.posX, entity.posY, entity.posZ, radius, 256)) {
+                for (Entity candidate : EntitySpatialQueries.nearby(entity.worldObj, entity, entity.posX, entity.posY,
+                        entity.posZ, radius, 256)) {
                     found.set(++index, create(scope, null, candidate));
                 }
                 return found;
@@ -870,7 +871,8 @@ public final class LuaEntityActionAccess {
                 scope.requireActive();
                 EntityTypeDefinition type = state.definition();
                 String identity = type == null || type.relations == null || !type.relations.ownership
-                        ? null : state.relations().ownerIdentity();
+                        ? null
+                        : state.relations().ownerIdentity();
                 return identity == null ? NIL : valueOf(identity);
             }
         });
@@ -917,7 +919,7 @@ public final class LuaEntityActionAccess {
                     state.relations().team(AssetKey.parse(string(requested, "setTeam.team")).toString());
                     return TRUE;
                 } catch (IllegalArgumentException exception) {
-                    throw betamoon.luaapi.utils.LuaDeclarationValues.error("setTeam.team", exception.getMessage());
+                    throw LuaDeclarationValues.error("setTeam.team", exception.getMessage());
                 }
             }
         });
@@ -929,8 +931,7 @@ public final class LuaEntityActionAccess {
                     return FALSE;
                 }
                 Entity other = target(argument(args, api, 1), entity, "isAlliedWith");
-                return valueOf(other == entity
-                        || other != null && state.relations().allied(type.relations, other));
+                return valueOf(other == entity || other != null && state.relations().allied(type.relations, other));
             }
         });
     }
@@ -988,8 +989,7 @@ public final class LuaEntityActionAccess {
                 String name = EntityBehaviorDefinition.name(argument(args, api, 1), "startTimer.name");
                 int ticks = integer(argument(args, api, 2), "startTimer.ticks", 1, 120000);
                 LuaValue repeatValue = argument(args, api, 3);
-                int repeat = repeatValue.isnil() ? 0
-                        : integer(repeatValue, "startTimer.repeatTicks", 1, 120000);
+                int repeat = repeatValue.isnil() ? 0 : integer(repeatValue, "startTimer.repeatTicks", 1, 120000);
                 state.behavior().start(name, ticks, repeat);
                 return TRUE;
             }
@@ -1035,16 +1035,14 @@ public final class LuaEntityActionAccess {
     private static ItemStack itemStack(LuaValue value, String path) {
         ItemStack stack = LuaApiUtils.readItemStack(value, true, path);
         if (stack.itemID <= 0 || stack.itemID >= Item.itemsList.length || Item.itemsList[stack.itemID] == null) {
-            throw betamoon.luaapi.utils.LuaDeclarationValues.error(path, "must reference a registered item");
+            throw LuaDeclarationValues.error(path, "must reference a registered item");
         }
         int limit = Math.min(64, stack.getMaxStackSize());
         if (stack.stackSize < 1 || stack.stackSize > limit) {
-            throw betamoon.luaapi.utils.LuaDeclarationValues.error(path + ".count",
-                    "expected integer 1.." + limit);
+            throw LuaDeclarationValues.error(path + ".count", "expected integer 1.." + limit);
         }
         if (stack.getItemDamage() < 0 || stack.getItemDamage() > 32767) {
-            throw betamoon.luaapi.utils.LuaDeclarationValues.error(path + ".damage",
-                    "expected integer 0..32767");
+            throw LuaDeclarationValues.error(path + ".damage", "expected integer 0..32767");
         }
         return stack;
     }
@@ -1060,8 +1058,8 @@ public final class LuaEntityActionAccess {
         return snapshot;
     }
 
-    private static VarArgFunction visualVector(LuaCallbackScope scope, LuaTable receiver,
-            EntityInstanceState state, String method, double min, double max, boolean scale) {
+    private static VarArgFunction visualVector(LuaCallbackScope scope, LuaTable receiver, EntityInstanceState state,
+            String method, double min, double max, boolean scale) {
         return new VarArgFunction() {
             public Varargs invoke(Varargs args) {
                 scope.requireMutable();
@@ -1069,8 +1067,7 @@ public final class LuaEntityActionAccess {
                 double y = number(argument(args, receiver, 2), method + ".y");
                 double z = number(argument(args, receiver, 3), method + ".z");
                 if (x < min || x > max || y < min || y > max || z < min || z > max) {
-                    throw betamoon.luaapi.utils.LuaDeclarationValues.error(method,
-                            "components must be within " + min + ".." + max);
+                    throw LuaDeclarationValues.error(method, "components must be within " + min + ".." + max);
                 }
                 if (scale) {
                     state.presentation().visualScale(x, y, z);
@@ -1088,8 +1085,7 @@ public final class LuaEntityActionAccess {
         }
         double parsed = number(value, path);
         if (parsed < min || parsed > max) {
-            throw betamoon.luaapi.utils.LuaDeclarationValues.error(path,
-                    "expected " + min + ".." + max);
+            throw LuaDeclarationValues.error(path, "expected " + min + ".." + max);
         }
         return (float) parsed;
     }
@@ -1114,8 +1110,7 @@ public final class LuaEntityActionAccess {
         int radius = (int) Math.ceil(range + 8);
         int x = (int) Math.floor(entity.posX);
         int z = (int) Math.floor(entity.posZ);
-        return entity.worldObj.checkChunksExist(x - radius, 0, z - radius,
-                x + radius, 127, z + radius);
+        return entity.worldObj.checkChunksExist(x - radius, 0, z - radius, x + radius, 127, z + radius);
     }
 
     private static float turnToward(float current, float target, float maximum) {
@@ -1134,11 +1129,29 @@ public final class LuaEntityActionAccess {
 
     static Entity entityHandle(LuaValue value, String method) {
         if (!(value instanceof LuaEntityReference)) {
-            throw betamoon.luaapi.utils.LuaDeclarationValues.error(method, "expected an entity handle");
+            throw LuaDeclarationValues.error(method, "expected an entity handle");
         }
         LuaEntityReference reference = (LuaEntityReference) value;
         reference.scope.requireActive();
         return reference.entity;
+    }
+
+    public static EntityPlayer requirePlayer(LuaValue value, boolean mutable, String method) {
+        Entity entity = entityHandle(value, method);
+        LuaEntityReference reference = (LuaEntityReference) value;
+        if (mutable) {
+            reference.scope.requireMutable();
+        }
+        if (!(entity instanceof EntityPlayer)) {
+            throw LuaDeclarationValues.error(method, "expected a real scoped player");
+        }
+        return (EntityPlayer) entity;
+    }
+
+    public static EntityPlayer requireTeleportPlayer(LuaValue value, String method) {
+        EntityPlayer player = requirePlayer(value, false, method);
+        ((LuaEntityReference) value).scope.requireQueuedTeleport();
+        return player;
     }
 
     private static final class LuaEntityReference extends LuaTable {

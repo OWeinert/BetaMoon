@@ -1,5 +1,6 @@
 package betamoon.luaapi.world;
 
+import betamoon.luaapi.utils.LuaDataReference;
 import betamoon.worldgen.WorldGenKey;
 import betamoon.worldgen.WorldGenRegistry;
 import net.minecraft.src.World;
@@ -11,12 +12,13 @@ import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
 /** Stable key handle for a compiled placement. */
-public class PlacementReference extends LuaTable {
+public class PlacementReference extends LuaTable implements LuaDataReference {
     private final WorldGenKey key;
     private final WorldGenKey featureKey;
 
     public PlacementReference(WorldGenKey key, WorldGenKey featureKey) {
         this.key = key;
+        set("displayName", WorldGenRegistry.displayName(key.toString()));
         this.featureKey = featureKey;
         set("getKey", new ZeroArgFunction() {
             @Override
@@ -37,10 +39,11 @@ public class PlacementReference extends LuaTable {
                 World world = LuaWorldActionAccess.requireWorld(arguments.arg(1 + offset));
                 int x = coordinate(arguments.arg(2 + offset), "placement.locateCandidate.x");
                 int z = coordinate(arguments.arg(3 + offset), "placement.locateCandidate.z");
-                int maxChunks = arguments.arg(4 + offset).isnil() ? 32
+                int maxChunks = arguments.arg(4 + offset).isnil()
+                        ? 32
                         : integer(arguments.arg(4 + offset), "placement.locateCandidate.maxChunks", 0, 128);
-                WorldGenRegistry.PlacementCandidateLocation candidate = WorldGenRegistry.locatePlacementCandidate(
-                        world, PlacementReference.this.key, x, z, maxChunks);
+                WorldGenRegistry.PlacementCandidateLocation candidate = WorldGenRegistry.locatePlacementCandidate(world,
+                        PlacementReference.this.key, x, z, maxChunks);
                 if (candidate == null) {
                     return NIL;
                 }
@@ -73,4 +76,10 @@ public class PlacementReference extends LuaTable {
         }
         return result;
     }
+
+    @Override
+    public Object declarationValue() {
+        return key.toString();
+    }
+
 }

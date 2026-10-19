@@ -1,11 +1,11 @@
 package betamoon.entity;
 
-import betamoon.BetaMoonCommon;
 
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.luamodloader.ScriptExecution;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
@@ -45,14 +45,15 @@ final class EntityAiStageEvents {
             if (target != null && !target.isDead) {
                 context.set("target", LuaEntityActionAccess.create(scope, null, target));
             }
-            return reader.read(stage.routine.call(context));
+            return reader.read(ScriptExecution.invoke(EntityTypeRegistry.owner(definition.key),
+                    "entity.ai." + name, stage.routine, context).arg1());
         } catch (RuntimeException error) {
             if (DISABLED.computeIfAbsent(definition, ignored -> new HashSet<>()).add(name)) {
                 String message = definition.key + ".living.ai.stages." + name
                         + ".routine disabled after error: " + error.getMessage();
                 String owner = EntityTypeRegistry.owner(definition.key);
-                LuaScriptErrors.add(owner == null ? definition.key.toString() : owner, message);
-                BetaMoonCommon.LOGGER.warning(message);
+                LuaScriptErrors.add(owner == null ? definition.key.toString() : owner, message,
+                        LuaScriptErrors.Outcome.CALLBACK_DISABLED, error);
             }
             return fallback;
         }

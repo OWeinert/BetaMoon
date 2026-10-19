@@ -16,7 +16,7 @@ final class ScriptDependencyResolver {
             if (modsByName.containsKey(mod.name)) {
                 String message = "Duplicate Lua mod name";
                 errors.add(message + ": " + mod.name);
-                LuaScriptErrors.add(mod.name, message + ".");
+                LuaScriptErrors.add(mod.name, message + ".", LuaScriptErrors.Outcome.LOAD_FAILED);
                 LuaScriptRegistry.markFailedByFile(mod.sourceFileName, message + ".");
                 continue;
             }
@@ -43,7 +43,7 @@ final class ScriptDependencyResolver {
         if (state == VisitState.VISITING) {
             String message = "Circular dependency detected: " + formatCycle(stack, name);
             errors.add(message);
-            LuaScriptErrors.add(name, message);
+            LuaScriptErrors.add(name, message, LuaScriptErrors.Outcome.LOAD_FAILED);
             LuaScriptRegistry.markFailedByName(name, message);
             markCycleFailed(stack, name, failed);
             return;
@@ -118,7 +118,7 @@ final class ScriptDependencyResolver {
 
     private void fail(String name, String message, List<String> errors, Set<String> failed) {
         errors.add(message);
-        LuaScriptErrors.add(name, message);
+        LuaScriptErrors.add(name, message, LuaScriptErrors.Outcome.LOAD_FAILED);
         LuaScriptRegistry.markFailedByName(name, message);
         failed.add(name);
     }

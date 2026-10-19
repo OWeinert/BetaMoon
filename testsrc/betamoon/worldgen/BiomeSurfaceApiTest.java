@@ -67,7 +67,10 @@ public final class BiomeSurfaceApiTest {
                     "Decorator receives a stable derived key");
             require(WorldGenRegistry.placementSnapshot().get(2).template,
                     "Referenced placement becomes a reusable decorator template instead of running twice");
+            long revisionBeforeDescription = BiomeGenRegistry.terrainRevision();
             BiomeGenRegistry.SourceDescription source = BiomeGenRegistry.sourceSnapshot().get(0);
+            require(BiomeGenRegistry.terrainRevision() == revisionBeforeDescription,
+                    "Reading source descriptions must not invalidate terrain caches");
             require(source.active && source.overlapCells > 0 && source.uncoveredCells == 0,
                     "Climate diagnostics report selected source overlap and coverage");
 
@@ -93,12 +96,70 @@ public final class BiomeSurfaceApiTest {
             }, "Unknown biome-source references are rejected");
             require(BiomeGenRegistry.snapshot().size() == activeBiomes,
                     "Failed biome publication preserves the active snapshot");
+            verifyDisplayNameAliases(lua);
+            verifyTerrainInvalidation(lua);
             System.out.println("Biome/surface API checks passed.");
         } finally {
             BiomeGenRegistry.clear();
             WorldGenRegistry.clear();
             owner.invoke(null, new Object[]{null});
         }
+    }
+
+    private static void verifyDisplayNameAliases(Globals lua) {
+        lua.load(String.join("\n", "local biomes = betamoon.worldgen.biomes",
+                "local canonical = biomes:add{key='test:canonical_name',displayName='Canonical Biome'}",
+                "assert(canonical.displayName == 'Canonical Biome' and canonical.name == canonical.displayName)",
+                "local legacy = biomes:add{key='test:legacy_name',name='Legacy Biome'}",
+                "assert(legacy.displayName == 'Legacy Biome' and legacy.name == legacy.displayName)",
+                "local both = biomes:add{key='test:both_names',name='Ignored',displayName='Preferred Biome'}",
+                "assert(both.name == 'Preferred Biome' and both.displayName == both.name)",
+                "local fallback = biomes:add{key='test:unnamed'}",
+                "assert(fallback.displayName == 'test:biome/unnamed' and fallback.name == fallback.displayName)",
+                "local unkeyed = biomes:add{name='Legacy Unkeyed'}", "assert(unkeyed.displayName == 'Legacy Unkeyed')",
+                "assert(not pcall(function() biomes:add{} end))",
+                "assert(not pcall(function() biomes:add{displayName={},name='Cannot Hide Invalid Name'} end))",
+                "assert(biomes:one{displayName='Canonical Biome'}:getKey() == canonical:getKey())",
+                "assert(biomes:one{name='Legacy Biome'}:getKey() == legacy:getKey())",
+                "assert(biomes:one{displayName='Preferred Biome',name='Ignored'}:getKey() == both:getKey())",
+                "assert(biomes:getRequired('Preferred Biome'):getKey() == both:getKey())",
+                "local a = canonical:override{priority=10, changes={name='Legacy Layer'}}",
+                "local b = canonical:override{priority=20, changes={displayName='Canonical Layer'}}",
+                "assert(canonical.name == 'Canonical Layer' and canonical.displayName == canonical.name)", "a:remove()",
+                "assert(canonical.displayName == 'Canonical Layer')", "b:remove()",
+                "assert(canonical.displayName == 'Canonical Biome' and canonical.name == canonical.displayName)",
+                "local c = canonical:override{changes={name='Ignored Layer',displayName='Preferred Layer'}}",
+                "assert(canonical.name == 'Preferred Layer' and canonical.displayName == canonical.name)", "c:remove()",
+                "local forest = biomes:getRequired('Forest')", "local original = forest.displayName",
+                "local native = forest:override{name='Forest Alias'}",
+                "assert(forest.displayName == 'Forest Alias' and forest.name == forest.displayName)", "native:remove()",
+                "assert(forest.displayName == original and forest.name == original)")).call();
+        for (BiomeGenRegistry.Description biome : BiomeGenRegistry.snapshot()) {
+            if (biome.key.equals("test:biome/canonical_name")) {
+                require(biome.displayName.equals("Canonical Biome"), "Debug descriptions use the canonical label");
+            }
+        }
+    }
+
+    private static void verifyTerrainInvalidation(Globals lua) {
+        long before = BiomeGenRegistry.terrainRevision();
+        LuaValue rename = lua.load("return betamoon.worldgen.biomes:getRequired('Forest'):override{"
+                + "displayName='Changed Terrain Selector'}").call();
+        require(BiomeGenRegistry.terrainRevision() > before,
+                "Renaming a biome must invalidate cached terrain using name selectors");
+        before = BiomeGenRegistry.terrainRevision();
+        rename.get("remove").call(rename);
+        require(BiomeGenRegistry.terrainRevision() > before,
+                "Removing a biome-name override must also invalidate cached terrain");
+        before = BiomeGenRegistry.terrainRevision();
+        LuaValue range = lua.load("return betamoon.worldgen.biomes:getRequired('test:grove'):override{"
+                + "changes={range={temperature={0.1,0.2}}}}").call();
+        require(BiomeGenRegistry.terrainRevision() > before,
+                "Changing biome climate selection must invalidate base snapshots");
+        before = BiomeGenRegistry.terrainRevision();
+        range.get("remove").call(range);
+        require(BiomeGenRegistry.terrainRevision() > before,
+                "Removing a climate-range override must invalidate base snapshots");
     }
 
     private static void verifyNativeBiomeCopy() {

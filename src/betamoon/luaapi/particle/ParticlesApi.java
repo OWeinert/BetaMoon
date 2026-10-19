@@ -68,6 +68,7 @@ public final class ParticlesApi {
         LuaTable api = new LuaTable();
         api.set("add", new VarArgFunction() {
             public Varargs invoke(Varargs args) {
+                LuaCallbackScope.requireNoBindingMutation();
                 requireHooks();
                 try {
                     LuaValue value = argument(args, api, 1);
@@ -195,6 +196,7 @@ public final class ParticlesApi {
     }
 
     private static void requirePresentation(LuaCallbackScope scope, boolean allowed) {
+        LuaCallbackScope.requireNoBindingMutation();
         if (allowed) {
             scope.requireActive();
         } else {
@@ -284,6 +286,7 @@ public final class ParticlesApi {
             set("stop", new VarArgFunction() {
                 public Varargs invoke(Varargs args) {
                     requireOwner();
+                    LuaCallbackScope.requireNoBindingMutation();
                     effect.stop();
                     return NONE;
                 }
@@ -302,6 +305,7 @@ public final class ParticlesApi {
                             "particleEffect.setPosition.y", -30000000, 30000000);
                     double z = ParticleDeclarations.bounded(argument(args, EffectHandle.this, 3), 0,
                             "particleEffect.setPosition.z", -30000000, 30000000);
+                    LuaCallbackScope.requireNoBindingMutation();
                     try {
                         effect.position(x, y, z);
                     } catch (IllegalStateException error) {

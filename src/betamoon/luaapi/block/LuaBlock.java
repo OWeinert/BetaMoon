@@ -1,5 +1,6 @@
 package betamoon.luaapi.block;
 
+import betamoon.loot.LootContext;
 import betamoon.luaapi.utils.InteractionOutcome;
 import betamoon.networking.LogicalNetworkRuntime;
 import betamoon.tileentity.LuaTileEntity;
@@ -293,13 +294,19 @@ public class LuaBlock extends BlockContainer implements forge.IConnectRedstone {
         BlockDefinition definition = BlockCallbackRegistry.get(blockID);
         if (definition != null && definition.drops.declared) {
             if (!world.multiplayerWorld) {
-                for (ItemStack drop : definition.drops.sample(world.rand, chance)) {
+                for (ItemStack drop : definition.drops.sample(world.rand, chance, LootContext.at(world, x, y, z))) {
                     dropBlockAsItem_do(world, x, y, z, drop);
                 }
             }
             return;
         }
         super.dropBlockAsItemWithChance(world, x, y, z, metadata, chance);
+    }
+
+    @Override
+    protected int damageDropped(int metadata) {
+        BlockDefinition definition = BlockCallbackRegistry.get(blockID);
+        return definition != null && definition.preserveDropMetadata ? definition.subtypes.variant(metadata) : 0;
     }
 
     @Override
@@ -329,7 +336,7 @@ public class LuaBlock extends BlockContainer implements forge.IConnectRedstone {
     public void onBlockPlaced(World world, int x, int y, int z, int side) {
         BlockDefinition definition = BlockCallbackRegistry.get(blockID);
         if (definition != null && !world.multiplayerWorld) {
-            int metadata = definition.state.defaults;
+            int metadata = definition.subtypes.placedMetadata(world.getBlockMetadata(x, y, z));
             if (definition.state.has("attachedFace")) {
                 metadata = definition.state.set(metadata, "attachedFace",
                         LuaValue.valueOf(BlockFace.fromNative(side).luaName));

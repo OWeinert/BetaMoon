@@ -16,7 +16,7 @@ them. It uses a 256×232 canvas and continues ticking while open. Changes to its
 Lua definitions require a Minecraft restart.
 
 The commented script demonstrates every container-GUI element type, including
-interactive controls and temporary container-session state. Its
+interactive controls and temporary container-temporary state. Its
 `BACKGROUND` setting can be `panel`, `custom`, or `builtin`. The custom panel
 has the same dimensions as the generated one. Built-in backgrounds scale to
 the gallery canvas, with slot frames drawn at the container's actual positions.

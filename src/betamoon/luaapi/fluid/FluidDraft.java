@@ -2,12 +2,15 @@ package betamoon.luaapi.fluid;
 
 import betamoon.content.ContentKey;
 import betamoon.fluid.FluidAppearance;
+import betamoon.fluid.FluidCameraPolicy;
 import betamoon.fluid.FluidCarrier;
 import betamoon.fluid.FluidDefinition;
 import betamoon.fluid.FluidDisplacementPolicy;
-import betamoon.fluid.FluidFlowPolicy;
+import betamoon.fluid.FluidEcologyPolicy;
 import betamoon.fluid.FluidEntityPolicy;
-import betamoon.fluid.FluidCameraPolicy;
+import betamoon.fluid.FluidFlowPolicy;
+import betamoon.instrumentation.api.RequiredNativeHooks;
+import org.luaj.vm2.LuaError;
 
 /** Parsed fluid policy without native block/item identities. */
 public final class FluidDraft {
@@ -20,10 +23,12 @@ public final class FluidDraft {
     private final FluidDisplacementPolicy displacement;
     private final FluidEntityPolicy entity;
     private final FluidCameraPolicy camera;
+    private final FluidEcologyPolicy ecology;
+    private final boolean safeTeleportArrival;
 
     FluidDraft(ContentKey key, String owner, String preset, FluidCarrier carrier, FluidFlowPolicy flow,
             FluidAppearance appearance, FluidDisplacementPolicy displacement, FluidEntityPolicy entity,
-            FluidCameraPolicy camera) {
+            FluidCameraPolicy camera, FluidEcologyPolicy ecology, boolean safeTeleportArrival) {
         this.key = key;
         this.owner = owner;
         this.preset = preset;
@@ -33,6 +38,8 @@ public final class FluidDraft {
         this.displacement = displacement;
         this.entity = entity;
         this.camera = camera;
+        this.ecology = ecology;
+        this.safeTeleportArrival = safeTeleportArrival;
     }
 
     public ContentKey key() {
@@ -73,13 +80,21 @@ public final class FluidDraft {
 
     public void requireHooks() {
         FluidPolicyHookAvailability.requireEntity();
+        try {
+            RequiredNativeHooks.require("Fluid ecology", true, "betamoon:fluid_ecology:falling",
+                    "betamoon:fluid_ecology:farmland", "betamoon:fluid_ecology:reeds", "betamoon:fluid_ecology:habitat",
+                    "betamoon:fluid_ecology:habitat_position", "betamoon:fluid_ecology:pathfinding",
+                    "betamoon:fluid_ecology:sponge", "betamoon:fluid_ecology:boat");
+        } catch (IllegalStateException exception) {
+            throw new LuaError(exception.getMessage());
+        }
         if (camera.fogColor() != null || camera.fogDensity() != null || camera.hasOverlay()) {
             FluidPolicyHookAvailability.requireCamera();
         }
     }
 
     public FluidDefinition bind(int flowingBlockId, int stillBlockId, int bucketItemId) {
-        return new FluidDefinition(key, owner, preset, carrier, flow, appearance, displacement, entity, camera,
-                flowingBlockId, stillBlockId, bucketItemId, false);
+        return new FluidDefinition(key, owner, preset, carrier, flow, appearance, displacement, entity, camera, ecology,
+                flowingBlockId, stillBlockId, bucketItemId, false, safeTeleportArrival);
     }
 }

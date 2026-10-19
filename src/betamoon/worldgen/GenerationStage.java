@@ -4,10 +4,9 @@ import org.luaj.vm2.LuaError;
 
 /** Named logical stage used for ordering compiled placements. */
 public enum GenerationStage {
-    UNDERGROUND_FEATURES("underground_features"),
-    SURFACE_FEATURES("surface_features"),
-    ENTITIES("entities"),
-    POST_PROCESS("post_process");
+    UNDERGROUND_STRUCTURES("underground_structures"), UNDERGROUND_FEATURES("underground_features"), SURFACE_STRUCTURES(
+            "surface_structures"), SURFACE_FEATURES(
+                    "surface_features"), VEGETATION("vegetation"), ENTITIES("entities"), POST_PROCESS("post_process");
 
     private final String name;
 

@@ -1,6 +1,7 @@
 package betamoon.luamodloader;
 
 import java.util.Objects;
+import java.util.function.Supplier;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
@@ -22,10 +23,24 @@ public final class ScriptExecution {
         Objects.requireNonNull(callbackName, "Callback name");
         Objects.requireNonNull(function, "Lua function");
         long startedNanos = System.nanoTime();
-        try (ScriptExecutionScope ignored = ScriptExecutionScope.open(source)) {
-            return function.invoke(arguments);
+        try (ScriptExecutionScope ignored = ScriptExecutionScope.open(source);
+                ScriptDiagnostics.Scope diagnostic = ScriptDiagnostics.scope(null, callbackName)) {
+            try {
+                return function.invoke(arguments);
+            } catch (RuntimeException | Error error) {
+                ScriptDiagnostics.remember(error);
+                throw error;
+            }
         } finally {
             SlowScriptCallbackMonitor.record(source, callbackName, startedNanos);
+        }
+    }
+
+    /** Restores a captured owner around a native/base continuation without double-counting it. */
+    public static <T> T withOwner(String source, Supplier<T> action) {
+        Objects.requireNonNull(action, "Owner-scoped action");
+        try (ScriptExecutionScope ignored = ScriptExecutionScope.open(source)) {
+            return action.get();
         }
     }
 }

@@ -3,12 +3,14 @@ package betamoon.config;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 
 /** Verifies grouped Forge settings, defaults, validation, and legacy migration. */
 public final class BetaMoonConfigTest {
     public static void main(String[] args) throws Exception {
         File root = Files.createTempDirectory("betamoon-config-test").toFile();
         try {
+            GroupedForgeConfigurationTest.run(root.toPath().resolve("grouped"));
             BetaMoonConfig defaults = new BetaMoonConfig(root);
             require(!defaults.getHotReloadOnFileChange().getValue(),
                     "Automatic file-change reload must default to disabled");
@@ -33,6 +35,9 @@ public final class BetaMoonConfigTest {
                     "Forge property comments must be written");
             require(contents.contains("diagnostics.verboseAssetDiagnostics=false"),
                     "Diagnostic settings must be grouped by prefix");
+            require(contents.contains("\r\n\r\n   # Logging\r\n")
+                    && contents.contains("\r\n\r\n   # Notifications\r\n"),
+                    "BetaMoon must use the grouped configuration writer");
             String defaultContents = contents;
             contents = contents.replace("scripts.hotReloadOnFileChange=false", "scripts.hotReloadOnFileChange=true");
             contents = contents.replace("notifications.showScriptWarningsOnLoad=false",
@@ -95,18 +100,19 @@ public final class BetaMoonConfigTest {
                     "Flat keys must be removed after migration");
             System.out.println("BetaMoon config passed: defaults, opt-in, legacy settings and filename migration.");
         } finally {
-            deleteRecursively(root);
+            deleteRecursively(root, root.getCanonicalFile().toPath());
         }
     }
 
-    private static void deleteRecursively(File file) {
+    private static void deleteRecursively(File file, Path root) throws Exception {
         if (file == null || !file.exists()) {
             return;
         }
+        require(file.getCanonicalFile().toPath().startsWith(root), "Cleanup must remain within the test directory");
         File[] children = file.listFiles();
         if (children != null) {
             for (int i = 0; i < children.length; i++) {
-                deleteRecursively(children[i]);
+                deleteRecursively(children[i], root);
             }
         }
         if (!file.delete()) {

@@ -1,0 +1,9 @@
+{
+  "key": "example:noise/marches_caves",
+  "algorithm": "perlin_v1",
+  "seedSalt": "marches_caves",
+  "amplitudes": [
+    1,
+    0.4
+  ]
+}

@@ -1,5 +1,12 @@
 package betamoon.luaapi.world;
 
+import betamoon.content.ContentKey;
+import betamoon.content.ContentType;
+import betamoon.fluid.FluidRegistry;
+import betamoon.luaapi.utils.LuaDimensionSelectors;
+import betamoon.luaapi.utils.LuaGenerationSignature;
+import betamoon.luaapi.utils.LuaNamespacedTags;
+import betamoon.luaapi.utils.LuaSpatialSelector;
 import betamoon.worldgen.BlockSet;
 import betamoon.worldgen.BuiltInFeatures;
 import betamoon.worldgen.GenerationStage;
@@ -27,6 +34,7 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
+
 import static betamoon.luaapi.utils.LuaDeclarationValues.required;
 
 /** Installs reusable feature and placement declaration registries. */
@@ -41,8 +49,12 @@ public final class FeaturePlacementApi {
             public Varargs invoke(Varargs arguments) {
                 LuaValue definition = argument(arguments, features, 1);
                 ParsedFeature parsed = feature(definition);
+                Set<String> tags = LuaNamespacedTags.read(definition.get("tags"), "Feature.tags");
                 WorldGenKey key = WorldGenRegistry.addFeature(parsed.key, parsed.type, parsed.feature,
                         parsed.dependencies, parsed.maxBlocks, parsed.maxRadius);
+                WorldGenRegistry.setFeatureTags(key, tags);
+                WorldGenRegistry.setDisplayName(key, definition.get("displayName").optjstring(null));
+                WorldGenRegistry.recordDeclaration(key, LuaGenerationSignature.of(definition));
                 return new FeatureReference(key);
             }
         });
@@ -59,6 +71,9 @@ public final class FeaturePlacementApi {
                         parsed.dimensions, parsed.attempts, parsed.extraChance, parsed.probability, parsed.height,
                         parsed.conditions, parsed.before, parsed.after, parsed.priority, parsed.salt,
                         parsed.successLimit, parsed.horizontal, parsed.gridSpacing);
+                WorldGenRegistry.setDisplayName(key,
+                        argument(arguments, placements, 1).get("displayName").optjstring(null));
+                WorldGenRegistry.recordDeclaration(key, LuaGenerationSignature.of(argument(arguments, placements, 1)));
                 return new PlacementReference(key, parsed.feature);
             }
         });
@@ -101,10 +116,12 @@ public final class FeaturePlacementApi {
             selectors.set("include", include);
             definition.set("biomes", selectors);
             ParsedPlacement parsed = placement(definition);
-            WorldGenRegistry.addPlacement(parsed.key, parsed.feature, parsed.stage, parsed.dimensions,
-                    parsed.attempts, parsed.extraChance, parsed.probability, parsed.height, parsed.conditions,
-                    parsed.before, parsed.after, parsed.priority, parsed.salt, parsed.successLimit,
+            WorldGenKey registered = WorldGenRegistry.addPlacement(parsed.key, parsed.feature, parsed.stage,
+                    parsed.dimensions, parsed.attempts, parsed.extraChance, parsed.probability, parsed.height,
+                    parsed.conditions, parsed.before, parsed.after, parsed.priority, parsed.salt, parsed.successLimit,
                     parsed.horizontal, parsed.gridSpacing);
+            WorldGenRegistry.setDisplayName(registered, definition.get("displayName").optjstring(null));
+            WorldGenRegistry.recordDeclaration(registered, LuaGenerationSignature.of(definition));
         }
     }
 
@@ -125,9 +142,9 @@ public final class FeaturePlacementApi {
         return new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs arguments) {
-                WorldGenKey key = key(argument(arguments, receiver, 1).checkjstring(), kind,
-                        kind.getPath() + ".get");
-                boolean exists = kind == WorldGenKind.FEATURE ? WorldGenRegistry.hasFeature(key)
+                WorldGenKey key = key(argument(arguments, receiver, 1).checkjstring(), kind, kind.getPath() + ".get");
+                boolean exists = kind == WorldGenKind.FEATURE
+                        ? WorldGenRegistry.hasFeature(key)
                         : WorldGenRegistry.hasPlacement(key);
                 if (!exists) {
                     if (required) {
@@ -169,7 +186,8 @@ public final class FeaturePlacementApi {
                     WorldGenLimits.MAX_FEATURE_RADIUS);
             int tries = optionalInteger(definition.get("tries"), 64, "Feature.tries", 1,
                     WorldGenLimits.MAX_ATTEMPTS_PER_CHUNK);
-            BlockSet replace = definition.get("replace").isnil() ? new BlockSet(0)
+            BlockSet replace = definition.get("replace").isnil()
+                    ? new BlockSet(0)
                     : blocks(definition.get("replace"), "Feature.replace");
             feature = BuiltInFeatures.patch(blockId, metadata, radius, tries, replace);
             maxBlocks = Math.min(tries, WorldGenLimits.MAX_BLOCK_CHANGES_PER_FEATURE);
@@ -184,7 +202,8 @@ public final class FeaturePlacementApi {
                 throw new LuaError("Feature.direction: expected 'up' or 'down'");
             }
             boolean downward = direction.equals("down");
-            BlockSet replace = definition.get("replace").isnil() ? new BlockSet(0)
+            BlockSet replace = definition.get("replace").isnil()
+                    ? new BlockSet(0)
                     : blocks(definition.get("replace"), "Feature.replace");
             feature = BuiltInFeatures.column(blockId, metadata, height, downward, replace);
             maxBlocks = height.max;
@@ -209,8 +228,7 @@ public final class FeaturePlacementApi {
                 LuaValue entry = entries.get(index);
                 table(entry, "Feature.features[" + index + "]");
                 dependencies.add(featureKey(required(entry, "feature"), "Feature.features[" + index + "].feature"));
-                int weight = integer(required(entry, "weight"), "Feature.features[" + index + "].weight", 1,
-                        1000000);
+                int weight = integer(required(entry, "weight"), "Feature.features[" + index + "].weight", 1, 1000000);
                 if (total > Integer.MAX_VALUE - weight) {
                     throw new LuaError("Feature.features: total weight is too large");
                 }
@@ -263,8 +281,8 @@ public final class FeaturePlacementApi {
         } else {
             table(attemptsValue, "Placement.attempts");
             LuaValue perChunk = attemptsValue.get("perChunk");
-            attempts = perChunk.isnil() ? range(attemptsValue, "Placement.attempts", 0,
-                    WorldGenLimits.MAX_ATTEMPTS_PER_CHUNK)
+            attempts = perChunk.isnil()
+                    ? range(attemptsValue, "Placement.attempts", 0, WorldGenLimits.MAX_ATTEMPTS_PER_CHUNK)
                     : range(perChunk, "Placement.attempts.perChunk", 0, WorldGenLimits.MAX_ATTEMPTS_PER_CHUNK);
             extraChance = optionalNumber(attemptsValue.get("extraChance"), 0.0D, "Placement.extraChance", 0.0D,
                     Math.nextDown(1.0D));
@@ -280,8 +298,10 @@ public final class FeaturePlacementApi {
         HeightProvider height = height(position.istable() ? position.get("height") : LuaValue.NIL);
         String horizontal = position.istable() ? position.get("horizontal").optjstring("chunk") : "chunk";
         int gridSpacing = position.istable()
-                ? optionalInteger(position.get("gridSpacing"), 4, "Placement.position.gridSpacing", 1, 16) : 4;
-        PlacementConditions conditions = conditions(definition.get("conditions"), definition.get("biomes"));
+                ? optionalInteger(position.get("gridSpacing"), 4, "Placement.position.gridSpacing", 1, 16)
+                : 4;
+        PlacementConditions conditions = conditions(definition.get("conditions"), definition.get("biomes"),
+                definition.get("spatial"));
         List<WorldGenKey> before = placementKeys(definition.get("before"), "Placement.before");
         List<WorldGenKey> after = placementKeys(definition.get("after"), "Placement.after");
         int priority = definition.get("priority").isnil() ? 0 : definition.get("priority").checkint();
@@ -305,10 +325,17 @@ public final class FeaturePlacementApi {
                 || type.equals("ocean_floor") || type.equals("fluid_surface")) {
             int offset = value.get("offset").isnil() ? 0 : value.get("offset").checkint();
             try {
-                return HeightProvider.surface(TerrainSurface.parse(type), offset);
+                return type.equals("surface")
+                        ? HeightProvider.profileSurface(offset)
+                        : HeightProvider.surface(TerrainSurface.parse(type), offset);
             } catch (IllegalArgumentException error) {
                 throw new LuaError("Placement.height.type: " + error.getMessage());
             }
+        }
+        if (type.equals("authored")) {
+            String output = required(value, "output").checkjstring();
+            int offset = optionalInteger(value.get("offset"), 0, "Placement.height.offset", -127, 127);
+            return HeightProvider.authored(output, offset);
         }
         if (type.equals("underground")) {
             int minDepth = optionalInteger(value.get("minDepth"), 8, "Placement.height.minDepth", 1, 127);
@@ -318,8 +345,8 @@ public final class FeaturePlacementApi {
         if (type.equals("cave_floor")) {
             int minY = optionalInteger(value.get("min"), 1, "Placement.height.min", 1, 126);
             int maxY = optionalInteger(value.get("max"), 96, "Placement.height.max", minY, 126);
-            int clearance = optionalInteger(value.get("minimumClearance"), 3,
-                    "Placement.height.minimumClearance", 1, 32);
+            int clearance = optionalInteger(value.get("minimumClearance"), 3, "Placement.height.minimumClearance", 1,
+                    32);
             return HeightProvider.caveFloor(minY, maxY, clearance);
         }
         int min = optionalInteger(value.get("min"), 0, "Placement.height.min", 0, 127);
@@ -340,20 +367,23 @@ public final class FeaturePlacementApi {
         throw new LuaError("Placement.height.type: unknown height provider: " + type);
     }
 
-    private static PlacementConditions conditions(LuaValue value, LuaValue biomes) {
+    private static PlacementConditions conditions(LuaValue value, LuaValue biomes, LuaValue spatial) {
         if (!value.isnil()) {
             table(value, "Placement.conditions");
         }
         BlockSet ground = value.istable() && !value.get("ground").isnil()
-                ? blocks(value.get("ground"), "Placement.conditions.ground") : null;
+                ? blocks(value.get("ground"), "Placement.conditions.ground")
+                : null;
         boolean sky = value.istable() && value.get("requireSky").toboolean();
         Boolean air = optionalBoolean(value.istable() ? value.get("air") : LuaValue.NIL);
         Boolean water = optionalBoolean(value.istable() ? value.get("water") : LuaValue.NIL);
         Boolean lava = optionalBoolean(value.istable() ? value.get("lava") : LuaValue.NIL);
         int minLight = value.istable()
-                ? optionalInteger(value.get("minLight"), 0, "Placement.conditions.minLight", 0, 15) : 0;
+                ? optionalInteger(value.get("minLight"), 0, "Placement.conditions.minLight", 0, 15)
+                : 0;
         int maxLight = value.istable()
-                ? optionalInteger(value.get("maxLight"), 15, "Placement.conditions.maxLight", minLight, 15) : 15;
+                ? optionalInteger(value.get("maxLight"), 15, "Placement.conditions.maxLight", minLight, 15)
+                : 15;
         Set<String> include = new HashSet<String>();
         Set<String> exclude = new HashSet<String>();
         if (biomes.istable()) {
@@ -366,7 +396,22 @@ public final class FeaturePlacementApi {
             throw new LuaError("Placement.biomes: expected a table");
         }
         SitePolicy site = value.istable() ? site(value.get("site"), "Placement.conditions.site") : SitePolicy.ANY;
-        return new PlacementConditions(ground, sky, air, water, lava, minLight, maxLight, include, exclude, site);
+        LuaValue fluidValue = value.istable() ? value.get("fluid") : LuaValue.NIL;
+        String fluid = null;
+        if (!fluidValue.isnil()) {
+            fluid = fluidValue.istable() ? fluidValue.get("key").checkjstring() : fluidValue.checkjstring();
+            try {
+                ContentKey key = ContentKey.parseForType(fluid, ContentType.FLUID);
+                if (FluidRegistry.instance().get(key) == null) {
+                    throw new LuaError("Placement.conditions.fluid: unknown fluid " + fluid);
+                }
+                fluid = key.toString();
+            } catch (IllegalArgumentException exception) {
+                throw new LuaError("Placement.conditions.fluid: " + exception.getMessage());
+            }
+        }
+        return new PlacementConditions(ground, sky, air, water, lava, minLight, maxLight, include, exclude, site,
+                LuaSpatialSelector.read(spatial, "Placement.spatial"), fluid);
     }
 
     static SitePolicy site(LuaValue value, String path) {
@@ -382,24 +427,27 @@ public final class FeaturePlacementApi {
         SitePolicy.Medium defaultMedium;
         try {
             type = SitePolicy.Type.parse(value.get("type").optjstring("any"));
-            defaultScope = type == SitePolicy.Type.CAVE ? SitePolicy.Scope.CLEARANCE_MASK
-                    : type == SitePolicy.Type.UNDERGROUND ? SitePolicy.Scope.FULL_BOUNDS
-                    : type == SitePolicy.Type.ANY ? SitePolicy.Scope.ORIGIN : SitePolicy.Scope.SUPPORT_FOOTPRINT;
-            defaultMedium = type == SitePolicy.Type.CAVE ? SitePolicy.Medium.AIR
+            defaultScope = type == SitePolicy.Type.CAVE
+                    ? SitePolicy.Scope.CLEARANCE_MASK
+                    : type == SitePolicy.Type.UNDERGROUND
+                            ? SitePolicy.Scope.FULL_BOUNDS
+                            : type == SitePolicy.Type.ANY
+                                    ? SitePolicy.Scope.ORIGIN
+                                    : SitePolicy.Scope.SUPPORT_FOOTPRINT;
+            defaultMedium = type == SitePolicy.Type.CAVE
+                    ? SitePolicy.Medium.AIR
                     : type == SitePolicy.Type.UNDERWATER ? SitePolicy.Medium.WATER : SitePolicy.Medium.ANY;
             SitePolicy.Scope scope = SitePolicy.Scope.parse(value.get("scope").optjstring(defaultScope.luaName()));
-            SitePolicy.Medium medium = SitePolicy.Medium.parse(
-                    value.get("medium").optjstring(defaultMedium.luaName()));
-            int defaultMinDepth = type == SitePolicy.Type.CAVE ? 8
-                    : type == SitePolicy.Type.UNDERGROUND ? 1 : 0;
+            SitePolicy.Medium medium = SitePolicy.Medium.parse(value.get("medium").optjstring(defaultMedium.luaName()));
+            int defaultMinDepth = type == SitePolicy.Type.CAVE ? 8 : type == SitePolicy.Type.UNDERGROUND ? 1 : 0;
             int minDepth = optionalInteger(value.get("minDepthBelowSurface"), defaultMinDepth,
                     path + ".minDepthBelowSurface", 0, 127);
-            int maxDepth = optionalInteger(value.get("maxDepthBelowSurface"), 127,
-                    path + ".maxDepthBelowSurface", minDepth, 127);
-            int minFluidDepth = optionalInteger(value.get("minFluidDepth"),
-                    type == SitePolicy.Type.UNDERWATER ? 1 : 0, path + ".minFluidDepth", 0, 127);
-            int maxFluidDepth = optionalInteger(value.get("maxFluidDepth"), 127,
-                    path + ".maxFluidDepth", minFluidDepth, 127);
+            int maxDepth = optionalInteger(value.get("maxDepthBelowSurface"), 127, path + ".maxDepthBelowSurface",
+                    minDepth, 127);
+            int minFluidDepth = optionalInteger(value.get("minFluidDepth"), type == SitePolicy.Type.UNDERWATER ? 1 : 0,
+                    path + ".minFluidDepth", 0, 127);
+            int maxFluidDepth = optionalInteger(value.get("maxFluidDepth"), 127, path + ".maxFluidDepth", minFluidDepth,
+                    127);
             double defaultMinCoverage = type == SitePolicy.Type.UNDERWATER ? 1.0D : 0.0D;
             double defaultMaxCoverage = type == SitePolicy.Type.LAND_SURFACE ? 0.0D : 1.0D;
             double minCoverage = optionalNumber(value.get("minFluidCoverage"), defaultMinCoverage,
@@ -422,8 +470,8 @@ public final class FeaturePlacementApi {
             if (type == SitePolicy.Type.LAND_SURFACE && minCoverage > 0.0D) {
                 throw new LuaError(path + ": land_surface cannot require positive fluid coverage");
             }
-            return new SitePolicy(type, scope, medium, minDepth, maxDepth, minFluidDepth, maxFluidDepth,
-                    minCoverage, maxCoverage, airRatio, minCover, maxCover, requireSky);
+            return new SitePolicy(type, scope, medium, minDepth, maxDepth, minFluidDepth, maxFluidDepth, minCoverage,
+                    maxCoverage, airRatio, minCover, maxCover, requireSky);
         } catch (IllegalArgumentException error) {
             throw new LuaError(path + ": " + error.getMessage());
         }
@@ -436,32 +484,7 @@ public final class FeaturePlacementApi {
     }
 
     private static Set<String> dimensions(LuaValue value) {
-        Set<String> result = new HashSet<String>();
-        if (value.isnil()) {
-            result.add("minecraft:overworld");
-            return result;
-        }
-        table(value, "Placement.dimensions");
-        for (int index = 1; index <= value.length(); index++) {
-            String dimension = value.get(index).checkjstring().trim().toLowerCase(Locale.ROOT);
-            if (dimension.equals("overworld")) {
-                dimension = "minecraft:overworld";
-            } else if (dimension.equals("nether") || dimension.equals("hell")) {
-                dimension = "minecraft:nether";
-            } else if (dimension.equals("both") || dimension.equals("all")) {
-                result.add("minecraft:overworld");
-                result.add("minecraft:nether");
-                continue;
-            }
-            if (!dimension.equals("minecraft:overworld") && !dimension.equals("minecraft:nether")) {
-                throw new LuaError("Placement.dimensions: unsupported dimension: " + dimension);
-            }
-            result.add(dimension);
-        }
-        if (result.isEmpty()) {
-            throw new LuaError("Placement.dimensions: expected at least one dimension");
-        }
-        return result;
+        return LuaDimensionSelectors.parse(value, "Placement.dimensions");
     }
 
     static BlockSet blocks(LuaValue value, String path) {
@@ -543,7 +566,8 @@ public final class FeaturePlacementApi {
         List<WorldGenKey> result = new ArrayList<WorldGenKey>();
         for (int index = 1; index <= value.length(); index++) {
             LuaValue entry = value.get(index);
-            result.add(entry instanceof PlacementReference ? ((PlacementReference) entry).key()
+            result.add(entry instanceof PlacementReference
+                    ? ((PlacementReference) entry).key()
                     : key(entry.checkjstring(), WorldGenKind.PLACEMENT, path));
         }
         return result;
@@ -563,10 +587,8 @@ public final class FeaturePlacementApi {
             return new IntRange(fixed, fixed);
         }
         table(value, path);
-        int min = integer(value.get("min").isnil() ? value.get(1) : value.get("min"), path + ".min", minimum,
-                maximum);
-        int max = integer(value.get("max").isnil() ? value.get(2) : value.get("max"), path + ".max", min,
-                maximum);
+        int min = integer(value.get("min").isnil() ? value.get(1) : value.get("min"), path + ".min", minimum, maximum);
+        int max = integer(value.get("max").isnil() ? value.get(2) : value.get("max"), path + ".max", min, maximum);
         return new IntRange(min, max);
     }
 

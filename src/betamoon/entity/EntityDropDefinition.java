@@ -2,6 +2,7 @@ package betamoon.entity;
 
 import betamoon.assets.AssetKey;
 import betamoon.loot.GameplayLootDefinition;
+import betamoon.loot.LootContext;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -9,6 +10,7 @@ import net.minecraft.src.Entity;
 import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
 import org.luaj.vm2.LuaValue;
+
 import static betamoon.luaapi.utils.LuaDeclarationValues.error;
 import static betamoon.luaapi.utils.LuaDeclarationValues.fields;
 import static betamoon.luaapi.utils.LuaDeclarationValues.id;
@@ -16,7 +18,10 @@ import static betamoon.luaapi.utils.LuaDeclarationValues.integer;
 import static betamoon.luaapi.utils.LuaDeclarationValues.length;
 import static betamoon.luaapi.utils.LuaDeclarationValues.number;
 
-/** Immutable shorthand entries or loot-table source sampled whenever a typed entity emits configured loot. */
+/**
+ * Immutable shorthand entries or loot-table source sampled whenever a typed
+ * entity emits configured loot.
+ */
 public final class EntityDropDefinition {
     private final List<Entry> entries = new ArrayList<>();
     private final GameplayLootDefinition loot;
@@ -38,14 +43,12 @@ public final class EntityDropDefinition {
             fields(entry, path, "item", "min", "max", "chance", "damage");
             int item = id(entry.get("item"), path + ".item");
             int minimum = entry.get("min").isnil() ? 1 : integer(entry.get("min"), path + ".min", 0, 64);
-            int maximum = entry.get("max").isnil()
-                    ? minimum : integer(entry.get("max"), path + ".max", minimum, 64);
+            int maximum = entry.get("max").isnil() ? minimum : integer(entry.get("max"), path + ".max", minimum, 64);
             double chance = entry.get("chance").isnil() ? 1 : number(entry.get("chance"), path + ".chance");
             if (!Double.isFinite(chance) || chance < 0 || chance > 1) {
                 throw error(path + ".chance", "expected 0..1");
             }
-            int damage = entry.get("damage").isnil()
-                    ? 0 : integer(entry.get("damage"), path + ".damage", 0, 32767);
+            int damage = entry.get("damage").isnil() ? 0 : integer(entry.get("damage"), path + ".damage", 0, 32767);
             entries.add(new Entry(item, minimum, maximum, damage, chance));
         }
     }
@@ -55,7 +58,10 @@ public final class EntityDropDefinition {
             return;
         }
         if (loot != null) {
-            for (ItemStack stack : loot.sample(entity.worldObj.rand)) {
+            for (ItemStack stack : loot.sample(entity.worldObj.rand,
+                    LootContext.at(entity.worldObj, (int) Math.floor(entity.posX),
+                            Math.max(0, Math.min(127, (int) Math.floor(entity.posY))),
+                            (int) Math.floor(entity.posZ)))) {
                 EntityLoot.dropItem(entity, stack);
             }
             return;

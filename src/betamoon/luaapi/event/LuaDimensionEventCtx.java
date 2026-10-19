@@ -14,6 +14,16 @@ public final class LuaDimensionEventCtx extends LuaTable {
         if (context != null) {
             set("oldId", context.getPreviousDimension());
             set("newId", context.getCurrentDimension());
+            if (context.getPreviousKey() != null) {
+                set("oldKey", context.getPreviousKey());
+            }
+            if (context.getCurrentKey() != null) {
+                set("newKey", context.getCurrentKey());
+            }
+            set("reason", context.getReason());
+            if (context.getTransferId() != null) {
+                set("transferId", context.getTransferId());
+            }
         }
     }
 

@@ -1,0 +1,68 @@
+{
+  "key": "example:material/marches_strata",
+  "rule": {
+    "type": "sequence",
+    "rules": [
+      {
+        "type": "when",
+        "condition": {
+          "type": "below_y",
+          "y": 61
+        },
+        "thenRule": 1
+      },
+      {
+        "type": "when",
+        "condition": {
+          "type": "field",
+          "field": "example:field/marches_regions",
+          "min": 0.45
+        },
+        "thenRule": {
+          "type": "sequence",
+          "rules": [
+            {
+              "type": "when",
+              "condition": {
+                "type": "any",
+                "conditions": [
+                  {
+                    "type": "y_range",
+                    "min": 68,
+                    "max": 71
+                  },
+                  {
+                    "type": "y_range",
+                    "min": 84,
+                    "max": 86
+                  }
+                ]
+              },
+              "thenRule": 82
+            },
+            24
+          ]
+        }
+      },
+      {
+        "type": "when",
+        "condition": {
+          "type": "surface_depth",
+          "min": 0,
+          "max": 0.99
+        },
+        "thenRule": 2
+      },
+      {
+        "type": "when",
+        "condition": {
+          "type": "surface_depth",
+          "min": 1,
+          "max": 3.99
+        },
+        "thenRule": 3
+      },
+      1
+    ]
+  }
+}

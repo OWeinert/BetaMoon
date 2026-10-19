@@ -1,24 +1,20 @@
 package betamoon;
 
-import betamoon.entity.EntityBootstrap;
 import betamoon.config.BetaMoonConfig;
+import betamoon.entity.EntityBootstrap;
 import betamoon.fluid.FluidRegistry;
 import betamoon.fluid.item.FluidBucketHandler;
 import betamoon.instrumentation.agent.AgentStatus;
 import betamoon.instrumentation.agent.BetaMoonAgent;
 import betamoon.luamodloader.LuaModLoader;
 import betamoon.luamodloader.SlowScriptCallbackMonitor;
+import betamoon.logging.RuntimeLogs;
 import betamoon.network.transport.PacketRegistration;
 import betamoon.recipes.RecipeModificationHandler;
 import betamoon.worldgen.WorldGenRegistry;
 import java.io.File;
 import java.util.Random;
-import java.util.logging.Formatter;
-import java.util.logging.Handler;
-import java.util.logging.Level;
-import java.util.logging.LogRecord;
 import java.util.logging.Logger;
-import java.util.logging.StreamHandler;
 import net.minecraft.src.World;
 
 /**
@@ -28,16 +24,12 @@ import net.minecraft.src.World;
  * This class must remain free of client-only and dedicated-server-only types.
  */
 public final class BetaMoonCommon {
-    public static final String VERSION = "0.9.0";
-    public static final Logger LOGGER = Logger.getLogger("BetaMoon");
+    public static final String VERSION = "0.10.0";
+    public static final Logger LOGGER = RuntimeLogs.logger();
 
     private final LuaModLoader luaModLoader;
     private final boolean agentRegistered;
     private volatile boolean scriptsLoaded;
-
-    static {
-        configureLogger();
-    }
 
     public BetaMoonCommon() {
         this(new LuaModLoader());
@@ -67,6 +59,8 @@ public final class BetaMoonCommon {
     }
 
     public void configure(BetaMoonConfig config) {
+        RuntimeLogs.configure(config.getLogDirectory().toPath(), config.getFileMinLogLevel().getValue(),
+                config.getConsoleMinLogLevel().getValue());
         luaModLoader.configure(config);
         SlowScriptCallbackMonitor.configure(config.getSlowCallbackWarningMs().getValue());
     }
@@ -119,38 +113,4 @@ public final class BetaMoonCommon {
         return registered;
     }
 
-    private static void configureLogger() {
-        LOGGER.setUseParentHandlers(false);
-        LOGGER.setLevel(Level.INFO);
-        for (Handler handler : LOGGER.getHandlers()) {
-            LOGGER.removeHandler(handler);
-        }
-        Formatter formatter = new Formatter() {
-            @Override
-            public String format(LogRecord record) {
-                String level = record.getLevel().getName();
-                return "[BetaMoon] " + level + ": " + record.getMessage() + System.lineSeparator();
-            }
-        };
-        Handler outHandler = new StreamHandler(System.out, formatter) {
-            @Override
-            public synchronized void publish(LogRecord record) {
-                super.publish(record);
-                flush();
-            }
-        };
-        outHandler.setLevel(Level.INFO);
-        outHandler.setFilter(record -> record.getLevel().intValue() < Level.WARNING.intValue());
-        Handler errHandler = new StreamHandler(System.err, formatter) {
-            @Override
-            public synchronized void publish(LogRecord record) {
-                super.publish(record);
-                flush();
-            }
-        };
-        errHandler.setLevel(Level.WARNING);
-        errHandler.setFilter(record -> record.getLevel().intValue() >= Level.WARNING.intValue());
-        LOGGER.addHandler(outHandler);
-        LOGGER.addHandler(errHandler);
-    }
 }

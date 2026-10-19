@@ -1,26 +1,32 @@
 package betamoon.luaapi.world;
 
+import static betamoon.luaapi.utils.LuaDeclarationValues.required;
+
+import betamoon.luaapi.utils.LuaGenerationSignature;
 import betamoon.worldgen.BlockSet;
 import betamoon.worldgen.IntRange;
-import betamoon.worldgen.TreeFeature;
 import betamoon.worldgen.StructureTreeFeature;
+import betamoon.worldgen.TreeFeature;
 import betamoon.worldgen.WorldFeature;
 import betamoon.worldgen.WorldGenKey;
 import betamoon.worldgen.WorldGenKind;
 import betamoon.worldgen.WorldGenLimits;
 import betamoon.worldgen.WorldGenRegistry;
+import betamoon.worldgen.structure.StructureTransform;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Random;
 import net.minecraft.src.Block;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
-import static betamoon.luaapi.utils.LuaDeclarationValues.required;
 
-/** Installs vanilla-adapter, procedural, and structure-backed tree declarations. */
+/**
+ * Installs vanilla-adapter, procedural, and structure-backed tree declarations.
+ */
 public final class TreeGenApi {
     private TreeGenApi() {
     }
@@ -34,8 +40,10 @@ public final class TreeGenApi {
                 FeaturePlacementApi.table(definition, "worldgen.trees:add");
                 String key = required(definition, "key").checkjstring();
                 CompiledTree compiled = compile(definition);
-                WorldGenKey typed = WorldGenRegistry.addFeature(key, WorldGenKind.TREE, compiled.type,
-                        compiled.feature, compiled.dependencies, compiled.maxBlocks, compiled.maxRadius);
+                WorldGenKey typed = WorldGenRegistry.addFeature(key, WorldGenKind.TREE, compiled.type, compiled.feature,
+                        compiled.dependencies, compiled.maxBlocks, compiled.maxRadius);
+                WorldGenRegistry.setDisplayName(typed, definition.get("displayName").optjstring(null));
+                WorldGenRegistry.recordDeclaration(typed, LuaGenerationSignature.of(definition));
                 return new FeatureReference(typed);
             }
         });
@@ -96,8 +104,8 @@ public final class TreeGenApi {
             String rotation = definition.get("rotation").optjstring("random_horizontal");
             String mirror = definition.get("mirror").optjstring("none");
             try {
-                betamoon.worldgen.structure.StructureTransform.rotation(rotation, new java.util.Random(0L));
-                betamoon.worldgen.structure.StructureTransform.mirror(mirror, new java.util.Random(0L));
+                StructureTransform.rotation(rotation, new Random(0L));
+                StructureTransform.mirror(mirror, new Random(0L));
             } catch (IllegalArgumentException error) {
                 throw new LuaError("Tree transform: " + error.getMessage());
             }
@@ -122,9 +130,11 @@ public final class TreeGenApi {
         TreeFeature.Branches branches = null;
 
         if (!generator.isEmpty()) {
-            trunkBlock = definition.get("trunk").isnil() ? Block.wood.blockID
+            trunkBlock = definition.get("trunk").isnil()
+                    ? Block.wood.blockID
                     : FeaturePlacementApi.blockId(definition.get("trunk"), "Tree.trunk");
-            leavesBlock = definition.get("leaves").isnil() ? Block.leaves.blockID
+            leavesBlock = definition.get("leaves").isnil()
+                    ? Block.leaves.blockID
                     : FeaturePlacementApi.blockId(definition.get("leaves"), "Tree.leaves");
             trunkMetadata = FeaturePlacementApi.metadata(definition.get("trunkMetadata"), "Tree.trunkMetadata");
             leavesMetadata = FeaturePlacementApi.metadata(definition.get("leavesMetadata"), "Tree.leavesMetadata");
@@ -172,8 +182,8 @@ public final class TreeGenApi {
                         "Tree.branches.start", 0.1D, 0.95D);
                 IntRange count = FeaturePlacementApi.range(required(branchValue, "count"), "Tree.branches.count", 0,
                         16);
-                IntRange length = FeaturePlacementApi.range(required(branchValue, "length"),
-                        "Tree.branches.length", 1, 12);
+                IntRange length = FeaturePlacementApi.range(required(branchValue, "length"), "Tree.branches.length", 1,
+                        12);
                 double bias = FeaturePlacementApi.optionalNumber(branchValue.get("upwardBias"), 0.25D,
                         "Tree.branches.upwardBias", 0.0D, 1.0D);
                 branches = new TreeFeature.Branches(start, count, length, bias);
@@ -183,7 +193,8 @@ public final class TreeGenApi {
         BlockSet ground = definition.get("ground").isnil()
                 ? new BlockSet(Block.grass.blockID, Block.dirt.blockID)
                 : FeaturePlacementApi.blocks(definition.get("ground"), "Tree.ground");
-        BlockSet replace = definition.get("replace").isnil() ? new BlockSet(0, Block.leaves.blockID)
+        BlockSet replace = definition.get("replace").isnil()
+                ? new BlockSet(0, Block.leaves.blockID)
                 : FeaturePlacementApi.blocks(definition.get("replace"), "Tree.replace");
         WorldFeature feature = new TreeFeature(trunkBlock, trunkMetadata, height, radius, bend, branches, leavesBlock,
                 leavesMetadata, shape, canopyRadius, density, ground, replace);

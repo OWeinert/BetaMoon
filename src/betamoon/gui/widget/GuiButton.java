@@ -9,7 +9,9 @@ import betamoon.gui.framework.GuiInputEvent;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.input.Keyboard;
 
-/** Retained wrapper around Minecraft's native button renderer and hit behavior. */
+/**
+ * Retained wrapper around Minecraft's native button renderer and hit behavior.
+ */
 public final class GuiButton extends GuiElement {
     private static final int DEFAULT_HEIGHT = 20;
 
@@ -48,7 +50,8 @@ public final class GuiButton extends GuiElement {
 
     @Override
     protected Size measureElement(GuiContext context, Constraints constraints) {
-        int labelWidth = context == null || context.getRenderer() == null ? 0
+        int labelWidth = context == null || context.getRenderer() == null
+                ? 0
                 : context.getRenderer().textWidth(nativeButton.displayString) + 20;
         return constraints.constrain(new Size(Math.max(preferredWidth, labelWidth), DEFAULT_HEIGHT));
     }
@@ -62,6 +65,13 @@ public final class GuiButton extends GuiElement {
         updateNativeBounds();
         nativeButton.enabled = isEnabled();
         nativeButton.drawButton(minecraft, context.getMouseX(), context.getMouseY());
+        if (isFocused()) {
+            int color = 0xFFFFFFA0;
+            context.getRenderer().drawHorizontalLine(getLeft(), getRight(), getTop(), color);
+            context.getRenderer().drawHorizontalLine(getLeft(), getRight(), getBottom() - 1, color);
+            context.getRenderer().drawVerticalLine(getTop(), getBottom(), getLeft(), color);
+            context.getRenderer().drawVerticalLine(getTop(), getBottom(), getRight() - 1, color);
+        }
     }
 
     @Override
@@ -80,9 +90,8 @@ public final class GuiButton extends GuiElement {
             nativeButton.mouseReleased(event.getMouseX(), event.getMouseY());
             return false;
         }
-        if (event.getType() == GuiInputEvent.Type.KEY_TYPED && isFocused()
-                && (event.getKeyCode() == Keyboard.KEY_RETURN || event.getKeyCode() == Keyboard.KEY_NUMPADENTER
-                        || event.getKeyCode() == Keyboard.KEY_SPACE)) {
+        if (event.getType() == GuiInputEvent.Type.KEY_TYPED && isFocused() && (event.getKeyCode() == Keyboard.KEY_RETURN
+                || event.getKeyCode() == Keyboard.KEY_NUMPADENTER || event.getKeyCode() == Keyboard.KEY_SPACE)) {
             activate(minecraft);
             return true;
         }
@@ -105,7 +114,7 @@ public final class GuiButton extends GuiElement {
         nativeButton.setGeometry(getLeft(), getTop(), getWidth(), getHeight());
     }
 
-    private static final class NativeButton extends net.minecraft.src.GuiButton {
+    private static final class NativeButton extends GuiMinecraftButton {
         private NativeButton(String label) {
             super(0, 0, 0, 0, 0, label);
         }

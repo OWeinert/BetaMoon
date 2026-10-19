@@ -1,10 +1,11 @@
 package betamoon.worldgen;
 
+import betamoon.worldgen.terrain.ProfileWorldChunkManager;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.worldgen.biome.BiomeDefinition;
 import betamoon.worldgen.biome.BiomeSourceDefinition;
-import betamoon.worldgen.surface.SurfaceRuleSet;
 import betamoon.worldgen.biome.LuaBiome;
+import betamoon.worldgen.surface.SurfaceRuleSet;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -15,7 +16,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicLong;
 import net.minecraft.src.BiomeGenBase;
 import net.minecraft.src.World;
 import org.luaj.vm2.LuaError;
@@ -25,6 +28,7 @@ public final class BiomeGenRegistry {
     private static final String[] FIELD_BIOME_LOOKUP_TABLE = new String[]{"biomeLookupTable", "x"};
     private static final ThreadLocal<PublicationBatch> CURRENT_BATCH = new ThreadLocal<PublicationBatch>();
     private static volatile Snapshot active = Snapshot.empty();
+    private static final AtomicLong TERRAIN_REVISION = new AtomicLong();
 
     private BiomeGenRegistry() {
     }
@@ -38,9 +42,19 @@ public final class BiomeGenRegistry {
         return batch;
     }
 
+    public static long terrainRevision() {
+        return TERRAIN_REVISION.get();
+    }
+
+    /** Invalidates detached raw snapshots after mutable biome inputs change. */
+    public static void invalidateTerrainSnapshots() {
+        TERRAIN_REVISION.incrementAndGet();
+    }
+
     public static synchronized void clear() {
         active = Snapshot.empty();
-        getBiomeLookupTable();
+        invalidateTerrainSnapshots();
+        BiomeGenBase.generateBiomeLookup();
     }
 
     public static synchronized void retainOwners(Set<String> owners) {
@@ -63,6 +77,7 @@ public final class BiomeGenRegistry {
             }
         }
         active = Snapshot.compile(biomes, surfaces, sources);
+        invalidateTerrainSnapshots();
     }
 
     public static WorldGenKey registerBiomeGenerator(String declaredKey, LuaBiome biome, Set<String> tags,
@@ -140,6 +155,183 @@ public final class BiomeGenRegistry {
         return active.sources.containsKey(key);
     }
 
+    public static BiomeSourceDefinition sourceFor(WorldGenKey key) {
+        PublicationBatch batch = CURRENT_BATCH.get();
+        if (batch != null) {
+            for (BiomeSourceDefinition source : batch.sources) {
+                if (source.key.equals(key)) {
+                    return source;
+                }
+            }
+        }
+        return active.sources.get(key);
+    }
+
+    public static SurfaceRuleSet surfaceFor(WorldGenKey key) {
+        PublicationBatch batch = CURRENT_BATCH.get();
+        if (batch != null) {
+            for (SurfaceRuleSet surface : batch.surfaces) {
+                if (surface.key.equals(key)) {
+                    return surface;
+                }
+            }
+        }
+        return active.surfaces.get(key);
+    }
+
+    /** Returns the applied climate selection without resetting scripted entries. */
+    public static BiomeGenBase[] copyClimateLookup() {
+        return getBiomeLookupTable().clone();
+    }
+
+    /**
+     * Immutable publication lookup for active/preparing dimension providers and
+     * detached previews.
+     */
+    public static WorldCatalog captureWorldCatalog() {
+        PublicationBatch batch = CURRENT_BATCH.get();
+        return new WorldCatalog(batch == null ? active : ownerSnapshot(batch));
+    }
+
+    public static WorldCatalog captureDimensionCatalog() {
+        PublicationBatch batch = CURRENT_BATCH.get();
+        Snapshot current = batch == null ? active : ownerSnapshot(batch);
+        List<BiomeDefinition> copies = new ArrayList<BiomeDefinition>();
+        for (BiomeDefinition entry : current.biomes.values()) {
+            LuaBiome biome = new LuaBiome(entry.biome.biomeName);
+            biome.applyDefaultsFrom(entry.biome);
+            biome.applyTreeMode(entry.biome.treeMode());
+            biome.applyBigTreeChance(entry.biome.bigTreeChance());
+            copies.add(new BiomeDefinition(entry.key, entry.resourceOwner, entry.owner, entry.source, biome, entry.tags,
+                    entry.surface, entry.minTemperature, entry.maxTemperature, entry.minHumidity, entry.maxHumidity,
+                    entry.legacyClimateRange, entry.decoratorCount));
+        }
+        return new WorldCatalog(Snapshot.compile(copies, new ArrayList<SurfaceRuleSet>(current.surfaces.values()),
+                new ArrayList<BiomeSourceDefinition>(current.sources.values())));
+    }
+
+    public static final class WorldCatalog {
+        private final Snapshot snapshot;
+        private final BiomeGenBase[] climate = new BiomeGenBase[4096];
+
+        private WorldCatalog(Snapshot snapshot) {
+            this.snapshot = snapshot;
+            for (int t = 0; t < 64; t++) {
+                for (int h = 0; h < 64; h++) {
+                    climate[t + h * 64] = BiomeGenBase.getBiome(t / 63.0f, h / 63.0f);
+                }
+            }
+            for (BiomeDefinition definition : snapshot.biomes.values()) {
+                if (definition.legacyClimateRange) {
+                    applyRange(climate, definition.biome, definition.minTemperature, definition.maxTemperature,
+                            definition.minHumidity, definition.maxHumidity);
+                }
+            }
+            BiomeSourceDefinition source = snapshot.selectedSource;
+            if (source != null) {
+                for (int t = 0; t < 64; t++) {
+                    for (int h = 0; h < 64; h++) {
+                        BiomeSourceDefinition.ClimateEntry entry = select(source.entries, t / 63.0, h / 63.0);
+                        if (source.fixedBiome != null) {
+                            climate[t + h * 64] = biome(source.fixedBiome);
+                        } else if (entry != null) {
+                            climate[t + h * 64] = biome(entry.biome);
+                        }
+                    }
+                }
+            }
+        }
+
+        public List<BiomeDefinition> definitions() {
+            return Collections.unmodifiableList(new ArrayList<BiomeDefinition>(snapshot.biomes.values()));
+        }
+
+        public BiomeGenBase[] copyClimate() {
+            return climate.clone();
+        }
+
+        public BiomeGenBase biome(WorldGenKey key) {
+            BiomeDefinition definition = snapshot.biomes.get(key);
+            return definition == null ? null : definition.biome;
+        }
+
+        public SurfaceRuleSet surface(WorldGenKey key) {
+            return snapshot.surfaces.get(key);
+        }
+
+        public Map<String, String> dependencies(BiomeSourceDefinition source, String nativeBase) {
+            Set<WorldGenKey> keys = new TreeSet<WorldGenKey>();
+            if (source == null && nativeBase.equals("overworld")) {
+                for (BiomeGenBase biome : climate) {
+                    WorldGenKey key = snapshot.keysByBiome.get(biome);
+                    if (key != null) {
+                        keys.add(key);
+                    }
+                }
+            } else if (source != null) {
+                if (source.fixedBiome != null) {
+                    keys.add(source.fixedBiome);
+                }
+                if (source.fallbackBiome != null) {
+                    keys.add(source.fallbackBiome);
+                }
+                for (BiomeSourceDefinition.ClimateEntry entry : source.entries) {
+                    keys.add(entry.biome);
+                }
+            }
+            Map<String, String> all = generationDependencies(snapshot);
+            Map<String, String> result = new TreeMap<String, String>();
+            if (source == null && nativeBase.equals("overworld")) {
+                StringBuilder distribution = new StringBuilder();
+                for (BiomeGenBase biome : climate) {
+                    WorldGenKey key = snapshot.keysByBiome.get(biome);
+                    distribution.append(key == null
+                            ? "minecraft:" + biome.biomeName + ':' + biome.topBlock + ':' + biome.fillerBlock
+                            : key.toString()).append(';');
+                }
+                result.put("dimension climate distribution", distribution.toString());
+            }
+            for (WorldGenKey key : keys) {
+                if (all.containsKey(key.toString())) {
+                    result.put(key.toString(), all.get(key.toString()));
+                }
+                BiomeDefinition definition = snapshot.biomes.get(key);
+                if (definition != null && definition.surface != null) {
+                    String surface = definition.surface.toString();
+                    result.put(surface, all.get(surface));
+                }
+            }
+            return result;
+        }
+    }
+
+    public static Map<String, String> generationDependencies() {
+        PublicationBatch batch = CURRENT_BATCH.get();
+        return generationDependencies(batch == null ? active : ownerSnapshot(batch));
+    }
+
+    private static Map<String, String> generationDependencies(Snapshot snapshot) {
+        Map<String, String> result = new TreeMap<String, String>();
+        for (BiomeDefinition biome : snapshot.biomes.values()) {
+            result.put(biome.key.toString(),
+                    biome.biome.topBlock + ":" + biome.biome.fillerBlock + ":" + biome.surface + ":" + biome.tags + ":"
+                            + biome.minTemperature + ":" + biome.maxTemperature + ":" + biome.minHumidity + ":"
+                            + biome.maxHumidity + ":" + biome.legacyClimateRange + ":" + biome.biome.treeMode() + ":"
+                            + biome.biome.bigTreeChance());
+            SurfaceRuleSet surface = biome.surface == null ? null : snapshot.surfaces.get(biome.surface);
+            if (surface != null) {
+                StringBuilder signature = new StringBuilder().append(surface.seaLevel).append(':')
+                        .append(surface.underwaterBlock);
+                for (SurfaceRuleSet.Layer layer : surface.layers) {
+                    signature.append(':').append(layer.blockId).append(':').append(layer.depth.min).append(':')
+                            .append(layer.depth.max);
+                }
+                result.put(surface.key.toString(), signature.toString());
+            }
+        }
+        return result;
+    }
+
     public static WorldGenKey keyFor(BiomeGenBase biome) {
         return active.keysByBiome.get(biome);
     }
@@ -202,13 +394,15 @@ public final class BiomeGenRegistry {
     }
 
     public static void applySurfaces(World world, int chunkX, int chunkZ, byte[] blocks, BiomeGenBase[] biomes) {
-        Snapshot snapshot = active;
+        Snapshot snapshot = world != null && world.getWorldChunkManager() instanceof ProfileWorldChunkManager
+                ? ((ProfileWorldChunkManager) world.getWorldChunkManager()).biomeCatalog().snapshot
+                : active;
         if (world == null || blocks == null || blocks.length != 32768 || biomes == null || biomes.length < 256) {
             return;
         }
         for (int x = 0; x < 16; x++) {
             for (int z = 0; z < 16; z++) {
-                BiomeDefinition biome = snapshot.byBiome.get(biomes[x + z * 16]);
+                BiomeDefinition biome = snapshot.byBiome.get(biomes[x * 16 + z]);
                 SurfaceRuleSet surface = biome == null || biome.surface == null
                         ? null
                         : snapshot.surfaces.get(biome.surface);
@@ -220,7 +414,9 @@ public final class BiomeGenRegistry {
     }
 
     public static void applyBiomeGenerators() {
+        invalidateTerrainSnapshots();
         Snapshot snapshot = active;
+        BiomeGenBase.generateBiomeLookup();
         BiomeGenBase[] table = getBiomeLookupTable();
         if (table == null || table.length == 0) {
             return;
@@ -293,10 +489,12 @@ public final class BiomeGenRegistry {
             sources.add(source);
         }
         active = Snapshot.compile(biomes, surfaces, sources);
+        invalidateTerrainSnapshots();
     }
 
     private static synchronized void publishOwner(PublicationBatch batch) {
         active = ownerSnapshot(batch);
+        invalidateTerrainSnapshots();
     }
 
     private static synchronized void validateOwner(PublicationBatch batch) {
@@ -400,7 +598,6 @@ public final class BiomeGenRegistry {
 
     private static BiomeGenBase[] getBiomeLookupTable() {
         try {
-            BiomeGenBase.generateBiomeLookup();
             Field field = resolveField(BiomeGenBase.class, FIELD_BIOME_LOOKUP_TABLE);
             return (BiomeGenBase[]) field.get(null);
         } catch (Exception ignored) {
@@ -618,6 +815,10 @@ public final class BiomeGenRegistry {
         }
 
         private static void validateSource(BiomeSourceDefinition source, Map<WorldGenKey, BiomeDefinition> biomes) {
+            if (source.fallbackBiome != null && !biomes.containsKey(source.fallbackBiome)) {
+                throw new LuaError(
+                        "Biome source " + source.key + " references unknown fallback biome " + source.fallbackBiome);
+            }
             if (source.fixedBiome != null && !biomes.containsKey(source.fixedBiome)) {
                 throw new LuaError("Biome source " + source.key + " references unknown biome " + source.fixedBiome);
             }
@@ -632,7 +833,7 @@ public final class BiomeGenRegistry {
     public static final class Description {
         public final String key;
         public final String owner;
-        public final String name;
+        public final String displayName;
         public final String implementation;
         public final int topBlock;
         public final int fillerBlock;
@@ -648,7 +849,7 @@ public final class BiomeGenRegistry {
         private Description(BiomeDefinition entry) {
             key = entry.key.toString();
             owner = entry.owner;
-            name = entry.biome.biomeName;
+            displayName = entry.biome.biomeName;
             implementation = entry.biome.getClass().getName();
             topBlock = entry.biome.topBlock & 255;
             fillerBlock = entry.biome.fillerBlock & 255;

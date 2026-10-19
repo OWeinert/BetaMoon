@@ -86,6 +86,17 @@ public final class GuiScrollView extends GuiContainer {
         draggingHorizontal = false;
     }
 
+    /** Reveals an element using its current arranged screen bounds, preserving horizontal scroll. */
+    public void reveal(Rect bounds) {
+        if (bounds.getTop() < getTop()) {
+            setScrollPosition(scrollX, scrollY + bounds.getTop() - getTop());
+        } else if (bounds.getBottom() > getBottom()) {
+            int delta = bounds.getHeight() > getHeight()
+                    ? bounds.getTop() - getTop() : bounds.getBottom() - getBottom();
+            setScrollPosition(scrollX, scrollY + delta);
+        }
+    }
+
     @Override
     protected void arrangeChildren(GuiContext context) {
         updateLimits();

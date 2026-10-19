@@ -19,12 +19,12 @@ public final class LuaBiome extends BiomeGenBase {
     private BiomeTreeMode treeMode = BiomeTreeMode.DEFAULT;
     private int bigTreeChance = 10;
 
-    public LuaBiome(String name) {
-        setBiomeName(name);
+    public LuaBiome(String displayName) {
+        setBiomeName(displayName);
     }
 
-    public void applyName(String name) {
-        setBiomeName(name);
+    public void applyDisplayName(String displayName) {
+        setBiomeName(displayName);
     }
 
     public void applyColor(int color) {

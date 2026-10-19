@@ -1,6 +1,7 @@
 package betamoon;
 
 import betamoon.client.LuaLoaderClientFeedback;
+import betamoon.client.diagnostics.ClientScriptDiagnostics;
 import betamoon.client.assets.ClientAssets;
 import betamoon.client.particles.ClientParticles;
 import betamoon.client.audio.ClientAudio;
@@ -10,6 +11,8 @@ import betamoon.client.network.ClientNetworkSession;
 import betamoon.client.render.ClientEntityPresentationResources;
 import betamoon.client.render.FluidRenderer;
 import betamoon.config.BetaMoonConfig;
+import betamoon.entity.motion.EntitySimulationThread;
+import betamoon.player.LocalPlayerAccess;
 import betamoon.gui.GuiBetaMoonIngameMenu;
 import betamoon.gui.GuiBetaMoonMainMenu;
 import betamoon.gui.GuiPopupAgentWarning;
@@ -21,7 +24,9 @@ import betamoon.update.UpdateChecker;
 import betamoon.update.UpdateRelease;
 import java.util.Random;
 import java.util.logging.Logger;
+import net.minecraft.client.Minecraft;
 import net.minecraft.src.BaseMod;
+import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.GuiIngameMenu;
 import net.minecraft.src.GuiMainMenu;
 import net.minecraft.src.GuiScreen;
@@ -49,6 +54,19 @@ public final class BetaMoonClient {
     private boolean agentWarningShown = false;
 
     private BetaMoonClient(BaseMod baseMod) {
+        ClientScriptDiagnostics.initialize();
+        EntitySimulationThread.initialize();
+        LocalPlayerAccess.initialize(new LocalPlayerAccess.Provider() {
+            public EntityPlayer player() {
+                Minecraft minecraft = ModLoader.getMinecraftInstance();
+                return minecraft == null ? null : minecraft.thePlayer;
+            }
+
+            public World world() {
+                Minecraft minecraft = ModLoader.getMinecraftInstance();
+                return minecraft == null ? null : minecraft.theWorld;
+            }
+        });
         this.betaMoonBaseMod = baseMod;
         this.common = new BetaMoonCommon();
         ClientEntityEffects.initialize();

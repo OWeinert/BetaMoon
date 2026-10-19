@@ -18,7 +18,7 @@ public final class LuaGameEventCtx extends LuaTable {
         WorldInfo info = world == null ? null : world.getWorldInfo();
         if (info != null) {
             set("worldName", LuaValue.valueOf(info.getWorldName()));
-            set("worldInfo", new LuaWorldInfo(info));
+            set("worldInfo", LuaWorldInfo.fromWorld(world));
         }
     }
 

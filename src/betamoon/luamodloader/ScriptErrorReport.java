@@ -38,27 +38,10 @@ final class ScriptErrorReport {
         try {
             Files.createDirectories(root);
             temporary = Files.createTempFile(root, ".script_err_", ".tmp");
-            StringBuilder report = new StringBuilder();
-            report.append("BetaMoon script diagnostics\n");
-            report.append("Version: ").append(BetaMoonCommon.VERSION).append('\n');
-            report.append("Attempt: ").append(attempt).append('\n');
-            report.append("Generated: ").append(LocalDateTime.now()).append("\n\n");
-            report.append("Script errors and warnings\n");
             List<LuaScriptErrors.ScriptIssue> issues = LuaScriptErrors.getEntries();
-            for (int index = 0; index < Math.min(issues.size(), MAX_ISSUES); index++) {
-                LuaScriptErrors.ScriptIssue issue = issues.get(index);
-                report.append(issue.isWarning() ? "WARNING " : "ERROR ")
-                        .append(issue.getMessage()).append('\n');
-            }
-            if (issues.size() > MAX_ISSUES) {
-                report.append("... ").append(issues.size() - MAX_ISSUES).append(" more issues omitted\n");
-            }
-            report.append("\nDiscovered scripts\n");
-            for (ScriptMod mod : LuaScriptRegistry.getEntries()) {
-                report.append(mod.getSourceFileName()).append(" | ").append(mod.getDisplayName()).append(" | ")
-                        .append(mod.isFailed() ? "failed" : mod.isLoaded() ? "loaded" : "pending").append('\n');
-            }
-            Files.write(temporary, report.toString().getBytes(StandardCharsets.UTF_8));
+            String report = ScriptIssueReports.generate(issues, "All recorded issues; automatic " + attempt,
+                    MAX_ISSUES);
+            Files.write(temporary, report.getBytes(StandardCharsets.UTF_8));
             Path destination = unique(root, FILE_PREFIX + NAME_TIME.format(LocalDateTime.now()) + FILE_EXTENSION);
             Files.move(temporary, destination, StandardCopyOption.REPLACE_EXISTING);
             temporary = null;

@@ -47,6 +47,31 @@ public final class LootTableRegistry {
         return registered == null ? null : registered.definition;
     }
 
+    public static Map<AssetKey, LootTableDefinition> captureDefinitions() {
+        Map<AssetKey, LootTableDefinition> result = new LinkedHashMap<AssetKey, LootTableDefinition>();
+        for (Map.Entry<AssetKey, Registered> entry : active.entrySet()) {
+            result.put(entry.getKey(), entry.getValue().definition);
+        }
+        return Collections.unmodifiableMap(result);
+    }
+
+    public static Map<AssetKey, LootTableDefinition> capturePendingDefinitions() {
+        PublicationBatch batch = CURRENT_BATCH.get();
+        if (batch == null) {
+            return captureDefinitions();
+        }
+        Map<AssetKey, LootTableDefinition> result = new LinkedHashMap<AssetKey, LootTableDefinition>();
+        for (Map.Entry<AssetKey, Registered> entry : active.entrySet()) {
+            if (!entry.getValue().resourceOwner.equals(batch.resourceOwner)) {
+                result.put(entry.getKey(), entry.getValue().definition);
+            }
+        }
+        for (Map.Entry<AssetKey, Registered> entry : batch.tables.entrySet()) {
+            result.put(entry.getKey(), entry.getValue().definition);
+        }
+        return Collections.unmodifiableMap(result);
+    }
+
     public static String dependencySignature(AssetKey key) {
         LootTableDefinition definition = find(key);
         if (definition == null) {

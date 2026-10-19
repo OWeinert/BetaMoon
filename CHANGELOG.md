@@ -1,51 +1,52 @@
 # Changelog
 
-## 0.9.0
+## 0.10.0
 
+### World generation
 
-### Particles
+- Add saved generator profiles with flat, void, heightmap, density, Beta-style, blended and composed terrain.
+- Add shared spatial fields, noise and fixed/original-spawn anchors for terrain, biomes, placements, structures,
+  natural spawns and loot.
+- Add height profiles, material rules, cave carvers, named placement heights and population controls.
+- Let players choose a generator and enable or disable generation content in Create World, with choices saved per world.
+- Warn about missing saved generators and offer confirmed, temporary Minecraft generation without replacing saved choices.
+- Add read-only terrain previews, field inspection and CSV exports.
 
-- Add registered particle sprite types and reusable burst/emitter effects, with custom PNGs, Minecraft atlas cells,
-  independent animation, color/alpha, rotation, size, motion, and collision policies.
-- Add optional per-instance Lua `onTick` updates with scoped particle controls and transient memory.
-- Default to admitting up to 1,024 new custom particles per client tick; configurable with `particles.maxPerTick`.
-- Allow client-wide particle budgets up to 65,535 active or new sprites per tick, retaining defaults of
-  4,096 active and 1,024 new sprites per tick.
-- Extend world particle spawning with custom references/keys and add effect handles, actor attachments,
-  client budgets, diagnostics, and owner/world cleanup.
+### Dimensions and teleportation
 
-### Multiblocks
+- Add persistent custom dimensions with builtin or custom generation, independent environment rules, seeds and
+  spawn/respawn settings.
+- Add queued player teleportation within and between dimensions, with safe arrival searches, optional platforms and
+  saved return history.
+- Add Minecraft-style loading progress and saved-dimension recovery with explicit backup and rescue to the Overworld.
+- Add custom-dimension selectors to world generation, natural spawning and atmospheres, and scoped player access in
+  event/input callbacks.
 
-- Define multiblocks in Lua with layers or sparse positions, block/state rules, count constraints,
-  horizontal orientation, optional mirrors, repeatable layers, and named groups of matching positions.
-- Add controllerless discovery, automatic/item activation, explicit deactivation, bounded manual searches,
-  member lookup, and owned activation fills that preserve player replacements (mechanics similar to minecraft's Nether Portal).
-- Detect controller completion, invalidation, and chunk suspension/resumption automatically.
-- Preserve multiblock identity and declared custom data across world reloads without changing controller
-  inventories, tile data, metadata, or appearances. Failed multiblock reloads retain working definitions.
-- Add optional exclusive membership and configurable pattern, processing, and instance limits.
-  Automatic completion targets singleplayer worlds; remote-world checks provide diagnostics only.
+### Blocks and items
 
-### Logical tick events
+- Add metadata-dependent names and textures, declared block inventory subtypes and metadata-aware resource queries.
+- Add opt-in subtype-preserving block drops; metadata zero remains the default.
 
-- Run `game_tick` once per logical client tick, including menus, screens, and paused gameplay.
-- Run `gui_tick` after `game_tick` while a screen is open, and add `world_tick` after actual client-world
-  simulation updates. Non-pausing screens and remote-world updates continue to receive world ticks.
-- Require the Java agent for logical tick subscriptions. These callbacks no longer follow rendered frames.
-- Detect runtime side without loading Minecraft before the agent transformer is installed.
-- Advance world services and logical networks from the world simulation boundary, with interval counters
-  independent of mutable world time. Preserve declaring-script identity during event/service/network callbacks.
+### Player and entity access
 
-### Minecraft-style interface
+- Add scoped local-player access, position/rotation transforms, collision-aware movement, velocity impulses and support queries.
 
-- GUI style overhaul to match minecraft's native GUI better
+### Container GUIs
 
-### Internal organization
+- Add resizable visual slots and panels with Minecraft-style borders.
+- Add state-driven element bindings, GUI events, runtime element controls and independent property transitions.
+- Add translation, scaling, clipping, tinting, opacity and interpolation/easing helpers for supported elements.
 
-- Move native block, item, and biome implementations into their domain packages and rename them with
-  descriptive `LuaBlock`, `Lua*Item`, and `LuaBiome` names.
-- Consolidate declared block drops into the active definition, removing stale legacy drop state on reload.
-- Share item interaction forwarding while preserving lazy vanilla fallback and callback ordering.
-- Resolve and cache mapped/obfuscated biome fields through a biome-specific helper.
-- Preserve declared block/item canonical keys for debug reports, including recipe stacks, fuel rules,
-  machine bindings, subtype rows, and world-generation references. Mark unkeyed content as not assigned.
+### Atmospheres and fluids
+
+- Add biome-, region- and dimension-scoped fog, sky/light colors and ambient/weather sound layers.
+- Add independent custom-fluid ecology traits and fluid-aware placement filters.
+
+### Compatibility and fixes
+
+- Improve script diagnostics with runtime error indicators, grouped issue lists, clipboard actions, and detailed reports.
+- Add rotating runtime logs, independent file and console severity settings, and script-owned Lua logging.
+- Improve configuration readability with spaced setting groups and headings.
+- Standardize biome labels on `displayName`, keeping `name` as a deprecated compatibility alias.
+- Correct biome key lookups and surface rules applying to the wrong chunk columns.
+- Preserve script ownership during callbacks so script-owned operations and cleanup use the declaring script.

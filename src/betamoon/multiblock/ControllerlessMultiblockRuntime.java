@@ -84,6 +84,15 @@ public final class ControllerlessMultiblockRuntime {
         }
     }
 
+    public static void flush(World world) {
+        ControllerlessMultiblockWorld runtime = WORLDS.get(world);
+        if (runtime != null) {
+            for (ControllerlessMultiblockInstance instance : runtime.instances.values()) {
+                instance.save();
+            }
+        }
+    }
+
     public static List<MultiblockInstance> at(World world, int x, int y, int z, ContentKey filter) {
         ControllerlessMultiblockWorld runtime = WORLDS.get(world);
         return runtime == null ? Collections.emptyList() : runtime.at(new MultiblockPosition(x, y, z), filter);

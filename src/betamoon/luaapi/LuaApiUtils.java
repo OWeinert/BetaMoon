@@ -1,6 +1,5 @@
 package betamoon.luaapi;
 
-import betamoon.BetaMoonCommon;
 
 import betamoon.client.assets.AssetLocation;
 import betamoon.client.assets.AtlasTextures;
@@ -9,14 +8,12 @@ import betamoon.luamodloader.LuaScriptErrors;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.resources.EnumTexAtlas;
 import java.io.IOException;
-import java.util.logging.Logger;
 import net.minecraft.src.ItemStack;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
 public final class LuaApiUtils {
-    private static final Logger LOGGER = BetaMoonCommon.LOGGER;
     /**
      * Utility class for extracting typed arguments from Lua varargs.
      */
@@ -29,12 +26,15 @@ public final class LuaApiUtils {
 
     /** Records a warning against a previously captured script owner. */
     public static void warnForScript(String script, String source, String message) {
+        warnForScript(script, source, message, null);
+    }
+
+    public static void warnForScript(String script, String source, String message, Throwable error) {
         String safeSource = normalize(source, "Lua");
         String safeMessage = normalizePreserveFormatting(message, "Unknown warning");
         String scriptLabel = script == null ? safeSource : script;
         String combined = safeSource + ": " + safeMessage;
-        LOGGER.warning("[Lua Warning] " + combined);
-        LuaScriptErrors.addWarning(scriptLabel, combined);
+        LuaScriptErrors.addWarning(scriptLabel, combined, error);
     }
 
     public static void warn(String message) {

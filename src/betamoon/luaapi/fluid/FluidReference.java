@@ -6,8 +6,8 @@ import betamoon.fluid.FluidRegistration;
 import betamoon.luaapi.resource.ResourceApi;
 import net.minecraft.src.Block;
 import net.minecraft.src.Item;
-import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
 /** Read-only-by-contract Lua view over a stable fluid registration. */
@@ -39,6 +39,9 @@ public final class FluidReference extends LuaTable {
             }
             if ("preset".equals(name)) {
                 return LuaValue.valueOf(definition.preset());
+            }
+            if ("safeTeleportArrival".equals(name)) {
+                return LuaValue.valueOf(definition.safeTeleportArrival());
             }
             if (includeResources && "flowingBlock".equals(name)) {
                 return blockReference(definition.flowingBlockId());

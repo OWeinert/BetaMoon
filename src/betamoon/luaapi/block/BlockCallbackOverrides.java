@@ -1,27 +1,28 @@
 package betamoon.luaapi.block;
 
+import betamoon.loot.LootContext;
 import betamoon.luaapi.item.ItemInteractionRouting;
-import betamoon.luaapi.utils.InteractionOutcome;
 import betamoon.luaapi.resource.OverrideManager;
-import betamoon.luaapi.utils.LuaOverrideCallback;
+import betamoon.luaapi.utils.InteractionOutcome;
 import betamoon.luaapi.utils.LuaOverrideCallback.Result;
+import betamoon.luaapi.utils.LuaOverrideCallback;
 import betamoon.luaapi.utils.LuaOverrideDefinition;
 import betamoon.luaapi.utils.LuaOverrideLayers;
-import java.util.Map;
 import java.util.LinkedHashMap;
-import java.util.WeakHashMap;
+import java.util.Map;
 import java.util.Random;
+import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import net.minecraft.src.Block;
 import net.minecraft.src.Entity;
+import net.minecraft.src.EntityItem;
 import net.minecraft.src.EntityLiving;
 import net.minecraft.src.EntityPlayer;
-import net.minecraft.src.EntityItem;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.World;
-import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.LuaTable;
+import org.luaj.vm2.LuaValue;
 
 /**
  * Effective block callback layers, separate from declarations and Lua context
@@ -276,7 +277,8 @@ public final class BlockCallbackOverrides {
                         return value;
                     });
         }
-        for (ItemStack stack : new BlockDropDefinition(result).sample(world.rand, chance)) {
+        for (ItemStack stack : new BlockDropDefinition(result).sample(world.rand, chance,
+                LootContext.at(world, x, y, z))) {
             double ox = world.rand.nextFloat() * 0.7F + 0.15F;
             double oy = world.rand.nextFloat() * 0.7F + 0.15F;
             double oz = world.rand.nextFloat() * 0.7F + 0.15F;

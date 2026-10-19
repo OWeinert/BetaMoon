@@ -1,5 +1,8 @@
 package betamoon.entity;
 
+import betamoon.luaapi.utils.LuaDimensionSelectors;
+import betamoon.luaapi.utils.LuaSpatialSelector;
+import betamoon.worldgen.spatial.SpatialSelector;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
@@ -17,8 +20,7 @@ import static betamoon.luaapi.utils.LuaDeclarationValues.string;
 /** Bounded natural-spawn rule for one living entity type. */
 public final class EntitySpawnDefinition {
     public enum Category {
-        HOSTILE,
-        PASSIVE
+        HOSTILE, PASSIVE
     }
 
     public final Category category;
@@ -30,14 +32,16 @@ public final class EntitySpawnDefinition {
     public final int maxLight;
     public final int minY;
     public final int maxY;
-    public final Set<Integer> dimensions;
+    public final Set<String> dimensions;
     public final Set<String> biomes;
     public final Set<Integer> substrates;
+    public final SpatialSelector spatial;
     public final boolean nativeDespawn;
 
     public EntitySpawnDefinition(LuaValue value, boolean inheritedDespawn) {
-        fields(value, "entity.spawning", "category", "weight", "group", "cap", "light", "height",
-                "dimensions", "biomes", "substrates", "despawn");
+        fields(value, "entity.spawning", "category", "weight", "group", "cap", "light", "height", "dimensions",
+                "biomes", "substrates", "despawn", "spatial");
+        spatial = LuaSpatialSelector.read(value.get("spatial"), "entity.spawning.spatial");
         category = category(value.get("category"));
         weight = optionalInteger(value.get("weight"), "entity.spawning.weight", 1, 10000, 10);
         int[] group = range(value.get("group"), "entity.spawning.group", 1, 16, 1, 1);
@@ -50,7 +54,9 @@ public final class EntitySpawnDefinition {
         int[] height = range(value.get("height"), "entity.spawning.height", 1, 126, 1, 126);
         minY = height[0];
         maxY = height[1];
-        dimensions = integers(value.get("dimensions"), "entity.spawning.dimensions", -128, 127);
+        dimensions = value.get("dimensions").isnil()
+                ? Collections.<String>emptySet()
+                : LuaDimensionSelectors.parse(value.get("dimensions"), "entity.spawning.dimensions");
         biomes = names(value.get("biomes"), "entity.spawning.biomes");
         substrates = blocks(value.get("substrates"), "entity.spawning.substrates");
         nativeDespawn = despawn(value.get("despawn"), inheritedDespawn);

@@ -1,22 +1,25 @@
 package betamoon.luamodloader;
 
-import betamoon.multiblock.MultiblockRegistry;
-
 import betamoon.BetaMoonCommon;
-import betamoon.particles.ParticleRegistry;
+import betamoon.atmosphere.AtmosphereRegistry;
 import betamoon.config.BetaMoonConfig;
+import betamoon.dimension.DimensionRegistry;
+import betamoon.entity.EntityPresentationResources;
+import betamoon.entity.EntityTypeRegistry;
 import betamoon.fluid.interaction.FluidInteractionRegistry;
 import betamoon.io.IoUtils;
+import betamoon.loot.LootTableRegistry;
 import betamoon.luaapi.block.BlockCallbackRegistry;
 import betamoon.luaapi.fluid.FluidDefinitionTracker;
 import betamoon.luaapi.module.ModuleRegistry;
+import betamoon.multiblock.MultiblockRegistry;
+import betamoon.particles.ParticleRegistry;
 import betamoon.recipes.RecipeModificationHandler;
 import betamoon.tileentity.TileEntityRegistry;
-import betamoon.entity.EntityTypeRegistry;
-import betamoon.entity.EntityPresentationResources;
 import betamoon.worldgen.BiomeGenRegistry;
 import betamoon.worldgen.WorldGenRegistry;
-import betamoon.loot.LootTableRegistry;
+import betamoon.worldgen.spatial.SpatialRegistry;
+import betamoon.worldgen.terrain.TerrainRegistry;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,7 +36,7 @@ public final class LuaModLoader {
     private final ScriptModParser scriptParser = new ScriptModParser();
     private final ScriptDependencyResolver dependencyResolver = new ScriptDependencyResolver();
     private final RetainedScriptCatalog retainedScripts = new RetainedScriptCatalog();
-    private final ScriptLifecycleRunner lifecycleRunner = new ScriptLifecycleRunner(retainedScripts, this::reportError);
+    private final ScriptLifecycleRunner lifecycleRunner = new ScriptLifecycleRunner(retainedScripts);
     private final File scriptsDirectory;
     private Set<String> disabledScripts = Collections.emptySet();
     private int reloadDebounceMs = 500;
@@ -54,6 +57,7 @@ public final class LuaModLoader {
     }
 
     public void configure(BetaMoonConfig config) {
+        ScriptDiagnostics.configure(config);
         disabledScripts = config.getDisabledScripts().getValue();
         reloadDebounceMs = config.getReloadDebounceMs().getValue();
         logScriptLoadTimings = config.getLogScriptLoadTimings().getValue();
@@ -68,7 +72,7 @@ public final class LuaModLoader {
             return;
         }
         phase = LoaderPhase.INITIAL_LOAD;
-        try {
+        try (ScriptDiagnostics.Scope diagnostic = ScriptDiagnostics.scope("startup", "script loading")) {
             LuaScriptErrors.clear();
             loadAndRunInternal();
             knownFingerprint = calculateFingerprint();
@@ -89,9 +93,6 @@ public final class LuaModLoader {
         Map<String, ScriptMod> modsByName = indexModsByName(mods, errors);
         List<ScriptMod> ordered = orderMods(modsByName, errors);
         discardFailedScriptResources(mods);
-        if (!errors.isEmpty()) {
-            reportErrors(errors);
-        }
         List<String> failedMods = new ArrayList<>();
         runModsInOrder(ordered, failedMods);
         Set<String> presentScripts = new HashSet<>();
@@ -101,9 +102,13 @@ public final class LuaModLoader {
         EntityTypeRegistry.retainOwners(presentScripts);
         ParticleRegistry.retainOwners(presentScripts);
         MultiblockRegistry.retainOwners(presentScripts);
+        SpatialRegistry.retainOwners(presentScripts);
+        AtmosphereRegistry.retainOwners(presentScripts);
         LootTableRegistry.retainOwners(presentScripts);
         WorldGenRegistry.retainOwners(presentScripts);
         BiomeGenRegistry.retainOwners(presentScripts);
+        TerrainRegistry.retainOwners(presentScripts);
+        DimensionRegistry.retainOwners(presentScripts);
         EntityPresentationResources.prune();
         reportFailedMods(failedMods);
         reportLoadSummary(ordered, failedMods);
@@ -115,7 +120,6 @@ public final class LuaModLoader {
             for (int i = 0; i < dropErrors.size(); i++) {
                 LuaScriptErrors.add("Block drops", dropErrors.get(i));
             }
-            reportErrors(dropErrors);
         }
         List<String> fluidDefinitionErrors = FluidDefinitionTracker.finishLoadPass();
         FluidInteractionRegistry.instance().finishLoadPass();
@@ -123,12 +127,10 @@ public final class LuaModLoader {
             for (int i = 0; i < fluidDefinitionErrors.size(); i++) {
                 LuaScriptErrors.add("Fluid registration", fluidDefinitionErrors.get(i));
             }
-            reportErrors(fluidDefinitionErrors);
         }
         List<String> retainedWarnings = LuaContentRegistry.finishLoadPass();
         for (int i = 0; i < retainedWarnings.size(); i++) {
             String warning = retainedWarnings.get(i);
-            LOGGER.warning(warning);
             LuaScriptErrors.addWarning("Hot reload", warning);
         }
         reportIssuesInChat();
@@ -158,7 +160,7 @@ public final class LuaModLoader {
         phase = LoaderPhase.RELOAD_PREFLIGHT;
         ScriptReloadStatus.begin();
         boolean reloadFinished = false;
-        try {
+        try (ScriptDiagnostics.Scope diagnostic = ScriptDiagnostics.scope("reload", "reload preflight")) {
             LuaScriptErrors.clear();
             if (!preflightScripts()) {
                 reportIssuesInChat();
@@ -177,10 +179,12 @@ public final class LuaModLoader {
             reportReloadSummaryInChat();
             reloadFinished = true;
         } catch (RuntimeException error) {
-            LuaScriptErrors.add("Hot reload", "Unexpected reload failure: " + error.getMessage());
+            LuaScriptErrors.add("Hot reload", "Unexpected reload failure: " + error.getMessage(),
+                    LuaScriptErrors.Outcome.UNKNOWN, error);
             throw error;
         } catch (Error error) {
-            LuaScriptErrors.add("Hot reload", "Unexpected reload failure: " + error.getMessage());
+            LuaScriptErrors.add("Hot reload", "Unexpected reload failure: " + error.getMessage(),
+                    LuaScriptErrors.Outcome.UNKNOWN, error);
             throw error;
         } finally {
             exportFailedAttempt("reload");
@@ -223,8 +227,7 @@ public final class LuaModLoader {
             LuaScriptFiles.PreflightFailure failure = failures.get(i);
             String message = "Reload kept the active scripts because " + failure.getFileName() + " is invalid: "
                     + failure.getCause();
-            reportError(message);
-            LuaScriptErrors.add(failure.getFileName(), message);
+            LuaScriptErrors.add(failure.getFileName(), message, LuaScriptErrors.Outcome.ACTIVE_SCRIPTS_RETAINED);
         }
         return failures.isEmpty();
     }
@@ -286,7 +289,7 @@ public final class LuaModLoader {
             LuaScriptFiles.PreflightFailure failure = discoveryFailures.get(i);
             String message = failure.getFileName() + ": " + failure.getCause();
             errors.add(message);
-            LuaScriptErrors.add(failure.getFileName(), failure.getCause());
+            LuaScriptErrors.add(failure.getFileName(), failure.getCause(), LuaScriptErrors.Outcome.LOAD_FAILED);
         }
         for (int i = 0; i < discoveredSources.size(); i++) {
             LuaModSource source = discoveredSources.get(i);
@@ -305,7 +308,7 @@ public final class LuaModLoader {
                         LuaScriptFiles.PreflightFailure failure = sourceFailures.get(failureIndex);
                         String message = failure.getFileName() + " is invalid: " + failure.getCause();
                         errors.add(message);
-                        LuaScriptErrors.add(sourceName, message);
+                        LuaScriptErrors.add(sourceName, message, LuaScriptErrors.Outcome.LOAD_FAILED);
                     }
                     LuaScriptRegistry.markFailedByFile(sourceName, "One or more Lua sources did not compile.");
                     continue;
@@ -321,7 +324,7 @@ public final class LuaModLoader {
                 }
             } catch (IOException e) {
                 errors.add("Failed to read Lua script: " + sourceName);
-                LuaScriptErrors.add(sourceName, "Failed to read Lua script.");
+                LuaScriptErrors.add(sourceName, "Failed to read Lua script.", LuaScriptErrors.Outcome.LOAD_FAILED, e);
                 LuaScriptRegistry.markFailedByFile(sourceName, "Failed to read Lua script.");
             }
         }
@@ -345,11 +348,15 @@ public final class LuaModLoader {
      *         occur
      */
     ScriptMod parseLuaMod(File scriptFile, String scriptText, List<String> errors) {
-        return scriptParser.parse(scriptFile, scriptText, errors);
+        try (ScriptDiagnostics.Scope diagnostic = ScriptDiagnostics.scope(null, "entrypoint parsing")) {
+            return scriptParser.parse(scriptFile, scriptText, errors);
+        }
     }
 
     private ScriptMod parseLuaMod(LuaModSource source, String scriptText, List<String> errors) {
-        return scriptParser.parse(source, scriptText, errors);
+        try (ScriptDiagnostics.Scope diagnostic = ScriptDiagnostics.scope(null, "entrypoint parsing")) {
+            return scriptParser.parse(source, scriptText, errors);
+        }
     }
 
     /**
@@ -362,7 +369,9 @@ public final class LuaModLoader {
      * @return map keyed by mod name
      */
     Map<String, ScriptMod> indexModsByName(List<ScriptMod> mods, List<String> errors) {
-        return dependencyResolver.indexByName(mods, errors);
+        try (ScriptDiagnostics.Scope diagnostic = ScriptDiagnostics.scope(null, "dependency indexing")) {
+            return dependencyResolver.indexByName(mods, errors);
+        }
     }
 
     /**
@@ -375,7 +384,9 @@ public final class LuaModLoader {
      * @return ordered list or empty list if a cycle/missing dependency is found
      */
     List<ScriptMod> orderMods(Map<String, ScriptMod> modsByName, List<String> errors) {
-        return dependencyResolver.order(modsByName, errors);
+        try (ScriptDiagnostics.Scope diagnostic = ScriptDiagnostics.scope(null, "dependency resolution")) {
+            return dependencyResolver.order(modsByName, errors);
+        }
     }
 
     /**
@@ -423,28 +434,6 @@ public final class LuaModLoader {
      */
     String formatCycle(List<String> stack, String name) {
         return dependencyResolver.formatCycle(stack, name);
-    }
-
-    /**
-     * Emits each collected error via the logger and in-game chat.
-     *
-     * @param errors
-     *            list of error strings to report
-     */
-    void reportErrors(List<String> errors) {
-        for (int i = 0; i < errors.size(); i++) {
-            reportError(errors.get(i));
-        }
-    }
-
-    /**
-     * Logs a single error and attempts to surface it in the player chat.
-     *
-     * @param message
-     *            error message to display
-     */
-    void reportError(String message) {
-        LOGGER.severe(message);
     }
 
     /**

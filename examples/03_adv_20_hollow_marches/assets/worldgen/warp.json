@@ -1,0 +1,17 @@
+{
+  "key": "example:field/marches_warp",
+  "node": {
+    "type": "multiply",
+    "inputs": [
+      48,
+      {
+        "type": "noise",
+        "noise": "example:noise/marches_regions",
+        "scale": {
+          "x": 0.004,
+          "z": 0.004
+        }
+      }
+    ]
+  }
+}

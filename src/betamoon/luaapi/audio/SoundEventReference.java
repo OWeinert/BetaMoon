@@ -3,6 +3,7 @@ package betamoon.luaapi.audio;
 import betamoon.assets.AssetKey;
 import betamoon.client.audio.SoundAsset;
 import betamoon.luaapi.resource.OverrideManager;
+import betamoon.luaapi.utils.LuaDataReference;
 import betamoon.luamodloader.ScriptResourceTracker;
 import java.util.List;
 import org.luaj.vm2.LuaError;
@@ -13,7 +14,12 @@ import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
 /** Stable live Lua reference to a sound-event key. */
-public final class SoundEventReference extends LuaTable {
+public final class SoundEventReference extends LuaTable implements LuaDataReference {
+    @Override
+    public Object declarationValue() {
+        return key.toString();
+    }
+
     private final AssetKey key;
 
     SoundEventReference(AssetKey key) {
@@ -94,8 +100,7 @@ public final class SoundEventReference extends LuaTable {
         if (!query.get("owner").isnil() && !entry.owner.equals(query.get("owner").checkjstring())) {
             return false;
         }
-        return query.get("enabled").isnil()
-                || entry.effective.enabled == query.get("enabled").checkboolean();
+        return query.get("enabled").isnil() || entry.effective.enabled == query.get("enabled").checkboolean();
     }
 
     LuaValue applyOverride(LuaValue definition) {
@@ -112,8 +117,7 @@ public final class SoundEventReference extends LuaTable {
         }
         final LuaTable handle = new LuaTable();
         handle.set("target", this);
-        if (!when.isnil() && !when.get("owner").isnil()
-                && !entry.owner.equals(when.get("owner").checkjstring())) {
+        if (!when.isnil() && !when.get("owner").isnil() && !entry.owner.equals(when.get("owner").checkjstring())) {
             handle.set("active", FALSE);
             handle.set("reason", "target owner did not match");
             return handle;
@@ -129,8 +133,7 @@ public final class SoundEventReference extends LuaTable {
         LuaValue field = NIL;
         while (!(field = changes.next(field).arg1()).isnil()) {
             String name = field.checkjstring();
-            if (!name.equals("when") && !name.equals("changes") && !name.equals("priority")
-                    && !name.equals("target")) {
+            if (!name.equals("when") && !name.equals("changes") && !name.equals("priority") && !name.equals("target")) {
                 patchTable.set(field, changes.get(field));
             }
         }

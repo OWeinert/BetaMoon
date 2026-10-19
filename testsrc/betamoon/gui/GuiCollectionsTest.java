@@ -36,6 +36,7 @@ public final class GuiCollectionsTest {
         verifyDialogGeometry();
         verifyScriptOrdering();
         verifyUpdateNoticeLayout();
+        ScriptIssuesTest.run();
         System.out.println("GUI collections passed: routing, layout, focus, capture and script ordering.");
     }
 

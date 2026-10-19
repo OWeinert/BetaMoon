@@ -1,0 +1,7 @@
+{
+  "key": "example:terrain_source/meadows",
+  "type": "heightmap",
+  "height": "example:field/meadow_height",
+  "seaLevel": 60,
+  "floorHeight": 0
+}

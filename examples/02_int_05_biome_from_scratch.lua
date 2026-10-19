@@ -62,7 +62,7 @@ function modInit()
 
   local meadow = betamoon.worldgen.biomes:add {
     key = "example:biome/meadow",
-    name = "Example Meadow",
+    displayName = "Example Meadow",
     color = 0x55cc88,
     foliageColor = 0x33aa77,
     tags = { "example:meadow", "example:temperate" },

@@ -1,7 +1,10 @@
 package betamoon.debug;
 
+import betamoon.dimension.DimensionDiagnostics;
 import betamoon.worldgen.BiomeGenRegistry;
 import betamoon.worldgen.WorldGenRegistry;
+import betamoon.worldgen.spatial.SpatialRegistry;
+import betamoon.worldgen.terrain.TerrainRegistry;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -10,7 +13,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import net.minecraft.client.Minecraft;
 import net.minecraft.src.BiomeGenBase;
+import net.minecraft.src.ModLoader;
 
 /** Exports biome identities, Lua climate overlays, and world generators. */
 final class DebugWorldExporter implements DebugExporter {
@@ -24,6 +30,31 @@ final class DebugWorldExporter implements DebugExporter {
         exportRegionalStructures(session);
         exportSurfaces(session);
         exportBiomeSources(session);
+        exportGenerationDefinitions(session);
+        Minecraft minecraft = ModLoader.getMinecraftInstance();
+        final List<String> dimensions = DimensionDiagnostics.rows(minecraft == null ? null : minecraft.theWorld);
+        session.writeTextFile("dimensions_and_teleport.txt", writer -> {
+            for (String row : dimensions) {
+                writer.write(row);
+                writer.newLine();
+            }
+            return dimensions.size();
+        });
+    }
+
+    private static void exportGenerationDefinitions(DebugExportSession session) throws Exception {
+        List<Map<String, Object>> rows = new ArrayList<Map<String, Object>>(SpatialRegistry.describeDefinitions());
+        rows.addAll(TerrainRegistry.describeDefinitions());
+        session.writeTextFile("terrain_and_spatial_definitions.txt", new DebugExportSession.TextContent() {
+            @Override
+            public int write(BufferedWriter writer) throws IOException {
+                for (Map<String, Object> row : rows) {
+                    writer.write(row.toString());
+                    writer.newLine();
+                }
+                return rows.size();
+            }
+        });
     }
 
     private static void exportBiomes(DebugExportSession session) throws Exception {
@@ -44,11 +75,11 @@ final class DebugWorldExporter implements DebugExporter {
         }
         for (BiomeGenRegistry.Description biome : BiomeGenRegistry.snapshot()) {
             rows.add("origin: Lua overlay | key: " + biome.key + " | owner: " + safe(biome.owner) + " | biome name: "
-                    + safe(biome.name) + " | implementation: " + safe(biome.implementation) + " | tags: " + biome.tags
-                    + " | surface: " + safe(biome.surface) + " | decorators: " + biome.decorators + " | top/filler: "
-                    + biome.topBlock + "/" + biome.fillerBlock + " | legacy climate range: " + biome.legacyClimateRange
-                    + " | temperature: " + biome.minTemperature + ".." + biome.maxTemperature + " | humidity: "
-                    + biome.minHumidity + ".." + biome.maxHumidity);
+                    + safe(biome.displayName) + " | implementation: " + safe(biome.implementation) + " | tags: "
+                    + biome.tags + " | surface: " + safe(biome.surface) + " | decorators: " + biome.decorators
+                    + " | top/filler: " + biome.topBlock + "/" + biome.fillerBlock + " | legacy climate range: "
+                    + biome.legacyClimateRange + " | temperature: " + biome.minTemperature + ".." + biome.maxTemperature
+                    + " | humidity: " + biome.minHumidity + ".." + biome.maxHumidity);
         }
         Collections.sort(rows);
         session.writeTextFile("biomes.txt", new DebugExportSession.TextContent() {
@@ -139,7 +170,8 @@ final class DebugWorldExporter implements DebugExporter {
                     writer.write("key: " + placement.key + " | feature: " + placement.feature + " | owner: "
                             + safe(placement.owner));
                     writer.newLine();
-                    writer.write("requested stage: " + placement.stage + " | actual stage: " + placement.actualStage
+                    writer.write("logical stage: " + placement.stage + " | native-world schedule: "
+                            + placement.actualStage + " | generator-owned schedule: " + placement.stage
                             + " | dimensions: " + String.join(", ", placement.dimensions) + " | salt: " + placement.salt
                             + " | site: " + placement.site);
                     writer.newLine();

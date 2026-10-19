@@ -1,0 +1,7 @@
+{
+  "entrypoint": "main.lua",
+  "name": "Hollow Marches World Generation Example",
+  "version": "1.0.0",
+  "description": "A more specialized owned terrain preset: terraced sandstone mesas blend into green lowlands away from the saved original spawn. A domain-warped spatial field controls mesa selection, positional biomes, redstone veins and sky lanterns; a separate warped 3D field carves mesa caves. Material rules add clay bands, and an authored height output places floating glowstone at Y=116. Copy the complete 03_adv_20_hollow_marches folder into betamoon/scripts.\n\nChoose Hollow Marches in Create World. Spawn is in the lowlands; explore several hundred blocks outward for the mesas. Craft a Marches Surveyor (compass + paper + redstone), then use it on a block to inspect the region field and terrain blend. Sneak-use also exports one bounded raw chunk preview without loading terrain. Surveyor item ID: 5050. Read README.md for the file map, controls, limitations and experiments.",
+  "dependencies": []
+}

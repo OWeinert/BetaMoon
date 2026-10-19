@@ -891,8 +891,8 @@ public final class MultiblockRuntime {
             } catch (Throwable error) {
                 instance.callbackError = name + ": " + error.getMessage();
                 LuaScriptErrors.add(instance.definition.owner,
-                        "Multiblock " + instance.definition.key + " " + instance.callbackError);
-                BetaMoonCommon.LOGGER.warning(instance.definition.owner + ": " + instance.callbackError);
+                        "Multiblock " + instance.definition.key + " " + instance.callbackError,
+                        LuaScriptErrors.Outcome.UNKNOWN, error);
             }
         }
     }

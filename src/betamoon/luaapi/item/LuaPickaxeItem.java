@@ -89,6 +89,11 @@ public class LuaPickaxeItem extends ItemPickaxe
     }
 
     @Override
+    public String getItemNameIS(ItemStack stack) {
+        return ItemBehavior.name(shiftedIndex, stack.getItemDamage(), super.getItemNameIS(stack));
+    }
+
+    @Override
     public int getIconFromDamage(int metadata) {
         return ItemBehavior.icon(shiftedIndex, metadata, () -> super.getIconFromDamage(metadata));
     }

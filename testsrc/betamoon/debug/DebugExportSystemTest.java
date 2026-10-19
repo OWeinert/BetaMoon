@@ -16,6 +16,7 @@ import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -32,6 +33,7 @@ public final class DebugExportSystemTest {
         verifyPartialRun();
         verifyEscaping();
         verifyScriptPathRedaction();
+        verifyScriptReport();
         verifySnapshotBoundaries();
         System.out.println("Debug export infrastructure checks passed.");
     }
@@ -51,7 +53,9 @@ public final class DebugExportSystemTest {
 
     private static void verifyCatalog() {
         List<DebugExportDefinition> definitions = DebugExportCatalog.definitions();
-        require(definitions.size() == 7, "Unexpected debug export category count");
+        require(definitions.size() == 8, "Unexpected debug export category count");
+        require(definitions.get(0) == DebugExportCatalog.find(DebugExportCatalog.SCRIPT_REPORT_ID),
+                "The full script report must be the first visible tool");
         Set<String> ids = new HashSet<String>();
         Set<String> files = new HashSet<String>();
         for (DebugExportDefinition definition : definitions) {
@@ -182,6 +186,37 @@ public final class DebugExportSystemTest {
         requireImmutable(ModuleRegistry.snapshot(), "module snapshot");
     }
 
+    private static void verifyScriptReport() throws Exception {
+        LuaScriptErrors.clear();
+        File root = new File("build/debug-export-system-test/script-report");
+        deleteTree(root.toPath());
+        DebugExportDefinition report = DebugExportCatalog.find(DebugExportCatalog.SCRIPT_REPORT_ID);
+        DebugExportResult empty = DebugExportSession.run(root, "empty", Arrays.asList(report));
+        require(empty.getStatus() == DebugExportResult.Status.COMPLETE,
+                "A script report must remain available with no recorded issues");
+        String emptyText = new String(Files.readAllBytes(
+                new File(empty.getDirectory(), "script_report.txt").toPath()), StandardCharsets.UTF_8);
+        require(emptyText.contains("Errors: 0") && emptyText.contains("Warnings: 0")
+                && emptyText.contains("None recorded.") && emptyText.contains("Runtime environment"),
+                "Empty reports must include a clear issue summary and the normal diagnostic sections");
+        LuaScriptErrors.add("example/main.lua", "An error with a full message\nsecond line");
+        LuaScriptErrors.addWarning("example/main.lua", "A warning");
+        List<LuaScriptErrors.ScriptIssue> before = LuaScriptErrors.getEntries();
+        LuaScriptErrors.ignore();
+        DebugExportResult populated = DebugExportSession.run(root, "populated", Arrays.asList(report));
+        String text = new String(Files.readAllBytes(
+                new File(populated.getDirectory(), "script_report.txt").toPath()), StandardCharsets.UTF_8);
+        require(populated.getStatus() == DebugExportResult.Status.COMPLETE && populated.getRecordCount() == 2,
+                "The report's manifest must count its recorded issues");
+        require(text.contains("Errors: 1") && text.contains("Warnings: 1")
+                && text.contains("An error with a full message\nsecond line") && text.contains("A warning")
+                && text.contains("Discovered scripts") && text.contains("Instrumentation"),
+                "The debug report must use the complete shared issue and diagnostic format");
+        require(LuaScriptErrors.getEntries().equals(before) && !LuaScriptErrors.shouldShowPopup(true),
+                "Saving diagnostics must preserve recorded issues and their acknowledgement");
+        LuaScriptErrors.clear();
+    }
+
     private static void requireImmutable(List<?> values, String label) {
         try {
             values.clear();
@@ -213,6 +248,11 @@ public final class DebugExportSystemTest {
     }
 
     private static void deleteTree(Path root) throws Exception {
+        Path allowed = Paths.get("build/debug-export-system-test").toAbsolutePath().normalize();
+        Path target = root.toAbsolutePath().normalize();
+        if (!target.startsWith(allowed) || target.equals(allowed)) {
+            throw new IllegalArgumentException("Refusing to remove a path outside the debug export test directories");
+        }
         if (!Files.exists(root)) {
             return;
         }

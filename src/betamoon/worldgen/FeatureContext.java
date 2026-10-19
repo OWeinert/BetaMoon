@@ -1,5 +1,6 @@
 package betamoon.worldgen;
 
+import betamoon.loot.LootContext;
 import betamoon.worldgen.structure.SitePolicy;
 import java.util.Collections;
 import java.util.HashSet;
@@ -24,6 +25,7 @@ public final class FeatureContext {
     private FeatureOptions options;
     private final Set<WorldGenKey> activeFeatures = new HashSet<WorldGenKey>();
     private int reads;
+    private boolean generation;
     private String failure;
     private final Map<String, Object> diagnostics = new LinkedHashMap<String, Object>();
 
@@ -45,6 +47,11 @@ public final class FeatureContext {
         this.resolver = resolver;
         this.options = options == null ? FeatureOptions.DEFAULT : options;
         this.sitePolicy = sitePolicy == null ? SitePolicy.ANY : sitePolicy;
+    }
+
+    FeatureContext forGeneration() {
+        generation = true;
+        return this;
     }
 
     public Random random() {
@@ -198,6 +205,10 @@ public final class FeatureContext {
         } finally {
             options = previous;
         }
+    }
+
+    public LootContext lootContext(int x, int y, int z) {
+        return generation ? LootContext.generationAt(world, x, y, z) : LootContext.at(world, x, y, z);
     }
 
     World world() {

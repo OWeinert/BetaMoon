@@ -15,12 +15,12 @@ public final class BiomeRegistration {
     public static WorldGenKey register(BiomeDeclaration definition, WorldGenKey surface, int decoratorCount) {
         LuaBiome biome;
         if (definition.basedOn == null) {
-            biome = new LuaBiome(definition.name);
+            biome = new LuaBiome(definition.displayName);
             biome.applyDefaultSurface();
         } else {
             biome = new LuaBiome(definition.basedOn.biomeName);
             biome.applyDefaultsFrom(definition.basedOn);
-            biome.applyName(definition.name);
+            biome.applyDisplayName(definition.displayName);
         }
         if (definition.color != null) {
             biome.applyColor(definition.color);

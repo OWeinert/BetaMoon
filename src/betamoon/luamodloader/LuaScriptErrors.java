@@ -1,5 +1,8 @@
 package betamoon.luamodloader;
 
+import betamoon.logging.RuntimeLogs;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -7,8 +10,13 @@ import java.util.List;
  * Tracks script load errors and warnings for UI display.
  */
 public final class LuaScriptErrors {
+    public enum Outcome {
+        UNKNOWN, CALLBACK_DISABLED, BINDING_SUSPENDED, APPEARANCE_RETAINED, LOAD_FAILED, ACTIVE_SCRIPTS_RETAINED
+    }
+
     private static final List<ScriptIssue> entries = new ArrayList<>();
     private static boolean ignored;
+    private static long revision;
 
     private LuaScriptErrors() {
     }
@@ -19,6 +27,7 @@ public final class LuaScriptErrors {
     public static synchronized void clear() {
         entries.clear();
         ignored = false;
+        revision++;
     }
 
     /**
@@ -30,10 +39,20 @@ public final class LuaScriptErrors {
      *            error description
      */
     public static synchronized ScriptIssue add(String script, String message) {
+        return add(script, message, Outcome.UNKNOWN);
+    }
+
+    public static synchronized ScriptIssue add(String script, String message, Outcome outcome) {
+        return add(script, message, outcome, null);
+    }
+
+    public static synchronized ScriptIssue add(String script, String message, Outcome outcome, Throwable error) {
         String scriptName = normalize(script, "Unknown");
         String detail = normalize(message, "Unknown error");
-        ScriptIssue issue = new ScriptIssue(scriptName, detail, false);
+        ScriptIssue issue = new ScriptIssue(scriptName, detail, false, outcome, error);
         entries.add(issue);
+        revision++;
+        RuntimeLogs.issue(issue);
         return issue;
     }
 
@@ -46,11 +65,30 @@ public final class LuaScriptErrors {
      *            warning description
      */
     public static synchronized ScriptIssue addWarning(String script, String message) {
+        return addWarning(script, message, null);
+    }
+
+    public static synchronized ScriptIssue addWarning(String script, String message, Throwable error) {
         String scriptName = normalize(script, "Unknown");
         String detail = normalize(message, "Unknown warning");
-        ScriptIssue issue = new ScriptIssue(scriptName, detail, true);
+        ScriptIssue issue = new ScriptIssue(scriptName, detail, true, Outcome.UNKNOWN, error);
         entries.add(issue);
+        revision++;
+        RuntimeLogs.issue(issue);
         return issue;
+    }
+
+    public static synchronized long getRevision() {
+        return revision;
+    }
+
+    public static synchronized boolean hasErrorFor(String displayName, String sourceFile) {
+        for (ScriptIssue issue : entries) {
+            if (!issue.isWarning() && matchesScript(issue, displayName, sourceFile)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -182,15 +220,58 @@ public final class LuaScriptErrors {
      */
     public static final class ScriptIssue {
         private final String message;
+        private final String detail;
+        private final Outcome outcome;
         private final boolean warning;
         private final String scriptName;
         private final String sourceFile;
         private final int line;
+        private final ScriptDiagnostics.Occurrence occurrence;
+        private final String scriptState;
+        private final String scriptVersion;
+        private final String scriptDisplayName;
+        private final String scriptSource;
+        private final String stackTrace;
 
-        private ScriptIssue(String scriptName, String detail, boolean warning) {
+        /** Describes a registry failure without mutating the recorded issue collection. */
+        public static ScriptIssue describe(String script, String message, boolean warning) {
+            return new ScriptIssue(normalize(script, "Unknown"), normalize(message, "Unknown error"), warning,
+                    warning ? Outcome.UNKNOWN : Outcome.LOAD_FAILED, null);
+        }
+
+        private ScriptIssue(String scriptName, String detail, boolean warning, Outcome outcome, Throwable error) {
             this.warning = warning;
             this.scriptName = scriptName;
+            this.detail = detail;
+            this.outcome = outcome == null ? Outcome.UNKNOWN : outcome;
             this.message = scriptName + ": " + detail;
+            occurrence = ScriptDiagnostics.occurrence(error);
+            ScriptMod mod = LuaScriptRegistry.findByFile(scriptName);
+            if (mod == null && occurrence.owner != null) {
+                mod = LuaScriptRegistry.findByFile(occurrence.owner);
+            }
+            if (mod == null) {
+                for (ScriptMod candidate : LuaScriptRegistry.getEntries()) {
+                    if (scriptName.equals(candidate.getDisplayName())) {
+                        mod = candidate;
+                        break;
+                    }
+                }
+            }
+            boolean capturedOwner = occurrence.scriptDisplayName != null
+                    && (scriptName.equals(occurrence.owner) || scriptName.equals(occurrence.scriptDisplayName));
+            if (capturedOwner) {
+                scriptState = occurrence.scriptState;
+                scriptVersion = occurrence.scriptVersion;
+                scriptDisplayName = occurrence.scriptDisplayName;
+                scriptSource = occurrence.owner;
+            } else {
+                scriptState = ScriptDiagnostics.scriptState(mod);
+                scriptVersion = mod == null ? "unavailable" : mod.getVersion();
+                scriptDisplayName = mod == null ? scriptName : mod.getDisplayName();
+                scriptSource = mod == null ? scriptName : mod.getSourceFileName();
+            }
+            stackTrace = trace(error);
             String file = null;
             int lineValue = -1;
             if (scriptName != null && (scriptName.endsWith(".lua") || scriptName.endsWith(".zip"))) {
@@ -199,11 +280,11 @@ public final class LuaScriptErrors {
             // Extract "file.lua:line" from the detail when present.
             int luaIndex = detail.indexOf(".lua:");
             if (luaIndex >= 0) {
-                int fileStart = detail.lastIndexOf(' ', luaIndex);
-                if (fileStart < 0) {
+                int marker = detail.lastIndexOf('@', luaIndex);
+                int fileStart = marker >= 0 && detail.substring(marker, luaIndex).indexOf('\n') < 0
+                        ? marker + 1 : detail.lastIndexOf(' ', luaIndex) + 1;
+                if (marker < 0 && scriptName.endsWith(".lua") && detail.startsWith(scriptName + ":")) {
                     fileStart = 0;
-                } else {
-                    fileStart += 1;
                 }
                 String fileCandidate = detail.substring(fileStart, luaIndex + 4);
                 while (fileCandidate.startsWith("@") || fileCandidate.startsWith("(")) {
@@ -235,6 +316,52 @@ public final class LuaScriptErrors {
          */
         public String getMessage() {
             return message;
+        }
+
+        public String getDetail() {
+            return detail;
+        }
+
+        public Outcome getOutcome() {
+            return outcome;
+        }
+
+        public ScriptDiagnostics.Occurrence getOccurrence() {
+            return occurrence;
+        }
+
+        public String getScriptState() {
+            return scriptState;
+        }
+
+        public String getScriptVersion() {
+            return scriptVersion;
+        }
+
+        public String getScriptDisplayName() {
+            return scriptDisplayName;
+        }
+
+        public String getScriptSource() {
+            return scriptSource;
+        }
+
+        public String getStackTrace() {
+            return stackTrace;
+        }
+
+        private static String trace(Throwable error) {
+            if (error == null) {
+                return "";
+            }
+            try {
+                StringWriter text = new StringWriter();
+                error.printStackTrace(new PrintWriter(text));
+                return text.toString();
+            } catch (Throwable failure) {
+                ScriptDiagnostics.rethrowFatal(failure);
+                return "Stack trace unavailable (" + failure.getClass().getSimpleName() + ")";
+            }
         }
 
         /**

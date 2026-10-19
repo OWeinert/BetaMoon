@@ -1,12 +1,12 @@
 package betamoon.entity;
 
-import betamoon.BetaMoonCommon;
 
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.InteractionOutcome;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.luamodloader.ScriptExecution;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
@@ -37,7 +37,8 @@ final class EntityPartEvents {
             try (LuaCallbackScope scope = new LuaCallbackScope(!target.worldObj.multiplayerWorld)) {
                 LuaTable context = context(scope, target);
                 context.set("player", LuaEntityActionAccess.create(scope, player, player));
-                InteractionOutcome result = InteractionOutcome.fromLua(part.onInteract.call(context),
+                InteractionOutcome result = InteractionOutcome.fromLua(ScriptExecution.invoke(EntityTypeRegistry.owner(target.entityState().definition().key),
+                        "entity.part.onInteract", part.onInteract, context).arg1(),
                         "entity.parts." + part.name + ".onInteract");
                 if (result != InteractionOutcome.PASS) {
                     return true;
@@ -66,7 +67,8 @@ final class EntityPartEvents {
                 if (attacker != null) {
                     context.set("attacker", LuaEntityActionAccess.create(scope, null, attacker));
                 }
-                LuaValue result = part.onDamage.call(context);
+                LuaValue result = ScriptExecution.invoke(EntityTypeRegistry.owner(target.entityState().definition().key),
+                        "entity.part.onDamage", part.onDamage, context).arg1();
                 if (!result.isnil()) {
                     double proposed = result.checkdouble();
                     if (!Double.isFinite(proposed) || proposed != Math.floor(proposed)
@@ -109,8 +111,8 @@ final class EntityPartEvents {
             String message = type.key + ".parts." + part.name + "." + callback + " disabled after error: "
                     + error.getMessage();
             String owner = EntityTypeRegistry.owner(type.key);
-            LuaScriptErrors.add(owner == null ? type.key.toString() : owner, message);
-            BetaMoonCommon.LOGGER.warning(message);
+            LuaScriptErrors.add(owner == null ? type.key.toString() : owner, message,
+                    LuaScriptErrors.Outcome.CALLBACK_DISABLED, error);
         }
     }
 

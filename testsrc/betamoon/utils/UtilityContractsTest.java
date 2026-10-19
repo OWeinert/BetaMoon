@@ -2,6 +2,7 @@ package betamoon.utils;
 
 import betamoon.io.FileIo;
 import betamoon.luaapi.LuaApiUtils;
+import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.utils.LuaDeclarationValues;
 import betamoon.query.RecipeQueryUtils;
 import java.io.IOException;
@@ -26,10 +27,12 @@ public final class UtilityContractsTest {
         verifyNormalizedFileReading();
         verifyLuaArgumentResolution();
         verifyFiniteNumbers();
+        verifyCallbackPermissions();
         verifyKeyLayouts();
         verifyReflectionFallbacks();
         verifyRecipeInputDelegation();
-        System.out.println("Utility contracts passed: files, Lua arguments, key layouts, reflection and recipes.");
+        System.out.println("Utility contracts passed: files, Lua arguments, callback permissions, "
+                + "key layouts, reflection and recipes.");
     }
 
     private static void verifyNormalizedFileReading() throws IOException {
@@ -65,6 +68,59 @@ public final class UtilityContractsTest {
             rejected = true;
         }
         require(rejected, "Non-finite declaration number was accepted");
+    }
+
+    private static void verifyCallbackPermissions() {
+        try (LuaCallbackScope input = LuaCallbackScope.withQueuedTeleport(false, true)) {
+            input.requireQueuedTeleport();
+            requireDenied(input::requireMutable, "Input scope gained immediate gameplay mutation");
+            requireDenied(input::requireUiStateMutable, "Teleport permission granted UI state writes");
+
+            try (LuaCallbackScope binding = LuaCallbackScope.binding()) {
+                requireDenied(input::requireQueuedTeleport, "Binding queued a teleport through a captured handle");
+                try (LuaCallbackScope nested = LuaCallbackScope.withQueuedTeleport(true, true)) {
+                    requireDenied(nested::requireQueuedTeleport, "Nested access escaped binding permissions");
+                }
+            }
+            input.requireQueuedTeleport();
+
+            try (LuaCallbackScope query = new LuaCallbackScope(false)) {
+                requireDenied(input::requireQueuedTeleport, "Query queued a teleport through a captured handle");
+                try (LuaCallbackScope nested = LuaCallbackScope.withQueuedTeleport(true, true)) {
+                    requireDenied(nested::requireQueuedTeleport, "Nested access escaped query permissions");
+                }
+            }
+            input.requireQueuedTeleport();
+        }
+
+        try (LuaCallbackScope uiEvent = new LuaCallbackScope(false, true)) {
+            uiEvent.requireUiStateMutable();
+            requireDenied(uiEvent::requireMutable, "UI state permission granted gameplay writes");
+            requireDenied(uiEvent::requireQueuedTeleport, "UI state permission granted teleportation");
+        }
+
+        LuaCallbackScope expired = new LuaCallbackScope(true);
+        expired.requireMutable();
+        expired.requireUiStateMutable();
+        expired.requireQueuedTeleport();
+        expired.close();
+        expired.close();
+        requireDenied(expired::requireQueuedTeleport, "Expired scope retained teleport permission");
+
+        try (LuaCallbackScope gameplay = new LuaCallbackScope(true)) {
+            gameplay.requireMutable();
+            gameplay.requireUiStateMutable();
+            gameplay.requireQueuedTeleport();
+        }
+    }
+
+    private static void requireDenied(Runnable action, String message) {
+        try {
+            action.run();
+        } catch (LuaError expected) {
+            return;
+        }
+        throw new AssertionError(message);
     }
 
     private static void verifyKeyLayouts() {

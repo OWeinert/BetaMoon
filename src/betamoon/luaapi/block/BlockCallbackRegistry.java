@@ -1,13 +1,14 @@
 package betamoon.luaapi.block;
 
+import betamoon.loot.LootContext;
 import betamoon.luaapi.item.ItemInteractionRouting;
 import betamoon.luaapi.utils.InteractionOutcome;
 import betamoon.luaapi.utils.LuaOverrideCallback;
 import betamoon.luamodloader.ScriptResourceTracker;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
@@ -18,6 +19,7 @@ import net.minecraft.src.ItemStack;
 import net.minecraft.src.World;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
+
 import static betamoon.luaapi.utils.LuaDeclarationValues.error;
 
 /** Registers block declarations and routes block lifecycle callbacks. */
@@ -51,14 +53,15 @@ public final class BlockCallbackRegistry {
 
     public static void validateIdentity(int id, BlockDefinition definition) {
         String old = SAVED_SCHEMAS.get(id);
-        if (old != null && !old.equals(definition.state.signature)) {
-            throw error("state", "schema changed; restart Minecraft (existing worlds require compatible metadata)");
+        if (old != null && !old.equals(identitySignature(definition))) {
+            throw error("state/subtypes",
+                    "schema changed; restart Minecraft (existing worlds require compatible metadata)");
         }
     }
 
     public static void install(final int id, final BlockDefinition def) {
         validateIdentity(id, def);
-        SAVED_SCHEMAS.put(id, def.state.signature);
+        SAVED_SCHEMAS.put(id, identitySignature(def));
         BlockFireRegistration.apply(id, def.fireSpread, def.fireBurn);
         DEFINITIONS.put(id, def);
         Block.blocksList[id].slipperiness = def.shapes.slipperiness;
@@ -72,6 +75,10 @@ public final class BlockCallbackRegistry {
                 }
             }
         });
+    }
+
+    private static String identitySignature(BlockDefinition definition) {
+        return definition.state.signature + "|subtypes=" + definition.subtypes.signature;
     }
 
     public static void event(int id, BlockCallback callback, World world, int x, int y, int z, EntityPlayer player,
@@ -129,7 +136,7 @@ public final class BlockCallbackRegistry {
             }
             BlockDropDefinition drops = new BlockDropDefinition(result);
             drops.validateRegistered();
-            return drops.sample(world.rand, chance);
+            return drops.sample(world.rand, chance, LootContext.at(world, x, y, z));
         } catch (RuntimeException error) {
             definition.callbacks.fail(BlockCallback.GET_DROPS, error);
             return null;

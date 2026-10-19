@@ -1,6 +1,5 @@
 package betamoon.luaapi.capability;
 
-import betamoon.BetaMoonCommon;
 import betamoon.assets.AssetKey;
 import betamoon.capability.CapabilityAttachmentDefinition;
 import betamoon.capability.CapabilityDefinition;
@@ -223,8 +222,8 @@ public final class LuaCapabilityAccess {
             String detail = error.getMessage() == null ? error.toString() : error.getMessage();
             String message = "capability " + instance.attachment.capability.key + " operation '"
                     + operationName + "' was disabled after an error: " + detail;
-            LuaScriptErrors.add(instance.attachment.capability.owner, message);
-            BetaMoonCommon.LOGGER.warning(instance.attachment.capability.owner + ": " + message);
+            LuaScriptErrors.add(instance.attachment.capability.owner, message,
+                    LuaScriptErrors.Outcome.CALLBACK_DISABLED, error);
             throw error instanceof LuaError ? (LuaError) error : new LuaError(message);
         } finally {
             if (depth == 0) {

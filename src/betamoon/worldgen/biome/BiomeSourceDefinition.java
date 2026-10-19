@@ -1,6 +1,7 @@
 package betamoon.worldgen.biome;
 
 import betamoon.worldgen.WorldGenKey;
+import betamoon.worldgen.spatial.SpatialSelector;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -16,9 +17,16 @@ public final class BiomeSourceDefinition {
     public final List<ClimateEntry> entries;
     public final boolean active;
     public final int priority;
+    public final WorldGenKey fallbackBiome;
 
     public BiomeSourceDefinition(WorldGenKey key, String resourceOwner, String owner, String source, String type,
             WorldGenKey fixedBiome, List<ClimateEntry> entries, boolean active, int priority) {
+        this(key, resourceOwner, owner, source, type, fixedBiome, entries, active, priority, null);
+    }
+
+    public BiomeSourceDefinition(WorldGenKey key, String resourceOwner, String owner, String source, String type,
+            WorldGenKey fixedBiome, List<ClimateEntry> entries, boolean active, int priority,
+            WorldGenKey fallbackBiome) {
         this.key = key;
         this.resourceOwner = resourceOwner;
         this.owner = owner;
@@ -28,6 +36,7 @@ public final class BiomeSourceDefinition {
         this.entries = Collections.unmodifiableList(new ArrayList<ClimateEntry>(entries));
         this.active = active;
         this.priority = priority;
+        this.fallbackBiome = fallbackBiome;
     }
 
     public static final class ClimateEntry {
@@ -37,20 +46,29 @@ public final class BiomeSourceDefinition {
         public final double minHumidity;
         public final double maxHumidity;
         public final int priority;
+        public final SpatialSelector spatial;
+        public final double weight;
 
         public ClimateEntry(WorldGenKey biome, double minTemperature, double maxTemperature, double minHumidity,
                 double maxHumidity, int priority) {
+            this(biome, minTemperature, maxTemperature, minHumidity, maxHumidity, priority, null, 1);
+        }
+
+        public ClimateEntry(WorldGenKey biome, double minTemperature, double maxTemperature, double minHumidity,
+                double maxHumidity, int priority, SpatialSelector spatial, double weight) {
             this.biome = biome;
             this.minTemperature = minTemperature;
             this.maxTemperature = maxTemperature;
             this.minHumidity = minHumidity;
             this.maxHumidity = maxHumidity;
             this.priority = priority;
+            this.spatial = spatial;
+            this.weight = weight;
         }
 
         public boolean contains(double temperature, double humidity) {
-            return temperature >= minTemperature && temperature <= maxTemperature
-                    && humidity >= minHumidity && humidity <= maxHumidity;
+            return temperature >= minTemperature && temperature <= maxTemperature && humidity >= minHumidity
+                    && humidity <= maxHumidity;
         }
     }
 }

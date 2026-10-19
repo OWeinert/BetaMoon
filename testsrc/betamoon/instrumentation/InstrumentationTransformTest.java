@@ -1,9 +1,12 @@
 package betamoon.instrumentation;
 
+import betamoon.instrumentation.api.AroundHookDefinition;
 import betamoon.instrumentation.api.CallRedirectHookDefinition;
 import betamoon.instrumentation.api.ClassRef;
+import betamoon.instrumentation.api.FieldRef;
 import betamoon.instrumentation.api.HandlerRef;
 import betamoon.instrumentation.api.MethodRef;
+import betamoon.instrumentation.api.ValueBinding;
 import betamoon.instrumentation.diagnostics.HookDiagnostic;
 import betamoon.instrumentation.diagnostics.HookStatus;
 import betamoon.instrumentation.diagnostics.TransformationReport;
@@ -15,16 +18,22 @@ import betamoon.instrumentation.registry.BuiltinHookModules;
 import betamoon.instrumentation.registry.ClassTransformPlan;
 import betamoon.instrumentation.registry.HookRegistry;
 import betamoon.instrumentation.transform.BetaMoonTransformer;
+import betamoon.runtime.RuntimeSide;
+import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.lang.instrument.IllegalClassFormatException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Label;
+import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
@@ -59,17 +68,33 @@ public final class InstrumentationTransformTest {
             input.close();
         }
 
+        verifyReverseClassNames(mappings);
         verifyNamespace(mappings, RuntimeNamespace.NAMED);
         verifyNamespace(mappings, RuntimeNamespace.CLIENT);
         verifyRuntimeClient(mappings, args[1]);
         verifyRuntimeServer(mappings, args[2]);
         verifyEarlyReturnExecution(mappings);
+        verifyExceptionalCleanup(mappings);
         verifyFrozenRedirectAndNoMatch(mappings);
         System.out.println("BetaMoon instrumentation transformation tests passed.");
     }
 
     public static int captureDecision(int decision) {
         return decision;
+    }
+
+    private static void verifyReverseClassNames(TinyMappingResolver mappings) {
+        require("net/minecraft/src/GuiMainMenu".equals(mappings.resolveNamedClass("fu", RuntimeNamespace.CLIENT)),
+                "Client screen names must resolve from the shipped obfuscated class identity");
+        require("net/minecraft/src/ContainerWorkbench".equals(
+                mappings.resolveNamedClass("fu", RuntimeNamespace.SERVER)),
+                "Reverse class lookup must distinguish client and server names");
+        require("net/minecraft/src/GuiMainMenu".equals(
+                mappings.resolveNamedClass("net/minecraft/src/GuiMainMenu", RuntimeNamespace.NAMED)),
+                "Named runtime classes must preserve their canonical identity");
+        require("example/CustomScreen".equals(
+                mappings.resolveNamedClass("example/CustomScreen", RuntimeNamespace.CLIENT)),
+                "Unmapped custom classes must retain their actual identity");
     }
 
     public static boolean completeDecision(boolean original, int decision) {
@@ -80,28 +105,97 @@ public final class InstrumentationTransformTest {
         return decision == 0 ? (String) original : "replacement";
     }
 
+    private static int cleanupCalls;
+    private static boolean cleanupThrows;
+
+    public static int captureCleanup() {
+        return 17;
+    }
+
+    public static void completeCleanup(int state) {
+        require(state == 17, "Cleanup lost its captured value");
+        cleanupCalls++;
+        if (cleanupThrows) {
+            throw new IllegalArgumentException("cleanup_failure");
+        }
+    }
+
+    private static void verifyExceptionalCleanup(TinyMappingResolver mappings) throws Exception {
+        String targetName = "fixture/ExceptionalAction";
+        String callbacks = "betamoon/instrumentation/InstrumentationTransformTest";
+        HookRegistry registry = new HookRegistry(new TransformationReport());
+        registry.register(
+                AroundHookDefinition.builder("test:cleanup", new MethodRef(new ClassRef(targetName), "run", "(Z)V"))
+                        .capture(HandlerRef.of(callbacks, "captureCleanup", "()I"))
+                        .onReturn(HandlerRef.of(callbacks, "completeCleanup", "(I)V"), ValueBinding.capturedValue())
+                        .cleanupOnException().build());
+        BetaMoonTransformer transformer = new BetaMoonTransformer(registry.freeze(mappings, RuntimeNamespace.NAMED),
+                mappings, new TransformationReport(), true, false);
+        ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
+        writer.visit(Opcodes.V1_6, Opcodes.ACC_PUBLIC, targetName, null, "java/lang/Object", null);
+        MethodVisitor method = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "run", "(Z)V", null, null);
+        method.visitCode();
+        Label normal = new Label();
+        method.visitVarInsn(Opcodes.ILOAD, 0);
+        method.visitJumpInsn(Opcodes.IFEQ, normal);
+        method.visitTypeInsn(Opcodes.NEW, "java/lang/IllegalStateException");
+        method.visitInsn(Opcodes.DUP);
+        method.visitLdcInsn("fixture_failure");
+        method.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/lang/IllegalStateException", "<init>",
+                "(Ljava/lang/String;)V", false);
+        method.visitInsn(Opcodes.ATHROW);
+        method.visitLabel(normal);
+        method.visitInsn(Opcodes.RETURN);
+        method.visitMaxs(0, 0);
+        method.visitEnd();
+        writer.visitEnd();
+        byte[] transformed = transformer.transform(null, targetName, null, null, writer.toByteArray());
+        class Loader extends ClassLoader {
+            Class<?> fixture() {
+                return defineClass("fixture.ExceptionalAction", transformed, 0, transformed.length);
+            }
+        }
+        Method run = new Loader().fixture().getMethod("run", boolean.class);
+        cleanupCalls = 0;
+        run.invoke(null, false);
+        require(cleanupCalls == 1, "Normal exit must clean up once");
+        for (boolean failingCleanup : new boolean[]{false, true}) {
+            cleanupThrows = failingCleanup;
+            cleanupCalls = 0;
+            try {
+                run.invoke(null, true);
+                throw new AssertionError("Original exception was swallowed");
+            } catch (InvocationTargetException expected) {
+                Throwable original = expected.getCause();
+                require(original instanceof IllegalStateException && "fixture_failure".equals(original.getMessage()),
+                        "Cleanup must preserve the original failure");
+                require(original.getSuppressed().length == (failingCleanup ? 1 : 0),
+                        "Cleanup failures must be retained as suppressed exceptions");
+                require(cleanupCalls == 1, "Exceptional exit must clean up once");
+            }
+        }
+        cleanupThrows = false;
+        require(transformer.transform(null, targetName, null, null, transformed) == null,
+                "Exceptional cleanup must remain idempotent");
+    }
+
     private static void verifyEarlyReturnExecution(TinyMappingResolver mappings) throws Exception {
         String targetName = "fixture/GuardedAction";
         String callbackOwner = "betamoon/instrumentation/InstrumentationTransformTest";
         TransformationReport report = new TransformationReport();
         HookRegistry registry = new HookRegistry(report);
-        registry.register(betamoon.instrumentation.api.AroundHookDefinition
-                .builder("test:guard",
-                        new betamoon.instrumentation.api.MethodRef(
-                                new betamoon.instrumentation.api.ClassRef(targetName), "run", "(I)Z"))
-                .capture(betamoon.instrumentation.api.HandlerRef.of(callbackOwner, "captureDecision", "(I)I"),
-                        betamoon.instrumentation.api.ValueBinding.argument(0))
-                .onReturn(betamoon.instrumentation.api.HandlerRef.of(callbackOwner, "completeDecision", "(ZI)Z"),
-                        betamoon.instrumentation.api.ValueBinding.returnValue(),
-                        betamoon.instrumentation.api.ValueBinding.capturedValue())
-                .skipWhenCapturedNonZero().build());
+        registry.register(
+                AroundHookDefinition.builder("test:guard", new MethodRef(new ClassRef(targetName), "run", "(I)Z"))
+                        .capture(HandlerRef.of(callbackOwner, "captureDecision", "(I)I"), ValueBinding.argument(0))
+                        .onReturn(HandlerRef.of(callbackOwner, "completeDecision", "(ZI)Z"), ValueBinding.returnValue(),
+                                ValueBinding.capturedValue())
+                        .skipWhenCapturedNonZero().build());
         BetaMoonTransformer transformer = new BetaMoonTransformer(registry.freeze(mappings, RuntimeNamespace.NAMED),
                 mappings, report, true, false);
         ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
         writer.visit(Opcodes.V1_6, Opcodes.ACC_PUBLIC, targetName, null, "java/lang/Object", null);
         writer.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "calls", "I", null, null).visitEnd();
-        org.objectweb.asm.MethodVisitor method = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "run",
-                "(I)Z", null, null);
+        MethodVisitor method = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "run", "(I)Z", null, null);
         method.visitCode();
         method.visitFieldInsn(Opcodes.GETSTATIC, targetName, "calls", "I");
         method.visitInsn(Opcodes.ICONST_1);
@@ -119,7 +213,7 @@ public final class InstrumentationTransformTest {
             }
         }
         Class<?> fixture = new Loader().loadFixture();
-        java.lang.reflect.Method run = fixture.getMethod("run", int.class);
+        Method run = fixture.getMethod("run", int.class);
         require(Boolean.TRUE.equals(run.invoke(null, 0)), "Pass did not execute original method");
         require(Boolean.FALSE.equals(run.invoke(null, -1)), "Deny did not return false");
         require(Boolean.TRUE.equals(run.invoke(null, 1)), "Handled did not return true");
@@ -135,24 +229,20 @@ public final class InstrumentationTransformTest {
         String callbackOwner = "betamoon/instrumentation/InstrumentationTransformTest";
         TransformationReport report = new TransformationReport();
         HookRegistry registry = new HookRegistry(report);
-        registry.register(betamoon.instrumentation.api.AroundHookDefinition
-                .builder("test:object_guard",
-                        new betamoon.instrumentation.api.MethodRef(
-                                new betamoon.instrumentation.api.ClassRef(targetName), "run", "(I)Ljava/lang/String;"))
-                .capture(betamoon.instrumentation.api.HandlerRef.of(callbackOwner, "captureDecision", "(I)I"),
-                        betamoon.instrumentation.api.ValueBinding.argument(0))
+        registry.register(AroundHookDefinition
+                .builder("test:object_guard", new MethodRef(new ClassRef(targetName), "run", "(I)Ljava/lang/String;"))
+                .capture(HandlerRef.of(callbackOwner, "captureDecision", "(I)I"), ValueBinding.argument(0))
                 .onReturn(
-                        betamoon.instrumentation.api.HandlerRef.of(callbackOwner, "completeObjectDecision",
+                        HandlerRef.of(callbackOwner, "completeObjectDecision",
                                 "(Ljava/lang/Object;I)Ljava/lang/String;"),
-                        betamoon.instrumentation.api.ValueBinding.returnValue(),
-                        betamoon.instrumentation.api.ValueBinding.capturedValue())
+                        ValueBinding.returnValue(), ValueBinding.capturedValue())
                 .skipWhenCapturedNonZero().build());
         BetaMoonTransformer transformer = new BetaMoonTransformer(registry.freeze(mappings, RuntimeNamespace.NAMED),
                 mappings, report, true, false);
         ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
         writer.visit(Opcodes.V1_6, Opcodes.ACC_PUBLIC, targetName, null, "java/lang/Object", null);
         writer.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "calls", "I", null, null).visitEnd();
-        org.objectweb.asm.MethodVisitor method = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "run",
+        MethodVisitor method = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "run",
                 "(I)Ljava/lang/String;", null, null);
         method.visitCode();
         method.visitFieldInsn(Opcodes.GETSTATIC, targetName, "calls", "I");
@@ -171,7 +261,7 @@ public final class InstrumentationTransformTest {
             }
         }
         Class<?> fixture = new Loader().loadFixture();
-        java.lang.reflect.Method run = fixture.getMethod("run", int.class);
+        Method run = fixture.getMethod("run", int.class);
         require("original".equals(run.invoke(null, 0)), "Object pass did not execute original method");
         require("replacement".equals(run.invoke(null, 1)), "Object early return was not replaced");
         require(fixture.getField("calls").getInt(null) == 1,
@@ -213,7 +303,7 @@ public final class InstrumentationTransformTest {
 
         ClassWriter writer = new ClassWriter(0);
         writer.visit(Opcodes.V1_6, Opcodes.ACC_PUBLIC, targetOwner.getInternalName(), null, "java/lang/Object", null);
-        org.objectweb.asm.MethodVisitor method = writer.visitMethod(Opcodes.ACC_PUBLIC, "run", "()V", null, null);
+        MethodVisitor method = writer.visitMethod(Opcodes.ACC_PUBLIC, "run", "()V", null, null);
         method.visitCode();
         method.visitInsn(Opcodes.RETURN);
         method.visitMaxs(0, 1);
@@ -243,13 +333,12 @@ public final class InstrumentationTransformTest {
         Map<String, ClassTransformPlan> plans = registry.freeze(mappings, RuntimeNamespace.NAMED,
                 RuntimeNamespace.CLIENT);
 
-        betamoon.instrumentation.api.ClassRef owner = new betamoon.instrumentation.api.ClassRef(PLAYER_CONTROLLER);
-        ResolvedField mcField = mappings
-                .resolveField(new betamoon.instrumentation.api.FieldRef(owner, "mc", MINECRAFT_DESCRIPTOR), namespace);
-        ResolvedMethod broken = mappings.resolveMethod(
-                new betamoon.instrumentation.api.MethodRef(owner, "sendBlockRemoved", BREAK_DESCRIPTOR), namespace);
-        ResolvedMethod placed = mappings.resolveMethod(
-                new betamoon.instrumentation.api.MethodRef(owner, "sendPlaceBlock", PLACE_DESCRIPTOR), namespace);
+        ClassRef owner = new ClassRef(PLAYER_CONTROLLER);
+        ResolvedField mcField = mappings.resolveField(new FieldRef(owner, "mc", MINECRAFT_DESCRIPTOR), namespace);
+        ResolvedMethod broken = mappings.resolveMethod(new MethodRef(owner, "sendBlockRemoved", BREAK_DESCRIPTOR),
+                namespace);
+        ResolvedMethod placed = mappings.resolveMethod(new MethodRef(owner, "sendPlaceBlock", PLACE_DESCRIPTOR),
+                namespace);
 
         byte[] fixture = createFixture(broken, placed, mcField, mappings, namespace);
         BetaMoonTransformer transformer = new BetaMoonTransformer(plans, mappings, report, true, false);
@@ -278,6 +367,13 @@ public final class InstrumentationTransformTest {
                     || diagnostic.getHookId().startsWith("betamoon:client_control")
                     || diagnostic.getHookId().startsWith("betamoon:tick_events")
                     || diagnostic.getHookId().startsWith("betamoon:worldgen_surface")
+                    || diagnostic.getHookId().startsWith("betamoon:world_generator")
+                    || diagnostic.getHookId().startsWith("betamoon:dimensions")
+                    || diagnostic.getHookId().startsWith("betamoon:world_creation")
+                    || diagnostic.getHookId().startsWith("betamoon:world_join")
+                    || diagnostic.getHookId().startsWith("betamoon:world_population")
+                    || diagnostic.getHookId().startsWith("betamoon:fluid_ecology")
+                    || diagnostic.getHookId().startsWith("betamoon:atmosphere")
                     || diagnostic.getHookId().startsWith("betamoon:regional_structure_chunk")
                     || diagnostic.getHookId().equals("betamoon:fluid_interactions")
                     || diagnostic.getHookId().startsWith("betamoon:fluid_contact")
@@ -298,7 +394,7 @@ public final class InstrumentationTransformTest {
     }
 
     private static void verifyRuntimeClient(TinyMappingResolver mappings, String clientJarPath) throws Exception {
-        betamoon.instrumentation.api.ClassRef owner = new betamoon.instrumentation.api.ClassRef(PLAYER_CONTROLLER);
+        ClassRef owner = new ClassRef(PLAYER_CONTROLLER);
         String runtimeOwner = mappings.resolveClass(owner, RuntimeNamespace.CLIENT);
         ZipFile clientJar = new ZipFile(clientJarPath);
         byte[] original;
@@ -335,8 +431,9 @@ public final class InstrumentationTransformTest {
         require(transformer.transform(null, runtimeOwner, null, null, transformed) == null,
                 "Applying the same hooks twice must be a no-op");
 
-        betamoon.instrumentation.api.ClassRef renderEngine = new betamoon.instrumentation.api.ClassRef(
-                "net/minecraft/src/RenderEngine");
+        verifyDimensionCacheSeams(mappings, clientJarPath, transformer, report);
+
+        ClassRef renderEngine = new ClassRef("net/minecraft/src/RenderEngine");
         String renderEngineOwner = mappings.resolveClass(renderEngine, RuntimeNamespace.CLIENT);
         byte[] renderEngineOriginal = readClass(clientJarPath, renderEngineOwner);
         byte[] renderEngineTransformed = transformer.transform(null, renderEngineOwner, null, null,
@@ -349,22 +446,36 @@ public final class InstrumentationTransformTest {
         require(countCallbackCalls(renderEngineTransformed, "uploadLuaTexture") == 0,
                 "Cached texture lookups must not upload Lua textures again");
 
-        String effectsOwner = mappings.resolveClass(
-                new betamoon.instrumentation.api.ClassRef("net/minecraft/src/EffectRenderer"), RuntimeNamespace.CLIENT);
+        String effectsOwner = mappings.resolveClass(new ClassRef("net/minecraft/src/EffectRenderer"),
+                RuntimeNamespace.CLIENT);
         byte[] effects = transformer.transform(null, effectsOwner, null, null, readClass(clientJarPath, effectsOwner));
         require(effects != null && countParticleCallbacks(effects, "tick") == 1
                 && countParticleCallbacks(effects, "clear") == 1 && countParticleCallbacks(effects, "render") == 1,
                 "Runtime particle renderer must contain one custom tick, clear, and render callback");
         require(transformer.transform(null, effectsOwner, null, null, effects) == null,
                 "Particle renderer hooks must be idempotent");
-        String globalOwner = mappings.resolveClass(
-                new betamoon.instrumentation.api.ClassRef("net/minecraft/src/RenderGlobal"), RuntimeNamespace.CLIENT);
+        String globalOwner = mappings.resolveClass(new ClassRef("net/minecraft/src/RenderGlobal"),
+                RuntimeNamespace.CLIENT);
         byte[] global = transformer.transform(null, globalOwner, null, null, readClass(clientJarPath, globalOwner));
         require(global != null && countParticleCallbacks(global, "spawn") == 1,
                 "Runtime particle dispatch must contain exactly one custom-key interception");
+        require(countPolicyCalls(global, "hideSky") == 1 && countPolicyCalls(global, "hideClouds") == 1,
+                "Runtime sky and clouds must have independent dimension policies");
+        require(transformer.transform(null, globalOwner, null, null, global) == null,
+                "Mapped field policies must be idempotent");
+        for (String[] seam : new String[][]{{"TextureCompassFX", "randomCompass"}, {"TextureWatchFX", "randomClock"},
+                {"ItemBucket", "evaporatesWater"}, {"BlockFlowing", "fastLava"}}) {
+            String seamOwner = mappings.resolveClass(new ClassRef("net/minecraft/src/" + seam[0]),
+                    RuntimeNamespace.CLIENT);
+            byte[] transformedSeam = transformer.transform(null, seamOwner, null, null,
+                    readClass(clientJarPath, seamOwner));
+            require(transformedSeam != null && countPolicyCalls(transformedSeam, seam[1]) == 1,
+                    "Missing native dimension policy: " + seam[1]);
+            require(transformer.transform(null, seamOwner, null, null, transformedSeam) == null,
+                    "Native dimension policy must be idempotent: " + seam[1]);
+        }
 
-        String survivalOwner = mappings.resolveClass(
-                new betamoon.instrumentation.api.ClassRef("net/minecraft/src/PlayerControllerSP"),
+        String survivalOwner = mappings.resolveClass(new ClassRef("net/minecraft/src/PlayerControllerSP"),
                 RuntimeNamespace.CLIENT);
         byte[] survival = transformer.transform(null, survivalOwner, null, null,
                 readClass(clientJarPath, survivalOwner));
@@ -372,9 +483,17 @@ public final class InstrumentationTransformTest {
         require(transformer.transform(null, survivalOwner, null, null, survival) == null,
                 "Survival guard must be idempotent");
 
+        verifyWorldGeneratorSeams(mappings, clientJarPath, transformer);
+        String populationOwner = mappings.resolveClass(new ClassRef("net/minecraft/src/ChunkProviderGenerate"),
+                RuntimeNamespace.CLIENT);
+        byte[] population = transformer.transform(null, populationOwner, null, null,
+                readClass(clientJarPath, populationOwner));
+        require(population != null && countCallbackCalls(population, "generate") == 24
+                && countCallbackCalls(population, "snow") == 1, "Native population must expose every category gate");
         verifyClientControlSeams(mappings, clientJarPath, transformer);
         verifyFluidInteractionSeam(mappings, clientJarPath, transformer, RuntimeNamespace.CLIENT);
         verifyFluidContactSeams(mappings, clientJarPath, transformer, RuntimeNamespace.CLIENT);
+        verifyEcologySeams(mappings, clientJarPath, transformer, RuntimeNamespace.CLIENT);
         verifyFluidCameraSeams(mappings, clientJarPath, transformer);
 
         String[][] additionalTargets = {{"net/minecraft/src/World", "emission"}, {"forge/ForgeHooks", "permission"},
@@ -383,14 +502,14 @@ public final class InstrumentationTransformTest {
                 {"net/minecraft/src/RenderGlobal", "worldModels"}, {"net/minecraft/src/TileEntityFurnace", "result"},
                 {"net/minecraft/src/SpawnerAnimals", "after"}};
         for (String[] target : additionalTargets) {
-            String targetOwner = mappings.resolveClass(new betamoon.instrumentation.api.ClassRef(target[0]),
-                    RuntimeNamespace.CLIENT);
+            String targetOwner = mappings.resolveClass(new ClassRef(target[0]), RuntimeNamespace.CLIENT);
             byte[] result = transformer.transform(null, targetOwner, null, null, readClass(clientJarPath, targetOwner));
-            int expectedCallbacks = target[0].equals("net/minecraft/src/RenderGlobal")
-                    ? 2
-                    : target[0].equals("net/minecraft/src/SpawnerAnimals")
-                            ? 3
-                            : target[0].equals("net/minecraft/src/TileEntityFurnace") ? 7 : 1;
+            int expectedCallbacks = (target[0].equals("net/minecraft/src/RenderGlobal")
+                    || target[0].equals("net/minecraft/src/Chunk"))
+                            ? 2
+                            : target[0].equals("net/minecraft/src/SpawnerAnimals")
+                                    ? 3
+                                    : target[0].equals("net/minecraft/src/TileEntityFurnace") ? 7 : 1;
             int callbackCount = result == null ? 0 : countCallbackCalls(result, target[1]);
             require(result != null && callbackCount == expectedCallbacks, "Missing runtime hook for " + target[0]
                     + " (transformed=" + (result != null) + ", callbacks=" + callbackCount + ")");
@@ -437,7 +556,7 @@ public final class InstrumentationTransformTest {
         byte[] partial = removeFirstCallbackCall(transformed, "afterBlockBroken");
         PrintStream originalError = System.err;
         try {
-            System.setErr(new PrintStream(new java.io.ByteArrayOutputStream()));
+            System.setErr(new PrintStream(new ByteArrayOutputStream()));
             try {
                 transformer.transform(null, runtimeOwner, null, null, partial);
                 throw new AssertionError("Partial instrumentation must be rejected");
@@ -536,10 +655,46 @@ public final class InstrumentationTransformTest {
                 "Client control seam " + returnCallback + " did not cover every return in " + target);
     }
 
+    private static void verifyDimensionCacheSeams(TinyMappingResolver mappings, String clientJarPath,
+            BetaMoonTransformer transformer, TransformationReport report) throws Exception {
+        String owner = mappings.resolveClass(new ClassRef("net/minecraft/src/ChunkProvider"), RuntimeNamespace.CLIENT);
+        byte[] transformed = transformer.transform(null, owner, null, null, readClass(clientJarPath, owner));
+        require(transformed != null, "The packaged client chunk cache must support dimension preparation");
+        require(countCallbackCalls(transformed, "beforeLoad") == 1
+                && countCallbackCalls(transformed, "deferPopulation") == 1,
+                "The packaged client must enforce acquisition and population budgets");
+        ClassNode node = new ClassNode();
+        new ClassReader(transformed).accept(node, 0);
+        int accessCalls = 0;
+        for (MethodNode method : node.methods) {
+            for (AbstractInsnNode instruction : method.instructions) {
+                if (instruction instanceof MethodInsnNode) {
+                    MethodInsnNode call = (MethodInsnNode) instruction;
+                    if (call.getOpcode() == Opcodes.INVOKESTATIC
+                            && call.owner.equals("betamoon/teleport/ChunkPreparation")
+                            && call.name.equals("beforeAccess")) {
+                        accessCalls++;
+                    }
+                }
+            }
+        }
+        require(accessCalls == 1, "The packaged client must guard chunk access exactly once");
+        for (HookDiagnostic diagnostic : report.snapshot()) {
+            if (diagnostic.getHookId().equals("betamoon:dimensions:chunk_access")
+                    || diagnostic.getHookId().equals("betamoon:dimensions:chunk_budget")
+                    || diagnostic.getHookId().equals("betamoon:dimensions:population_budget")) {
+                require(diagnostic.getStatus() == HookStatus.APPLIED,
+                        "Dimension cache hook did not apply to the packaged client: " + diagnostic.getHookId());
+            }
+        }
+        require(transformer.transform(null, owner, null, null, transformed) == null,
+                "Packaged client dimension cache hooks must be idempotent");
+    }
+
     private static void verifyRuntimeServer(TinyMappingResolver mappings, String serverJarPath) throws Exception {
         TransformationReport report = new TransformationReport();
         HookRegistry registry = new HookRegistry(report);
-        BuiltinHookModules.registerForSide(registry, betamoon.runtime.RuntimeSide.DEDICATED_SERVER);
+        BuiltinHookModules.registerForSide(registry, RuntimeSide.DEDICATED_SERVER);
         Map<String, ClassTransformPlan> plans = registry.freeze(mappings, RuntimeNamespace.NAMED,
                 RuntimeNamespace.SERVER);
         BetaMoonTransformer transformer = new BetaMoonTransformer(plans, mappings, report, true, false);
@@ -558,6 +713,50 @@ public final class InstrumentationTransformTest {
                 "Runtime server EntityTrackerEntry is missing custom spawn selection");
         verifyFluidInteractionSeam(mappings, serverJarPath, transformer, RuntimeNamespace.SERVER);
         verifyFluidContactSeams(mappings, serverJarPath, transformer, RuntimeNamespace.SERVER);
+        verifyEcologySeams(mappings, serverJarPath, transformer, RuntimeNamespace.SERVER);
+    }
+
+    private static void verifyEcologySeams(TinyMappingResolver mappings, String jarPath,
+            BetaMoonTransformer transformer, RuntimeNamespace namespace) throws Exception {
+        for (String name : new String[]{"BlockSand", "BlockFarmland", "BlockReed", "BlockSponge", "EntityBoat",
+                "Pathfinder", "SpawnerAnimals"}) {
+            String owner = mappings.resolveClass(new ClassRef("net/minecraft/src/" + name), namespace);
+            byte[] transformed = transformer.transform(null, owner, null, null, readClass(jarPath, owner));
+            require(transformed != null, "Missing ecology seam: " + namespace + ":" + name);
+            require(transformer.transform(null, owner, null, null, transformed) == null,
+                    "Ecology seams must be idempotent");
+        }
+    }
+
+    private static void verifyWorldGeneratorSeams(TinyMappingResolver mappings, String jarPath,
+            BetaMoonTransformer transformer) throws Exception {
+        for (String namedOwner : new String[]{"net/minecraft/src/World", "net/minecraft/src/WorldProvider",
+                "net/minecraft/src/GuiCreateWorld", "net/minecraft/src/GuiSelectWorld",
+                "net/minecraft/client/Minecraft"}) {
+            String owner = mappings.resolveClass(new ClassRef(namedOwner), RuntimeNamespace.CLIENT);
+            byte[] transformed = transformer.transform(null, owner, null, null, readClass(jarPath, owner));
+            require(transformed != null, "World generator seam did not transform " + namedOwner);
+            ClassNode node = new ClassNode();
+            new ClassReader(transformed).accept(node, 0);
+            int calls = 0;
+            for (MethodNode method : node.methods) {
+                for (AbstractInsnNode instruction : method.instructions.toArray()) {
+                    if (instruction instanceof MethodInsnNode && ((MethodInsnNode) instruction).owner.matches(
+                            "betamoon/instrumentation/hooks/worldgen/World(Generator|Creation|Join)Callbacks")) {
+                        calls++;
+                    }
+                }
+            }
+            require(calls == (namedOwner.endsWith("/World")
+                    ? 9
+                    : namedOwner.endsWith("/GuiSelectWorld")
+                            ? 4
+                            : namedOwner.contains("/Gui") || namedOwner.endsWith("/Minecraft") ? 3 : 2),
+                    "World generator factory/spawn callbacks must have exact mapped targets: " + namedOwner + " calls="
+                            + calls);
+            require(transformer.transform(null, owner, null, null, transformed) == null,
+                    "World generator seams must be idempotent");
+        }
     }
 
     private static void verifyFluidContactSeams(TinyMappingResolver mappings, String jarPath,
@@ -641,14 +840,14 @@ public final class InstrumentationTransformTest {
                 mcField.getDescriptor(), null, null));
         node.methods.add(booleanMethod(broken));
         node.methods.add(booleanMethod(placed));
-        betamoon.instrumentation.api.ClassRef controller = new betamoon.instrumentation.api.ClassRef(PLAYER_CONTROLLER);
+        ClassRef controller = new ClassRef(PLAYER_CONTROLLER);
         ResolvedMethod use = mappings.resolveMethod(
-                new betamoon.instrumentation.api.MethodRef(controller, "sendUseItem",
+                new MethodRef(controller, "sendUseItem",
                         "(Lnet/minecraft/src/EntityPlayer;Lnet/minecraft/src/World;Lnet/minecraft/src/ItemStack;)Z"),
                 namespace);
         node.methods.add(booleanMethod(use));
-        ResolvedMethod entity = mappings.resolveMethod(new betamoon.instrumentation.api.MethodRef(controller,
-                "interactWithEntity", "(Lnet/minecraft/src/EntityPlayer;Lnet/minecraft/src/Entity;)V"), namespace);
+        ResolvedMethod entity = mappings.resolveMethod(new MethodRef(controller, "interactWithEntity",
+                "(Lnet/minecraft/src/EntityPlayer;Lnet/minecraft/src/Entity;)V"), namespace);
         MethodNode entityMethod = new MethodNode(Opcodes.ACC_PUBLIC, entity.getName(), entity.getDescriptor(), null,
                 null);
         entityMethod.instructions.add(new InsnNode(Opcodes.RETURN));
@@ -663,6 +862,24 @@ public final class InstrumentationTransformTest {
         node.instructions.add(new InsnNode(Opcodes.ICONST_1));
         node.instructions.add(new InsnNode(Opcodes.IRETURN));
         return node;
+    }
+
+    private static int countPolicyCalls(byte[] bytecode, String methodName) {
+        ClassNode node = new ClassNode();
+        new ClassReader(bytecode).accept(node, 0);
+        int count = 0;
+        for (MethodNode method : node.methods) {
+            for (AbstractInsnNode instruction : method.instructions) {
+                if (instruction instanceof MethodInsnNode) {
+                    MethodInsnNode call = (MethodInsnNode) instruction;
+                    if (call.getOpcode() == Opcodes.INVOKESTATIC && methodName.equals(call.name)
+                            && call.owner.equals("betamoon/dimension/DimensionRules")) {
+                        count++;
+                    }
+                }
+            }
+        }
+        return count;
     }
 
     private static int countParticleCallbacks(byte[] bytecode, String methodName) {
@@ -787,7 +1004,7 @@ public final class InstrumentationTransformTest {
     }
 
     private static byte[] readFully(InputStream input, int initialSize) throws Exception {
-        java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream(Math.max(32, initialSize));
+        ByteArrayOutputStream output = new ByteArrayOutputStream(Math.max(32, initialSize));
         byte[] buffer = new byte[4096];
         int read;
         while ((read = input.read(buffer)) >= 0) {

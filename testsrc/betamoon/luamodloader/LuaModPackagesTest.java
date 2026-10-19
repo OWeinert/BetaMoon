@@ -147,12 +147,13 @@ public final class LuaModPackagesTest {
         expected.add("03_adv_09_simple_alloy");
         expected.add("03_adv_10_contextual_processor");
         expected.add("03_adv_11_advanced_fabrication");
-        expected.add("03_adv_13_matcher_cookbook");
-        expected.add("03_adv_20_local_structure");
-        expected.add("03_adv_21_regional_structures");
-        expected.add("03_adv_22_complete_worldgen_pack");
-        expected.add("03_adv_23_sunken_cellar");
-        expected.add("03_adv_24_excavated_foundation");
+        expected.add("03_adv_14_matcher_cookbook");
+        expected.add("02_int_32_local_structure");
+        expected.add("03_adv_13_regional_structures");
+        expected.add("03_adv_17_rolling_meadows");
+        expected.add("03_adv_20_hollow_marches");
+        expected.add("02_int_33_sunken_cellar");
+        expected.add("02_int_34_excavated_foundation");
         LuaScriptRegistry.clear();
         for (int i = 0; i < sources.size(); i++) {
             LuaModSource source = sources.get(i);
@@ -522,6 +523,8 @@ public final class LuaModPackagesTest {
         require(otherLog.isFile(), "Script report retention must preserve other log types");
         String report = new String(Files.readAllBytes(reports[0].toPath()), StandardCharsets.UTF_8);
         require(report.contains("Example failure"), "Automatic reports must include script errors");
+        require(report.contains("Runtime environment") && report.contains("Occurred:")
+                && report.contains("automatic reload"), "Automatic reports must share the full diagnostic format");
         LuaScriptRegistry.clear();
         LuaScriptErrors.clear();
     }

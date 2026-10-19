@@ -1,22 +1,28 @@
 package betamoon.entity;
 
-import betamoon.data.DataField;
 import betamoon.assets.AssetKey;
+import betamoon.data.DataField;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import org.luaj.vm2.LuaValue;
 
-/** Script-owned types are replaced atomically after successful initialization. */
+/**
+ * Script-owned types are replaced atomically after successful initialization.
+ */
 public final class EntityTypeRegistry {
     private static Map<AssetKey, Entry> active = Collections.emptyMap();
 
     private EntityTypeRegistry() {
     }
 
-    /** Immutable, callback-free description captured from one registry generation. */
+    /**
+     * Immutable, callback-free description captured from one registry generation.
+     */
     public static final class Description {
         public final String owner;
         public final AssetKey key;
@@ -41,8 +47,8 @@ public final class EntityTypeRegistry {
             EntityTypeDefinition definition = entry.definition;
             owner = entry.owner;
             key = definition.key;
-            kind = definition.kind.name().toLowerCase(java.util.Locale.ROOT);
-            lifecycle = definition.lifecycle.name().toLowerCase(java.util.Locale.ROOT);
+            kind = definition.kind.name().toLowerCase(Locale.ROOT);
+            lifecycle = definition.lifecycle.name().toLowerCase(Locale.ROOT);
             displayName = definition.displayName;
             width = definition.width;
             height = definition.height;
@@ -50,12 +56,13 @@ public final class EntityTypeRegistry {
             capabilities = capabilities(definition);
             modelPath = definition.appearance == null ? null : definition.appearance.model.getFallback().toString();
             modelOverridePath = definition.appearance == null
-                    ? null : definition.appearance.model.getOverride().toString();
+                    ? null
+                    : definition.appearance.model.getOverride().toString();
             dynamicAppearance = definition.appearance != null && definition.appearance.isDynamic();
-            aiMode = definition.living == null
-                    ? null : definition.living.ai.name().toLowerCase(java.util.Locale.ROOT);
+            aiMode = definition.living == null ? null : definition.living.ai.name().toLowerCase(Locale.ROOT);
             aggression = definition.living == null
-                    ? null : definition.living.aggression.name().toLowerCase(java.util.Locale.ROOT);
+                    ? null
+                    : definition.living.aggression.name().toLowerCase(Locale.ROOT);
             spawning = definition.spawning == null ? null : new SpawnDescription(definition.spawning);
             List<DataDescription> dataValues = new ArrayList<DataDescription>();
             for (DataField field : definition.data.values()) {
@@ -122,7 +129,7 @@ public final class EntityTypeRegistry {
             }
         }
 
-        private static void addCallback(List<String> values, String name, org.luaj.vm2.LuaValue value) {
+        private static void addCallback(List<String> values, String name, LuaValue value) {
             if (value != null && !value.isnil()) {
                 values.add(name);
             }
@@ -163,13 +170,13 @@ public final class EntityTypeRegistry {
         public final int maxLight;
         public final int minY;
         public final int maxY;
-        public final List<Integer> dimensions;
+        public final List<String> dimensions;
         public final List<String> biomes;
         public final List<Integer> substrates;
         public final boolean nativeDespawn;
 
         private SpawnDescription(EntitySpawnDefinition spawn) {
-            category = spawn.category.name().toLowerCase(java.util.Locale.ROOT);
+            category = spawn.category.name().toLowerCase(Locale.ROOT);
             weight = spawn.weight;
             groupMin = spawn.groupMin;
             groupMax = spawn.groupMax;
@@ -238,29 +245,30 @@ public final class EntityTypeRegistry {
             return;
         }
         if (old.definition.kind != definition.kind) {
-            throw new IllegalArgumentException("Changing entity kind for " + definition.key
-                    + " requires an explicit instance conversion");
+            throw new IllegalArgumentException(
+                    "Changing entity kind for " + definition.key + " requires an explicit instance conversion");
         }
         int previousInventory = old.definition.inventory == null ? 0 : old.definition.inventory.size;
         int nextInventory = definition.inventory == null ? 0 : definition.inventory.size;
         if (previousInventory != nextInventory) {
-            throw new IllegalArgumentException("Changing inventory size for " + definition.key
-                    + " requires an explicit inventory conversion");
+            throw new IllegalArgumentException(
+                    "Changing inventory size for " + definition.key + " requires an explicit inventory conversion");
         }
         Set<EntityEquipmentDefinition.Slot> previousEquipment = old.definition.equipment == null
-                ? Collections.emptySet() : old.definition.equipment.slots;
+                ? Collections.emptySet()
+                : old.definition.equipment.slots;
         Set<EntityEquipmentDefinition.Slot> nextEquipment = definition.equipment == null
-                ? Collections.emptySet() : definition.equipment.slots;
+                ? Collections.emptySet()
+                : definition.equipment.slots;
         if (!previousEquipment.equals(nextEquipment)) {
-            throw new IllegalArgumentException("Changing equipment slots for " + definition.key
-                    + " requires an explicit equipment conversion");
+            throw new IllegalArgumentException(
+                    "Changing equipment slots for " + definition.key + " requires an explicit equipment conversion");
         }
         for (DataField field : definition.data.values()) {
             DataField previous = old.definition.data.get(field.name);
             if (previous != null && !field.isCompatibleWith(previous)) {
-                throw new IllegalArgumentException("Changing data." + field.name + " from "
-                        + previous.describeType() + " to " + field.describeType() + " on " + definition.key
-                        + " requires conversion");
+                throw new IllegalArgumentException("Changing data." + field.name + " from " + previous.describeType()
+                        + " to " + field.describeType() + " on " + definition.key + " requires conversion");
             }
         }
     }

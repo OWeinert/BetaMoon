@@ -1,9 +1,9 @@
 package betamoon.luaapi.utils;
 
-import betamoon.BetaMoonCommon;
 
 import betamoon.luamodloader.LuaScriptErrors;
-import betamoon.luamodloader.SlowScriptCallbackMonitor;
+import betamoon.luamodloader.LuaScriptRegistry;
+import betamoon.luamodloader.ScriptExecution;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -65,13 +65,19 @@ public final class LuaOverrideCallback {
 
     public LuaValue invoke(LuaTable context, Varargs arguments, Supplier<LuaValue> original,
             UnaryOperator<LuaValue> validate) {
-        return invokeLayer(layers.definitions().size() - 1, context, arguments, original, validate, true, false);
+        return invokeLayer(layers.definitions().size() - 1, context, arguments, ownedOriginal(original),
+                validate, true, false);
     }
 
     private LuaValue invoke(LuaTable context, Supplier<LuaValue> original, UnaryOperator<LuaValue> validate,
             boolean fallbackOnNil, boolean interaction) {
-        return invokeLayer(layers.definitions().size() - 1, context, context, original, validate, fallbackOnNil,
-                interaction);
+        return invokeLayer(layers.definitions().size() - 1, context, context, ownedOriginal(original), validate,
+                fallbackOnNil, interaction);
+    }
+
+    private static Supplier<LuaValue> ownedOriginal(Supplier<LuaValue> original) {
+        String owner = LuaScriptRegistry.getCurrentScriptFile();
+        return () -> ScriptExecution.withOwner(owner, original);
     }
 
     private LuaValue invokeLayer(int index, LuaTable context, Varargs arguments, Supplier<LuaValue> original,
@@ -89,9 +95,9 @@ public final class LuaOverrideCallback {
         BaseCall base = new BaseCall(() -> invokeLayer(nextIndex, context, arguments, original, validate, fallbackOnNil,
                 interaction));
         context.set("base", base);
-        long startedNanos = System.nanoTime();
         try {
-            LuaValue result = validate.apply(definition.getAction().invoke(arguments).arg1());
+            LuaValue result = validate.apply(ScriptExecution.invoke(definition.getOwner(), definition.getName(),
+                    definition.getAction(), arguments).arg1());
             if (fallbackOnNil && result.isnil() || interaction && result.raweq(LuaValue.valueOf("pass"))) {
                 return base.originalResult();
             }
@@ -99,11 +105,9 @@ public final class LuaOverrideCallback {
         } catch (RuntimeException error) {
             disabled.add(definition);
             String message = definition.getName() + " override disabled after error: " + error.getMessage();
-            LuaScriptErrors.add(definition.getOwner(), message);
-            BetaMoonCommon.LOGGER.warning(definition.getOwner() + ": " + message);
+            LuaScriptErrors.add(definition.getOwner(), message, LuaScriptErrors.Outcome.CALLBACK_DISABLED, error);
             return base.originalResult();
         } finally {
-            SlowScriptCallbackMonitor.record(definition.getOwner(), definition.getName(), startedNanos);
             base.active = false;
             context.set("base", previousBase);
         }

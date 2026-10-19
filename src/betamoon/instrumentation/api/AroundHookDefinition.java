@@ -21,6 +21,7 @@ public final class AroundHookDefinition implements HookDefinition {
     private final MatchRequirement matchRequirement;
     private final int priority;
     private final boolean skipWhenCapturedNonZero;
+    private final boolean cleanupOnException;
 
     private AroundHookDefinition(Builder builder) {
         this.id = builder.id;
@@ -32,6 +33,7 @@ public final class AroundHookDefinition implements HookDefinition {
         this.matchRequirement = builder.matchRequirement;
         this.priority = builder.priority;
         this.skipWhenCapturedNonZero = builder.skipWhenCapturedNonZero;
+        this.cleanupOnException = builder.cleanupOnException;
     }
 
     public static Builder builder(String id, MethodRef target) {
@@ -69,9 +71,15 @@ public final class AroundHookDefinition implements HookDefinition {
         return matchRequirement;
     }
 
-    /** An integer capture can stop the original method before it changes the world. */
+    /**
+     * An integer capture can stop the original method before it changes the world.
+     */
     public boolean skipsWhenCapturedNonZero() {
         return skipWhenCapturedNonZero;
+    }
+
+    public boolean cleansUpOnException() {
+        return cleanupOnException;
     }
 
     @Override
@@ -93,6 +101,7 @@ public final class AroundHookDefinition implements HookDefinition {
         private MatchRequirement matchRequirement = MatchRequirement.exactly(1);
         private int priority;
         private boolean skipWhenCapturedNonZero;
+        private boolean cleanupOnException;
 
         private Builder(String id, MethodRef target) {
             if (id == null || id.trim().length() == 0) {
@@ -133,6 +142,15 @@ public final class AroundHookDefinition implements HookDefinition {
 
         public Builder skipWhenCapturedNonZero() {
             this.skipWhenCapturedNonZero = true;
+            return this;
+        }
+
+        /**
+         * Runs the void return handler once on an exceptional exit, then rethrows the
+         * original failure.
+         */
+        public Builder cleanupOnException() {
+            this.cleanupOnException = true;
             return this;
         }
 

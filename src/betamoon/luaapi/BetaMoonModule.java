@@ -1,23 +1,24 @@
 package betamoon.luaapi;
 
-import betamoon.luaapi.multiblock.MultiblocksApi;
-
-import betamoon.luaapi.chat.ChatApi;
-import betamoon.luaapi.particle.ParticlesApi;
-import betamoon.luaapi.config.ConfigApi;
-import betamoon.luaapi.capability.CapabilitiesApi;
 import betamoon.luaapi.asset.AssetsApi;
 import betamoon.luaapi.audio.AudioApi;
-import betamoon.luaapi.event.EventsApi;
+import betamoon.luaapi.capability.CapabilitiesApi;
+import betamoon.luaapi.chat.ChatApi;
+import betamoon.luaapi.config.ConfigApi;
 import betamoon.luaapi.entity.EntitiesApi;
-import betamoon.luaapi.fuel.FuelsApi;
+import betamoon.luaapi.event.EventsApi;
 import betamoon.luaapi.fluid.FluidApi;
+import betamoon.luaapi.fuel.FuelsApi;
 import betamoon.luaapi.input.InputApi;
+import betamoon.luaapi.logging.LoggingApi;
 import betamoon.luaapi.material.ArmorMaterialApi;
 import betamoon.luaapi.material.ToolMaterialApi;
 import betamoon.luaapi.minecraft.MinecraftApi;
-import betamoon.luaapi.networking.LogicalNetworksApi;
 import betamoon.luaapi.module.ModuleApi;
+import betamoon.luaapi.multiblock.MultiblocksApi;
+import betamoon.luaapi.networking.LogicalNetworksApi;
+import betamoon.luaapi.particle.ParticlesApi;
+import betamoon.luaapi.player.PlayersApi;
 import betamoon.luaapi.recipe.RecipeApi;
 import betamoon.luaapi.recipe.RecipeTypesApi;
 import betamoon.luaapi.resource.RecipeRegistryApi;
@@ -26,11 +27,14 @@ import betamoon.luaapi.system.SystemsApi;
 import betamoon.luaapi.tileentity.TileEntityApi;
 import betamoon.luaapi.utils.PositionF;
 import betamoon.luaapi.utils.PositionI;
-import betamoon.luaapi.world.WorldGenApi;
+import betamoon.luaapi.world.AtmospheresApi;
+import betamoon.luaapi.world.DimensionsApi;
 import betamoon.luaapi.world.LootTablesApi;
+import betamoon.luaapi.world.TeleportApi;
+import betamoon.luaapi.world.WorldGenApi;
+import betamoon.luamodloader.ScriptExecution;
 import betamoon.recipes.custom.RecipeBindings;
 import betamoon.recipes.custom.RecipeMatcherRegistry;
-import betamoon.luamodloader.ScriptExecution;
 import java.io.File;
 import java.util.IdentityHashMap;
 import org.luaj.vm2.LuaTable;
@@ -69,6 +73,7 @@ public final class BetaMoonModule extends TwoArgFunction {
     @Override
     public LuaValue call(LuaValue modname, LuaValue env) {
         LuaTable module = new LuaTable();
+        LoggingApi.attach(module, source);
         CallbackResultsApi.attach(module);
         ConfigApi.attach(module, configRoot, source);
         EventsApi.attach(module);
@@ -76,9 +81,13 @@ public final class BetaMoonModule extends TwoArgFunction {
         ParticlesApi.attach(module);
         MultiblocksApi.attach(module);
         EntitiesApi.attach(module);
+        PlayersApi.attach(module);
         FuelsApi.attach(module);
         FluidApi.attach(module);
         AudioApi.attach(module);
+        AtmospheresApi.attach(module);
+        DimensionsApi.attach(module);
+        TeleportApi.attach(module);
         InputApi.attach(module);
         CapabilitiesApi.attach(module);
         SystemsApi.attach(module);

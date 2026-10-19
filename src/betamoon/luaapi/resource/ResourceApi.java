@@ -6,15 +6,15 @@ import betamoon.fluid.FluidRegistry;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.asset.AssetInputs;
 import betamoon.luaapi.asset.AssetReference;
-import betamoon.luaapi.block.BlockCallbackOverrides;
 import betamoon.luaapi.block.BlockApi;
+import betamoon.luaapi.block.BlockCallbackOverrides;
 import betamoon.luaapi.block.BlockDisplayOverrideDefinition;
 import betamoon.luaapi.block.BlockDisplayTickOverrides;
 import betamoon.luaapi.block.BlockDropDefinition;
 import betamoon.luaapi.block.BlockFireRegistration;
 import betamoon.luaapi.fluid.FluidReference;
-import betamoon.luaapi.item.ItemCallbackOverrides;
 import betamoon.luaapi.item.ItemApi;
+import betamoon.luaapi.item.ItemCallbackOverrides;
 import betamoon.luaapi.utils.LuaDataReference;
 import betamoon.luaapi.utils.LuaOverrideDefinition;
 import betamoon.luaapi.utils.LuaOverrideLayers;
@@ -25,7 +25,9 @@ import betamoon.query.QueryEntry;
 import betamoon.resources.EnumTexAtlas;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import net.minecraft.src.Block;
 import net.minecraft.src.Item;
@@ -39,48 +41,49 @@ import net.minecraft.src.ItemStack;
 import net.minecraft.src.ItemSword;
 import net.minecraft.src.ItemTool;
 import net.minecraft.src.ModLoader;
-import net.minecraft.src.StepSound;
 import net.minecraft.src.StatCollector;
+import net.minecraft.src.StepSound;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
+
 import static org.luaj.vm2.LuaValue.*;
+import static betamoon.luaapi.utils.LuaDeclarationValues.integer;
 
 /** Installs the concise registry, reference, query, and override APIs. */
 public final class ResourceApi {
-    private static final OverrideManager.Property<Block, HardnessLayer> BLOCK_HARDNESS_PROPERTY =
-            new OverrideManager.Property<Block, HardnessLayer>("hardness",
-                    new OverrideManager.PropertyAdapter<Block, HardnessLayer>() {
-                        public HardnessLayer read(Block target) {
-                            return HardnessLayer.hardness((float) numberField(target, Block.class,
-                                    "blockHardness", "bo").checkdouble());
-                        }
+    private static final OverrideManager.Property<Block, HardnessLayer> BLOCK_HARDNESS_PROPERTY = new OverrideManager.Property<Block, HardnessLayer>(
+            "hardness", new OverrideManager.PropertyAdapter<Block, HardnessLayer>() {
+                public HardnessLayer read(Block target) {
+                    return HardnessLayer
+                            .hardness((float) numberField(target, Block.class, "blockHardness", "bo").checkdouble());
+                }
 
-                        public void write(Block target, HardnessLayer value) {
-                            floatFieldAdapter(Block.class, "blockHardness", "bo").write(target,
-                                    Float.valueOf(value.hardness.floatValue()));
-                        }
-                    }, new OverrideManager.ValueResolver<HardnessLayer>() {
-                        public HardnessLayer resolve(HardnessLayer base, List<HardnessLayer> layers) {
-                            float current = base.hardness.floatValue();
-                            float lastBreakable = current < 0 ? 0 : current;
-                            for (HardnessLayer layer : layers) {
-                                if (layer.hardness != null) {
-                                    current = layer.hardness.floatValue();
-                                    if (current >= 0) {
-                                        lastBreakable = current;
-                                    }
-                                } else if (layer.unbreakable.booleanValue()) {
-                                    current = -1;
-                                } else {
-                                    current = lastBreakable;
-                                }
+                public void write(Block target, HardnessLayer value) {
+                    floatFieldAdapter(Block.class, "blockHardness", "bo").write(target,
+                            Float.valueOf(value.hardness.floatValue()));
+                }
+            }, new OverrideManager.ValueResolver<HardnessLayer>() {
+                public HardnessLayer resolve(HardnessLayer base, List<HardnessLayer> layers) {
+                    float current = base.hardness.floatValue();
+                    float lastBreakable = current < 0 ? 0 : current;
+                    for (HardnessLayer layer : layers) {
+                        if (layer.hardness != null) {
+                            current = layer.hardness.floatValue();
+                            if (current >= 0) {
+                                lastBreakable = current;
                             }
-                            return HardnessLayer.hardness(current);
+                        } else if (layer.unbreakable.booleanValue()) {
+                            current = -1;
+                        } else {
+                            current = lastBreakable;
                         }
-                    });
+                    }
+                    return HardnessLayer.hardness(current);
+                }
+            });
 
     private ResourceApi() {
     }
@@ -206,17 +209,25 @@ public final class ResourceApi {
 
         public Varargs invoke(Varargs args) {
             LuaValue value = argument(args, registry, 1);
-            int id = -1;
+            LuaValue selectedMetadata = argument(args, registry, 2);
+            if (selectedMetadata.isnil() && value instanceof ResourceReference<?>) {
+                selectedMetadata = valueOf(resolveReference(value).damage);
+            }
+            int metadata = selectedMetadata.isnil()
+                    ? 0
+                    : integer(selectedMetadata, "metadata", 0, registry.blocks ? 15 : 32767);
             LuaValue result;
             // LuaJ numbers are string-coercible, so numeric dispatch must come first.
             if (value.isnumber()) {
-                id = value.istable() ? resolveReference(value).id : value.checkint();
-                result = registry.reference(id, 0);
+                result = registry.reference(value.checkint(), metadata);
             } else if (value.isstring()) {
                 result = registry.reference(value.checkjstring());
+                if (!result.isnil() && metadata != 0) {
+                    result = registry.reference(resolveReference(result).id, metadata);
+                }
             } else {
-                id = resolveReference(value).id;
-                result = registry.reference(id, 0);
+                ResourceReference<?> reference = resolveReference(value);
+                result = registry.reference(reference.id, metadata);
             }
             if (required && result.isnil()) {
                 throw new LuaError(
@@ -291,11 +302,22 @@ public final class ResourceApi {
     }
 
     /** Base reference exposing Lua properties and owned override definition. */
-    private abstract static class ResourceReference<T> extends LuaTable {
+    private abstract static class ResourceReference<T> extends LuaTable implements LuaDataReference {
         protected final int id;
         protected final int damage;
         protected final T target;
         protected final String namespace;
+
+        @Override
+        public Object declarationValue() {
+            if (namespace.equals("block") && damage != 0) {
+                Map<String, Object> state = new LinkedHashMap<String, Object>();
+                state.put("block", id);
+                state.put("metadata", damage);
+                return state;
+            }
+            return Integer.valueOf(id);
+        }
 
         private ResourceReference(String namespace, int id, int damage, T target) {
             this.namespace = namespace;
@@ -355,8 +377,8 @@ public final class ResourceApi {
                     return;
                 }
                 String field = key.checkjstring();
-                if (prefix.length() == 0 && (field.equals("when") || field.equals("key")
-                        || field.equals("priority") || field.equals("target") || field.equals("changes"))) {
+                if (prefix.length() == 0 && (field.equals("when") || field.equals("key") || field.equals("priority")
+                        || field.equals("target") || field.equals("changes"))) {
                     continue;
                 }
                 String path = prefix.length() == 0 ? field : prefix + "." + field;
@@ -367,16 +389,15 @@ public final class ResourceApi {
                 } else if (value.istable()) {
                     collectRequests(value, path, priority, requests);
                 } else {
-                    throw new LuaError(
-                            "Property '" + path + "' cannot be overridden on " + namespace + " " + id + ".");
+                    throw new LuaError("Property '" + path + "' cannot be overridden on " + namespace + " " + id + ".");
                 }
             }
         }
 
         private <V> OverrideManager.Request<T, V> prepare(ResourceProperty<T, V> definition, LuaValue value,
                 int priority) {
-            return OverrideManager.request(namespace + ":" + id, target, definition.property,
-                    definition.convert(value), priority);
+            return OverrideManager.request(namespace + ":" + id, target, definition.property, definition.convert(value),
+                    priority);
         }
     }
 
@@ -448,7 +469,7 @@ public final class ResourceApi {
             this.block = block;
             set("name", stringOrNil(block.getBlockName()));
             set("key", stringOrNil(block.getBlockName()));
-            set("displayName", stringOrNil(block.translateBlockName()));
+            set("displayName", stringOrNil(blockDisplayName(block, damage)));
             set("texture", valueOf(block.blockIndexInTexture));
             set("light", valueOf(Block.lightValue[id]));
             set("lightOpacity", valueOf(Block.lightOpacity[id]));
@@ -469,7 +490,7 @@ public final class ResourceApi {
             if (key.isstring()) {
                 String property = key.tojstring();
                 if (property.equals("displayName")) {
-                    return stringOrNil(block.translateBlockName());
+                    return stringOrNil(blockDisplayName(block, damage));
                 }
                 if (property.equals("texture")) {
                     return valueOf(block.blockIndexInTexture);
@@ -628,16 +649,17 @@ public final class ResourceApi {
                 if (property.equals("efficiency") && item instanceof ItemTool) {
                     return valueOf(((ItemTool) item).efficiencyOnProperMaterial);
                 }
-                if (property.equals("damageVsEntity")
-                        && (item instanceof ItemTool || item instanceof ItemSword)) {
+                if (property.equals("damageVsEntity") && (item instanceof ItemTool || item instanceof ItemSword)) {
                     return valueOf(itemDamage(item));
                 }
                 if (property.equals("healing") && item instanceof ItemFood) {
-                    return valueOf(((Integer) intFieldAdapter(ItemFood.class, "healAmount", "a").read(item)).intValue());
+                    return valueOf(
+                            ((Integer) intFieldAdapter(ItemFood.class, "healAmount", "a").read(item)).intValue());
                 }
                 if (property.equals("wolfFood") && item instanceof ItemFood) {
-                    return valueOf(((Boolean) booleanFieldAdapter(ItemFood.class, "isWolfsFavoriteMeat", "bk")
-                            .read(item)).booleanValue());
+                    return valueOf(
+                            ((Boolean) booleanFieldAdapter(ItemFood.class, "isWolfsFavoriteMeat", "bk").read(item))
+                                    .booleanValue());
                 }
             }
             return super.get(key);
@@ -665,8 +687,7 @@ public final class ResourceApi {
                 return booleanProperty(property, booleanFieldAdapter(Item.class, "bFull3D", "bi"));
             }
             if (property.equals("efficiency") && item instanceof ItemTool) {
-                return resourceProperty(property,
-                        floatFieldAdapter(ItemTool.class, "efficiencyOnProperMaterial", "bl"),
+                return resourceProperty(property, floatFieldAdapter(ItemTool.class, "efficiencyOnProperMaterial", "bl"),
                         value -> Float.valueOf(positiveFloat(value, "efficiency")));
             }
             if (property.equals("damageVsEntity") && item instanceof ItemTool) {
@@ -1082,6 +1103,11 @@ public final class ResourceApi {
         ItemStack stack = new ItemStack(item, 1, damage);
         String key = item.getItemNameIS(stack);
         return key == null ? null : StatCollector.translateToLocal(key + ".name");
+    }
+
+    private static String blockDisplayName(Block block, int metadata) {
+        Item item = Item.itemsList[block.blockID];
+        return item == null ? block.translateBlockName() : itemDisplayName(item, metadata);
     }
 
     private static boolean isTool(Item item) {

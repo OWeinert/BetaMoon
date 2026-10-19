@@ -1,11 +1,14 @@
 package betamoon.luamodloader;
 
+import betamoon.worldgen.terrain.GenerationSignature;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import org.luaj.vm2.LuaValue;
 
 public final class LuaScriptRegistry {
@@ -54,7 +57,8 @@ public final class LuaScriptRegistry {
         }
 
         private static List<String> copy(List<String> values) {
-            return values == null ? Collections.<String>emptyList()
+            return values == null
+                    ? Collections.<String>emptyList()
                     : Collections.unmodifiableList(new ArrayList<String>(values));
         }
     }
@@ -253,7 +257,10 @@ public final class LuaScriptRegistry {
         return currentScriptFile.get();
     }
 
-    /** Returns the declared package name for the executing script, with a file fallback. */
+    /**
+     * Returns the declared package name for the executing script, with a file
+     * fallback.
+     */
     public static synchronized String getCurrentScriptIdentity() {
         String file = currentScriptFile.get();
         if (file == null) {
@@ -263,7 +270,10 @@ public final class LuaScriptRegistry {
         return script == null ? file : script.getDisplayName();
     }
 
-    /** Returns the executing mod's declared user-facing name, without a file fallback. */
+    /**
+     * Returns the executing mod's declared user-facing name, without a file
+     * fallback.
+     */
     public static synchronized String getCurrentScriptDisplayName() {
         String file = currentScriptFile.get();
         if (file == null) {
@@ -280,7 +290,35 @@ public final class LuaScriptRegistry {
         return manifest == null ? null : manifest.name();
     }
 
-    /** Reads a bounded package-local gameplay-data resource for a published declaration. */
+    /**
+     * Reads a bounded package-local gameplay-data resource for a published
+     * declaration.
+     */
+    /**
+     * Fingerprints callback-owning package code without evaluating Lua or retaining
+     * source buffers.
+     */
+    public static synchronized String generationCodeSignature() throws IOException {
+        ScriptMod script = byFile.get(getCurrentScriptFile());
+        if (script == null || script.source == null) {
+            return "";
+        }
+        if (script.generationCodeSignature == null) {
+            Map<String, String> sources = new TreeMap<String, String>();
+            long sourceBytes = 0;
+            for (String path : script.source.sourcePaths()) {
+                String code = script.source.readLuaSource(path);
+                sourceBytes += code.getBytes(StandardCharsets.UTF_8).length;
+                if (sourceBytes > LuaModSource.MAX_TOTAL_LUA_SOURCE_BYTES) {
+                    throw new IOException("Generation callback package exceeds its total Lua source budget");
+                }
+                sources.put(path, GenerationSignature.of(Collections.singletonMap("code", code)));
+            }
+            script.generationCodeSignature = GenerationSignature.of(sources);
+        }
+        return script.generationCodeSignature;
+    }
+
     public static synchronized byte[] readPackageResource(String sourceFileName, String path, int maxBytes)
             throws IOException {
         ScriptMod script = byFile.get(sourceFileName);
@@ -290,7 +328,10 @@ public final class LuaScriptRegistry {
         return script.source.readResource(path, maxBytes);
     }
 
-    /** Returns a path suitable for diagnostics without exposing the absolute package root. */
+    /**
+     * Returns a path suitable for diagnostics without exposing the absolute package
+     * root.
+     */
     public static synchronized String packageResourceDisplayPath(String sourceFileName, String path) {
         ScriptMod script = byFile.get(sourceFileName);
         return script == null || script.source == null ? path : script.source.sourceDisplayPath(path);

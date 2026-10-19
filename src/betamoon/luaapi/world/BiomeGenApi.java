@@ -140,7 +140,7 @@ public final class BiomeGenApi {
         }
         Collections.sort(result, new Comparator<BiomeReference>() {
             public int compare(BiomeReference left, BiomeReference right) {
-                return left.get("name").tojstring().compareToIgnoreCase(right.get("name").tojstring());
+                return left.get("displayName").tojstring().compareToIgnoreCase(right.get("displayName").tojstring());
             }
         });
         return result;

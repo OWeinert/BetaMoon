@@ -1,11 +1,11 @@
 package betamoon.entity;
 
-import betamoon.BetaMoonCommon;
 
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.luamodloader.ScriptExecution;
 import java.util.Collections;
 import java.util.Set;
 import java.util.WeakHashMap;
@@ -30,13 +30,13 @@ final class EntityTick {
             context.set("world", LuaWorldActionAccess.create(scope, entity.worldObj, (int) Math.floor(entity.posX),
                     (int) Math.floor(entity.posY), (int) Math.floor(entity.posZ), entity));
             context.set("age", entity.ticksExisted);
-            definition.onTick.call(context);
+            ScriptExecution.invoke(EntityTypeRegistry.owner(definition.key), "entity.onTick", definition.onTick, context);
         } catch (RuntimeException error) {
             if (DISABLED.add(definition)) {
                 String message = definition.key + ".onTick disabled after error: " + error.getMessage();
                 String owner = EntityTypeRegistry.owner(definition.key);
-                LuaScriptErrors.add(owner == null ? definition.key.toString() : owner, message);
-                BetaMoonCommon.LOGGER.warning(message);
+                LuaScriptErrors.add(owner == null ? definition.key.toString() : owner, message,
+                        LuaScriptErrors.Outcome.CALLBACK_DISABLED, error);
             }
         }
     }

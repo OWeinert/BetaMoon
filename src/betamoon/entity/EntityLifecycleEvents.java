@@ -1,11 +1,11 @@
 package betamoon.entity;
 
-import betamoon.BetaMoonCommon;
 
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.luamodloader.ScriptExecution;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -137,13 +137,13 @@ public final class EntityLifecycleEvents {
             if (attacker != null && !attacker.isDead && attacker.worldObj == entity.worldObj) {
                 context.set("attacker", LuaEntityActionAccess.create(scope, null, attacker));
             }
-            callback.call(context);
+            ScriptExecution.invoke(EntityTypeRegistry.owner(definition.key), "entity." + event, callback, context);
         } catch (RuntimeException error) {
             disable(definition, event);
             String message = definition.key + "." + event + " disabled after error: " + error.getMessage();
             String owner = EntityTypeRegistry.owner(definition.key);
-            LuaScriptErrors.add(owner == null ? definition.key.toString() : owner, message);
-            BetaMoonCommon.LOGGER.warning(message);
+            LuaScriptErrors.add(owner == null ? definition.key.toString() : owner, message,
+                    LuaScriptErrors.Outcome.CALLBACK_DISABLED, error);
         }
     }
 

@@ -21,6 +21,7 @@ public final class GuiDialog extends GuiContainer {
     private final GuiContainer bodySlot = add(new GuiContainer());
     private final List<GuiButton> footerButtons = new ArrayList<GuiButton>();
     private GuiElement body;
+    private GuiElement customFooter;
     private int maximumWidth = 360;
     private int maximumHeight = 200;
     private int minimumHeight;
@@ -58,12 +59,29 @@ public final class GuiDialog extends GuiContainer {
     }
 
     public GuiButton addFooterButton(GuiButton button) {
+        if (customFooter != null) {
+            throw new IllegalStateException("A dialog cannot combine a custom footer and automatic footer buttons");
+        }
         if (button == null) {
             throw new IllegalArgumentException("Dialog footer button cannot be null");
         }
         footerButtons.add(button);
         add(button);
         return button;
+    }
+
+    public void setFooter(GuiElement footer) {
+        if (!footerButtons.isEmpty()) {
+            throw new IllegalStateException("A dialog cannot combine a custom footer and automatic footer buttons");
+        }
+        if (customFooter != null) {
+            remove(customFooter);
+        }
+        customFooter = footer;
+        if (footer != null) {
+            add(footer);
+        }
+        requestLayout();
     }
 
     public Rect getPanelBounds() {
@@ -109,11 +127,16 @@ public final class GuiDialog extends GuiContainer {
         int panelWidth = Math.min(maximumWidth, availableWidth);
         int footerRows = footerRowCount(context, panelWidth);
         int footerHeight = footerRows * footerButtonHeight + Math.max(0, footerRows - 1) * footerGap;
+        if (customFooter != null) {
+            footerHeight = customFooter.measure(context,
+                    Constraints.upTo(Math.max(0, panelWidth - footerHorizontalInset * 2), availableHeight)).getHeight();
+        }
         int bodyWidth = Math.max(0, panelWidth - bodyHorizontalInset * 2);
         int bodyHeight = body == null
                 ? 0
                 : body.measure(context, Constraints.upTo(bodyWidth, Integer.MAX_VALUE)).getHeight();
-        int bottomHeight = footerButtons.isEmpty() ? bodyBottomGap : bodyBottomGap + footerHeight + footerBottomInset;
+        boolean hasFooter = customFooter != null || !footerButtons.isEmpty();
+        int bottomHeight = hasFooter ? bodyBottomGap + footerHeight + footerBottomInset : bodyBottomGap;
         int preferredHeight = Math.max(minimumHeight, bodyTopOffset + bodyHeight + bottomHeight);
         int panelHeight = Math.min(Math.min(maximumHeight, preferredHeight), availableHeight);
         int panelLeft = getLeft() + (getWidth() - panelWidth) / 2;
@@ -121,11 +144,14 @@ public final class GuiDialog extends GuiContainer {
         panelBounds = Rect.fromPositionAndSize(panelLeft, panelTop, panelWidth, panelHeight);
 
         int footerTop = panelBounds.getBottom() - footerBottomInset - footerHeight;
-        arrangeFooter(context, footerTop);
+        if (customFooter == null) {
+            arrangeFooter(context, footerTop);
+        } else {
+            customFooter.arrange(context, new Rect(panelBounds.getLeft() + footerHorizontalInset, footerTop,
+                    panelBounds.getRight() - footerHorizontalInset, footerTop + footerHeight));
+        }
         if (body != null) {
-            int bodyBottom = footerButtons.isEmpty()
-                    ? panelBounds.getBottom() - bodyBottomGap
-                    : footerTop - bodyBottomGap;
+            int bodyBottom = hasFooter ? footerTop - bodyBottomGap : panelBounds.getBottom() - bodyBottomGap;
             bodySlot.arrange(context, new Rect(panelBounds.getLeft() + bodyHorizontalInset,
                     panelBounds.getTop() + bodyTopOffset, panelBounds.getRight() - bodyHorizontalInset, bodyBottom));
         }

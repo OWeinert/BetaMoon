@@ -31,7 +31,7 @@ function modInit()
 
   local desertCopy = betamoon.worldgen.biomes:add {
     key = "example:biome/gravel_desert",
-    name = "Example Desert Copy",
+    displayName = "Example Desert Copy",
     basedOn = betamoon.mc.world.biomes.desert,
     tags = { "example:dry", "example:sandy" },
     surface = gravelSurface,

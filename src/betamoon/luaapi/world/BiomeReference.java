@@ -1,6 +1,7 @@
 package betamoon.luaapi.world;
 
 import betamoon.luaapi.resource.OverrideManager;
+import betamoon.luaapi.utils.LuaDataReference;
 import betamoon.worldgen.BiomeGenRegistry;
 import betamoon.worldgen.BiomeSpawnGroup;
 import betamoon.worldgen.BiomeTreeMode;
@@ -23,7 +24,7 @@ import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
 /** Stable live reference for a native or BetaMoon biome. */
-public final class BiomeReference extends LuaTable {
+public final class BiomeReference extends LuaTable implements LuaDataReference {
     private static final String[] SNOW = {"enableSnow", "v"};
     private static final String[] RAIN = {"enableRain", "w"};
     private static final String[] MONSTERS = {"spawnableMonsterList", "s"};
@@ -70,7 +71,7 @@ public final class BiomeReference extends LuaTable {
         }
         String name = key.tojstring();
         if (name.equals("key")) {
-            return valueOf(key == null ? biome.biomeName : key.toString());
+            return valueOf(this.key == null ? biome.biomeName : this.key.toString());
         }
         if (name.equals("name") || name.equals("displayName")) {
             return valueOf(biome.biomeName);
@@ -128,7 +129,8 @@ public final class BiomeReference extends LuaTable {
         if (!query.get("owner").isnil() && !get("owner").raweq(query.get("owner"))) {
             return false;
         }
-        if (!query.get("name").isnil() && !biome.biomeName.equalsIgnoreCase(query.get("name").checkjstring())) {
+        LuaValue displayName = BiomeDeclaration.displayNameValue(query);
+        if (!displayName.isnil() && !biome.biomeName.equalsIgnoreCase(displayName.checkjstring())) {
             return false;
         }
         return query.get("vanilla").isnil() || (entry == null) == query.get("vanilla").checkboolean();
@@ -188,6 +190,12 @@ public final class BiomeReference extends LuaTable {
                     || field.equals("changes"))) {
                 continue;
             }
+            if (prefix.isEmpty() && field.equals("name")) {
+                if (!changes.get("displayName").isnil()) {
+                    continue;
+                }
+                field = "displayName";
+            }
             String path = prefix.length() == 0 ? field : prefix + "." + field;
             LuaValue value = next.arg(2);
             OverrideManager.Request<?, ?> request = request(path, value, priority);
@@ -202,7 +210,7 @@ public final class BiomeReference extends LuaTable {
     }
 
     private OverrideManager.Request<?, ?> request(String path, LuaValue value, int priority) {
-        if (path.equals("name") || path.equals("displayName")) {
+        if (path.equals("displayName")) {
             return request(path, stringProperty(path, new StringAccess() {
                 public String read() {
                     return biome.biomeName;
@@ -210,6 +218,7 @@ public final class BiomeReference extends LuaTable {
 
                 public void write(String value) {
                     biome.biomeName = value;
+                    BiomeGenRegistry.invalidateTerrainSnapshots();
                 }
             }), value.checkjstring(), priority);
         }
@@ -506,4 +515,12 @@ public final class BiomeReference extends LuaTable {
             target.addAll(copy(source));
         }
     }
+    @Override
+    public Object declarationValue() {
+        if (key == null) {
+            throw new LuaError("Native biomes do not have BetaMoon world-generation keys");
+        }
+        return key.toString();
+    }
+
 }

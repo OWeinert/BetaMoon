@@ -1,0 +1,24 @@
+{
+  "key": "example:terrain/marches_mesas",
+  "baseHeight": 87,
+  "layers": [
+    {
+      "key": "mesa_ridges",
+      "type": "ridge",
+      "scale": 192,
+      "amplitude": 16,
+      "salt": 2002
+    },
+    {
+      "key": "wide_steps",
+      "type": "terrace",
+      "stepHeight": 6,
+      "blend": 0.9
+    }
+  ],
+  "heightClamp": {
+    "min": 82,
+    "max": 108
+  },
+  "surfaceSlopeLimit": 2
+}

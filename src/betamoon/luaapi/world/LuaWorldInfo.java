@@ -1,5 +1,6 @@
 package betamoon.luaapi.world;
 
+import betamoon.dimension.DimensionIdentity;
 import betamoon.luaapi.utils.PositionI;
 import net.minecraft.src.World;
 import net.minecraft.src.WorldInfo;
@@ -31,6 +32,8 @@ public final class LuaWorldInfo extends LuaTable {
 
     public static LuaWorldInfo fromWorld(World world) {
         LuaWorldInfo result = new LuaWorldInfo(world.getWorldInfo());
+        result.put("dimension", LuaValue.valueOf(world.worldProvider.worldType));
+        result.put("dimensionKey", LuaValue.valueOf(DimensionIdentity.key(world).toString()));
         long time = world.getWorldTime();
         result.put("day", LuaValue.valueOf(Math.floorDiv(time, 24000L)));
         result.put("timeOfDay", LuaValue.valueOf(Math.floorMod(time, 24000L)));

@@ -1,0 +1,34 @@
+{
+  "key": "example:generator/rolling_meadows",
+  "displayName": "Rolling Meadows",
+  "dimensions": {
+    "overworld": {
+      "terrain": "example:terrain_source/meadows",
+      "biomeSource": {
+        "type": "fixed",
+        "biome": "example:biome/rolling_meadow"
+      },
+      "carvers": [
+        "example:carver/meadow_tunnels"
+      ],
+      "surfaces": "inherit",
+      "population": {
+        "native": {
+          "ores": false,
+          "trees": false
+        }
+      },
+      "features": {
+        "include": [
+          "example:placement/meadow_coal",
+          "example:placement/meadow_oaks"
+        ]
+      },
+      "structures": {
+        "includeTags": [
+          "example:rolling_meadows"
+        ]
+      }
+    }
+  }
+}

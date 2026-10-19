@@ -14,10 +14,12 @@ public final class FluidDefinition {
     private final FluidDisplacementPolicy displacement;
     private final FluidEntityPolicy entity;
     private final FluidCameraPolicy camera;
+    private final FluidEcologyPolicy ecology;
     private final int flowingBlockId;
     private final int stillBlockId;
     private final int bucketItemId;
     private final boolean vanilla;
+    private final boolean safeTeleportArrival;
 
     public FluidDefinition(ContentKey key, String owner, String preset, FluidCarrier carrier, FluidFlowPolicy flow,
             FluidAppearance appearance, FluidDisplacementPolicy displacement, int flowingBlockId, int stillBlockId,
@@ -36,6 +38,22 @@ public final class FluidDefinition {
     public FluidDefinition(ContentKey key, String owner, String preset, FluidCarrier carrier, FluidFlowPolicy flow,
             FluidAppearance appearance, FluidDisplacementPolicy displacement, FluidEntityPolicy entity,
             FluidCameraPolicy camera, int flowingBlockId, int stillBlockId, int bucketItemId, boolean vanilla) {
+        this(key, owner, preset, carrier, flow, appearance, displacement, entity, camera,
+                FluidEcologyPolicy.defaults(vanilla, preset), flowingBlockId, stillBlockId, bucketItemId, vanilla);
+    }
+
+    public FluidDefinition(ContentKey key, String owner, String preset, FluidCarrier carrier, FluidFlowPolicy flow,
+            FluidAppearance appearance, FluidDisplacementPolicy displacement, FluidEntityPolicy entity,
+            FluidCameraPolicy camera, FluidEcologyPolicy ecology, int flowingBlockId, int stillBlockId,
+            int bucketItemId, boolean vanilla) {
+        this(key, owner, preset, carrier, flow, appearance, displacement, entity, camera, ecology, flowingBlockId,
+                stillBlockId, bucketItemId, vanilla, false);
+    }
+
+    public FluidDefinition(ContentKey key, String owner, String preset, FluidCarrier carrier, FluidFlowPolicy flow,
+            FluidAppearance appearance, FluidDisplacementPolicy displacement, FluidEntityPolicy entity,
+            FluidCameraPolicy camera, FluidEcologyPolicy ecology, int flowingBlockId, int stillBlockId,
+            int bucketItemId, boolean vanilla, boolean safeTeleportArrival) {
         if (key == null || !ContentType.FLUID.equals(key.type())) {
             throw new IllegalArgumentException("Fluid definition requires a fluid content key.");
         }
@@ -66,10 +84,19 @@ public final class FluidDefinition {
         this.displacement = displacement;
         this.entity = entity;
         this.camera = camera;
+        if (ecology == null) {
+            throw new NullPointerException("Fluid ecology policy");
+        }
+        this.ecology = ecology;
         this.flowingBlockId = flowingBlockId;
         this.stillBlockId = stillBlockId;
         this.bucketItemId = bucketItemId;
         this.vanilla = vanilla;
+        this.safeTeleportArrival = safeTeleportArrival;
+    }
+
+    public boolean safeTeleportArrival() {
+        return safeTeleportArrival;
     }
 
     private static void validateBlockId(int id, String role) {
@@ -114,6 +141,10 @@ public final class FluidDefinition {
         return camera;
     }
 
+    public FluidEcologyPolicy ecology() {
+        return ecology;
+    }
+
     public int flowingBlockId() {
         return flowingBlockId;
     }
@@ -134,7 +165,10 @@ public final class FluidDefinition {
         return vanilla;
     }
 
-    /** Fields which cannot change without replacing native objects and corrupting retained identities. */
+    /**
+     * Fields which cannot change without replacing native objects and corrupting
+     * retained identities.
+     */
     public String structuralSignature() {
         return key + "|" + carrier.value() + "|" + flowingBlockId + "|" + stillBlockId + "|" + bucketItemId;
     }

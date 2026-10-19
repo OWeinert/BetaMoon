@@ -1,6 +1,7 @@
 package betamoon.luaapi.block;
 
 import betamoon.loot.GameplayLootDefinition;
+import betamoon.loot.LootContext;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -8,6 +9,7 @@ import java.util.Random;
 import net.minecraft.src.Item;
 import net.minecraft.src.ItemStack;
 import org.luaj.vm2.LuaValue;
+
 import static betamoon.luaapi.utils.LuaDeclarationValues.error;
 import static betamoon.luaapi.utils.LuaDeclarationValues.fields;
 import static betamoon.luaapi.utils.LuaDeclarationValues.id;
@@ -15,7 +17,10 @@ import static betamoon.luaapi.utils.LuaDeclarationValues.integer;
 import static betamoon.luaapi.utils.LuaDeclarationValues.length;
 import static betamoon.luaapi.utils.LuaDeclarationValues.number;
 
-/** Legacy shorthand entries or a shared loot-table source sampled for one block-drop request. */
+/**
+ * Legacy shorthand entries or a shared loot-table source sampled for one
+ * block-drop request.
+ */
 public final class BlockDropDefinition {
     public final boolean declared;
     private final List<Entry> entries = new ArrayList<Entry>();
@@ -50,8 +55,12 @@ public final class BlockDropDefinition {
     }
 
     public List<ItemStack> sample(Random random, float engineChance) {
+        return sample(random, engineChance, null);
+    }
+
+    public List<ItemStack> sample(Random random, float engineChance, LootContext context) {
         if (loot != null) {
-            List<ItemStack> sampled = loot.sample(random);
+            List<ItemStack> sampled = loot.sample(random, context);
             if (engineChance >= 1.0F) {
                 return sampled;
             }

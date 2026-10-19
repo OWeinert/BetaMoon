@@ -1,11 +1,11 @@
 package betamoon.entity;
 
-import betamoon.BetaMoonCommon;
 
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.luamodloader.ScriptExecution;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -191,14 +191,15 @@ final class EntitySensorManager {
             if (reason != null) {
                 context.set("reason", reason);
             }
-            callback.call(context);
+            ScriptExecution.invoke(EntityTypeRegistry.owner(definition.key),
+                    "entity.sensor." + sensor.name + "." + event, callback, context);
         } catch (RuntimeException error) {
             if (DISABLED.computeIfAbsent(sensor, ignored -> new HashSet<>()).add(event)) {
                 String message = definition.key + ".sensors." + sensor.name + "." + event
                         + " disabled after error: " + error.getMessage();
                 String owner = EntityTypeRegistry.owner(definition.key);
-                LuaScriptErrors.add(owner == null ? definition.key.toString() : owner, message);
-                BetaMoonCommon.LOGGER.warning(message);
+                LuaScriptErrors.add(owner == null ? definition.key.toString() : owner, message,
+                        LuaScriptErrors.Outcome.CALLBACK_DISABLED, error);
             }
         }
     }

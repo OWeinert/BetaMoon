@@ -1,9 +1,9 @@
 package betamoon.luaapi.item;
 
 import betamoon.entity.EntitySpawner;
+import betamoon.utils.WeakIdentityMap;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.WeakHashMap;
 import net.minecraft.src.Entity;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.ItemStack;
@@ -11,7 +11,7 @@ import net.minecraft.src.World;
 
 /** Applies item use policies and owns their transient per-player cooldowns. */
 public final class ItemUseHandler {
-    private static final Map<EntityPlayer, Map<ItemDefinition, Long>> COOLDOWNS = new WeakHashMap<EntityPlayer, Map<ItemDefinition, Long>>();
+    private static final WeakIdentityMap<EntityPlayer, Map<ItemDefinition, Long>> COOLDOWNS = new WeakIdentityMap<EntityPlayer, Map<ItemDefinition, Long>>();
 
     private ItemUseHandler() {
     }
@@ -19,6 +19,32 @@ public final class ItemUseHandler {
     static void clear(ItemDefinition definition) {
         for (Map<ItemDefinition, Long> entries : COOLDOWNS.values()) {
             entries.remove(definition);
+        }
+    }
+
+    /**
+     * Preserves remaining use delays when a living player moves between independent
+     * world clocks.
+     */
+    public static void worldChanged(EntityPlayer player, World source, World destination) {
+        if (source == destination) {
+            return;
+        }
+        Map<ItemDefinition, Long> entries = COOLDOWNS.get(player);
+        if (entries == null) {
+            return;
+        }
+        long sourceTime = source.getWorldTime();
+        long destinationTime = destination.getWorldTime();
+        for (Map.Entry<ItemDefinition, Long> entry : entries.entrySet()) {
+            long end = entry.getValue();
+            long remaining = end <= sourceTime ? 0 : Math.min(end - sourceTime, entry.getKey().use.cooldown);
+            // Both native clocks are normally nonnegative. Bound unusual clock changes as
+            // well.
+            if (remaining < 0) {
+                remaining = entry.getKey().use.cooldown;
+            }
+            entry.setValue(deadline(destinationTime, remaining));
         }
     }
 
@@ -85,8 +111,8 @@ public final class ItemUseHandler {
             double y = player.posY + player.getEyeHeight() - 0.1;
             double z = player.posZ - Math.sin(Math.toRadians(yaw)) * 0.16;
             try {
-                return EntitySpawner.spawn(world, definition.use.customProjectile, x, y, z, yaw, pitch, player)
-                        .entity != null;
+                return EntitySpawner.spawn(world, definition.use.customProjectile, x, y, z, yaw, pitch,
+                        player).entity != null;
             } catch (IllegalArgumentException missingType) {
                 return false;
             }
@@ -124,7 +150,11 @@ public final class ItemUseHandler {
             entries = new HashMap<ItemDefinition, Long>();
             COOLDOWNS.put(player, entries);
         }
-        entries.put(definition, world.getWorldTime() + definition.use.cooldown);
+        entries.put(definition, deadline(world.getWorldTime(), definition.use.cooldown));
+    }
+
+    private static long deadline(long now, long ticks) {
+        return now > Long.MAX_VALUE - ticks ? Long.MAX_VALUE : now + ticks;
     }
 
 }

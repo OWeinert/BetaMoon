@@ -1,7 +1,9 @@
 package betamoon;
 
-import betamoon.multiblock.MultiblockRuntime;
-
+import betamoon.dimension.DimensionIdentity;
+import betamoon.dimension.DimensionNativePortal;
+import betamoon.dimension.DimensionRuntime;
+import betamoon.dimension.DimensionTransition;
 import betamoon.event.Events;
 import betamoon.event.context.DimensionEventCtx;
 import betamoon.event.context.GuiEventCtx;
@@ -10,7 +12,9 @@ import betamoon.event.context.ItemUseEventCtx;
 import betamoon.event.context.PlayerEventCtx;
 import betamoon.event.context.PressAction;
 import betamoon.event.context.WorldEventCtx;
+import betamoon.multiblock.MultiblockRuntime;
 import betamoon.system.WorldServiceRuntime;
+import betamoon.teleport.TeleportRuntime;
 import betamoon.utils.KeyInputMapper;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.EntityPlayer;
@@ -26,6 +30,7 @@ public final class BetaMoonEventHandler {
     private GuiScreen lastScreen;
     private EntityPlayer lastPlayer;
     private Integer lastDimension;
+    private String lastDimensionKey;
     private boolean[] lastKeyStates;
     private boolean[] lastMouseStates;
     private char[] lastKeyChars;
@@ -49,6 +54,9 @@ public final class BetaMoonEventHandler {
     }
 
     private void synchronizeLifecycle(Minecraft mc, GuiScreen current) {
+        if (TeleportRuntime.nativeSwitching() || DimensionNativePortal.active()) {
+            return;
+        }
         if (current != lastScreen) {
             Events.SCREEN_CHANGED.publish(new GuiEventCtx(mc, lastScreen, current));
             lastScreen = current;
@@ -72,8 +80,10 @@ public final class BetaMoonEventHandler {
                 MultiblockRuntime.unload(previousWorld);
                 WorldServiceRuntime.unload(previousWorld);
                 Events.WORLD_LEAVE.publish(new WorldEventCtx(mc, previousWorld));
+                DimensionRuntime.releaseInactive(previousWorld);
             }
             if (currentWorld != null) {
+                DimensionRuntime.activate(currentWorld);
                 WorldServiceRuntime.load(currentWorld);
                 Events.WORLD_JOIN.publish(new WorldEventCtx(mc, currentWorld));
             }
@@ -92,13 +102,27 @@ public final class BetaMoonEventHandler {
         }
         // dimension change event
         if (currentWorld != null) {
-            int dimension = currentWorld.getWorldInfo().getDimension();
-            if (lastDimension != null && dimension != lastDimension.intValue()) {
-                Events.DIMENSION_CHANGE.publish(new DimensionEventCtx(mc, lastDimension.intValue(), dimension));
+            int dimension = currentWorld.worldProvider.worldType;
+            String key = knownDimensionKey(currentWorld);
+            if (lastDimension != null && (dimension != lastDimension.intValue()
+                    || lastDimensionKey != null && !lastDimensionKey.equals(key))) {
+                DimensionTransition notice = DimensionTransition.arrival(currentWorld);
+                Events.DIMENSION_CHANGE.publish(new DimensionEventCtx(mc, lastDimension.intValue(), dimension,
+                        lastDimensionKey, key, notice.reason, notice.transferId));
             }
             lastDimension = Integer.valueOf(dimension);
+            lastDimensionKey = key;
         } else {
             lastDimension = null;
+            lastDimensionKey = null;
+        }
+    }
+
+    private static String knownDimensionKey(World world) {
+        try {
+            return DimensionIdentity.key(world).toString();
+        } catch (IllegalArgumentException unsupportedExternalDimension) {
+            return null;
         }
     }
 

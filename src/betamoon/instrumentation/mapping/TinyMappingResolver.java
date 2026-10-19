@@ -9,6 +9,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,10 +20,25 @@ import java.util.Map;
 public final class TinyMappingResolver implements MappingResolver {
     private final List<String> namespaces;
     private final Map<String, ClassMapping> classes;
+    private final Map<RuntimeNamespace, Map<String, String>> namedClasses;
 
     private TinyMappingResolver(List<String> namespaces, Map<String, ClassMapping> classes) {
         this.namespaces = namespaces;
         this.classes = classes;
+        namedClasses = new EnumMap<>(RuntimeNamespace.class);
+        for (RuntimeNamespace namespace : RuntimeNamespace.values()) {
+            Map<String, String> reverse = new HashMap<>();
+            int index = namespaces.indexOf(namespace.getMappingName());
+            if (index >= 0) {
+                for (Map.Entry<String, ClassMapping> entry : classes.entrySet()) {
+                    String runtimeName = entry.getValue().names[index];
+                    if (!runtimeName.isEmpty()) {
+                        reverse.put(runtimeName, entry.getKey());
+                    }
+                }
+            }
+            namedClasses.put(namespace, reverse);
+        }
     }
 
     public static TinyMappingResolver read(InputStream input) throws IOException {
@@ -95,6 +111,12 @@ public final class TinyMappingResolver implements MappingResolver {
             return classRef.getInternalName();
         }
         return mappedName(mapping.names, namespace, classRef.getInternalName());
+    }
+
+    /** Resolves a runtime class back to its canonical name without loading or transforming the class. */
+    public String resolveNamedClass(String runtimeInternalName, RuntimeNamespace namespace) {
+        Map<String, String> reverse = namedClasses.get(namespace);
+        return reverse == null ? runtimeInternalName : reverse.getOrDefault(runtimeInternalName, runtimeInternalName);
     }
 
     @Override

@@ -1,5 +1,6 @@
 package betamoon.fluid.block;
 
+import betamoon.dimension.DimensionRules;
 import betamoon.fluid.FluidDefinition;
 import betamoon.fluid.FluidDisplacementPolicy;
 import betamoon.fluid.FluidFlowPolicy;
@@ -84,7 +85,7 @@ final class FluidSimulation {
     }
 
     private static int levelStep(World world, FluidDefinition definition) {
-        return definition.flow().levelStep(world.worldProvider.isHellWorld);
+        return definition.flow().levelStep(DimensionRules.fastLava(world.worldProvider));
     }
 
     private static boolean shouldDelayRetreat(int current, int next, float chance, Random random) {
@@ -154,7 +155,9 @@ final class FluidSimulation {
         return chooseDirections(costs, candidates);
     }
 
-    /** Spreads over open level ground when every candidate lacks a downhill route. */
+    /**
+     * Spreads over open level ground when every candidate lacks a downhill route.
+     */
     static boolean[] chooseDirections(int[] costs, boolean[] candidates) {
         int minimum = NO_PATH;
         for (int direction = 0; direction < costs.length; direction++) {
@@ -186,8 +189,7 @@ final class FluidSimulation {
                 return depth;
             }
             if (depth < definition.flow().slopeSearch()) {
-                minimum = Math.min(minimum,
-                        flowCost(definition, world, targetX, y, targetZ, depth + 1, direction));
+                minimum = Math.min(minimum, flowCost(definition, world, targetX, y, targetZ, depth + 1, direction));
             }
         }
         return minimum;
@@ -219,9 +221,8 @@ final class FluidSimulation {
         if (blockId == 0) {
             return false;
         }
-        if (blockId == Block.doorWood.blockID || blockId == Block.doorSteel.blockID
-                || blockId == Block.signPost.blockID || blockId == Block.ladder.blockID
-                || blockId == Block.reed.blockID) {
+        if (blockId == Block.doorWood.blockID || blockId == Block.doorSteel.blockID || blockId == Block.signPost.blockID
+                || blockId == Block.ladder.blockID || blockId == Block.reed.blockID) {
             return true;
         }
         return Block.blocksList[blockId].blockMaterial.getIsSolid();

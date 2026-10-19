@@ -1,32 +1,37 @@
 package betamoon.luaapi.fluid;
 
+import betamoon.client.assets.AssetLocation;
+import betamoon.client.assets.ClientAssets;
 import betamoon.content.ContentKey;
 import betamoon.content.ContentKeyException;
 import betamoon.content.ContentType;
 import betamoon.fluid.FluidAppearance;
+import betamoon.fluid.FluidCameraPolicy;
 import betamoon.fluid.FluidCarrier;
 import betamoon.fluid.FluidDisplacementPolicy;
-import betamoon.fluid.FluidFlowPolicy;
+import betamoon.fluid.FluidEcologyPolicy;
 import betamoon.fluid.FluidEntityPolicy;
-import betamoon.fluid.FluidCameraPolicy;
-import betamoon.client.assets.AssetLocation;
-import betamoon.client.assets.ClientAssets;
-import betamoon.runtime.RuntimeEnvironment;
-import java.io.IOException;
+import betamoon.fluid.FluidFlowPolicy;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.asset.AssetInputs;
 import betamoon.luaapi.utils.LuaContentNamespaces;
+import betamoon.luaapi.utils.LuaDeclarationValues;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.resources.EnumTexAtlas;
+import betamoon.runtime.RuntimeEnvironment;
+import java.io.IOException;
 import org.luaj.vm2.LuaError;
-import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
+
 import static betamoon.luaapi.utils.LuaDeclarationValues.fields;
 import static betamoon.luaapi.utils.LuaDeclarationValues.integer;
 import static betamoon.luaapi.utils.LuaDeclarationValues.number;
 import static betamoon.luaapi.utils.LuaDeclarationValues.required;
 
-/** Strict parsing and preflight for the common fluid portion of both creation paths. */
+/**
+ * Strict parsing and preflight for the common fluid portion of both creation
+ * paths.
+ */
 final class FluidDeclaration {
     final FluidDraft draft;
     final LuaValue blocks;
@@ -43,7 +48,8 @@ final class FluidDeclaration {
             throw new LuaError("Fluid definition must be a table.");
         }
         fields(value, "fluid", "key", "material", "preset", "appearance", "flow", "displacement", "entity", "camera",
-                shorthand ? "blocks" : "__no_blocks", shorthand ? "bucket" : "__no_bucket");
+                "ecology", "safeTeleportArrival", shorthand ? "blocks" : "__no_blocks",
+                shorthand ? "bucket" : "__no_bucket");
 
         String owner = LuaScriptRegistry.getCurrentScriptFile();
         if (owner == null) {
@@ -63,8 +69,25 @@ final class FluidDeclaration {
             throw new LuaError("fluid.blocks must be a table with flowing and still declarations.");
         }
         return new FluidDeclaration(new FluidDraft(key, owner, preset, carrier, flow, appearance, displacement, entity,
-                camera),
+                camera, ecology(value.get("ecology")),
+                LuaDeclarationValues.bool(value.get("safeTeleportArrival"), "fluid.safeTeleportArrival", false)),
                 blocks, value.get("bucket"));
+    }
+
+    private static FluidEcologyPolicy ecology(LuaValue value) {
+        if (value.isnil()) {
+            return FluidEcologyPolicy.defaults(false, "neutral");
+        }
+        fields(value, "fluid.ecology", "fallingBlocksPassThrough", "hydratesFarmland", "supportsReeds",
+                "absorbedBySponge", "boatsFloat", "aquaticHabitat", "pathfinding");
+        try {
+            return new FluidEcologyPolicy(value.get("fallingBlocksPassThrough").optboolean(false),
+                    value.get("hydratesFarmland").optboolean(false), value.get("supportsReeds").optboolean(false),
+                    value.get("absorbedBySponge").optboolean(false), value.get("boatsFloat").optboolean(false),
+                    value.get("aquaticHabitat").optboolean(false), value.get("pathfinding").optjstring("blocked"));
+        } catch (IllegalArgumentException exception) {
+            throw new LuaError("fluid.ecology: " + exception.getMessage());
+        }
     }
 
     private static ContentKey fluidKey(LuaValue value) {
@@ -106,8 +129,7 @@ final class FluidDeclaration {
                 "retreatDelayChance", "dimensions");
         int tickRate = optionalInteger(value.get("tickRate"), base.tickRate(), 1, 1200, "fluid.flow.tickRate");
         int levelStep = optionalInteger(value.get("levelStep"), base.levelStep(), 1, 7, "fluid.flow.levelStep");
-        int slopeSearch = optionalInteger(value.get("slopeSearch"), base.slopeSearch(), 0, 8,
-                "fluid.flow.slopeSearch");
+        int slopeSearch = optionalInteger(value.get("slopeSearch"), base.slopeSearch(), 0, 8, "fluid.flow.slopeSearch");
         FluidFlowPolicy.SourceCreation source = sourceCreation(value, base.sourceCreation());
         float retreat = optionalFloat(value.get("retreatDelayChance"), base.retreatDelayChance(), 0.0F, 1.0F,
                 "fluid.flow.retreatDelayChance");
@@ -131,8 +153,7 @@ final class FluidDeclaration {
                 LuaValue override = dimensions.get(dimensionKey);
                 fields(override, "fluid.flow.dimensions." + dimension, "tickRate", "levelStep");
                 if (override.get("tickRate").isnil() && override.get("levelStep").isnil()) {
-                    throw new LuaError("fluid.flow.dimensions." + dimension
-                            + " requires tickRate or levelStep.");
+                    throw new LuaError("fluid.flow.dimensions." + dimension + " requires tickRate or levelStep.");
                 }
                 if (!override.get("tickRate").isnil()) {
                     hellTickRate = Integer.valueOf(integer(override.get("tickRate"),
@@ -239,8 +260,8 @@ final class FluidDeclaration {
         if (value.isnil()) {
             return base;
         }
-        fields(value, "fluid.entity", "movement", "currentScale", "drowning", "countsAsWet",
-                "extinguishesFire", "ignitesEntities", "contactDamage", "contactIntervalTicks");
+        fields(value, "fluid.entity", "movement", "currentScale", "drowning", "countsAsWet", "extinguishesFire",
+                "ignitesEntities", "contactDamage", "contactIntervalTicks");
         String movementName = value.get("movement").optjstring(base.movement().value());
         FluidEntityPolicy.Movement movement;
         if ("none".equals(movementName)) {
@@ -263,8 +284,8 @@ final class FluidDeclaration {
                 optionalBoolean(value.get("countsAsWet"), base.countsAsWet(), "fluid.entity.countsAsWet"),
                 optionalBoolean(value.get("extinguishesFire"), base.extinguishesFire(),
                         "fluid.entity.extinguishesFire"),
-                optionalBoolean(value.get("ignitesEntities"), base.ignitesEntities(),
-                        "fluid.entity.ignitesEntities"), damage, interval);
+                optionalBoolean(value.get("ignitesEntities"), base.ignitesEntities(), "fluid.entity.ignitesEntities"),
+                damage, interval);
     }
 
     private static boolean optionalBoolean(LuaValue value, boolean fallback, String path) {
@@ -289,8 +310,8 @@ final class FluidDeclaration {
         }
         Float density = base.fogDensity();
         if (!value.get("fogDensity").isnil()) {
-            density = Float.valueOf(optionalFloat(value.get("fogDensity"), 0.0F, 0.0F, 1.0F,
-                    "fluid.camera.fogDensity"));
+            density = Float
+                    .valueOf(optionalFloat(value.get("fogDensity"), 0.0F, 0.0F, 1.0F, "fluid.camera.fogDensity"));
         }
         LuaValue overlay = value.get("overlay");
         if (overlay.isnil()) {

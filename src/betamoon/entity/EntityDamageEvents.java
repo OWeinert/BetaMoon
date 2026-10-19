@@ -1,12 +1,12 @@
 package betamoon.entity;
 
-import betamoon.BetaMoonCommon;
 
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.world.LuaExplosionApi;
 import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.luamodloader.ScriptExecution;
 import betamoon.world.explosion.ExplosionExecution;
 import betamoon.world.explosion.ExplosionRequest;
 import java.util.Collections;
@@ -122,7 +122,8 @@ public final class EntityDamageEvents {
             if (health >= 0) {
                 context.set("health", health);
             }
-            LuaValue result = definition.onBeforeDamage.call(context);
+            LuaValue result = ScriptExecution.invoke(EntityTypeRegistry.owner(definition.key),
+                    "entity.onBeforeDamage", definition.onBeforeDamage, context).arg1();
             if (result.isnil()) {
                 return requested;
             }
@@ -152,7 +153,8 @@ public final class EntityDamageEvents {
                 context.set("healthAfter", after);
                 context.set("healthLost", Math.max(0, before - after));
             }
-            definition.onAfterDamage.call(context);
+            ScriptExecution.invoke(EntityTypeRegistry.owner(definition.key),
+                    "entity.onAfterDamage", definition.onAfterDamage, context);
         } catch (RuntimeException error) {
             disable(definition, "onAfterDamage", error);
         }
@@ -194,8 +196,8 @@ public final class EntityDamageEvents {
         if (DISABLED.computeIfAbsent(definition, ignored -> new HashSet<>()).add(event)) {
             String message = definition.key + "." + event + " disabled after error: " + error.getMessage();
             String owner = EntityTypeRegistry.owner(definition.key);
-            LuaScriptErrors.add(owner == null ? definition.key.toString() : owner, message);
-            BetaMoonCommon.LOGGER.warning(message);
+            LuaScriptErrors.add(owner == null ? definition.key.toString() : owner, message,
+                    LuaScriptErrors.Outcome.CALLBACK_DISABLED, error);
         }
     }
 

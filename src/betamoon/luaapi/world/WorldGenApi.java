@@ -9,6 +9,8 @@ public final class WorldGenApi {
 
     public static void attach(LuaTable module) {
         LuaTable worldgen = new LuaTable();
+        SpatialWorldGenApi.attach(worldgen);
+        TerrainWorldGenApi.attach(worldgen);
         FeaturePlacementApi.attach(worldgen);
         StructureGenApi.attach(worldgen);
         TreeGenApi.attach(worldgen);

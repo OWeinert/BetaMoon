@@ -1,11 +1,11 @@
 package betamoon.entity;
 
-import betamoon.BetaMoonCommon;
 
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.luamodloader.ScriptExecution;
 import java.util.Collections;
 import java.util.Set;
 import java.util.WeakHashMap;
@@ -31,13 +31,13 @@ final class PickupEvent {
             context.set("player", LuaEntityActionAccess.create(scope, player, player));
             context.set("world", LuaWorldActionAccess.create(scope, pickup.worldObj, (int) Math.floor(pickup.posX),
                     (int) Math.floor(pickup.posY), (int) Math.floor(pickup.posZ), pickup));
-            definition.onPickup.call(context);
+            ScriptExecution.invoke(EntityTypeRegistry.owner(definition.key), "entity.onPickup", definition.onPickup, context);
         } catch (RuntimeException error) {
             if (DISABLED.add(definition)) {
                 String message = definition.key + ".onPickup disabled after error: " + error.getMessage();
                 String owner = EntityTypeRegistry.owner(definition.key);
-                LuaScriptErrors.add(owner == null ? definition.key.toString() : owner, message);
-                BetaMoonCommon.LOGGER.warning(message);
+                LuaScriptErrors.add(owner == null ? definition.key.toString() : owner, message,
+                        LuaScriptErrors.Outcome.CALLBACK_DISABLED, error);
             }
         }
     }
