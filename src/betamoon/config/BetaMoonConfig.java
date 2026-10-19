@@ -68,7 +68,7 @@ public final class BetaMoonConfig {
             throw new IllegalStateException("Unable to create BetaMoon config directory: " + configDirectory);
         }
         logDirectory = BetaMoonDirectories.logsDirectoryForInstance(directory.getAbsoluteFile().getParentFile());
-        config = new Configuration(resolveConfigFile(directory, configFileName));
+        config = new GroupedForgeConfiguration(resolveConfigFile(directory, configFileName));
         updateConfigFields();
     }
 
