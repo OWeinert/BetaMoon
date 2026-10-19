@@ -2,55 +2,48 @@
 
 ## 0.10.0
 
-- Preserve teleport completion notifications if a loading screen fails to close.
+### World generation
 
-- Detect incompatible saved generation before loading and preserve Minecraft's backup recovery for ordinary saves.
-- Correct native-family generation settings, duplicate Nether placements and dimension-scoped spatial eligibility.
-- Keep profile-restricted carvers within terrain contributed by the selected profiles.
+- Add saved generator profiles with flat, void, heightmap, density, Beta-style, blended and composed terrain.
+- Add shared spatial fields, noise and fixed/original-spawn anchors for terrain, biomes, placements, structures,
+  natural spawns and loot.
+- Add height profiles, material rules, cave carvers, named placement heights and population controls.
+- Let players choose a generator and enable or disable generation content in Create World, with choices saved per world.
+- Warn about missing saved generators and offer confirmed, temporary Minecraft generation without replacing saved choices.
+- Add read-only terrain previews, field inspection and CSV exports.
 
-- Add the Flat Dimension advanced example with classic superflat terrain, a reusable key, activation anchors and return travel.
-- Preserve remaining custom item use cooldowns when teleporting between dimensions with different world times.
-- Fix custom dimension teleportation being incorrectly refused as an unsupported environment.
-- Speed up dimension transfers by saving changed terrain once and avoiding repeated writes of unchanged chunks and world data.
-- Show full-screen Minecraft-style loading with terrain preparation and saving progress during dimension transfers and loading.
-- Add persistent keyed custom dimensions with native or custom generation, independent environment rules and configurable spawn/respawn.
-- Add queued teleportation, safe arrivals, explicit platforms, progress/cancellation and persistent per-script return history.
-- Restore saved custom dimensions on load and provide explicit backup-and-rescue recovery for missing or incompatible definitions.
-- Extend generation, natural-spawn and atmosphere selectors with canonical dimension identities, and expose scoped players to event/input callbacks.
-- Preserve protected local-structure cells, including air, across saves and respect them during teleport platform creation.
-- Add metadata-dependent block/item names and texture assets for visual variants.
-- Add block inventory subtypes with placement-state separation and explicitly enabled subtype-preserving drops.
-- Add metadata-aware resource lookups and discovery of declared custom variants.
-- Add scoped local-player access, atomic entity transforms, bounded collision displacement, impulses and support probes.
+### Dimensions and teleportation
 
-- Add source-tracked container GUI bindings, independent property transitions, temporary state events and runtime element handles.
-- Share animated geometry across GUI rendering, clipping, pointer input and panel click protection; retain container state during compatible visual refreshes.
-- Add consistent RGB artwork tinting, independent progress/icon tints, opacity and GUI interpolation helpers.
+- Add persistent custom dimensions with builtin or custom generation, independent environment rules, seeds and
+  spawn/respawn settings.
+- Add queued player teleportation within and between dimensions, with safe arrival searches, optional platforms and
+  saved return history.
+- Add Minecraft-style loading progress and saved-dimension recovery with explicit backup and rescue to the Overworld.
+- Add custom-dimension selectors to world generation, natural spawning and atmospheres, and scoped player access in
+  event/input callbacks.
 
-- Add resizable, color-tinted panel elements for container GUI sections and expandable side tabs.
-- Add resizable visual slot elements with inner dimensions and fixed Minecraft-style borders to container GUIs.
+### Blocks and items
 
-- Reduce cave-generation work and reuse neighboring base terrain for fluid-safety checks.
-- Improve custom terrain generation and lighting performance while preserving terrain output.
-- Correct emitted light spreading into already loaded chunks during custom terrain generation.
+- Add metadata-dependent names and textures, declared block inventory subtypes and metadata-aware resource queries.
+- Add opt-in subtype-preserving block drops; metadata zero remains the default.
 
-- Use displayName consistently for biomes while preserving name as a backwards-compatibility alias.
+### Player and entity access
 
-- Preserve custom climate biomes when opening generation settings and include Example Meadow under its display name.
+- Add scoped local-player access, position/rotation transforms, collision-aware movement, velocity impulses and support queries.
 
-- Organize generation settings into collapsible categories with separate checkboxes and correct wide-button rendering.
+### Container GUIs
 
-- Warn when a saved world generator is missing and offer confirmed, temporary Minecraft generation without replacing saved settings.
+- Add resizable visual slots and panels with Minecraft-style borders.
+- Add state-driven element bindings, GUI events, runtime element controls and independent property transitions.
+- Add translation, scaling, clipping, tinting, opacity and interpolation/easing helpers for supported elements.
 
-- Add two JSON/Lua world-generation tutorials and reorganize the intermediate/advanced example sequence.
-- Correct generator chunk exports resolving their preview method.
+### Atmospheres and fluids
 
-- Add Minecraft-style world creation preset selection and searchable per-world generation settings with saved choices.
+- Add biome-, region- and dimension-scoped fog, sky/light colors and ambient/weather sound layers.
+- Add independent custom-fluid ecology traits and fluid-aware placement filters.
 
-- Add save-bound Overworld generator profiles with void, layered, heightmap, density, Beta-compatible, blended and composed terrain sources.
-- Add shared scalar fields, versioned noises, fixed/original-spawn anchors and spatial selectors for terrain, biomes, placements, structures, natural spawns and contextual loot.
-- Add height profiles, material rules, deterministic carvers, authored placement heights and independent population controls.
-- Add read-only terrain previews, field inspection and bounded CSV exports.
-- Add scoped fog, sky/light tints and ambient/weather sound layers.
-- Add explicit custom-fluid ecology traits and identity-aware placement filters.
-- Correct surface rules applying to transposed chunk columns.
+### Compatibility and fixes
+
+- Standardize biome labels on `displayName`, keeping `name` as a deprecated compatibility alias.
+- Correct biome key lookups and surface rules applying to the wrong chunk columns.
+- Preserve script ownership during callbacks so script-owned operations and cleanup use the declaring script.
