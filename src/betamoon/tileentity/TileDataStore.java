@@ -1,6 +1,8 @@
 package betamoon.tileentity;
 
 import betamoon.data.DataField;
+import betamoon.gui.presentation.GuiValueObserver;
+import betamoon.luaapi.utils.LuaCallbackScope;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import net.minecraft.src.NBTBase;
@@ -14,6 +16,7 @@ final class TileDataStore {
 
     private final Map<String, Object> values = new LinkedHashMap<>();
     private final Map<String, NBTBase> rawTags = new LinkedHashMap<>();
+    private final GuiValueObserver observer = new GuiValueObserver();
     private TileEntityDefinition bound;
     private String error;
 
@@ -90,7 +93,7 @@ final class TileDataStore {
     void setLua(TileEntityDefinition definition, String name, LuaValue value) {
         requireAvailable(definition, name);
         TileEntityDefinition.Field field = definition.fields.get(name);
-        values.put(name, field.schema.fromLua(value, "tile data." + name));
+        put(name, field.schema.fromLua(value, "tile data." + name));
     }
 
     void setInteger(TileEntityDefinition definition, String name, int value) {
@@ -99,7 +102,7 @@ final class TileDataStore {
         if (field.schema.type != DataField.Type.INTEGER) {
             throw new LuaError("Tile entity data field '" + name + "' is not an integer.");
         }
-        values.put(name, Integer.valueOf(value));
+        put(name, Integer.valueOf(value));
     }
 
     void set(TileEntityDefinition definition, String name, Object value) {
@@ -114,7 +117,7 @@ final class TileDataStore {
             throw new LuaError("Invalid value for '" + name + "'; expected "
                     + type.name().toLowerCase() + ".");
         }
-        values.put(name, type == DataField.Type.NUMBER
+        put(name, type == DataField.Type.NUMBER
                 ? Double.valueOf(((Number) value).doubleValue()) : value);
     }
 
@@ -135,12 +138,22 @@ final class TileDataStore {
             throw new LuaError("Tile entity data field '" + name + "' is not synchronized.");
         }
         if (field.schema.type == DataField.Type.INTEGER) {
-            values.put(name, Integer.valueOf(value));
+            put(name, Integer.valueOf(value));
         } else if (field.schema.type == DataField.Type.BOOLEAN) {
-            values.put(name, Boolean.valueOf(value != 0));
+            put(name, Boolean.valueOf(value != 0));
         } else {
             throw new LuaError("Tile entity data field '" + name + "' cannot be synchronized as an integer.");
         }
+    }
+
+    AutoCloseable observe(GuiValueObserver.Listener listener) {
+        return observer.subscribe(listener);
+    }
+
+    private void put(String name, Object value) {
+        LuaCallbackScope.requireGameplayWrite();
+        Object previous = values.put(name, value);
+        observer.changed(name, previous, value);
     }
 
     String error() {

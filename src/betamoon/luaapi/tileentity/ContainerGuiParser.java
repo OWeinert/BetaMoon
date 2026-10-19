@@ -6,6 +6,7 @@ import betamoon.luaapi.asset.AssetInputs;
 import betamoon.luamodloader.ScriptResourceTracker;
 import betamoon.resources.LuaTextureResources;
 import betamoon.tileentity.ContainerGuiDefinition;
+import betamoon.tileentity.ContainerGuiProperties;
 import betamoon.tileentity.ContainerDefinition;
 import betamoon.tileentity.GuiAnchor;
 import betamoon.tileentity.GuiConditionOperator;
@@ -47,7 +48,10 @@ final class ContainerGuiParser {
         if (style != null && !"minecraft".equals(style) && !"chest".equals(style)) {
             throw new LuaError("background.style must be 'minecraft'.");
         }
-        return new ContainerGuiDefinition.Background(texture, style, value.get("drawSlotFrames").toboolean(), rows);
+        int tint = value.get("tint").isnil() ? 0xFFFFFF : ContainerGuiProperties.color(value.get("tint"));
+        int slotTint = value.get("slotTint").isnil() ? tint : ContainerGuiProperties.color(value.get("slotTint"));
+        return new ContainerGuiDefinition.Background(texture, style, value.get("drawSlotFrames").toboolean(), rows,
+                tint, slotTint);
     }
 
     static ContainerGuiDefinition.Label parseLabel(LuaValue value, String defaultText, int defaultX, int defaultY,
@@ -554,7 +558,7 @@ final class ContainerGuiParser {
         }
     }
 
-    private static ContainerGuiDefinition.Condition parseCondition(LuaValue value, ContainerDefinition container) {
+    static ContainerGuiDefinition.Condition parseCondition(LuaValue value, ContainerDefinition container) {
         TileEntityDefinition tile = container.tileEntity;
         if (value.isnil()) {
             return null;
@@ -580,16 +584,16 @@ final class ContainerGuiParser {
             return new ContainerGuiDefinition.Condition(null, operator, null, children);
         }
         String field = value.get("field").optjstring(null);
-        String sessionField = value.get("session").optjstring(null);
+        String sessionField = value.get("state").optjstring(null);
         if ((field == null) == (sessionField == null)) {
-            throw new LuaError("A condition requires exactly one of field or session.");
+            throw new LuaError("A condition requires exactly one of field or state.");
         }
         ContainerGuiDefinition.Condition.Source source;
         DataField.Type fieldType;
         if (sessionField != null) {
             ContainerDefinition.SessionField definition = container.session.get(sessionField);
             if (definition == null) {
-                throw new LuaError("Unknown GUI session field: " + sessionField);
+                throw new LuaError("Unknown GUI state field: " + sessionField);
             }
             field = sessionField;
             fieldType = DataField.Type.valueOf(definition.type.name());
@@ -681,7 +685,8 @@ final class ContainerGuiParser {
             throw new LuaError("Nine-slice border must fit inside half of the texture dimensions.");
         }
         return new ContainerGuiDefinition.Texture(resource, 0, 0, dimensions[0], dimensions[1], dimensions[0],
-                dimensions[1], border);
+                dimensions[1], border, path.istable() && !path.get("tint").isnil()
+                        ? ContainerGuiProperties.color(path.get("tint")) : 0xFFFFFF);
     }
 
     private static ContainerGuiDefinition.Texture builtinBackground(String name, int rows) {

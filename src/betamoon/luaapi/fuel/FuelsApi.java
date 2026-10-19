@@ -1,5 +1,7 @@
 package betamoon.luaapi.fuel;
 
+import betamoon.luaapi.utils.LuaCallbackScope;
+
 import betamoon.assets.AssetKey;
 import betamoon.fuel.FuelRegistry;
 import betamoon.fuel.FuelRegistration;
@@ -669,6 +671,7 @@ public final class FuelsApi {
     }
 
     private static String requireOwner() {
+        LuaCallbackScope.requireNoBindingMutation();
         String owner = LuaScriptRegistry.getCurrentScriptFile();
         if (owner == null) {
             throw new LuaError("Fuel registrations are only available while a mod is loading.");

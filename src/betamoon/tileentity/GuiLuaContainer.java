@@ -1,6 +1,9 @@
 package betamoon.tileentity;
 
 import betamoon.gui.framework.GuiRenderer;
+import betamoon.BetaMoonCommon;
+import betamoon.gui.presentation.GuiGeometry;
+import betamoon.gui.presentation.GuiGeometry.Bounds;
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
 import java.util.ArrayList;
@@ -18,6 +21,7 @@ import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 import org.lwjgl.opengl.GL11;
 import org.luaj.vm2.LuaTable;
+import org.luaj.vm2.LuaValue;
 
 /**
  * Renders prevalidated Lua container definitions without exposing rendering
@@ -26,7 +30,13 @@ import org.luaj.vm2.LuaTable;
 public final class GuiLuaContainer extends GuiContainer {
     private static final RenderItem ITEM_RENDERER = new RenderItem();
     private final LuaTileEntity entity;
-    private final ContainerGuiDefinition definition;
+    private ContainerGuiDefinition definition;
+    private ContainerGuiDefinition rejectedRevision;
+    private ContainerPresentationRuntime presentation;
+    private ContainerGuiNode drawingNode;
+    private double drawingOpacity = 1;
+    private int drawingTint = 0xFFFFFF;
+    private boolean consumedGesture;
     private final LuaContainer luaContainer;
     private ContainerGuiDefinition.ControlElement focused;
     private ContainerGuiDefinition.ControlElement pressed;
@@ -58,6 +68,69 @@ public final class GuiLuaContainer extends GuiContainer {
     }
 
     @Override
+    public void initGui() {
+        super.initGui();
+        preparePresentation();
+    }
+
+    @Override
+    public void updateScreen() {
+        super.updateScreen();
+        preparePresentation();
+    }
+
+    private void preparePresentation() {
+        if (presentation == null) {
+            presentation = new ContainerPresentationRuntime(definition, entity, luaContainer.controls(),
+                    fontRenderer::getStringWidth);
+        }
+        ContainerGuiDefinition registered = TileEntityRegistry.getGui(definition.name);
+        if (registered != null && registered != definition && registered != rejectedRevision) {
+            try {
+                ContainerPresentationRuntime replacement = presentation.reload(registered);
+                consumedGesture |= pressed != null || captured != null;
+                blurFocused();
+                presentation = replacement;
+                definition = registered;
+                xSize = registered.width;
+                ySize = registered.height;
+                rejectedRevision = null;
+            } catch (RuntimeException invalid) {
+                rejectedRevision = registered;
+                BetaMoonCommon.LOGGER.warning("Cannot refresh container GUI " + definition.name
+                        + ": " + invalid.getMessage());
+            }
+        }
+        int originX = (width - xSize) / 2;
+        int originY = (height - ySize) / 2;
+        presentation.viewport(-originX, -originY, width, height);
+        presentation.sample();
+        updateInteractions();
+        presentation.update();
+        releaseUnavailableOwnership();
+        updateInteractions();
+    }
+
+    private void updateInteractions() {
+        presentation.pointerPosition(currentMouseX - (width - xSize) / 2, currentMouseY - (height - ySize) / 2);
+        for (ContainerGuiDefinition.Element element : definition.elements) {
+            if (element instanceof ContainerGuiDefinition.ControlElement) {
+                ContainerGuiDefinition.ControlElement control = (ContainerGuiDefinition.ControlElement) element;
+                presentation.interaction(element, "pressed", pressed == element);
+                presentation.interaction(element, "focused", focused == element);
+                presentation.interaction(element, "disabled", !luaContainer.controls().enabled(control(control)));
+                presentation.interaction(element, "invalid", invalid(control));
+                if (control.type == ContainerControlDefinition.Type.TOGGLE) {
+                    presentation.interaction(element, "selected",
+                            Boolean.TRUE.equals(luaContainer.controls().value(control(control))));
+                } else if (control.type == ContainerControlDefinition.Type.CHOICE) {
+                    presentation.interaction(element, "selected", true);
+                }
+            }
+        }
+    }
+
+    @Override
     public boolean doesGuiPauseGame() {
         return definition.pauseGame;
     }
@@ -66,6 +139,9 @@ public final class GuiLuaContainer extends GuiContainer {
     public void onGuiClosed() {
         blurFocused();
         Keyboard.enableRepeatEvents(false);
+        if (presentation != null) {
+            presentation.close();
+        }
         luaContainer.controls().close();
         super.onGuiClosed();
     }
@@ -85,13 +161,18 @@ public final class GuiLuaContainer extends GuiContainer {
                 luaContainer.controls().custom(control(element), input);
             }
         }
-        if (captured != null && Mouse.isButtonDown(0)) {
+        if (captured != null && Mouse.isButtonDown(0)
+                && (mouseX != lastPointerX || mouseY != lastPointerY)) {
             drag(captured, mouseX, mouseY);
         }
     }
 
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int button) {
+        currentMouseX = mouseX;
+        currentMouseY = mouseY;
+        preparePresentation();
+        consumedGesture = false;
         ContainerGuiDefinition.ControlElement element = controlAt(mouseX, mouseY);
         if (element == null) {
             blurFocused();
@@ -131,6 +212,13 @@ public final class GuiLuaContainer extends GuiContainer {
 
     @Override
     protected void mouseMovedOrUp(int mouseX, int mouseY, int button) {
+        currentMouseX = mouseX;
+        currentMouseY = mouseY;
+        preparePresentation();
+        if (button >= 0 && consumedGesture) {
+            consumedGesture = false;
+            return;
+        }
         if (button < 0) {
             return;
         }
@@ -142,8 +230,8 @@ public final class GuiLuaContainer extends GuiContainer {
         LuaTable input = pointerInput("mouse", target, mouseX, mouseY, button, "release");
         ContainerControlDefinition control = control(target);
         if (control.type == ContainerControlDefinition.Type.CUSTOM) {
-            input.set("deltaX", mouseX - lastPointerX);
-            input.set("deltaY", mouseY - lastPointerY);
+            input.set("deltaX", LuaValue.valueOf(pointerDelta(target, mouseX - lastPointerX, true)));
+            input.set("deltaY", LuaValue.valueOf(pointerDelta(target, mouseY - lastPointerY, false)));
         }
         boolean inside = contains(target, mouseX, mouseY);
         boolean changed = false;
@@ -170,6 +258,7 @@ public final class GuiLuaContainer extends GuiContainer {
 
     @Override
     protected void keyTyped(char typedChar, int keyCode) {
+        preparePresentation();
         if (keyCode == Keyboard.KEY_TAB && moveFocus(isShiftDown() ? -1 : 1)) {
             return;
         }
@@ -208,7 +297,7 @@ public final class GuiLuaContainer extends GuiContainer {
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         currentMouseX = mouseX;
         currentMouseY = mouseY;
-        releaseUnavailableOwnership();
+        preparePresentation();
         super.drawScreen(mouseX, mouseY, partialTicks);
         drawElementTooltip(mouseX, mouseY);
     }
@@ -234,15 +323,23 @@ public final class GuiLuaContainer extends GuiContainer {
 
     private void drawBackground(int x, int y) {
         ContainerGuiDefinition.Background background = definition.background;
-        if ("minecraft".equals(background.style) && background.texture == null) {
-            drawMinecraftPanel(x, y);
-        } else if ("chest".equals(background.style)) {
-            drawChestBackground(x, y, background.chestRows);
-        } else if (background.texture != null) {
-            drawTexture(background.texture, x, y, definition.width, definition.height);
-        }
-        if (background.drawSlotFrames) {
-            drawSlotFrames(x, y);
+        drawingTint = background.tint;
+        GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_CURRENT_BIT | GL11.GL_COLOR_BUFFER_BIT | GL11.GL_TEXTURE_BIT);
+        try {
+            if ("minecraft".equals(background.style) && background.texture == null) {
+                drawMinecraftPanel(x, y);
+            } else if ("chest".equals(background.style)) {
+                drawChestBackground(x, y, background.chestRows);
+            } else if (background.texture != null) {
+                drawTexture(background.texture, x, y, definition.width, definition.height);
+            }
+            if (background.drawSlotFrames) {
+                drawingTint = background.slotTint;
+                drawSlotFrames(x, y);
+            }
+        } finally {
+            drawingTint = 0xFFFFFF;
+            GL11.glPopAttrib();
         }
     }
 
@@ -252,9 +349,12 @@ public final class GuiLuaContainer extends GuiContainer {
         if (texture == null) {
             texture = new ContainerGuiDefinition.Texture("/gui/container.png", 0, 0, 176, 166, 256, 256);
         }
+        int previous = drawingTint;
+        drawingTint = GuiGeometry.multiply(drawingTint, texture.tint);
         int upperHeight = 17 + rows * 18;
         drawTextureRegion(texture.resource, x, y, 0, 0, 176, upperHeight, 176, upperHeight, 256, 256);
         drawTextureRegion(texture.resource, x, y + upperHeight, 0, 126, 176, 96, 176, 96, 256, 256);
+        drawingTint = previous;
     }
 
     private void drawMinecraftPanel(int x, int y) {
@@ -301,25 +401,69 @@ public final class GuiLuaContainer extends GuiContainer {
     private void drawElements(int layer) {
         for (int i = 0; i < definition.elements.size(); i++) {
             ContainerGuiDefinition.Element element = definition.elements.get(i);
-            if (element.layer == layer && visible(element.visibleWhen)) {
+            if (element.layer == layer) {
                 drawElement(element);
             }
         }
     }
 
     private void drawElement(ContainerGuiDefinition.Element element) {
-        int elementWidth = elementWidth(element);
-        int elementHeight = elementHeight(element);
-        int x = anchoredX(element.anchor, element.x, elementWidth);
-        int y = anchoredY(element.anchor, element.y, elementHeight);
+        if (presentation == null) {
+            preparePresentation();
+        }
+        GuiGeometry geometry = presentation.geometry(element);
+        if (!geometry.available()) {
+            return;
+        }
+        drawingNode = presentation.node(element);
+        drawingOpacity = geometry.opacity;
+        drawingTint = geometry.tint;
+        GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_CURRENT_BIT | GL11.GL_COLOR_BUFFER_BIT
+                | GL11.GL_TEXTURE_BIT | GL11.GL_SCISSOR_BIT);
+        GL11.glPushMatrix();
+        try {
+            applyClip(geometry.clip);
+            GL11.glEnable(GL11.GL_BLEND);
+            GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+            GL11.glAlphaFunc(GL11.GL_GREATER, 0);
+            GL11.glTranslated(geometry.x, geometry.y, 0);
+            GL11.glScaled(geometry.scaleX, geometry.scaleY, 1);
+            drawElementContent(element);
+        } finally {
+            GL11.glPopMatrix();
+            GL11.glPopAttrib();
+            drawingNode = null;
+            drawingOpacity = 1;
+            drawingTint = 0xFFFFFF;
+        }
+    }
+
+    private void applyClip(Bounds bounds) {
+        double ratioX = mc.displayWidth / (double) width;
+        double ratioY = mc.displayHeight / (double) height;
+        double originX = (width - xSize) / 2;
+        double originY = (height - ySize) / 2;
+        int left = (int) Math.floor((originX + bounds.x) * ratioX);
+        int right = (int) Math.ceil((originX + bounds.x + bounds.width) * ratioX);
+        int top = (int) Math.floor((originY + bounds.y) * ratioY);
+        int bottom = (int) Math.ceil((originY + bounds.y + bounds.height) * ratioY);
+        GL11.glEnable(GL11.GL_SCISSOR_TEST);
+        GL11.glScissor(left, mc.displayHeight - bottom, Math.max(0, right - left), Math.max(0, bottom - top));
+    }
+
+    private void drawElementContent(ContainerGuiDefinition.Element element) {
+        int x = 0;
+        int y = 0;
         if (element instanceof ContainerGuiDefinition.PanelElement) {
             drawPanel((ContainerGuiDefinition.PanelElement) element, x, y);
         } else if (element instanceof ContainerGuiDefinition.ImageElement) {
             ContainerGuiDefinition.ImageElement image = (ContainerGuiDefinition.ImageElement) element;
-            drawTexture(image.image, x, y, image.width, image.height);
+            drawTexture(image.image, x, y, elementWidth(image), elementHeight(image));
         } else if (element instanceof ContainerGuiDefinition.TextElement) {
             ContainerGuiDefinition.TextElement text = (ContainerGuiDefinition.TextElement) element;
-            drawAlignedText(resolveText(text), x, y, text.width, text.align, text.color, text.shadow);
+            drawAlignedText(String.valueOf(drawingNode.get("text")), x, y, elementWidth(text),
+                    String.valueOf(drawingNode.get("align")), ((Number) drawingNode.get("color")).intValue(),
+                    Boolean.TRUE.equals(drawingNode.get("shadow")));
         } else if (element instanceof ContainerGuiDefinition.ProgressElement) {
             drawProgress((ContainerGuiDefinition.ProgressElement) element, x, y);
         } else if (element instanceof ContainerGuiDefinition.StateImageElement) {
@@ -330,12 +474,12 @@ public final class GuiLuaContainer extends GuiContainer {
                 image = state.defaultImage;
             }
             if (image != null) {
-                drawTexture(image, x, y, image.width, image.height);
+                drawTexture(image, x, y, elementWidth(element), elementHeight(element));
             }
         } else if (element instanceof ContainerGuiDefinition.RectangleElement) {
             ContainerGuiDefinition.RectangleElement rectangle = (ContainerGuiDefinition.RectangleElement) element;
-            int color = rectangle.color >>> 24 == 0 ? rectangle.color | 0xFF000000 : rectangle.color;
-            drawRect(x, y, x + rectangle.width, y + rectangle.height, color);
+            int color = ((Number) drawingNode.get("color")).intValue();
+            drawRect(x, y, x + elementWidth(rectangle), y + elementHeight(rectangle), color);
         } else if (element instanceof ContainerGuiDefinition.ItemElement) {
             ContainerGuiDefinition.ItemElement item = (ContainerGuiDefinition.ItemElement) element;
             ItemStack stack = item.slot == null ? item.getItem() : entity.getStackInNamedSlot(item.slot);
@@ -363,9 +507,9 @@ public final class GuiLuaContainer extends GuiContainer {
         ContainerGuiDefinition.Texture image = customControlTexture(element, state, selected);
         if (image != null) {
             if (element.presentation == ContainerGuiDefinition.ControlElement.Presentation.CHECKBOX) {
-                drawTexture(image, x, y + (element.height - 12) / 2, 12, 12);
+                drawTexture(image, x, y + (elementHeight(element) - 12) / 2, 12, 12);
             } else {
-                drawTexture(image, x, y, element.width, element.height);
+                drawTexture(image, x, y, elementWidth(element), elementHeight(element));
             }
         } else {
             drawStyledControl(element, control, x, y, state, selected);
@@ -376,25 +520,28 @@ public final class GuiLuaContainer extends GuiContainer {
         }
         if (element.presentation == ContainerGuiDefinition.ControlElement.Presentation.ICON_BUTTON
                 && element.icon != null) {
-            int iconX = x + (element.width - element.icon.width) / 2;
-            int iconY = y + (element.height - element.icon.height) / 2;
+            int iconX = x + (elementWidth(element) - element.icon.width) / 2;
+            int iconY = y + (elementHeight(element) - element.icon.height) / 2;
+            int previous = drawingTint;
+            drawingTint = surfaceTint("iconTint");
             drawTexture(element.icon, iconX, iconY, element.icon.width, element.icon.height);
+            drawingTint = previous;
         }
         String text = controlText(element, control);
         if (text != null && control.type != ContainerControlDefinition.Type.NUMBER) {
             int color = enabled ? 0xFFFFFF : 0xA0A0A0;
             int textX = x + 4;
-            int textWidth = Math.max(0, element.width - 8);
+            int textWidth = Math.max(0, elementWidth(element) - 8);
             String alignment = "center";
             if (element.presentation == ContainerGuiDefinition.ControlElement.Presentation.CHECKBOX) {
                 textX = x + 16;
-                textWidth = Math.max(0, element.width - 16);
+                textWidth = Math.max(0, elementWidth(element) - 16);
                 alignment = "left";
             } else if (element.presentation == ContainerGuiDefinition.ControlElement.Presentation.CHOICE) {
                 textX = x + choiceArrowWidth(element);
-                textWidth = Math.max(0, element.width - choiceArrowWidth(element) * 2);
+                textWidth = Math.max(0, elementWidth(element) - choiceArrowWidth(element) * 2);
             }
-            drawAlignedText(text, textX, y + (element.height - 8) / 2, textWidth, alignment, color, true);
+            drawAlignedText(text, textX, y + (elementHeight(element) - 8) / 2, textWidth, alignment, color, true);
         }
     }
 
@@ -423,7 +570,7 @@ public final class GuiLuaContainer extends GuiContainer {
     private void drawTextControl(ContainerGuiDefinition.ControlElement element, ContainerControlDefinition control,
             int x, int y, boolean enabled) {
         String value = draft(control);
-        int availableWidth = Math.max(1, element.width - 8);
+        int availableWidth = Math.max(1, elementWidth(element) - 8);
         if (focused == element) {
             keepCaretVisible(value, availableWidth);
         }
@@ -435,14 +582,14 @@ public final class GuiLuaContainer extends GuiContainer {
             if (start < end) {
                 int selectionX = x + 4 + fontRenderer.getStringWidth(value.substring(textOffset, start));
                 int selectionWidth = fontRenderer.getStringWidth(value.substring(start, end));
-                drawRect(selectionX, y + 3, selectionX + selectionWidth, y + element.height - 3, 0xFF4A6A9A);
+                drawRect(selectionX, y + 3, selectionX + selectionWidth, y + elementHeight(element) - 3, 0xFF4A6A9A);
             }
         }
-        drawAlignedText(visible, x + 4, y + (element.height - 8) / 2, availableWidth, "left",
+        drawAlignedText(visible, x + 4, y + (elementHeight(element) - 8) / 2, availableWidth, "left",
                 enabled ? 0xFFFFFF : 0xA0A0A0, true);
         if (focused == element && (System.currentTimeMillis() / 500L & 1L) == 0L) {
             int caretX = x + 4 + fontRenderer.getStringWidth(value.substring(textOffset, caret));
-            drawRect(caretX, y + 4, caretX + 1, y + element.height - 4, 0xFFFFFFFF);
+            drawRect(caretX, y + 4, caretX + 1, y + elementHeight(element) - 4, 0xFFFFFFFF);
         }
     }
 
@@ -454,17 +601,17 @@ public final class GuiLuaContainer extends GuiContainer {
         }
         if (element.presentation == ContainerGuiDefinition.ControlElement.Presentation.CHECKBOX) {
             drawTexture(element.styleTextures.get((selected ? "on." : "off.") + state), x,
-                    y + (element.height - 12) / 2, 12, 12);
+                    y + (elementHeight(element) - 12) / 2, 12, 12);
             return;
         }
         if (element.presentation == ContainerGuiDefinition.ControlElement.Presentation.TOGGLE_BUTTON) {
-            drawTexture(element.styleTextures.get((selected ? "on." : "off.") + state), x, y, element.width,
-                    element.height);
+            drawTexture(element.styleTextures.get((selected ? "on." : "off.") + state), x, y, elementWidth(element),
+                    elementHeight(element));
             return;
         }
         ContainerGuiDefinition.Texture frame = element.styleTextures.get("frame." + state);
         if (frame != null) {
-            drawTexture(frame, x, y, element.width, element.height);
+            drawTexture(frame, x, y, elementWidth(element), elementHeight(element));
         }
         if (element.presentation == ContainerGuiDefinition.ControlElement.Presentation.CHOICE) {
             drawChoiceArrows(element, x, y, state);
@@ -479,48 +626,70 @@ public final class GuiLuaContainer extends GuiContainer {
         if ("vertical".equals(element.orientation)) {
             ContainerGuiDefinition.Texture track = element.styleTextures.get("track." + state);
             ContainerGuiDefinition.Texture handle = element.styleTextures.get("vertical." + state);
-            drawTexture(track, x + (element.width - 6) / 2, y + 4, 6, Math.max(1, element.height - 8));
-            int position = (int) Math.round((1.0D - ratio) * Math.max(0, element.height - 8));
-            drawTexture(handle, x + (element.width - 12) / 2, y + position, 12, 8);
+            drawTexture(track, x + (elementWidth(element) - 6) / 2, y + 4, 6, Math.max(1, elementHeight(element) - 8));
+            int position = (int) Math.round((1.0D - ratio) * Math.max(0, elementHeight(element) - 8));
+            drawTexture(handle, x + (elementWidth(element) - 12) / 2, y + position, 12, 8);
         } else {
             ContainerGuiDefinition.Texture track = element.styleTextures.get("track." + state);
             ContainerGuiDefinition.Texture handle = element.styleTextures.get("horizontal." + state);
-            drawTexture(track, x + 4, y + (element.height - 6) / 2, Math.max(1, element.width - 8), 6);
-            int position = (int) Math.round(ratio * Math.max(0, element.width - 8));
-            drawTexture(handle, x + position, y + (element.height - 12) / 2, 8, 12);
+            drawTexture(track, x + 4, y + (elementHeight(element) - 6) / 2, Math.max(1, elementWidth(element) - 8), 6);
+            int position = (int) Math.round(ratio * Math.max(0, elementWidth(element) - 8));
+            drawTexture(handle, x + position, y + (elementHeight(element) - 12) / 2, 8, 12);
         }
     }
 
     private void drawChoiceArrows(ContainerGuiDefinition.ControlElement element, int x, int y, String state) {
         ContainerGuiDefinition.Texture left = element.styleTextures.get("left." + state);
         ContainerGuiDefinition.Texture right = element.styleTextures.get("right." + state);
-        drawTexture(left, x + 5, y + (element.height - left.height) / 2, left.width, left.height);
-        drawTexture(right, x + element.width - right.width - 5, y + (element.height - right.height) / 2, right.width,
+        drawTexture(left, x + 5, y + (elementHeight(element) - left.height) / 2, left.width, left.height);
+        drawTexture(right, x + elementWidth(element) - right.width - 5, y + (elementHeight(element) - right.height) / 2, right.width,
                 right.height);
         int arrowWidth = choiceArrowWidth(element);
-        drawRect(x + arrowWidth, y + 3, x + arrowWidth + 1, y + element.height - 3, 0xFF555555);
-        drawRect(x + element.width - arrowWidth - 1, y + 3, x + element.width - arrowWidth, y + element.height - 3,
+        drawRect(x + arrowWidth, y + 3, x + arrowWidth + 1, y + elementHeight(element) - 3, 0xFF555555);
+        drawRect(x + elementWidth(element) - arrowWidth - 1, y + 3, x + elementWidth(element) - arrowWidth, y + elementHeight(element) - 3,
                 0xFF555555);
+    }
+
+    private int surfaceTint(String property) {
+        Object own = drawingNode == null ? null : drawingNode.get(property);
+        if (own == null) {
+            return drawingTint;
+        }
+        ContainerGuiNodeDefinition node = drawingNode.definition;
+        int inherited = node.parent < 0 ? 0xFFFFFF : presentation.parentTint(drawingNode);
+        return GuiGeometry.multiply(inherited, ((Number) own).intValue());
     }
 
     private void drawProgress(ContainerGuiDefinition.ProgressElement progress, int x, int y) {
         int maximum = progress.maximumField == null ? progress.maximum : entity.getDataInt(progress.maximumField);
-        if (maximum <= 0) {
-            maximum = 1;
-        }
+        maximum = Math.max(1, maximum);
         int value = Math.max(0, Math.min(maximum, entity.getDataInt(progress.field)));
+        int width = elementWidth(progress);
+        int height = elementHeight(progress);
         if (progress.background != null) {
-            drawTexture(progress.background, x, y, progress.background.width, progress.background.height);
+            int previous = drawingTint;
+            drawingTint = surfaceTint("backgroundTint");
+            int backgroundWidth = (int) Math.round(progress.background.width * (double) width / progress.image.width);
+            int backgroundHeight = (int) Math.round(progress.background.height * (double) height / progress.image.height);
+            if (backgroundWidth > 0 && backgroundHeight > 0) {
+                drawTexture(progress.background, x, y, backgroundWidth, backgroundHeight);
+            }
+            drawingTint = previous;
         }
         if (value == 0 && progress.hideWhenEmpty) {
             return;
         }
         ContainerGuiDefinition.Texture texture = progress.image;
-        ProgressDirection.Slice slice = progress.direction.slice(texture.width, texture.height, value, maximum,
-                progress.minimumPixels);
+        ProgressDirection.Slice slice = progress.direction.slice(width, height, value, maximum, progress.minimumPixels);
         if (!slice.isEmpty()) {
-            drawTextureRegion(texture.resource, x + slice.x, y + slice.y, texture.u + slice.x, texture.v + slice.y,
-                    slice.width, slice.height, slice.width, slice.height, texture.textureWidth, texture.textureHeight);
+            double sourceX = texture.u + slice.x * (double) texture.width / width;
+            double sourceY = texture.v + slice.y * (double) texture.height / height;
+            int previous = drawingTint;
+            drawingTint = GuiGeometry.multiply(drawingTint, texture.tint);
+            drawTextureRegion(texture.resource, x + slice.x, y + slice.y, sourceX, sourceY,
+                    slice.width * (double) texture.width / width, slice.height * (double) texture.height / height,
+                    slice.width, slice.height, texture.textureWidth, texture.textureHeight);
+            drawingTint = previous;
         }
     }
 
@@ -543,6 +712,22 @@ public final class GuiLuaContainer extends GuiContainer {
         }
     }
 
+    @Override
+    protected void drawRect(int left, int top, int right, int bottom, int color) {
+        if (drawingNode == null) {
+            color = (color & 0xFF000000) | GuiGeometry.multiply(color & 0xFFFFFF, drawingTint);
+        }
+        super.drawRect(left, top, right, bottom, alpha(color));
+    }
+
+    private int alpha(int color) {
+        int source = color >>> 24;
+        if (source == 0) {
+            source = 255;
+        }
+        return (color & 0xFFFFFF) | Math.max(1, (int) Math.round(source * drawingOpacity)) << 24;
+    }
+
     private void drawAlignedText(String text, int x, int y, int areaWidth, String align, int color, boolean shadow) {
         if (text == null) {
             return;
@@ -553,28 +738,61 @@ public final class GuiLuaContainer extends GuiContainer {
         } else if (areaWidth > 0 && "right".equals(align)) {
             drawX += areaWidth - fontRenderer.getStringWidth(text);
         }
+        int argb = alpha(color);
+        if (drawingOpacity >= 1 || text.indexOf('\u00a7') < 0) {
+            drawTextRun(text, drawX, y, argb, shadow);
+            return;
+        }
+        // Vanilla color-code display lists use glColor3f, which resets alpha to one.
+        // Draw code-free runs with the same source alpha so formatted text fades too.
+        int start = 0;
+        int runColor = argb;
+        for (int i = 0; i < text.length(); i++) {
+            if (text.charAt(i) == '\u00a7') {
+                String run = text.substring(start, i);
+                drawTextRun(run, drawX, y, runColor, shadow);
+                drawX += fontRenderer.getStringWidth(run);
+                if (i + 1 < text.length()) {
+                    int code = "0123456789abcdef".indexOf(Character.toLowerCase(text.charAt(++i)));
+                    code = code < 0 ? 15 : code;
+                    int bright = (code >> 3 & 1) * 85;
+                    int red = (code >> 2 & 1) * 170 + bright;
+                    int green = (code >> 1 & 1) * 170 + bright;
+                    int blue = (code & 1) * 170 + bright;
+                    if (code == 6) {
+                        red += 85;
+                    }
+                    if (mc.gameSettings != null && mc.gameSettings.anaglyph) {
+                        int grayRed = (red * 30 + green * 59 + blue * 11) / 100;
+                        int grayGreen = (red * 30 + green * 70) / 100;
+                        blue = (red * 30 + blue * 70) / 100;
+                        red = grayRed;
+                        green = grayGreen;
+                    }
+                    runColor = (argb & 0xFF000000) | red << 16 | green << 8 | blue;
+                }
+                start = i + 1;
+            }
+        }
+        drawTextRun(text.substring(start), drawX, y, runColor, shadow);
+    }
+
+    private void drawTextRun(String text, int x, int y, int color, boolean shadow) {
         if (shadow) {
-            fontRenderer.drawStringWithShadow(text, drawX, y, color);
+            fontRenderer.drawStringWithShadow(text, x, y, color);
         } else {
-            fontRenderer.drawString(text, drawX, y, color);
+            fontRenderer.drawString(text, x, y, color);
         }
     }
 
     private void drawElementTooltip(int mouseX, int mouseY) {
-        int originX = (width - xSize) / 2;
-        int originY = (height - ySize) / 2;
-        for (int i = definition.elements.size() - 1; i >= 0; i--) {
-            ContainerGuiDefinition.Element element = definition.elements.get(i);
-            if (element.tooltip.isEmpty() || !visible(element.visibleWhen)) {
-                continue;
-            }
-            int elementWidth = elementWidth(element);
-            int elementHeight = elementHeight(element);
-            int x = originX + anchoredX(element.anchor, element.x, elementWidth);
-            int y = originY + anchoredY(element.anchor, element.y, elementHeight);
-            if (mouseX >= x && mouseX < x + elementWidth && mouseY >= y && mouseY < y + elementHeight) {
-                drawTooltip(resolveTooltip(element.tooltip), mouseX, mouseY);
-                return;
+        for (int layer = 2; layer >= 0; layer--) {
+            for (int i = definition.elements.size() - 1; i >= 0; i--) {
+                ContainerGuiDefinition.Element element = definition.elements.get(i);
+                if (element.layer == layer && !element.tooltip.isEmpty() && contains(element, mouseX, mouseY)) {
+                    drawTooltip(resolveTooltip(element.tooltip), mouseX, mouseY);
+                    return;
+                }
             }
         }
     }
@@ -598,65 +816,11 @@ public final class GuiLuaContainer extends GuiContainer {
     }
 
     private int elementWidth(ContainerGuiDefinition.Element element) {
-        if (element instanceof ContainerGuiDefinition.PanelElement) {
-            return ((ContainerGuiDefinition.PanelElement) element).width;
-        }
-        if (element instanceof ContainerGuiDefinition.ImageElement) {
-            return ((ContainerGuiDefinition.ImageElement) element).width;
-        }
-        if (element instanceof ContainerGuiDefinition.ProgressElement) {
-            return ((ContainerGuiDefinition.ProgressElement) element).image.width;
-        }
-        if (element instanceof ContainerGuiDefinition.StateImageElement) {
-            ContainerGuiDefinition.StateImageElement state = (ContainerGuiDefinition.StateImageElement) element;
-            ContainerGuiDefinition.Texture texture = state.defaultImage != null
-                    ? state.defaultImage
-                    : state.states.values().iterator().next();
-            return texture.width;
-        }
-        if (element instanceof ContainerGuiDefinition.RectangleElement) {
-            return ((ContainerGuiDefinition.RectangleElement) element).width;
-        }
-        if (element instanceof ContainerGuiDefinition.TooltipElement) {
-            return ((ContainerGuiDefinition.TooltipElement) element).width;
-        }
-        if (element instanceof ContainerGuiDefinition.ItemElement) {
-            return 16;
-        }
-        if (element instanceof ContainerGuiDefinition.ControlElement) {
-            return ((ContainerGuiDefinition.ControlElement) element).width;
-        }
-        ContainerGuiDefinition.TextElement text = (ContainerGuiDefinition.TextElement) element;
-        return text.width > 0 ? text.width : fontRenderer.getStringWidth(resolveText(text));
+        return (int) presentation.geometry(element).width;
     }
 
     private int elementHeight(ContainerGuiDefinition.Element element) {
-        if (element instanceof ContainerGuiDefinition.PanelElement) {
-            return ((ContainerGuiDefinition.PanelElement) element).height;
-        }
-        if (element instanceof ContainerGuiDefinition.ImageElement) {
-            return ((ContainerGuiDefinition.ImageElement) element).height;
-        }
-        if (element instanceof ContainerGuiDefinition.ProgressElement) {
-            return ((ContainerGuiDefinition.ProgressElement) element).image.height;
-        }
-        if (element instanceof ContainerGuiDefinition.StateImageElement) {
-            ContainerGuiDefinition.StateImageElement state = (ContainerGuiDefinition.StateImageElement) element;
-            ContainerGuiDefinition.Texture texture = state.defaultImage != null
-                    ? state.defaultImage
-                    : state.states.values().iterator().next();
-            return texture.height;
-        }
-        if (element instanceof ContainerGuiDefinition.RectangleElement) {
-            return ((ContainerGuiDefinition.RectangleElement) element).height;
-        }
-        if (element instanceof ContainerGuiDefinition.TooltipElement) {
-            return ((ContainerGuiDefinition.TooltipElement) element).height;
-        }
-        if (element instanceof ContainerGuiDefinition.ControlElement) {
-            return ((ContainerGuiDefinition.ControlElement) element).height;
-        }
-        return element instanceof ContainerGuiDefinition.ItemElement ? 16 : 8;
+        return (int) presentation.geometry(element).height;
     }
 
     private int anchoredX(GuiAnchor anchor, int x, int elementWidth) {
@@ -672,7 +836,7 @@ public final class GuiLuaContainer extends GuiContainer {
     }
 
     private boolean enabled(ContainerGuiDefinition.ControlElement element) {
-        return visible(element.visibleWhen) && luaContainer.controls().enabled(control(element));
+        return presentation.geometry(element).available() && luaContainer.controls().enabled(control(element));
     }
 
     private ContainerGuiDefinition.ControlElement controlAt(int mouseX, int mouseY) {
@@ -680,7 +844,7 @@ public final class GuiLuaContainer extends GuiContainer {
             for (int index = definition.elements.size() - 1; index >= 0; index--) {
                 ContainerGuiDefinition.Element value = definition.elements.get(index);
                 if (value.layer == layer && value instanceof ContainerGuiDefinition.ControlElement
-                        && visible(value.visibleWhen)
+                        && presentation.geometry(value).available()
                         && contains((ContainerGuiDefinition.ControlElement) value, mouseX, mouseY)) {
                     return (ContainerGuiDefinition.ControlElement) value;
                 }
@@ -692,12 +856,15 @@ public final class GuiLuaContainer extends GuiContainer {
     private boolean contains(ContainerGuiDefinition.Element element, int mouseX, int mouseY) {
         int originX = (width - xSize) / 2;
         int originY = (height - ySize) / 2;
-        int elementWidth = elementWidth(element);
-        int elementHeight = elementHeight(element);
-        int x = originX + anchoredX(element.anchor, element.x, elementWidth);
-        int y = originY + anchoredY(element.anchor, element.y, elementHeight);
-        return mouseX >= x && (long) mouseX < (long) x + elementWidth && mouseY >= y
-                && (long) mouseY < (long) y + elementHeight;
+        return presentation.geometry(element).contains(mouseX - originX, mouseY - originY);
+    }
+
+    private double localX(ContainerGuiDefinition.Element element, int mouseX) {
+        return presentation.geometry(element).localX(mouseX - (width - xSize) / 2);
+    }
+
+    private double localY(ContainerGuiDefinition.Element element, int mouseY) {
+        return presentation.geometry(element).localY(mouseY - (height - ySize) / 2);
     }
 
     private boolean overExpansionPanel(int mouseX, int mouseY) {
@@ -707,7 +874,7 @@ public final class GuiLuaContainer extends GuiContainer {
             return false;
         }
         for (ContainerGuiDefinition.Element element : definition.elements) {
-            if (element instanceof ContainerGuiDefinition.PanelElement && visible(element.visibleWhen)
+            if (element instanceof ContainerGuiDefinition.PanelElement && presentation.geometry(element).available()
                     && contains(element, mouseX, mouseY)) {
                 return true;
             }
@@ -720,20 +887,19 @@ public final class GuiLuaContainer extends GuiContainer {
     }
 
     private int choiceDirection(ContainerGuiDefinition.ControlElement element, int mouseX) {
-        int originX = (width - xSize) / 2 + anchoredX(element.anchor, element.x, element.width);
-        int localX = mouseX - originX;
+        int localX = (int) localX(element, mouseX);
         int arrowWidth = choiceArrowWidth(element);
         if (localX >= 0 && localX < arrowWidth) {
             return -1;
         }
-        if (localX >= element.width - arrowWidth && localX < element.width) {
+        if (localX >= elementWidth(element) - arrowWidth && localX < elementWidth(element)) {
             return 1;
         }
         return 0;
     }
 
-    private static int choiceArrowWidth(ContainerGuiDefinition.ControlElement element) {
-        return Math.min(16, Math.max(1, element.width / 3));
+    private int choiceArrowWidth(ContainerGuiDefinition.ControlElement element) {
+        return Math.min(16, Math.max(1, elementWidth(element) / 3));
     }
 
     private void focus(ContainerGuiDefinition.ControlElement element) {
@@ -765,7 +931,7 @@ public final class GuiLuaContainer extends GuiContainer {
             String origin = draftOrigins.get(control.name);
             LuaTable input = ContainerControlRuntime.input("focus");
             boolean conflicted = origin != null && !origin.equals(current);
-            input.set("conflicted", org.luaj.vm2.LuaValue.valueOf(conflicted));
+            input.set("conflicted", LuaValue.valueOf(conflicted));
             String draft = drafts.get(control.name);
             if (conflicted || !draft.equals(origin)) {
                 String committed = conflicted ? current : draft;
@@ -786,21 +952,14 @@ public final class GuiLuaContainer extends GuiContainer {
     }
 
     private void releaseUnavailableOwnership() {
-        if (focused != null && !enabled(focused)) {
-            ContainerControlDefinition control = control(focused);
-            if (control.type == ContainerControlDefinition.Type.TEXT) {
-                Keyboard.enableRepeatEvents(false);
-            }
-            drafts.remove(control.name);
-            draftOrigins.remove(control.name);
-            focused = null;
-        }
-        if (pressed != null && !enabled(pressed)) {
+        if ((pressed != null && !enabled(pressed)) || (captured != null && !enabled(captured))) {
+            consumedGesture = true;
             pressed = null;
+            captured = null;
             pressedChoiceDirection = 0;
         }
-        if (captured != null && !enabled(captured)) {
-            captured = null;
+        if (focused != null && !enabled(focused)) {
+            blurFocused();
         }
     }
 
@@ -826,11 +985,17 @@ public final class GuiLuaContainer extends GuiContainer {
         return true;
     }
 
+    private double pointerDelta(ContainerGuiDefinition.Element element, int delta, boolean horizontal) {
+        GuiGeometry geometry = presentation.geometry(element);
+        double scale = horizontal ? geometry.scaleX : geometry.scaleY;
+        return scale == 0 ? 0 : delta / scale;
+    }
+
     private void drag(ContainerGuiDefinition.ControlElement element, int mouseX, int mouseY) {
         ContainerControlDefinition control = control(element);
         LuaTable input = pointerInput("mouse", element, mouseX, mouseY, 0, "drag");
-        input.set("deltaX", mouseX - lastPointerX);
-        input.set("deltaY", mouseY - lastPointerY);
+        input.set("deltaX", LuaValue.valueOf(pointerDelta(element, mouseX - lastPointerX, true)));
+        input.set("deltaY", LuaValue.valueOf(pointerDelta(element, mouseY - lastPointerY, false)));
         lastPointerX = mouseX;
         lastPointerY = mouseY;
         if (control.type == ContainerControlDefinition.Type.NUMBER) {
@@ -841,11 +1006,9 @@ public final class GuiLuaContainer extends GuiContainer {
     }
 
     private void changeSlider(ContainerGuiDefinition.ControlElement element, int mouseX, int mouseY, LuaTable input) {
-        int originX = (width - xSize) / 2 + anchoredX(element.anchor, element.x, element.width);
-        int originY = (height - ySize) / 2 + anchoredY(element.anchor, element.y, element.height);
         double ratio = "vertical".equals(element.orientation)
-                ? 1.0D - (mouseY - originY) / (double) Math.max(1, element.height - 1)
-                : (mouseX - originX) / (double) Math.max(1, element.width - 1);
+                ? 1.0D - localY(element, mouseY) / Math.max(1, elementHeight(element) - 1)
+                : localX(element, mouseX) / Math.max(1, elementWidth(element) - 1);
         ratio = Math.max(0.0D, Math.min(1.0D, ratio));
         ContainerControlDefinition control = control(element);
         recordResult(control, luaContainer.controls().changeNumber(control,
@@ -1007,8 +1170,7 @@ public final class GuiLuaContainer extends GuiContainer {
     private void placeTextCaret(ContainerGuiDefinition.ControlElement element, int mouseX) {
         ContainerControlDefinition control = control(element);
         String value = draft(control);
-        int originX = (width - xSize) / 2 + anchoredX(element.anchor, element.x, element.width) + 4;
-        int localX = Math.max(0, mouseX - originX);
+        double localX = Math.max(0, localX(element, mouseX) - 4);
         int best = textOffset;
         for (int index = textOffset; index <= value.length(); index++) {
             int widthToIndex = fontRenderer.getStringWidth(value.substring(textOffset, index));
@@ -1069,8 +1231,8 @@ public final class GuiLuaContainer extends GuiContainer {
         if (control.type == ContainerControlDefinition.Type.TEXT) {
             return draft(control);
         }
-        if (element.text != null) {
-            return element.text;
+        if (presentation.node(element).get("text") != null) {
+            return String.valueOf(presentation.node(element).get("text"));
         }
         if (control.type == ContainerControlDefinition.Type.CHOICE) {
             return String.valueOf(luaContainer.controls().value(control));
@@ -1080,17 +1242,15 @@ public final class GuiLuaContainer extends GuiContainer {
 
     private LuaTable pointerInput(String source, ContainerGuiDefinition.ControlElement element, int mouseX, int mouseY,
             int button, String phase) {
-        int x = (width - xSize) / 2 + anchoredX(element.anchor, element.x, element.width);
-        int y = (height - ySize) / 2 + anchoredY(element.anchor, element.y, element.height);
         LuaTable input = ContainerControlRuntime.input(source);
         input.set("phase", phase);
         input.set("button", button);
-        input.set("x", Math.max(0, Math.min(element.width - 1, mouseX - x)));
-        input.set("y", Math.max(0, Math.min(element.height - 1, mouseY - y)));
+        input.set("x", LuaValue.valueOf(Math.max(0, Math.min(elementWidth(element) - 1, localX(element, mouseX)))));
+        input.set("y", LuaValue.valueOf(Math.max(0, Math.min(elementHeight(element) - 1, localY(element, mouseY)))));
         input.set("deltaX", 0);
         input.set("deltaY", 0);
-        input.set("shift", org.luaj.vm2.LuaValue.valueOf(isShiftDown()));
-        input.set("control", org.luaj.vm2.LuaValue.valueOf(isControlDown()));
+        input.set("shift", LuaValue.valueOf(isShiftDown()));
+        input.set("control", LuaValue.valueOf(isControlDown()));
         return input;
     }
 
@@ -1098,8 +1258,8 @@ public final class GuiLuaContainer extends GuiContainer {
         LuaTable input = ContainerControlRuntime.input("keyboard");
         input.set("key", keyCode);
         input.set("character", String.valueOf(character));
-        input.set("shift", org.luaj.vm2.LuaValue.valueOf(isShiftDown()));
-        input.set("control", org.luaj.vm2.LuaValue.valueOf(isControlDown()));
+        input.set("shift", LuaValue.valueOf(isShiftDown()));
+        input.set("control", LuaValue.valueOf(isControlDown()));
         return input;
     }
 
@@ -1123,12 +1283,18 @@ public final class GuiLuaContainer extends GuiContainer {
     }
 
     private void drawTexture(ContainerGuiDefinition.Texture texture, int x, int y, int width, int height) {
-        if (texture.border > 0 && width >= texture.border * 2 && height >= texture.border * 2) {
-            drawNineSlice(texture, x, y, width, height);
-            return;
+        int previous = drawingTint;
+        drawingTint = GuiGeometry.multiply(drawingTint, texture.tint);
+        try {
+            if (texture.border > 0 && width >= texture.border * 2 && height >= texture.border * 2) {
+                drawNineSlice(texture, x, y, width, height);
+            } else {
+                drawTextureRegion(texture.resource, x, y, texture.u, texture.v, texture.width, texture.height, width,
+                        height, texture.textureWidth, texture.textureHeight);
+            }
+        } finally {
+            drawingTint = previous;
         }
-        drawTextureRegion(texture.resource, x, y, texture.u, texture.v, texture.width, texture.height, width, height,
-                texture.textureWidth, texture.textureHeight);
     }
 
     private void drawPanel(ContainerGuiDefinition.PanelElement panel, int x, int y) {
@@ -1138,17 +1304,17 @@ public final class GuiLuaContainer extends GuiContainer {
         int[] sourceY = {frame.v, frame.v + 8, frame.v + frame.height - border};
         int[] sourceWidths = {border, 1, border};
         int[] sourceHeights = {border, 1, border};
-        int[] drawX = {x, x + border, x + panel.width - border};
-        int[] drawY = {y, y + border, y + panel.height - border};
-        int[] widths = {border, panel.width - border * 2, border};
-        int[] heights = {border, panel.height - border * 2, border};
+        int[] drawX = {x, x + border, x + elementWidth(panel) - border};
+        int[] drawY = {y, y + border, y + elementHeight(panel) - border};
+        int[] widths = {border, elementWidth(panel) - border * 2, border};
+        int[] heights = {border, elementHeight(panel) - border * 2, border};
         GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_CURRENT_BIT | GL11.GL_COLOR_BUFFER_BIT | GL11.GL_TEXTURE_BIT);
         try {
             for (int row = 0; row < 3; row++) {
                 for (int column = 0; column < 3; column++) {
                     drawTextureRegion(frame.resource, drawX[column], drawY[row], sourceX[column], sourceY[row],
                             sourceWidths[column], sourceHeights[row], widths[column], heights[row], frame.textureWidth,
-                            frame.textureHeight, panel.color);
+                            frame.textureHeight, 0xFFFFFF);
                 }
             }
         } finally {
@@ -1179,22 +1345,24 @@ public final class GuiLuaContainer extends GuiContainer {
         }
     }
 
-    private void drawTextureRegion(String resource, int x, int y, int u, int v, int sourceWidth, int sourceHeight,
-            int drawWidth, int drawHeight, int textureWidth, int textureHeight) {
+    private void drawTextureRegion(String resource, int x, int y, double u, double v, double sourceWidth,
+            double sourceHeight, int drawWidth, int drawHeight, int textureWidth, int textureHeight) {
         drawTextureRegion(resource, x, y, u, v, sourceWidth, sourceHeight, drawWidth, drawHeight, textureWidth,
                 textureHeight, 0xFFFFFF);
     }
 
-    private void drawTextureRegion(String resource, int x, int y, int u, int v, int sourceWidth, int sourceHeight,
-            int drawWidth, int drawHeight, int textureWidth, int textureHeight, int color) {
+    private void drawTextureRegion(String resource, int x, int y, double u, double v, double sourceWidth,
+            double sourceHeight, int drawWidth, int drawHeight, int textureWidth, int textureHeight, int color) {
         mc.renderEngine.bindTexture(mc.renderEngine.getTexture(resource));
         GL11.glEnable(GL11.GL_BLEND);
         GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-        GL11.glColor4f((color >> 16 & 255) / 255.0F, (color >> 8 & 255) / 255.0F, (color & 255) / 255.0F, 1.0F);
-        float minU = u / (float) textureWidth;
-        float maxU = (u + sourceWidth) / (float) textureWidth;
-        float minV = v / (float) textureHeight;
-        float maxV = (v + sourceHeight) / (float) textureHeight;
+        color = GuiGeometry.multiply(color, drawingTint);
+        GL11.glColor4f((color >> 16 & 255) / 255.0F, (color >> 8 & 255) / 255.0F,
+                (color & 255) / 255.0F, (float) drawingOpacity);
+        double minU = u / (float) textureWidth;
+        double maxU = (u + sourceWidth) / (float) textureWidth;
+        double minV = v / (float) textureHeight;
+        double maxV = (v + sourceHeight) / (float) textureHeight;
         Tessellator tessellator = Tessellator.instance;
         tessellator.startDrawingQuads();
         tessellator.addVertexWithUV(x, y + drawHeight, zLevel, minU, maxV);
@@ -1202,7 +1370,6 @@ public final class GuiLuaContainer extends GuiContainer {
         tessellator.addVertexWithUV(x + drawWidth, y, zLevel, maxU, minV);
         tessellator.addVertexWithUV(x, y, zLevel, minU, minV);
         tessellator.draw();
-        GL11.glDisable(GL11.GL_BLEND);
         GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
     }
 }

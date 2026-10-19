@@ -15,6 +15,7 @@ import betamoon.luaapi.block.LuaBlockActionContext;
 import betamoon.luaapi.fuel.FuelsApi;
 import betamoon.luaapi.tileentity.LuaTileDataAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
+import betamoon.gui.presentation.GuiValueObserver;
 import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptErrors;
 import betamoon.networking.LogicalNetworkRuntime;
@@ -254,6 +255,10 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
     public boolean canInteractWith(EntityPlayer player) {
         return worldObj != null && worldObj.getBlockTileEntity(xCoord, yCoord, zCoord) == this
                 && player.getDistanceSq(xCoord + 0.5D, yCoord + 0.5D, zCoord + 0.5D) <= 64.0D;
+    }
+
+    public AutoCloseable observeGuiData(GuiValueObserver.Listener listener) {
+        return data.observe(listener);
     }
 
     public int getDataInt(String name) {

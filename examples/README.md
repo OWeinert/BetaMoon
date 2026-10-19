@@ -125,7 +125,7 @@ and, where useful, organize private modules with `require`.
 | 04 | `03_adv_04_custom_furnace.lua` | A complete smelting machine with a composed private fuel set |
 | 05 | `03_adv_05_tile_redstone_controller.lua` | Persistent tile data controlling redstone output |
 | 06 | `03_adv_06_visual_portal.lua` | Controllerless custom frame with item activation and owned, pass-through portal panels |
-| 07 | `03_adv_07_gui_showcase.lua` | Container GUI elements, interactive controls, session state, and synchronized presentation |
+| 07 | `03_adv_07_gui_showcase.lua` | Container GUI elements, interactive controls, temporary state, and synchronized presentation |
 | 08 | `03_adv_08_animated_machine.lua` | Animated block variants, material slots, glow, and sound |
 | 09 | `03_adv_09_simple_alloy/` (`betamoon.mod.json`, `main.lua`, `recipe_type.lua`, `recipes.lua`) | Simple named-slot recipe types, recipes, and a processing machine |
 | 10 | `03_adv_10_contextual_processor/` (`betamoon.mod.json`, `main.lua`, `recipe_type.lua`, `recipes.lua`) | Heat/power conditions and commit-time context revalidation |

@@ -30,7 +30,7 @@ final class ContainerControlParser {
         if (declarations.isnil()) {
             return Collections.emptyMap();
         }
-        requireTable(declarations, "container.session");
+        requireTable(declarations, "container.state");
         Map<String, ContainerDefinition.SessionField> result = new LinkedHashMap<String, ContainerDefinition.SessionField>();
         LuaValue key = LuaValue.NIL;
         while (true) {
@@ -40,26 +40,26 @@ final class ContainerControlParser {
                 break;
             }
             if (!key.isstring() || !next.arg(2).istable()) {
-                throw new LuaError("container.session must map names to field definitions.");
+                throw new LuaError("container.state must map names to field definitions.");
             }
             String name = key.checkjstring();
-            validateName(name, "container.session");
+            validateName(name, "container.state");
             if (result.size() >= MAX_SESSION_FIELDS) {
-                throw new LuaError("container.session may contain at most " + MAX_SESSION_FIELDS + " fields.");
+                throw new LuaError("container.state may contain at most " + MAX_SESSION_FIELDS + " fields.");
             }
             LuaValue field = next.arg(2);
             TileDataType type = TileDataType.parse(required(field, "type").checkjstring());
             Object defaultValue = type.defaultValue(field.get("default"));
             if (defaultValue instanceof Number && !Double.isFinite(((Number) defaultValue).doubleValue())) {
-                throw new LuaError("container.session." + name + ".default must be finite.");
+                throw new LuaError("container.state." + name + ".default must be finite.");
             }
             int maximumLength = field.get("maxLength").optint(type == TileDataType.STRING ? 256 : 0);
             if (type == TileDataType.STRING && (maximumLength < 1 || maximumLength > MAX_TEXT_LENGTH)) {
-                throw new LuaError("container.session." + name + ".maxLength must be between 1 and "
+                throw new LuaError("container.state." + name + ".maxLength must be between 1 and "
                         + MAX_TEXT_LENGTH + ".");
             }
             if (defaultValue instanceof String && ((String) defaultValue).length() > maximumLength) {
-                throw new LuaError("container.session." + name + ".default exceeds maxLength.");
+                throw new LuaError("container.state." + name + ".default exceeds maxLength.");
             }
             result.put(name, new ContainerDefinition.SessionField(name, type, defaultValue, maximumLength));
         }
@@ -153,9 +153,9 @@ final class ContainerControlParser {
         }
         requireTable(value, path + ".bind");
         String data = value.get("data").optjstring(null);
-        String sessionName = value.get("session").optjstring(null);
+        String sessionName = value.get("state").optjstring(null);
         if ((data == null) == (sessionName == null)) {
-            throw new LuaError(path + ".bind requires exactly one of data or session.");
+            throw new LuaError(path + ".bind requires exactly one of data or state.");
         }
         if (data != null) {
             TileEntityDefinition.Field field = tile.fields.get(data);
@@ -166,7 +166,7 @@ final class ContainerControlParser {
         }
         ContainerDefinition.SessionField field = session.get(sessionName);
         if (field == null) {
-            throw new LuaError(path + ".bind references unknown session data: " + sessionName);
+            throw new LuaError(path + ".bind references unknown state data: " + sessionName);
         }
         return new Binding(ContainerControlDefinition.Source.SESSION, sessionName, dataType(field.type));
     }
@@ -251,9 +251,9 @@ final class ContainerControlParser {
                     all.isnil() ? GuiConditionOperator.ANY : GuiConditionOperator.ALL, null, parsed);
         }
         String data = value.get("data").optjstring(value.get("field").optjstring(null));
-        String sessionName = value.get("session").optjstring(null);
+        String sessionName = value.get("state").optjstring(null);
         if ((data == null) == (sessionName == null)) {
-            throw new LuaError(path + " requires exactly one of data/field or session.");
+            throw new LuaError(path + " requires exactly one of data/field or state.");
         }
         DataField.Type type;
         ContainerGuiDefinition.Condition.Source source;
@@ -269,7 +269,7 @@ final class ContainerControlParser {
         } else {
             ContainerDefinition.SessionField definition = session.get(sessionName);
             if (definition == null) {
-                throw new LuaError(path + " references unknown session data: " + sessionName);
+                throw new LuaError(path + " references unknown state data: " + sessionName);
             }
             type = dataType(definition.type);
             source = ContainerGuiDefinition.Condition.Source.SESSION;

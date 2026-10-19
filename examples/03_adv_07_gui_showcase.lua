@@ -18,7 +18,7 @@ description = "Adds GUI Showcase, an interactive five-page gallery of container 
     "animates progress bars in four directions, including empty and nearly empty values. Page 3 " ..
     "shows state images and conditional visibility. Page 4 demonstrates groups, offsets, drawing " ..
     "layers, and translucent rectangles. Page 5 demonstrates buttons, text boxes, toggles, sliders, " ..
-    "choices, keyboard focus, dragging, and temporary session data. Hover over examples for additional " ..
+    "choices, keyboard focus, dragging, and temporary state data. Hover over examples for additional " ..
     "explanations.\n\n" ..
     "Use the real inventory slots to control the gallery; the drawn previews and decorations are " ..
     "not clickable inventory slots. Compare each page with its numbered source section. To try " ..
@@ -96,9 +96,9 @@ function modInit()
     },
     playerInventory = { x = 8, y = 152, includeHotbar = true },
 
-    -- Session values disappear when the screen closes. Use them for tabs,
+    -- State values disappear when the screen closes. Use them for tabs,
     -- searches, drafts, and other screen-local state.
-    session = {
+    state = {
       message = { type = "string", default = "Ready", maxLength = 24 }
     },
 
@@ -108,14 +108,14 @@ function modInit()
         onActivate = function(ctx)
           ctx.data:set("speed", 20)
           ctx.data:set("dial", 0)
-          ctx.session:set("message", "Reset")
+          ctx.state:set("message", "Reset")
         end
       },
       enabled = {
         type = "toggle",
         bind = { data = "enabled" },
         onChange = function(ctx, value)
-          ctx.session:set("message", value and "Enabled" or "Disabled")
+          ctx.state:set("message", value and "Enabled" or "Disabled")
         end
       },
       speed = {
@@ -140,7 +140,7 @@ function modInit()
         bind = { data = "label" },
         maxLength = 16,
         onCommit = function(ctx, value)
-          ctx.session:set("message", "Named " .. value)
+          ctx.state:set("message", "Named " .. value)
         end
       },
       dial = {
@@ -149,7 +149,7 @@ function modInit()
           if input.phase == "press" or input.phase == "drag" then
             local dial = math.floor(input.x / 63 * 100 + 0.5)
             ctx.data:set("dial", dial)
-            ctx.session:set("message", "Dial " .. dial)
+            ctx.state:set("message", "Dial " .. dial)
             return betamoon.callbackResults.handled
           end
           return betamoon.callbackResults.pass
@@ -501,7 +501,7 @@ function modInit()
       },
 
       -- 5. Controls send validated input to the server-side container callbacks.
-      -- Tile-bound values persist; session-bound values last only while this screen is open.
+      -- Tile-bound values persist; state-bound values last only while this screen is open.
       { type = "group", visibleWhen = { field = "page", equals = 5 },
         elements = {
           { type = "text", text = "5. Interactive controls", x = 8, y = 22 },

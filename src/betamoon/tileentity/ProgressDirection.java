@@ -18,7 +18,7 @@ public enum ProgressDirection {
     public Slice slice(int width, int height, int value, int maximum, int minimumPixels) {
         int fullLength = vertical ? height : width;
         int safeMaximum = Math.max(1, maximum);
-        int amount = value * fullLength / safeMaximum;
+        int amount = (int) ((long) Math.max(0, Math.min(safeMaximum, value)) * fullLength / safeMaximum);
         if (value > 0) {
             amount = Math.max(minimumPixels, amount);
         }

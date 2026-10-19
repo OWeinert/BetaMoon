@@ -2,6 +2,10 @@
 
 ## 0.10.0
 
+- Add source-tracked container GUI bindings, independent property transitions, temporary state events and runtime element handles.
+- Share animated geometry across GUI rendering, clipping, pointer input and panel click protection; retain container state during compatible visual refreshes.
+- Add consistent RGB artwork tinting, independent progress/icon tints, opacity and GUI interpolation helpers.
+
 - Add resizable, color-tinted panel elements for container GUI sections and expandable side tabs.
 - Add resizable visual slot elements with inner dimensions and fixed Minecraft-style borders to container GUIs.
 

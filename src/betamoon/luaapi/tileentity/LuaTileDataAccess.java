@@ -54,6 +54,7 @@ public final class LuaTileDataAccess {
     }
 
     private static void requireMutable(LuaCallbackScope scope) {
+        LuaCallbackScope.requireGameplayWrite();
         if (scope != null) {
             scope.requireMutable();
         }

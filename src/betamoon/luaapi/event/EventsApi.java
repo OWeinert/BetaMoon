@@ -5,6 +5,7 @@ import betamoon.event.api.EventChannel;
 import betamoon.event.api.IEventListener;
 import betamoon.event.context.EventContext;
 import betamoon.luaapi.LuaApiUtils;
+import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptResourceTracker;
 import betamoon.luamodloader.ScriptExecution;
@@ -83,6 +84,7 @@ public final class EventsApi {
         }
 
         private LuaValue subscribe(LuaValue functionValue) {
+            LuaCallbackScope.requireNoBindingMutation();
             if (!functionValue.isfunction()) {
                 throw new LuaError("Events: " + name + " listener must be a function.");
             }
@@ -122,6 +124,7 @@ public final class EventsApi {
             handle.set("active", LuaValue.TRUE);
             handle.set("unsubscribe", new VarArgFunction() {
                 public Varargs invoke(Varargs args) {
+                    LuaCallbackScope.requireNoBindingMutation();
                     Subscription.this.run();
                     return LuaValue.NIL;
                 }

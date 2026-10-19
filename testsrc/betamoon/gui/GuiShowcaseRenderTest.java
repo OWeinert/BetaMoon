@@ -34,6 +34,8 @@ import betamoon.luamodloader.NonReloadableScriptRegistry;
 import betamoon.luamodloader.ScriptMod;
 import betamoon.resources.LuaTextureResources;
 import betamoon.tileentity.ContainerControlRuntime;
+import betamoon.tileentity.ContainerPresentationRuntime;
+import betamoon.tileentity.LuaContainer;
 import betamoon.tileentity.ContainerGuiDefinition;
 import betamoon.tileentity.GuiLuaContainer;
 import betamoon.tileentity.LuaTileEntity;
@@ -204,6 +206,7 @@ public final class GuiShowcaseRenderTest {
             renderUpdateNotice(minecraft, font, output);
             verifyVisualSlotFrames(minecraft, font, definition, entity, output);
             verifyExpansionPanels(minecraft, font, output);
+            verifyAnimatedPresentation(minecraft, font, output);
             setupFrame();
             GL11.glEnable(GL11.GL_LIGHTING);
             GL11.glEnable(GL11.GL_DEPTH_TEST);
@@ -245,6 +248,7 @@ public final class GuiShowcaseRenderTest {
                 entity.setSyncedData("mode", 2);
                 entity.setSyncedData("active", 1);
                 setupFrame();
+                updatePresentation(gui);
                 background.invoke(gui, 0.0F);
                 GL11.glPushMatrix();
                 GL11.glTranslatef(32, 4, 0);
@@ -267,6 +271,13 @@ public final class GuiShowcaseRenderTest {
         } finally {
             buffer.destroy();
         }
+    }
+
+    private static void updatePresentation(GuiLuaContainer gui) throws Exception {
+        // The off-screen fixture has no live player for vanilla GuiContainer.updateScreen.
+        Method update = GuiLuaContainer.class.getDeclaredMethod("preparePresentation");
+        update.setAccessible(true);
+        update.invoke(gui);
     }
 
     private static void verifyVisualSlotFrames(Minecraft minecraft, FontRenderer font, ContainerGuiDefinition source,
@@ -336,16 +347,16 @@ public final class GuiShowcaseRenderTest {
             LuaValue handle = lua.load("local tile=betamoon.tileEntities:add{name='panels',inventory={slots={"
                     + "input={index=0}}}}; local container=betamoon.containers:add{name='panels',tileEntity=tile,"
                     + "slots={{slot='input',x=56,y=17}},playerInventory={x=8,y=84},"
-                    + "session={expanded={type='boolean',default=false}},"
-                    + "controls={open={type='toggle',bind={session='expanded'}}}};"
+                    + "state={expanded={type='boolean',default=false}},"
+                    + "controls={open={type='toggle',bind={state='expanded'}}}};"
                     + "return betamoon.containerGuis:add{name='panels',container=container,"
                     + "layout={preset='minecraft:furnace',title='Panels',playerInventoryLabel=false},elements={"
                     + "{type='panel',x=176,y=8,width=24,height=24,color=0x55AAFF},"
                     + "{type='panel',x=176,y=36,width=24,height=24,color='dark_green',"
-                    + "visibleWhen={session='expanded',equals=false}},"
+                    + "visibleWhen={state='expanded',equals=false}},"
                     + "{type='panel',x=176,y=64,width=24,height=24,color='dark_red',"
-                    + "visibleWhen={session='expanded',equals=false}},"
-                    + "{type='group',x=176,y=36,visibleWhen={session='expanded',equals=true},elements={"
+                    + "visibleWhen={state='expanded',equals=false}},"
+                    + "{type='group',x=176,y=36,visibleWhen={state='expanded',equals=true},elements={"
                     + "{type='panel',width=64,height=114,color=0x55CC55}," + "{type='text',text='Config',x=8,y=8},"
                     + "{type='slot',x=12,y=30}," + "{type='text',text='Enabled',x=8,y=62}}},"
                     + "{type='toggle_button',control='open',x=178,y=10,width=20,height=20,text='+'}}}").call();
@@ -387,6 +398,7 @@ public final class GuiShowcaseRenderTest {
         try {
             for (int state = 0; state < 2; state++) {
                 setupFrame();
+                updatePresentation(gui);
                 background.invoke(gui, 0.0F);
                 GL11.glPushMatrix();
                 GL11.glTranslatef(72, 37, 0);
@@ -421,6 +433,152 @@ public final class GuiShowcaseRenderTest {
         }
     }
 
+    private static void verifyAnimatedPresentation(Minecraft minecraft, FontRenderer font, File output)
+            throws Exception {
+        Method owner = LuaScriptRegistry.class.getDeclaredMethod("setCurrentScriptFile", String.class);
+        owner.setAccessible(true);
+        owner.invoke(null, "animated_gui_test.lua");
+        ContainerGuiDefinition definition;
+        Globals lua = JsePlatform.standardGlobals();
+        try {
+            LuaTable api = new LuaTable();
+            TileEntityApi.attach(api);
+            lua.set("betamoon", api);
+            LuaValue handle = lua.load("local t=betamoon.tileEntities:add{name='animated_gui',"
+                    + "data={progress={type='integer',default=50,sync=true},empty={type='integer',default=0,sync=true}}};"
+                    + "local c=betamoon.containers:add{name='animated_gui',tileEntity=t,slots={},"
+                    + "playerInventory={x=8,y=84},state={expanded={type='boolean',default=false},"
+                    + "hidden={type='boolean',default=false}},controls={drag={type='custom',"
+                    + "onInput=function(ctx,input) if input.phase=='drag' then dx=input.deltaX;dy=input.deltaY end;"
+                    + "if input.phase=='release' then released=(released or 0)+1 end;return 'handled' end}}};"
+                    + "return betamoon.containerGuis:add{name='animated_gui',container=c,background={style='minecraft'},"
+                    + "elements={{type='panel',id='p',x=8,y=8,width=24,height=24,tint='dark_green',"
+                    + "bind=function(v)local e=v.state:get('expanded');return {width=e and 72 or 24,"
+                    + "height=e and 64 or 24}end,transition={width={duration=.2},height={duration=.4}}},"
+                    + "{type='group',id='clip',x=96,y=8,width=24,height=24,clip=true,scaleX=1.5,scaleY=1.5,"
+                    + "elements={{type='rectangle',width=40,height=16,color=0x80FFFFFF,opacity=.5}}},"
+                    + "{type='text',text='\\194\\167cFade',x=96,y=48,color='white',opacity=.5},"
+                    + "{type='progress',id='gauge',value='progress',maximum=100,x=96,y=80,width=42,height=28,"
+                    + "builtin='minecraft:furnace_flame',backgroundBuiltin='minecraft:furnace_flame_background',"
+                    + "direction='bottom_to_top'},"
+                    + "{type='slot',x=8,y=116,tint='red'},"
+                    + "{type='progress',value='empty',maximum=100,x=96,y=120,"
+                    + "builtin='minecraft:furnace_flame',backgroundBuiltin='minecraft:furnace_arrow_background'},"
+                    + "{type='image',builtin='minecraft:furnace_arrow_background',x=128,y=120},"
+                    + "{type='interactive',id='drag',control='drag',x=40,y=76,width=20,height=20,"
+                    + "scaleX=2,scaleY=2,originX=0,originY=0,"
+                    + "bind=function(v)return {translateX=v.state:get('expanded') and 10 or 0,"
+                    + "visible=not v.state:get('hidden')}end,transition={translateX={duration=.1,easing='linear'}}}}}")
+                    .call();
+            definition = ((TileEntityApi.GuiHandle) handle).definition;
+        } finally {
+            owner.invoke(null, new Object[]{null});
+        }
+        LuaTileEntity entity = new LuaTileEntity(definition.container.tileEntity.name);
+        entity.worldObj = new TestWorld();
+        GuiLuaContainer gui = new GuiLuaContainer(new InventoryPlayer(null), entity, definition);
+        setField(GuiScreen.class, gui, "mc", minecraft);
+        setField(GuiScreen.class, gui, "fontRenderer", font);
+        gui.width = 320;
+        gui.height = 240;
+        Field containerField = GuiLuaContainer.class.getDeclaredField("luaContainer");
+        containerField.setAccessible(true);
+        LuaContainer container = (LuaContainer) containerField.get(gui);
+        double[] time = {0};
+        ContainerPresentationRuntime runtime = new ContainerPresentationRuntime(definition, entity,
+                container.controls(), font::getStringWidth, () -> time[0]);
+        setField(GuiLuaContainer.class, gui, "presentation", runtime);
+        Method background = GuiLuaContainer.class.getDeclaredMethod("drawGuiContainerBackgroundLayer", float.class);
+        Method foreground = GuiLuaContainer.class.getDeclaredMethod("drawGuiContainerForegroundLayer");
+        background.setAccessible(true);
+        foreground.setAccessible(true);
+        for (int frame = 0; frame < 3; frame++) {
+            if (frame == 1) {
+                container.controls().session().set("expanded", true);
+                runtime.update();
+                time[0] = .1;
+            } else if (frame == 2) {
+                time[0] = .4;
+            }
+            updatePresentation(gui);
+            setupFrame();
+            background.invoke(gui, 0.0F);
+            GL11.glPushMatrix();
+            GL11.glTranslatef(72, 37, 0);
+            foreground.invoke(gui);
+            GL11.glPopMatrix();
+            BufferedImage image = capture();
+            ImageIO.write(image, "png", new File(output, "animated-presentation-" + frame + ".png"));
+            for (int row = 0; row < 16; row++) {
+                for (int column = 0; column < 24; column++) {
+                    require(image.getRGB(168 + column, 157 + row) == image.getRGB(200 + column, 157 + row),
+                            "Native progress background extents changed when fill dimensions differed");
+                }
+            }
+            int clipped = image.getRGB(205, 50) & 0xFFFFFF;
+            int translucent = image.getRGB(173, 50) >> 16 & 255;
+            require(clipped == 0xC6C6C6, "Scaled group clip leaked decoration outside its bounds");
+            require(translucent >= 210 && translucent <= 215, "Source alpha and opacity were not multiplied");
+            int faded = 0;
+            for (int y = 85; y < 93; y++) {
+                for (int x = 168; x < 210; x++) {
+                    int rgb = image.getRGB(x, y);
+                    int red = rgb >> 16 & 255;
+                    int green = rgb >> 8 & 255;
+                    if (red > green + 50 && red < 245) {
+                        faded++;
+                    }
+                }
+            }
+            require(faded > 5, "Formatted text color codes discarded opacity");
+            require(!runtime.geometry(runtime.element("clip")).contains(133, 13),
+                    "Clipped region still accepts pointer input");
+            if (frame == 1) {
+                double width = runtime.element("p").number("width", 0);
+                double height = runtime.element("p").number("height", 0);
+                require(width > 24 && width < 72 && height > 24 && height < 64,
+                        "Independent dimensions were not sampled at intermediate time");
+            } else if (frame == 2) {
+                require(runtime.element("p").number("height", 0) == 64, "Animation did not reach exact endpoint");
+            }
+        }
+        Field keyboardCreated = Keyboard.class.getDeclaredField("created");
+        keyboardCreated.setAccessible(true);
+        boolean wasCreated = keyboardCreated.getBoolean(null);
+        keyboardCreated.setBoolean(null, true);
+        try {
+            Method mouse = GuiLuaContainer.class.getDeclaredMethod("mouseClicked", int.class, int.class, int.class);
+            Method drag = GuiLuaContainer.class.getDeclaredMethod("drag", ContainerGuiDefinition.ControlElement.class,
+                    int.class, int.class);
+            Method release = GuiLuaContainer.class.getDeclaredMethod("mouseMovedOrUp", int.class, int.class, int.class);
+            mouse.setAccessible(true);
+            drag.setAccessible(true);
+            release.setAccessible(true);
+            ContainerGuiDefinition.ControlElement control = (ContainerGuiDefinition.ControlElement)
+                    runtime.element("drag").definition.element;
+            require(runtime.element("drag").definition.properties.supports("tint"),
+                    "Custom control's configured builtin frame did not expose artwork tint");
+            int pointerX = 134;
+            int pointerY = 125;
+            mouse.invoke(gui, pointerX, pointerY, 0);
+            container.controls().session().set("expanded", false);
+            runtime.update();
+            time[0] = .45;
+            updatePresentation(gui);
+            drag.invoke(gui, control, pointerX, pointerY);
+            require(lua.get("dx").todouble() == 0 && lua.get("dy").todouble() == 0,
+                    "Control animation generated synthetic pointer motion");
+            drag.invoke(gui, control, pointerX + 6, pointerY);
+            require(lua.get("dx").todouble() == 3, "Captured pointer deltas were not transformed to local units");
+            container.controls().session().set("hidden", true);
+            release.invoke(gui, 318, 228, 0);
+            require(lua.get("released").isnil(), "Unavailable captured control received a stale release");
+        } finally {
+            gui.onGuiClosed();
+            keyboardCreated.setBoolean(null, wasCreated);
+        }
+    }
+
     private static void renderKiln(Minecraft minecraft, FontRenderer font, File output, Method background,
             Method foreground, Method hover) throws Exception {
         MultiblockExamplesTest.main(new String[0]);
@@ -437,6 +595,7 @@ public final class GuiShowcaseRenderTest {
             entity.setSyncedData("duration", 200);
             entity.setSyncedData("progress", formed ? 100 : 0);
             setupFrame();
+            updatePresentation(gui);
             background.invoke(gui, 0.0F);
             GL11.glPushMatrix();
             GL11.glTranslatef(72, 37, 0);
