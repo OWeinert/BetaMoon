@@ -6,6 +6,7 @@ import java.util.List;
 
 /** Ordered source of truth shared by the debug menu and Export All. */
 public final class DebugExportCatalog {
+    public static final String SCRIPT_REPORT_ID = "script-report";
     private static final List<DebugExportDefinition> DEFINITIONS = create();
 
     private DebugExportCatalog() {
@@ -36,6 +37,9 @@ public final class DebugExportCatalog {
 
     private static List<DebugExportDefinition> create() {
         List<DebugExportDefinition> values = new ArrayList<DebugExportDefinition>();
+        values.add(new DebugExportDefinition(SCRIPT_REPORT_ID, "Full script report",
+                "Issues, script information, and environment diagnostics.", true,
+                new DebugScriptReportExporter(), "script_report.txt"));
         values.add(new DebugExportDefinition("content", "Content keys and IDs",
                 "Blocks, items, canonical keys, numeric IDs, owners, and lookup names.", true,
                 new DebugContentExporter(), "blocks.txt", "items.txt", "content_keys.txt"));

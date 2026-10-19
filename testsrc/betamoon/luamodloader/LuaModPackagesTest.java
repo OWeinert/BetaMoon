@@ -523,6 +523,8 @@ public final class LuaModPackagesTest {
         require(otherLog.isFile(), "Script report retention must preserve other log types");
         String report = new String(Files.readAllBytes(reports[0].toPath()), StandardCharsets.UTF_8);
         require(report.contains("Example failure"), "Automatic reports must include script errors");
+        require(report.contains("Runtime environment") && report.contains("Occurred:")
+                && report.contains("automatic reload"), "Automatic reports must share the full diagnostic format");
         LuaScriptRegistry.clear();
         LuaScriptErrors.clear();
     }

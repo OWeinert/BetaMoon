@@ -1,6 +1,5 @@
 package betamoon.entity;
 
-import betamoon.BetaMoonCommon;
 
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
@@ -64,8 +63,8 @@ final class EntityBehaviorEvents {
             if (DISABLED.computeIfAbsent(type, ignored -> new HashSet<>()).add(event)) {
                 String message = type.key + ".behavior." + event + " disabled after error: " + error.getMessage();
                 String owner = EntityTypeRegistry.owner(type.key);
-                LuaScriptErrors.add(owner == null ? type.key.toString() : owner, message);
-                BetaMoonCommon.LOGGER.warning(message);
+                LuaScriptErrors.add(owner == null ? type.key.toString() : owner, message,
+                        LuaScriptErrors.Outcome.CALLBACK_DISABLED, error);
             }
         }
     }

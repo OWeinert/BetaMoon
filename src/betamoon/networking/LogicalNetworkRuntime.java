@@ -1,6 +1,5 @@
 package betamoon.networking;
 
-import betamoon.BetaMoonCommon;
 import betamoon.assets.AssetKey;
 import betamoon.capability.CapabilityInstance;
 import betamoon.capability.CapabilityTopologyEvents;
@@ -29,7 +28,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.WeakHashMap;
-import java.util.logging.Level;
 import net.minecraft.src.NBTBase;
 import net.minecraft.src.NBTTagCompound;
 import net.minecraft.src.NBTTagList;
@@ -863,8 +861,7 @@ public final class LogicalNetworkRuntime {
                     ? message
                     : message + ": " + (error.getMessage() == null ? error.toString() : error.getMessage());
             String report = "logical network " + definition.key + " disabled: " + detail;
-            LuaScriptErrors.add(definition.owner, report);
-            BetaMoonCommon.LOGGER.log(Level.WARNING, definition.owner + ": " + report, error);
+            LuaScriptErrors.add(definition.owner, report, LuaScriptErrors.Outcome.UNKNOWN, error);
         }
 
         private void load() {

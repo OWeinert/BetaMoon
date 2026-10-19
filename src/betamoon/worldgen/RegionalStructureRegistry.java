@@ -1,7 +1,6 @@
 package betamoon.worldgen;
 
 import betamoon.worldgen.terrain.PopulationPolicy;
-import betamoon.BetaMoonCommon;
 import betamoon.dimension.DimensionIdentity;
 import betamoon.dimension.DimensionSelector;
 import betamoon.luamodloader.LuaScriptErrors;
@@ -771,8 +770,7 @@ final class RegionalStructureRegistry {
         reject(definition.key, FeatureResult.RUNTIME_ERROR);
         String detail = error.getMessage() == null ? error.toString() : error.getMessage();
         String message = "Regional structure " + definition.key + " was disabled after an error: " + detail;
-        BetaMoonCommon.LOGGER.warning(definition.owner + ": " + message);
-        LuaScriptErrors.add(definition.owner, message);
+        LuaScriptErrors.add(definition.owner, message, LuaScriptErrors.Outcome.CALLBACK_DISABLED, error);
     }
 
     private static final class Snapshot {

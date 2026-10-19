@@ -3,6 +3,8 @@ package betamoon.config;
 import betamoon.BetaMoonCommon;
 import betamoon.multiblock.MultiblockLimits;
 import betamoon.io.IoUtils;
+import betamoon.io.BetaMoonDirectories;
+import betamoon.logging.LogLevel;
 import forge.Configuration;
 import forge.Property;
 import java.io.File;
@@ -12,6 +14,8 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.logging.Level;
 
@@ -20,6 +24,9 @@ public final class BetaMoonConfig {
     private static final String LEGACY_FILE_NAME = "betamoon.config";
 
     private final Configuration config;
+    private final File logDirectory;
+    private ConfigField<LogLevel> fileMinLogLevel;
+    private ConfigField<LogLevel> consoleMinLogLevel;
     private ConfigField<Boolean> showScriptWarningsOnLoad;
     private ConfigField<Boolean> showScriptErrorPopupOnStartup;
     private ConfigField<Boolean> checkForUpdates;
@@ -60,6 +67,7 @@ public final class BetaMoonConfig {
         if (directory == null) {
             throw new IllegalStateException("Unable to create BetaMoon config directory: " + configDirectory);
         }
+        logDirectory = BetaMoonDirectories.logsDirectoryForInstance(directory.getAbsoluteFile().getParentFile());
         config = new Configuration(resolveConfigFile(directory, configFileName));
         updateConfigFields();
     }
@@ -103,6 +111,9 @@ public final class BetaMoonConfig {
         config.blockProperties.clear();
         config.itemProperties.clear();
         config.load();
+
+        fileMinLogLevel = logLevel("logging.fileMinLevel");
+        consoleMinLogLevel = logLevel("logging.consoleMinLevel");
 
         // Forge 1.0.6 only accepts general/block/item sections. Dotted keys group
         // BetaMoon settings without creating sections its parser cannot reload.
@@ -208,6 +219,18 @@ public final class BetaMoonConfig {
         return verboseAssetDiagnostics;
     }
 
+    public ConfigField<LogLevel> getFileMinLogLevel() {
+        return fileMinLogLevel;
+    }
+
+    public ConfigField<LogLevel> getConsoleMinLogLevel() {
+        return consoleMinLogLevel;
+    }
+
+    public File getLogDirectory() {
+        return logDirectory;
+    }
+
     private static File resolveDefaultConfigDirectory() {
         File minecraftDir = IoUtils.resolveMinecraftDirFromCodeSource(BetaMoonCommon.class);
         if (minecraftDir == null) {
@@ -228,6 +251,36 @@ public final class BetaMoonConfig {
         return particleViewDistance;
     }
 
+    /** Effective diagnostic settings; excludes arbitrary configuration files and local paths. */
+    public Map<String, String> diagnosticSettings() {
+        Map<String, String> values = new LinkedHashMap<>();
+        diagnostic(values, fileMinLogLevel);
+        diagnostic(values, consoleMinLogLevel);
+        diagnostic(values, hotReloadOnFileChange);
+        diagnostic(values, reloadDebounceMs);
+        diagnostic(values, disabledScripts);
+        diagnostic(values, showScriptWarningsOnLoad);
+        diagnostic(values, showScriptErrorPopupOnStartup);
+        diagnostic(values, logScriptLoadTimings);
+        diagnostic(values, autoExportDiagnosticsOnScriptError);
+        diagnostic(values, slowCallbackWarningMs);
+        diagnostic(values, verboseAssetDiagnostics);
+        diagnostic(values, particleMaxActive);
+        diagnostic(values, particleMaxPerTick);
+        diagnostic(values, particleViewDistance);
+        values.put("multiblocks.maxRequiredCells", Integer.toString(MultiblockLimits.requiredCells()));
+        values.put("multiblocks.visitsPerTick", Integer.toString(MultiblockLimits.visitsPerTick()));
+        values.put("multiblocks.maxInstances", Integer.toString(MultiblockLimits.worldInstances()));
+        values.put("multiblocks.maxInstancesPerOwner", Integer.toString(MultiblockLimits.ownerInstances()));
+        return values;
+    }
+
+    private static void diagnostic(Map<String, String> values, ConfigField<?> field) {
+        if (field != null) {
+            values.put(field.getName(), String.valueOf(field.getValue()));
+        }
+    }
+
     private void migrate(String oldKey, String newKey) {
         Property old = (Property) config.generalProperties.remove(oldKey);
         if (old != null && !config.generalProperties.containsKey(newKey)) {
@@ -240,6 +293,20 @@ public final class BetaMoonConfig {
         Property property = config.getOrCreateBooleanProperty(key, Configuration.GENERAL_PROPERTY, fallback);
         property.comment = comment;
         return new ConfigField<Boolean>(key, Boolean.valueOf(property.value));
+    }
+
+    private ConfigField<LogLevel> logLevel(String key) {
+        Property property = config.getOrCreateProperty(key, Configuration.GENERAL_PROPERTY, "info");
+        property.comment = "Minimum log level: trace, debug, info, warn, error, or off. Default: info.";
+        LogLevel value;
+        try {
+            value = LogLevel.parse(property.value);
+        } catch (IllegalArgumentException invalid) {
+            BetaMoonCommon.LOGGER.warning("Invalid " + key + " value '" + property.value + "'; using info.");
+            value = LogLevel.INFO;
+        }
+        property.value = value.toString();
+        return new ConfigField<LogLevel>(key, value);
     }
 
     private ConfigField<Integer> boundedInt(String key, int fallback, int minimum, int maximum, String comment) {

@@ -15,15 +15,24 @@ import betamoon.gui.widget.GuiDialog.FooterAlignment;
 import betamoon.gui.widget.GuiLink;
 import betamoon.gui.widget.GuiScrollView;
 import betamoon.io.IoUtils;
+import betamoon.luamodloader.LuaScriptErrors;
 import java.io.File;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.src.GuiScreen;
 
-/** Catalog-driven dialog for isolated, descriptive debug exports. */
+/** Pinned script-report action above a catalog-driven list of individual debug exports. */
 public final class GuiPopupDebugMenu extends GuiDialogScreen {
+    private final GuiScriptIssueActions reportActions;
+
     public GuiPopupDebugMenu(GuiScreen parent) {
-        super(parent, "Debug Exports");
+        this(parent, new GuiScriptIssueActions());
+    }
+
+    GuiPopupDebugMenu(GuiScreen parent, GuiScriptIssueActions reportActions) {
+        super(parent, "Debug Tools");
+        this.reportActions = reportActions;
 
         dialog.setPanelSize(500, 340, 240);
         dialog.setScreenMargins(24, 36);
@@ -38,59 +47,153 @@ public final class GuiPopupDebugMenu extends GuiDialogScreen {
         showScreen(new GuiPopupDebugExport(this, result));
     }
 
+    private void saveReport() {
+        Path report = reportActions.export(LuaScriptErrors.getEntries());
+        showScreen(new GuiPopupScriptIssueExport(this, report, reportActions));
+    }
+
+    private void openExportFolder() {
+        String path = DebugExports.getDebugDirPath();
+        if (!path.isEmpty()) {
+            IoUtils.openPath(new File(path));
+        }
+    }
+
     private final class ExportMenuBody extends GuiContainer {
-        private final GuiLink directory = add(
-                new GuiLink(() -> IoUtils.openPath(new File(DebugExports.getDebugDirPath()))));
+        private final ReportPanel report = add(new ReportPanel());
+        private final ExportHeading heading = add(new ExportHeading());
         private final CategoryList categories = new CategoryList();
         private final GuiScrollView scroll = add(new GuiScrollView(categories, GuiScrollView.Policy.VERTICAL));
 
-        private ExportMenuBody() {
-            String path = DebugExports.getDebugDirPath();
-            directory.setText(path);
-            directory.setVisible(!path.isEmpty());
-            directory.setTooltip("Open the export directory");
-        }
-
         @Override
         protected Size measureElement(GuiContext context, Constraints constraints) {
-            return new Size(constraints.getMaxWidth(),
-                    context.getRenderer().lineHeight() + 8 + categories.contentHeight());
+            int width = constraints.getMaxWidth();
+            Constraints childConstraints = Constraints.upTo(width, Integer.MAX_VALUE);
+            int height = report.measure(context, childConstraints).getHeight() + 8
+                    + heading.measure(context, childConstraints).getHeight() + 4
+                    + categories.contentHeight(context, width);
+            return new Size(width, height);
         }
 
         @Override
         protected void arrangeChildren(GuiContext context) {
-            String displayPath = context.getRenderer().trimToWidth(DebugExports.getDebugDirPath(), getWidth());
-            directory.setText(displayPath);
-            directory.setVisible(!displayPath.isEmpty());
-            directory.arrange(context,
-                    Rect.fromPositionAndSize(getLeft(), getTop(), getWidth(), context.getRenderer().lineHeight() + 2));
-            int listTop = getTop() + context.getRenderer().lineHeight() + 8;
-            scroll.setContentSize(getWidth(), categories.contentHeight());
+            Constraints constraints = Constraints.upTo(getWidth(), Integer.MAX_VALUE);
+            int reportHeight = report.measure(context, constraints).getHeight();
+            report.arrange(context, Rect.fromPositionAndSize(getLeft(), getTop(), getWidth(), reportHeight));
+            int headingHeight = heading.measure(context, constraints).getHeight();
+            heading.arrange(context,
+                    Rect.fromPositionAndSize(getLeft(), report.getBottom() + 8, getWidth(), headingHeight));
+            int listTop = Math.min(getBottom(), heading.getBottom() + 4);
+            scroll.setContentSize(getWidth(), categories.contentHeight(context, getWidth()));
             scroll.arrange(context, new Rect(getLeft(), listTop, getRight(), getBottom()));
         }
     }
 
+    private final class ReportPanel extends GuiContainer {
+        private static final int PADDING = 8;
+        private static final int BUTTON_WIDTH = 90;
+        private final DebugExportDefinition definition = DebugExportCatalog.find(DebugExportCatalog.SCRIPT_REPORT_ID);
+        private final GuiButton save = add(
+                new GuiButton("Save report", BUTTON_WIDTH, GuiPopupDebugMenu.this::saveReport));
+
+        private int textWidth(int width) {
+            return Math.max(8, width - PADDING * 2 - BUTTON_WIDTH - 10);
+        }
+
+        @Override
+        protected Size measureElement(GuiContext context, Constraints constraints) {
+            int width = textWidth(constraints.getMaxWidth());
+            int height = context.getRenderer().wrappedTextHeight(definition.getTitle(), width) + 4
+                    + context.getRenderer().wrappedTextHeight(definition.getDescription(), width) + PADDING * 2;
+            return new Size(constraints.getMaxWidth(), Math.max(46, height));
+        }
+
+        @Override
+        protected void arrangeChildren(GuiContext context) {
+            save.arrange(context, Rect.fromPositionAndSize(getRight() - PADDING - BUTTON_WIDTH,
+                    getTop() + (getHeight() - 20) / 2, BUTTON_WIDTH, 20));
+        }
+
+        @Override
+        protected void renderBeforeChildren(GuiContext context) {
+            context.getRenderer().drawPopupPanel(getBounds());
+            context.getRenderer().drawRect(getLeft() + 3, getTop() + 3, getRight() - 3, getBottom() - 3, 0xFF252525);
+            int width = textWidth(getWidth());
+            int textLeft = getLeft() + PADDING;
+            int textTop = getTop() + PADDING;
+            context.getRenderer().drawWrappedText(definition.getTitle(), textLeft, textTop, width,
+                    context.getRenderer().getTheme().textPrimary);
+            int descriptionTop = textTop + context.getRenderer().wrappedTextHeight(definition.getTitle(), width) + 4;
+            context.getRenderer().drawWrappedText(definition.getDescription(), textLeft, descriptionTop, width,
+                    context.getRenderer().getTheme().textMuted);
+        }
+    }
+
+    private final class ExportHeading extends GuiContainer {
+        private static final String TITLE = "Individual exports";
+        private static final String LINK = "Open export folder";
+        private final GuiLink directory = add(new GuiLink(GuiPopupDebugMenu.this::openExportFolder));
+
+        private ExportHeading() {
+            directory.setText(LINK);
+            directory.setVisible(!DebugExports.getDebugDirPath().isEmpty());
+            directory.setTooltipSupplier(DebugExports::getDebugDirPath);
+        }
+
+        private boolean stacked(GuiContext context, int width) {
+            return directory.isVisible()
+                    && context.getRenderer().textWidth(TITLE) + 12 + context.getRenderer().textWidth(LINK) > width;
+        }
+
+        @Override
+        protected Size measureElement(GuiContext context, Constraints constraints) {
+            int lineHeight = context.getRenderer().lineHeight();
+            return new Size(constraints.getMaxWidth(),
+                    stacked(context, constraints.getMaxWidth()) ? lineHeight * 2 + 6 : lineHeight + 2);
+        }
+
+        @Override
+        protected void arrangeChildren(GuiContext context) {
+            int width = Math.min(getWidth(), context.getRenderer().textWidth(LINK));
+            int top = getTop() + (stacked(context, getWidth()) ? context.getRenderer().lineHeight() + 4 : 0);
+            directory.arrange(context,
+                    Rect.fromPositionAndSize(getRight() - width, top, width, context.getRenderer().lineHeight() + 2));
+        }
+
+        @Override
+        protected void renderBeforeChildren(GuiContext context) {
+            context.getRenderer().drawText(TITLE, getLeft(), getTop(), context.getRenderer().getTheme().textPrimary);
+        }
+    }
+
     private final class CategoryList extends GuiContainer {
-        private static final int ROW_HEIGHT = 58;
-        private static final int BUTTON_WIDTH = 72;
+        private static final int BUTTON_WIDTH = 90;
         private final List<CategoryRow> rows = new ArrayList<CategoryRow>();
 
         private CategoryList() {
             for (DebugExportDefinition definition : DebugExportCatalog.definitions()) {
-                rows.add(add(new CategoryRow(definition)));
+                if (!DebugExportCatalog.SCRIPT_REPORT_ID.equals(definition.getId())) {
+                    rows.add(add(new CategoryRow(definition)));
+                }
             }
         }
 
-        private int contentHeight() {
-            return rows.size() * ROW_HEIGHT;
+        private int contentHeight(GuiContext context, int width) {
+            int height = 0;
+            for (CategoryRow row : rows) {
+                height += row.height(context, Math.max(0, width - 5));
+            }
+            return height;
         }
 
         @Override
         protected void arrangeChildren(GuiContext context) {
             int y = getTop();
             for (CategoryRow row : rows) {
-                row.arrange(context, Rect.fromPositionAndSize(getLeft(), y, getWidth() - 5, ROW_HEIGHT));
-                y += ROW_HEIGHT;
+                int width = Math.max(0, getWidth() - 5);
+                int height = row.height(context, width);
+                row.arrange(context, Rect.fromPositionAndSize(getLeft(), y, width, height));
+                y += height;
             }
         }
 
@@ -103,6 +206,18 @@ public final class GuiPopupDebugMenu extends GuiDialogScreen {
                 export = add(new GuiButton("Export", BUTTON_WIDTH, () -> showResult(DebugExports.export(definition))));
             }
 
+            private int textWidth(int width) {
+                return Math.max(8, width - BUTTON_WIDTH - 14);
+            }
+
+            private int height(GuiContext context, int width) {
+                int textWidth = textWidth(width);
+                int titleHeight = context.getRenderer().wrappedTextHeight(definition.getTitle(), textWidth);
+                int descriptionHeight = context.getRenderer().wrappedTextHeight(definition.getDescription(), textWidth);
+                return Math.max(58, 2 + titleHeight + 4 + descriptionHeight + 4
+                        + context.getRenderer().lineHeight() + 6);
+            }
+
             @Override
             protected void arrangeChildren(GuiContext context) {
                 int buttonY = getTop() + (getHeight() - 20) / 2;
@@ -112,13 +227,17 @@ public final class GuiPopupDebugMenu extends GuiDialogScreen {
 
             @Override
             protected void renderBeforeChildren(GuiContext context) {
-                int textWidth = Math.max(0, getWidth() - BUTTON_WIDTH - 14);
-                context.getRenderer().drawText(definition.getTitle(), getLeft() + 2, getTop() + 2,
+                int textWidth = textWidth(getWidth());
+                int descriptionY = getTop() + 2
+                        + context.getRenderer().wrappedTextHeight(definition.getTitle(), textWidth) + 4;
+                context.getRenderer().drawWrappedText(definition.getTitle(), getLeft() + 2, getTop() + 2, textWidth,
                         context.getRenderer().getTheme().textPrimary);
-                context.getRenderer().drawWrappedText(definition.getDescription(), getLeft() + 2, getTop() + 14,
+                context.getRenderer().drawWrappedText(definition.getDescription(), getLeft() + 2, descriptionY,
                         textWidth, context.getRenderer().getTheme().textMuted);
+                int filesY = descriptionY
+                        + context.getRenderer().wrappedTextHeight(definition.getDescription(), textWidth) + 4;
                 String files = context.getRenderer().trimToWidth("Files: " + definition.getFileSummary(), textWidth);
-                context.getRenderer().drawText(files, getLeft() + 2, getTop() + 42,
+                context.getRenderer().drawText(files, getLeft() + 2, filesY,
                         context.getRenderer().getTheme().textMuted);
                 context.getRenderer().drawHorizontalLine(getLeft(), getRight(), getBottom() - 2,
                         context.getRenderer().getTheme().line);

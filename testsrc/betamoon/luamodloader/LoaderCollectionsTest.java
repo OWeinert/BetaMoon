@@ -42,6 +42,7 @@ public final class LoaderCollectionsTest {
             verifySourcePreflight();
             verifyRetainedScripts();
             verifyLoaderPhases();
+            ScriptDiagnosticsTest.run();
             FuelSystemTest.main(arguments);
             System.out.println("Loader collections passed: snapshots, cleanup, dependencies, lifecycle and sources.");
         } finally {

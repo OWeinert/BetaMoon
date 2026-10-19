@@ -1,6 +1,5 @@
 package betamoon.tileentity;
 
-import betamoon.BetaMoonCommon;
 import betamoon.gui.presentation.GuiInputSnapshot;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.tileentity.LuaTileDataAccess;
@@ -239,8 +238,7 @@ public final class ContainerControlRuntime {
         String detail = error.getMessage() == null ? error.toString() : error.getMessage();
         String message = "container " + definition.name + " control '" + control.name + "' " + name
                 + " was disabled after an error: " + detail;
-        LuaScriptErrors.add(definition.owner, message);
-        BetaMoonCommon.LOGGER.warning(definition.owner + ": " + message);
+        LuaScriptErrors.add(definition.owner, message, LuaScriptErrors.Outcome.CALLBACK_DISABLED, error);
     }
 
     private LuaTable context(final LuaCallbackScope scope, final ContainerControlDefinition control,

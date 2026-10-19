@@ -3,7 +3,6 @@ package betamoon.tileentity;
 import betamoon.luaapi.multiblock.MultiblocksApi;
 import betamoon.multiblock.MultiblockRuntime;
 
-import betamoon.BetaMoonCommon;
 import betamoon.assets.AssetKey;
 import betamoon.capability.CapabilityInstance;
 import betamoon.capability.TileCapabilityContainer;
@@ -395,8 +394,7 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
     private static void reportCallbackError(TileEntityDefinition definition, String callback, Throwable error) {
         String detail = error.getMessage() == null ? error.toString() : error.getMessage();
         String message = "tile entity " + callback + " was disabled after an error: " + detail;
-        LuaScriptErrors.add(definition.owner, message);
-        BetaMoonCommon.LOGGER.warning(definition.owner + ": " + message);
+        LuaScriptErrors.add(definition.owner, message, LuaScriptErrors.Outcome.CALLBACK_DISABLED, error);
     }
 
     public static final class Context extends LuaTable implements AutoCloseable {

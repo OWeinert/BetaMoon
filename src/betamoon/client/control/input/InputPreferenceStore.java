@@ -1,5 +1,6 @@
 package betamoon.client.control.input;
 
+import betamoon.BetaMoonCommon;
 import betamoon.assets.model.ModelJson;
 import betamoon.content.ContentKey;
 import java.io.File;
@@ -21,7 +22,7 @@ import java.util.logging.Logger;
 public final class InputPreferenceStore {
     private static final int MAX_FILE_BYTES = 1048576;
     private static final int MAX_RECORDS = 4096;
-    private static final Logger LOGGER = Logger.getLogger(InputPreferenceStore.class.getName());
+    private static final Logger LOGGER = BetaMoonCommon.LOGGER;
 
     public static final class Preference {
         private final List<InputBinding> bindings;

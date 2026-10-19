@@ -188,7 +188,7 @@ public final class GuiShowcaseRenderTest {
                 "Showcase dial did not handle drag input");
         require(entity.getDataInt("dial") == 100, "Dragging the showcase dial did not update its visible value");
 
-        Pbuffer buffer = new Pbuffer(320, 240, new PixelFormat(8, 24, 0), null, null);
+        Pbuffer buffer = new Pbuffer(640, 360, new PixelFormat(8, 24, 0), null, null);
         try {
             buffer.makeCurrent();
             GameSettings settings = new GameSettings();
@@ -199,6 +199,7 @@ public final class GuiShowcaseRenderTest {
             minecraft.renderEngine = engine;
             minecraft.fontRenderer = font;
             verifyIssueLayout(font);
+            ScriptIssueRenderChecks.run(minecraft, font, output);
             verifyDialogContentSizing(minecraft, font);
             verifyTextureRenderState(minecraft, font);
             renderFrameworkScreens(minecraft, font, output);
@@ -808,8 +809,11 @@ public final class GuiShowcaseRenderTest {
             GuiIssueLayout layout = GuiIssueLayout.prepare(font, LuaScriptErrors.getEntries(), 80, 10);
             List<GuiIssueLayout.Entry> entries = layout.getEntries();
             require(entries.size() == 2, "Issue layout omitted an error or warning");
-            int expectedHeight = GuiRenderer.lineHeight(font) + 3 + font.func_27277_a("broken.lua:12", 80) + 3
-                    + font.func_27277_a("first line with wrapped details", 80) + font.func_27277_a("second line", 80);
+            int innerWidth = 80 - GuiIssueLayout.PADDING * 2;
+            int expectedHeight = GuiIssueLayout.PADDING * 2 + font.func_27277_a("Error", innerWidth) + 3
+                    + font.func_27277_a("broken.lua:12", innerWidth) + 3
+                    + font.func_27277_a("first line with wrapped details", innerWidth)
+                    + font.func_27277_a("second line", innerWidth);
             require(entries.get(0).getHeight() == expectedHeight,
                     "Source is presented once while complete multiline diagnostics retain their measured space");
             require("Error".equals(entries.get(0).getSeverityLabel())
@@ -818,6 +822,8 @@ public final class GuiShowcaseRenderTest {
             GuiIssueLayout narrow = GuiIssueLayout.prepare(font, LuaScriptErrors.getEntries(), 30, 10);
             require(narrow.getHeight() > layout.getHeight(),
                     "Narrow source links and messages wrap into measured rows");
+            require(GuiIssueLayout.prepare(font, LuaScriptErrors.getEntries(), 1, 10).getHeight() > 0,
+                    "Temporarily constrained layout must not enter the native text wrapper's zero-progress loop");
             require(layout.getHeight() == entries.get(0).getHeight() + 10 + entries.get(1).getHeight(),
                     "Issue list height must use the prepared entry heights and gap");
 
@@ -1192,10 +1198,14 @@ public final class GuiShowcaseRenderTest {
     }
 
     private static void setupFrame() {
-        GL11.glViewport(0, 0, 320, 240);
+        setupFrame(320, 240);
+    }
+
+    static void setupFrame(int width, int height) {
+        GL11.glViewport(0, 0, width, height);
         GL11.glMatrixMode(GL11.GL_PROJECTION);
         GL11.glLoadIdentity();
-        GL11.glOrtho(0, 320, 240, 0, -1000, 1000);
+        GL11.glOrtho(0, width, height, 0, -1000, 1000);
         GL11.glMatrixMode(GL11.GL_MODELVIEW);
         GL11.glLoadIdentity();
         GL11.glDepthMask(true);
@@ -1211,12 +1221,16 @@ public final class GuiShowcaseRenderTest {
     }
 
     private static BufferedImage capture() {
-        ByteBuffer pixels = BufferUtils.createByteBuffer(320 * 240 * 4);
-        GL11.glReadPixels(0, 0, 320, 240, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
-        BufferedImage image = new BufferedImage(320, 240, BufferedImage.TYPE_INT_ARGB);
-        for (int y = 0; y < 240; y++) {
-            for (int x = 0; x < 320; x++) {
-                int i = ((239 - y) * 320 + x) * 4;
+        return capture(320, 240);
+    }
+
+    static BufferedImage capture(int width, int height) {
+        ByteBuffer pixels = BufferUtils.createByteBuffer(width * height * 4);
+        GL11.glReadPixels(0, 0, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int i = ((height - 1 - y) * width + x) * 4;
                 image.setRGB(x, y, 0xFF000000 | (pixels.get(i) & 255) << 16 | (pixels.get(i + 1) & 255) << 8
                         | pixels.get(i + 2) & 255);
             }

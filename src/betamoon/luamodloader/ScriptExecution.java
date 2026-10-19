@@ -23,8 +23,14 @@ public final class ScriptExecution {
         Objects.requireNonNull(callbackName, "Callback name");
         Objects.requireNonNull(function, "Lua function");
         long startedNanos = System.nanoTime();
-        try (ScriptExecutionScope ignored = ScriptExecutionScope.open(source)) {
-            return function.invoke(arguments);
+        try (ScriptExecutionScope ignored = ScriptExecutionScope.open(source);
+                ScriptDiagnostics.Scope diagnostic = ScriptDiagnostics.scope(null, callbackName)) {
+            try {
+                return function.invoke(arguments);
+            } catch (RuntimeException | Error error) {
+                ScriptDiagnostics.remember(error);
+                throw error;
+            }
         } finally {
             SlowScriptCallbackMonitor.record(source, callbackName, startedNanos);
         }

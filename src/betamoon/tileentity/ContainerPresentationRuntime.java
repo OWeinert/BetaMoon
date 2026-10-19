@@ -1,6 +1,5 @@
 package betamoon.tileentity;
 
-import betamoon.BetaMoonCommon;
 import betamoon.data.DataField;
 import betamoon.gui.animation.GuiAnimationRequest;
 import betamoon.gui.animation.GuiAnimationValueError;
@@ -9,6 +8,7 @@ import betamoon.gui.presentation.GuiGeometry;
 import betamoon.gui.presentation.GuiGeometry.Bounds;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.luamodloader.ScriptDiagnostics;
 import betamoon.luamodloader.ScriptExecution;
 import betamoon.luamodloader.ScriptResourceTracker;
 import java.util.ArrayList;
@@ -606,7 +606,7 @@ public final class ContainerPresentationRuntime implements AutoCloseable {
                 }
             }
             eventFailed = true;
-            report("onEvent", error);
+            report("onEvent", error, LuaScriptErrors.Outcome.CALLBACK_DISABLED);
         } finally {
             commands = null;
         }
@@ -904,17 +904,24 @@ public final class ContainerPresentationRuntime implements AutoCloseable {
         String detail = error.getMessage() == null ? error.toString() : error.getMessage();
         String category = detail.replaceAll("[-+]?[0-9]+(?:\\.[0-9]+)?", "#");
         if (node.diagnostics.size() < 32 && node.diagnostics.add(category)) {
-            report("element " + label(node) + " bind", error);
+            report("element " + label(node) + " bind", error, node.suspended
+                    ? LuaScriptErrors.Outcome.BINDING_SUSPENDED : LuaScriptErrors.Outcome.APPEARANCE_RETAINED);
         } else if (node.suppressedDiagnostics < Integer.MAX_VALUE) {
             node.suppressedDiagnostics++;
         }
     }
 
     private void report(String callback, Throwable error) {
+        report(callback, error, LuaScriptErrors.Outcome.UNKNOWN);
+    }
+
+    private void report(String callback, Throwable error, LuaScriptErrors.Outcome outcome) {
         String message = "GUI " + definition.name + " / " + callback + ": "
                 + (error.getMessage() == null ? error.toString() : error.getMessage());
-        LuaScriptErrors.add(definition.presentation.callbackOwner, message);
-        BetaMoonCommon.LOGGER.warning(message);
+        try (ScriptDiagnostics.Scope diagnostic = ScriptDiagnostics.scope(null,
+                "GUI " + definition.name + " / " + callback)) {
+            LuaScriptErrors.add(definition.presentation.callbackOwner, message, outcome, error);
+        }
     }
 
     private static String label(ContainerGuiNode node) {

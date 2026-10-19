@@ -160,13 +160,13 @@ public final class GuiScene {
     void requestFocus(GuiElement element) {
         if (element != null && element.belongsTo(this) && element.isVisible() && element.isEnabled()
                 && element.isFocusable()) {
-            focusedElement = element;
+            changeFocus(element);
         }
     }
 
     void clearFocus(GuiElement element) {
         if (focusedElement == element) {
-            focusedElement = null;
+            changeFocus(null);
         }
     }
 
@@ -189,7 +189,7 @@ public final class GuiScene {
             return;
         }
         if (focusedElement == element || isDescendantOf(focusedElement, element)) {
-            focusedElement = null;
+            changeFocus(null);
         }
         if (pointerCapture == element || isDescendantOf(pointerCapture, element)) {
             pointerCapture = null;
@@ -258,18 +258,18 @@ public final class GuiScene {
         for (int i = 0; i < path.size(); i++) {
             GuiElement element = path.get(i);
             if (element.isFocusable() && element.isEnabled()) {
-                focusedElement = element;
+                changeFocus(element);
                 return;
             }
         }
-        focusedElement = null;
+        changeFocus(null);
     }
 
     private boolean moveFocus(boolean backwards) {
         List<GuiElement> focusable = new ArrayList<GuiElement>();
         root.collectFocusableElements(focusable);
         if (focusable.isEmpty()) {
-            focusedElement = null;
+            changeFocus(null);
             return false;
         }
         int currentIndex = focusable.indexOf(focusedElement);
@@ -279,8 +279,22 @@ public final class GuiScene {
         } else {
             nextIndex = currentIndex < 0 || currentIndex >= focusable.size() - 1 ? 0 : currentIndex + 1;
         }
-        focusedElement = focusable.get(nextIndex);
+        changeFocus(focusable.get(nextIndex));
         return true;
+    }
+
+    private void changeFocus(GuiElement element) {
+        if (focusedElement == element) {
+            return;
+        }
+        GuiElement previous = focusedElement;
+        focusedElement = element;
+        if (previous != null) {
+            previous.onFocusChanged(context, false);
+        }
+        if (element != null) {
+            element.onFocusChanged(context, true);
+        }
     }
 
     private static boolean isDescendantOf(GuiElement element, GuiElement possibleAncestor) {

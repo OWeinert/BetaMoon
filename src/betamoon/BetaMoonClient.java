@@ -1,6 +1,7 @@
 package betamoon;
 
 import betamoon.client.LuaLoaderClientFeedback;
+import betamoon.client.diagnostics.ClientScriptDiagnostics;
 import betamoon.client.assets.ClientAssets;
 import betamoon.client.particles.ClientParticles;
 import betamoon.client.audio.ClientAudio;
@@ -53,6 +54,7 @@ public final class BetaMoonClient {
     private boolean agentWarningShown = false;
 
     private BetaMoonClient(BaseMod baseMod) {
+        ClientScriptDiagnostics.initialize();
         EntitySimulationThread.initialize();
         LocalPlayerAccess.initialize(new LocalPlayerAccess.Provider() {
             public EntityPlayer player() {
