@@ -1,6 +1,7 @@
 package betamoon.luaapi.chat;
 
 import betamoon.luaapi.LuaApiUtils;
+import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptResourceTracker;
 import betamoon.utils.ClassUtils;
@@ -36,6 +37,7 @@ public final class ChatApi {
 
     private static final class Chat extends VarArgFunction {
         public Varargs invoke(Varargs args) {
+            LuaCallbackScope.requireNoBindingMutation();
             String format = LuaApiUtils.getStringArg(args, 1);
             int offset = (args.narg() >= 1 && args.arg(1).istable()) ? 1 : 0;
             String message = buildFormattedMessage(format, args, 2 + offset);
@@ -48,6 +50,7 @@ public final class ChatApi {
 
     private static final class Broadcast extends VarArgFunction {
         public Varargs invoke(Varargs args) {
+            LuaCallbackScope.requireNoBindingMutation();
             String format = LuaApiUtils.getStringArg(args, 1);
             int offset = (args.narg() >= 1 && args.arg(1).istable()) ? 1 : 0;
             String message = buildFormattedMessage(format, args, 2 + offset);

@@ -98,6 +98,7 @@ public final class EventsApi {
         }
 
         private LuaValue subscribe(LuaValue functionValue) {
+            LuaCallbackScope.requireNoBindingMutation();
             if (!functionValue.isfunction()) {
                 throw new LuaError("Events: " + name + " listener must be a function.");
             }
@@ -120,7 +121,7 @@ public final class EventsApi {
                         : minecraft == null ? null : minecraft.thePlayer;
                 boolean current = world != null && !world.multiplayerWorld && minecraft != null
                         && minecraft.theWorld == world;
-                try (LuaCallbackScope scope = new LuaCallbackScope(current && !TeleportRuntime.frozen(), current)) {
+                try (LuaCallbackScope scope = LuaCallbackScope.withQueuedTeleport(current && !TeleportRuntime.frozen(), current)) {
                     LuaValue view = contextFactory.apply(ctx);
                     if (view.istable() && world != null) {
                         view.set("world", LuaWorldActionAccess.create(scope, world, 0, 0, 0));
@@ -157,6 +158,7 @@ public final class EventsApi {
             handle.set("active", LuaValue.TRUE);
             handle.set("unsubscribe", new VarArgFunction() {
                 public Varargs invoke(Varargs args) {
+                    LuaCallbackScope.requireNoBindingMutation();
                     Subscription.this.run();
                     return LuaValue.NIL;
                 }

@@ -1,5 +1,6 @@
 package betamoon.luamodloader;
 
+import betamoon.luaapi.utils.LuaCallbackScope;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -15,6 +16,7 @@ public final class ScriptResourceTracker {
     }
 
     private static final Map<String, List<Cleanup>> CLEANUPS = new HashMap<>();
+    private static final Map<String, Long> OWNER_GENERATIONS = new HashMap<>();
     private static final Map<Object, String> OWNERS = new IdentityHashMap<>();
 
     private ScriptResourceTracker() {
@@ -74,7 +76,17 @@ public final class ScriptResourceTracker {
         }
     }
 
+    /** A declaration can compare this token without retaining its owner's cleanup list. */
+    public static synchronized long ownerGeneration(String owner) {
+        Long generation = OWNER_GENERATIONS.get(owner);
+        return generation == null ? 0 : generation.longValue();
+    }
+
     public static synchronized void unload(String owner) {
+        LuaCallbackScope.requireNoBindingMutation();
+        if (owner != null) {
+            OWNER_GENERATIONS.put(owner, ownerGeneration(owner) + 1);
+        }
         List<Cleanup> entries = CLEANUPS.remove(owner);
         if (entries == null) {
             return;

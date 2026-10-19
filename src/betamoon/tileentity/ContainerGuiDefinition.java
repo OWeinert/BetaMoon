@@ -21,9 +21,16 @@ public final class ContainerGuiDefinition {
     public final Background background;
     public final boolean pauseGame;
     public final List<Element> elements;
+    public final ContainerGuiPresentationDefinition presentation;
 
     public ContainerGuiDefinition(String name, String owner, ContainerDefinition container, int width, int height,
             Label title, Label playerInventoryLabel, Background background, boolean pauseGame, List<Element> elements) {
+        this(name, owner, container, width, height, title, playerInventoryLabel, background, pauseGame, elements, null);
+    }
+
+    public ContainerGuiDefinition(String name, String owner, ContainerDefinition container, int width, int height,
+            Label title, Label playerInventoryLabel, Background background, boolean pauseGame, List<Element> elements,
+            ContainerGuiPresentationDefinition presentation) {
         this.name = name;
         this.owner = owner;
         this.container = container;
@@ -34,6 +41,7 @@ public final class ContainerGuiDefinition {
         this.background = background;
         this.pauseGame = pauseGame;
         this.elements = Collections.unmodifiableList(new ArrayList<>(elements));
+        this.presentation = presentation;
     }
 
     /** Text drawn in the foreground layer. */
@@ -62,11 +70,19 @@ public final class ContainerGuiDefinition {
         public final String style;
         public final boolean drawSlotFrames;
         public final int chestRows;
+        public final int tint;
+        public final int slotTint;
         public Background(Texture texture, String style, boolean drawSlotFrames, int chestRows) {
+            this(texture, style, drawSlotFrames, chestRows, 0xFFFFFF, 0xFFFFFF);
+        }
+
+        public Background(Texture texture, String style, boolean drawSlotFrames, int chestRows, int tint, int slotTint) {
             this.texture = texture;
             this.style = style;
             this.drawSlotFrames = drawSlotFrames;
             this.chestRows = chestRows;
+            this.tint = tint;
+            this.slotTint = slotTint;
         }
     }
 
@@ -83,11 +99,18 @@ public final class ContainerGuiDefinition {
         public final int textureWidth;
         public final int textureHeight;
         public final int border;
+        public final int tint;
         public Texture(String resource, int u, int v, int width, int height, int textureWidth, int textureHeight) {
             this(resource, u, v, width, height, textureWidth, textureHeight, 0);
         }
+
         public Texture(String resource, int u, int v, int width, int height, int textureWidth, int textureHeight,
                 int border) {
+            this(resource, u, v, width, height, textureWidth, textureHeight, border, 0xFFFFFF);
+        }
+
+        public Texture(String resource, int u, int v, int width, int height, int textureWidth, int textureHeight,
+                int border, int tint) {
             this.resource = resource;
             this.u = u;
             this.v = v;
@@ -96,6 +119,7 @@ public final class ContainerGuiDefinition {
             this.textureWidth = textureWidth;
             this.textureHeight = textureHeight;
             this.border = border;
+            this.tint = tint;
         }
     }
 
@@ -129,6 +153,25 @@ public final class ContainerGuiDefinition {
             this.image = image;
             this.width = width;
             this.height = height;
+        }
+    }
+
+    /**
+     * A resizable visual surface, which may extend the main container background.
+     */
+    public static final class PanelElement extends Element {
+        public final Texture frame;
+        public final int width;
+        public final int height;
+        public final int color;
+
+        public PanelElement(int x, int y, int layer, GuiAnchor anchor, Condition condition, List<String> tooltip,
+                Texture frame, int width, int height, int color) {
+            super(x, y, layer, anchor, condition, tooltip);
+            this.frame = frame;
+            this.width = width;
+            this.height = height;
+            this.color = color;
         }
     }
 
@@ -235,14 +278,7 @@ public final class ContainerGuiDefinition {
     /** Interactive view bound to one container-owned control. */
     public static final class ControlElement extends Element {
         public enum Presentation {
-            BUTTON,
-            ICON_BUTTON,
-            CHECKBOX,
-            TOGGLE_BUTTON,
-            SLIDER,
-            TEXT_BOX,
-            CHOICE,
-            INTERACTIVE
+            BUTTON, ICON_BUTTON, CHECKBOX, TOGGLE_BUTTON, SLIDER, TEXT_BOX, CHOICE, INTERACTIVE
         }
 
         public final String control;
@@ -283,8 +319,7 @@ public final class ContainerGuiDefinition {
     /** Recursive comparison tree used by visibleWhen. */
     public static final class Condition {
         public enum Source {
-            DATA,
-            SESSION
+            DATA, SESSION
         }
 
         public final Source source;
@@ -295,6 +330,7 @@ public final class ContainerGuiDefinition {
         public Condition(String field, GuiConditionOperator operator, Object expected, List<Condition> children) {
             this(Source.DATA, field, operator, expected, children);
         }
+
         public Condition(Source source, String field, GuiConditionOperator operator, Object expected,
                 List<Condition> children) {
             this.source = source;

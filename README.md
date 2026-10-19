@@ -11,6 +11,8 @@ Extensive Lua scripting for **Minecraft Beta 1.7.3**.
 - Block state, placement rules, collision shapes, scheduled updates and redstone behavior.
 - Crafting and smelting recipes, plus custom recipe types for processing machines.
 - Persistent tile inventories, containers and screens with synchronized data.
+- [Reactive GUI presentation](https://github.com/OWeinert/BetaMoon/wiki/API-GUI-Presentation), independent transitions,
+  resizable panels/visual slots, artwork tinting and screen-local state.
 - Multiblock structures with controller-based or controllerless discovery and activation.
 - Custom particles, animated sprites and reusable bursts or emitters.
 - Deterministic ores, trees, structures, biomes, surfaces and placement rules.

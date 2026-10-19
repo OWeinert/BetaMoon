@@ -6,11 +6,14 @@ import betamoon.luaapi.asset.AssetInputs;
 import betamoon.luamodloader.ScriptResourceTracker;
 import betamoon.resources.LuaTextureResources;
 import betamoon.tileentity.ContainerGuiDefinition;
+import betamoon.tileentity.ContainerGuiProperties;
 import betamoon.tileentity.ContainerDefinition;
 import betamoon.tileentity.GuiAnchor;
 import betamoon.tileentity.GuiConditionOperator;
 import betamoon.tileentity.ProgressDirection;
 import betamoon.tileentity.TileEntityDefinition;
+import java.awt.geom.Area;
+import java.awt.geom.Rectangle2D;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -20,6 +23,8 @@ import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
+
+import static betamoon.luaapi.utils.LuaDeclarationValues.integer;
 
 /** Converts declarative Lua GUI tables into immutable renderer definitions. */
 final class ContainerGuiParser {
@@ -43,7 +48,10 @@ final class ContainerGuiParser {
         if (style != null && !"minecraft".equals(style) && !"chest".equals(style)) {
             throw new LuaError("background.style must be 'minecraft'.");
         }
-        return new ContainerGuiDefinition.Background(texture, style, value.get("drawSlotFrames").toboolean(), rows);
+        int tint = value.get("tint").isnil() ? 0xFFFFFF : ContainerGuiProperties.color(value.get("tint"));
+        int slotTint = value.get("slotTint").isnil() ? tint : ContainerGuiProperties.color(value.get("slotTint"));
+        return new ContainerGuiDefinition.Background(texture, style, value.get("drawSlotFrames").toboolean(), rows,
+                tint, slotTint);
     }
 
     static ContainerGuiDefinition.Label parseLabel(LuaValue value, String defaultText, int defaultX, int defaultY,
@@ -93,9 +101,23 @@ final class ContainerGuiParser {
                 continue;
             }
             GuiAnchor anchor = anchor(value.get("anchor").optjstring("top_left"));
-            int layer = layer(value.get("layer").optjstring("content"));
+            int layer = layer(value.get("layer").optjstring("panel".equals(type) ? "background" : "content"));
             List<String> tooltip = tooltip(value.get("tooltip"));
-            if ("image".equals(type)) {
+            if ("panel".equals(type)) {
+                int width = integer(value.get("width"), "panel.width", 9, 256);
+                int height = integer(value.get("height"), "panel.height", 9, 256);
+                LuaValue tint = value.get("color");
+                int color = tint.type() == LuaValue.TNUMBER
+                        ? integer(tint, "panel.color", 0, 0xFFFFFF)
+                        : color(tint, 0xFFFFFF);
+                output.add(new ContainerGuiDefinition.PanelElement(x, y, layer, anchor, condition, tooltip,
+                        builtinBackground("minecraft:furnace", 3), width, height, color));
+            } else if ("slot".equals(type)) {
+                int width = slotInnerSize(value.get("width"), "width") + 2;
+                int height = slotInnerSize(value.get("height"), "height") + 2;
+                output.add(new ContainerGuiDefinition.ImageElement(x, y, layer, anchor, condition, tooltip,
+                        builtinSlotFrame(), width, height));
+            } else if ("image".equals(type)) {
                 ContainerGuiDefinition.Texture image = elementTexture(value, "image", false);
                 int width = value.get("width").optint(image.width);
                 int height = value.get("height").optint(image.height);
@@ -191,8 +213,8 @@ final class ContainerGuiParser {
                 }
                 betamoon.tileentity.ContainerControlDefinition.Type expected = controlType(type);
                 if (control.type != expected) {
-                    throw new LuaError("GUI element type '" + type + "' is incompatible with control '"
-                            + controlName + "'.");
+                    throw new LuaError(
+                            "GUI element type '" + type + "' is incompatible with control '" + controlName + "'.");
                 }
                 ContainerGuiDefinition.ControlElement.Presentation presentation = controlPresentation(type);
                 int defaultWidth = "toggle".equals(type)
@@ -217,18 +239,17 @@ final class ContainerGuiParser {
                 }
                 ContainerGuiDefinition.Texture icon = controlIcon(value, presentation);
                 output.add(new ContainerGuiDefinition.ControlElement(x, y, layer, anchor, condition, tooltip,
-                        controlName, control.type, presentation, width, height,
-                        value.get("text").optjstring(null), orientation,
-                        value.get("focusable").optboolean(true),
-                        value.get("captureDrag").optboolean("slider".equals(type) || "interactive".equals(type)),
-                        style, icon, visuals, controlStyleTextures(presentation)));
+                        controlName, control.type, presentation, width, height, value.get("text").optjstring(null),
+                        orientation, value.get("focusable").optboolean(true),
+                        value.get("captureDrag").optboolean("slider".equals(type) || "interactive".equals(type)), style,
+                        icon, visuals, controlStyleTextures(presentation)));
             } else {
                 throw new LuaError("Unsupported GUI element type: " + type);
             }
         }
     }
 
-    /** Rejects fixed-size elements that cannot appear inside the GUI canvas. */
+    /** Fixed-size elements fit the main canvas or a declared expansion panel. */
     static void validateBounds(List<ContainerGuiDefinition.Element> elements, int guiWidth, int guiHeight) {
         for (int i = 0; i < elements.size(); i++) {
             ContainerGuiDefinition.Element element = elements.get(i);
@@ -239,8 +260,11 @@ final class ContainerGuiParser {
             }
             int x = anchoredX(element.anchor, element.x, width, guiWidth);
             int y = anchoredY(element.anchor, element.y, height, guiHeight);
-            if (x < 0 || y < 0 || x + width > guiWidth || y + height > guiHeight) {
-                throw new LuaError("GUI element at " + element.x + ", " + element.y + " is outside the layout bounds.");
+            if (!(element instanceof ContainerGuiDefinition.PanelElement)
+                    && !fitsInside(x, y, width, height, 0, 0, guiWidth, guiHeight)
+                    && !fitsPanel(elements, x, y, width, height, guiWidth, guiHeight)) {
+                throw new LuaError("GUI element at " + element.x + ", " + element.y
+                        + " is outside the layout bounds and declared panels.");
             }
             if (element instanceof ContainerGuiDefinition.ControlElement) {
                 validateInteractiveOverlap(elements, i, x, y, width, height, guiWidth, guiHeight);
@@ -248,8 +272,29 @@ final class ContainerGuiParser {
         }
     }
 
-    private static void validateInteractiveOverlap(List<ContainerGuiDefinition.Element> elements, int index,
-            int x, int y, int width, int height, int guiWidth, int guiHeight) {
+    private static boolean fitsPanel(List<ContainerGuiDefinition.Element> elements, int x, int y, int width, int height,
+            int guiWidth, int guiHeight) {
+        Area uncovered = new Area(new Rectangle2D.Double(x, y, width, height));
+        uncovered.subtract(new Area(new Rectangle2D.Double(0, 0, guiWidth, guiHeight)));
+        for (ContainerGuiDefinition.Element element : elements) {
+            if (element instanceof ContainerGuiDefinition.PanelElement) {
+                ContainerGuiDefinition.PanelElement panel = (ContainerGuiDefinition.PanelElement) element;
+                int panelX = anchoredX(panel.anchor, panel.x, panel.width, guiWidth);
+                int panelY = anchoredY(panel.anchor, panel.y, panel.height, guiHeight);
+                uncovered.subtract(new Area(new Rectangle2D.Double(panelX, panelY, panel.width, panel.height)));
+            }
+        }
+        return uncovered.isEmpty();
+    }
+
+    private static boolean fitsInside(int x, int y, int width, int height, int left, int top, int containerWidth,
+            int containerHeight) {
+        return x >= left && y >= top && (long) x + width <= (long) left + containerWidth
+                && (long) y + height <= (long) top + containerHeight;
+    }
+
+    private static void validateInteractiveOverlap(List<ContainerGuiDefinition.Element> elements, int index, int x,
+            int y, int width, int height, int guiWidth, int guiHeight) {
         ContainerGuiDefinition.Element current = elements.get(index);
         for (int previousIndex = 0; previousIndex < index; previousIndex++) {
             ContainerGuiDefinition.Element previous = elements.get(previousIndex);
@@ -260,15 +305,18 @@ final class ContainerGuiParser {
             int previousHeight = fixedHeight(previous);
             int previousX = anchoredX(previous.anchor, previous.x, previousWidth, guiWidth);
             int previousY = anchoredY(previous.anchor, previous.y, previousHeight, guiHeight);
-            if (x < previousX + previousWidth && x + width > previousX
-                    && y < previousY + previousHeight && y + height > previousY) {
-                throw new LuaError("Interactive GUI elements overlap in the same layer at "
-                        + current.x + ", " + current.y + ".");
+            if (x < previousX + previousWidth && x + width > previousX && y < previousY + previousHeight
+                    && y + height > previousY) {
+                throw new LuaError(
+                        "Interactive GUI elements overlap in the same layer at " + current.x + ", " + current.y + ".");
             }
         }
     }
 
     private static int fixedWidth(ContainerGuiDefinition.Element element) {
+        if (element instanceof ContainerGuiDefinition.PanelElement) {
+            return ((ContainerGuiDefinition.PanelElement) element).width;
+        }
         if (element instanceof ContainerGuiDefinition.ImageElement) {
             return ((ContainerGuiDefinition.ImageElement) element).width;
         }
@@ -291,6 +339,9 @@ final class ContainerGuiParser {
     }
 
     private static int fixedHeight(ContainerGuiDefinition.Element element) {
+        if (element instanceof ContainerGuiDefinition.PanelElement) {
+            return ((ContainerGuiDefinition.PanelElement) element).height;
+        }
         if (element instanceof ContainerGuiDefinition.ImageElement) {
             return ((ContainerGuiDefinition.ImageElement) element).height;
         }
@@ -383,14 +434,13 @@ final class ContainerGuiParser {
         return 20;
     }
 
-    private static void validateControlSize(ContainerGuiDefinition.ControlElement.Presentation presentation,
-            int width, int height, String orientation) {
+    private static void validateControlSize(ContainerGuiDefinition.ControlElement.Presentation presentation, int width,
+            int height, String orientation) {
         if (presentation == ContainerGuiDefinition.ControlElement.Presentation.CHECKBOX
                 && (width < 12 || height < 12)) {
             throw new LuaError("Checkbox elements require width and height of at least 12 pixels.");
         }
-        if (presentation == ContainerGuiDefinition.ControlElement.Presentation.CHOICE
-                && (width < 32 || height < 12)) {
+        if (presentation == ContainerGuiDefinition.ControlElement.Presentation.CHOICE && (width < 32 || height < 12)) {
             throw new LuaError("Choice elements require width >= 32 and height >= 12 pixels.");
         }
         if (presentation == ContainerGuiDefinition.ControlElement.Presentation.SLIDER) {
@@ -433,17 +483,14 @@ final class ContainerGuiParser {
         if (presentation == ContainerGuiDefinition.ControlElement.Presentation.CHECKBOX) {
             for (String value : new String[]{"off", "on"}) {
                 for (String state : states) {
-                    putStyleTexture(textures, value + "." + state,
-                            "checkbox/" + value + "_" + state, 0);
+                    putStyleTexture(textures, value + "." + state, "checkbox/" + value + "_" + state, 0);
                 }
             }
         } else if (presentation == ContainerGuiDefinition.ControlElement.Presentation.SLIDER) {
             for (String state : states) {
                 putStyleTexture(textures, "track." + state, "slider/track_" + state, 3);
-                putStyleTexture(textures, "horizontal." + state,
-                        "slider/handle_horizontal_" + state, 3);
-                putStyleTexture(textures, "vertical." + state,
-                        "slider/handle_vertical_" + state, 3);
+                putStyleTexture(textures, "horizontal." + state, "slider/handle_horizontal_" + state, 3);
+                putStyleTexture(textures, "vertical." + state, "slider/handle_vertical_" + state, 3);
             }
         } else if (presentation == ContainerGuiDefinition.ControlElement.Presentation.TEXT_BOX) {
             for (String state : states) {
@@ -452,8 +499,7 @@ final class ContainerGuiParser {
         } else if (presentation == ContainerGuiDefinition.ControlElement.Presentation.TOGGLE_BUTTON) {
             for (String value : new String[]{"off", "on"}) {
                 for (String state : states) {
-                    putStyleTexture(textures, value + "." + state,
-                            "toggle_button/" + value + "_" + state, 3);
+                    putStyleTexture(textures, value + "." + state, "toggle_button/" + value + "_" + state, 3);
                 }
             }
         } else if (presentation == ContainerGuiDefinition.ControlElement.Presentation.CHOICE) {
@@ -470,8 +516,8 @@ final class ContainerGuiParser {
         return textures;
     }
 
-    private static void putStyleTexture(Map<String, ContainerGuiDefinition.Texture> textures, String state,
-            String path, int border) {
+    private static void putStyleTexture(Map<String, ContainerGuiDefinition.Texture> textures, String state, String path,
+            int border) {
         LuaValue definition = new LuaTable();
         definition.set("texture", "betamoon:gui/controls/" + path);
         definition.set("border", border);
@@ -501,8 +547,7 @@ final class ContainerGuiParser {
         }
     }
 
-    private static void readControlStates(LuaValue definitions,
-            Map<String, ContainerGuiDefinition.Texture> states) {
+    private static void readControlStates(LuaValue definitions, Map<String, ContainerGuiDefinition.Texture> states) {
         readStates(definitions, states);
         String allowed = "normal hovered pressed focused disabled selected invalid "
                 + "selected_hovered selected_pressed selected_focused selected_disabled selected_invalid";
@@ -513,7 +558,7 @@ final class ContainerGuiParser {
         }
     }
 
-    private static ContainerGuiDefinition.Condition parseCondition(LuaValue value, ContainerDefinition container) {
+    static ContainerGuiDefinition.Condition parseCondition(LuaValue value, ContainerDefinition container) {
         TileEntityDefinition tile = container.tileEntity;
         if (value.isnil()) {
             return null;
@@ -539,16 +584,16 @@ final class ContainerGuiParser {
             return new ContainerGuiDefinition.Condition(null, operator, null, children);
         }
         String field = value.get("field").optjstring(null);
-        String sessionField = value.get("session").optjstring(null);
+        String sessionField = value.get("state").optjstring(null);
         if ((field == null) == (sessionField == null)) {
-            throw new LuaError("A condition requires exactly one of field or session.");
+            throw new LuaError("A condition requires exactly one of field or state.");
         }
         ContainerGuiDefinition.Condition.Source source;
         DataField.Type fieldType;
         if (sessionField != null) {
             ContainerDefinition.SessionField definition = container.session.get(sessionField);
             if (definition == null) {
-                throw new LuaError("Unknown GUI session field: " + sessionField);
+                throw new LuaError("Unknown GUI state field: " + sessionField);
             }
             field = sessionField;
             fieldType = DataField.Type.valueOf(definition.type.name());
@@ -640,7 +685,8 @@ final class ContainerGuiParser {
             throw new LuaError("Nine-slice border must fit inside half of the texture dimensions.");
         }
         return new ContainerGuiDefinition.Texture(resource, 0, 0, dimensions[0], dimensions[1], dimensions[0],
-                dimensions[1], border);
+                dimensions[1], border, path.istable() && !path.get("tint").isnil()
+                        ? ContainerGuiProperties.color(path.get("tint")) : 0xFFFFFF);
     }
 
     private static ContainerGuiDefinition.Texture builtinBackground(String name, int rows) {
@@ -687,6 +733,16 @@ final class ContainerGuiParser {
             return atlas("/gui/crafting.png", 119, 30, 26, 26);
         }
         throw new LuaError("Unknown built-in GUI sprite: " + name);
+    }
+
+    private static int slotInnerSize(LuaValue value, String dimension) {
+        return value.isnil() ? 16 : integer(value, "slot." + dimension, 1, 254);
+    }
+
+    private static ContainerGuiDefinition.Texture builtinSlotFrame() {
+        ContainerGuiDefinition.Texture source = builtinSprite("minecraft:slot");
+        return new ContainerGuiDefinition.Texture(source.resource, source.u, source.v, source.width, source.height,
+                source.textureWidth, source.textureHeight, 1);
     }
 
     private static ContainerGuiDefinition.Texture atlas(String path, int u, int v, int width, int height) {

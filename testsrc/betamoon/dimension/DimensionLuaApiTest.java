@@ -96,7 +96,7 @@ public final class DimensionLuaApiTest {
                 + "for _,entry in ipairs(betamoon.dimensions:list()) do assert(entry.key and entry.displayName) end")
                 .call();
         LuaTable retained;
-        try (LuaCallbackScope scope = new LuaCallbackScope(false, true)) {
+        try (LuaCallbackScope scope = LuaCallbackScope.withQueuedTeleport(false, true)) {
             retained = LuaEntityActionAccess.create(scope, minecraft.thePlayer, minecraft.thePlayer);
             lua.set("player", retained);
             lua.set("world", LuaWorldActionAccess.create(scope, minecraft.theWorld, 8, 64, 8));

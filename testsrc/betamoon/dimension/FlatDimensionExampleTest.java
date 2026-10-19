@@ -217,7 +217,7 @@ final class FlatDimensionExampleTest {
         LuaTable module = new LuaTable();
         TeleportApi.attach(module);
         lua.set("betamoon", module);
-        try (LuaCallbackScope scope = new LuaCallbackScope(false, true)) {
+        try (LuaCallbackScope scope = LuaCallbackScope.withQueuedTeleport(false, true)) {
             lua.set("player", LuaEntityActionAccess.create(scope, minecraft.thePlayer, minecraft.thePlayer));
             lua.load("local p=assert(betamoon.teleport:getReturnPoint(player,'flat_dimension'));"
                     + "assert(p.dimensionKey=='minecraft:overworld' and p.dimension==nil);"

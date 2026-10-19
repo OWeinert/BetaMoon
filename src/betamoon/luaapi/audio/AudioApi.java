@@ -6,6 +6,7 @@ import betamoon.client.audio.ClientAudio;
 import betamoon.client.audio.ClientSounds;
 import betamoon.client.audio.SoundAsset;
 import betamoon.luaapi.asset.AssetInputs;
+import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.resource.LuaResultList;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,6 +31,7 @@ public final class AudioApi {
         LuaTable events = new LuaTable();
         events.set("add", new VarArgFunction() {
             public Varargs invoke(Varargs args) {
+                LuaCallbackScope.requireNoBindingMutation();
                 SoundEventDefinition definition = SoundEventParser.read(args.arg(args.arg1() == events ? 2 : 1));
                 try {
                     SoundEvents.stage(definition);
@@ -115,6 +117,7 @@ public final class AudioApi {
     }
 
     private static void play(LuaValue sound, LuaValue options) {
+        LuaCallbackScope.requireNoBindingMutation();
         LuaTable settings = options.isnil() ? new LuaTable() : options.checktable();
         SoundEventParser.checkFields(settings, "position", "volume", "pitch", "range");
         SoundEventDefinition event = null;

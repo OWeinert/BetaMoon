@@ -230,7 +230,7 @@ final class LuaControllerApi {
 
     private static Decision invokeCallback(String owner, LuaValue callback, Snapshot snapshot,
             PlayerControllerRuntime.Mode mode) {
-        try (LuaCallbackScope scope = new LuaCallbackScope(false, true)) {
+        try (LuaCallbackScope scope = LuaCallbackScope.withQueuedTeleport(false, true)) {
             LuaTable event = new LuaTable();
             event.set("stage", LuaValue.valueOf(snapshot.stage.luaName()));
             event.set("tick", LuaValue.valueOf(snapshot.tick));

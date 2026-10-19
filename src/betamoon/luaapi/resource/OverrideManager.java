@@ -1,6 +1,7 @@
 package betamoon.luaapi.resource;
 
 import betamoon.luamodloader.LuaScriptRegistry;
+import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luamodloader.ScriptResourceTracker;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -105,6 +106,7 @@ public final class OverrideManager {
         }
 
         public synchronized void remove() {
+            LuaCallbackScope.requireNoBindingMutation();
             if (!active) {
                 return;
             }
@@ -193,6 +195,7 @@ public final class OverrideManager {
 
     /** Applies a parsed request batch atomically and tracks it as one owned resource. */
     public static synchronized List<Layer<?, ?>> applyAll(List<Request<?, ?>> requests) {
+        LuaCallbackScope.requireNoBindingMutation();
         String owner = LuaScriptRegistry.getCurrentScriptFile();
         if (owner == null) {
             throw new LuaError("Overrides can only be declared while a Lua script is loading.");
