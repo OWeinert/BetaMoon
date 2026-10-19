@@ -4,6 +4,7 @@ import betamoon.assets.model.ModelJson;
 import betamoon.dimension.storage.DimensionNbt;
 import betamoon.dimension.storage.DimensionRescueBackup;
 import betamoon.dimension.storage.DimensionSaveFlush;
+import betamoon.teleport.TeleportJournal;
 import betamoon.teleport.ArrivalInspector;
 import betamoon.teleport.ChunkPreparation;
 import betamoon.teleport.DimensionCleanupTask;
@@ -27,6 +28,8 @@ import betamoon.worldgen.WorldGenKey;
 import betamoon.worldgen.WorldGenRegistry;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -42,6 +45,7 @@ import net.minecraft.src.ChunkCoordinates;
 import net.minecraft.src.Container;
 import net.minecraft.src.ContainerChest;
 import net.minecraft.src.InventoryBasic;
+import net.minecraft.src.IProgressUpdate;
 import net.minecraft.src.EntityItem;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.EntityPlayerSP;
@@ -76,6 +80,7 @@ public final class TeleportServiceTest {
         uncheckedVoidEntry();
         cancellations();
         interruptedCommit();
+        durableFailureBoundaries();
         coordinateConversion();
         nativePortals();
         populationFailure();
@@ -396,6 +401,81 @@ public final class TeleportServiceTest {
                 "Every accepted request must publish its terminal event and current-owner callback once, including recovery");
     }
 
+    private static void durableFailureBoundaries() throws Exception {
+        for (FailureBoundary boundary : FailureBoundary.values()) {
+            Client client = client();
+            client.player.health = 13;
+            client.player.inventory.mainInventory[0] = new ItemStack(Item.coal, 7, 1);
+            DimensionSession session = DimensionQueries.session(client.world);
+            session.navigation.ensureSaved();
+            DimensionSaveFlush.flush(client.world, session);
+            session.savePlayerSnapshot(snapshot(client.player));
+            client.failureBoundary = boundary;
+
+            TeleportService service = new TeleportService(client);
+            int[] completions = {0};
+            TeleportTicket ticket = accepted(service.request(client.player, new TeleportOwner("boundary.lua"),
+                    DimensionKey.parse("test:flat"), options("{}"), (result, world, player) -> completions[0]++));
+            if (boundary == FailureBoundary.CANCEL_SCREEN) {
+                ticket.cancel();
+            }
+            try {
+                finish(service, ticket);
+                require(client.failureInjected, "Boundary was not reached: " + boundary);
+                require(completions[0] == 1 && client.events.size() == 1,
+                        "Terminal observers must run once even after a boundary failure: " + boundary);
+            } finally {
+                client.restoreBlockedFile();
+            }
+
+            // Open a new journal and session from disk. Do not trust the failed task's in-memory state.
+            boolean targetDurable = boundary == FailureBoundary.COMPLETION
+                    || boundary == FailureBoundary.FINISH_SCREEN || boundary == FailureBoundary.PUBLISH;
+            SavedDimensionInfo saved = SavedDimensionInfo.inspect(session.paths.root());
+            require(saved.key.equals(targetDurable ? DimensionKey.parse("test:flat") : DimensionKey.OVERWORLD),
+                    "Reopen selected the wrong durable side: " + boundary);
+            Path saveRoot = session.paths.root();
+            SaveOldDir reopenedSave = new SaveOldDir(saveRoot.getParent().toFile(),
+                    saveRoot.getFileName().toString(), false);
+            DimensionSession reopened = DimensionSession.open(reopenedSave, saved.worldInfo);
+            DimensionRestoreTask restore = new DimensionRestoreTask(reopened, saved);
+            try {
+                for (int tick = 0; !restore.step(); tick++) {
+                    require(tick < 150, "Boundary recovery did not finish: " + boundary);
+                }
+                require(!reopened.navigation.pending() && reopened.navigation.revision() == (targetDurable ? 1 : 0),
+                        "Recovery must reconcile the durable revision exactly once: " + boundary);
+                require((reopened.navigation.previous("boundary.lua", "default") != null) == targetDurable,
+                        "Only a durable completed transfer may push return history: " + boundary);
+                EntityPlayer restoredPlayer = player(restore.world());
+                restoredPlayer.readFromNBT(saved.player);
+                ItemStack stack = restoredPlayer.inventory.mainInventory[0];
+                require(restoredPlayer.health == 13 && stack != null && stack.itemID == Item.coal.shiftedIndex
+                        && stack.stackSize == 7 && stack.getItemDamage() == 1,
+                        "Recovery must retain one exact inventory and health snapshot: " + boundary);
+                TeleportJournal reopenedAgain = new TeleportJournal(reopened.paths);
+                require(!reopenedAgain.pending() && reopenedAgain.revision() == (targetDurable ? 1 : 0),
+                        "Reconciliation must itself survive a second reopen: " + boundary);
+            } finally {
+                restore.release();
+            }
+        }
+    }
+
+    private enum FailureBoundary {
+        SOURCE_CHECKPOINT,
+        DESTINATION_CHECKPOINT,
+        SOURCE_PLAYER,
+        INTENT,
+        BEFORE_SWITCH,
+        AFTER_SWITCH,
+        TARGET_PLAYER,
+        COMPLETION,
+        FINISH_SCREEN,
+        CANCEL_SCREEN,
+        PUBLISH
+    }
+
     private static void coordinateConversion() {
         TeleportLocation source = new TeleportLocation(DimensionKey.OVERWORLD, -12.25, 72, 3.75, 123, -20);
         TeleportLocation target = TeleportService.mapCoordinates(source, DimensionKey.NETHER, 1, 8);
@@ -664,6 +744,12 @@ public final class TeleportServiceTest {
         private boolean failAfterSwitch;
         private boolean nativeContainerClose;
         private int replacements;
+        private FailureBoundary failureBoundary;
+        private boolean failureInjected;
+        private boolean savingCheckpoint;
+        private int checkpointCount;
+        private Path blockedFile;
+        private Path blockedBackup;
 
         private Client(World world, EntityPlayer player) {
             this.world = world;
@@ -681,6 +767,78 @@ public final class TeleportServiceTest {
         public void beginPreparation(TeleportTicket ticket, String name) {
         }
 
+        public void showPreparation(String stage, int percent) {
+            if ("saving".equals(stage)) {
+                savingCheckpoint = true;
+            } else if ("saving_player".equals(stage)) {
+                if (failureBoundary == FailureBoundary.SOURCE_PLAYER) {
+                    blockFile("level.dat");
+                } else if (failureBoundary == FailureBoundary.INTENT) {
+                    blockFile("betamoon/player_teleport.dat");
+                }
+            } else if ("switching".equals(stage) && failureBoundary == FailureBoundary.BEFORE_SWITCH) {
+                injectFailure();
+            } else if ("finalizing".equals(stage)) {
+                if (failureBoundary == FailureBoundary.TARGET_PLAYER) {
+                    blockFile("level.dat");
+                } else if (failureBoundary == FailureBoundary.COMPLETION) {
+                    blockFile("betamoon/player_teleport.dat");
+                }
+            }
+        }
+
+        public IProgressUpdate loadingProgress() {
+            if (failureBoundary != FailureBoundary.SOURCE_CHECKPOINT
+                    && failureBoundary != FailureBoundary.DESTINATION_CHECKPOINT) {
+                return null;
+            }
+            return new IProgressUpdate() {
+                public void func_594_b(String title) {
+                }
+
+                public void displayLoadingString(String message) {
+                    if (!savingCheckpoint || !"Saving chunks".equals(message)) {
+                        return;
+                    }
+                    checkpointCount++;
+                    if (checkpointCount == 1 && failureBoundary == FailureBoundary.SOURCE_CHECKPOINT) {
+                        blockFile("level.dat");
+                    } else if (checkpointCount == 2 && failureBoundary == FailureBoundary.DESTINATION_CHECKPOINT) {
+                        blockFile("betamoon/dimensions/" + DimensionKey.parse("test:flat").storagePath()
+                                + "/dimension.dat");
+                    }
+                }
+
+                public void setLoadingProgress(int percent) {
+                }
+            };
+        }
+
+        private void blockFile(String relative) {
+            try {
+                require(!failureInjected, "Failure must be injected once");
+                blockedFile = DimensionQueries.session(world).paths.resolve(relative);
+                blockedBackup = blockedFile.resolveSibling(blockedFile.getFileName() + ".audit-backup");
+                Files.move(blockedFile, blockedBackup);
+                Files.createDirectory(blockedFile);
+                failureInjected = true;
+            } catch (IOException exception) {
+                throw new UncheckedIOException(exception);
+            }
+        }
+
+        private void restoreBlockedFile() throws IOException {
+            if (blockedBackup != null && Files.exists(blockedBackup)) {
+                Files.delete(blockedFile);
+                Files.move(blockedBackup, blockedFile);
+            }
+        }
+
+        private void injectFailure() {
+            failureInjected = true;
+            throw new IllegalStateException("injected boundary failure: " + failureBoundary);
+        }
+
         public void closeContainer() {
             closes++;
             if (nativeContainerClose) {
@@ -690,6 +848,10 @@ public final class TeleportServiceTest {
         }
 
         public void finishPreparation(boolean success) {
+            if (success && failureBoundary == FailureBoundary.FINISH_SCREEN
+                    || !success && failureBoundary == FailureBoundary.CANCEL_SCREEN) {
+                injectFailure();
+            }
         }
 
         public void switchWorld(World destination, EntityPlayer player, NBTTagCompound target) {
@@ -705,6 +867,9 @@ public final class TeleportServiceTest {
             }
             if (failAfterSwitch) {
                 throw new IllegalStateException("injected failure after runtime switch");
+            }
+            if (failureBoundary == FailureBoundary.AFTER_SWITCH) {
+                injectFailure();
             }
         }
 
@@ -722,6 +887,9 @@ public final class TeleportServiceTest {
 
         public void publish(Map<String, Object> result) {
             events.add(result);
+            if (failureBoundary == FailureBoundary.PUBLISH) {
+                injectFailure();
+            }
         }
 
         public void recovery(String detail) {

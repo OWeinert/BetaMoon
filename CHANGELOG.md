@@ -2,6 +2,8 @@
 
 ## 0.10.0
 
+- Preserve teleport completion notifications if a loading screen fails to close.
+
 - Detect incompatible saved generation before loading and preserve Minecraft's backup recovery for ordinary saves.
 - Correct native-family generation settings, duplicate Nether placements and dimension-scoped spatial eligibility.
 - Keep profile-restricted carvers within terrain contributed by the selected profiles.
