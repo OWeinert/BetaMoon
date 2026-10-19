@@ -51,6 +51,7 @@ public final class LuaEntityActionAccess {
     public static LuaTable create(LuaCallbackScope scope, EntityPlayer player, final Entity entity) {
 
         final LuaEntityReference api = new LuaEntityReference(scope, entity);
+        LuaEntityTransforms.attach(api, scope, entity);
         api.set("isPlayer", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 scope.requireActive();

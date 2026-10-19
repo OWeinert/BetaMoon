@@ -19,6 +19,8 @@
 - Add metadata-dependent block/item names and texture assets for visual variants.
 - Add block inventory subtypes with placement-state separation and explicitly enabled subtype-preserving drops.
 - Add metadata-aware resource lookups and discovery of declared custom variants.
+- Add scoped local-player access, atomic entity transforms, bounded collision displacement, impulses and support probes.
+
 - Add source-tracked container GUI bindings, independent property transitions, temporary state events and runtime element handles.
 - Share animated geometry across GUI rendering, clipping, pointer input and panel click protection; retain container state during compatible visual refreshes.
 - Add consistent RGB artwork tinting, independent progress/icon tints, opacity and GUI interpolation helpers.

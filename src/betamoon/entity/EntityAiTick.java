@@ -6,6 +6,7 @@ import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.luamodloader.ScriptExecution;
 import java.util.Collections;
 import java.util.Set;
 import java.util.WeakHashMap;
@@ -30,7 +31,7 @@ final class EntityAiTick {
             context.set("world", LuaWorldActionAccess.create(scope, entity.worldObj, (int) Math.floor(entity.posX),
                     (int) Math.floor(entity.posY), (int) Math.floor(entity.posZ), entity));
             context.set("age", entity.ticksExisted);
-            policy.routine.call(context);
+            ScriptExecution.invoke(EntityTypeRegistry.owner(definition.key), "entity.ai.routine", policy.routine, context);
         } catch (RuntimeException error) {
             if (DISABLED.add(definition)) {
                 String message = definition.key + ".living.ai.routine disabled after error: " + error.getMessage();

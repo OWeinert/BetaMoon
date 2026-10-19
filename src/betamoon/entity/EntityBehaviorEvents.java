@@ -6,6 +6,7 @@ import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.luamodloader.ScriptExecution;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
@@ -58,7 +59,7 @@ final class EntityBehaviorEvents {
                     (int) Math.floor(entity.posX), (int) Math.floor(entity.posY), (int) Math.floor(entity.posZ),
                     entity));
             extra.set("age", entity.ticksExisted);
-            callback.call(extra);
+            ScriptExecution.invoke(EntityTypeRegistry.owner(type.key), "entity.behavior." + event, callback, extra);
         } catch (RuntimeException error) {
             if (DISABLED.computeIfAbsent(type, ignored -> new HashSet<>()).add(event)) {
                 String message = type.key + ".behavior." + event + " disabled after error: " + error.getMessage();
