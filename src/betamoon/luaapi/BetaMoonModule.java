@@ -17,6 +17,7 @@ import betamoon.luaapi.module.ModuleApi;
 import betamoon.luaapi.multiblock.MultiblocksApi;
 import betamoon.luaapi.networking.LogicalNetworksApi;
 import betamoon.luaapi.particle.ParticlesApi;
+import betamoon.luaapi.player.PlayersApi;
 import betamoon.luaapi.recipe.RecipeApi;
 import betamoon.luaapi.recipe.RecipeTypesApi;
 import betamoon.luaapi.resource.RecipeRegistryApi;
@@ -76,6 +77,7 @@ public final class BetaMoonModule extends TwoArgFunction {
         ParticlesApi.attach(module);
         MultiblocksApi.attach(module);
         EntitiesApi.attach(module);
+        PlayersApi.attach(module);
         FuelsApi.attach(module);
         FluidApi.attach(module);
         AudioApi.attach(module);
