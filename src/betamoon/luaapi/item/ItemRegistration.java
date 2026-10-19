@@ -32,6 +32,7 @@ final class ItemRegistration {
             throw new LuaError("Item appearance: " + error.getMessage());
         }
         try {
+            definition.callbacks.visual.resolveTextures();
             return registerPrepared(definition, appearance);
         } catch (RuntimeException error) {
             if (appearance != null) {
@@ -63,6 +64,7 @@ final class ItemRegistration {
             entry.registered = true;
         }
         ModLoader.AddName(item, definition.displayName);
+        definition.callbacks.names.register(item.getItemName());
         ItemModelRegistry.install(definition.id, appearance);
         ItemCallbackRegistry.install(definition.id, definition.callbacks);
         return item;

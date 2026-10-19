@@ -35,6 +35,7 @@ final class BlockRegistration {
             throw new LuaError("Block appearance: " + error.getMessage());
         }
         try {
+            definition.callbacks.visual.resolveTextures();
             return registerPrepared(definition, appearance);
         } catch (RuntimeException error) {
             if (appearance != null) {
@@ -56,10 +57,11 @@ final class BlockRegistration {
         if (entry.registered) {
             BetaMoonCommon.LOGGER.warning("Ignored duplicate block register: id=" + definition.id);
         } else {
-            ModLoader.RegisterBlock(block);
+            ModLoader.RegisterBlock(block, LuaBlockItem.class);
             entry.registered = true;
         }
         ModLoader.AddName(block, definition.displayName);
+        definition.callbacks.names.register(block.getBlockName());
 
         BlockTickRegistry.register(block, definition.ticks);
         BlockComponents components = definition.components;

@@ -55,6 +55,11 @@ public final class ItemBehavior {
         return definition == null ? base.getAsInt() : definition.visual.color(metadata, base.getAsInt());
     }
 
+    public static String name(int itemId, int metadata, String base) {
+        ItemDefinition definition = ItemCallbackRegistry.get(itemId);
+        return definition == null ? base : definition.names.key(base, metadata);
+    }
+
     public static ItemStack use(ItemStack stack, World world, EntityPlayer player, Supplier<ItemStack> base) {
         return MultiblockItemUse.air(world, stack, () -> useInContext(stack, world, player, base));
     }

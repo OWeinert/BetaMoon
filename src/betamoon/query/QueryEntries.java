@@ -1,8 +1,13 @@
 package betamoon.query;
 
+import betamoon.luaapi.block.BlockCallbackRegistry;
+import betamoon.luaapi.block.BlockDefinition;
+import betamoon.luaapi.item.ItemCallbackRegistry;
+import betamoon.luaapi.item.ItemDefinition;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.TreeSet;
 import java.util.Set;
 import java.util.function.Predicate;
 import net.minecraft.src.Block;
@@ -39,6 +44,14 @@ public final class QueryEntries {
     }
 
     private static void addEntriesForId(List<QueryEntry> entries, int id) {
+        Set<Integer> declared = declaredMetadata(id);
+        if (!declared.isEmpty()) {
+            for (int metadata : declared) {
+                entries.add(new QueryEntry(id, metadata, resolveInternalName(id, metadata),
+                        resolveDisplayName(id, metadata)));
+            }
+            return;
+        }
         String baseInternal = resolveInternalName(id, 0);
         String baseDisplay = resolveDisplayName(id, 0);
         entries.add(new QueryEntry(id, 0, baseInternal, baseDisplay));
@@ -75,6 +88,25 @@ public final class QueryEntries {
                 }
             }
         }
+    }
+
+    private static Set<Integer> declaredMetadata(int id) {
+        Set<Integer> metadata = new TreeSet<Integer>();
+        BlockDefinition block = BlockCallbackRegistry.get(id);
+        if (id < 256 && block != null && block.subtypes.enabled) {
+            for (int value = 0; value <= 15; value++) {
+                if (block.subtypes.validItemMetadata(value)) {
+                    metadata.add(value);
+                }
+            }
+        }
+        ItemDefinition item = ItemCallbackRegistry.get(id);
+        if (id >= 256 && item != null && Item.itemsList[id].getHasSubtypes()) {
+            metadata.add(0);
+            metadata.addAll(item.names.metadataValues());
+            metadata.addAll(item.visual.metadataValues());
+        }
+        return metadata;
     }
 
     private static String resolveInternalName(int id, int damage) {

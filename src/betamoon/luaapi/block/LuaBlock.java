@@ -304,6 +304,12 @@ public class LuaBlock extends BlockContainer implements forge.IConnectRedstone {
     }
 
     @Override
+    protected int damageDropped(int metadata) {
+        BlockDefinition definition = BlockCallbackRegistry.get(blockID);
+        return definition != null && definition.preserveDropMetadata ? definition.subtypes.variant(metadata) : 0;
+    }
+
+    @Override
     public int getBlockTextureFromSide(int side) {
         BlockDefinition definition = BlockCallbackRegistry.get(blockID);
         if (definition != null && definition.placement.horizontal) {
@@ -330,7 +336,7 @@ public class LuaBlock extends BlockContainer implements forge.IConnectRedstone {
     public void onBlockPlaced(World world, int x, int y, int z, int side) {
         BlockDefinition definition = BlockCallbackRegistry.get(blockID);
         if (definition != null && !world.multiplayerWorld) {
-            int metadata = definition.state.defaults;
+            int metadata = definition.subtypes.placedMetadata(world.getBlockMetadata(x, y, z));
             if (definition.state.has("attachedFace")) {
                 metadata = definition.state.set(metadata, "attachedFace",
                         LuaValue.valueOf(BlockFace.fromNative(side).luaName));

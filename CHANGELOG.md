@@ -16,6 +16,9 @@
 - Restore saved custom dimensions on load and provide explicit backup-and-rescue recovery for missing or incompatible definitions.
 - Extend generation, natural-spawn and atmosphere selectors with canonical dimension identities, and expose scoped players to event/input callbacks.
 - Preserve protected local-structure cells, including air, across saves and respect them during teleport platform creation.
+- Add metadata-dependent block/item names and texture assets for visual variants.
+- Add block inventory subtypes with placement-state separation and explicitly enabled subtype-preserving drops.
+- Add metadata-aware resource lookups and discovery of declared custom variants.
 
 - Reduce cave-generation work and reuse neighboring base terrain for fluid-safety checks.
 - Improve custom terrain generation and lighting performance while preserving terrain output.

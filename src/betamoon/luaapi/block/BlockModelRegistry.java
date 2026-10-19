@@ -40,7 +40,9 @@ public final class BlockModelRegistry {
 
     public static ModelAppearance get(int id, int metadata) {
         ModelAppearanceSet appearances = MODELS.get(id);
-        return appearances == null ? null : appearances.select(metadata);
+        BlockDefinition definition = BlockCallbackRegistry.get(id);
+        int selected = definition == null ? metadata : definition.visual.variantMetadata(metadata);
+        return appearances == null ? null : appearances.select(selected);
     }
 
     public static boolean hasModels(int id) {

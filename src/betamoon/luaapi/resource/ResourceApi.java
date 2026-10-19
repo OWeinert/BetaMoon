@@ -50,6 +50,7 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
 import static org.luaj.vm2.LuaValue.*;
+import static betamoon.luaapi.utils.LuaDeclarationValues.integer;
 
 /** Installs the concise registry, reference, query, and override APIs. */
 public final class ResourceApi {
@@ -208,17 +209,25 @@ public final class ResourceApi {
 
         public Varargs invoke(Varargs args) {
             LuaValue value = argument(args, registry, 1);
-            int id = -1;
+            LuaValue selectedMetadata = argument(args, registry, 2);
+            if (selectedMetadata.isnil() && value instanceof ResourceReference<?>) {
+                selectedMetadata = valueOf(resolveReference(value).damage);
+            }
+            int metadata = selectedMetadata.isnil()
+                    ? 0
+                    : integer(selectedMetadata, "metadata", 0, registry.blocks ? 15 : 32767);
             LuaValue result;
             // LuaJ numbers are string-coercible, so numeric dispatch must come first.
             if (value.isnumber()) {
-                id = value.istable() ? resolveReference(value).id : value.checkint();
-                result = registry.reference(id, 0);
+                result = registry.reference(value.checkint(), metadata);
             } else if (value.isstring()) {
                 result = registry.reference(value.checkjstring());
+                if (!result.isnil() && metadata != 0) {
+                    result = registry.reference(resolveReference(result).id, metadata);
+                }
             } else {
-                id = resolveReference(value).id;
-                result = registry.reference(id, 0);
+                ResourceReference<?> reference = resolveReference(value);
+                result = registry.reference(reference.id, metadata);
             }
             if (required && result.isnil()) {
                 throw new LuaError(
@@ -460,7 +469,7 @@ public final class ResourceApi {
             this.block = block;
             set("name", stringOrNil(block.getBlockName()));
             set("key", stringOrNil(block.getBlockName()));
-            set("displayName", stringOrNil(block.translateBlockName()));
+            set("displayName", stringOrNil(blockDisplayName(block, damage)));
             set("texture", valueOf(block.blockIndexInTexture));
             set("light", valueOf(Block.lightValue[id]));
             set("lightOpacity", valueOf(Block.lightOpacity[id]));
@@ -481,7 +490,7 @@ public final class ResourceApi {
             if (key.isstring()) {
                 String property = key.tojstring();
                 if (property.equals("displayName")) {
-                    return stringOrNil(block.translateBlockName());
+                    return stringOrNil(blockDisplayName(block, damage));
                 }
                 if (property.equals("texture")) {
                     return valueOf(block.blockIndexInTexture);
@@ -1094,6 +1103,11 @@ public final class ResourceApi {
         ItemStack stack = new ItemStack(item, 1, damage);
         String key = item.getItemNameIS(stack);
         return key == null ? null : StatCollector.translateToLocal(key + ".name");
+    }
+
+    private static String blockDisplayName(Block block, int metadata) {
+        Item item = Item.itemsList[block.blockID];
+        return item == null ? block.translateBlockName() : itemDisplayName(item, metadata);
     }
 
     private static boolean isTool(Item item) {
