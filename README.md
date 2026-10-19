@@ -114,6 +114,21 @@ Startup and reload notifications show script errors by default. To include warni
 set `notifications.showScriptWarningsOnLoad=true` in `.minecraft/config/betamoon.cfg` and restart Minecraft. Warnings remain
 available in the Scripts screen and launcher log when notifications are disabled.
 
+Click an error or warning in **Script Issues** or a script's details to copy its complete diagnostic.
+**Copy all** copies the displayed errors and warnings as a formatted list. **Save report** creates a full diagnostic
+report with all recorded issues, occurrence times and callback context, script versions and dependencies, Java and
+system details, memory usage, relevant settings, and available graphics, dimension and mod information. Reports are
+saved in `betamoon/reports/` inside the Minecraft instance; a popup shows the clickable file path after saving.
+Reports are also available from the pinned **Full script report** section in **Scripts → Debug**, even with no issues.
+**Export All** in Debug Tools includes the report as `script_report.txt` in its export directory.
+Script names are red when errors are recorded and yellow when only warnings are recorded.
+
+Runtime output is written to `betamoon/logs/latest.log`, with automatic rotation and five retained runtime archives.
+`logging.fileMinLevel` and `logging.consoleMinLevel` in `config/betamoon.cfg` both default to `info` and can be set
+independently to `trace`, `debug`, `info`, `warn`, `error`, or `off`. Restart after changing them.
+Use `betamoon.log("info", "Message")` or `betamoon.log:info("Message")` in scripts; `print(...)` logs at `info`.
+Full diagnostic reports include recent log entries. See [Logging](https://github.com/OWeinert/BetaMoon/wiki/API-Logging).
+
 ## Writing scripts
 
 Start with [your first BetaMoon script](https://github.com/OWeinert/BetaMoon/wiki/Getting-Started), then use the [Lua API reference](https://github.com/OWeinert/BetaMoon/wiki/API-Documentation) for function signatures, declaration fields and focused snippets. The [examples](examples/README.md) range from simple registrations to complete processing machines.

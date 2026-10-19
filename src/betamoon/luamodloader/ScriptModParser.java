@@ -26,7 +26,7 @@ final class ScriptModParser {
         } catch (IOException error) {
             String message = "Could not resolve Lua mod source: " + error.getMessage();
             errors.add(message);
-            fail(scriptFile.getName(), message);
+            fail(scriptFile.getName(), message, error);
             return null;
         }
     }
@@ -39,20 +39,20 @@ final class ScriptModParser {
         } catch (IOException error) {
             String message = "Could not prepare Lua mod environment: " + error.getMessage();
             errors.add(sourceName + ": " + message);
-            fail(sourceName, message);
+            fail(sourceName, message, error);
             return null;
         }
 
-        try (ScriptExecutionScope ignored = ScriptExecutionScope.open(sourceName)) {
-            globals.load(scriptText, "@" + sourceName).call();
+        try {
+            ScriptExecution.invoke(sourceName, "entrypoint", globals.load(scriptText, "@" + sourceName), LuaValue.NONE);
         } catch (LuaError error) {
             errors.add("Error during Lua mod init: " + sourceName + " (" + error.getMessage() + ")");
-            fail(sourceName, error.getMessage());
+            fail(sourceName, error.getMessage(), error);
             return null;
         } catch (Throwable error) {
             String message = error.toString();
             errors.add("Error while evaluating Lua mod: " + sourceName + " (" + message + ")");
-            fail(sourceName, message);
+            fail(sourceName, message, error);
             return null;
         }
 
@@ -196,9 +196,13 @@ final class ScriptModParser {
     }
 
     private void fail(String fileName, String message) {
+        fail(fileName, message, null);
+    }
+
+    private void fail(String fileName, String message, Throwable error) {
         ModuleRegistry.discardPending(fileName);
         ScriptResourceTracker.unload(fileName);
-        LuaScriptErrors.add(fileName, message);
+        LuaScriptErrors.add(fileName, message, LuaScriptErrors.Outcome.LOAD_FAILED, error);
         LuaScriptRegistry.markFailedByFile(fileName, message);
     }
 }

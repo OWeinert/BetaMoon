@@ -68,6 +68,7 @@ public final class InstrumentationTransformTest {
             input.close();
         }
 
+        verifyReverseClassNames(mappings);
         verifyNamespace(mappings, RuntimeNamespace.NAMED);
         verifyNamespace(mappings, RuntimeNamespace.CLIENT);
         verifyRuntimeClient(mappings, args[1]);
@@ -80,6 +81,20 @@ public final class InstrumentationTransformTest {
 
     public static int captureDecision(int decision) {
         return decision;
+    }
+
+    private static void verifyReverseClassNames(TinyMappingResolver mappings) {
+        require("net/minecraft/src/GuiMainMenu".equals(mappings.resolveNamedClass("fu", RuntimeNamespace.CLIENT)),
+                "Client screen names must resolve from the shipped obfuscated class identity");
+        require("net/minecraft/src/ContainerWorkbench".equals(
+                mappings.resolveNamedClass("fu", RuntimeNamespace.SERVER)),
+                "Reverse class lookup must distinguish client and server names");
+        require("net/minecraft/src/GuiMainMenu".equals(
+                mappings.resolveNamedClass("net/minecraft/src/GuiMainMenu", RuntimeNamespace.NAMED)),
+                "Named runtime classes must preserve their canonical identity");
+        require("example/CustomScreen".equals(
+                mappings.resolveNamedClass("example/CustomScreen", RuntimeNamespace.CLIENT)),
+                "Unmapped custom classes must retain their actual identity");
     }
 
     public static boolean completeDecision(boolean original, int decision) {

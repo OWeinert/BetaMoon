@@ -1,6 +1,7 @@
 package betamoon.luaapi.event;
 
 import betamoon.client.tick.ClientTickEvents;
+import betamoon.client.diagnostics.ClientScriptDiagnostics;
 import betamoon.event.Events;
 import betamoon.event.api.EventChannel;
 import betamoon.event.api.IEventListener;
@@ -15,6 +16,7 @@ import betamoon.luaapi.utils.LuaDetachedData;
 import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptExecution;
+import betamoon.luamodloader.ScriptDiagnostics;
 import betamoon.luamodloader.ScriptResourceTracker;
 import betamoon.teleport.TeleportRuntime;
 import java.util.HashMap;
@@ -121,7 +123,10 @@ public final class EventsApi {
                         : minecraft == null ? null : minecraft.thePlayer;
                 boolean current = world != null && !world.multiplayerWorld && minecraft != null
                         && minecraft.theWorld == world;
-                try (LuaCallbackScope scope = LuaCallbackScope.withQueuedTeleport(current && !TeleportRuntime.frozen(), current)) {
+                try (ScriptDiagnostics.Scope diagnostic = ScriptDiagnostics.gameContext(
+                        () -> ClientScriptDiagnostics.occurrence(minecraft, world));
+                        LuaCallbackScope scope = LuaCallbackScope.withQueuedTeleport(
+                                current && !TeleportRuntime.frozen(), current)) {
                     LuaValue view = contextFactory.apply(ctx);
                     if (view.istable() && world != null) {
                         view.set("world", LuaWorldActionAccess.create(scope, world, 0, 0, 0));
@@ -131,7 +136,7 @@ public final class EventsApi {
                     }
                     ScriptExecution.invoke(owner, "events." + name, callback, view);
                 } catch (LuaError e) {
-                    LuaApiUtils.warnForScript(owner, "Events", name + " listener error: " + e.getMessage());
+                    LuaApiUtils.warnForScript(owner, "Events", name + " listener error: " + e.getMessage(), e);
                 }
             };
             channel.subscribe(listener);

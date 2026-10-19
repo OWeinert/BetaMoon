@@ -2,104 +2,60 @@ package betamoon.gui;
 
 import betamoon.gui.framework.GuiContainer;
 import betamoon.gui.framework.GuiContext;
-import betamoon.gui.framework.GuiElement;
-import betamoon.gui.framework.GuiInputEvent;
-import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.framework.GuiGeometry.Constraints;
+import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.framework.GuiGeometry.Size;
 import betamoon.gui.widget.GuiScrollView;
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.luamodloader.LuaScriptErrors.ScriptIssue;
 import java.util.List;
 
-/**
- * Scrollable error and warning list with retained source-file link hitboxes.
- */
+/** Scrollable diagnostics; the summary and footer remain stationary. */
 final class GuiPanelScriptErrorList extends GuiContainer {
-    private static final int ENTRY_GAP = 10;
-    private static final int ENTRY_SEPARATOR_OFFSET = 4;
-    private static final int CONTENT_PADDING = 6;
-
-    private final ErrorListContent content = new ErrorListContent();
-    private final GuiScrollView scrollView = new GuiScrollView(content, GuiScrollView.Policy.VERTICAL);
+    private final GuiScriptIssueEntries content;
+    private final GuiScrollView scrollView;
     private final boolean showWarnings;
-    private GuiIssueLayout issueLayout;
     private String summary = "";
 
     GuiPanelScriptErrorList(boolean showWarnings) {
+        this(showWarnings, new GuiScriptIssueActions());
+    }
+
+    GuiPanelScriptErrorList(boolean showWarnings, GuiScriptIssueActions actions) {
         this.showWarnings = showWarnings;
-        add(scrollView);
+        content = new GuiScriptIssueEntries(actions);
+        scrollView = add(new GuiScrollView(content, GuiScrollView.Policy.VERTICAL));
+    }
+
+    List<ScriptIssue> issues() {
+        return GuiScriptIssueText.ordered(LuaScriptErrors.getNotificationEntries(showWarnings));
     }
 
     @Override
     protected Size measureElement(GuiContext context, Constraints constraints) {
-        GuiIssueLayout layout = prepareIssues(context, constraints.getMaxWidth());
-        return new Size(constraints.getMaxWidth(), 16 + layout.getHeight());
-    }
-
-    private GuiIssueLayout prepareIssues(GuiContext context, int width) {
-        return GuiIssueLayout.prepare(context.getFont(), LuaScriptErrors.getNotificationEntries(showWarnings),
-                Math.max(1, width - CONTENT_PADDING * 2 - 4), ENTRY_GAP);
+        content.setIssues(issues());
+        int height = content.measure(context, Constraints.upTo(Math.max(1, constraints.getMaxWidth()),
+                Integer.MAX_VALUE)).getHeight();
+        return new Size(constraints.getMaxWidth(), 18 + height);
     }
 
     @Override
     protected void arrangeChildren(GuiContext context) {
-        issueLayout = prepareIssues(context, getWidth());
-        scrollView.setContentSize(getWidth(), issueLayout.getHeight());
-        int warnings = 0;
-        for (GuiIssueLayout.Entry entry : issueLayout.getEntries()) {
-            if (entry.isWarning()) {
-                warnings++;
-            }
-        }
-        int errors = issueLayout.getEntries().size() - warnings;
+        List<ScriptIssue> issues = issues();
+        content.setIssues(issues);
+        int warnings = (int) issues.stream().filter(ScriptIssue::isWarning).count();
+        int errors = issues.size() - warnings;
         summary = errors + (errors == 1 ? " error, " : " errors, ") + warnings
                 + (warnings == 1 ? " warning" : " warnings");
-        scrollView.arrange(context, new Rect(getLeft(), getTop() + 16, getRight(), getBottom()));
+        int contentWidth = Math.max(1, getWidth());
+        int contentHeight = content.measure(context, Constraints.upTo(contentWidth, Integer.MAX_VALUE)).getHeight();
+        scrollView.setContentSize(contentWidth, contentHeight);
+        scrollView.arrange(context, new Rect(getLeft(), getTop() + 18, getRight(), getBottom()));
     }
 
     @Override
     protected void renderBeforeChildren(GuiContext context) {
-        context.getRenderer().drawText(summary, getLeft() + CONTENT_PADDING, getTop(),
+        context.getRenderer().drawText(summary, getLeft() + GuiIssueLayout.PADDING, getTop(),
                 context.getRenderer().getTheme().textMuted);
-    }
-
-    private final class ErrorListContent extends GuiElement {
-        @Override
-        protected void renderElement(GuiContext context) {
-            if (issueLayout == null) {
-                return;
-            }
-            int contentWidth = Math.max(1, getWidth() - CONTENT_PADDING * 2 - 4);
-            int y = getTop();
-            List<GuiIssueLayout.Entry> entries = issueLayout.getEntries();
-            for (int i = 0; i < entries.size(); i++) {
-                GuiIssueLayout.Entry entry = entries.get(i);
-                int color = entry.isWarning()
-                        ? context.getRenderer().getTheme().textWarning
-                        : context.getRenderer().getTheme().textError;
-                int entryY = y;
-                entry.draw(context, getLeft() + CONTENT_PADDING, entryY, contentWidth, color);
-                y = entryY + entry.getHeight() + ENTRY_GAP;
-                if (i < entries.size() - 1) {
-                    context.getRenderer().drawHorizontalLine(getLeft() + CONTENT_PADDING, getRight() - CONTENT_PADDING,
-                            entryY + entry.getHeight() + ENTRY_SEPARATOR_OFFSET,
-                            context.getRenderer().getTheme().listSeparator);
-                }
-            }
-        }
-
-        @Override
-        protected boolean onInput(GuiContext context, GuiInputEvent event) {
-            if (event.getType() != GuiInputEvent.Type.POINTER_DOWN || issueLayout == null) {
-                return false;
-            }
-            List<GuiIssueLayout.Entry> entries = issueLayout.getEntries();
-            for (int i = 0; i < entries.size(); i++) {
-                if (entries.get(i).mouseClicked(event.getMouseX(), event.getMouseY(), event.getButton())) {
-                    return true;
-                }
-            }
-            return false;
-        }
     }
 }

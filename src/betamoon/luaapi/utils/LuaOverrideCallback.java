@@ -1,6 +1,5 @@
 package betamoon.luaapi.utils;
 
-import betamoon.BetaMoonCommon;
 
 import betamoon.luamodloader.LuaScriptErrors;
 import betamoon.luamodloader.LuaScriptRegistry;
@@ -106,8 +105,7 @@ public final class LuaOverrideCallback {
         } catch (RuntimeException error) {
             disabled.add(definition);
             String message = definition.getName() + " override disabled after error: " + error.getMessage();
-            LuaScriptErrors.add(definition.getOwner(), message);
-            BetaMoonCommon.LOGGER.warning(definition.getOwner() + ": " + message);
+            LuaScriptErrors.add(definition.getOwner(), message, LuaScriptErrors.Outcome.CALLBACK_DISABLED, error);
             return base.originalResult();
         } finally {
             base.active = false;

@@ -1,6 +1,5 @@
 package betamoon.luaapi.entity;
 
-import betamoon.BetaMoonCommon;
 
 import betamoon.entity.EntityInstanceState;
 import betamoon.entity.EntityTypeDefinition;
@@ -64,8 +63,7 @@ public final class EntityInteraction {
         } catch (RuntimeException error) {
             if (DISABLED.add(definition)) {
                 String message = definition.key + ".onInteract disabled after error: " + error.getMessage();
-                LuaScriptErrors.add(reportOwner, message);
-                BetaMoonCommon.LOGGER.warning(message);
+                LuaScriptErrors.add(reportOwner, message, LuaScriptErrors.Outcome.CALLBACK_DISABLED, error);
             }
             return InteractionOutcome.DENY;
         }

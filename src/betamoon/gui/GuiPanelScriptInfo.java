@@ -2,9 +2,8 @@ package betamoon.gui;
 
 import betamoon.gui.framework.GuiContainer;
 import betamoon.gui.framework.GuiContext;
-import betamoon.gui.framework.GuiElement;
+import betamoon.gui.framework.GuiGeometry.Constraints;
 import betamoon.gui.framework.GuiGeometry.Rect;
-import betamoon.gui.framework.GuiInputEvent;
 import betamoon.gui.framework.GuiTextureCache;
 import betamoon.gui.widget.GuiScrollView;
 import betamoon.luamodloader.LuaModLoader;
@@ -13,45 +12,49 @@ import betamoon.luamodloader.LuaScriptErrors.ScriptIssue;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptMod;
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/**
- * Retained script detail panel with cached measurement and owned image
- * textures.
- */
+/** Script details with measured, consecutive sections and the same interactive entries as the popup. */
 final class GuiPanelScriptInfo extends GuiContainer {
-    private static final String LABEL_DESCRIPTION = "Description";
-    private static final String LABEL_ERRORS = "Errors";
-    private static final String LABEL_DEPENDENCIES = "Dependencies";
-    private static final String SUFFIX_DEPENDENCY_MISSING = "(Missing)";
-    private static final int SECTION_PADDING = 64;
     private static final int CONTENT_PADDING = 6;
-    private static final int LINE_SPACING = 16;
+    private static final int SECTION_GAP = 16;
+    private static final int HEADER_HEIGHT = 18;
     private static final int DEPENDENCY_LINE_HEIGHT = 12;
-    private static final int IMAGE_PADDING = 12;
-    private static final int IMAGE_FIXED_SIZE = 72;
+    private static final int IMAGE_SIZE = 72;
+    private static final int IMAGE_GAP = 12;
+    private static final float SECTION_SCALE = 1.25F;
     private static final int WARNING_SIZE = GuiScriptRestartIndicator.DEFAULT_SIZE;
-    private static final int WARNING_GAP = 4;
-
-    private final ScriptInfoContent content = new ScriptInfoContent();
-    private final GuiScrollView scrollView = new GuiScrollView(content, GuiScrollView.Policy.VERTICAL);
+    private final ScriptInfoContent content;
+    private final GuiScrollView scrollView;
     private final GuiScriptRestartIndicator warningIndicator = new GuiScriptRestartIndicator(null);
     private ScriptMod selected;
     private ScriptInfoLayout currentLayout;
+    private long issueRevision = -1;
     private int headerY;
     private float headerScale = 1.0F;
 
     GuiPanelScriptInfo() {
-        add(scrollView);
+        this(new GuiScriptIssueActions());
+    }
+
+    GuiPanelScriptInfo(GuiScriptIssueActions actions) {
+        content = new ScriptInfoContent(actions);
+        scrollView = add(new GuiScrollView(content, GuiScrollView.Policy.VERTICAL));
     }
 
     void setSelected(ScriptMod selected) {
-        if (this.selected == selected) {
+        long revision = LuaScriptErrors.getRevision();
+        if (this.selected == selected && issueRevision == revision) {
             return;
         }
+        if (this.selected != selected) {
+            scrollView.resetScroll();
+        }
         this.selected = selected;
+        issueRevision = revision;
         warningIndicator.setSourceFileName(selected == null ? null : selected.getSourceFileName());
         currentLayout = null;
         requestLayout();
@@ -67,11 +70,10 @@ final class GuiPanelScriptInfo extends GuiContainer {
 
     @Override
     protected void arrangeChildren(GuiContext context) {
+        scrollView.setVisible(selected != null);
         if (selected == null) {
-            scrollView.setVisible(false);
             return;
         }
-        scrollView.setVisible(true);
         currentLayout = new ScriptInfoLayout(context, getWidth());
         scrollView.setContentSize(getWidth(), currentLayout.contentHeight);
         scrollView.arrange(context, getBounds());
@@ -88,168 +90,138 @@ final class GuiPanelScriptInfo extends GuiContainer {
             int iconY = headerY + ((int) (8 * headerScale) - WARNING_SIZE) / 2;
             warningIndicator.arrange(context, Rect.fromPositionAndSize(getLeft(), iconY, WARNING_SIZE, WARNING_SIZE));
             warningIndicator.render(context);
-            titleX += WARNING_SIZE + WARNING_GAP;
+            titleX += WARNING_SIZE + 4;
         }
         context.getRenderer().drawScaledText(title, titleX, headerY, context.getRenderer().getTheme().textPrimary,
                 headerScale);
     }
 
-    private final class ScriptInfoContent extends GuiElement {
+    private final class ScriptInfoContent extends GuiContainer {
+        private final GuiScriptIssueEntries errors;
+        private final GuiScriptIssueEntries warnings;
+
+        private ScriptInfoContent(GuiScriptIssueActions actions) {
+            errors = add(new GuiScriptIssueEntries(actions));
+            warnings = add(new GuiScriptIssueEntries(actions));
+        }
+
         @Override
-        protected void renderElement(GuiContext context) {
-            if (selected == null || currentLayout == null) {
+        protected void arrangeChildren(GuiContext context) {
+            if (currentLayout == null) {
                 return;
             }
-            int contentWidth = getWidth();
-            int y = getTop();
             ScriptInfoLayout layout = currentLayout;
-
-            if (layout.imageSize > 0) {
-                drawImage(context, layout.image, getLeft(), y, layout.imageSize);
-                y += layout.imageSize + IMAGE_PADDING;
+            errors.setVisible(layout.errorY >= 0);
+            warnings.setVisible(layout.warningY >= 0);
+            if (layout.errorY >= 0) {
+                errors.arrange(context, Rect.fromPositionAndSize(getLeft(), getTop() + layout.errorY,
+                        getWidth(), layout.errorHeight));
             }
-
-            float sectionScale = 1.25F;
-            context.getRenderer().drawScaledUnderlinedText(LABEL_DESCRIPTION, getLeft(), y,
-                    context.getRenderer().getTheme().textPrimary, sectionScale);
-            y += (int) (10 * sectionScale) + CONTENT_PADDING;
-            if (layout.hasDescription) {
-                context.getRenderer().drawWrappedText(layout.description, getLeft(), y, contentWidth,
-                        context.getRenderer().getTheme().textPrimary);
-                y += context.getRenderer().wrappedTextHeight(layout.description, contentWidth) + CONTENT_PADDING;
-            }
-            y += LINE_SPACING;
-
-            if (layout.hasDescription && layout.hasIssues()) {
-                context.getRenderer().drawHorizontalLine(getLeft(), getRight(), y + 2,
-                        context.getRenderer().getTheme().listSeparator);
-                y += issueSectionPadding(layout.hasErrors, layout.hasWarnings);
-            }
-
-            if (layout.hasIssues()) {
-                int headerColor = layout.hasErrors
-                        ? context.getRenderer().getTheme().textError
-                        : context.getRenderer().getTheme().textWarning;
-                context.getRenderer().drawScaledUnderlinedText(LABEL_ERRORS, getLeft(), y, headerColor, sectionScale);
-                y += (int) (10 * sectionScale) + CONTENT_PADDING;
-                if (!layout.errorIssues.getEntries().isEmpty()) {
-                    y += drawIssues(context, layout.errorIssues, getLeft(), y, contentWidth,
-                            context.getRenderer().getTheme().textError) + CONTENT_PADDING + LINE_SPACING;
-                } else if (layout.hasErrors) {
-                    context.getRenderer().drawWrappedText(layout.failure, getLeft(), y, contentWidth,
-                            context.getRenderer().getTheme().textError);
-                    y += context.getRenderer().wrappedTextHeight(layout.failure, contentWidth) + CONTENT_PADDING
-                            + LINE_SPACING;
-                }
-                if (!layout.warningIssues.getEntries().isEmpty()) {
-                    y += drawIssues(context, layout.warningIssues, getLeft(), y, contentWidth,
-                            context.getRenderer().getTheme().textWarning) + CONTENT_PADDING + LINE_SPACING;
-                }
-            }
-
-            if (layout.hasDependencies) {
-                context.getRenderer().drawScaledUnderlinedText(LABEL_DEPENDENCIES, getLeft(), y,
-                        context.getRenderer().getTheme().textPrimary, sectionScale);
-                y += (int) (10 * sectionScale) + CONTENT_PADDING;
-                drawDependencies(context, layout.dependencies, selected.getMissingDependencies(), getLeft(), y,
-                        contentWidth);
+            if (layout.warningY >= 0) {
+                warnings.arrange(context, Rect.fromPositionAndSize(getLeft(), getTop() + layout.warningY,
+                        getWidth(), layout.warningHeight));
             }
         }
 
         @Override
-        protected boolean onInput(GuiContext context, GuiInputEvent event) {
-            if (event.getType() != GuiInputEvent.Type.POINTER_DOWN || currentLayout == null) {
-                return false;
+        protected void renderBeforeChildren(GuiContext context) {
+            if (selected == null || currentLayout == null) {
+                return;
             }
-            return clickIssues(currentLayout.errorIssues, event) || clickIssues(currentLayout.warningIssues, event);
+            ScriptInfoLayout layout = currentLayout;
+            drawImage(context, layout.image, getLeft(), getTop(), IMAGE_SIZE);
+            heading(context, "Description", layout.descriptionY, context.getRenderer().getTheme().textPrimary);
+            if (hasText(layout.description)) {
+                context.getRenderer().drawWrappedText(layout.description, getLeft(),
+                        getTop() + layout.descriptionY + HEADER_HEIGHT, getWidth(),
+                        context.getRenderer().getTheme().textPrimary);
+            }
+            if (layout.separatorY >= 0) {
+                context.getRenderer().drawHorizontalLine(getLeft(), getRight(), getTop() + layout.separatorY,
+                        context.getRenderer().getTheme().listSeparator);
+            }
+            if (layout.errorY >= 0) {
+                heading(context, "Errors", layout.errorY - HEADER_HEIGHT, context.getRenderer().getTheme().textError);
+            }
+            if (layout.warningY >= 0) {
+                heading(context, "Warnings", layout.warningY - HEADER_HEIGHT,
+                        context.getRenderer().getTheme().textWarning);
+            }
+            if (layout.dependencyY >= 0) {
+                heading(context, "Dependencies", layout.dependencyY, context.getRenderer().getTheme().textPrimary);
+                drawDependencies(context, layout.dependencies, selected.getMissingDependencies(), getLeft(),
+                        getTop() + layout.dependencyY + HEADER_HEIGHT, getWidth());
+            }
+        }
+
+        private void heading(GuiContext context, String text, int y, int color) {
+            context.getRenderer().drawScaledUnderlinedText(text, getLeft(), getTop() + y, color, SECTION_SCALE);
         }
     }
 
     private final class ScriptInfoLayout {
         private final String description;
-        private final String failure;
         private final List<String> dependencies;
-        private final GuiIssueLayout errorIssues;
-        private final GuiIssueLayout warningIssues;
         private final GuiTextureCache.Texture image;
-        private final int imageSize;
-        private final boolean hasDescription;
-        private final boolean hasErrors;
-        private final boolean hasWarnings;
-        private final boolean hasDependencies;
+        private final int descriptionY = IMAGE_SIZE + IMAGE_GAP;
+        private final int separatorY;
+        private final int errorY;
+        private final int errorHeight;
+        private final int warningY;
+        private final int warningHeight;
+        private final int dependencyY;
         private final int contentHeight;
 
-        private ScriptInfoLayout(GuiContext context, int contentWidth) {
+        private ScriptInfoLayout(GuiContext context, int width) {
             description = selected.getDescription();
-            failure = selected.getFailureReason();
-            dependencies = selected.getDependencies() == null
-                    ? Collections.<String>emptyList()
-                    : selected.getDependencies();
-            List<ScriptIssue> issues = LuaScriptErrors.getIssuesFor(selected.getDisplayName(),
-                    selected.getSourceFileName());
-            errorIssues = GuiIssueLayout.prepare(context.getFont(), filterIssues(issues, false), contentWidth, 0);
-            warningIssues = GuiIssueLayout.prepare(context.getFont(), filterIssues(issues, true), contentWidth, 0);
+            dependencies = selected.getDependencies() == null ? Collections.emptyList() : selected.getDependencies();
+            List<ScriptIssue> issues = LuaScriptErrors.getIssuesFor(selected.getDisplayName(), selected.getSourceFileName());
+            List<ScriptIssue> errors = filterIssues(issues, false);
+            List<ScriptIssue> warnings = filterIssues(issues, true);
+            if (errors.isEmpty() && selected.isFailed() && hasText(selected.getFailureReason())) {
+                errors.add(ScriptIssue.describe(selected.getSourceFileName(), selected.getFailureReason(), false));
+            }
+            content.errors.setIssues(errors);
+            content.warnings.setIssues(warnings);
+            content.errors.setVisible(!errors.isEmpty());
+            content.warnings.setVisible(!warnings.isEmpty());
+            errorHeight = content.errors.measure(context, Constraints.upTo(width, Integer.MAX_VALUE)).getHeight();
+            warningHeight = content.warnings.measure(context, Constraints.upTo(width, Integer.MAX_VALUE)).getHeight();
             image = resolveImageTexture(selected);
-            imageSize = IMAGE_FIXED_SIZE;
-            hasDescription = hasText(description);
-            hasErrors = !errorIssues.getEntries().isEmpty() || (selected.isFailed() && hasText(failure));
-            hasWarnings = !warningIssues.getEntries().isEmpty();
-            hasDependencies = !dependencies.isEmpty();
-            contentHeight = calculateHeight(context, contentWidth);
-        }
-
-        private boolean hasIssues() {
-            return hasErrors || hasWarnings;
-        }
-
-        private int calculateHeight(GuiContext context, int contentWidth) {
-            int height = imageSize + IMAGE_PADDING;
-            int headerHeight = (int) (10 * 1.25F) + CONTENT_PADDING;
-            height += headerHeight;
-            if (hasDescription) {
-                height += context.getRenderer().wrappedTextHeight(description, contentWidth) + CONTENT_PADDING;
+            int y = descriptionY + HEADER_HEIGHT;
+            if (hasText(description)) {
+                y += context.getRenderer().wrappedTextHeight(description, width) + CONTENT_PADDING;
             }
-            height += LINE_SPACING;
-            if (hasDescription && hasIssues()) {
-                height += issueSectionPadding(hasErrors, hasWarnings);
+            y += SECTION_GAP;
+            boolean hasIssues = !errors.isEmpty() || !warnings.isEmpty();
+            separatorY = hasIssues ? y + 2 : -1;
+            if (hasIssues) {
+                y += SECTION_GAP;
             }
-            if (hasIssues()) {
-                height += headerHeight;
-                if (!errorIssues.getEntries().isEmpty()) {
-                    height += errorIssues.getHeight() + CONTENT_PADDING + LINE_SPACING;
-                } else if (hasErrors) {
-                    height += context.getRenderer().wrappedTextHeight(failure, contentWidth) + CONTENT_PADDING
-                            + LINE_SPACING;
-                }
-                if (!warningIssues.getEntries().isEmpty()) {
-                    height += warningIssues.getHeight() + CONTENT_PADDING + LINE_SPACING;
-                }
+            errorY = errors.isEmpty() ? -1 : y + HEADER_HEIGHT;
+            if (!errors.isEmpty()) {
+                y = errorY + errorHeight + SECTION_GAP;
             }
-            if (hasDependencies) {
-                height += headerHeight + dependencies.size() * DEPENDENCY_LINE_HEIGHT + CONTENT_PADDING;
+            warningY = warnings.isEmpty() ? -1 : y + HEADER_HEIGHT;
+            if (!warnings.isEmpty()) {
+                y = warningY + warningHeight + SECTION_GAP;
             }
-            return height;
+            dependencyY = dependencies.isEmpty() ? -1 : y;
+            if (!dependencies.isEmpty()) {
+                y += HEADER_HEIGHT + dependencies.size() * DEPENDENCY_LINE_HEIGHT + CONTENT_PADDING;
+            }
+            contentHeight = y;
         }
     }
 
-    private static boolean clickIssues(GuiIssueLayout layout, GuiInputEvent event) {
-        List<GuiIssueLayout.Entry> entries = layout.getEntries();
-        for (int i = 0; i < entries.size(); i++) {
-            if (entries.get(i).mouseClicked(event.getMouseX(), event.getMouseY(), event.getButton())) {
-                return true;
+    private static List<ScriptIssue> filterIssues(List<ScriptIssue> issues, boolean warning) {
+        List<ScriptIssue> filtered = new ArrayList<>();
+        for (ScriptIssue issue : issues) {
+            if (issue.isWarning() == warning) {
+                filtered.add(issue);
             }
         }
-        return false;
-    }
-
-    private static int drawIssues(GuiContext context, GuiIssueLayout layout, int x, int y, int width, int color) {
-        int entryY = y;
-        List<GuiIssueLayout.Entry> entries = layout.getEntries();
-        for (int i = 0; i < entries.size(); i++) {
-            entries.get(i).draw(context, x, entryY, width, color);
-            entryY += entries.get(i).getHeight();
-        }
-        return layout.getHeight();
+        return filtered;
     }
 
     private static void drawImage(GuiContext context, GuiTextureCache.Texture image, int x, int y, int size) {
@@ -259,8 +231,7 @@ final class GuiPanelScriptInfo extends GuiContainer {
             return;
         }
         context.getRenderer().drawPopupPanel(bounds);
-        context.getRenderer().drawScaledCenteredText("?", bounds, context.getRenderer().getTheme().textMuted, 1.0F,
-                true);
+        context.getRenderer().drawScaledCenteredText("?", bounds, context.getRenderer().getTheme().textMuted, 1.0F, true);
     }
 
     private static GuiTextureCache.Texture resolveImageTexture(ScriptMod mod) {
@@ -274,55 +245,34 @@ final class GuiPanelScriptInfo extends GuiContainer {
                         mod.getStorageRevision());
                 return texture != null && texture.getWidth() == texture.getHeight() ? texture : null;
             }
-        } catch (java.io.IOException ignored) {
+        } catch (IOException ignored) {
             return null;
         }
-        File imageFile = mod.resolveImageFile(LuaModLoader.getLuaModsDir());
-        if (imageFile == null) {
+        File file = mod.resolveImageFile(LuaModLoader.getLuaModsDir());
+        if (file == null) {
             return null;
         }
-        GuiTextureCache.Texture texture = GuiTextureCache.shared().get(imageFile);
+        GuiTextureCache.Texture texture = GuiTextureCache.shared().get(file);
         return texture != null && texture.getWidth() == texture.getHeight() ? texture : null;
-    }
-
-    private static List<ScriptIssue> filterIssues(List<ScriptIssue> issues, boolean warning) {
-        List<ScriptIssue> filtered = new ArrayList<ScriptIssue>();
-        if (issues != null) {
-            for (int i = 0; i < issues.size(); i++) {
-                if (issues.get(i).isWarning() == warning) {
-                    filtered.add(issues.get(i));
-                }
-            }
-        }
-        return filtered;
-    }
-
-    private static int issueSectionPadding(boolean hasErrors, boolean hasWarnings) {
-        return !hasErrors && hasWarnings ? LINE_SPACING : SECTION_PADDING;
     }
 
     private static boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
     }
 
-    private static int drawDependencies(GuiContext context, List<String> dependencies, List<String> missing, int x,
-            int y, int width) {
-        int startY = y;
-        for (int i = 0; i < dependencies.size(); i++) {
-            String dependency = dependencies.get(i);
+    private static void drawDependencies(GuiContext context, List<String> dependencies, List<String> missing,
+            int x, int y, int width) {
+        for (String dependency : dependencies) {
             if (dependency == null) {
                 continue;
             }
-            boolean missingDependency = missing != null
-                    ? missing.contains(dependency)
+            boolean unavailable = missing != null ? missing.contains(dependency)
                     : !LuaScriptRegistry.hasScriptName(dependency);
-            int color = missingDependency
-                    ? context.getRenderer().getTheme().textError
+            int color = unavailable ? context.getRenderer().getTheme().textError
                     : context.getRenderer().getTheme().textPrimary;
-            String label = missingDependency ? "- " + dependency + " " + SUFFIX_DEPENDENCY_MISSING : "- " + dependency;
+            String label = "- " + dependency + (unavailable ? " (Missing)" : "");
             context.getRenderer().drawText(context.getRenderer().trimToWidth(label, width), x, y, color);
             y += DEPENDENCY_LINE_HEIGHT;
         }
-        return y - startY;
     }
 }

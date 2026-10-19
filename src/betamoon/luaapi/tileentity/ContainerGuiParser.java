@@ -1,6 +1,7 @@
 package betamoon.luaapi.tileentity;
 
 import betamoon.data.DataField;
+import betamoon.gui.texture.BuiltinGuiSprites;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.asset.AssetInputs;
 import betamoon.luamodloader.ScriptResourceTracker;
@@ -711,20 +712,10 @@ final class ContainerGuiParser {
 
     private static ContainerGuiDefinition.Texture builtinSprite(String name) {
         name = name.toLowerCase();
-        if ("minecraft:furnace_flame".equals(name)) {
-            return atlas("/gui/furnace.png", 176, 0, 14, 14);
-        }
-        if ("minecraft:furnace_flame_background".equals(name)) {
-            return atlas("/gui/furnace.png", 56, 36, 14, 14);
-        }
-        if ("minecraft:furnace_arrow".equals(name)) {
-            return atlas("/gui/furnace.png", 176, 14, 24, 16);
-        }
-        if ("minecraft:furnace_arrow_background".equals(name)) {
-            return atlas("/gui/furnace.png", 79, 34, 24, 16);
-        }
-        if ("minecraft:crafting_arrow".equals(name)) {
-            return atlas("/gui/crafting.png", 89, 34, 24, 17);
+        BuiltinGuiSprites.Sprite sprite = BuiltinGuiSprites.find(name);
+        if (sprite != null) {
+            return new ContainerGuiDefinition.Texture(sprite.resource, 0, 0, sprite.width, sprite.height,
+                    sprite.width, sprite.height);
         }
         if ("minecraft:slot".equals(name)) {
             return atlas("/gui/container.png", 7, 17, 18, 18);

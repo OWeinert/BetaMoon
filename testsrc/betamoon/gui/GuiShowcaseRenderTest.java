@@ -25,6 +25,7 @@ import betamoon.gui.widget.GuiMessage;
 import betamoon.gui.widget.GuiScrollView;
 import betamoon.gui.widget.GuiTextBox;
 import betamoon.io.IoUtils;
+import betamoon.instrumentation.hooks.texture.TextureResourceCallbacks;
 import betamoon.luaapi.minecraft.MinecraftApi;
 import betamoon.luaapi.tileentity.TileEntityApi;
 import betamoon.luamodloader.LuaScriptErrors;
@@ -54,11 +55,11 @@ import betamoon.worldgen.terrain.WorldGeneratorProfile;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileReader;
+import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.URI;
-import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
@@ -82,6 +83,7 @@ import net.minecraft.src.ItemStack;
 import net.minecraft.src.RenderEngine;
 import net.minecraft.src.SaveConverterMcRegion;
 import net.minecraft.src.Tessellator;
+import net.minecraft.src.TexturePackBase;
 import net.minecraft.src.TileEntity;
 import net.minecraft.src.UnexpectedThrowable;
 import net.minecraft.src.World;
@@ -186,7 +188,7 @@ public final class GuiShowcaseRenderTest {
                 "Showcase dial did not handle drag input");
         require(entity.getDataInt("dial") == 100, "Dragging the showcase dial did not update its visible value");
 
-        Pbuffer buffer = new Pbuffer(320, 240, new PixelFormat(8, 24, 0), null, null);
+        Pbuffer buffer = new Pbuffer(640, 360, new PixelFormat(8, 24, 0), null, null);
         try {
             buffer.makeCurrent();
             GameSettings settings = new GameSettings();
@@ -197,6 +199,7 @@ public final class GuiShowcaseRenderTest {
             minecraft.renderEngine = engine;
             minecraft.fontRenderer = font;
             verifyIssueLayout(font);
+            ScriptIssueRenderChecks.run(minecraft, font, output);
             verifyDialogContentSizing(minecraft, font);
             verifyTextureRenderState(minecraft, font);
             renderFrameworkScreens(minecraft, font, output);
@@ -460,9 +463,10 @@ public final class GuiShowcaseRenderTest {
                     + "{type='group',id='clip',x=96,y=8,width=24,height=24,clip=true,scaleX=1.5,scaleY=1.5,"
                     + "elements={{type='rectangle',width=40,height=16,color=0x80FFFFFF,opacity=.5}}},"
                     + "{type='text',text='\\194\\167cFade',x=96,y=48,color='white',opacity=.5},"
+                    + "{type='rectangle',x=96,y=80,width=42,height=28,color=0x403040},"
                     + "{type='progress',id='gauge',value='progress',maximum=100,x=96,y=80,width=42,height=28,"
                     + "builtin='minecraft:furnace_flame',backgroundBuiltin='minecraft:furnace_flame_background',"
-                    + "direction='bottom_to_top'},"
+                    + "tint=0x80D0FF,backgroundTint=0x70FF70,direction='bottom_to_top'},"
                     + "{type='slot',x=8,y=116,tint='red'},"
                     + "{type='progress',value='empty',maximum=100,x=96,y=120,"
                     + "builtin='minecraft:furnace_flame',backgroundBuiltin='minecraft:furnace_arrow_background'},"
@@ -511,6 +515,11 @@ public final class GuiShowcaseRenderTest {
             GL11.glPopMatrix();
             BufferedImage image = capture();
             ImageIO.write(image, "png", new File(output, "animated-presentation-" + frame + ".png"));
+            require((image.getRGB(169, 144) & 0xFFFFFF) == 0x403040,
+                    "Tinted progress padding obscured the surface beneath the sprite");
+            int shadow = image.getRGB(175, 120) & 0xFFFFFF;
+            require((shadow >> 8 & 255) == 139 && (shadow >> 16 & 255) < 65 && (shadow & 255) < 65,
+                    "Unfilled flame shadow must keep its own tint and opaque artwork");
             for (int row = 0; row < 16; row++) {
                 for (int column = 0; column < 24; column++) {
                     require(image.getRGB(168 + column, 157 + row) == image.getRGB(200 + column, 157 + row),
@@ -800,8 +809,11 @@ public final class GuiShowcaseRenderTest {
             GuiIssueLayout layout = GuiIssueLayout.prepare(font, LuaScriptErrors.getEntries(), 80, 10);
             List<GuiIssueLayout.Entry> entries = layout.getEntries();
             require(entries.size() == 2, "Issue layout omitted an error or warning");
-            int expectedHeight = GuiRenderer.lineHeight(font) + 3 + font.func_27277_a("broken.lua:12", 80) + 3
-                    + font.func_27277_a("first line with wrapped details", 80) + font.func_27277_a("second line", 80);
+            int innerWidth = 80 - GuiIssueLayout.PADDING * 2;
+            int expectedHeight = GuiIssueLayout.PADDING * 2 + font.func_27277_a("Error", innerWidth) + 3
+                    + font.func_27277_a("broken.lua:12", innerWidth) + 3
+                    + font.func_27277_a("first line with wrapped details", innerWidth)
+                    + font.func_27277_a("second line", innerWidth);
             require(entries.get(0).getHeight() == expectedHeight,
                     "Source is presented once while complete multiline diagnostics retain their measured space");
             require("Error".equals(entries.get(0).getSeverityLabel())
@@ -810,6 +822,8 @@ public final class GuiShowcaseRenderTest {
             GuiIssueLayout narrow = GuiIssueLayout.prepare(font, LuaScriptErrors.getEntries(), 30, 10);
             require(narrow.getHeight() > layout.getHeight(),
                     "Narrow source links and messages wrap into measured rows");
+            require(GuiIssueLayout.prepare(font, LuaScriptErrors.getEntries(), 1, 10).getHeight() > 0,
+                    "Temporarily constrained layout must not enter the native text wrapper's zero-progress loop");
             require(layout.getHeight() == entries.get(0).getHeight() + 10 + entries.get(1).getHeight(),
                     "Issue list height must use the prepared entry heights and gap");
 
@@ -1184,10 +1198,14 @@ public final class GuiShowcaseRenderTest {
     }
 
     private static void setupFrame() {
-        GL11.glViewport(0, 0, 320, 240);
+        setupFrame(320, 240);
+    }
+
+    static void setupFrame(int width, int height) {
+        GL11.glViewport(0, 0, width, height);
         GL11.glMatrixMode(GL11.GL_PROJECTION);
         GL11.glLoadIdentity();
-        GL11.glOrtho(0, 320, 240, 0, -1000, 1000);
+        GL11.glOrtho(0, width, height, 0, -1000, 1000);
         GL11.glMatrixMode(GL11.GL_MODELVIEW);
         GL11.glLoadIdentity();
         GL11.glDepthMask(true);
@@ -1203,12 +1221,16 @@ public final class GuiShowcaseRenderTest {
     }
 
     private static BufferedImage capture() {
-        ByteBuffer pixels = BufferUtils.createByteBuffer(320 * 240 * 4);
-        GL11.glReadPixels(0, 0, 320, 240, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
-        BufferedImage image = new BufferedImage(320, 240, BufferedImage.TYPE_INT_ARGB);
-        for (int y = 0; y < 240; y++) {
-            for (int x = 0; x < 320; x++) {
-                int i = ((239 - y) * 320 + x) * 4;
+        return capture(320, 240);
+    }
+
+    static BufferedImage capture(int width, int height) {
+        ByteBuffer pixels = BufferUtils.createByteBuffer(width * height * 4);
+        GL11.glReadPixels(0, 0, width, height, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int i = ((height - 1 - y) * width + x) * 4;
                 image.setRGB(x, y, 0xFF000000 | (pixels.get(i) & 255) << 16 | (pixels.get(i + 1) & 255) << 8
                         | pixels.get(i + 2) & 255);
             }
@@ -1242,6 +1264,16 @@ public final class GuiShowcaseRenderTest {
 
     private static final class AssetEngine extends RenderEngine {
         private final Map<String, Integer> textures = new HashMap<String, Integer>();
+        private final TexturePackBase resources = new TexturePackBase() {
+            @Override
+            public InputStream getResourceAsStream(String path) {
+                InputStream input = RenderEngine.class.getResourceAsStream(path);
+                if (input == null && path.startsWith("/resources/")) {
+                    input = RenderEngine.class.getResourceAsStream(path.substring("/resources".length()));
+                }
+                return input;
+            }
+        };
         AssetEngine(GameSettings settings) {
             super(null, settings);
         }
@@ -1254,14 +1286,12 @@ public final class GuiShowcaseRenderTest {
             try {
                 BufferedImage image = LuaTextureResources.load(path);
                 if (image == null) {
-                    URL resource = RenderEngine.class.getResource(path);
-                    if (resource == null && path.startsWith("/resources/")) {
-                        resource = RenderEngine.class.getResource(path.substring("/resources".length()));
+                    try (InputStream input = TextureResourceCallbacks.openTexture(resources, path)) {
+                        if (input == null) {
+                            throw new IllegalArgumentException("Missing texture resource: " + path);
+                        }
+                        image = ImageIO.read(input);
                     }
-                    if (resource == null) {
-                        throw new IllegalArgumentException("Missing texture resource: " + path);
-                    }
-                    image = ImageIO.read(resource);
                 }
                 int texture = allocateAndSetupTexture(image);
                 textures.put(path, texture);

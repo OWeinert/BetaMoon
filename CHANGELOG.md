@@ -44,6 +44,9 @@
 
 ### Compatibility and fixes
 
+- Improve script diagnostics with runtime error indicators, grouped issue lists, clipboard actions, and detailed reports.
+- Add rotating runtime logs, independent file and console severity settings, and script-owned Lua logging.
+- Improve configuration readability with spaced setting groups and headings.
 - Standardize biome labels on `displayName`, keeping `name` as a deprecated compatibility alias.
 - Correct biome key lookups and surface rules applying to the wrong chunk columns.
 - Preserve script ownership during callbacks so script-owned operations and cleanup use the declaring script.

@@ -1,6 +1,5 @@
 package betamoon.system;
 
-import betamoon.BetaMoonCommon;
 import betamoon.data.DataStore;
 import betamoon.dimension.DimensionRuntime;
 import betamoon.luaapi.utils.LuaCallbackScope;
@@ -151,8 +150,7 @@ public final class WorldServiceRuntime {
             String detail = error.getMessage() == null ? error.toString() : error.getMessage();
             String message = "world service " + instance.definition.key + " " + name + " was disabled after an error: "
                     + detail;
-            LuaScriptErrors.add(instance.definition.owner, message);
-            BetaMoonCommon.LOGGER.warning(instance.definition.owner + ": " + message);
+            LuaScriptErrors.add(instance.definition.owner, message, LuaScriptErrors.Outcome.CALLBACK_DISABLED, error);
         }
     }
 

@@ -10,6 +10,7 @@ import betamoon.luaapi.event.EventsApi;
 import betamoon.luaapi.fluid.FluidApi;
 import betamoon.luaapi.fuel.FuelsApi;
 import betamoon.luaapi.input.InputApi;
+import betamoon.luaapi.logging.LoggingApi;
 import betamoon.luaapi.material.ArmorMaterialApi;
 import betamoon.luaapi.material.ToolMaterialApi;
 import betamoon.luaapi.minecraft.MinecraftApi;
@@ -72,6 +73,7 @@ public final class BetaMoonModule extends TwoArgFunction {
     @Override
     public LuaValue call(LuaValue modname, LuaValue env) {
         LuaTable module = new LuaTable();
+        LoggingApi.attach(module, source);
         CallbackResultsApi.attach(module);
         ConfigApi.attach(module, configRoot, source);
         EventsApi.attach(module);

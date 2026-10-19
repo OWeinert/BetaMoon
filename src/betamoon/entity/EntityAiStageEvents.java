@@ -1,6 +1,5 @@
 package betamoon.entity;
 
-import betamoon.BetaMoonCommon;
 
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
@@ -53,8 +52,8 @@ final class EntityAiStageEvents {
                 String message = definition.key + ".living.ai.stages." + name
                         + ".routine disabled after error: " + error.getMessage();
                 String owner = EntityTypeRegistry.owner(definition.key);
-                LuaScriptErrors.add(owner == null ? definition.key.toString() : owner, message);
-                BetaMoonCommon.LOGGER.warning(message);
+                LuaScriptErrors.add(owner == null ? definition.key.toString() : owner, message,
+                        LuaScriptErrors.Outcome.CALLBACK_DISABLED, error);
             }
             return fallback;
         }

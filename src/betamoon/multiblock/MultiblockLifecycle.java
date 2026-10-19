@@ -71,7 +71,8 @@ final class MultiblockLifecycle {
         } catch (Throwable error) {
             instance.callbackError = event + ": " + error.getMessage();
             LuaScriptErrors.add(instance.definition.owner,
-                    "Multiblock " + instance.definition.key + " " + instance.callbackError);
+                    "Multiblock " + instance.definition.key + " " + instance.callbackError,
+                    LuaScriptErrors.Outcome.UNKNOWN, error);
             return false;
         }
     }

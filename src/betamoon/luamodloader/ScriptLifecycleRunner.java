@@ -15,6 +15,7 @@ import betamoon.worldgen.spatial.SpatialRegistry;
 import betamoon.worldgen.terrain.TerrainRegistry;
 import java.util.List;
 import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaValue;
 
 /**
  * Executes script lifecycle callbacks with consistent owner and failure
@@ -26,6 +27,10 @@ final class ScriptLifecycleRunner {
 
     private final RetainedScriptCatalog retainedScripts;
     private final ErrorReporter errorReporter;
+
+    ScriptLifecycleRunner(RetainedScriptCatalog retainedScripts) {
+        this(retainedScripts, null);
+    }
 
     ScriptLifecycleRunner(RetainedScriptCatalog retainedScripts, ErrorReporter errorReporter) {
         this.retainedScripts = retainedScripts;
@@ -60,9 +65,9 @@ final class ScriptLifecycleRunner {
                             mod.getDisplayName());
                     BiomeGenRegistry.PublicationBatch biomes = BiomeGenRegistry.beginPublication(mod.sourceFileName,
                             mod.getDisplayName())) {
-                mod.modInit.call();
+                ScriptExecution.invoke(mod.sourceFileName, "modInit", mod.modInit, LuaValue.NONE);
                 if (hotReload && mod.modReload != null && mod.modReload.isfunction()) {
-                    mod.modReload.call();
+                    ScriptExecution.invoke(mod.sourceFileName, "modReload", mod.modReload, LuaValue.NONE);
                 }
                 multiblocks.validate();
                 spatial.validate();
@@ -88,9 +93,9 @@ final class ScriptLifecycleRunner {
                 LuaScriptRegistry.markLoadedByFile(mod.sourceFileName);
                 retainedScripts.rememberIfStructural(mod);
             } catch (LuaError error) {
-                recordLoadFailure(mod, failedMods, error.getMessage());
+                recordLoadFailure(mod, failedMods, error.getMessage(), error);
             } catch (Throwable error) {
-                recordLoadFailure(mod, failedMods, error.toString());
+                recordLoadFailure(mod, failedMods, error.toString(), error);
             } finally {
                 if (logTimings) {
                     BetaMoonCommon.LOGGER.info("Lua mod init " + mod.getDisplayName() + " took "
@@ -110,24 +115,28 @@ final class ScriptLifecycleRunner {
             }
 
             try (ScriptExecutionScope ignored = ScriptExecutionScope.open(mod.sourceFileName)) {
-                mod.modUnload.call();
+                ScriptExecution.invoke(mod.sourceFileName, "modUnload", mod.modUnload, LuaValue.NONE);
             } catch (Throwable error) {
                 String message = "Unload hook failed: " + error.getMessage();
-                LuaScriptErrors.add(mod.getDisplayName(), message);
-                errorReporter.report(
-                        "Lua mod unload hook failed: " + mod.getDisplayName() + " (" + error.getMessage() + ")");
+                LuaScriptErrors.add(mod.getDisplayName(), message, LuaScriptErrors.Outcome.UNKNOWN, error);
+                if (errorReporter != null) {
+                    errorReporter.report(
+                            "Lua mod unload hook failed: " + mod.getDisplayName() + " (" + error.getMessage() + ")");
+                }
             }
         }
     }
 
-    private void recordLoadFailure(ScriptMod mod, List<String> failedMods, String message) {
+    private void recordLoadFailure(ScriptMod mod, List<String> failedMods, String message, Throwable error) {
         ModuleRegistry.discardPending(mod.sourceFileName);
         TileEntityRegistry.removeOwned(mod.sourceFileName);
         ScriptResourceTracker.unload(mod.sourceFileName);
         failedMods.add(mod.name);
-        LuaScriptErrors.add(mod.name, message);
+        LuaScriptErrors.add(mod.name, message, LuaScriptErrors.Outcome.LOAD_FAILED, error);
         LuaScriptRegistry.markFailedByFile(mod.sourceFileName, message);
-        errorReporter.report(SCRIPT_ERROR_PREFIX + mod.name + "\n" + SEPARATOR + message + "\n" + SEPARATOR);
+        if (errorReporter != null) {
+            errorReporter.report(SCRIPT_ERROR_PREFIX + mod.name + "\n" + SEPARATOR + message + "\n" + SEPARATOR);
+        }
     }
 
     @FunctionalInterface

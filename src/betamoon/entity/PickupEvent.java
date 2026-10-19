@@ -1,6 +1,5 @@
 package betamoon.entity;
 
-import betamoon.BetaMoonCommon;
 
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
@@ -37,8 +36,8 @@ final class PickupEvent {
             if (DISABLED.add(definition)) {
                 String message = definition.key + ".onPickup disabled after error: " + error.getMessage();
                 String owner = EntityTypeRegistry.owner(definition.key);
-                LuaScriptErrors.add(owner == null ? definition.key.toString() : owner, message);
-                BetaMoonCommon.LOGGER.warning(message);
+                LuaScriptErrors.add(owner == null ? definition.key.toString() : owner, message,
+                        LuaScriptErrors.Outcome.CALLBACK_DISABLED, error);
             }
         }
     }

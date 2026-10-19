@@ -65,6 +65,13 @@ public final class GuiButton extends GuiElement {
         updateNativeBounds();
         nativeButton.enabled = isEnabled();
         nativeButton.drawButton(minecraft, context.getMouseX(), context.getMouseY());
+        if (isFocused()) {
+            int color = 0xFFFFFFA0;
+            context.getRenderer().drawHorizontalLine(getLeft(), getRight(), getTop(), color);
+            context.getRenderer().drawHorizontalLine(getLeft(), getRight(), getBottom() - 1, color);
+            context.getRenderer().drawVerticalLine(getTop(), getBottom(), getLeft(), color);
+            context.getRenderer().drawVerticalLine(getTop(), getBottom(), getRight() - 1, color);
+        }
     }
 
     @Override

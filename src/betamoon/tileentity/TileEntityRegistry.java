@@ -3,6 +3,7 @@ package betamoon.tileentity;
 import betamoon.BetaMoonCommon;
 
 import betamoon.luamodloader.NonReloadableScriptRegistry;
+import betamoon.luamodloader.LuaScriptErrors;
 import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -331,8 +332,7 @@ public final class TileEntityRegistry {
         } catch (Throwable error) {
             binding.redstone.neighborActionEnabled = false;
             String message = "redstone onNeighborChanged was disabled after an error: " + error.getMessage();
-            betamoon.luamodloader.LuaScriptErrors.add(binding.tile.owner, message);
-            BetaMoonCommon.LOGGER.warning(binding.tile.owner + ": " + message);
+            LuaScriptErrors.add(binding.tile.owner, message, LuaScriptErrors.Outcome.CALLBACK_DISABLED, error);
         }
     }
 

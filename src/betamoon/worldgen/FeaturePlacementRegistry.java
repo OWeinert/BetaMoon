@@ -1,7 +1,6 @@
 package betamoon.worldgen;
 
 import betamoon.worldgen.terrain.PopulationPolicy;
-import betamoon.BetaMoonCommon;
 import betamoon.dimension.DimensionIdentity;
 import betamoon.dimension.DimensionSelector;
 import betamoon.luamodloader.LuaScriptErrors;
@@ -551,8 +550,7 @@ final class FeaturePlacementRegistry {
         failed.add(placement);
         reject(placement.key, FeatureResult.RUNTIME_ERROR);
         String message = "Placement " + placement.key + " was disabled after an error: " + error.getMessage();
-        BetaMoonCommon.LOGGER.warning(placement.owner + ": " + message);
-        LuaScriptErrors.add(placement.owner, message);
+        LuaScriptErrors.add(placement.owner, message, LuaScriptErrors.Outcome.CALLBACK_DISABLED, error);
     }
 
     private static synchronized void accept(WorldGenKey key, int blocks) {
