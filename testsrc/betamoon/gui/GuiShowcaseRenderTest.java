@@ -25,6 +25,7 @@ import betamoon.gui.widget.GuiMessage;
 import betamoon.gui.widget.GuiScrollView;
 import betamoon.gui.widget.GuiTextBox;
 import betamoon.io.IoUtils;
+import betamoon.instrumentation.hooks.texture.TextureResourceCallbacks;
 import betamoon.luaapi.minecraft.MinecraftApi;
 import betamoon.luaapi.tileentity.TileEntityApi;
 import betamoon.luamodloader.LuaScriptErrors;
@@ -54,11 +55,11 @@ import betamoon.worldgen.terrain.WorldGeneratorProfile;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileReader;
+import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.URI;
-import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
@@ -82,6 +83,7 @@ import net.minecraft.src.ItemStack;
 import net.minecraft.src.RenderEngine;
 import net.minecraft.src.SaveConverterMcRegion;
 import net.minecraft.src.Tessellator;
+import net.minecraft.src.TexturePackBase;
 import net.minecraft.src.TileEntity;
 import net.minecraft.src.UnexpectedThrowable;
 import net.minecraft.src.World;
@@ -460,9 +462,10 @@ public final class GuiShowcaseRenderTest {
                     + "{type='group',id='clip',x=96,y=8,width=24,height=24,clip=true,scaleX=1.5,scaleY=1.5,"
                     + "elements={{type='rectangle',width=40,height=16,color=0x80FFFFFF,opacity=.5}}},"
                     + "{type='text',text='\\194\\167cFade',x=96,y=48,color='white',opacity=.5},"
+                    + "{type='rectangle',x=96,y=80,width=42,height=28,color=0x403040},"
                     + "{type='progress',id='gauge',value='progress',maximum=100,x=96,y=80,width=42,height=28,"
                     + "builtin='minecraft:furnace_flame',backgroundBuiltin='minecraft:furnace_flame_background',"
-                    + "direction='bottom_to_top'},"
+                    + "tint=0x80D0FF,backgroundTint=0x70FF70,direction='bottom_to_top'},"
                     + "{type='slot',x=8,y=116,tint='red'},"
                     + "{type='progress',value='empty',maximum=100,x=96,y=120,"
                     + "builtin='minecraft:furnace_flame',backgroundBuiltin='minecraft:furnace_arrow_background'},"
@@ -511,6 +514,11 @@ public final class GuiShowcaseRenderTest {
             GL11.glPopMatrix();
             BufferedImage image = capture();
             ImageIO.write(image, "png", new File(output, "animated-presentation-" + frame + ".png"));
+            require((image.getRGB(169, 144) & 0xFFFFFF) == 0x403040,
+                    "Tinted progress padding obscured the surface beneath the sprite");
+            int shadow = image.getRGB(175, 120) & 0xFFFFFF;
+            require((shadow >> 8 & 255) == 139 && (shadow >> 16 & 255) < 65 && (shadow & 255) < 65,
+                    "Unfilled flame shadow must keep its own tint and opaque artwork");
             for (int row = 0; row < 16; row++) {
                 for (int column = 0; column < 24; column++) {
                     require(image.getRGB(168 + column, 157 + row) == image.getRGB(200 + column, 157 + row),
@@ -1242,6 +1250,16 @@ public final class GuiShowcaseRenderTest {
 
     private static final class AssetEngine extends RenderEngine {
         private final Map<String, Integer> textures = new HashMap<String, Integer>();
+        private final TexturePackBase resources = new TexturePackBase() {
+            @Override
+            public InputStream getResourceAsStream(String path) {
+                InputStream input = RenderEngine.class.getResourceAsStream(path);
+                if (input == null && path.startsWith("/resources/")) {
+                    input = RenderEngine.class.getResourceAsStream(path.substring("/resources".length()));
+                }
+                return input;
+            }
+        };
         AssetEngine(GameSettings settings) {
             super(null, settings);
         }
@@ -1254,14 +1272,12 @@ public final class GuiShowcaseRenderTest {
             try {
                 BufferedImage image = LuaTextureResources.load(path);
                 if (image == null) {
-                    URL resource = RenderEngine.class.getResource(path);
-                    if (resource == null && path.startsWith("/resources/")) {
-                        resource = RenderEngine.class.getResource(path.substring("/resources".length()));
+                    try (InputStream input = TextureResourceCallbacks.openTexture(resources, path)) {
+                        if (input == null) {
+                            throw new IllegalArgumentException("Missing texture resource: " + path);
+                        }
+                        image = ImageIO.read(input);
                     }
-                    if (resource == null) {
-                        throw new IllegalArgumentException("Missing texture resource: " + path);
-                    }
-                    image = ImageIO.read(resource);
                 }
                 int texture = allocateAndSetupTexture(image);
                 textures.put(path, texture);

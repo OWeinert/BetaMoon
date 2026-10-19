@@ -14,6 +14,7 @@ import betamoon.assets.io.ZipAssetProvider;
 import betamoon.client.audio.SoundClip;
 import betamoon.client.audio.ClientSounds;
 import betamoon.client.audio.SoundAsset;
+import betamoon.gui.texture.BuiltinGuiSprites;
 import betamoon.instrumentation.hooks.texture.TextureResourceCallbacks;
 import betamoon.resources.LuaTextureResources;
 import java.awt.image.BufferedImage;
@@ -53,12 +54,111 @@ public final class AssetResourceTest {
             verifyProviders(root);
             verifyBuiltinControlTextures(root);
             verifyRefreshAndVirtualStreams(root);
+            verifyTransparentGuiSprites();
             verifyAudio();
             verifySoundOverrides(root);
-            System.out.println("Asset resources passed: ZIP fallback, cache/refresh, virtual PNGs, WAV and OGG.");
+            System.out.println("Asset resources passed: ZIP fallback, cache/refresh, virtual PNGs, "
+                    + "transparent GUI sprites, WAV and OGG.");
         } finally {
             deleteTree(root);
         }
+    }
+
+    private static void verifyTransparentGuiSprites() throws Exception {
+        Object[][] regions = {
+                {"furnace_flame", 176, 0, 14, 14},
+                {"furnace_flame_background", 56, 36, 14, 14},
+                {"furnace_arrow", 176, 14, 24, 16},
+                {"furnace_arrow_background", 79, 34, 24, 16},
+                {"crafting_arrow", 89, 34, 24, 17}
+        };
+        int panel = 0xff192433;
+        BufferedImage atlas = new BufferedImage(512, 512, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < atlas.getHeight(); y++) {
+            for (int x = 0; x < atlas.getWidth(); x++) {
+                atlas.setRGB(x, y, panel);
+            }
+        }
+        for (Object[] region : regions) {
+            int x = (Integer) region[1] * 2;
+            int y = (Integer) region[2] * 2;
+            atlas.setRGB(x + 2, y + 2, 0xff8b8b8b);
+            atlas.setRGB(x + 3, y + 2, 0xffffb600);
+        }
+        byte[][] source = {encoded(atlas)};
+        int[] closed = {0};
+        TexturePackBase pack = new TexturePackBase() {
+            public InputStream getResourceAsStream(String path) {
+                return new ByteArrayInputStream(source[0]) {
+                    @Override
+                    public void close() throws IOException {
+                        closed[0]++;
+                        super.close();
+                    }
+                };
+            }
+        };
+        for (Object[] region : regions) {
+            BuiltinGuiSprites.Sprite sprite = BuiltinGuiSprites.find("minecraft:" + region[0]);
+            require(sprite != null, "Missing builtin sprite: " + region[0]);
+            try (InputStream input = TextureResourceCallbacks.openTexture(pack, sprite.resource)) {
+                BufferedImage image = ImageIO.read(input);
+                require(image.getWidth() == (Integer) region[3] * 2
+                        && image.getHeight() == (Integer) region[4] * 2, "HD sprite dimensions changed");
+                require(image.getRGB(0, 0) >>> 24 == 0, "Panel pixels must become transparent: " + region[0]);
+                require(image.getRGB(2, 2) == 0xff8b8b8b, "Gray artwork/shadows must remain opaque");
+                require(image.getRGB(3, 2) == 0xffffb600, "Foreground artwork changed");
+            }
+        }
+        require(closed[0] == regions.length, "GUI source streams must close after extraction");
+        require(atlas.getRGB(352, 0) == panel, "Extraction must not mutate the shared/native atlas");
+        try (InputStream input = TextureResourceCallbacks.openTexture(pack, "/gui/furnace.png")) {
+            require(ImageIO.read(input).getRGB(352, 0) == panel,
+                    "The ordinary vanilla furnace resource must retain its opaque panel");
+        }
+        BuiltinGuiSprites.Sprite flame = BuiltinGuiSprites.find("minecraft:furnace_flame");
+        atlas.setRGB(352, 0, 0);
+        atlas.setRGB(354, 2, panel);
+        atlas.setRGB(355, 2, 0x8044cc88);
+        source[0] = encoded(atlas);
+        try (InputStream input = TextureResourceCallbacks.openTexture(pack, flame.resource)) {
+            BufferedImage image = ImageIO.read(input);
+            require(image.getRGB(0, 0) == 0 && image.getRGB(2, 2) == panel
+                    && image.getRGB(3, 2) == 0x8044cc88,
+                    "Refreshed alpha-authored packs must preserve transparent, opaque and partial-alpha artwork exactly");
+        }
+        require(BuiltinGuiSprites.open(pack, "/terrain.png") == null
+                && BuiltinGuiSprites.open(pack, "/betamoon-gui-sprites/unknown.png") == null,
+                "Unrelated and unknown resources must retain normal provider handling");
+        TexturePackBase vanilla = new TexturePackBase() {
+        };
+        for (Object[] region : regions) {
+            BuiltinGuiSprites.Sprite sprite = BuiltinGuiSprites.find("minecraft:" + region[0]);
+            try (InputStream input = TextureResourceCallbacks.openTexture(vanilla, sprite.resource)) {
+                BufferedImage image = ImageIO.read(input);
+                int transparent = 0;
+                int artwork = 0;
+                for (int y = 0; y < image.getHeight(); y++) {
+                    for (int x = 0; x < image.getWidth(); x++) {
+                        int pixel = image.getRGB(x, y);
+                        require(pixel != 0xffc6c6c6, "Vanilla panel pixels survived in " + region[0]);
+                        if ((pixel >>> 24) == 0) {
+                            transparent++;
+                        } else {
+                            artwork++;
+                        }
+                    }
+                }
+                require(transparent > 0 && artwork > 0,
+                        "Native artwork and transparent padding must both remain: " + region[0]);
+            }
+        }
+    }
+
+    private static byte[] encoded(BufferedImage image) throws IOException {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", output);
+        return output.toByteArray();
     }
 
     private static void verifyBuiltinControlTextures(Path root) throws Exception {

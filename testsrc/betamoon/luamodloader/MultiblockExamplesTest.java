@@ -266,11 +266,15 @@ public final class MultiblockExamplesTest {
         for (ContainerGuiDefinition.Element element : gui.elements) {
             if (element instanceof ContainerGuiDefinition.ProgressElement) {
                 ContainerGuiDefinition.ProgressElement progress = (ContainerGuiDefinition.ProgressElement) element;
-                flame = progress.x == 80 && progress.y == 36 && progress.image.u == 176 && progress.image.v == 0;
+                flame = progress.x == 80 && progress.y == 36
+                        && progress.image.resource.endsWith("/furnace_flame.png")
+                        && progress.image.width == 14 && progress.image.height == 14;
             }
             if (element instanceof ContainerGuiDefinition.ImageElement) {
                 ContainerGuiDefinition.ImageElement image = (ContainerGuiDefinition.ImageElement) element;
-                flameBackground |= image.x == 80 && image.y == 36 && image.image.u == 56 && image.image.v == 36;
+                flameBackground |= image.x == 80 && image.y == 36
+                        && image.image.resource.endsWith("/furnace_flame_background.png")
+                        && image.image.width == 14 && image.image.height == 14;
             }
             if (element instanceof ContainerGuiDefinition.TooltipElement) {
                 warning |= element.visibleWhen != null && !element.tooltip.isEmpty();
