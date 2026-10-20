@@ -1,11 +1,11 @@
--- Copy 01_beg_21a_module_export.lua alongside this file. Its declared script name is the dependency.
+-- Copy 01_beg_22a_module_export.lua alongside this file. Its declared script name is the dependency.
 -- The dependency ensures initialization order; import then retrieves its exported table.
 -- Importing does not run the other file again or create a second copy of its block.
 -- This example uses that block in ore generation, so inspect newly generated terrain.
 
 name = "Script Import Example"
 version = "2.0.0"
-description = "Uses the block exported by beginner example 20a, Script Export Example, and adds natural " ..
+description = "Uses the block exported by beginner example 22a, Script Export Example, and adds natural " ..
     "generation for it. Both files must be loaded; this script imports the existing block rather " ..
     "than registering a second copy.\n\n" ..
     "Start a new world or enter newly generated Overworld chunks and search for Exported Block " ..
