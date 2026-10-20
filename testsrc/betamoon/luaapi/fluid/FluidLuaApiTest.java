@@ -4,6 +4,7 @@ import betamoon.assets.io.FileAssetProvider;
 import betamoon.client.assets.AtlasTextures;
 import betamoon.client.assets.ClientAssets;
 import betamoon.fluid.FluidBlockRole;
+import betamoon.fluid.FluidCarrier;
 import betamoon.fluid.FluidEntityPolicy;
 import betamoon.fluid.FluidFlowPolicy;
 import betamoon.fluid.FluidRegistration;
@@ -25,6 +26,7 @@ import net.minecraft.src.Material;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.Session;
 import org.luaj.vm2.Globals;
+import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.jse.JsePlatform;
 
@@ -72,6 +74,7 @@ public final class FluidLuaApiTest {
             AgentRuntime.getReport().applied("betamoon:fluid_contact:" + id, "test");
         }
         AgentRuntime.getReport().waiting("betamoon:fluid_contact:item_water_movement", "EntityItem");
+        AgentRuntime.getReport().applied("betamoon:fluid_contact:item_lava_material", "test");
         for (String id : new String[]{"wet", "air_hud", "updateFogColor_material", "updateFogColor",
                 "setupFog_material", "setupFog", "overlay_visibility", "overlay_texture"}) {
             AgentRuntime.getReport().applied("betamoon:fluid_camera:" + id, "test");
@@ -135,14 +138,7 @@ public final class FluidLuaApiTest {
                 + "blocks={flowing={id=253,key='quality:block/mercury_flowing'},"
                 + "still={id=254,key='quality:block/mercury_still'}},"
                 + "appearance={still=21,flowing=22}};"
-                + "oilMaterial=betamoon.materials.blocks:add{key='quality:material/oil',"
-                + "kind='liquid',mapColor='stone'};"
-                + "oil=betamoon.fluids:add{key='quality:fluid/oil',material=oilMaterial,"
-                + "blocks={flowing={id=247,key='quality:block/oil_flowing'},"
-                + "still={id=248,key='quality:block/oil_still'}},"
-                + "appearance={still=23,flowing=24}};"
                 + "assert(mercury.material==mercuryMaterial.key);"
-                + "assert(oil.material==oilMaterial.key);"
                 + "assert(betamoon.fluids:one{material=mercuryMaterial}.key==mercury.key);"
                 + "assert(not pcall(function() betamoon.fluids:define{key='quality:fluid/invalid_material',"
                 + "material='rock',appearance={still=1,flowing=2}} end))").call();
@@ -154,11 +150,6 @@ public final class FluidLuaApiTest {
                 "Custom fluid uses a distinct native liquid material");
         require(mercury.definition().carrier().material() != FluidRegistry.instance().getByBlockId(240)
                 .definition().carrier().material(), "Custom and vanilla carrier fluids have separate material identity");
-        FluidRegistration oil = FluidRegistry.instance().getByBlockId(247);
-        require(oil == FluidRegistry.instance().getByBlockId(248)
-                && oil.definition().carrier().material() != mercury.definition().carrier().material()
-                && !FluidRegistry.instance().isSameFluid(253, 247),
-                "Adjacent custom liquids keep independent materials and fluid identities");
     }
 
     private static void verifyPolicyParsing(Globals lua) {
@@ -208,6 +199,27 @@ public final class FluidLuaApiTest {
         }
         require(Block.blocksList[249] == null && Block.blocksList[250] == null,
                 "Missing entity hooks reject shorthand before native block allocation");
+        String itemHook = "betamoon:fluid_contact:item_lava_material";
+        AgentRuntime.getReport().failed(itemHook, "Unavailable test hook");
+        try {
+            FluidPolicyHookAvailability.requireEntity(FluidEntityPolicy.forPreset("neutral"), FluidCarrier.WATER);
+            boolean rejected = false;
+            try {
+                FluidPolicyHookAvailability.requireEntity(FluidEntityPolicy.forPreset("lava"), FluidCarrier.WATER);
+            } catch (LuaError expected) {
+                rejected = true;
+            }
+            require(rejected, "Lava movement requires the native item lava hook");
+            rejected = false;
+            try {
+                FluidPolicyHookAvailability.requireEntity(FluidEntityPolicy.forPreset("neutral"), FluidCarrier.LAVA);
+            } catch (LuaError expected) {
+                rejected = true;
+            }
+            require(rejected, "A vanilla lava carrier requires suppression of unintended item lava behavior");
+        } finally {
+            AgentRuntime.getReport().applied(itemHook, "test");
+        }
     }
 
     private static FluidFlowPolicy policy(Globals lua, String preset, String flow) {

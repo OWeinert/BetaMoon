@@ -33,6 +33,12 @@ public final class FluidContactHook implements HookModule {
                 .onReturn(HandlerRef.of(CALLBACKS, "itemWaterMovement", "(Lnet/minecraft/src/EntityItem;ZI)Z"),
                         ValueBinding.thisValue(), ValueBinding.returnValue(), ValueBinding.capturedValue())
                 .skipWhenCapturedNonZero().build());
+        registrar.register(new CallRedirectHookDefinition(ID + ":item_lava_material",
+                new MethodRef(ENTITY, "onUpdate", "()V").implementedBy(item),
+                new MethodRef(new ClassRef("net/minecraft/src/IBlockAccess"), "getBlockMaterial",
+                        "(III)Lnet/minecraft/src/Material;").implementedBy(new ClassRef("net/minecraft/src/World")),
+                HandlerRef.of(CALLBACKS, "itemLavaMaterial",
+                        "(Lnet/minecraft/src/World;III)Lnet/minecraft/src/Material;")));
         registrar.register(AroundHookDefinition.builder(ID + ":eye_material",
                 new MethodRef(ENTITY, "isInsideOfMaterial", "(Lnet/minecraft/src/Material;)Z"))
                 .capture(HandlerRef.of(CALLBACKS, "customEye", "(Lnet/minecraft/src/Entity;)I"),

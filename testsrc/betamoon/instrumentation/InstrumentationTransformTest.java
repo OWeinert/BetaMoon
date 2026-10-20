@@ -781,6 +781,8 @@ public final class InstrumentationTransformTest {
             if (namedOwner.endsWith("EntityItem")) {
                 require(countCallbackCalls(transformed, "itemWaterMovement") > 0,
                         "Dropped item water movement must use fluid identity on " + namespace);
+                require(countCallbackCalls(transformed, "itemLavaMaterial") == 1,
+                        "Dropped item lava behavior must use fluid policy on " + namespace);
             } else if (namedOwner.endsWith("EntityLiving")) {
                 require(countCallbackCalls(transformed, "drowning") == 1,
                         "Living entity drowning must route through fluid identity on " + namespace);
