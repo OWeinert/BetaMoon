@@ -5,6 +5,8 @@ import betamoon.assets.io.ZipAssetProvider;
 import betamoon.client.assets.AssetResourceTest;
 import betamoon.client.assets.AtlasTextures;
 import betamoon.client.assets.ClientAssets;
+import betamoon.instrumentation.agent.AgentRuntime;
+import betamoon.instrumentation.hooks.audio.StepSoundCallbacks;
 import betamoon.resources.EnumTexAtlas;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -18,6 +20,7 @@ import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import javax.imageio.ImageIO;
+import net.minecraft.src.Block;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.Session;
 
@@ -30,6 +33,8 @@ public final class AssetLuaApiTest {
     }
 
     public static void main(String[] arguments) throws Exception {
+        System.setProperty(AgentRuntime.STATUS_PROPERTY, "ACTIVE");
+        AgentRuntime.getReport().applied("betamoon:step_sound:play", "test");
         Path root = Files.createTempDirectory("betamoon-lua-assets-");
         try {
             Files.write(root.resolve("guard.png"), AssetResourceTest.png(0xff00ff00, 16));
@@ -108,6 +113,13 @@ public final class AssetLuaApiTest {
                     + " assert(event:getKey()=='mymod:hit' and betamoon.soundEvents:get('mymod:hit')~=nil)\n"
                     + " assert(event.key=='mymod:hit' and event.enabled and math.abs(event.pitch.min-0.9)<0.0001)\n"
                     + " assert(betamoon.soundEvents:one{key='mymod:hit'}.key==event.key)\n"
+                    + " local step=betamoon.stepSounds:add{key='mymod:step_sound/hit',event=event,volume=0.8}\n"
+                    + " assert(betamoon.stepSounds:getRequired(step.key).key==step.key)\n"
+                    + " assert(betamoon.stepSounds:get('stone')=='stone')\n"
+                    + " assert(betamoon.stepSounds:get('missing')==nil)\n"
+                    + " betamoon.blocks:add{id=232,key='asset_step_block',material=betamoon.materials.blocks:getRequired('rock'),stepSound=step}\n"
+                    + " assert(betamoon.blocks:getRequired(232).stepSound==step.key)\n"
+                    + " assert(not pcall(function() betamoon.stepSounds:add{key='mymod:step_sound/invalid',event='mymod:absent'} end))\n"
                     + " local low=event:override{priority=1,changes={volume=0.5,range=20}}\n"
                     + " local high=event:override{priority=2,changes={volume=0.25,enabled=false}}\n"
                     + " assert(event.volume==0.25 and event.range==20 and not event.enabled)\n"
@@ -124,6 +136,10 @@ public final class AssetLuaApiTest {
             new ScriptLifecycleRunner(new RetainedScriptCatalog(), errors::add).run(Collections.singletonList(mod),
                     new ArrayList<>(), false);
             require(mod.isLoaded() && errors.isEmpty(), "API script must initialize: " + errors);
+            require(StepSoundCallbacks.play(Block.blocksList[232].stepSound.stepSoundDir(), 0, 0, 0, 0, 1) == 1,
+                    "Custom step sound reaches the audio marker callback");
+            require(StepSoundCallbacks.play("step.stone", 0, 0, 0, 1, 1) == 0,
+                    "Vanilla step sounds keep their native playback path");
             ScriptResourceTracker.unload("asset_api_test.lua");
             String consumer = "name='Asset cleanup test'\nfunction modInit()\n"
                     + "assert(betamoon.assets.textures:get('mymod:guard')==nil)\n"
@@ -140,6 +156,7 @@ public final class AssetLuaApiTest {
             ScriptResourceTracker.unloadAll();
             LuaScriptRegistry.clear();
             AssetResourceTest.deleteTree(root);
+            System.clearProperty(AgentRuntime.STATUS_PROPERTY);
         }
     }
 

@@ -139,8 +139,8 @@ final class StructureTerrainMask {
             return false;
         }
         Material material = Block.blocksList[blockId].blockMaterial;
-        return material.getIsSolid() && material != Material.leaves && material != Material.snow
-                && material != Material.water && material != Material.lava;
+        return material.getIsSolid() && !material.getIsLiquid()
+                && material != Material.leaves && material != Material.snow;
     }
 
     List<Support> support(StructureTransform transform) {

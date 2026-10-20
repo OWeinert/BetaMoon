@@ -3,8 +3,9 @@ package betamoon.luaapi.block;
 import betamoon.client.assets.AssetLocation;
 import betamoon.luaapi.asset.AssetInputs;
 import betamoon.luaapi.asset.ModelAppearanceDeclaration;
+import betamoon.luaapi.audio.BlockStepSounds;
+import betamoon.luaapi.material.BlockMaterialRegistry;
 
-import betamoon.minecraft.MinecraftBuiltins;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -27,6 +28,7 @@ final class BlockDeclaration {
     final String name;
     final String displayName;
     final String materialName;
+    final String materialSignature;
     final Material material;
     final Float hardness;
     final Float resistance;
@@ -57,8 +59,12 @@ final class BlockDeclaration {
         BlockCallbackRegistry.validateIdentity(id, callbacks);
         components = new BlockComponents(definition);
         ticks = BlockTickRegistry.parse(id, definition.get("onTick"), definition.get("onDisplayTick"));
-        materialName = required(definition, "material").checkjstring();
-        material = resolveMaterial(materialName);
+        LuaValue materialInput = required(definition, "material");
+        BlockMaterialRegistry.Entry selectedMaterial = BlockMaterialRegistry.resolve(materialInput, "Block.material");
+        materialName = selectedMaterial.custom() ? selectedMaterial.key
+                : materialInput.isstring() ? materialInput.checkjstring() : selectedMaterial.key;
+        materialSignature = selectedMaterial.signature;
+        material = selectedMaterial.material;
         name = internalName(definition);
         displayName = definition.get("displayName").optjstring(name);
         hardness = optionalFloat(definition.get("hardness"));
@@ -66,7 +72,7 @@ final class BlockDeclaration {
         light = optionalInteger(definition.get("light"));
         lightOpacity = optionalInteger(definition.get("lightOpacity"));
         LuaValue sound = definition.get("stepSound");
-        stepSound = sound.isnil() ? null : resolveStepSound(sound.checkjstring());
+        stepSound = sound.isnil() ? null : BlockStepSounds.resolve(sound, "Block.stepSound");
         unbreakable = definition.get("unbreakable").toboolean();
         texture = Texture.read(definition.get("texture"));
         textures = readTextures(definition.get("textures"));
@@ -155,26 +161,4 @@ final class BlockDeclaration {
         }
     }
 
-    private static Material resolveMaterial(String name) {
-        Material material = MinecraftBuiltins.resolveBlockMaterial(name);
-        if (material == null) {
-            throw new LuaError("Block: unknown material: " + name);
-        }
-        return material;
-    }
-
-    /**
-     * Resolves a step sound name to the corresponding Minecraft sound.
-     *
-     * @param name
-     *            step sound name from Lua
-     * @return matching StepSound instance
-     */
-    private static StepSound resolveStepSound(String name) {
-        StepSound sound = MinecraftBuiltins.resolveStepSound(name);
-        if (sound == null) {
-            throw new LuaError("Block: unknown step sound: " + name);
-        }
-        return sound;
-    }
 }

@@ -126,9 +126,12 @@ public final class LuaFluidDefinition extends LuaTable {
             flowing.applyAppearance(definition.appearance());
             still.applyAppearance(definition.appearance());
             markPublished();
-            LuaApiUtils.warnForScript(draft.owner(), "Fluids", draft.key()
-                    + " uses the temporary vanilla '" + draft.carrier().value()
-                    + "' carrier material. Code that checks Material directly may treat it as vanilla fluid.");
+            if (draft.carrier() == betamoon.fluid.FluidCarrier.WATER
+                    || draft.carrier() == betamoon.fluid.FluidCarrier.LAVA) {
+                LuaApiUtils.warnForScript(draft.owner(), "Fluids", draft.key()
+                        + " uses vanilla '" + draft.carrier().value()
+                        + "' as its carrier material. Native material checks may treat it as vanilla fluid.");
+            }
             return new FluidReference(registration);
         } catch (IllegalArgumentException | IllegalStateException error) {
             throw new LuaError("Fluid '" + draft.key() + "': " + error.getMessage());

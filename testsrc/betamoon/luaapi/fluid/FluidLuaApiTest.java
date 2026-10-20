@@ -21,6 +21,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import net.minecraft.src.Block;
 import net.minecraft.src.Item;
+import net.minecraft.src.Material;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.Session;
 import org.luaj.vm2.Globals;
@@ -45,6 +46,7 @@ public final class FluidLuaApiTest {
             Globals lua = JsePlatform.standardGlobals();
             new BetaMoonModule().call(LuaValue.NIL, lua);
             verifyShorthand(lua);
+            verifyCustomMaterial(lua);
             verifyPolicyParsing(lua);
             verifyAdvancedBinding(lua);
             verifyInteractions(lua);
@@ -124,6 +126,39 @@ public final class FluidLuaApiTest {
                 + "assert(brine.flowingBlock.id==242 and brine.stillBlock.id==246 and brine.bucketItem==nil)").call();
         require(FluidRegistry.instance().isSameFluid(242, 246),
                 "Advanced binding supports deliberately non-adjacent pair IDs");
+    }
+
+    private static void verifyCustomMaterial(Globals lua) {
+        lua.load("mercuryMaterial=betamoon.materials.blocks:add{key='quality:material/mercury',"
+                + "kind='liquid',mapColor='iron'};"
+                + "mercury=betamoon.fluids:add{key='quality:fluid/mercury',material=mercuryMaterial,"
+                + "blocks={flowing={id=253,key='quality:block/mercury_flowing'},"
+                + "still={id=254,key='quality:block/mercury_still'}},"
+                + "appearance={still=21,flowing=22}};"
+                + "oilMaterial=betamoon.materials.blocks:add{key='quality:material/oil',"
+                + "kind='liquid',mapColor='stone'};"
+                + "oil=betamoon.fluids:add{key='quality:fluid/oil',material=oilMaterial,"
+                + "blocks={flowing={id=247,key='quality:block/oil_flowing'},"
+                + "still={id=248,key='quality:block/oil_still'}},"
+                + "appearance={still=23,flowing=24}};"
+                + "assert(mercury.material==mercuryMaterial.key);"
+                + "assert(oil.material==oilMaterial.key);"
+                + "assert(betamoon.fluids:one{material=mercuryMaterial}.key==mercury.key);"
+                + "assert(not pcall(function() betamoon.fluids:define{key='quality:fluid/invalid_material',"
+                + "material='rock',appearance={still=1,flowing=2}} end))").call();
+        FluidRegistration mercury = FluidRegistry.instance().getByBlockId(253);
+        require(mercury == FluidRegistry.instance().getByBlockId(254),
+                "Custom liquid material is shared by flowing and still roles");
+        require(mercury.definition().carrier().material().getIsLiquid()
+                && mercury.definition().carrier().material() != Material.water,
+                "Custom fluid uses a distinct native liquid material");
+        require(mercury.definition().carrier().material() != FluidRegistry.instance().getByBlockId(240)
+                .definition().carrier().material(), "Custom and vanilla carrier fluids have separate material identity");
+        FluidRegistration oil = FluidRegistry.instance().getByBlockId(247);
+        require(oil == FluidRegistry.instance().getByBlockId(248)
+                && oil.definition().carrier().material() != mercury.definition().carrier().material()
+                && !FluidRegistry.instance().isSameFluid(253, 247),
+                "Adjacent custom liquids keep independent materials and fluid identities");
     }
 
     private static void verifyPolicyParsing(Globals lua) {

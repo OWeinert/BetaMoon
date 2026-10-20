@@ -6,6 +6,7 @@ import betamoon.fluid.FluidRegistry;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.asset.AssetInputs;
 import betamoon.luaapi.asset.AssetReference;
+import betamoon.luaapi.audio.BlockStepSounds;
 import betamoon.luaapi.block.BlockApi;
 import betamoon.luaapi.block.BlockCallbackOverrides;
 import betamoon.luaapi.block.BlockDisplayOverrideDefinition;
@@ -13,13 +14,13 @@ import betamoon.luaapi.block.BlockDisplayTickOverrides;
 import betamoon.luaapi.block.BlockDropDefinition;
 import betamoon.luaapi.block.BlockFireRegistration;
 import betamoon.luaapi.fluid.FluidReference;
+import betamoon.luaapi.material.BlockMaterialRegistry;
 import betamoon.luaapi.item.ItemApi;
 import betamoon.luaapi.item.ItemCallbackOverrides;
 import betamoon.luaapi.utils.LuaDataReference;
 import betamoon.luaapi.utils.LuaOverrideDefinition;
 import betamoon.luaapi.utils.LuaOverrideLayers;
 import betamoon.luamodloader.LuaContentRegistry;
-import betamoon.minecraft.MinecraftBuiltins;
 import betamoon.query.QueryEntries;
 import betamoon.query.QueryEntry;
 import betamoon.resources.EnumTexAtlas;
@@ -476,6 +477,8 @@ public final class ResourceApi {
             set("hardness", numberField(block, Block.class, "blockHardness", "bo"));
             set("resistance", numberField(block, Block.class, "blockResistance", "bp"));
             set("stepSound", valueOf(stepSoundName(block.stepSound)));
+            BlockMaterialRegistry.Entry material = BlockMaterialRegistry.describe(block.blockMaterial);
+            set("material", material == null ? NIL : valueOf(material.key));
             set("slipperiness", valueOf(block.slipperiness));
             FluidRegistration fluid = FluidRegistry.instance().getByBlockId(block.blockID);
             if (fluid != null) {
@@ -512,6 +515,10 @@ public final class ResourceApi {
                 }
                 if (property.equals("stepSound")) {
                     return valueOf(stepSoundName(block.stepSound));
+                }
+                if (property.equals("material")) {
+                    BlockMaterialRegistry.Entry material = BlockMaterialRegistry.describe(block.blockMaterial);
+                    return material == null ? NIL : valueOf(material.key);
                 }
                 if (property.equals("slipperiness")) {
                     return valueOf(block.slipperiness);
@@ -565,7 +572,8 @@ public final class ResourceApi {
                         value -> Integer.valueOf(value.checkint()));
             }
             if (property.equals("stepSound")) {
-                return resourceProperty(property, stepSoundAdapter(), value -> resolveStepSound(value.checkjstring()));
+                return resourceProperty(property, stepSoundAdapter(),
+                        value -> BlockStepSounds.resolve(value, "block.stepSound"));
             }
             if (property.equals("slipperiness")) {
                 return resourceProperty(property, floatFieldAdapter(Block.class, "slipperiness", "bB"),
@@ -1122,22 +1130,8 @@ public final class ResourceApi {
         return ((Integer) intFieldAdapter(ItemSword.class, "weaponDamage", "a").read(item)).intValue();
     }
 
-    private static StepSound resolveStepSound(String name) {
-        StepSound sound = MinecraftBuiltins.resolveStepSound(name);
-        if (sound == null) {
-            throw new LuaError("Unknown step sound: " + name + ".");
-        }
-        return sound;
-    }
-
     private static String stepSoundName(StepSound sound) {
-        String[] names = {"stone", "wood", "gravel", "grass", "metal", "glass", "cloth", "sand"};
-        for (String name : names) {
-            if (MinecraftBuiltins.resolveStepSound(name) == sound) {
-                return name;
-            }
-        }
-        return sound == null ? "" : sound.stepSoundDir();
+        return BlockStepSounds.name(sound);
     }
 
     private static float positiveFloat(LuaValue value, String property) {

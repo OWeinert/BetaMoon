@@ -1,5 +1,6 @@
 package betamoon.instrumentation.registry;
 
+import betamoon.instrumentation.hooks.audio.StepSoundHook;
 import betamoon.instrumentation.hooks.block.BlockBreakGuardHook;
 import betamoon.instrumentation.hooks.block.BlockBrokenHook;
 import betamoon.instrumentation.hooks.block.BlockDisplayTickHook;
@@ -69,6 +70,7 @@ public final class BuiltinHookModules {
     }
 
     private static void registerClient(HookRegistry registry) {
+        registry.registerModule(new StepSoundHook());
         registry.registerModule(new FluidEcologyHook(false));
         registry.registerModule(new WorldGeneratorHook());
         registry.registerModule(new DimensionHook());

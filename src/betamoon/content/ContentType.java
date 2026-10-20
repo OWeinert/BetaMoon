@@ -13,6 +13,8 @@ public final class ContentType {
     public static final ContentType RECIPE_MATCHER = new ContentType("recipe_matcher");
     public static final ContentType MODULE = new ContentType("module");
     public static final ContentType TOOL_MATERIAL = new ContentType("tool_material");
+    public static final ContentType BLOCK_MATERIAL = new ContentType("material");
+    public static final ContentType STEP_SOUND = new ContentType("step_sound");
     public static final ContentType ARMOR_MATERIAL = new ContentType("armor_material");
     public static final ContentType TEAM = new ContentType("team");
     public static final ContentType SHARED = new ContentType("shared");
@@ -61,6 +63,12 @@ public final class ContentType {
         }
         if (TOOL_MATERIAL.value.equals(value)) {
             return TOOL_MATERIAL;
+        }
+        if (BLOCK_MATERIAL.value.equals(value)) {
+            return BLOCK_MATERIAL;
+        }
+        if (STEP_SOUND.value.equals(value)) {
+            return STEP_SOUND;
         }
         if (ARMOR_MATERIAL.value.equals(value)) {
             return ARMOR_MATERIAL;

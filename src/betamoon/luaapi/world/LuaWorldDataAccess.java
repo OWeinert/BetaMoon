@@ -1,6 +1,7 @@
 package betamoon.luaapi.world;
 
 import betamoon.luaapi.entity.LuaEntityActionAccess;
+import betamoon.luaapi.material.BlockMaterialRegistry;
 import betamoon.luaapi.system.SystemsApi;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.system.WorldServiceDefinition;
@@ -145,11 +146,20 @@ public final class LuaWorldDataAccess {
         result.set("light", world.getBlockLightValue(position.x, position.y, position.z));
         result.set("hasTile", LuaValue.valueOf(world.getBlockTileEntity(position.x, position.y, position.z) != null));
         LuaTable materialView = new LuaTable();
+        BlockMaterialRegistry.Entry materialEntry = BlockMaterialRegistry.describe(material);
+        if (materialEntry != null) {
+            materialView.set("key", LuaValue.valueOf(materialEntry.key));
+        }
         materialView.set("liquid", LuaValue.valueOf(material.getIsLiquid()));
         materialView.set("solid", LuaValue.valueOf(material.getIsSolid()));
         materialView.set("burning", LuaValue.valueOf(material.getBurning()));
-        materialView.set("translucent", LuaValue.valueOf(material.getIsTranslucent()));
+        // Beta 1.7.3's getter returns false for translucent solids such as glass.
+        materialView.set("translucent", LuaValue.valueOf(!material.getIsTranslucent()));
+        materialView.set("harvestable", LuaValue.valueOf(material.getIsHarvestable()));
+        materialView.set("groundCover", LuaValue.valueOf(material.getIsGroundCover()));
+        materialView.set("blocksGrass", LuaValue.valueOf(material.getCanBlockGrass()));
         materialView.set("mobility", material.getMaterialMobility());
+        materialView.set("mapColor", material.materialMapColor.colorIndex);
         result.set("material", materialView);
         return result;
     }

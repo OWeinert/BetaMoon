@@ -361,6 +361,7 @@ public final class InstrumentationTransformTest {
                 continue;
             }
             HookStatus expected = (diagnostic.getHookId().startsWith("betamoon:lua_texture_resource")
+                    || diagnostic.getHookId().startsWith("betamoon:step_sound")
                     || diagnostic.getHookId().startsWith("betamoon:model_render")
                     || diagnostic.getHookId().startsWith("betamoon:entity_lifecycle")
                     || diagnostic.getHookId().startsWith("betamoon:entity_natural_spawn")
@@ -445,6 +446,15 @@ public final class InstrumentationTransformTest {
                 "Runtime RenderEngine is missing the asset refresh entry callback");
         require(countCallbackCalls(renderEngineTransformed, "uploadLuaTexture") == 0,
                 "Cached texture lookups must not upload Lua textures again");
+
+        String soundManagerOwner = mappings.resolveClass(new ClassRef("net/minecraft/src/SoundManager"),
+                RuntimeNamespace.CLIENT);
+        byte[] soundManager = transformer.transform(null, soundManagerOwner, null, null,
+                readClass(clientJarPath, soundManagerOwner));
+        require(soundManager != null && countCallbackCalls(soundManager, "play") == 1,
+                "Runtime sound manager must route custom step-sound names once");
+        require(transformer.transform(null, soundManagerOwner, null, null, soundManager) == null,
+                "Step-sound playback hook must be idempotent");
 
         String effectsOwner = mappings.resolveClass(new ClassRef("net/minecraft/src/EffectRenderer"),
                 RuntimeNamespace.CLIENT);

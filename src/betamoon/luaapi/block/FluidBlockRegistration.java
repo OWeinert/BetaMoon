@@ -42,7 +42,7 @@ public final class FluidBlockRegistration {
                     ? retainedFluid.definition().flowingBlockId()
                     : retainedFluid.definition().stillBlockId();
             if (retainedId != id || !retainedFluid.owner().equals(token.draft().owner())
-                    || !retainedFluid.definition().carrier().value().equals(token.draft().carrier().value())) {
+                    || !retainedFluid.definition().carrier().signature().equals(token.draft().carrier().signature())) {
                 throw new LuaError("Fluid '" + token.draft().key()
                         + "' changed structural fields. Restart Minecraft to apply this change.");
             }
@@ -111,7 +111,7 @@ public final class FluidBlockRegistration {
 
     private static String signature(LuaFluidDefinition token, FluidBlockRole role, ContentKey key) {
         return "fluid_block:" + token.draft().key() + ":" + role.name().toLowerCase() + ":"
-                + token.draft().carrier().value() + ":" + key;
+                + token.draft().carrier().signature() + ":" + key;
     }
 
     private static FluidBlockRole role(String value) {

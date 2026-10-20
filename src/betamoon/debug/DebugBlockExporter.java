@@ -1,6 +1,7 @@
 package betamoon.debug;
 
 import betamoon.luamodloader.LuaContentRegistry;
+import betamoon.luaapi.material.BlockMaterialRegistry;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.util.HashMap;
@@ -41,9 +42,17 @@ final class DebugBlockExporter {
                             ? "Unknown Block (Probably only used internally)"
                             : DebugExportNames.safeString(rawDisplay);
                     LuaContentRegistry.ContentDescription content = ownership.get(Integer.valueOf(i));
+                    BlockMaterialRegistry.Entry material = BlockMaterialRegistry.describe(block.blockMaterial);
                     writer.write("block ID: " + i + " | canonical key: " + DebugExportNames.blockKey(i)
                             + " | internal name: " + internalName + " | display name: \"" + displayName + "\" | owner: "
-                            + (content == null ? "minecraft/foreign" : DebugExportNames.safeString(content.owner)));
+                            + (content == null ? "minecraft/foreign" : DebugExportNames.safeString(content.owner))
+                            + " | material: " + (material == null ? "unknown" : material.key)
+                            + " | material owner: " + (material == null || material.owner == null
+                                    ? "minecraft" : DebugExportNames.safeString(material.owner))
+                            + " | liquid: " + block.blockMaterial.getIsLiquid()
+                            + " | solid: " + block.blockMaterial.getIsSolid()
+                            + " | burning: " + block.blockMaterial.getBurning()
+                            + " | mobility: " + block.blockMaterial.getMaterialMobility());
                     writer.newLine();
                     records++;
                     // Emit subtype entries when the corresponding item supports metadata.

@@ -170,6 +170,6 @@ public final class FluidDefinition {
      * retained identities.
      */
     public String structuralSignature() {
-        return key + "|" + carrier.value() + "|" + flowingBlockId + "|" + stillBlockId + "|" + bucketItemId;
+        return key + "|" + carrier.signature() + "|" + flowingBlockId + "|" + stillBlockId + "|" + bucketItemId;
     }
 }

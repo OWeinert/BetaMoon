@@ -3,9 +3,8 @@ package betamoon.fluid;
 import net.minecraft.src.Material;
 
 /**
- * Native material bridge used by a fluid. Only vanilla water and lava are
- * currently resolved from Lua; a future custom-material registry can supply
- * another implementation without changing fluid identity or simulation.
+ * Native material bridge used by a fluid. Fluid identity and policies remain
+ * independent of the selected native material.
  */
 public interface FluidCarrier {
     FluidCarrier WATER = new Vanilla("water", Material.water);
@@ -15,6 +14,10 @@ public interface FluidCarrier {
 
     Material material();
 
+    default String signature() {
+        return value();
+    }
+
     static FluidCarrier fromMaterial(Material material) {
         if (material == Material.water) {
             return WATER;
@@ -22,7 +25,7 @@ public interface FluidCarrier {
         if (material == Material.lava) {
             return LAVA;
         }
-        throw new IllegalArgumentException("Fluid material must be vanilla water or lava for now.");
+        throw new IllegalArgumentException("Fluid material is not a vanilla water or lava carrier.");
     }
 
     static FluidCarrier fromName(String name) {
@@ -32,10 +35,39 @@ public interface FluidCarrier {
         if (LAVA.value().equals(name)) {
             return LAVA;
         }
-        throw new IllegalArgumentException("Unknown fluid material '" + name + "'; expected water or lava.");
+        throw new IllegalArgumentException("Unknown vanilla fluid material '" + name + "'; expected water or lava.");
     }
 
-    /** Initial adapter; later material registrations can supply another implementation. */
+    final class Custom implements FluidCarrier {
+        private final String key;
+        private final String signature;
+        private final Material material;
+
+        public Custom(String key, String signature, Material material) {
+            if (material == null || !material.getIsLiquid()) {
+                throw new IllegalArgumentException("Custom fluid material must be liquid.");
+            }
+            this.key = key;
+            this.signature = signature;
+            this.material = material;
+        }
+
+        @Override
+        public String value() {
+            return key;
+        }
+
+        @Override
+        public String signature() {
+            return key + "|" + signature;
+        }
+
+        @Override
+        public Material material() {
+            return material;
+        }
+    }
+
     final class Vanilla implements FluidCarrier {
         private final String name;
         private final Material material;

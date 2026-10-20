@@ -10,6 +10,8 @@ import betamoon.luaapi.block.BlockApi;
 import betamoon.luaapi.block.FluidBlockRegistration;
 import betamoon.luaapi.item.FluidBucketRegistration;
 import betamoon.luaapi.item.ItemApi;
+import betamoon.luaapi.material.BlockMaterialRegistry;
+import betamoon.luaapi.material.BlockMaterialReference;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.src.Block;
@@ -174,8 +176,13 @@ public final class FluidApi {
             return false;
         }
         LuaValue material = criteria.get("material");
-        if (!material.isnil() && !fluid.carrier().value().equals(material.checkjstring())) {
-            return false;
+        if (!material.isnil()) {
+            String materialKey = material instanceof BlockMaterialReference
+                    ? BlockMaterialRegistry.resolve(material, "fluid find.material").key
+                    : material.checkjstring();
+            if (!fluid.carrier().value().equals(materialKey)) {
+                return false;
+            }
         }
         LuaValue preset = criteria.get("preset");
         if (!preset.isnil() && !fluid.preset().equals(preset.checkjstring())) {
