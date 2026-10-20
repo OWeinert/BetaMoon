@@ -30,6 +30,9 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
     private static final int FIELD_CONTROL_WIDTH = 116;
     private static final int FIELD_COLUMN_GAP = 10;
     private static final int FIELD_MARKER_WIDTH = 8;
+    private static final int FIELD_CONTROL_TOP_OFFSET = 3;
+    private static final int FIELD_INPUT_HEIGHT = 18;
+    private static final int FIELD_BUTTON_HEIGHT = 20;
     private static final Object MISSING_BASELINE = new Object();
 
     private final GuiScreen parent;
@@ -400,16 +403,16 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
                 int removeWidth = row.remove == null ? 0 : 22 + FIELD_COLUMN_GAP / 2;
                 int controlWidth = Math.max(0, columns.controlWidth - removeWidth);
                 if (row.input != null) {
-                    row.input.arrange(context, Rect.fromPositionAndSize(columns.controlLeft, y + 3,
-                            controlWidth, 18));
+                    row.input.arrange(context, Rect.fromPositionAndSize(columns.controlLeft,
+                            y + FIELD_CONTROL_TOP_OFFSET, controlWidth, FIELD_INPUT_HEIGHT));
                 }
                 if (row.action != null) {
-                    row.action.arrange(context, Rect.fromPositionAndSize(columns.controlLeft, y + 3,
-                            controlWidth, 20));
+                    row.action.arrange(context, Rect.fromPositionAndSize(columns.controlLeft,
+                            y + FIELD_CONTROL_TOP_OFFSET, controlWidth, FIELD_BUTTON_HEIGHT));
                 }
                 if (row.remove != null) {
                     row.remove.arrange(context, Rect.fromPositionAndSize(columns.controlLeft + controlWidth
-                            + FIELD_COLUMN_GAP / 2, y + 3, 22, 20));
+                            + FIELD_COLUMN_GAP / 2, y + FIELD_CONTROL_TOP_OFFSET, 22, FIELD_BUTTON_HEIGHT));
                 }
                 y += 42;
             }
@@ -427,11 +430,14 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
                 label += row.readOnly ? " (locked)" : "";
                 String visibleLabel = context.getRenderer().trimToWidth(label, labelWidth);
                 int labelRight = columns.controlLeft - FIELD_COLUMN_GAP;
+                int controlHeight = row.input == null ? FIELD_BUTTON_HEIGHT : FIELD_INPUT_HEIGHT;
+                int labelY = y + FIELD_CONTROL_TOP_OFFSET
+                        + (controlHeight - context.getRenderer().lineHeight() + 1) / 2;
                 context.getRenderer().drawText(visibleLabel,
-                        labelRight - context.getRenderer().textWidth(visibleLabel), y + 4,
+                        labelRight - context.getRenderer().textWidth(visibleLabel), labelY,
                         context.getRenderer().getTheme().textPrimary);
                 if (row.modified() && (row.input != null || row.action != null)) {
-                    context.getRenderer().drawText("*", columns.markerLeft, y + 7,
+                    context.getRenderer().drawText("*", columns.markerLeft, labelY,
                             context.getRenderer().getTheme().textWarning);
                 }
                 String details = row.field.description();
