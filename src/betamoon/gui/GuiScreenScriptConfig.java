@@ -26,6 +26,11 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
     private static final int FOOTER_ROW_SPACING = 4;
     private static final int FOOTER_BUTTON_GAP = 6;
     private static final int RESET_BUTTON_WIDTH = 110;
+    private static final int FIELD_LABEL_WIDTH = 100;
+    private static final int FIELD_CONTROL_WIDTH = 116;
+    private static final int FIELD_COLUMN_GAP = 10;
+    private static final int FIELD_MARKER_WIDTH = 8;
+    private static final Object MISSING_BASELINE = new Object();
 
     private final GuiScreen parent;
     private final ScriptMod script;
@@ -80,7 +85,7 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
             return;
         }
         Section section = section();
-        String suffix = section.dirty() || form.hasTextChanges() ? " *" : "";
+        String suffix = form.hasModifiedEntries() ? " *" : "";
         String sectionLabel = section.registration.label() + suffix + "  (" + (current + 1) + "/"
                 + sections.size() + ")";
         String displayedLabel = getGuiContext().getRenderer().trimToWidth(sectionLabel, Math.max(0, width - 40));
@@ -322,23 +327,25 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
             }
             Section section = section();
             for (Map.Entry<String, ScriptConfigField> entry : section.registration.fields().entrySet()) {
-                addField(entry.getValue(), section.draft, entry.getKey(), entry.getKey(), 0, false, false);
+                addField(entry.getValue(), section.draft, section.baseline, entry.getKey(), entry.getKey(),
+                        0, false, false);
             }
             requestLayout();
         }
 
-        private void addField(ScriptConfigField field, Object parent, Object slot, String path, int depth,
-                boolean removable, boolean inheritedReadOnly) {
+        private void addField(ScriptConfigField field, Object parent, Object baselineParent, Object slot,
+                String path, int depth, boolean removable, boolean inheritedReadOnly) {
             Object value = value(parent, slot);
+            Object baselineValue = baselineValue(baselineParent, slot);
             boolean readOnly = inheritedReadOnly || field.readOnly();
-            FieldRow row = new FieldRow(field, parent, slot, path, depth, removable, readOnly);
+            FieldRow row = new FieldRow(field, parent, slot, baselineValue, path, depth, removable, readOnly);
             rows.add(row);
             if (value instanceof Map) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> object = (Map<String, Object>) value;
                 for (Map.Entry<String, ScriptConfigField> entry : field.children().entrySet()) {
-                    addField(entry.getValue(), object, entry.getKey(), path + "." + entry.getKey(), depth + 1,
-                            false, readOnly);
+                    addField(entry.getValue(), object, baselineValue, entry.getKey(),
+                            path + "." + entry.getKey(), depth + 1, false, readOnly);
                 }
             } else if (value instanceof List) {
                 List<?> values = (List<?>) value;
@@ -348,8 +355,8 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
                     if (descriptor == null || !sameType(item, descriptor.defaultValue())) {
                         descriptor = ScriptConfigField.inferred("Item " + (index + 1), item);
                     }
-                    addField(descriptor, value, Integer.valueOf(index), path + "[" + (index + 1) + "]",
-                            depth + 1, true, readOnly);
+                    addField(descriptor, value, baselineValue, Integer.valueOf(index),
+                            path + "[" + (index + 1) + "]", depth + 1, true, readOnly);
                 }
             }
         }
@@ -372,10 +379,9 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
             }
         }
 
-        private boolean hasTextChanges() {
+        private boolean hasModifiedEntries() {
             for (FieldRow row : rows) {
-                if (row.input != null && !row.readOnly
-                        && !row.input.value().equals(String.valueOf(value(row.parent, row.slot)))) {
+                if (row.modified()) {
                     return true;
                 }
             }
@@ -388,21 +394,22 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
 
         @Override
         protected void arrangeChildren(GuiContext context) {
+            FormColumns columns = columns();
             int y = getTop() + 4;
             for (FieldRow row : rows) {
-                int inset = Math.min(row.depth * 12, Math.max(0, getWidth() / 3));
-                int controlLeft = getLeft() + Math.max(getWidth() / 2, inset + 100);
-                int controlWidth = Math.max(40, getRight() - controlLeft - 7);
+                int removeWidth = row.remove == null ? 0 : 22 + FIELD_COLUMN_GAP / 2;
+                int controlWidth = Math.max(0, columns.controlWidth - removeWidth);
                 if (row.input != null) {
-                    row.input.arrange(context, Rect.fromPositionAndSize(controlLeft, y + 3,
-                            row.remove != null ? Math.max(20, controlWidth - 28) : controlWidth, 18));
+                    row.input.arrange(context, Rect.fromPositionAndSize(columns.controlLeft, y + 3,
+                            controlWidth, 18));
                 }
                 if (row.action != null) {
-                    row.action.arrange(context, Rect.fromPositionAndSize(controlLeft, y + 3,
-                            row.remove != null ? Math.max(20, controlWidth - 28) : controlWidth, 20));
+                    row.action.arrange(context, Rect.fromPositionAndSize(columns.controlLeft, y + 3,
+                            controlWidth, 20));
                 }
                 if (row.remove != null) {
-                    row.remove.arrange(context, Rect.fromPositionAndSize(getRight() - 29, y + 3, 22, 20));
+                    row.remove.arrange(context, Rect.fromPositionAndSize(columns.controlLeft + controlWidth
+                            + FIELD_COLUMN_GAP / 2, y + 3, 22, 20));
                 }
                 y += 42;
             }
@@ -410,24 +417,65 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
 
         @Override
         protected void renderBeforeChildren(GuiContext context) {
+            FormColumns columns = columns();
             int y = getTop() + 4;
             for (FieldRow row : rows) {
-                int inset = Math.min(row.depth * 12, Math.max(0, getWidth() / 3));
-                int labelWidth = Math.max(20, getWidth() / 2 - inset - 8);
+                int inset = Math.min(row.depth * 12, columns.labelWidth);
+                int labelWidth = Math.max(0, columns.labelWidth - inset);
                 String label = row.slot instanceof Integer ? "Item " + (((Integer) row.slot).intValue() + 1)
                         : row.field.label();
                 label += row.readOnly ? " (locked)" : "";
-                context.getRenderer().drawText(context.getRenderer().trimToWidth(label, labelWidth),
-                        getLeft() + inset + 2, y + 4, context.getRenderer().getTheme().textPrimary);
+                String visibleLabel = context.getRenderer().trimToWidth(label, labelWidth);
+                int labelRight = columns.controlLeft - FIELD_COLUMN_GAP;
+                context.getRenderer().drawText(visibleLabel,
+                        labelRight - context.getRenderer().textWidth(visibleLabel), y + 4,
+                        context.getRenderer().getTheme().textPrimary);
+                if (row.modified() && (row.input != null || row.action != null)) {
+                    context.getRenderer().drawText("*", columns.markerLeft, y + 7,
+                            context.getRenderer().getTheme().textWarning);
+                }
                 String details = row.field.description();
                 if (details.isEmpty()) {
                     details = row.field.readOnly() && !row.field.readOnlyReason().isEmpty()
                             ? row.field.readOnlyReason() : "Default: " + display(row.field.defaultValue());
                 }
-                context.getRenderer().drawText(context.getRenderer().trimToWidth(details, getWidth() - inset - 8),
-                        getLeft() + inset + 2, y + 27, context.getRenderer().getTheme().textMuted);
+                context.getRenderer().drawText(context.getRenderer().trimToWidth(details, columns.groupWidth),
+                        columns.left, y + 27, context.getRenderer().getTheme().textMuted);
                 y += 42;
             }
+        }
+
+        private FormColumns columns() {
+            int center = getLeft() + getWidth() / 2;
+            int halfWidth = getWidth() / 2;
+            int halfGap = FIELD_COLUMN_GAP / 2;
+            int labelWidth = Math.min(FIELD_LABEL_WIDTH, Math.max(0, halfWidth - halfGap - 4));
+            int controlWidth = Math.min(FIELD_CONTROL_WIDTH,
+                    Math.max(0, halfWidth - halfGap - FIELD_MARKER_WIDTH - 4));
+            int left = center - halfGap - labelWidth;
+            int controlLeft = center + halfGap;
+            int groupWidth = labelWidth + FIELD_COLUMN_GAP + controlWidth + FIELD_MARKER_WIDTH;
+            return new FormColumns(left, groupWidth, labelWidth, controlLeft, controlWidth,
+                    controlLeft + controlWidth + 2);
+        }
+    }
+
+    private static final class FormColumns {
+        private final int left;
+        private final int groupWidth;
+        private final int labelWidth;
+        private final int controlLeft;
+        private final int controlWidth;
+        private final int markerLeft;
+
+        private FormColumns(int left, int groupWidth, int labelWidth, int controlLeft, int controlWidth,
+                int markerLeft) {
+            this.left = left;
+            this.groupWidth = groupWidth;
+            this.labelWidth = labelWidth;
+            this.controlLeft = controlLeft;
+            this.controlWidth = controlWidth;
+            this.markerLeft = markerLeft;
         }
     }
 
@@ -435,6 +483,7 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
         private final ScriptConfigField field;
         private final Object parent;
         private final Object slot;
+        private final Object baselineValue;
         private final String path;
         private final int depth;
         private final boolean readOnly;
@@ -442,19 +491,20 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
         private GuiButton action;
         private GuiButton remove;
 
-        private FieldRow(ScriptConfigField field, Object parent, Object slot, String path, int depth,
-                boolean removable, boolean readOnly) {
+        private FieldRow(ScriptConfigField field, Object parent, Object slot, Object baselineValue,
+                String path, int depth, boolean removable, boolean readOnly) {
             this.field = field;
             this.parent = parent;
             this.slot = slot;
+            this.baselineValue = baselineValue;
             this.path = path;
             this.depth = depth;
             this.readOnly = readOnly;
             Object currentValue = value(parent, slot);
             if (currentValue instanceof Boolean) {
-                action = form.add(new GuiButton((Boolean) currentValue ? "On" : "Off", () -> {
+                action = form.add(new GuiButton((Boolean) currentValue ? "True" : "False", () -> {
                     setValue(parent, slot, !((Boolean) value(parent, slot)).booleanValue());
-                    action.setLabel((Boolean) value(parent, slot) ? "On" : "Off");
+                    action.setLabel((Boolean) value(parent, slot) ? "True" : "False");
                 }));
             } else if (currentValue instanceof String && !field.choices().isEmpty()) {
                 action = form.add(new GuiButton((String) currentValue, () -> {
@@ -501,6 +551,42 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
                 remove.setEnabled(!readOnly);
             }
         }
+
+        private boolean modified() {
+            Object currentValue = value(parent, slot);
+            if (currentValue instanceof Map) {
+                return false;
+            }
+            if (currentValue instanceof List && baselineValue instanceof List) {
+                return ((List<?>) currentValue).size() != ((List<?>) baselineValue).size();
+            }
+            if (input != null && !readOnly) {
+                String typed = input.value();
+                if (baselineValue instanceof Number) {
+                    try {
+                        return Double.compare(Double.parseDouble(typed),
+                                ((Number) baselineValue).doubleValue()) != 0;
+                    } catch (NumberFormatException error) {
+                        return true;
+                    }
+                }
+                return !Objects.equals(typed, baselineValue);
+            }
+            return !Objects.equals(currentValue, baselineValue);
+        }
+    }
+
+    private static Object baselineValue(Object parent, Object slot) {
+        if (parent instanceof Map) {
+            Map<?, ?> object = (Map<?, ?>) parent;
+            return object.containsKey(slot) ? object.get(slot) : MISSING_BASELINE;
+        }
+        if (parent instanceof List) {
+            List<?> array = (List<?>) parent;
+            int index = ((Integer) slot).intValue();
+            return index < array.size() ? array.get(index) : MISSING_BASELINE;
+        }
+        return MISSING_BASELINE;
     }
 
     private static Object value(Object parent, Object slot) {
