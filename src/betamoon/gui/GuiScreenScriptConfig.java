@@ -22,6 +22,14 @@ import org.luaj.vm2.LuaError;
 
 /** Edits one script's registered config files as independent save units. */
 public final class GuiScreenScriptConfig extends GuiComponentScreen {
+    private static final int FOOTER_BUTTON_HEIGHT = 20;
+    private static final int FOOTER_ROW_SPACING = 4;
+    private static final int FOOTER_BUTTON_GAP = 6;
+    private static final int SIDE_BUTTON_WIDTH = 50;
+    private static final int RESET_BUTTON_WIDTH = 110;
+    private static final int PRIMARY_ROW_WIDTH = 2 * SIDE_BUTTON_WIDTH + RESET_BUTTON_WIDTH
+            + 2 * FOOTER_BUTTON_GAP;
+
     private final GuiScreen parent;
     private final ScriptMod script;
     private final List<Section> sections = new ArrayList<Section>();
@@ -245,25 +253,54 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
             int left = getLeft() + 12;
             int usable = Math.max(0, width - 24);
             next.arrange(context, Rect.fromPositionAndSize(left, getTop() + 28, usable, 20));
-            boolean narrow = width < 440;
-            int footerTop = getBottom() - (narrow ? 60 : 34);
+            boolean compact = usable < PRIMARY_ROW_WIDTH;
+            boolean hasSecondaryAction = reload.isVisible() || retry.isVisible();
+            int primaryRows = compact ? 2 : 1;
+            int footerRows = primaryRows + (hasSecondaryAction ? 1 : 0);
+            int footerTop = getBottom() - 10 - footerRows * (FOOTER_BUTTON_HEIGHT + FOOTER_ROW_SPACING);
             scroll.setContentSize(usable, form.contentHeight());
             int formTop = sections.isEmpty() || section().registration.description().isEmpty() ? 54 : 66;
             scroll.arrange(context, new Rect(left, getTop() + formTop, left + usable,
                     Math.max(getTop() + formTop, footerTop - 8)));
-            if (narrow) {
-                int cell = Math.max(0, (usable - 8) / 3);
-                save.arrange(context, Rect.fromPositionAndSize(left, footerTop, cell, 20));
-                reset.arrange(context, Rect.fromPositionAndSize(left + cell + 4, footerTop, cell, 20));
-                cancel.arrange(context, Rect.fromPositionAndSize(left + (cell + 4) * 2, footerTop, cell, 20));
-                reload.arrange(context, Rect.fromPositionAndSize(left, footerTop + 24, cell, 20));
-                retry.arrange(context, Rect.fromPositionAndSize(left + cell + 4, footerTop + 24, cell, 20));
+            int centerX = getLeft() + width / 2;
+            if (compact) {
+                int resetWidth = Math.min(RESET_BUTTON_WIDTH, usable);
+                reset.arrange(context, Rect.fromPositionAndSize(centerX - resetWidth / 2,
+                        footerTop, resetWidth, FOOTER_BUTTON_HEIGHT));
+                int sideWidth = Math.min(SIDE_BUTTON_WIDTH, Math.max(0, (usable - FOOTER_BUTTON_GAP) / 2));
+                int pairLeft = centerX - (2 * sideWidth + FOOTER_BUTTON_GAP) / 2;
+                int pairTop = footerTop + FOOTER_BUTTON_HEIGHT + FOOTER_ROW_SPACING;
+                save.arrange(context, Rect.fromPositionAndSize(pairLeft, pairTop,
+                        sideWidth, FOOTER_BUTTON_HEIGHT));
+                cancel.arrange(context, Rect.fromPositionAndSize(pairLeft + sideWidth + FOOTER_BUTTON_GAP,
+                        pairTop, sideWidth, FOOTER_BUTTON_HEIGHT));
             } else {
-                save.arrange(context, Rect.fromPositionAndSize(left, footerTop, 70, 20));
-                reset.arrange(context, Rect.fromPositionAndSize(left + 76, footerTop, 130, 20));
-                reload.arrange(context, Rect.fromPositionAndSize(left + 212, footerTop, 100, 20));
-                retry.arrange(context, Rect.fromPositionAndSize(left + 212, footerTop, 100, 20));
-                cancel.arrange(context, Rect.fromPositionAndSize(left + usable - 70, footerTop, 70, 20));
+                int rowLeft = centerX - PRIMARY_ROW_WIDTH / 2;
+                save.arrange(context, Rect.fromPositionAndSize(rowLeft, footerTop,
+                        SIDE_BUTTON_WIDTH, FOOTER_BUTTON_HEIGHT));
+                reset.arrange(context, Rect.fromPositionAndSize(rowLeft + SIDE_BUTTON_WIDTH + FOOTER_BUTTON_GAP,
+                        footerTop, RESET_BUTTON_WIDTH, FOOTER_BUTTON_HEIGHT));
+                cancel.arrange(context, Rect.fromPositionAndSize(rowLeft + SIDE_BUTTON_WIDTH + RESET_BUTTON_WIDTH
+                        + 2 * FOOTER_BUTTON_GAP, footerTop, SIDE_BUTTON_WIDTH, FOOTER_BUTTON_HEIGHT));
+            }
+            if (hasSecondaryAction) {
+                int secondaryTop = footerTop + primaryRows * (FOOTER_BUTTON_HEIGHT + FOOTER_ROW_SPACING);
+                int reloadWidth = Math.min(130, usable);
+                int retryWidth = Math.min(100, usable);
+                if (reload.isVisible() && retry.isVisible()) {
+                    reloadWidth = Math.min(reloadWidth, Math.max(0, (usable - FOOTER_BUTTON_GAP) / 2));
+                    retryWidth = Math.min(retryWidth, Math.max(0, usable - FOOTER_BUTTON_GAP - reloadWidth));
+                    int pairLeft = centerX - (reloadWidth + FOOTER_BUTTON_GAP + retryWidth) / 2;
+                    reload.arrange(context, Rect.fromPositionAndSize(pairLeft, secondaryTop,
+                            reloadWidth, FOOTER_BUTTON_HEIGHT));
+                    retry.arrange(context, Rect.fromPositionAndSize(pairLeft + reloadWidth + FOOTER_BUTTON_GAP,
+                            secondaryTop, retryWidth, FOOTER_BUTTON_HEIGHT));
+                } else {
+                    reload.arrange(context, Rect.fromPositionAndSize(centerX - reloadWidth / 2,
+                            secondaryTop, reloadWidth, FOOTER_BUTTON_HEIGHT));
+                    retry.arrange(context, Rect.fromPositionAndSize(centerX - retryWidth / 2,
+                            secondaryTop, retryWidth, FOOTER_BUTTON_HEIGHT));
+                }
             }
         }
 

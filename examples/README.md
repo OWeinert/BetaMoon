@@ -150,7 +150,7 @@ and, where useful, organize private modules with `require`.
 | --- | --- |
 | Beginner 10 | **Mosaic Block** (232) and **Mosaic Token** (5030): compare one registered texture on both. |
 | Beginner 11 | **Pulsing Crystal** block (241) and item (5048): compare their synchronized frames in the world, inventory, and hand. |
-| Beginner 12 | **Script Configuration**: select the script on the Scripts screen, click Configure, edit the greeting, and Save to see the change in chat. |
+| Beginner 12 | **Script Configuration**: select the script on the Scripts screen, click the gear beside its icon, edit the greeting, and Save to see the change in chat. |
 | Beginner 20 | **Snowball Launcher** (5023): two iron ingots + snowball. Carry snowball ammunition and right-click. |
 | Beginner 24 | **Slab Model Item** (5031): compare its 3D model in inventory, hand, and on the ground. |
 | Beginner 27 | **Greeting Block** (228): cobblestone + stick. Place and right-click it to report its position. |

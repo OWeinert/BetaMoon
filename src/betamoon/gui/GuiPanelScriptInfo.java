@@ -28,6 +28,9 @@ final class GuiPanelScriptInfo extends GuiContainer {
     private static final int DEPENDENCY_LINE_HEIGHT = 12;
     private static final int IMAGE_SIZE = 72;
     private static final int IMAGE_GAP = 12;
+    private static final int CONFIG_BUTTON_SIZE = 20;
+    private static final int CONFIG_ICON_SIZE = 16;
+    private static final String CONFIG_ICON = "/resources/betamoon/gui/symbol_config.png";
     private static final float SECTION_SCALE = 1.25F;
     private static final int WARNING_SIZE = GuiScriptRestartIndicator.DEFAULT_SIZE;
     private final ScriptInfoContent content;
@@ -49,7 +52,7 @@ final class GuiPanelScriptInfo extends GuiContainer {
     }
 
     GuiPanelScriptInfo(GuiScriptIssueActions actions, Consumer<ScriptMod> configure) {
-        configureButton = new GuiButton("Configure", 90, () -> {
+        configureButton = new GuiButton("", CONFIG_BUTTON_SIZE, () -> {
             if (selected != null && configure != null) {
                 configure.accept(selected);
             }
@@ -128,8 +131,10 @@ final class GuiPanelScriptInfo extends GuiContainer {
             boolean configurable = selected.isLoaded()
                     && !ScriptConfigRegistry.forScript(selected.getSourceFileName()).isEmpty();
             configureButton.setVisible(configurable);
-            configureButton.arrange(context, Rect.fromPositionAndSize(getLeft() + IMAGE_SIZE + IMAGE_GAP,
-                    getTop() + 23, Math.min(110, Math.max(0, getWidth() - IMAGE_SIZE - IMAGE_GAP)), 20));
+            int buttonX = Math.max(getLeft(), Math.min(getLeft() + IMAGE_SIZE + IMAGE_GAP,
+                    getRight() - CONFIG_BUTTON_SIZE));
+            configureButton.arrange(context, Rect.fromPositionAndSize(buttonX,
+                    getTop() + IMAGE_SIZE - CONFIG_BUTTON_SIZE, CONFIG_BUTTON_SIZE, CONFIG_BUTTON_SIZE));
             errors.setVisible(layout.errorY >= 0);
             warnings.setVisible(layout.warningY >= 0);
             if (layout.errorY >= 0) {
@@ -170,6 +175,20 @@ final class GuiPanelScriptInfo extends GuiContainer {
                 heading(context, "Dependencies", layout.dependencyY, context.getRenderer().getTheme().textPrimary);
                 drawDependencies(context, layout.dependencies, selected.getMissingDependencies(), getLeft(),
                         getTop() + layout.dependencyY + HEADER_HEIGHT, getWidth());
+            }
+        }
+
+        @Override
+        protected void renderAfterChildren(GuiContext context) {
+            if (!configureButton.isVisible()) {
+                return;
+            }
+            Rect icon = Rect.fromPositionAndSize(configureButton.getLeft() + 2, configureButton.getTop() + 2,
+                    CONFIG_ICON_SIZE, CONFIG_ICON_SIZE);
+            context.getRenderer().drawPackagedTexture(CONFIG_ICON, icon);
+            if (configureButton.contains(context.getMouseX(), context.getMouseY())
+                    && context.getRenderer().isPointVisible(context.getMouseX(), context.getMouseY())) {
+                context.showTooltip("Configure script settings");
             }
         }
 

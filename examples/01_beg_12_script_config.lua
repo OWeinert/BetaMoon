@@ -1,13 +1,13 @@
 -- A config keeps simple settings between Minecraft launches.
 -- Copy this file into .minecraft/betamoon/scripts, then select it on the
--- Scripts screen and click Configure. Edit the greeting or its toggle and Save.
+-- Scripts screen and click the gear beside its icon. Edit the greeting or its toggle and Save.
 -- The changed greeting appears in chat immediately; reload the script to see
 -- that the saved values are used again.
 
 name = "Script Configuration Example"
 version = "1.0.0"
 description = "Saves a greeting and a show/hide toggle in betamoon/config/example/beginner_settings.json. " ..
-    "Select this script on the Scripts screen, click Configure, edit a setting, and Save. " ..
+    "Select this script on the Scripts screen, click the gear beside its icon, edit a setting, and Save. " ..
     "Changes take effect in chat without reloading; saved values also survive a restart."
 
 function modInit()
