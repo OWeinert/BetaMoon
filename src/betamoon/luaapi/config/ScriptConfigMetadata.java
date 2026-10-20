@@ -1,5 +1,6 @@
 package betamoon.luaapi.config;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -81,7 +82,7 @@ final class ScriptConfigMetadata {
             throw new LuaError("Config UI metadata is too deeply nested");
         }
         LuaTable metadata = optionalTable(argument, name);
-        checkKeys(metadata, name, "label", "description", "min", "max", "step", "choices", "readOnly",
+        checkKeys(metadata, name, "label", "description", "min", "max", "step", "input", "choices", "readOnly",
                 "readOnlyReason", "fields", "element", "maxItems", "default");
         if (!elementField && !metadata.get("default").isnil()) {
             throw new LuaError(name + ": default belongs in the defaults table, not field metadata");
@@ -105,12 +106,32 @@ final class ScriptConfigMetadata {
                 throw new LuaError(name + ": default is outside its declared bounds");
             }
         }
-        List<String> choices = choices(metadata.get("choices"), name);
-        if (!choices.isEmpty() && !(fallback instanceof String)) {
-            throw new LuaError(name + ": choices require a string default");
-        }
-        if (!choices.isEmpty() && !choices.contains(fallback)) {
+        List<ScriptConfigChoice> choices = choices(metadata.get("choices"), name, fallback);
+        if (!choices.isEmpty() && !containsChoice(choices, fallback)) {
             throw new LuaError(name + ": choices must include the default");
+        }
+        String input = input(metadata.get("input"), fallback, choices, name);
+        if ("slider".equals(input)) {
+            if (minimum == null || maximum == null || step == null || minimum.doubleValue() >= maximum.doubleValue()) {
+                throw new LuaError(name + ": slider input requires min < max and a positive step");
+            }
+            double steps = (maximum.doubleValue() - minimum.doubleValue()) / step.doubleValue();
+            if (!Double.isFinite(steps) || steps > 1000000 || !wholeSteps(steps)) {
+                throw new LuaError(name + ": slider range must contain at most 1000000 whole steps");
+            }
+            if (!matchesStep(((Number) fallback).doubleValue(), minimum, step)) {
+                throw new LuaError(name + ": slider default must match its declared step");
+            }
+        }
+        for (ScriptConfigChoice choice : choices) {
+            if (choice.value() instanceof Number) {
+                double value = ((Number) choice.value()).doubleValue();
+                if (minimum != null && value < minimum.doubleValue()
+                        || maximum != null && value > maximum.doubleValue()
+                        || step != null && !matchesStep(value, minimum, step)) {
+                    throw new LuaError(name + ": choice " + choice.label() + " violates numeric bounds or step");
+                }
+            }
         }
         boolean readOnly = metadata.get("readOnly").isnil() ? false : metadata.get("readOnly").checkboolean();
         String reason = string(metadata, "readOnlyReason", "");
@@ -169,7 +190,7 @@ final class ScriptConfigMetadata {
             throw new LuaError(name + ": nested metadata requires an object or array default");
         }
         return new ScriptConfigField(name, string(metadata, "label", name), string(metadata, "description", ""),
-                fallback, minimum, maximum, step, choices, readOnly, reason, maxItems, element, children);
+                fallback, minimum, maximum, step, input, choices, readOnly, reason, maxItems, element, children);
     }
 
     private static LuaTable optionalTable(LuaValue value, String path) {
@@ -193,23 +214,94 @@ final class ScriptConfigMetadata {
         return Double.valueOf(number);
     }
 
-    private static List<String> choices(LuaValue value, String path) {
-        List<String> result = new ArrayList<String>();
+    private static List<ScriptConfigChoice> choices(LuaValue value, String path, Object fallback) {
+        List<ScriptConfigChoice> result = new ArrayList<ScriptConfigChoice>();
         if (value.isnil()) {
             return result;
+        }
+        if (!(fallback instanceof String) && !(fallback instanceof Number)) {
+            throw new LuaError(path + ": choices require a string or number default");
         }
         LuaTable table = value.checktable();
         if (table.keys().length != table.length() || table.length() == 0) {
             throw new LuaError(path + ".choices must be a nonempty dense array");
         }
         for (int index = 1; index <= table.length(); index++) {
-            String choice = table.get(index).checkjstring();
-            if (result.contains(choice)) {
-                throw new LuaError(path + ".choices has a duplicate: " + choice);
+            LuaValue entry = table.get(index);
+            String label = null;
+            LuaValue selected = entry;
+            if (entry.istable()) {
+                LuaTable option = entry.checktable();
+                checkKeys(option, path + ".choices[" + index + "]", "value", "label");
+                selected = option.get("value");
+                if (selected.isnil()) {
+                    throw new LuaError(path + ".choices[" + index + "] needs a value");
+                }
+                label = string(option, "label", null);
+                if (label != null && label.isEmpty()) {
+                    throw new LuaError(path + ".choices[" + index + "].label must not be empty");
+                }
             }
-            result.add(choice);
+            Object choiceValue;
+            if (fallback instanceof Number && selected.isnumber()) {
+                double number = selected.todouble();
+                if (!Double.isFinite(number)) {
+                    throw new LuaError(path + ".choices[" + index + "] must be finite");
+                }
+                choiceValue = Double.valueOf(number);
+            } else if (fallback instanceof String && selected.isstring()) {
+                choiceValue = selected.tojstring();
+            } else {
+                throw new LuaError(path + ".choices[" + index + "] must match the default's type");
+            }
+            if (containsChoice(result, choiceValue)) {
+                throw new LuaError(path + ".choices has a duplicate: " + choiceValue);
+            }
+            String display = label == null ? choiceValue instanceof Number
+                    ? BigDecimal.valueOf(((Number) choiceValue).doubleValue()).stripTrailingZeros().toPlainString()
+                    : (String) choiceValue : label;
+            result.add(new ScriptConfigChoice(choiceValue, display));
         }
         return result;
+    }
+
+    private static String input(LuaValue argument, Object fallback, List<ScriptConfigChoice> choices, String path) {
+        if (argument.isnil()) {
+            return fallback instanceof Boolean ? "cycle"
+                    : fallback instanceof String || fallback instanceof Number ? "text" : null;
+        }
+        String method = argument.checkjstring();
+        if (fallback instanceof Number && !("text".equals(method) || "slider".equals(method)
+                || "choice".equals(method) || "cycle".equals(method))
+                || fallback instanceof String && !("text".equals(method) || "choice".equals(method)
+                        || "cycle".equals(method))
+                || fallback instanceof Boolean && !"cycle".equals(method)
+                || (fallback instanceof Map || fallback instanceof List)) {
+            throw new LuaError(path + ": unsupported input method '" + method + "' for this value type");
+        }
+        if (("choice".equals(method) || "cycle".equals(method)) && !(fallback instanceof Boolean)
+                && choices.isEmpty()) {
+            throw new LuaError(path + ": " + method + " input requires choices");
+        }
+        return method;
+    }
+
+    private static boolean containsChoice(List<ScriptConfigChoice> choices, Object value) {
+        for (ScriptConfigChoice choice : choices) {
+            if (choice.matches(value)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean matchesStep(double value, Double minimum, Double step) {
+        double origin = minimum == null ? 0.0D : minimum.doubleValue();
+        return wholeSteps((value - origin) / step.doubleValue());
+    }
+
+    private static boolean wholeSteps(double steps) {
+        return Double.isFinite(steps) && Math.abs(steps - Math.rint(steps)) <= 0.000001D;
     }
 
     private static void checkKeys(LuaTable table, String path, String... allowed) {

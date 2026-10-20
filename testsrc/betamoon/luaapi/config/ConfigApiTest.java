@@ -122,6 +122,39 @@ public final class ConfigApiTest {
             run(lua, "ui.volume=7\n");
             run(lua, "assert(not pcall(function() betamoon.config('mymod:ui',{volume=1}) end))\n");
 
+            run(lua, "inputs=betamoon.config('mymod:inputs',"
+                    + "{title='Ada',mode='normal',count=2,speed=0.5,level=2,enabled=true,items={}},"
+                    + "{fields={mode={input='choice',choices={{value='normal',label='Normal'},"
+                    + "{value='hard',label='Hard'}}},"
+                    + "count={input='choice',choices={{value=1,label='Low'},2,3}},"
+                    + "speed={input='slider',min=0,max=1,step=0.25},"
+                    + "level={input='cycle',choices={1,2,3}},"
+                    + "items={element={default=1,input='slider',min=0,max=4,step=1}}}})\n");
+            ScriptConfigRegistration inputs = find("config_api_test.lua", "mymod:inputs");
+            require("text".equals(inputs.fields().get("title").input()), "Strings default to text input");
+            require("cycle".equals(inputs.fields().get("enabled").input()), "Booleans default to a cycle button");
+            require("choice".equals(inputs.fields().get("mode").input()), "String choice uses a dropdown");
+            require("Normal".equals(inputs.fields().get("mode").choice("normal").label()),
+                    "Choice labels are separate from persisted values");
+            require("Low".equals(inputs.fields().get("count").choice(Double.valueOf(1)).label()),
+                    "Numeric choices accept labels and numeric values");
+            require("slider".equals(inputs.fields().get("items").element().input()),
+                    "Array elements inherit their declared input method");
+            Map<String, Object> invalidChoice = inputs.draft();
+            invalidChoice.put("count", Double.valueOf(4));
+            require(!canSave(inputs, invalidChoice), "GUI draft rejects a number outside its choices");
+            invalidChoice = inputs.draft();
+            invalidChoice.put("mode", "unknown");
+            require(!canSave(inputs, invalidChoice), "GUI draft rejects a string outside its choices");
+            run(lua, "assert(not pcall(function() betamoon.config('mymod:bad-input',{value=1},"
+                    + "{fields={value={input='other'}}}) end))\n"
+                    + "assert(not pcall(function() betamoon.config('mymod:bad-slider',{value=1},"
+                    + "{fields={value={input='slider',min=0,max=2}}}) end))\n"
+                    + "assert(not pcall(function() betamoon.config('mymod:bad-choice',{value=1},"
+                    + "{fields={value={input='choice',choices={2,3}}}}) end))\n"
+                    + "assert(not pcall(function() betamoon.config('mymod:bad-type',{value=true},"
+                    + "{fields={value={input='text'}}}) end))\n");
+
             run(lua, "failApply=true; applied=0; unstable=betamoon.config('mymod:unstable',"
                     + "{value=1},{onChange=function(values,previous,paths) "
                     + "if failApply then error('transient failure') end; applied=applied+1 end})\n"
@@ -145,11 +178,12 @@ public final class ConfigApiTest {
             ScriptResourceTracker.unload("scoped.lua");
             require(ScriptConfigRegistry.forScript("scoped.lua").isEmpty(),
                     "Unloading the script removes its editable definition");
-            System.out.println("Script config API passed: paths, table access, save, reload, validation "
+            System.out.println("Script config API passed: paths, table access, save, reload, input metadata, validation "
                     + "file conflicts, GUI drafts and live callbacks.");
         } finally {
             deleteIfPresent(root.resolve("scoped.json"));
             deleteIfPresent(root.resolve("mymod/unstable.json"));
+            deleteIfPresent(root.resolve("mymod/inputs.json"));
             deleteIfPresent(root.resolve("mymod/ui.json"));
             deleteIfPresent(root.resolve("mymod/gameplay.json"));
             deleteIfPresent(root.resolve("mymod"));

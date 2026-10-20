@@ -18,6 +18,8 @@ import betamoon.gui.framework.GuiRenderer;
 import betamoon.gui.framework.GuiScene;
 import betamoon.gui.framework.GuiTextureCache;
 import betamoon.gui.widget.GuiButton;
+import betamoon.gui.widget.GuiDropdownButton;
+import betamoon.gui.widget.GuiDropdownMenu;
 import betamoon.gui.widget.GuiMinecraftButton;
 import betamoon.gui.widget.GuiDialog;
 import betamoon.gui.widget.GuiIcon;
@@ -203,6 +205,8 @@ public final class GuiShowcaseRenderTest {
             verifyIssueLayout(font);
             ScriptIssueRenderChecks.run(minecraft, font, output);
             verifyDialogContentSizing(minecraft, font);
+            verifyDropdownButton(minecraft, font);
+            verifyConfigSlider(minecraft, font);
             verifyTextureRenderState(minecraft, font);
             renderFrameworkScreens(minecraft, font, output);
             renderDimensionScreens(minecraft, output);
@@ -803,6 +807,66 @@ public final class GuiShowcaseRenderTest {
                 "A shorter status message shrinks the panel and clamps old scroll state");
     }
 
+    private static void verifyDropdownButton(Minecraft minecraft, FontRenderer font) {
+        GuiDropdownMenu menu = new GuiDropdownMenu();
+        final String[] selected = {"one"};
+        GuiDropdownButton<String> button = new GuiDropdownButton<String>(menu,
+                Arrays.asList(new GuiDropdownButton.Option<String>("one", "First"),
+                        new GuiDropdownButton.Option<String>("two", "Second")),
+                "one", value -> selected[0] = value);
+        GuiContainer layout = new GuiContainer() {
+            @Override
+            protected void arrangeChildren(GuiContext context) {
+                button.arrange(context, Rect.fromPositionAndSize(100, 70, 116, 20));
+                menu.arrange(context, getBounds());
+            }
+        };
+        layout.add(button);
+        layout.add(menu);
+        GuiScene scene = new GuiScene();
+        scene.setContent(layout);
+        scene.updateEnvironment(minecraft, font, 320, 240, 320, 240);
+        setupFrame();
+        scene.render(0, 0, 0);
+        scene.mousePressed(110, 80, 0);
+        scene.render(0, 0, 0);
+        require(menu.isVisible(), "Dropdown button opens a separate popup menu");
+        scene.mousePressed(110, 120, 0);
+        require("two".equals(selected[0]) && "two".equals(button.getSelected()) && !menu.isVisible(),
+                "Dropdown selection updates its typed value and closes the menu");
+        scene.mousePressed(110, 80, 0);
+        scene.render(0, 0, 0);
+        scene.mousePressed(20, 20, 0);
+        require(!menu.isVisible() && "two".equals(selected[0]),
+                "Clicking outside the dropdown dismisses it without changing the selection");
+    }
+
+    private static void verifyConfigSlider(Minecraft minecraft, FontRenderer font) {
+        final double[] selected = {0.5D};
+        GuiConfigSlider slider = new GuiConfigSlider(0, 1, 0.25D, 0.5D, value -> selected[0] = value);
+        GuiContainer layout = new GuiContainer() {
+            @Override
+            protected void arrangeChildren(GuiContext context) {
+                slider.arrange(context, Rect.fromPositionAndSize(100, 70, 116, 20));
+            }
+        };
+        layout.add(slider);
+        GuiScene scene = new GuiScene();
+        scene.setContent(layout);
+        scene.updateEnvironment(minecraft, font, 320, 240, 320, 240);
+        setupFrame();
+        scene.render(0, 0, 0);
+        scene.mouseDragged(171, 80, true);
+        require(selected[0] == 0.5D, "Slider ignores drags that did not start on it");
+        scene.mousePressed(171, 80, 0);
+        scene.mouseReleased(171, 80, 0);
+        require(selected[0] == 1.0D, "Slider reaches its upper bound");
+        scene.mousePressed(105, 80, 0);
+        scene.mouseReleased(105, 80, 0);
+        scene.keyTyped('\0', Keyboard.KEY_RIGHT, false);
+        require(selected[0] == 0.25D, "Slider arrow key follows its decimal step exactly");
+    }
+
     private static void verifyIssueLayout(FontRenderer font) {
         LuaScriptErrors.clear();
         try {
@@ -904,7 +968,9 @@ public final class GuiShowcaseRenderTest {
                 configLua.load("betamoon.config('showcase', {enabled=true, strength=2, "
                         + "advanced={rate=0.5}, tags={'starter'}}, "
                         + "{label='Gameplay', description='Settings available in game', "
-                        + "fields={strength={min=0,max=10}, tags={maxItems=6}}}); "
+                        + "fields={strength={input='slider',min=0,max=10,step=1}, "
+                        + "advanced={fields={rate={input='choice',choices={0.25,0.5,0.75}}}}, "
+                        + "tags={maxItems=6}}}); "
                         + "betamoon.config('showcase:audio', {volume=0.7}, {label='Audio'})").call();
             } finally {
                 owner.invoke(null, new Object[] { null });
@@ -919,7 +985,21 @@ public final class GuiShowcaseRenderTest {
 
             GuiScreenScripts scripts = new GuiScreenScripts(new GuiScreen());
             renderScreen(scripts, minecraft, output, "scripts-screen.png");
-            renderScreen(new GuiScreenScriptConfig(scripts, loaded), minecraft, output, "script-config.png");
+            GuiScreenScriptConfig configuration = new GuiScreenScriptConfig(scripts, loaded);
+            renderScreen(configuration, minecraft, output, "script-config.png");
+            Field sceneField = GuiComponentScreen.class.getDeclaredField("scene");
+            sceneField.setAccessible(true);
+            GuiScene configScene = (GuiScene) sceneField.get(configuration);
+            GuiDropdownButton<?> choice = findDropdownButton(configScene.getContent());
+            require(choice != null, "Config choice field uses the reusable dropdown button");
+            configScene.mousePressed(choice.getLeft() + 5, choice.getTop() + 10, 0);
+            Field menuField = GuiScreenScriptConfig.class.getDeclaredField("dropdown");
+            menuField.setAccessible(true);
+            require(((GuiDropdownMenu) menuField.get(configuration)).isVisible(),
+                    "Config choice opens its anchored dropdown menu");
+            setupFrame();
+            configuration.drawScreen(choice.getLeft() + 5, choice.getTop() + 10, 0.0F);
+            ImageIO.write(capture(), "png", new File(output, "script-config-dropdown.png"));
             renderScreen(scripts, minecraft, output, "scripts-name-tooltip.png", 45, 57);
             renderScreen(new GuiPopupDebugMenu(scripts), minecraft, output, "debug-menu.png");
             renderScreen(new GuiPopupDebugExport(scripts, (Exception) null), minecraft, output, "debug-export.png");
@@ -936,6 +1016,21 @@ public final class GuiShowcaseRenderTest {
             LuaScriptRegistry.clear();
             GuiTextureCache.shared().clear();
         }
+    }
+
+    private static GuiDropdownButton<?> findDropdownButton(GuiElement element) {
+        if (element instanceof GuiDropdownButton) {
+            return (GuiDropdownButton<?>) element;
+        }
+        if (element instanceof GuiContainer) {
+            for (GuiElement child : ((GuiContainer) element).getChildren()) {
+                GuiDropdownButton<?> match = findDropdownButton(child);
+                if (match != null) {
+                    return match;
+                }
+            }
+        }
+        return null;
     }
 
     private static void renderDimensionScreens(Minecraft minecraft, File output) throws Exception {

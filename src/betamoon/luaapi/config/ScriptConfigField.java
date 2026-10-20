@@ -15,7 +15,8 @@ public final class ScriptConfigField {
     private final Double minimum;
     private final Double maximum;
     private final Double step;
-    private final List<String> choices;
+    private final String input;
+    private final List<ScriptConfigChoice> choices;
     private final boolean readOnly;
     private final String readOnlyReason;
     private final int maxItems;
@@ -23,7 +24,8 @@ public final class ScriptConfigField {
     private final Map<String, ScriptConfigField> children;
 
     ScriptConfigField(String name, String label, String description, Object defaultValue, Double minimum,
-            Double maximum, Double step, List<String> choices, boolean readOnly, String readOnlyReason,
+            Double maximum, Double step, String input, List<ScriptConfigChoice> choices,
+            boolean readOnly, String readOnlyReason,
             int maxItems, ScriptConfigField element, Map<String, ScriptConfigField> children) {
         this.name = name;
         this.label = label;
@@ -32,7 +34,8 @@ public final class ScriptConfigField {
         this.minimum = minimum;
         this.maximum = maximum;
         this.step = step;
-        this.choices = Collections.unmodifiableList(new ArrayList<String>(choices));
+        this.input = input;
+        this.choices = Collections.unmodifiableList(new ArrayList<ScriptConfigChoice>(choices));
         this.readOnly = readOnly;
         this.readOnlyReason = readOnlyReason;
         this.maxItems = maxItems;
@@ -68,8 +71,21 @@ public final class ScriptConfigField {
         return step;
     }
 
-    public List<String> choices() {
+    public String input() {
+        return input;
+    }
+
+    public List<ScriptConfigChoice> choices() {
         return choices;
+    }
+
+    public ScriptConfigChoice choice(Object value) {
+        for (ScriptConfigChoice choice : choices) {
+            if (choice.matches(value)) {
+                return choice;
+            }
+        }
+        return null;
     }
 
     public boolean readOnly() {
@@ -126,7 +142,10 @@ public final class ScriptConfigField {
         if (value instanceof List && !((List<?>) value).isEmpty()) {
             item = inferred("item", ((List<?>) value).get(0));
         }
-        return new ScriptConfigField(name, name, "", value, null, null, null, Collections.<String>emptyList(),
+        String input = value instanceof Boolean ? "cycle"
+                : value instanceof String || value instanceof Number ? "text" : null;
+        return new ScriptConfigField(name, name, "", value, null, null, null, input,
+                Collections.<ScriptConfigChoice>emptyList(),
                 false, "", 64, item, nested);
     }
 }

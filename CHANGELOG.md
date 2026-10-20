@@ -13,3 +13,4 @@
   Report callback failures and allow a retry from the editor.
 - Add a beginner script demonstrating persistent settings, in-game editing and live changes.
 - Center the config editor's actions and show Configure as a compact gear beside the script icon.
+- Let scripts choose text, slider, dropdown or cycling controls for config values, with typed and labeled choices.

@@ -83,8 +83,10 @@ final class ScriptConfigEdits {
                     throw new LuaError(path + " does not match its declared step");
                 }
             }
-        } else if (fallback instanceof String && !field.choices().isEmpty()
-                && !field.choices().contains(value)) {
+            if (!field.choices().isEmpty() && field.choice(value) == null) {
+                throw new LuaError(path + " must be one of its declared choices");
+            }
+        } else if (fallback instanceof String && !field.choices().isEmpty() && field.choice(value) == null) {
             throw new LuaError(path + " must be one of its declared choices");
         }
     }

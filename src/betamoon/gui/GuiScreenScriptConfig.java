@@ -6,7 +6,10 @@ import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiElement;
 import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.widget.GuiButton;
+import betamoon.gui.widget.GuiDropdownButton;
+import betamoon.gui.widget.GuiDropdownMenu;
 import betamoon.gui.widget.GuiScrollView;
+import betamoon.luaapi.config.ScriptConfigChoice;
 import betamoon.luaapi.config.ScriptConfigField;
 import betamoon.luaapi.config.ScriptConfigRegistration;
 import betamoon.luaapi.config.ScriptConfigRegistry;
@@ -18,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import net.minecraft.src.GuiScreen;
+import org.lwjgl.input.Keyboard;
 import org.luaj.vm2.LuaError;
 
 /** Edits one script's registered config files as independent save units. */
@@ -48,6 +52,7 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
     private final GuiButton reload = new GuiButton("Reload Draft", this::reload);
     private final GuiButton retry = new GuiButton("Retry Apply", this::retry);
     private final GuiButton cancel = new GuiButton("Cancel", this::cancel);
+    private final GuiDropdownMenu dropdown = new GuiDropdownMenu();
     private int current;
     private String message = "";
     private boolean discardPending;
@@ -67,6 +72,7 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
         layout.add(reload);
         layout.add(retry);
         layout.add(cancel);
+        layout.add(dropdown);
         if (!sections.isEmpty()) {
             form.rebuild();
         }
@@ -118,11 +124,21 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
         }
     }
 
+    @Override
+    protected void keyTyped(char typedChar, int keyCode) {
+        if (dropdown.isVisible() && keyCode == Keyboard.KEY_ESCAPE) {
+            dropdown.close();
+            return;
+        }
+        super.keyTyped(typedChar, keyCode);
+    }
+
     private Section section() {
         return sections.get(current);
     }
 
     private void nextSection() {
+        dropdown.close();
         if (!form.commitInputs()) {
             return;
         }
@@ -151,12 +167,14 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
     }
 
     private void reset() {
+        dropdown.close();
         replaceDeclared(section().draft, section().registration.defaults());
         message = "Defaults are in the draft. Save to apply them.";
         form.rebuild();
     }
 
     private void reload() {
+        dropdown.close();
         try {
             Section section = section();
             if (section.registration.malformedAtOpen()) {
@@ -185,6 +203,7 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
     }
 
     private void cancel() {
+        dropdown.close();
         if (!form.commitInputs()) {
             if (discardPending) {
                 showScreen(parent);
@@ -298,6 +317,7 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
                     saveWidth, FOOTER_BUTTON_HEIGHT));
             cancel.arrange(context, Rect.fromPositionAndSize(rowLeft + saveWidth + pairGap,
                     pairTop, cancelWidth, FOOTER_BUTTON_HEIGHT));
+            dropdown.arrange(context, getBounds());
         }
 
         @Override
@@ -324,6 +344,7 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
         private final List<FieldRow> rows = new ArrayList<FieldRow>();
 
         private void rebuild() {
+            dropdown.close();
             clear();
             rows.clear();
             if (sections.isEmpty()) {
@@ -410,6 +431,10 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
                     row.action.arrange(context, Rect.fromPositionAndSize(columns.controlLeft,
                             y + FIELD_CONTROL_TOP_OFFSET, controlWidth, FIELD_BUTTON_HEIGHT));
                 }
+                if (row.slider != null) {
+                    row.slider.arrange(context, Rect.fromPositionAndSize(columns.controlLeft,
+                            y + FIELD_CONTROL_TOP_OFFSET, controlWidth, FIELD_BUTTON_HEIGHT));
+                }
                 if (row.remove != null) {
                     row.remove.arrange(context, Rect.fromPositionAndSize(columns.controlLeft + controlWidth
                             + FIELD_COLUMN_GAP / 2, y + FIELD_CONTROL_TOP_OFFSET, 22, FIELD_BUTTON_HEIGHT));
@@ -436,14 +461,15 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
                 context.getRenderer().drawText(visibleLabel,
                         labelRight - context.getRenderer().textWidth(visibleLabel), labelY,
                         context.getRenderer().getTheme().textPrimary);
-                if (row.modified() && (row.input != null || row.action != null)) {
+                if (row.modified() && (row.input != null || row.action != null || row.slider != null)) {
                     int markerX = columns.controlLeft + controlWidth(row, columns)
                             - context.getRenderer().textWidth("*") / 2;
                     int markerY = y + FIELD_CONTROL_TOP_OFFSET - context.getRenderer().lineHeight() / 2;
                     context.getRenderer().drawText("*", markerX, markerY,
                             context.getRenderer().getTheme().textWarning);
                 }
-                if (Rect.fromPositionAndSize(columns.left, y, columns.groupWidth, FIELD_ROW_HEIGHT)
+                if (!dropdown.isVisible() && Rect.fromPositionAndSize(columns.left, y,
+                        columns.groupWidth, FIELD_ROW_HEIGHT)
                         .contains(context.getMouseX(), context.getMouseY())
                         && context.getRenderer().isPointVisible(context.getMouseX(), context.getMouseY())) {
                     List<String> details = new ArrayList<String>();
@@ -528,6 +554,7 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
         private final int depth;
         private final boolean readOnly;
         private GuiConfigInput input;
+        private GuiConfigSlider slider;
         private GuiButton action;
         private GuiButton remove;
 
@@ -546,13 +573,35 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
                     setValue(parent, slot, !((Boolean) value(parent, slot)).booleanValue());
                     action.setLabel((Boolean) value(parent, slot) ? "True" : "False");
                 }));
-            } else if (currentValue instanceof String && !field.choices().isEmpty()) {
-                action = form.add(new GuiButton((String) currentValue, () -> {
-                    String selected = (String) value(parent, slot);
-                    List<String> choices = field.choices();
-                    setValue(parent, slot, choices.get((choices.indexOf(selected) + 1) % choices.size()));
-                    action.setLabel((String) value(parent, slot));
+            } else if ("slider".equals(field.input())) {
+                slider = form.add(new GuiConfigSlider(field.minimum(), field.maximum(), field.step(),
+                        ((Number) currentValue).doubleValue(), nextValue -> setValue(parent, slot,
+                                Double.valueOf(nextValue))));
+            } else if ("choice".equals(field.input())) {
+                List<GuiDropdownButton.Option<ScriptConfigChoice>> options =
+                        new ArrayList<GuiDropdownButton.Option<ScriptConfigChoice>>();
+                for (ScriptConfigChoice choice : field.choices()) {
+                    options.add(new GuiDropdownButton.Option<ScriptConfigChoice>(choice, choice.label()));
+                }
+                GuiDropdownButton<ScriptConfigChoice> button = new GuiDropdownButton<ScriptConfigChoice>(dropdown,
+                        options, field.choice(currentValue), selected -> setValue(parent, slot, selected.value()));
+                button.setBeforeOpen(form::commitInputs);
+                action = form.add(button);
+            } else if ("cycle".equals(field.input())) {
+                action = form.add(new GuiButton("", () -> {
+                    Object selected = value(parent, slot);
+                    List<ScriptConfigChoice> choices = field.choices();
+                    int index = -1;
+                    for (int candidate = 0; candidate < choices.size(); candidate++) {
+                        if (choices.get(candidate).matches(selected)) {
+                            index = candidate;
+                            break;
+                        }
+                    }
+                    setValue(parent, slot, choices.get((index + 1) % choices.size()).value());
+                    updateChoiceLabel();
                 }));
+                updateChoiceLabel();
             } else if (currentValue instanceof String || currentValue instanceof Number) {
                 input = form.add(new GuiConfigInput(GuiScreenScriptConfig.this, String.valueOf(currentValue)));
             } else if (currentValue instanceof List) {
@@ -578,6 +627,9 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
             if (input != null) {
                 input.setEnabled(!readOnly);
             }
+            if (slider != null) {
+                slider.setEnabled(!readOnly);
+            }
             if (removable) {
                 remove = form.add(new GuiButton("-", () -> {
                     if (!form.commitInputs()) {
@@ -590,6 +642,12 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
                 }));
                 remove.setEnabled(!readOnly);
             }
+        }
+
+        private void updateChoiceLabel() {
+            ScriptConfigChoice selected = field.choice(value(parent, slot));
+            String label = selected == null ? String.valueOf(value(parent, slot)) : selected.label();
+            action.setLabel(label);
         }
 
         private boolean modified() {
