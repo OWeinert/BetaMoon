@@ -18,12 +18,15 @@ final class ScriptConfigStore {
     private final Path root;
     private final Path file;
     private final Map<String, Object> defaults;
+    private final Map<String, ScriptConfigField> fields;
     private byte[] observedBytes;
 
-    ScriptConfigStore(Path root, ScriptConfigKey key, Map<String, Object> defaults) {
+    ScriptConfigStore(Path root, ScriptConfigKey key, Map<String, Object> defaults,
+            Map<String, ScriptConfigField> fields) {
         this.root = root.toAbsolutePath().normalize();
         this.file = key.fileUnder(this.root);
         this.defaults = defaults;
+        this.fields = fields;
     }
 
     String fileName() {
@@ -57,7 +60,7 @@ final class ScriptConfigStore {
     }
 
     Map<String, Object> saveDraft(Map<String, Object> draft, byte[] expectedRevision) throws IOException {
-        Map<String, Object> merged = ScriptConfigValues.merge(defaults, draft);
+        Map<String, Object> merged = ScriptConfigValues.merge(defaults, draft, fields);
         byte[] bytes = ScriptConfigValues.json(merged);
         if (bytes.length > MAX_FILE_BYTES) {
             throw new IOException("Config exceeds " + MAX_FILE_BYTES + " bytes");
@@ -104,7 +107,7 @@ final class ScriptConfigStore {
 
     private Map<String, Object> parse(byte[] bytes) throws IOException {
         try {
-            return ScriptConfigValues.merge(defaults, ModelJson.read(bytes));
+            return ScriptConfigValues.merge(defaults, ModelJson.read(bytes), fields);
         } catch (LuaError error) {
             throw new IOException(error.getMessage(), error);
         }

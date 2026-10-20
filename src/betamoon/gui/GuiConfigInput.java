@@ -40,12 +40,14 @@ final class GuiConfigInput extends GuiElement {
         field = new GuiTextBox(screen, context.getRenderer().getFont(), getLeft(), getTop(), getWidth(), getHeight(),
                 Math.max(8192, value.length() + 1024));
         field.setText(value);
+        field.isEnabled = isEnabled();
         field.setFocused(isFocused());
     }
 
     @Override
     protected void renderElement(GuiContext context) {
         if (field != null) {
+            field.isEnabled = isEnabled();
             field.drawTextBox();
         }
     }

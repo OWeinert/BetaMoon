@@ -12,18 +12,17 @@ final class ScriptConfigEdits {
     private ScriptConfigEdits() {
     }
 
-    static void validate(Map<String, ScriptConfigField> fields, Map<String, Object> before,
-            Map<String, Object> draft) {
+    static void validate(Map<String, ScriptConfigField> fields, Map<String, Object> before, Map<String, Object> draft) {
         for (Map.Entry<String, ScriptConfigField> entry : fields.entrySet()) {
             String name = entry.getKey();
             validateField(entry.getValue(), before.get(name), draft.get(name), name);
         }
     }
 
-    private static void validateField(ScriptConfigField field, Object before, Object value, String path) {
-        if (field.readOnly() && !Objects.equals(before, value)) {
-            throw new LuaError(path + " is read-only" + (field.readOnlyReason().isEmpty() ? ""
-                    : ": " + field.readOnlyReason()));
+    static void validateField(ScriptConfigField field, Object before, Object value, String path) {
+        if (field.readOnly() && before != null && !Objects.equals(before, value)) {
+            throw new LuaError(
+                    path + " is read-only" + (field.readOnlyReason().isEmpty() ? "" : ": " + field.readOnlyReason()));
         }
         Object fallback = field.defaultValue();
         if (fallback instanceof Map) {
@@ -33,8 +32,22 @@ final class ScriptConfigEdits {
             @SuppressWarnings("unchecked")
             Map<String, Object> current = (Map<String, Object>) value;
             @SuppressWarnings("unchecked")
-            Map<String, Object> previous = before instanceof Map ? (Map<String, Object>) before
+            Map<String, Object> previous = before instanceof Map
+                    ? (Map<String, Object>) before
                     : Collections.<String, Object>emptyMap();
+            if ("dictionary".equals(field.collectionKind())) {
+                if (current.size() > field.maxItems()) {
+                    throw new LuaError(path + " cannot contain more than " + field.maxItems() + " entries");
+                }
+                for (Map.Entry<String, Object> entry : current.entrySet()) {
+                    if (entry.getKey().isEmpty()) {
+                        throw new LuaError(path + " cannot contain an empty key");
+                    }
+                    validateField(field.valueField(), previous.get(entry.getKey()), entry.getValue(),
+                            path + "." + entry.getKey());
+                }
+                return;
+            }
             for (Map.Entry<String, ScriptConfigField> entry : field.children().entrySet()) {
                 validateField(entry.getValue(), previous.get(entry.getKey()), current.get(entry.getKey()),
                         path + "." + entry.getKey());
@@ -53,7 +66,12 @@ final class ScriptConfigEdits {
             }
             for (int index = 0; index < values.size(); index++) {
                 Object old = index < previous.size() ? previous.get(index) : null;
-                Object expected = index < ((List<?>) fallback).size() ? ((List<?>) fallback).get(index)
+                if ("list".equals(field.collectionKind())) {
+                    validateField(field.element(), old, values.get(index), path + "[" + (index + 1) + "]");
+                    continue;
+                }
+                Object expected = index < ((List<?>) fallback).size()
+                        ? ((List<?>) fallback).get(index)
                         : field.element() == null ? null : field.element().defaultValue();
                 if (expected == null) {
                     expected = old;
@@ -92,10 +110,8 @@ final class ScriptConfigEdits {
     }
 
     private static boolean sameType(Object left, Object right) {
-        return left instanceof Number && right instanceof Number
-                || left instanceof String && right instanceof String
-                || left instanceof Boolean && right instanceof Boolean
-                || left instanceof Map && right instanceof Map
+        return left instanceof Number && right instanceof Number || left instanceof String && right instanceof String
+                || left instanceof Boolean && right instanceof Boolean || left instanceof Map && right instanceof Map
                 || left instanceof List && right instanceof List;
     }
 
@@ -127,8 +143,7 @@ final class ScriptConfigEdits {
             List<?> newValues = (List<?>) after;
             for (int index = 0; index < Math.max(oldValues.size(), newValues.size()); index++) {
                 collect(index < oldValues.size() ? oldValues.get(index) : null,
-                        index < newValues.size() ? newValues.get(index) : null,
-                        path + "[" + (index + 1) + "]", paths);
+                        index < newValues.size() ? newValues.get(index) : null, path + "[" + (index + 1) + "]", paths);
             }
         } else {
             paths.add(path);

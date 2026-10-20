@@ -29,6 +29,9 @@ import betamoon.gui.widget.GuiTextBox;
 import betamoon.io.IoUtils;
 import betamoon.instrumentation.hooks.texture.TextureResourceCallbacks;
 import betamoon.luaapi.config.ConfigApi;
+import betamoon.luaapi.config.ScriptConfigField;
+import betamoon.luaapi.config.ScriptConfigRegistration;
+import betamoon.luaapi.config.ScriptConfigRegistry;
 import betamoon.luaapi.minecraft.MinecraftApi;
 import betamoon.luaapi.tileentity.TileEntityApi;
 import betamoon.luamodloader.LuaScriptErrors;
@@ -66,6 +69,8 @@ import java.lang.reflect.Method;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.Collections;
@@ -285,7 +290,8 @@ public final class GuiShowcaseRenderTest {
     }
 
     private static void updatePresentation(GuiLuaContainer gui) throws Exception {
-        // The off-screen fixture has no live player for vanilla GuiContainer.updateScreen.
+        // The off-screen fixture has no live player for vanilla
+        // GuiContainer.updateScreen.
         Method update = GuiLuaContainer.class.getDeclaredMethod("preparePresentation");
         update.setAccessible(true);
         update.invoke(gui);
@@ -473,8 +479,7 @@ public final class GuiShowcaseRenderTest {
                     + "{type='progress',id='gauge',value='progress',maximum=100,x=96,y=80,width=42,height=28,"
                     + "builtin='minecraft:furnace_flame',backgroundBuiltin='minecraft:furnace_flame_background',"
                     + "tint=0x80D0FF,backgroundTint=0x70FF70,direction='bottom_to_top'},"
-                    + "{type='slot',x=8,y=116,tint='red'},"
-                    + "{type='progress',value='empty',maximum=100,x=96,y=120,"
+                    + "{type='slot',x=8,y=116,tint='red'}," + "{type='progress',value='empty',maximum=100,x=96,y=120,"
                     + "builtin='minecraft:furnace_flame',backgroundBuiltin='minecraft:furnace_arrow_background'},"
                     + "{type='image',builtin='minecraft:furnace_arrow_background',x=128,y=120},"
                     + "{type='interactive',id='drag',control='drag',x=40,y=76,width=20,height=20,"
@@ -571,8 +576,8 @@ public final class GuiShowcaseRenderTest {
             mouse.setAccessible(true);
             drag.setAccessible(true);
             release.setAccessible(true);
-            ContainerGuiDefinition.ControlElement control = (ContainerGuiDefinition.ControlElement)
-                    runtime.element("drag").definition.element;
+            ContainerGuiDefinition.ControlElement control = (ContainerGuiDefinition.ControlElement) runtime
+                    .element("drag").definition.element;
             require(runtime.element("drag").definition.properties.supports("tint"),
                     "Custom control's configured builtin frame did not expose artwork tint");
             int pointerX = 134;
@@ -858,8 +863,8 @@ public final class GuiShowcaseRenderTest {
         scene.render(0, 0, 0);
         scene.mouseDragged(171, 80, true);
         require(selected[0] == 0.5D, "Slider ignores drags that did not start on it");
-        scene.mousePressed(171, 80, 0);
-        scene.mouseReleased(171, 80, 0);
+        scene.mousePressed(211, 80, 0);
+        scene.mouseReleased(211, 80, 0);
         require(selected[0] == 1.0D, "Slider reaches its upper bound");
         scene.mousePressed(105, 80, 0);
         scene.mouseReleased(105, 80, 0);
@@ -966,15 +971,35 @@ public final class GuiShowcaseRenderTest {
             owner.invoke(null, "loaded.lua");
             try {
                 configLua.load("betamoon.config('showcase', {enabled=true, strength=2, "
-                        + "advanced={rate=0.5}, tags={'starter'}}, "
+                        + "advanced={rate=0.5,visual={contrast=0.7}}, tags={'starter'}}, "
                         + "{label='Gameplay', description='Settings available in game', "
                         + "fields={strength={input='slider',min=0,max=10,step=1}, "
-                        + "advanced={fields={rate={input='choice',choices={0.25,0.5,0.75}}}}, "
+                        + "advanced={expanded=true,fields={rate={input='choice',"
+                        + "choices={0.1,0.2,0.25,0.4,0.5,0.6,0.75,0.8}},"
+                        + "visual={expanded=true,fields={contrast={input='slider',min=0,max=1,step=0.1}}}}}, "
                         + "tags={maxItems=6}}}); "
-                        + "betamoon.config('showcase:audio', {volume=0.7}, {label='Audio'})").call();
+                        + "betamoon.config('showcase:audio', {volume=0.7,title='Sound',enabled=true}, "
+                        + "{label='Locked controls',fields={volume={input='slider',min=0,max=1,step=0.1,"
+                        + "readOnly=true},title={readOnly=true},enabled={readOnly=true}}}); "
+                        + "betamoon.config('showcase:collections', "
+                        + "{entries={'first'}, channelLevels={music=0.5,effects=0.75}}, "
+                        + "{label='Collections', fields={"
+                        + "entries={input='collection',kind='list',element={default='new'}},"
+                        + "channelLevels={input='collection',kind='dictionary',key={input='text'},"
+                        + "value={default=0.5,input='slider',min=0,max=1,step=0.25}}}}); "
+                        + "betamoon.config('showcase:compact', "
+                        + "{tags={'red','blue'}, switches={true,false}, rates={music=0.5,effects=0.75},"
+                        + "volumes={music=0.5,effects=0.75}}, {label='Compact and fixed',fields={"
+                        + "tags={input='text',kind='list',element={default='new'}},"
+                        + "switches={input='text',kind='list',element={default=false}},"
+                        + "rates={input='text',kind='dictionary',key={input='text'},"
+                        + "value={default=0.5,min=0,max=1,step=0.25}},"
+                        + "volumes={fields={music={input='slider',min=0,max=1,step=0.25},"
+                        + "effects={input='slider',min=0,max=1,step=0.25}}}}})").call();
             } finally {
-                owner.invoke(null, new Object[] { null });
+                owner.invoke(null, new Object[]{null});
             }
+            verifyCompactTextValues();
             ScriptMod failed = LuaScriptRegistry.updateParsed(restartFile, "Broken Example",
                     Collections.singletonList("missing_dependency"), LuaValue.NIL, LuaValue.NIL, LuaValue.NIL,
                     "This script demonstrates failure and restart-required states.", "0.4.0", null);
@@ -987,19 +1012,232 @@ public final class GuiShowcaseRenderTest {
             renderScreen(scripts, minecraft, output, "scripts-screen.png");
             GuiScreenScriptConfig configuration = new GuiScreenScriptConfig(scripts, loaded);
             renderScreen(configuration, minecraft, output, "script-config.png");
+            GuiConfigSlider strengthControl = (GuiConfigSlider) configRowMember(configuration, "strength", null,
+                    "slider");
+            GuiButton nestedRateControl = (GuiButton) configRowMember(configuration, "rate", null, "action");
+            GuiConfigSlider deeplyNestedControl = (GuiConfigSlider) configRowMember(configuration, "contrast", null,
+                    "slider");
+            require(nestedRateControl.getLeft() > strengthControl.getLeft()
+                    && deeplyNestedControl.getLeft() > nestedRateControl.getLeft()
+                    && nestedRateControl.getRight() == strengthControl.getRight()
+                    && deeplyNestedControl.getRight() == strengthControl.getRight(),
+                    "Nested object controls indent while retaining the parent's right edge");
             Field sceneField = GuiComponentScreen.class.getDeclaredField("scene");
             sceneField.setAccessible(true);
             GuiScene configScene = (GuiScene) sceneField.get(configuration);
+            GuiElement advancedToggle = (GuiElement) configRowMember(configuration, "advanced", null, "toggle");
+            require(configScene.mousePressed(advancedToggle.getLeft() + advancedToggle.getWidth() / 3,
+                    advancedToggle.getTop() + 10, 0), "Nested heading toggles its section");
+            renderScreen(configuration, minecraft, output, "script-config-collapsed.png");
+            require(!configRowExists(configuration, "rate", null) && !configRowExists(configuration, "contrast", null),
+                    "Collapsing a section hides all descendants");
+            advancedToggle = (GuiElement) configRowMember(configuration, "advanced", null, "toggle");
+            require(configScene.mousePressed(advancedToggle.getRight() - 9, advancedToggle.getTop() + 14, 0),
+                    "Section chevron expands the section");
+            configuration.drawScreen(0, 0, 0.0F);
+            require(configRowExists(configuration, "rate", null) && configRowExists(configuration, "contrast", null),
+                    "Expanding a section restores its descendants");
+            GuiElement visualToggle = (GuiElement) configRowMember(configuration, "visual", null, "toggle");
+            require(configScene.mousePressed(visualToggle.getRight() - 9, visualToggle.getTop() + 14, 0),
+                    "Deeper section chevron collapses its own children");
+            configuration.drawScreen(0, 0, 0.0F);
+            require(configRowExists(configuration, "rate", null) && !configRowExists(configuration, "contrast", null),
+                    "A nested collapse leaves sibling fields visible");
+            advancedToggle = (GuiElement) configRowMember(configuration, "advanced", null, "toggle");
+            configScene.mousePressed(advancedToggle.getRight() - 9, advancedToggle.getTop() + 14, 0);
+            configuration.drawScreen(0, 0, 0.0F);
+            advancedToggle = (GuiElement) configRowMember(configuration, "advanced", null, "toggle");
+            configScene.mousePressed(advancedToggle.getRight() - 9, advancedToggle.getTop() + 14, 0);
+            configuration.drawScreen(0, 0, 0.0F);
+            require(configRowExists(configuration, "visual", null) && !configRowExists(configuration, "contrast", null),
+                    "A deeper section retains its collapsed state when its parent reopens");
+            visualToggle = (GuiElement) configRowMember(configuration, "visual", null, "toggle");
+            configScene.mousePressed(visualToggle.getRight() - 9, visualToggle.getTop() + 14, 0);
+            configuration.drawScreen(0, 0, 0.0F);
             GuiDropdownButton<?> choice = findDropdownButton(configScene.getContent());
             require(choice != null, "Config choice field uses the reusable dropdown button");
             configScene.mousePressed(choice.getLeft() + 5, choice.getTop() + 10, 0);
             Field menuField = GuiScreenScriptConfig.class.getDeclaredField("dropdown");
             menuField.setAccessible(true);
-            require(((GuiDropdownMenu) menuField.get(configuration)).isVisible(),
-                    "Config choice opens its anchored dropdown menu");
+            GuiDropdownMenu openMenu = (GuiDropdownMenu) menuField.get(configuration);
+            require(openMenu.isVisible(), "Config choice opens its anchored dropdown menu");
             setupFrame();
             configuration.drawScreen(choice.getLeft() + 5, choice.getTop() + 10, 0.0F);
             ImageIO.write(capture(), "png", new File(output, "script-config-dropdown.png"));
+            Field menuScrollField = GuiDropdownMenu.class.getDeclaredField("scroll");
+            menuScrollField.setAccessible(true);
+            GuiScrollView menuScroll = (GuiScrollView) menuScrollField.get(openMenu);
+            GuiContainer menuOptions = (GuiContainer) menuScroll.getContent();
+            GuiElement firstOption = menuOptions.getChildren().get(0);
+            require(menuOptions.getHeight() > menuScroll.getHeight()
+                    && firstOption.getRight() == menuScroll.getRight() - 5,
+                    "Scrollable dropdown options sit one pixel beside the scrollbar");
+            menuScroll.setScrollPosition(0, Integer.MAX_VALUE);
+            setupFrame();
+            configuration.drawScreen(0, 0, 0.0F);
+            ImageIO.write(capture(), "png", new File(output, "script-config-dropdown-scrolled.png"));
+            require(menuScroll.getScrollY() > 0, "Dropdown remains scrollable after reserving scrollbar space");
+            Method nextSection = GuiScreenScriptConfig.class.getDeclaredMethod("nextSection");
+            nextSection.setAccessible(true);
+            nextSection.invoke(configuration);
+            renderScreen(configuration, minecraft, output, "script-config-locked.png");
+            GuiConfigInput lockedInput = (GuiConfigInput) configRowMember(configuration, "title", null, "input");
+            Field textField = GuiConfigInput.class.getDeclaredField("field");
+            textField.setAccessible(true);
+            require(!lockedInput.isEnabled() && !((GuiTextBox) textField.get(lockedInput)).isEnabled,
+                    "Locked text fields render in the native disabled state");
+            require(!((GuiConfigSlider) configRowMember(configuration, "volume", null, "slider")).isEnabled()
+                    && !((GuiButton) configRowMember(configuration, "enabled", null, "action")).isEnabled(),
+                    "Locked sliders and buttons render disabled");
+            nextSection.invoke(configuration);
+            renderScreen(configuration, minecraft, output, "script-config-collections.png");
+            require(!configRowExists(configuration, "value", "music") && !configRowExists(configuration, "item", null),
+                    "Collections start closed without expanded=true");
+            GuiElement dictionaryToggle = (GuiElement) configRowMember(configuration, "channelLevels", null, "toggle");
+            require(configScene.mousePressed(dictionaryToggle.getRight() - 9, dictionaryToggle.getTop() + 14, 0),
+                    "Dictionary heading expands its entries");
+            configuration.drawScreen(0, 0, 0.0F);
+            require(configRowExists(configuration, "value", "music"), "Dictionary expansion reveals its entries");
+            dictionaryToggle = (GuiElement) configRowMember(configuration, "channelLevels", null, "toggle");
+            configScene.mousePressed(dictionaryToggle.getRight() - 9, dictionaryToggle.getTop() + 14, 0);
+            renderScreen(configuration, minecraft, output, "script-config-collections-collapsed.png");
+            require(!configRowExists(configuration, "value", "music")
+                    && !((GuiButton) configRowMember(configuration, "channelLevels", null, "action")).isVisible(),
+                    "Collapsed dictionaries hide entries and their add button");
+            dictionaryToggle = (GuiElement) configRowMember(configuration, "channelLevels", null, "toggle");
+            configScene.mousePressed(dictionaryToggle.getRight() - 9, dictionaryToggle.getTop() + 14, 0);
+            configuration.drawScreen(0, 0, 0.0F);
+            Field collectionScrollField = GuiScreenScriptConfig.class.getDeclaredField("scroll");
+            collectionScrollField.setAccessible(true);
+            GuiScrollView collectionScroll = (GuiScrollView) collectionScrollField.get(configuration);
+            collectionScroll.setScrollPosition(0, Integer.MAX_VALUE);
+            configuration.drawScreen(0, 0, 0.0F);
+            GuiElement listToggle = (GuiElement) configRowMember(configuration, "entries", null, "toggle");
+            require(configScene.mousePressed(listToggle.getRight() - 9, listToggle.getTop() + 14, 0),
+                    "Closed list heading reveals its add button");
+            configuration.drawScreen(0, 0, 0.0F);
+            collectionScroll.setScrollPosition(0, Integer.MAX_VALUE);
+            renderScreen(configuration, minecraft, output, "script-config-list-expanded.png");
+            listToggle = (GuiElement) configRowMember(configuration, "entries", null, "toggle");
+            GuiButton addListItem = (GuiButton) configRowMember(configuration, "entries", null, "action");
+            require(addListItem.isVisible() && addListItem.getTop() > listToggle.getBottom(),
+                    "An expanded list places its add button beneath its entries");
+            require(configScene.mousePressed(addListItem.getLeft() + 5, addListItem.getTop() + 10, 0),
+                    "List add button receives clicks");
+            configuration.drawScreen(0, 0, 0.0F);
+            collectionScroll.setScrollPosition(0, Integer.MAX_VALUE);
+            configuration.drawScreen(0, 0, 0.0F);
+            require(configRowExists(configuration, "item", null), "Adding to a list keeps its entries visible");
+            GuiConfigInput originalListItem = (GuiConfigInput) configRowMember(configuration, "item", null, "input");
+            ((GuiTextBox) textField.get(originalListItem)).setText("edited first");
+            listToggle = (GuiElement) configRowMember(configuration, "entries", null, "toggle");
+            require(configScene.mousePressed(listToggle.getRight() - 9, listToggle.getTop() + 14, 0),
+                    "List heading collapses its entries");
+            configuration.drawScreen(0, 0, 0.0F);
+            require(!configRowExists(configuration, "item", null), "Collapsed lists hide their entries");
+            listToggle = (GuiElement) configRowMember(configuration, "entries", null, "toggle");
+            configScene.mousePressed(listToggle.getRight() - 9, listToggle.getTop() + 14, 0);
+            configuration.drawScreen(0, 0, 0.0F);
+            collectionScroll.setScrollPosition(0, Integer.MAX_VALUE);
+            configuration.drawScreen(0, 0, 0.0F);
+            require("edited first"
+                    .equals(((GuiConfigInput) configRowMember(configuration, "item", null, "input")).value()),
+                    "Collapsing a collection preserves unsaved text edits");
+            addListItem = (GuiButton) configRowMember(configuration, "entries", null, "action");
+            GuiConfigInput firstListItem = (GuiConfigInput) configRowMember(configuration, "item", null, "input");
+            require(firstListItem.getLeft() == addListItem.getLeft()
+                    && addListItem.getTop() > firstListItem.getBottom(),
+                    "List add button aligns with entries and follows them");
+            require(configScene.mousePressed(addListItem.getLeft() + 5, addListItem.getTop() + 10, 0),
+                    "List add button receives clicks");
+            configuration.drawScreen(0, 0, 0.0F);
+            collectionScroll.setScrollPosition(0, 0);
+            configuration.drawScreen(0, 0, 0.0F);
+            GuiButton addDictionaryEntry = (GuiButton) configRowMember(configuration, "channelLevels", null, "action");
+            GuiConfigSlider firstDictionaryValue = (GuiConfigSlider) configRowMember(configuration, "value", "music",
+                    "slider");
+            GuiConfigInput firstDictionaryKey = (GuiConfigInput) configRowMember(configuration, "value", "music",
+                    "keyInput");
+            require(firstDictionaryKey.getLeft() == addDictionaryEntry.getLeft()
+                    && addDictionaryEntry.getTop() > firstDictionaryValue.getBottom()
+                    && firstDictionaryKey.getRight() + 10 == firstDictionaryValue.getLeft()
+                    && firstDictionaryKey.getWidth() < 100,
+                    "Dictionary add button follows entries and aligns with their keys");
+            require(configScene.mousePressed(addDictionaryEntry.getLeft() + 5, addDictionaryEntry.getTop() + 10, 0),
+                    "Dictionary add button receives clicks");
+            require(configRowMember(configuration, "value", "new_key", "keyInput") != null,
+                    "Dictionary add button creates an editable key");
+            configuration.drawScreen(0, 0, 0.0F);
+            GuiConfigInput editedKey = (GuiConfigInput) configRowMember(configuration, "value", "effects", "keyInput");
+            GuiTextBox keyText = (GuiTextBox) textField.get(editedKey);
+            Path collectionsFile = new File(configRoot, "showcase/collections.json").toPath();
+            byte[] beforeEdit = Files.readAllBytes(collectionsFile);
+            Method saveConfig = GuiScreenScriptConfig.class.getDeclaredMethod("save");
+            saveConfig.setAccessible(true);
+            keyText.setText("music");
+            saveConfig.invoke(configuration);
+            require(Arrays.equals(beforeEdit, Files.readAllBytes(collectionsFile)),
+                    "Duplicate dictionary keys must not overwrite a saved entry");
+            keyText.setText("ambience");
+            renderScreen(configuration, minecraft, output, "script-config-collections-modified.png");
+            saveConfig.invoke(configuration);
+            String savedCollections = new String(Files.readAllBytes(collectionsFile), StandardCharsets.UTF_8);
+            require(savedCollections.contains("\"ambience\"") && !savedCollections.contains("\"effects\"")
+                    && savedCollections.contains("\"new\"") && savedCollections.contains("\"new_key\"")
+                    && savedCollections.contains("edited first"),
+                    "Collection controls save list and dictionary additions and key renames: " + savedCollections);
+            Method resetConfig = GuiScreenScriptConfig.class.getDeclaredMethod("reset");
+            resetConfig.setAccessible(true);
+            resetConfig.invoke(configuration);
+            saveConfig.invoke(configuration);
+            String resetCollections = new String(Files.readAllBytes(collectionsFile), StandardCharsets.UTF_8);
+            require(resetCollections.contains("\"effects\"") && !resetCollections.contains("\"ambience\"")
+                    && !resetCollections.contains("\"new_key\"") && !resetCollections.contains("\"new\""),
+                    "Reset restores the declared collection entries");
+            nextSection.invoke(configuration);
+            renderScreen(configuration, minecraft, output, "script-config-compact.png");
+            require(!configRowExists(configuration, "music", null),
+                    "Fixed nested sections start closed without expanded=true");
+            GuiElement volumesToggle = (GuiElement) configRowMember(configuration, "volumes", null, "toggle");
+            require(configScene.mousePressed(volumesToggle.getRight() - 9, volumesToggle.getTop() + 14, 0),
+                    "Fixed nested heading expands its fields");
+            configuration.drawScreen(0, 0, 0.0F);
+            require(configRowMember(configuration, "volumes", null, "action") == null
+                    && configRowMember(configuration, "music", null, "remove") == null,
+                    "Predefined object fields have no add or remove controls");
+            GuiConfigSlider fixedMusicControl = (GuiConfigSlider) configRowMember(configuration, "music", null,
+                    "slider");
+            GuiConfigInput topLevelRates = (GuiConfigInput) configRowMember(configuration, "rates", null, "input");
+            require(fixedMusicControl.getLeft() > topLevelRates.getLeft()
+                    && fixedMusicControl.getRight() == topLevelRates.getRight(),
+                    "Declared fixed fields indent beneath their object");
+            Field scrollField = GuiScreenScriptConfig.class.getDeclaredField("scroll");
+            scrollField.setAccessible(true);
+            GuiScrollView configScroll = (GuiScrollView) scrollField.get(configuration);
+            configScroll.setScrollPosition(0, Integer.MAX_VALUE);
+            setupFrame();
+            configuration.drawScreen(0, 0, 0.0F);
+            ImageIO.write(capture(), "png", new File(output, "script-config-fixed-nested.png"));
+            configScroll.setScrollPosition(0, 0);
+            configuration.drawScreen(0, 0, 0.0F);
+            GuiConfigInput tagsInput = (GuiConfigInput) configRowMember(configuration, "tags", null, "input");
+            GuiConfigInput ratesInput = (GuiConfigInput) configRowMember(configuration, "rates", null, "input");
+            GuiTextBox tagsText = (GuiTextBox) textField.get(tagsInput);
+            GuiTextBox ratesText = (GuiTextBox) textField.get(ratesInput);
+            Path compactFile = new File(configRoot, "showcase/compact.json").toPath();
+            byte[] compactBefore = Files.readAllBytes(compactFile);
+            tagsText.setText("red, \"green, blue\", \"say \\\"hi\\\"\"");
+            ratesText.setText("music:0.5, music:0.75");
+            renderScreen(configuration, minecraft, output, "script-config-compact-modified.png");
+            saveConfig.invoke(configuration);
+            require(Arrays.equals(compactBefore, Files.readAllBytes(compactFile)),
+                    "Invalid compact dictionary text must not change the saved draft");
+            ratesText.setText("music:0.5, \"a:b\":1");
+            saveConfig.invoke(configuration);
+            String compactSaved = new String(Files.readAllBytes(compactFile), StandardCharsets.UTF_8);
+            require(compactSaved.contains("green, blue") && compactSaved.contains("say \\\"hi\\\"")
+                    && compactSaved.contains("\"a:b\": 1"),
+                    "Compact controls save quoted strings and typed dictionary values");
             renderScreen(scripts, minecraft, output, "scripts-name-tooltip.png", 45, 57);
             renderScreen(new GuiPopupDebugMenu(scripts), minecraft, output, "debug-menu.png");
             renderScreen(new GuiPopupDebugExport(scripts, (Exception) null), minecraft, output, "debug-export.png");
@@ -1009,6 +1247,8 @@ public final class GuiShowcaseRenderTest {
             ScriptResourceTracker.unload("loaded.lua");
             Files.deleteIfExists(new File(configRoot, "showcase.json").toPath());
             Files.deleteIfExists(new File(configRoot, "showcase/audio.json").toPath());
+            Files.deleteIfExists(new File(configRoot, "showcase/collections.json").toPath());
+            Files.deleteIfExists(new File(configRoot, "showcase/compact.json").toPath());
             Files.deleteIfExists(new File(configRoot, "showcase").toPath());
             Files.deleteIfExists(configRoot.toPath());
             NonReloadableScriptRegistry.unmark(restartFile);
@@ -1031,6 +1271,79 @@ public final class GuiShowcaseRenderTest {
             }
         }
         return null;
+    }
+
+    private static Object configRowMember(GuiScreenScriptConfig screen, String name, String slot, String member)
+            throws Exception {
+        Field formField = GuiScreenScriptConfig.class.getDeclaredField("form");
+        formField.setAccessible(true);
+        Object form = formField.get(screen);
+        Field rowsField = form.getClass().getDeclaredField("rows");
+        rowsField.setAccessible(true);
+        for (Object row : (List<?>) rowsField.get(form)) {
+            Field descriptorField = row.getClass().getDeclaredField("field");
+            descriptorField.setAccessible(true);
+            ScriptConfigField descriptor = (ScriptConfigField) descriptorField.get(row);
+            Field slotField = row.getClass().getDeclaredField("slot");
+            slotField.setAccessible(true);
+            if (name.equals(descriptor.name()) && (slot == null || slot.equals(slotField.get(row)))) {
+                Field valueField = row.getClass().getDeclaredField(member);
+                valueField.setAccessible(true);
+                return valueField.get(row);
+            }
+        }
+        throw new AssertionError("Missing config row: " + name + " / " + slot);
+    }
+
+    private static boolean configRowExists(GuiScreenScriptConfig screen, String name, String slot) throws Exception {
+        try {
+            return configRowMember(screen, name, slot, "field") != null;
+        } catch (AssertionError missing) {
+            return false;
+        }
+    }
+
+    private static void verifyCompactTextValues() {
+        ScriptConfigRegistration compact = null;
+        for (ScriptConfigRegistration registration : ScriptConfigRegistry.forScript("loaded.lua")) {
+            if ("showcase:compact".equals(registration.key())) {
+                compact = registration;
+                break;
+            }
+        }
+        require(compact != null, "Compact config fixture is registered");
+        ScriptConfigField tags = compact.fields().get("tags");
+        ScriptConfigField rates = compact.fields().get("rates");
+        ScriptConfigField switches = compact.fields().get("switches");
+        ScriptConfigField volumes = compact.fields().get("volumes");
+        require(volumes.collectionKind() == null && volumes.children().size() == 2,
+                "Predefined volumes remain a fixed object");
+        List<String> strings = Arrays.asList("red, blue", "a:b", "say \"hi\"", "path\\name", "line\nbreak", "");
+        String serialized = ScriptConfigTextValues.format(strings, tags);
+        require(strings.equals(ScriptConfigTextValues.parse(serialized, tags)),
+                "Compact text round-trips delimiters, quotes, escapes, and empty strings");
+        require(((List<?>) ScriptConfigTextValues.parse("  ", tags)).isEmpty()
+                && ((Map<?, ?>) ScriptConfigTextValues.parse("  ", rates)).isEmpty(),
+                "Blank compact fields represent empty collections");
+        require(Arrays.asList(Boolean.TRUE, Boolean.FALSE).equals(
+                ScriptConfigTextValues.parse("True, false", switches)), "Compact boolean lists accept True and False");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> named = (Map<String, Object>) ScriptConfigTextValues.parse("music:0.5, \"a:b\":1", rates);
+        require(named.size() == 2 && Double.valueOf(1).equals(named.get("a:b")),
+                "Compact dictionaries parse quoted keys and numeric values");
+        require(!acceptsCompact("red,", tags) && !acceptsCompact("\"unclosed", tags)
+                && !acceptsCompact("music:0.5, music:0.75", rates) && !acceptsCompact("music:1.25", rates)
+                && !acceptsCompact("music:0.6", rates) && !acceptsCompact("music:wrong", rates),
+                "Compact parser rejects malformed, duplicate, and invalid entries");
+    }
+
+    private static boolean acceptsCompact(String text, ScriptConfigField field) {
+        try {
+            ScriptConfigTextValues.parse(text, field);
+            return true;
+        } catch (IllegalArgumentException expected) {
+            return false;
+        }
     }
 
     private static void renderDimensionScreens(Minecraft minecraft, File output) throws Exception {

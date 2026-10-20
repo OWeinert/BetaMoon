@@ -16,17 +16,21 @@ public final class ScriptConfigField {
     private final Double maximum;
     private final Double step;
     private final String input;
+    private final String collectionKind;
     private final List<ScriptConfigChoice> choices;
+    private final boolean expanded;
     private final boolean readOnly;
     private final String readOnlyReason;
     private final int maxItems;
     private final ScriptConfigField element;
+    private final ScriptConfigField keyField;
+    private final ScriptConfigField valueField;
     private final Map<String, ScriptConfigField> children;
 
     ScriptConfigField(String name, String label, String description, Object defaultValue, Double minimum,
-            Double maximum, Double step, String input, List<ScriptConfigChoice> choices,
-            boolean readOnly, String readOnlyReason,
-            int maxItems, ScriptConfigField element, Map<String, ScriptConfigField> children) {
+            Double maximum, Double step, String input, String collectionKind, List<ScriptConfigChoice> choices,
+            boolean expanded, boolean readOnly, String readOnlyReason, int maxItems, ScriptConfigField element,
+            ScriptConfigField keyField, ScriptConfigField valueField, Map<String, ScriptConfigField> children) {
         this.name = name;
         this.label = label;
         this.description = description;
@@ -35,11 +39,15 @@ public final class ScriptConfigField {
         this.maximum = maximum;
         this.step = step;
         this.input = input;
+        this.collectionKind = collectionKind;
         this.choices = Collections.unmodifiableList(new ArrayList<ScriptConfigChoice>(choices));
+        this.expanded = expanded;
         this.readOnly = readOnly;
         this.readOnlyReason = readOnlyReason;
         this.maxItems = maxItems;
         this.element = element;
+        this.keyField = keyField;
+        this.valueField = valueField;
         this.children = Collections.unmodifiableMap(new LinkedHashMap<String, ScriptConfigField>(children));
     }
 
@@ -75,8 +83,16 @@ public final class ScriptConfigField {
         return input;
     }
 
+    public String collectionKind() {
+        return collectionKind;
+    }
+
     public List<ScriptConfigChoice> choices() {
         return choices;
+    }
+
+    public boolean expanded() {
+        return expanded;
     }
 
     public ScriptConfigChoice choice(Object value) {
@@ -104,6 +120,14 @@ public final class ScriptConfigField {
         return element;
     }
 
+    public ScriptConfigField keyField() {
+        return keyField;
+    }
+
+    public ScriptConfigField valueField() {
+        return valueField;
+    }
+
     public Map<String, ScriptConfigField> children() {
         return children;
     }
@@ -128,7 +152,9 @@ public final class ScriptConfigField {
         return value;
     }
 
-    /** Inferred editor shape for an existing array entry without element metadata. */
+    /**
+     * Inferred editor shape for an existing array entry without element metadata.
+     */
     public static ScriptConfigField inferred(String name, Object value) {
         Map<String, ScriptConfigField> nested = new LinkedHashMap<String, ScriptConfigField>();
         if (value instanceof Map) {
@@ -142,10 +168,10 @@ public final class ScriptConfigField {
         if (value instanceof List && !((List<?>) value).isEmpty()) {
             item = inferred("item", ((List<?>) value).get(0));
         }
-        String input = value instanceof Boolean ? "cycle"
+        String input = value instanceof Boolean
+                ? "cycle"
                 : value instanceof String || value instanceof Number ? "text" : null;
-        return new ScriptConfigField(name, name, "", value, null, null, null, input,
-                Collections.<ScriptConfigChoice>emptyList(),
-                false, "", 64, item, nested);
+        return new ScriptConfigField(name, name, "", value, null, null, null, input, null,
+                Collections.<ScriptConfigChoice>emptyList(), false, false, "", 64, item, null, null, nested);
     }
 }

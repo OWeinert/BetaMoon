@@ -15,7 +15,10 @@ import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
 
-/** Callable Lua config namespace backed by the instance's BetaMoon content folder. */
+/**
+ * Callable Lua config namespace backed by the instance's BetaMoon content
+ * folder.
+ */
 public final class ConfigApi {
     private ConfigApi() {
     }
@@ -36,9 +39,9 @@ public final class ConfigApi {
                         ScriptConfigMetadata.defaultHints(defaultsTable, options));
                 ScriptConfigKey key = ScriptConfigKey.parse(name);
                 File root = configRoot == null ? defaultRoot() : configRoot;
-                ScriptConfigStore store = new ScriptConfigStore(root.toPath(), key, defaults);
                 String source = owner == null ? "<unowned>" : owner;
                 ScriptConfigMetadata metadata = ScriptConfigMetadata.parse(key.toString(), defaults, options);
+                ScriptConfigStore store = new ScriptConfigStore(root.toPath(), key, defaults, metadata.fields);
                 ScriptConfigRegistry.checkAvailable(source, key.toString(), store);
                 Map<String, Object> initial;
                 boolean malformed = false;
@@ -53,8 +56,8 @@ public final class ConfigApi {
                 ScriptConfig live = new ScriptConfig();
                 ScriptConfigValues.update(live, ScriptConfigValues.toLua(initial).checktable());
                 ScriptConfigRegistration registration = new ScriptConfigRegistration(source,
-                        ScriptResourceTracker.ownerGeneration(source), key.toString(), store, metadata, live,
-                        initial, malformed);
+                        ScriptResourceTracker.ownerGeneration(source), key.toString(), store, metadata, live, initial,
+                        malformed);
                 live.install(registration);
                 ScriptConfigRegistry.register(registration, store);
                 return live;
@@ -101,7 +104,8 @@ public final class ConfigApi {
                         registration.reloadLua();
                         return TRUE;
                     } catch (IOException error) {
-                        throw new LuaError("Could not reload config '" + registration.key() + "': " + error.getMessage());
+                        throw new LuaError(
+                                "Could not reload config '" + registration.key() + "': " + error.getMessage());
                     }
                 }
             });

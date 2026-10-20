@@ -13,7 +13,9 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.jse.JsePlatform;
 
-/** Exercises config file paths, table access, explicit writes and safe reloads. */
+/**
+ * Exercises config file paths, table access, explicit writes and safe reloads.
+ */
 public final class ConfigApiTest {
     private ConfigApiTest() {
     }
@@ -37,18 +39,15 @@ public final class ConfigApiTest {
             require(Files.isRegularFile(flat), "A simple key creates a flat config file");
 
             run(lua, "config.enemyHealth=1.25; config.loot.dropRate=0.5; config.enabled=nil; "
-                    + "config.tags={}; assert(config.save())\n"
-                    + "assert(config.enabled and #config.tags==0)\n"
+                    + "config.tags={}; assert(config.save())\n" + "assert(config.enabled and #config.tags==0)\n"
                     + "heldLoot=config.loot; config.enemyHealth=9; assert(config.reload())\n"
                     + "assert(config.enemyHealth==1.25 and config.loot.dropRate==0.5)\n"
                     + "assert(config.loot==heldLoot)\n");
             require(read(flat).contains("\"enemyHealth\": 1.25"), "Explicit save writes current values");
             require(read(flat).contains("\"tags\": []"), "An emptied declared array stays a JSON array");
 
-            Files.write(flat, "{\"enemyHealth\":2,\"loot\":{\"dropRate\":0.75}}"
-                    .getBytes(StandardCharsets.UTF_8));
-            run(lua, "assert(not pcall(function() config.save() end))\n"
-                    + "assert(config.reload())\n"
+            Files.write(flat, "{\"enemyHealth\":2,\"loot\":{\"dropRate\":0.75}}".getBytes(StandardCharsets.UTF_8));
+            run(lua, "assert(not pcall(function() config.save() end))\n" + "assert(config.reload())\n"
                     + "assert(config.enemyHealth==2 and config.loot.dropRate==0.75 and config.enabled)\n"
                     + "assert(config.loot==heldLoot)\n");
             Files.write(flat, "{broken".getBytes(StandardCharsets.UTF_8));
@@ -56,8 +55,7 @@ public final class ConfigApiTest {
                     + "assert(config.enemyHealth==2 and config.loot.dropRate==0.75)\n");
             require(read(flat).equals("{broken"), "Failed reload leaves the file untouched");
 
-            run(lua, "named=betamoon.config('mymod:gameplay',{difficulty=3})\n"
-                    + "assert(named.difficulty==3)\n"
+            run(lua, "named=betamoon.config('mymod:gameplay',{difficulty=3})\n" + "assert(named.difficulty==3)\n"
                     + "assert(not pcall(function() betamoon.config('../escape',{}) end))\n"
                     + "assert(not pcall(function() betamoon.config('mymod:../escape',{}) end))\n"
                     + "assert(not pcall(function() betamoon.config('bad',{save=1}) end))\n"
@@ -77,8 +75,7 @@ public final class ConfigApiTest {
                     + "{volume=2,enabled=true,nested={ratio=0.5},items={}},"
                     + "{label='Gameplay',fields={volume={label='Volume',min=0,max=10,step=1},"
                     + "enabled={readOnly=true,readOnlyReason='Startup choice'},"
-                    + "items={element={default='new'},maxItems=3},"
-                    + "nested={fields={ratio={min=0,max=1}}}},"
+                    + "items={element={default='new'},maxItems=3}," + "nested={fields={ratio={min=0,max=1}}}},"
                     + "onChange=function(values,previous,changed) changes=changes+1;"
                     + " paths=changed; assert(previous.volume~=values.volume) end})\n");
             ScriptConfigRegistration ui = find("config_api_test.lua", "mymod:ui");
@@ -125,10 +122,8 @@ public final class ConfigApiTest {
             run(lua, "inputs=betamoon.config('mymod:inputs',"
                     + "{title='Ada',mode='normal',count=2,speed=0.5,level=2,enabled=true,items={}},"
                     + "{fields={mode={input='choice',choices={{value='normal',label='Normal'},"
-                    + "{value='hard',label='Hard'}}},"
-                    + "count={input='choice',choices={{value=1,label='Low'},2,3}},"
-                    + "speed={input='slider',min=0,max=1,step=0.25},"
-                    + "level={input='cycle',choices={1,2,3}},"
+                    + "{value='hard',label='Hard'}}}," + "count={input='choice',choices={{value=1,label='Low'},2,3}},"
+                    + "speed={input='slider',min=0,max=1,step=0.25}," + "level={input='cycle',choices={1,2,3}},"
                     + "items={element={default=1,input='slider',min=0,max=4,step=1}}}})\n");
             ScriptConfigRegistration inputs = find("config_api_test.lua", "mymod:inputs");
             require("text".equals(inputs.fields().get("title").input()), "Strings default to text input");
@@ -155,6 +150,87 @@ public final class ConfigApiTest {
                     + "assert(not pcall(function() betamoon.config('mymod:bad-type',{value=true},"
                     + "{fields={value={input='text'}}}) end))\n");
 
+            run(lua, "collections=betamoon.config('mymod:collections',"
+                    + "{tasks={'first'},volumes={music=0.5,effects=0.75},empty={}},"
+                    + "{fields={tasks={input='collection',kind='list',expanded=true,maxItems=3,"
+                    + "element={default='new',input='text'}},"
+                    + "volumes={input='collection',kind='dictionary',maxItems=3,"
+                    + "key={input='text'},value={default=0.5,input='slider',min=0,max=1,step=0.25}},"
+                    + "empty={input='collection',kind='dictionary',maxItems=2,"
+                    + "key={input='text'},value={default='new',input='text'}}}})\n");
+            ScriptConfigRegistration collections = find("config_api_test.lua", "mymod:collections");
+            require("list".equals(collections.fields().get("tasks").collectionKind()),
+                    "List collection retains its entry descriptor");
+            require(collections.fields().get("tasks").expanded(), "Collection may opt into initial expansion");
+            require("dictionary".equals(collections.fields().get("volumes").collectionKind()),
+                    "Dictionary collection retains its key and value descriptors");
+            require(!collections.fields().get("volumes").expanded(),
+                    "Collections without expanded metadata start closed");
+            Map<String, Object> collectionDraft = collections.draft();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> volumes = (Map<String, Object>) collectionDraft.get("volumes");
+            volumes.remove("music");
+            volumes.put("voice", Double.valueOf(0.25));
+            @SuppressWarnings("unchecked")
+            List<Object> tasks = (List<Object>) collectionDraft.get("tasks");
+            tasks.add("second");
+            collections.saveDraft(collectionDraft);
+            run(lua, "assert(collections.volumes.music==nil and collections.volumes.voice==0.25)\n"
+                    + "assert(collections.tasks[2]=='second')\n"
+                    + "assert(collections.reload() and collections.volumes.music==nil)\n"
+                    + "collections.volumes.effects=nil; assert(collections.save())\n"
+                    + "assert(collections.reload() and collections.volumes.effects==nil)\n");
+            require(!read(root.resolve("mymod/collections.json")).contains("\"music\""),
+                    "Removed default dictionary keys remain absent on disk");
+            Map<String, Object> badCollection = collections.draft();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> badVolumes = (Map<String, Object>) badCollection.get("volumes");
+            badVolumes.put("invalid", "wrong type");
+            require(!canSave(collections, badCollection), "Dictionary values follow the shared descriptor");
+            Map<String, Object> tooManyEntries = collections.draft();
+            @SuppressWarnings("unchecked")
+            List<Object> extraTasks = (List<Object>) tooManyEntries.get("tasks");
+            extraTasks.add("third");
+            extraTasks.add("fourth");
+            require(!canSave(collections, tooManyEntries), "Collection maxItems limits GUI drafts");
+            run(lua, "collections.tasks[3]='third'; collections.tasks[4]='fourth'; "
+                    + "assert(collections.save() and collections.reload() and #collections.tasks==4)\n");
+            run(lua, "assert(not pcall(function() betamoon.config('mymod:bad-kind',{values={1}},"
+                    + "{fields={values={input='collection',kind='dictionary',key={input='text'},"
+                    + "value={default=1}}}}) end))\n"
+                    + "assert(not pcall(function() betamoon.config('mymod:bad-value',{values={a=1}},"
+                    + "{fields={values={input='collection',kind='dictionary',key={input='text'},"
+                    + "value={default='text'}}}}) end))\n"
+                    + "assert(not pcall(function() betamoon.config('mymod:bad-expanded-scalar',{value=1},"
+                    + "{fields={value={expanded=true}}}) end))\n"
+                    + "assert(not pcall(function() betamoon.config('mymod:bad-expanded-type',{value={a=1}},"
+                    + "{fields={value={expanded='yes'}}}) end))\n");
+
+            run(lua, "compact=betamoon.config('mymod:compact',"
+                    + "{tags={'red','blue'},rates={music=0.5},volumes={music=0.5,effects=0.75}},"
+                    + "{fields={tags={input='text',kind='list',element={default='new'}},"
+                    + "rates={input='text',kind='dictionary',key={input='text'},value={default=0.5}},"
+                    + "volumes={expanded=true,fields={music={min=0,max=1},effects={min=0,max=1}}}}})\n");
+            ScriptConfigRegistration compact = find("config_api_test.lua", "mymod:compact");
+            require("list".equals(compact.fields().get("tags").collectionKind())
+                    && "text".equals(compact.fields().get("tags").input()),
+                    "Compact list keeps its element descriptor");
+            require("dictionary".equals(compact.fields().get("rates").collectionKind())
+                    && "text".equals(compact.fields().get("rates").input()),
+                    "Compact dictionary keeps its key and value descriptors");
+            require(compact.fields().get("volumes").collectionKind() == null
+                    && compact.fields().get("volumes").children().size() == 2
+                    && compact.fields().get("volumes").expanded(),
+                    "Declared nested fields may opt into initial expansion");
+            run(lua, "assert(not pcall(function() betamoon.config('mymod:bad-text-kind',{values={'a'}},"
+                    + "{fields={values={input='text',element={default='new'}}}}) end))\n"
+                    + "assert(not pcall(function() betamoon.config('mymod:bad-fixed-text',{values={a=1}},"
+                    + "{fields={values={input='text',fields={a={}}}}}) end))\n"
+                    + "assert(not pcall(function() betamoon.config('mymod:bad-text-value',{values={{x=1}}},"
+                    + "{fields={values={input='text',kind='list',element={default={x=1}}}}}) end))\n"
+                    + "assert(not pcall(function() betamoon.config('mymod:bad-text-expanded',{values={'a'}},"
+                    + "{fields={values={input='text',kind='list',expanded=true,element={default='new'}}}}) end))\n");
+
             run(lua, "failApply=true; applied=0; unstable=betamoon.config('mymod:unstable',"
                     + "{value=1},{onChange=function(values,previous,paths) "
                     + "if failApply then error('transient failure') end; applied=applied+1 end})\n"
@@ -178,12 +254,15 @@ public final class ConfigApiTest {
             ScriptResourceTracker.unload("scoped.lua");
             require(ScriptConfigRegistry.forScript("scoped.lua").isEmpty(),
                     "Unloading the script removes its editable definition");
-            System.out.println("Script config API passed: paths, table access, save, reload, input metadata, validation "
-                    + "file conflicts, GUI drafts and live callbacks.");
+            System.out
+                    .println("Script config API passed: paths, table access, save, reload, input metadata, validation "
+                            + "file conflicts, GUI drafts and live callbacks.");
         } finally {
             deleteIfPresent(root.resolve("scoped.json"));
             deleteIfPresent(root.resolve("mymod/unstable.json"));
             deleteIfPresent(root.resolve("mymod/inputs.json"));
+            deleteIfPresent(root.resolve("mymod/collections.json"));
+            deleteIfPresent(root.resolve("mymod/compact.json"));
             deleteIfPresent(root.resolve("mymod/ui.json"));
             deleteIfPresent(root.resolve("mymod/gameplay.json"));
             deleteIfPresent(root.resolve("mymod"));

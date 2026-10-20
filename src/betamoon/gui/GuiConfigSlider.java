@@ -9,8 +9,7 @@ import org.lwjgl.input.Keyboard;
 
 /** Stepped numeric slider for the script configuration screen. */
 final class GuiConfigSlider extends GuiElement {
-    private static final int VALUE_WIDTH = 40;
-    private static final int TRACK_INSET = 5;
+    private static final int THUMB_WIDTH = 8;
 
     private final double minimum;
     private final double maximum;
@@ -38,24 +37,29 @@ final class GuiConfigSlider extends GuiElement {
 
     @Override
     protected void renderElement(GuiContext context) {
-        int trackLeft = trackLeft();
-        int trackRight = trackRight();
-        int trackY = getTop() + getHeight() / 2;
-        int thumb = trackLeft + (int) Math.round(fraction() * (trackRight - trackLeft));
-        context.getRenderer().drawRect(getBounds(), 0xFF333333);
-        context.getRenderer().drawRect(getLeft() + 1, getTop() + 1, getRight() - 1, getBottom() - 1,
-                isEnabled() ? 0xFF777777 : 0xFF555555);
-        context.getRenderer().drawRect(trackLeft, trackY - 2, trackRight + 1, trackY + 2, 0xFF222222);
-        context.getRenderer().drawRect(trackLeft, trackY - 1, thumb + 1, trackY + 1,
-                isEnabled() ? 0xFFDDDDDD : 0xFF999999);
-        context.getRenderer().drawRect(thumb - 2, getTop() + 3, thumb + 3, getBottom() - 3,
-                isEnabled() ? 0xFFE0E0E0 : 0xFF999999);
+        boolean hovered = isEnabled() && contains(context.getMouseX(), context.getMouseY())
+                && context.getRenderer().isPointVisible(context.getMouseX(), context.getMouseY());
+        int thumbLeft = trackLeft() + (int) Math.round(fraction() * (trackRight() - trackLeft())) - THUMB_WIDTH / 2;
 
-        String label = context.getRenderer().trimToWidth(format(value), VALUE_WIDTH - 4);
-        int labelLeft = getRight() - VALUE_WIDTH + (VALUE_WIDTH - context.getRenderer().textWidth(label)) / 2;
+        context.getRenderer().drawRect(getBounds(), 0xFF000000);
+        context.getRenderer().drawRect(getLeft() + 1, getTop() + 1, getRight() - 1, getBottom() - 1,
+                isEnabled() ? hovered ? 0xFF303030 : 0xFF202020 : 0xFF171717);
+        context.getRenderer().drawRect(thumbLeft, getTop() + 1, thumbLeft + THUMB_WIDTH, getBottom() - 1, 0xFF000000);
+        context.getRenderer().drawRect(thumbLeft + 1, getTop() + 2, thumbLeft + THUMB_WIDTH - 1, getBottom() - 2,
+                isEnabled() ? hovered ? 0xFF999999 : 0xFF777777 : 0xFF555555);
+        context.getRenderer().drawRect(thumbLeft + 1, getTop() + 2, thumbLeft + THUMB_WIDTH - 2, getTop() + 3,
+                isEnabled() ? 0xFFB0B0B0 : 0xFF777777);
+        context.getRenderer().drawRect(thumbLeft + 1, getTop() + 2, thumbLeft + 2, getBottom() - 2,
+                isEnabled() ? 0xFF999999 : 0xFF707070);
+        context.getRenderer().drawRect(thumbLeft + THUMB_WIDTH - 2, getTop() + 2, thumbLeft + THUMB_WIDTH - 1,
+                getBottom() - 2, isEnabled() ? 0xFF555555 : 0xFF393939);
+
+        String label = context.getRenderer().trimToWidth(format(value), Math.max(0, getWidth() - 8));
+        int labelLeft = getLeft() + (getWidth() - context.getRenderer().textWidth(label)) / 2;
         int labelTop = getTop() + (getHeight() - context.getRenderer().lineHeight() + 1) / 2;
         context.getRenderer().drawText(label, labelLeft, labelTop,
-                isEnabled() ? context.getRenderer().getTheme().textPrimary
+                isEnabled()
+                        ? context.getRenderer().getTheme().textPrimary
                         : context.getRenderer().getTheme().textMuted);
         if (isFocused()) {
             context.getRenderer().drawRect(getLeft(), getTop(), getRight(), getTop() + 1, 0xFFFFFFA0);
@@ -101,11 +105,11 @@ final class GuiConfigSlider extends GuiElement {
     }
 
     private int trackLeft() {
-        return getLeft() + TRACK_INSET;
+        return getLeft() + 1 + THUMB_WIDTH / 2;
     }
 
     private int trackRight() {
-        return Math.max(trackLeft(), getRight() - VALUE_WIDTH - TRACK_INSET);
+        return Math.max(trackLeft(), getRight() - 1 - THUMB_WIDTH / 2);
     }
 
     private double fraction() {
