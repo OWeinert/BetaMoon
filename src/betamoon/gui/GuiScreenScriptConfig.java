@@ -25,7 +25,6 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
     private static final int FOOTER_BUTTON_HEIGHT = 20;
     private static final int FOOTER_ROW_SPACING = 4;
     private static final int FOOTER_BUTTON_GAP = 6;
-    private static final int SIDE_BUTTON_WIDTH = 50;
     private static final int RESET_BUTTON_WIDTH = 110;
 
     private final GuiScreen parent;
@@ -279,15 +278,17 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
             }
             int resetTop = footerTop + (hasSecondaryAction ? FOOTER_BUTTON_HEIGHT + FOOTER_ROW_SPACING : 0);
             int resetWidth = Math.min(RESET_BUTTON_WIDTH, usable);
-            reset.arrange(context, Rect.fromPositionAndSize(centerX - resetWidth / 2,
+            int rowLeft = centerX - resetWidth / 2;
+            reset.arrange(context, Rect.fromPositionAndSize(rowLeft,
                     resetTop, resetWidth, FOOTER_BUTTON_HEIGHT));
-            int sideWidth = Math.min(SIDE_BUTTON_WIDTH, Math.max(0, (usable - FOOTER_BUTTON_GAP) / 2));
-            int pairLeft = centerX - (2 * sideWidth + FOOTER_BUTTON_GAP) / 2;
+            int pairGap = Math.min(FOOTER_BUTTON_GAP, resetWidth);
+            int saveWidth = (resetWidth - pairGap) / 2;
+            int cancelWidth = resetWidth - pairGap - saveWidth;
             int pairTop = resetTop + FOOTER_BUTTON_HEIGHT + FOOTER_ROW_SPACING;
-            save.arrange(context, Rect.fromPositionAndSize(pairLeft, pairTop,
-                    sideWidth, FOOTER_BUTTON_HEIGHT));
-            cancel.arrange(context, Rect.fromPositionAndSize(pairLeft + sideWidth + FOOTER_BUTTON_GAP,
-                    pairTop, sideWidth, FOOTER_BUTTON_HEIGHT));
+            save.arrange(context, Rect.fromPositionAndSize(rowLeft, pairTop,
+                    saveWidth, FOOTER_BUTTON_HEIGHT));
+            cancel.arrange(context, Rect.fromPositionAndSize(rowLeft + saveWidth + pairGap,
+                    pairTop, cancelWidth, FOOTER_BUTTON_HEIGHT));
         }
 
         @Override
