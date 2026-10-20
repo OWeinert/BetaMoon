@@ -5,7 +5,9 @@ import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiGeometry.Constraints;
 import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.framework.GuiTextureCache;
+import betamoon.gui.widget.GuiButton;
 import betamoon.gui.widget.GuiScrollView;
+import betamoon.luaapi.config.ScriptConfigRegistry;
 import betamoon.luamodloader.LuaModLoader;
 import betamoon.luamodloader.LuaScriptErrors;
 import betamoon.luamodloader.LuaScriptErrors.ScriptIssue;
@@ -16,6 +18,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Consumer;
 
 /** Script details with measured, consecutive sections and the same interactive entries as the popup. */
 final class GuiPanelScriptInfo extends GuiContainer {
@@ -30,6 +33,7 @@ final class GuiPanelScriptInfo extends GuiContainer {
     private final ScriptInfoContent content;
     private final GuiScrollView scrollView;
     private final GuiScriptRestartIndicator warningIndicator = new GuiScriptRestartIndicator(null);
+    private final GuiButton configureButton;
     private ScriptMod selected;
     private ScriptInfoLayout currentLayout;
     private long issueRevision = -1;
@@ -37,10 +41,19 @@ final class GuiPanelScriptInfo extends GuiContainer {
     private float headerScale = 1.0F;
 
     GuiPanelScriptInfo() {
-        this(new GuiScriptIssueActions());
+        this(new GuiScriptIssueActions(), null);
     }
 
     GuiPanelScriptInfo(GuiScriptIssueActions actions) {
+        this(actions, null);
+    }
+
+    GuiPanelScriptInfo(GuiScriptIssueActions actions, Consumer<ScriptMod> configure) {
+        configureButton = new GuiButton("Configure", 90, () -> {
+            if (selected != null && configure != null) {
+                configure.accept(selected);
+            }
+        });
         content = new ScriptInfoContent(actions);
         scrollView = add(new GuiScrollView(content, GuiScrollView.Policy.VERTICAL));
     }
@@ -103,6 +116,7 @@ final class GuiPanelScriptInfo extends GuiContainer {
         private ScriptInfoContent(GuiScriptIssueActions actions) {
             errors = add(new GuiScriptIssueEntries(actions));
             warnings = add(new GuiScriptIssueEntries(actions));
+            add(configureButton);
         }
 
         @Override
@@ -111,6 +125,11 @@ final class GuiPanelScriptInfo extends GuiContainer {
                 return;
             }
             ScriptInfoLayout layout = currentLayout;
+            boolean configurable = selected.isLoaded()
+                    && !ScriptConfigRegistry.forScript(selected.getSourceFileName()).isEmpty();
+            configureButton.setVisible(configurable);
+            configureButton.arrange(context, Rect.fromPositionAndSize(getLeft() + IMAGE_SIZE + IMAGE_GAP,
+                    getTop() + 23, Math.min(110, Math.max(0, getWidth() - IMAGE_SIZE - IMAGE_GAP)), 20));
             errors.setVisible(layout.errorY >= 0);
             warnings.setVisible(layout.warningY >= 0);
             if (layout.errorY >= 0) {

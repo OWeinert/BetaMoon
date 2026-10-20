@@ -26,6 +26,7 @@ import betamoon.gui.widget.GuiScrollView;
 import betamoon.gui.widget.GuiTextBox;
 import betamoon.io.IoUtils;
 import betamoon.instrumentation.hooks.texture.TextureResourceCallbacks;
+import betamoon.luaapi.config.ConfigApi;
 import betamoon.luaapi.minecraft.MinecraftApi;
 import betamoon.luaapi.tileentity.TileEntityApi;
 import betamoon.luamodloader.LuaScriptErrors;
@@ -33,6 +34,7 @@ import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.MultiblockExamplesTest;
 import betamoon.luamodloader.NonReloadableScriptRegistry;
 import betamoon.luamodloader.ScriptMod;
+import betamoon.luamodloader.ScriptResourceTracker;
 import betamoon.resources.LuaTextureResources;
 import betamoon.tileentity.ContainerControlRuntime;
 import betamoon.tileentity.ContainerPresentationRuntime;
@@ -884,10 +886,29 @@ public final class GuiShowcaseRenderTest {
         LuaScriptErrors.clear();
         LuaScriptRegistry.clear();
         String restartFile = "broken.lua";
+        File configRoot = new File(output, "script-config-fixture");
+        configRoot.mkdirs();
         try {
-            LuaScriptRegistry.updateParsed("loaded.lua", "Advanced Fabrication Recipes Example",
+            ScriptMod loaded = LuaScriptRegistry.updateParsed("loaded.lua", "Advanced Fabrication Recipes Example",
                     Collections.<String>emptyList(), LuaValue.NIL, LuaValue.NIL, LuaValue.NIL,
                     "A successfully loaded script.", "1.2.3", null);
+            LuaScriptRegistry.markLoadedByFile("loaded.lua");
+            LuaTable configModule = new LuaTable();
+            ConfigApi.attach(configModule, configRoot, "loaded.lua");
+            Globals configLua = JsePlatform.standardGlobals();
+            configLua.set("betamoon", configModule);
+            Method owner = LuaScriptRegistry.class.getDeclaredMethod("setCurrentScriptFile", String.class);
+            owner.setAccessible(true);
+            owner.invoke(null, "loaded.lua");
+            try {
+                configLua.load("betamoon.config('showcase', {enabled=true, strength=2, "
+                        + "advanced={rate=0.5}, tags={'starter'}}, "
+                        + "{label='Gameplay', description='Settings available in game', "
+                        + "fields={strength={min=0,max=10}, tags={maxItems=6}}}); "
+                        + "betamoon.config('showcase:audio', {volume=0.7}, {label='Audio'})").call();
+            } finally {
+                owner.invoke(null, new Object[] { null });
+            }
             ScriptMod failed = LuaScriptRegistry.updateParsed(restartFile, "Broken Example",
                     Collections.singletonList("missing_dependency"), LuaValue.NIL, LuaValue.NIL, LuaValue.NIL,
                     "This script demonstrates failure and restart-required states.", "0.4.0", null);
@@ -898,12 +919,18 @@ public final class GuiShowcaseRenderTest {
 
             GuiScreenScripts scripts = new GuiScreenScripts(new GuiScreen());
             renderScreen(scripts, minecraft, output, "scripts-screen.png");
+            renderScreen(new GuiScreenScriptConfig(scripts, loaded), minecraft, output, "script-config.png");
             renderScreen(scripts, minecraft, output, "scripts-name-tooltip.png", 45, 57);
             renderScreen(new GuiPopupDebugMenu(scripts), minecraft, output, "debug-menu.png");
             renderScreen(new GuiPopupDebugExport(scripts, (Exception) null), minecraft, output, "debug-export.png");
             renderScreen(new GuiPopupScriptErrors(scripts), minecraft, output, "script-errors.png");
             renderScreen(new GuiPopupAgentWarning(scripts), minecraft, output, "agent-warning.png");
         } finally {
+            ScriptResourceTracker.unload("loaded.lua");
+            Files.deleteIfExists(new File(configRoot, "showcase.json").toPath());
+            Files.deleteIfExists(new File(configRoot, "showcase/audio.json").toPath());
+            Files.deleteIfExists(new File(configRoot, "showcase").toPath());
+            Files.deleteIfExists(configRoot.toPath());
             NonReloadableScriptRegistry.unmark(restartFile);
             LuaScriptErrors.clear();
             LuaScriptRegistry.clear();

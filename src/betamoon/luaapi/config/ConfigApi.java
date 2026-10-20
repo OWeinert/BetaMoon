@@ -4,6 +4,7 @@ import betamoon.BetaMoonCommon;
 import betamoon.io.BetaMoonDirectories;
 import betamoon.io.IoUtils;
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.luamodloader.ScriptResourceTracker;
 import java.io.File;
 import java.io.IOException;
 import java.util.Map;
@@ -25,24 +26,38 @@ public final class ConfigApi {
         metatable.set("__call", new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs args) {
-                if (args.narg() != 3 || args.arg1() != namespace) {
-                    throw new LuaError("Use betamoon.config(key, defaults)");
+                if ((args.narg() != 3 && args.narg() != 4) || args.arg1() != namespace) {
+                    throw new LuaError("Use betamoon.config(key, defaults[, options])");
                 }
                 String name = args.arg(2).checkjstring();
                 LuaTable defaultsTable = args.arg(3).checktable();
-                Map<String, Object> defaults = ScriptConfigValues.snapshot(defaultsTable, null);
+                LuaValue options = args.narg() == 4 ? args.arg(4) : LuaValue.NIL;
+                Map<String, Object> defaults = ScriptConfigValues.snapshot(defaultsTable,
+                        ScriptConfigMetadata.defaultHints(defaultsTable, options));
                 ScriptConfigKey key = ScriptConfigKey.parse(name);
                 File root = configRoot == null ? defaultRoot() : configRoot;
                 ScriptConfigStore store = new ScriptConfigStore(root.toPath(), key, defaults);
+                String source = owner == null ? "<unowned>" : owner;
+                ScriptConfigMetadata metadata = ScriptConfigMetadata.parse(key.toString(), defaults, options);
+                ScriptConfigRegistry.checkAvailable(source, key.toString(), store);
                 Map<String, Object> initial;
+                boolean malformed = false;
                 try {
                     initial = store.open();
                 } catch (IOException error) {
                     reportLoadError(owner, "Could not load config '" + key + "': " + error.getMessage()
                             + ". Using defaults without replacing the file.");
                     initial = store.defaults();
+                    malformed = true;
                 }
-                return new ScriptConfig(store, initial);
+                ScriptConfig live = new ScriptConfig();
+                ScriptConfigValues.update(live, ScriptConfigValues.toLua(initial).checktable());
+                ScriptConfigRegistration registration = new ScriptConfigRegistration(source,
+                        ScriptResourceTracker.ownerGeneration(source), key.toString(), store, metadata, live,
+                        initial, malformed);
+                live.install(registration);
+                ScriptConfigRegistry.register(registration, store);
+                return live;
             }
         });
         namespace.setmetatable(metatable);
@@ -66,17 +81,16 @@ public final class ConfigApi {
     }
 
     private static final class ScriptConfig extends LuaTable {
-        private ScriptConfig(ScriptConfigStore store, Map<String, Object> initial) {
-            ScriptConfigValues.update(this, ScriptConfigValues.toLua(initial).checktable());
+        private void install(ScriptConfigRegistration registration) {
             LuaTable methods = new LuaTable();
             methods.set("save", new ZeroArgFunction() {
                 @Override
                 public LuaValue call() {
                     try {
-                        store.save(ScriptConfig.this);
+                        registration.saveLua();
                         return TRUE;
                     } catch (IOException error) {
-                        throw new LuaError("Could not save config '" + store.fileName() + "': " + error.getMessage());
+                        throw new LuaError("Could not save config '" + registration.key() + "': " + error.getMessage());
                     }
                 }
             });
@@ -84,10 +98,10 @@ public final class ConfigApi {
                 @Override
                 public LuaValue call() {
                     try {
-                        store.reload(ScriptConfig.this);
+                        registration.reloadLua();
                         return TRUE;
                     } catch (IOException error) {
-                        throw new LuaError("Could not reload config '" + store.fileName() + "': " + error.getMessage());
+                        throw new LuaError("Could not reload config '" + registration.key() + "': " + error.getMessage());
                     }
                 }
             });

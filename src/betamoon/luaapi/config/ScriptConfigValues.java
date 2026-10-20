@@ -30,6 +30,38 @@ final class ScriptConfigValues {
         return result;
     }
 
+    static Object snapshotValue(LuaValue value) {
+        LuaTable wrapper = new LuaTable();
+        wrapper.set("value", value);
+        return snapshot(wrapper, null).get("value");
+    }
+
+    static Map<String, Object> copy(Map<String, Object> source) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> result = (Map<String, Object>) copyValue(source);
+        return result;
+    }
+
+    private static Object copyValue(Object value) {
+        if (value instanceof Map) {
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> source = (Map<String, Object>) value;
+            for (Map.Entry<String, Object> entry : source.entrySet()) {
+                result.put(entry.getKey(), copyValue(entry.getValue()));
+            }
+            return result;
+        }
+        if (value instanceof List) {
+            List<Object> result = new ArrayList<Object>();
+            for (Object entry : (List<?>) value) {
+                result.add(copyValue(entry));
+            }
+            return result;
+        }
+        return value;
+    }
+
     private Object fromLua(LuaValue value, String path, int depth, Object expected, boolean root) {
         if (depth > MAX_DEPTH || ++count > MAX_VALUES) {
             throw new LuaError(path + ": config nesting or value count exceeds limits");

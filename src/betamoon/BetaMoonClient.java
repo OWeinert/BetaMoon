@@ -1,5 +1,7 @@
 package betamoon;
 
+import betamoon.luaapi.config.ScriptConfigRegistry;
+
 import betamoon.client.LuaLoaderClientFeedback;
 import betamoon.client.diagnostics.ClientScriptDiagnostics;
 import betamoon.client.assets.ClientAssets;
@@ -124,6 +126,7 @@ public final class BetaMoonClient {
     }
 
     public boolean onTickInGUI(net.minecraft.client.Minecraft mc, GuiScreen current) {
+        ScriptConfigRegistry.tick();
         if (common.areScriptsLoaded()) {
             pollScriptChanges();
             ClientAssets.poll();
@@ -139,6 +142,7 @@ public final class BetaMoonClient {
     }
 
     public boolean onTickInGame(net.minecraft.client.Minecraft mc) {
+        ScriptConfigRegistry.tick();
         if (common.areScriptsLoaded()) {
             pollScriptChanges();
             ClientAssets.poll();

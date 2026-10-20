@@ -48,18 +48,27 @@ final class ScriptConfigStore {
 
     void save(LuaTable values) throws IOException {
         Map<String, Object> snapshot = ScriptConfigValues.snapshot(values, defaults);
-        Map<String, Object> merged = ScriptConfigValues.merge(defaults, snapshot);
+        Map<String, Object> merged = saveDraft(snapshot);
+        ScriptConfigValues.update(values, ScriptConfigValues.toLua(merged).checktable());
+    }
+
+    Map<String, Object> saveDraft(Map<String, Object> draft) throws IOException {
+        return saveDraft(draft, observedBytes);
+    }
+
+    Map<String, Object> saveDraft(Map<String, Object> draft, byte[] expectedRevision) throws IOException {
+        Map<String, Object> merged = ScriptConfigValues.merge(defaults, draft);
         byte[] bytes = ScriptConfigValues.json(merged);
         if (bytes.length > MAX_FILE_BYTES) {
             throw new IOException("Config exceeds " + MAX_FILE_BYTES + " bytes");
         }
         byte[] current = readFile();
-        if (!Arrays.equals(current, observedBytes)) {
+        if (!Arrays.equals(current, expectedRevision)) {
             throw new IOException("Config changed on disk; reload it before saving");
         }
         writeFile(bytes);
         observedBytes = bytes;
-        ScriptConfigValues.update(values, ScriptConfigValues.toLua(merged).checktable());
+        return merged;
     }
 
     void reload(LuaTable values) throws IOException {
@@ -75,6 +84,22 @@ final class ScriptConfigStore {
         LuaTable staged = ScriptConfigValues.toLua(loaded).checktable();
         ScriptConfigValues.update(values, staged);
         observedBytes = bytes;
+    }
+
+    DiskDraft readDraftFromDisk() throws IOException {
+        byte[] bytes = readFile();
+        Map<String, Object> loaded = bytes == null ? defaults : parse(bytes);
+        return new DiskDraft(ScriptConfigValues.copy(loaded), bytes);
+    }
+
+    static final class DiskDraft {
+        final Map<String, Object> values;
+        final byte[] revision;
+
+        DiskDraft(Map<String, Object> values, byte[] revision) {
+            this.values = values;
+            this.revision = revision == null ? null : revision.clone();
+        }
     }
 
     private Map<String, Object> parse(byte[] bytes) throws IOException {
