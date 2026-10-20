@@ -22,7 +22,7 @@ public final class BlockMaterialApi {
                 if (!definition.istable()) {
                     throw new LuaError("material add expects a definition table.");
                 }
-                return new BlockMaterialReference(BlockMaterialRegistry.register(definition));
+                return BlockMaterialRegistry.register(definition).reference();
             }
         });
         blocks.set("get", lookup(blocks, false));
@@ -42,7 +42,7 @@ public final class BlockMaterialApi {
                     }
                     return NIL;
                 }
-                return new BlockMaterialReference(entry);
+                return entry.reference();
             }
         };
     }

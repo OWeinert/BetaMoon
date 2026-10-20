@@ -1,6 +1,7 @@
 package betamoon.debug;
 
 import betamoon.luamodloader.LuaContentRegistry;
+import betamoon.luaapi.audio.BlockStepSounds;
 import betamoon.luaapi.material.BlockMaterialRegistry;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -43,12 +44,17 @@ final class DebugBlockExporter {
                             : DebugExportNames.safeString(rawDisplay);
                     LuaContentRegistry.ContentDescription content = ownership.get(Integer.valueOf(i));
                     BlockMaterialRegistry.Entry material = BlockMaterialRegistry.describe(block.blockMaterial);
+                    String stepSoundKey = BlockStepSounds.name(block.stepSound);
+                    BlockStepSounds.Entry customStepSound = BlockStepSounds.entry(stepSoundKey);
                     writer.write("block ID: " + i + " | canonical key: " + DebugExportNames.blockKey(i)
                             + " | internal name: " + internalName + " | display name: \"" + displayName + "\" | owner: "
                             + (content == null ? "minecraft/foreign" : DebugExportNames.safeString(content.owner))
                             + " | material: " + (material == null ? "unknown" : material.key)
                             + " | material owner: " + (material == null || material.owner == null
                                     ? "minecraft" : DebugExportNames.safeString(material.owner))
+                            + " | step sound: " + DebugExportNames.safeString(stepSoundKey)
+                            + " | step sound event: " + (customStepSound == null ? "none"
+                                    : DebugExportNames.safeString(customStepSound.event().toString()))
                             + " | liquid: " + block.blockMaterial.getIsLiquid()
                             + " | solid: " + block.blockMaterial.getIsSolid()
                             + " | burning: " + block.blockMaterial.getBurning()

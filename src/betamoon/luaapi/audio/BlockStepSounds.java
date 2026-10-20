@@ -148,6 +148,7 @@ public final class BlockStepSounds {
         public final float volume;
         public final float pitch;
         private volatile AssetKey event;
+        private StepSoundReference reference;
 
         private Entry(String key, String owner, String marker, AssetKey event, float volume, float pitch) {
             this.key = key;
@@ -156,6 +157,17 @@ public final class BlockStepSounds {
             this.volume = volume;
             this.pitch = pitch;
             this.sound = new EventStepSound(marker, volume, pitch);
+        }
+
+        public AssetKey event() {
+            return event;
+        }
+
+        synchronized StepSoundReference reference() {
+            if (reference == null) {
+                reference = new StepSoundReference(this);
+            }
+            return reference;
         }
     }
 

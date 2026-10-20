@@ -110,6 +110,7 @@ state, physical behavior, and event-driven logic.
 | 32 | `02_int_32_local_structure/` | Packaged local JSON structure with a rounded stepped foundation, deterministic loot, and placement |
 | 33 | `02_int_33_sunken_cellar/` | Minimal footprint-to-surface excavation for a negatively offset cellar |
 | 34 | `02_int_34_excavated_foundation/` | Exact clearance voxels, a named 3D excavation mask, and an authored foundation footprint |
+| 35 | `02_int_35_material_and_step_sound/` | Custom and vanilla block materials and step sounds, backed by a packaged WAV |
 
 ## Advanced
 
@@ -168,6 +169,7 @@ and, where useful, organize private modules with `require`.
 | Intermediate 18 | **Launch Pad** (214): planks + redstone. Walk onto it while moving to see horizontal speed preserved. |
 | Intermediate 19 | Blocks 219–221: obtain the sprout, luminous glass, and sealed casing through a creative/debug inventory. |
 | Intermediate 20 | **Acid Bucket** (5047): enable the Java agent, obtain the filled bucket in creative mode, place a source, then enter it to compare movement, damage, and green fog with water. |
+| Intermediate 35 | Copy the complete package, enable the Java agent, obtain **Ceramic Tile** (248) and **Stone Comparison Block** (249), then walk on and break both to compare their step sounds. |
 | Intermediate 21 | Blocks 222–223: obtain both through a creative/debug inventory and compare their update timing. |
 | Intermediate 23 | **Directional Switch** (212): stone + redstone. Toggle it and connect wire to its output face. |
 | Intermediate 24 | **Stone Sample Entity**: obtain Sample Placer (5035), copy `builtin_model_item/`, place it, then punch it to recover the placer. |

@@ -65,6 +65,19 @@ public final class BlockMaterialApiTest {
 
             BlockMaterialRegistry.Entry water = BlockMaterialRegistry.resolve(LuaValue.valueOf("water"), "test");
             require(water.material == Material.water && !water.custom(), "Vanilla water retains its identity");
+            LuaTable materialModule = new LuaTable();
+            BlockMaterialApi.attach(materialModule);
+            LuaValue materialApi = materialModule.get("blocks");
+            LuaValue acidReference = materialApi.get("get").call(LuaValue.valueOf(acid.key));
+            require(acidReference == materialApi.get("getRequired").call(LuaValue.valueOf(acid.key)),
+                    "Custom material lookups retain their Lua reference identity");
+            require(acidReference == materialApi.get("add").call(definition(acid.key, "liquid", "water")),
+                    "A compatible reload returns the same Lua material reference");
+            LuaValue waterReference = materialApi.get("get").call(LuaValue.valueOf("water"));
+            require(waterReference == materialApi.get("getRequired").call(LuaValue.valueOf("water")),
+                    "Vanilla material lookups retain their Lua reference identity");
+            require(BlockMaterialRegistry.find("water") == water,
+                    "Vanilla material lookup retains its native registry entry");
             BlockMaterialReference reference = new BlockMaterialReference(acid);
             require(BlockMaterialRegistry.resolve(reference, "test") == acid, "Reference resolves to the same material");
             require(BlockMaterialRegistry.resolve(LuaValue.valueOf(acid.key), "test") == acid,

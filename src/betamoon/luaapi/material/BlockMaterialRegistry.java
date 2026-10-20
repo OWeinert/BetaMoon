@@ -68,9 +68,15 @@ public final class BlockMaterialRegistry {
         if (vanilla == null) {
             return null;
         }
+        Entry cached = BY_MATERIAL.get(vanilla);
+        if (cached != null) {
+            return cached;
+        }
         for (Map.Entry<String, String> builtin : MinecraftBuiltins.blockMaterials().entrySet()) {
             if (MinecraftBuiltins.resolveBlockMaterial(builtin.getKey()) == vanilla) {
-                return new Entry(builtin.getKey(), null, "vanilla:" + builtin.getKey(), vanilla);
+                Entry entry = new Entry(builtin.getKey(), null, "vanilla:" + builtin.getKey(), vanilla);
+                BY_MATERIAL.put(vanilla, entry);
+                return entry;
             }
         }
         return null;
@@ -106,6 +112,7 @@ public final class BlockMaterialRegistry {
         public final String owner;
         public final String signature;
         public final Material material;
+        private BlockMaterialReference reference;
 
         private Entry(String key, String owner, String signature, Material material) {
             this.key = key;
@@ -116,6 +123,13 @@ public final class BlockMaterialRegistry {
 
         public boolean custom() {
             return owner != null;
+        }
+
+        synchronized BlockMaterialReference reference() {
+            if (reference == null) {
+                reference = new BlockMaterialReference(this);
+            }
+            return reference;
         }
     }
 }

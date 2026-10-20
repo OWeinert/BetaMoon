@@ -23,7 +23,7 @@ public final class StepSoundApi {
                 if (!definition.istable()) {
                     throw new LuaError("Step sound add expects a definition table.");
                 }
-                return new StepSoundReference(BlockStepSounds.register(definition));
+                return BlockStepSounds.register(definition).reference();
             }
         });
         sounds.set("get", lookup(sounds, false));
@@ -38,7 +38,7 @@ public final class StepSoundApi {
                 String name = argument(args, sounds).checkjstring();
                 BlockStepSounds.Entry entry = BlockStepSounds.entry(name);
                 if (entry != null) {
-                    return new StepSoundReference(entry);
+                    return entry.reference();
                 }
                 StepSound vanilla = BlockStepSounds.find(name);
                 if (vanilla != null) {
