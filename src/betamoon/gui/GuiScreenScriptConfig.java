@@ -33,6 +33,7 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
     private static final int FIELD_CONTROL_TOP_OFFSET = 3;
     private static final int FIELD_INPUT_HEIGHT = 18;
     private static final int FIELD_BUTTON_HEIGHT = 20;
+    private static final int FIELD_ROW_HEIGHT = 28;
     private static final Object MISSING_BASELINE = new Object();
 
     private final GuiScreen parent;
@@ -392,7 +393,7 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
         }
 
         private int contentHeight() {
-            return rows.size() * 42 + 8;
+            return rows.size() * FIELD_ROW_HEIGHT + 8;
         }
 
         @Override
@@ -400,8 +401,7 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
             FormColumns columns = columns();
             int y = getTop() + 4;
             for (FieldRow row : rows) {
-                int removeWidth = row.remove == null ? 0 : 22 + FIELD_COLUMN_GAP / 2;
-                int controlWidth = Math.max(0, columns.controlWidth - removeWidth);
+                int controlWidth = controlWidth(row, columns);
                 if (row.input != null) {
                     row.input.arrange(context, Rect.fromPositionAndSize(columns.controlLeft,
                             y + FIELD_CONTROL_TOP_OFFSET, controlWidth, FIELD_INPUT_HEIGHT));
@@ -414,7 +414,7 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
                     row.remove.arrange(context, Rect.fromPositionAndSize(columns.controlLeft + controlWidth
                             + FIELD_COLUMN_GAP / 2, y + FIELD_CONTROL_TOP_OFFSET, 22, FIELD_BUTTON_HEIGHT));
                 }
-                y += 42;
+                y += FIELD_ROW_HEIGHT;
             }
         }
 
@@ -437,17 +437,50 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
                         labelRight - context.getRenderer().textWidth(visibleLabel), labelY,
                         context.getRenderer().getTheme().textPrimary);
                 if (row.modified() && (row.input != null || row.action != null)) {
-                    context.getRenderer().drawText("*", columns.markerLeft, labelY,
+                    int markerX = columns.controlLeft + controlWidth(row, columns)
+                            - context.getRenderer().textWidth("*") / 2;
+                    int markerY = y + FIELD_CONTROL_TOP_OFFSET - context.getRenderer().lineHeight() / 2;
+                    context.getRenderer().drawText("*", markerX, markerY,
                             context.getRenderer().getTheme().textWarning);
                 }
-                String details = row.field.description();
-                if (details.isEmpty()) {
-                    details = row.field.readOnly() && !row.field.readOnlyReason().isEmpty()
-                            ? row.field.readOnlyReason() : "Default: " + display(row.field.defaultValue());
+                if (Rect.fromPositionAndSize(columns.left, y, columns.groupWidth, FIELD_ROW_HEIGHT)
+                        .contains(context.getMouseX(), context.getMouseY())
+                        && context.getRenderer().isPointVisible(context.getMouseX(), context.getMouseY())) {
+                    List<String> details = new ArrayList<String>();
+                    if (!row.field.description().isEmpty()) {
+                        addTooltipText(context, details, row.field.description());
+                    }
+                    if (row.readOnly && !row.field.readOnlyReason().isEmpty()) {
+                        addTooltipText(context, details, row.field.readOnlyReason());
+                    }
+                    addTooltipText(context, details, "Default: " + display(row.field.defaultValue()));
+                    context.showTooltip(details);
                 }
-                context.getRenderer().drawText(context.getRenderer().trimToWidth(details, columns.groupWidth),
-                        columns.left, y + 27, context.getRenderer().getTheme().textMuted);
-                y += 42;
+                y += FIELD_ROW_HEIGHT;
+            }
+        }
+
+        private void addTooltipText(GuiContext context, List<String> lines, String text) {
+            int maximumWidth = Math.max(1, context.getScreenWidth() - 24);
+            for (String paragraph : text.split("\\r?\\n", -1)) {
+                String line = "";
+                for (int index = 0; index < paragraph.length(); index++) {
+                    char character = paragraph.charAt(index);
+                    String next = line + character;
+                    if (!line.isEmpty() && context.getRenderer().textWidth(next) > maximumWidth) {
+                        int space = line.lastIndexOf(' ');
+                        if (space > 0) {
+                            lines.add(line.substring(0, space));
+                            line = line.substring(space + 1) + character;
+                        } else {
+                            lines.add(line);
+                            line = String.valueOf(character);
+                        }
+                    } else {
+                        line = next;
+                    }
+                }
+                lines.add(line.trim());
             }
         }
 
@@ -461,8 +494,12 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
             int left = center - halfGap - labelWidth;
             int controlLeft = center + halfGap;
             int groupWidth = labelWidth + FIELD_COLUMN_GAP + controlWidth + FIELD_MARKER_WIDTH;
-            return new FormColumns(left, groupWidth, labelWidth, controlLeft, controlWidth,
-                    controlLeft + controlWidth + 2);
+            return new FormColumns(left, groupWidth, labelWidth, controlLeft, controlWidth);
+        }
+
+        private int controlWidth(FieldRow row, FormColumns columns) {
+            int removeWidth = row.remove == null ? 0 : 22 + FIELD_COLUMN_GAP / 2;
+            return Math.max(0, columns.controlWidth - removeWidth);
         }
     }
 
@@ -472,16 +509,13 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
         private final int labelWidth;
         private final int controlLeft;
         private final int controlWidth;
-        private final int markerLeft;
 
-        private FormColumns(int left, int groupWidth, int labelWidth, int controlLeft, int controlWidth,
-                int markerLeft) {
+        private FormColumns(int left, int groupWidth, int labelWidth, int controlLeft, int controlWidth) {
             this.left = left;
             this.groupWidth = groupWidth;
             this.labelWidth = labelWidth;
             this.controlLeft = controlLeft;
             this.controlWidth = controlWidth;
-            this.markerLeft = markerLeft;
         }
     }
 
@@ -617,6 +651,9 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
     }
 
     private static String display(Object value) {
+        if (value instanceof Boolean) {
+            return (Boolean) value ? "True" : "False";
+        }
         return value instanceof Map ? "{...}" : value instanceof List ? "[...]" : String.valueOf(value);
     }
 
