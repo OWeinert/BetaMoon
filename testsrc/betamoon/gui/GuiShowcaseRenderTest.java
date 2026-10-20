@@ -1054,6 +1054,32 @@ public final class GuiShowcaseRenderTest {
             visualToggle = (GuiElement) configRowMember(configuration, "visual", null, "toggle");
             configScene.mousePressed(visualToggle.getRight() - 9, visualToggle.getTop() + 14, 0);
             configuration.drawScreen(0, 0, 0.0F);
+            advancedToggle = (GuiElement) configRowMember(configuration, "advanced", null, "toggle");
+            configScene.mousePressed(advancedToggle.getRight() - 9, advancedToggle.getTop() + 14, 0);
+            configuration.drawScreen(0, 0, 0.0F);
+            Field configSectionsField = GuiScreenScriptConfig.class.getDeclaredField("sections");
+            configSectionsField.setAccessible(true);
+            Object gameplaySection = ((List<?>) configSectionsField.get(configuration)).get(0);
+            Field sectionDraftField = gameplaySection.getClass().getDeclaredField("draft");
+            sectionDraftField.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> gameplayDraft = (Map<String, Object>) sectionDraftField.get(gameplaySection);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> advancedDraft = (Map<String, Object>) gameplayDraft.get("advanced");
+            advancedDraft.put("rate", Double.valueOf(0.33));
+            Method invalidSave = GuiScreenScriptConfig.class.getDeclaredMethod("save");
+            invalidSave.setAccessible(true);
+            invalidSave.invoke(configuration);
+            configuration.drawScreen(0, 0, 0.0F);
+            configScene.update();
+            configuration.drawScreen(0, 0, 0.0F);
+            require(configRowExists(configuration, "rate", null)
+                    && configScene.getFocusedElement() == configRowMember(configuration, "rate", null, "action"),
+                    "Validation expands a closed section and focuses the invalid nested field");
+            Method resetInvalidDraft = GuiScreenScriptConfig.class.getDeclaredMethod("reset");
+            resetInvalidDraft.setAccessible(true);
+            resetInvalidDraft.invoke(configuration);
+            configuration.drawScreen(0, 0, 0.0F);
             GuiDropdownButton<?> choice = findDropdownButton(configScene.getContent());
             require(choice != null, "Config choice field uses the reusable dropdown button");
             configScene.mousePressed(choice.getLeft() + 5, choice.getTop() + 10, 0);
@@ -1178,6 +1204,12 @@ public final class GuiShowcaseRenderTest {
             saveConfig.invoke(configuration);
             require(Arrays.equals(beforeEdit, Files.readAllBytes(collectionsFile)),
                     "Duplicate dictionary keys must not overwrite a saved entry");
+            Field configMessageField = GuiScreenScriptConfig.class.getDeclaredField("message");
+            configMessageField.setAccessible(true);
+            require(configScene.getFocusedElement() == editedKey
+                    && ((String) configMessageField.get(configuration)).contains("channelLevels.effects"),
+                    "Duplicate dictionary keys identify and focus the conflicting entry: "
+                            + configMessageField.get(configuration) + ", focus=" + configScene.getFocusedElement());
             keyText.setText("ambience");
             renderScreen(configuration, minecraft, output, "script-config-collections-modified.png");
             saveConfig.invoke(configuration);
@@ -1232,6 +1264,9 @@ public final class GuiShowcaseRenderTest {
             saveConfig.invoke(configuration);
             require(Arrays.equals(compactBefore, Files.readAllBytes(compactFile)),
                     "Invalid compact dictionary text must not change the saved draft");
+            require(configScene.getFocusedElement() == ratesInput
+                    && ((String) configMessageField.get(configuration)).contains("rates"),
+                    "Invalid compact text identifies and focuses its field");
             ratesText.setText("music:0.5, \"a:b\":1");
             saveConfig.invoke(configuration);
             String compactSaved = new String(Files.readAllBytes(compactFile), StandardCharsets.UTF_8);

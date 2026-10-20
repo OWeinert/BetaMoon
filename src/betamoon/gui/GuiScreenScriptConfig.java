@@ -14,6 +14,7 @@ import betamoon.luaapi.config.ScriptConfigChoice;
 import betamoon.luaapi.config.ScriptConfigField;
 import betamoon.luaapi.config.ScriptConfigRegistration;
 import betamoon.luaapi.config.ScriptConfigRegistry;
+import betamoon.luaapi.config.ScriptConfigValidationException;
 import betamoon.luamodloader.ScriptMod;
 import betamoon.utils.McColors;
 import java.io.IOException;
@@ -179,6 +180,9 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
             message = "Saved " + section.registration.key() + ".";
             discardPending = false;
             form.rebuild();
+        } catch (ScriptConfigValidationException error) {
+            message = error.getMessage();
+            form.revealInvalidField(error.path());
         } catch (IOException | LuaError error) {
             message = error.getMessage();
         }
@@ -521,32 +525,110 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
                     }
                     String key = row.keyInput.value();
                     if (key.trim().isEmpty()) {
-                        message = "Dictionary keys cannot be empty.";
-                        return false;
+                        return inputError(row, row.keyInput, "Dictionary keys cannot be empty.");
                     }
                     changes.put((String) row.slot, key);
                 }
                 if (row.input != null && !row.readOnly) {
                     String typed = row.input.value();
                     Object fallback = row.field.defaultValue();
-                    Object parsed = row.field.collectionKind() != null
-                            ? ScriptConfigTextValues.parse(typed, row.field)
-                            : fallback instanceof Number ? Double.valueOf(Double.parseDouble(typed)) : typed;
-                    edits.put(row, parsed);
+                    try {
+                        Object parsed = row.field.collectionKind() != null
+                                ? ScriptConfigTextValues.parse(typed, row.field)
+                                : fallback instanceof Number ? Double.valueOf(Double.parseDouble(typed)) : typed;
+                        edits.put(row, parsed);
+                    } catch (NumberFormatException error) {
+                        return inputError(row, row.input, "Enter a valid number.");
+                    } catch (IllegalArgumentException error) {
+                        return inputError(row, row.input, error.getMessage());
+                    }
                 }
             }
             return true;
         }
 
         private boolean uniqueKeys(Map<Map<String, Object>, Map<String, String>> keyEdits) {
-            for (Map<String, String> renames : keyEdits.values()) {
-                Set<String> unique = new HashSet<String>(renames.values());
-                if (unique.size() != renames.size()) {
-                    message = "Dictionary keys must be unique.";
-                    return false;
+            for (Map.Entry<Map<String, Object>, Map<String, String>> entry : keyEdits.entrySet()) {
+                Map<String, FieldRow> seen = new LinkedHashMap<String, FieldRow>();
+                for (FieldRow row : rows) {
+                    if (row.parent != entry.getKey() || row.keyInput == null) {
+                        continue;
+                    }
+                    String key = entry.getValue().get((String) row.slot);
+                    FieldRow previous = seen.putIfAbsent(key, row);
+                    if (previous != null) {
+                        FieldRow changed = key.equals(row.slot) ? previous : row;
+                        return inputError(changed, changed.keyInput, "Dictionary keys must be unique.");
+                    }
                 }
             }
             return true;
+        }
+
+        private boolean inputError(FieldRow row, GuiElement control, String detail) {
+            message = validationPath(row.path) + ": " + detail;
+            scroll.reveal(control.getBounds());
+            getGuiContext().requestFocus(control);
+            return false;
+        }
+
+        private void revealInvalidField(String path) {
+            while (true) {
+                FieldRow hiddenParent = null;
+                for (FieldRow row : rows) {
+                    String visiblePath = validationPath(row.path);
+                    if (visiblePath.equals(path)) {
+                        GuiElement control = row.input != null ? row.input
+                                : row.keyInput != null ? row.keyInput
+                                        : row.slider != null ? row.slider
+                                                : row.action != null && row.action.isVisible()
+                                                        ? row.action : row.toggle;
+                        if (control != null) {
+                            getGuiContext().deferAfterRender(() -> {
+                                scroll.reveal(control.getBounds());
+                                getGuiContext().requestFocus(control);
+                            });
+                        }
+                        return;
+                    }
+                    if (row.toggle != null && !isExpanded(row)
+                            && (path.startsWith(visiblePath + ".") || path.startsWith(visiblePath + "["))
+                            && (hiddenParent == null || row.depth > hiddenParent.depth)) {
+                        hiddenParent = row;
+                    }
+                }
+                if (hiddenParent == null) {
+                    return;
+                }
+                setExpanded(hiddenParent, true);
+                rebuild();
+            }
+        }
+
+        private String validationPath(String encoded) {
+            StringBuilder result = new StringBuilder();
+            int index = 0;
+            while (index < encoded.length()) {
+                char kind = encoded.charAt(index + 1);
+                if (kind == 'f') {
+                    int colon = encoded.indexOf(':', index + 2);
+                    int length = Integer.parseInt(encoded.substring(index + 2, colon));
+                    if (result.length() > 0) {
+                        result.append('.');
+                    }
+                    result.append(encoded, colon + 1, colon + 1 + length);
+                    index = colon + 1 + length;
+                } else {
+                    int next = encoded.indexOf('/', index + 2);
+                    if (next < 0) {
+                        next = encoded.length();
+                    }
+                    result.append('[').append(Integer.parseInt(encoded.substring(index + 2, next)) + 1)
+                            .append(']');
+                    index = next;
+                }
+            }
+            return result.toString();
         }
 
         private void applyInputEdits(Map<FieldRow, Object> edits) {
