@@ -27,8 +27,6 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
     private static final int FOOTER_BUTTON_GAP = 6;
     private static final int SIDE_BUTTON_WIDTH = 50;
     private static final int RESET_BUTTON_WIDTH = 110;
-    private static final int PRIMARY_ROW_WIDTH = 2 * SIDE_BUTTON_WIDTH + RESET_BUTTON_WIDTH
-            + 2 * FOOTER_BUTTON_GAP;
 
     private final GuiScreen parent;
     private final ScriptMod script;
@@ -253,55 +251,43 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
             int left = getLeft() + 12;
             int usable = Math.max(0, width - 24);
             next.arrange(context, Rect.fromPositionAndSize(left, getTop() + 28, usable, 20));
-            boolean compact = usable < PRIMARY_ROW_WIDTH;
             boolean hasSecondaryAction = reload.isVisible() || retry.isVisible();
-            int primaryRows = compact ? 2 : 1;
-            int footerRows = primaryRows + (hasSecondaryAction ? 1 : 0);
+            int footerRows = 2 + (hasSecondaryAction ? 1 : 0);
             int footerTop = getBottom() - 10 - footerRows * (FOOTER_BUTTON_HEIGHT + FOOTER_ROW_SPACING);
             scroll.setContentSize(usable, form.contentHeight());
             int formTop = sections.isEmpty() || section().registration.description().isEmpty() ? 54 : 66;
             scroll.arrange(context, new Rect(left, getTop() + formTop, left + usable,
                     Math.max(getTop() + formTop, footerTop - 8)));
             int centerX = getLeft() + width / 2;
-            if (compact) {
-                int resetWidth = Math.min(RESET_BUTTON_WIDTH, usable);
-                reset.arrange(context, Rect.fromPositionAndSize(centerX - resetWidth / 2,
-                        footerTop, resetWidth, FOOTER_BUTTON_HEIGHT));
-                int sideWidth = Math.min(SIDE_BUTTON_WIDTH, Math.max(0, (usable - FOOTER_BUTTON_GAP) / 2));
-                int pairLeft = centerX - (2 * sideWidth + FOOTER_BUTTON_GAP) / 2;
-                int pairTop = footerTop + FOOTER_BUTTON_HEIGHT + FOOTER_ROW_SPACING;
-                save.arrange(context, Rect.fromPositionAndSize(pairLeft, pairTop,
-                        sideWidth, FOOTER_BUTTON_HEIGHT));
-                cancel.arrange(context, Rect.fromPositionAndSize(pairLeft + sideWidth + FOOTER_BUTTON_GAP,
-                        pairTop, sideWidth, FOOTER_BUTTON_HEIGHT));
-            } else {
-                int rowLeft = centerX - PRIMARY_ROW_WIDTH / 2;
-                save.arrange(context, Rect.fromPositionAndSize(rowLeft, footerTop,
-                        SIDE_BUTTON_WIDTH, FOOTER_BUTTON_HEIGHT));
-                reset.arrange(context, Rect.fromPositionAndSize(rowLeft + SIDE_BUTTON_WIDTH + FOOTER_BUTTON_GAP,
-                        footerTop, RESET_BUTTON_WIDTH, FOOTER_BUTTON_HEIGHT));
-                cancel.arrange(context, Rect.fromPositionAndSize(rowLeft + SIDE_BUTTON_WIDTH + RESET_BUTTON_WIDTH
-                        + 2 * FOOTER_BUTTON_GAP, footerTop, SIDE_BUTTON_WIDTH, FOOTER_BUTTON_HEIGHT));
-            }
             if (hasSecondaryAction) {
-                int secondaryTop = footerTop + primaryRows * (FOOTER_BUTTON_HEIGHT + FOOTER_ROW_SPACING);
                 int reloadWidth = Math.min(130, usable);
                 int retryWidth = Math.min(100, usable);
                 if (reload.isVisible() && retry.isVisible()) {
                     reloadWidth = Math.min(reloadWidth, Math.max(0, (usable - FOOTER_BUTTON_GAP) / 2));
                     retryWidth = Math.min(retryWidth, Math.max(0, usable - FOOTER_BUTTON_GAP - reloadWidth));
                     int pairLeft = centerX - (reloadWidth + FOOTER_BUTTON_GAP + retryWidth) / 2;
-                    reload.arrange(context, Rect.fromPositionAndSize(pairLeft, secondaryTop,
+                    reload.arrange(context, Rect.fromPositionAndSize(pairLeft, footerTop,
                             reloadWidth, FOOTER_BUTTON_HEIGHT));
                     retry.arrange(context, Rect.fromPositionAndSize(pairLeft + reloadWidth + FOOTER_BUTTON_GAP,
-                            secondaryTop, retryWidth, FOOTER_BUTTON_HEIGHT));
+                            footerTop, retryWidth, FOOTER_BUTTON_HEIGHT));
                 } else {
                     reload.arrange(context, Rect.fromPositionAndSize(centerX - reloadWidth / 2,
-                            secondaryTop, reloadWidth, FOOTER_BUTTON_HEIGHT));
+                            footerTop, reloadWidth, FOOTER_BUTTON_HEIGHT));
                     retry.arrange(context, Rect.fromPositionAndSize(centerX - retryWidth / 2,
-                            secondaryTop, retryWidth, FOOTER_BUTTON_HEIGHT));
+                            footerTop, retryWidth, FOOTER_BUTTON_HEIGHT));
                 }
             }
+            int resetTop = footerTop + (hasSecondaryAction ? FOOTER_BUTTON_HEIGHT + FOOTER_ROW_SPACING : 0);
+            int resetWidth = Math.min(RESET_BUTTON_WIDTH, usable);
+            reset.arrange(context, Rect.fromPositionAndSize(centerX - resetWidth / 2,
+                    resetTop, resetWidth, FOOTER_BUTTON_HEIGHT));
+            int sideWidth = Math.min(SIDE_BUTTON_WIDTH, Math.max(0, (usable - FOOTER_BUTTON_GAP) / 2));
+            int pairLeft = centerX - (2 * sideWidth + FOOTER_BUTTON_GAP) / 2;
+            int pairTop = resetTop + FOOTER_BUTTON_HEIGHT + FOOTER_ROW_SPACING;
+            save.arrange(context, Rect.fromPositionAndSize(pairLeft, pairTop,
+                    sideWidth, FOOTER_BUTTON_HEIGHT));
+            cancel.arrange(context, Rect.fromPositionAndSize(pairLeft + sideWidth + FOOTER_BUTTON_GAP,
+                    pairTop, sideWidth, FOOTER_BUTTON_HEIGHT));
         }
 
         @Override

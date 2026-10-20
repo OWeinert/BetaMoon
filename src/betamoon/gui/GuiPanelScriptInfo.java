@@ -30,6 +30,7 @@ final class GuiPanelScriptInfo extends GuiContainer {
     private static final int IMAGE_GAP = 12;
     private static final int CONFIG_BUTTON_SIZE = 20;
     private static final int CONFIG_ICON_SIZE = 16;
+    private static final int CONFIG_ICON_INSET = (CONFIG_BUTTON_SIZE - CONFIG_ICON_SIZE) / 2;
     private static final String CONFIG_ICON = "/resources/betamoon/gui/symbol_config.png";
     private static final float SECTION_SCALE = 1.25F;
     private static final int WARNING_SIZE = GuiScriptRestartIndicator.DEFAULT_SIZE;
@@ -183,7 +184,8 @@ final class GuiPanelScriptInfo extends GuiContainer {
             if (!configureButton.isVisible()) {
                 return;
             }
-            Rect icon = Rect.fromPositionAndSize(configureButton.getLeft() + 2, configureButton.getTop() + 2,
+            Rect icon = Rect.fromPositionAndSize(configureButton.getLeft() + CONFIG_ICON_INSET,
+                    configureButton.getTop() + CONFIG_ICON_INSET,
                     CONFIG_ICON_SIZE, CONFIG_ICON_SIZE);
             context.getRenderer().drawPackagedTexture(CONFIG_ICON, icon);
             if (configureButton.contains(context.getMouseX(), context.getMouseY())
