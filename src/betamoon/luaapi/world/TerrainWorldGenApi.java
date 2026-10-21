@@ -39,6 +39,7 @@ public final class TerrainWorldGenApi {
         LuaTable terrain = new LuaTable();
         terrain.set("sources", registry(WorldGenKind.TERRAIN_SOURCE));
         terrain.set("profiles", registry(WorldGenKind.TERRAIN));
+        terrain.set("overrides", registry(WorldGenKind.TERRAIN_OVERRIDE));
         worldgen.set("terrain", terrain);
         worldgen.set("materialRules", registry(WorldGenKind.MATERIAL));
         worldgen.set("populationPolicies", registry(WorldGenKind.POPULATION));
@@ -52,7 +53,7 @@ public final class TerrainWorldGenApi {
             @Override
             public Varargs invoke(Varargs arguments) {
                 try {
-                    if (kind == WorldGenKind.GENERATOR) {
+                    if (kind == WorldGenKind.GENERATOR || kind == WorldGenKind.TERRAIN_OVERRIDE) {
                         GenerationHookAvailability.require(true);
                     }
                     return new Reference(kind, TerrainRegistry.add(kind, LuaDataSnapshot
@@ -89,6 +90,28 @@ public final class TerrainWorldGenApi {
                     World world = LuaWorldActionAccess.requireWorld(argument(arguments, registry, 1));
                     WorldGeneratorProfile profile = WorldGenerationRuntime.profile(world);
                     return profile == null ? NIL : new Reference(kind, profile.key, profile);
+                }
+            });
+        }
+        if (kind == WorldGenKind.TERRAIN_OVERRIDE) {
+            registry.set("inspect", new VarArgFunction() {
+                @Override
+                public Varargs invoke(Varargs arguments) {
+                    World world = LuaWorldActionAccess.requireWorld(argument(arguments, registry, 1));
+                    LuaPositionArguments.Position position = LuaPositionArguments.horizontal(arguments, registry, 2,
+                            "terrain.overrides.inspect", -30000000, 30000000);
+                    return LuaDetachedData.copy(WorldGenerationRuntime.inspectOverrides(world, position.xInt(),
+                            position.zInt()));
+                }
+            });
+            registry.set("inspectChunk", new VarArgFunction() {
+                @Override
+                public Varargs invoke(Varargs arguments) {
+                    World world = LuaWorldActionAccess.requireWorld(argument(arguments, registry, 1));
+                    LuaPositionArguments.Position position = LuaPositionArguments.horizontal(arguments, registry, 2,
+                            "terrain.overrides.inspectChunk", -1875000, 1874999);
+                    return LuaDetachedData.copy(WorldGenerationRuntime.inspectOverrideChunk(world, position.xInt(),
+                            position.zInt()));
                 }
             });
         }

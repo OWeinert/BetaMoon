@@ -27,7 +27,9 @@ public final class WorldgenSurfaceHook implements HookModule {
                 new MethodRef(PROVIDER, "replaceBlocksForBiome", "(II[B[Lnet/minecraft/src/BiomeGenBase;)V"))
                 .capture(HandlerRef.of(CALLBACKS, "entering", "()I"))
                 .onReturn(HandlerRef.of(CALLBACKS, "after",
-                        "(Lnet/minecraft/src/World;II[B[Lnet/minecraft/src/BiomeGenBase;)V"),
+                        "(Lnet/minecraft/src/ChunkProviderGenerate;Lnet/minecraft/src/World;II[B"
+                                + "[Lnet/minecraft/src/BiomeGenBase;)V"),
+                        ValueBinding.thisValue(),
                         ValueBinding.instanceField(new FieldRef(PROVIDER, "worldObj", "Lnet/minecraft/src/World;")),
                         ValueBinding.argument(0), ValueBinding.argument(1), ValueBinding.argument(2),
                         ValueBinding.argument(3))

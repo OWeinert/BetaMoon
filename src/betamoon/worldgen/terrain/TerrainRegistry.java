@@ -115,6 +115,12 @@ public final class TerrainRegistry {
                 row.put("maximumMaskWork", snapshot.carver(declaration.key).maximumMaskWork());
             } else if (declaration.kind == WorldGenKind.TERRAIN) {
                 row.put("signature", snapshot.profile(declaration.key).signature);
+            } else if (declaration.kind == WorldGenKind.TERRAIN_OVERRIDE) {
+                BiomeRegionOverride override = snapshot.override(declaration.key);
+                row.put("signature", override.signature);
+                row.put("displayName", override.displayName);
+                row.put("bases", override.bases);
+                row.put("channels", override.channels());
             }
             result.add(Collections.unmodifiableMap(row));
         }
@@ -214,6 +220,7 @@ public final class TerrainRegistry {
         private final Map<String, CompiledCarver> carvers = new LinkedHashMap<String, CompiledCarver>();
         private final Map<String, PopulationPolicy> populations = new LinkedHashMap<String, PopulationPolicy>();
         private final Map<String, WorldGeneratorProfile> profiles = new LinkedHashMap<String, WorldGeneratorProfile>();
+        private final Map<String, BiomeRegionOverride> overrides = new LinkedHashMap<String, BiomeRegionOverride>();
         private final Set<String> resolving = new LinkedHashSet<String>();
         private final SpatialRegistry.Snapshot spatial;
 
@@ -244,12 +251,42 @@ public final class TerrainRegistry {
                         case CARVER:
                             carver(declaration.key);
                             break;
+                        case TERRAIN_OVERRIDE:
+                            override(declaration.key);
+                            break;
                         default:
                             throw error(declaration.key, "unsupported terrain declaration kind");
                     }
                 } catch (IllegalArgumentException exception) {
                     throw new CompilationFailure(declaration.owner, exception);
                 }
+            }
+            for (BiomeRegionOverride override : overrides.values()) {
+                for (String base : override.bases) {
+                    if (!base.equals("minecraft") && !profiles.containsKey(base)) {
+                        throw new CompilationFailure(override.owner,
+                                error(override.key + ".bases", "unknown generator profile " + base));
+                    }
+                    if (!base.equals("minecraft") && !profiles.get(base).nativeBase.equals("overworld")) {
+                        throw new CompilationFailure(override.owner,
+                                error(override.key + ".bases", "override requires an Overworld generator base"));
+                    }
+                }
+                for (String reference : override.before) {
+                    if (!overrides.containsKey(reference)) {
+                        throw new CompilationFailure(override.owner,
+                                error(override.key + ".before", "unknown terrain override " + reference));
+                    }
+                }
+                for (String reference : override.after) {
+                    if (!overrides.containsKey(reference)) {
+                        throw new CompilationFailure(override.owner,
+                                error(override.key + ".after", "unknown terrain override " + reference));
+                    }
+                }
+            }
+            if (overrides.size() > 256) {
+                throw error("worldgen.terrain.overrides", "override package limit is 256");
             }
         }
 
@@ -368,6 +405,39 @@ public final class TerrainRegistry {
 
         public WorldGeneratorProfile generator(String key) {
             return profiles.get(WorldGenKey.parse(key, WorldGenKind.GENERATOR).toString());
+        }
+
+        public BiomeRegionOverride override(String key) {
+            key = WorldGenKey.parse(key, WorldGenKind.TERRAIN_OVERRIDE).toString();
+            BiomeRegionOverride existing = overrides.get(key);
+            if (existing != null) {
+                return existing;
+            }
+            Declaration declaration = enter(key, WorldGenKind.TERRAIN_OVERRIDE);
+            try {
+                BiomeRegionOverride compiled = new BiomeRegionOverride(key, declaration.owner, declaration.value,
+                        spatial, this);
+                overrides.put(key, compiled);
+                return compiled;
+            } finally {
+                resolving.remove(key);
+            }
+        }
+
+        public BiomeRegionOverride overrideOrNull(String key) {
+            return overrides.get(key);
+        }
+
+        public boolean hasOverride(String key) {
+            return overrides.containsKey(key);
+        }
+
+        public List<BiomeRegionOverride> overrides() {
+            return Collections.unmodifiableList(new ArrayList<BiomeRegionOverride>(overrides.values()));
+        }
+
+        Map<String, String> dependenciesFor(Object value) {
+            return dependencies(value, new LinkedHashSet<String>());
         }
 
         public PopulationPolicy population(String key) {

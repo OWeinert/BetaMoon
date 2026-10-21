@@ -6,6 +6,8 @@ import betamoon.worldgen.WorldGenRegistry;
 import betamoon.worldgen.biome.BiomeDefinition;
 import betamoon.worldgen.biome.BiomeSourceDefinition;
 import betamoon.worldgen.terrain.PopulationPolicy;
+import betamoon.worldgen.terrain.BiomeRegionOverride;
+import betamoon.worldgen.terrain.TerrainRegistry;
 import betamoon.worldgen.terrain.WorldGeneratorProfile;
 import java.util.Collections;
 import java.util.ArrayList;
@@ -51,6 +53,13 @@ public final class GenerationCatalog {
         for (GenerationStage stage : GenerationStage.values()) {
             add(values, "stage/" + stage.getName(), title(stage.getName()), "Stages",
                     policy == null || policy.stages.contains(stage), null);
+        }
+        for (BiomeRegionOverride override : TerrainRegistry.snapshot().overrides()) {
+            if (override.compatible(key)) {
+                String channels = String.join(", ", override.channels());
+                add(values, "override/" + override.key, override.displayName + " (" + channels + ")",
+                        "Overrides", false, null);
+            }
         }
         Map<String, WorldGenRegistry.FeatureDescription> features = new LinkedHashMap<String, WorldGenRegistry.FeatureDescription>();
         for (WorldGenRegistry.FeatureDescription feature : WorldGenRegistry.featureSnapshot()) {

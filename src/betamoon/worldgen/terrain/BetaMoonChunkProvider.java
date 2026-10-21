@@ -3,6 +3,8 @@ package betamoon.worldgen.terrain;
 import betamoon.worldgen.GenerationMetrics;
 import betamoon.worldgen.GenerationStage;
 import betamoon.worldgen.WorldGenRegistry;
+import java.util.Collections;
+import java.util.List;
 import net.minecraft.src.BlockSand;
 import net.minecraft.src.Chunk;
 import net.minecraft.src.ChunkProviderGenerate;
@@ -55,11 +57,20 @@ public final class BetaMoonChunkProvider implements IChunkProvider {
     @Override
     public Chunk provideChunk(int x, int z) {
         if (profile.terrain == null || profile.terrain.isNative()) {
-            return nativeProvider.provideChunk(x, z);
+            try {
+                Chunk nativeChunk = nativeProvider.provideChunk(x, z);
+                if (world != null) {
+                    NativeBiomeOverrideRuntime.finish(world, x, z, nativeChunk);
+                }
+                return nativeChunk;
+            } finally {
+                NativeBiomeOverrideRuntime.clear();
+            }
         }
         GenerationContext context = new GenerationContext(WorldGenerationRuntime.fieldContext(world), x, z,
                 world.getWorldChunkManager().loadBlockGeneratorData(null, x * 16, z * 16, 16, 16));
-        return RawChunkFinalizer.build(world, x, z, generateRaw(profile, context, rawTerrain));
+        return RawChunkFinalizer.build(world, x, z, generateRaw(profile, context, rawTerrain,
+                WorldGenerationRuntime.overrides(world)));
     }
 
     public static ChunkBlockBuffer generateRaw(WorldGeneratorProfile profile, GenerationContext context) {
@@ -68,6 +79,11 @@ public final class BetaMoonChunkProvider implements IChunkProvider {
 
     static ChunkBlockBuffer generateRaw(WorldGeneratorProfile profile, GenerationContext context,
             RawTerrainCache cache) {
+        return generateRaw(profile, context, cache, Collections.emptyList());
+    }
+
+    static ChunkBlockBuffer generateRaw(WorldGeneratorProfile profile, GenerationContext context,
+            RawTerrainCache cache, List<BiomeRegionOverride> overrides) {
         ChunkBlockBuffer buffer = new ChunkBlockBuffer();
         context.terrainSource = profile.terrain;
         long started = GenerationMetrics.start();
@@ -79,14 +95,27 @@ public final class BetaMoonChunkProvider implements IChunkProvider {
             context.rawNeighborhood = new RawGenerationNeighborhood(profile.terrain, context, base.blocks, cache);
         }
         GenerationMetrics.finish(GenerationMetrics.Counter.BASE_NANOS, started);
+        if (!overrides.isEmpty()) {
+            OwnedBiomeOverrideRuntime.replaceTerrain(context, buffer, overrides);
+        }
+        byte[] beforeCarvers = overrides.isEmpty() ? null : buffer.copyBlocks();
+        byte[] beforeMetadata = overrides.isEmpty() ? null : buffer.copyMetadata();
         started = GenerationMetrics.start();
         for (CompiledCarver carver : profile.carvers) {
             carver.apply(context, buffer);
         }
+        if (!overrides.isEmpty()) {
+            OwnedBiomeOverrideRuntime.applyCarvers(context, buffer, beforeCarvers, beforeMetadata, overrides);
+        }
         GenerationMetrics.finish(GenerationMetrics.Counter.CARVER_NANOS, started);
         started = GenerationMetrics.start();
+        byte[] beforeSurfaces = overrides.isEmpty() ? null : buffer.copyBlocks();
+        byte[] beforeSurfaceMetadata = overrides.isEmpty() ? null : buffer.copyMetadata();
         if (profile.applySurfaces) {
             profile.surfaces.apply(context, buffer);
+        }
+        if (!overrides.isEmpty()) {
+            OwnedBiomeOverrideRuntime.applySurfaces(context, buffer, beforeSurfaces, beforeSurfaceMetadata, overrides);
         }
         GenerationMetrics.finish(GenerationMetrics.Counter.SURFACE_NANOS, started);
         return buffer;

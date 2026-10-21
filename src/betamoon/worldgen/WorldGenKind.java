@@ -5,7 +5,8 @@ public enum WorldGenKind {
     FEATURE("feature"), PLACEMENT("placement"), TREE("tree"), STRUCTURE("structure"), BIOME("biome"), BIOME_SOURCE(
             "biome_source"), SURFACE("surface"), CARVER("carver"), TERRAIN("terrain"), GENERATOR("generator"), NOISE(
                     "noise"), FIELD("field"), ANCHOR("anchor"), TERRAIN_SOURCE(
-                            "terrain_source"), MATERIAL("material"), POPULATION("population"), DIMENSION("dimension");
+                    "terrain_source"), TERRAIN_OVERRIDE("terrain_override"), MATERIAL("material"),
+                    POPULATION("population"), DIMENSION("dimension");
 
     private final String path;
 

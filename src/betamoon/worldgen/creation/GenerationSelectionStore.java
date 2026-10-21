@@ -1,5 +1,6 @@
 package betamoon.worldgen.creation;
 
+import betamoon.worldgen.terrain.GenerationSignature;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -25,7 +26,7 @@ import java.util.zip.CRC32;
  * choices.
  */
 public final class GenerationSelectionStore {
-    public static final int SCHEMA_VERSION = 2;
+    public static final int SCHEMA_VERSION = 3;
     private static final int MAGIC = 0x424d4753;
     private static final int MAX_BYTES = 4 * 1024 * 1024;
     private final Path path;
@@ -109,6 +110,29 @@ public final class GenerationSelectionStore {
                     throw new IOException("Generation settings contain inconsistent enabled entries");
                 }
             }
+            if (version >= 3) {
+                List<String> order = new ArrayList<String>();
+                int orderCount = count(input, 256);
+                for (int index = 0; index < orderCount; index++) {
+                    order.add(text(input));
+                }
+                Set<String> selectedOverrides = new LinkedHashSet<String>();
+                for (String entry : selection.enabled) {
+                    if (entry.startsWith("override/")) {
+                        selectedOverrides.add(entry.substring("override/".length()));
+                    }
+                }
+                Map<String, String> orderValues = new LinkedHashMap<String, String>();
+                for (int index = 0; index < order.size(); index++) {
+                    orderValues.put(Integer.toString(index), order.get(index));
+                }
+                String savedSignature = selection.dependencies.get("terrain_override_order");
+                if (order.size() != selectedOverrides.size()
+                        || !new LinkedHashSet<String>(order).equals(selectedOverrides)
+                        || savedSignature != null && !savedSignature.equals(GenerationSignature.of(orderValues))) {
+                    throw new IOException("Generation settings contain inconsistent terrain override order");
+                }
+            }
             if (input.available() != 8 || input.readLong() != checksum.getValue()) {
                 throw new IOException("Generation settings checksum/length mismatch");
             }
@@ -168,6 +192,12 @@ public final class GenerationSelectionStore {
             if (version >= 2) {
                 output.writeInt(selection.enabled.size());
                 for (String key : selection.enabled) {
+                    output.writeUTF(key);
+                }
+            }
+            if (version >= 3) {
+                output.writeInt(selection.overrideOrder.size());
+                for (String key : selection.overrideOrder) {
                     output.writeUTF(key);
                 }
             }

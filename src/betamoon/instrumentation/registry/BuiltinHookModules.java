@@ -34,6 +34,7 @@ import betamoon.instrumentation.hooks.worldgen.WorldGeneratorHook;
 import betamoon.instrumentation.hooks.worldgen.WorldJoinHook;
 import betamoon.instrumentation.hooks.worldgen.WorldPopulationHook;
 import betamoon.instrumentation.hooks.worldgen.WorldgenSurfaceHook;
+import betamoon.instrumentation.hooks.worldgen.WorldgenOverrideHook;
 import betamoon.runtime.RuntimeSide;
 
 /** Registers the hooks shipped in the BetaMoon JAR. */
@@ -66,6 +67,7 @@ public final class BuiltinHookModules {
         registry.registerModule(new EntityLifecycleHook());
         registry.registerModule(new EntityNaturalSpawnHook());
         registry.registerModule(new WorldgenSurfaceHook());
+        registry.registerModule(new WorldgenOverrideHook());
         registry.registerModule(new RegionalStructureChunkHook());
     }
 
