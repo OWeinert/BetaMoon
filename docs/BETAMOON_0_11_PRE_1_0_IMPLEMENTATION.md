@@ -1,6 +1,6 @@
 # BetaMoon 0.11 pre-1.0 implementation record
 
-Date: 2026-10-21. Code, Lua addon and wiki work branches: `feature/0.11-pre-1.0`.
+Date: 2026-10-21. Code, Lua addon and wiki work branches: `feature/0.11`.
 
 | Stage | Result |
 | --- | --- |
