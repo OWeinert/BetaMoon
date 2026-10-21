@@ -17,6 +17,7 @@ import betamoon.luaapi.multiblock.MultiblocksApi;
 import betamoon.luaapi.particle.ParticlesApi;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.utils.LuaDeclarationValues;
+import betamoon.luaapi.utils.LuaPositionArguments;
 import net.minecraft.src.Block;
 import net.minecraft.src.ChunkCoordinates;
 import net.minecraft.src.Entity;
@@ -122,33 +123,37 @@ public final class LuaWorldActionAccess {
         api.set("isLoaded", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 scope.requireActive();
-                int bx = coordinate(argument(a, api, 1));
-                int bz = coordinate(argument(a, api, 2));
+                LuaPositionArguments.Position position = LuaPositionArguments.horizontal(a, api, 1, "isLoaded");
+                int bx = position.xInt();
+                int bz = position.zInt();
                 return valueOf(world.blockExists(bx, 64, bz));
             }
         });
         api.set("getBiome", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 scope.requireActive();
-                int bx = coordinate(argument(a, api, 1));
-                int bz = coordinate(argument(a, api, 2));
+                LuaPositionArguments.Position position = LuaPositionArguments.horizontal(a, api, 1, "getBiome");
+                int bx = position.xInt();
+                int bz = position.zInt();
                 return valueOf(world.getWorldChunkManager().getBiomeGenAt(bx, bz).biomeName);
             }
         });
         api.set("getHeight", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 scope.requireActive();
-                int bx = coordinate(argument(a, api, 1));
-                int bz = coordinate(argument(a, api, 2));
+                LuaPositionArguments.Position position = LuaPositionArguments.horizontal(a, api, 1, "getHeight");
+                int bx = position.xInt();
+                int bz = position.zInt();
                 return world.blockExists(bx, 64, bz) ? valueOf(world.getHeightValue(bx, bz)) : NIL;
             }
         });
         api.set("getLight", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 scope.requireActive();
-                int bx = coordinate(argument(a, api, 1));
-                int by = integer(argument(a, api, 2), "getLight.y", 0, 127);
-                int bz = coordinate(argument(a, api, 3));
+                LuaPositionArguments.Position position = LuaPositionArguments.cell(a, api, 1, "getLight");
+                int bx = position.xInt();
+                int by = position.yInt();
+                int bz = position.zInt();
                 if (!world.blockExists(bx, by, bz)) {
                     return NIL;
                 }
@@ -163,36 +168,40 @@ public final class LuaWorldActionAccess {
         api.set("isSolid", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 scope.requireActive();
-                int bx = coordinate(argument(a, api, 1));
-                int by = integer(argument(a, api, 2), "isSolid.y", 0, 127);
-                int bz = coordinate(argument(a, api, 3));
+                LuaPositionArguments.Position position = LuaPositionArguments.cell(a, api, 1, "isSolid");
+                int bx = position.xInt();
+                int by = position.yInt();
+                int bz = position.zInt();
                 return valueOf(world.blockExists(bx, by, bz) && world.isBlockNormalCube(bx, by, bz));
             }
         });
         api.set("canSeeSky", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 scope.requireActive();
-                int bx = coordinate(argument(a, api, 1));
-                int by = integer(argument(a, api, 2), "canSeeSky.y", 0, 127);
-                int bz = coordinate(argument(a, api, 3));
+                LuaPositionArguments.Position position = LuaPositionArguments.cell(a, api, 1, "canSeeSky");
+                int bx = position.xInt();
+                int by = position.yInt();
+                int bz = position.zInt();
                 return valueOf(world.blockExists(bx, by, bz) && world.canBlockSeeTheSky(bx, by, bz));
             }
         });
         api.set("isRainingAt", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 scope.requireActive();
-                int bx = coordinate(argument(a, api, 1));
-                int by = integer(argument(a, api, 2), "isRainingAt.y", 0, 127);
-                int bz = coordinate(argument(a, api, 3));
+                LuaPositionArguments.Position position = LuaPositionArguments.cell(a, api, 1, "isRainingAt");
+                int bx = position.xInt();
+                int by = position.yInt();
+                int bz = position.zInt();
                 return valueOf(world.blockExists(bx, by, bz) && world.canBlockBeRainedOn(bx, by, bz));
             }
         });
         api.set("isLiquid", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 scope.requireActive();
-                int bx = coordinate(argument(a, api, 1));
-                int by = integer(argument(a, api, 2), "isLiquid.y", 0, 127);
-                int bz = coordinate(argument(a, api, 3));
+                LuaPositionArguments.Position position = LuaPositionArguments.cell(a, api, 1, "isLiquid");
+                int bx = position.xInt();
+                int by = position.yInt();
+                int bz = position.zInt();
                 Material material = world.blockExists(bx, by, bz) ? world.getBlockMaterial(bx, by, bz) : Material.air;
                 return valueOf(material.getIsLiquid());
             }
@@ -201,9 +210,11 @@ public final class LuaWorldActionAccess {
             public Varargs invoke(Varargs a) {
                 scope.requireActive();
                 boolean origin = argument(a, api, 1).isnil();
-                int bx = origin ? x : coordinate(argument(a, api, 1));
-                int by = origin ? y : integer(argument(a, api, 2), "isPowered.y", 0, 127);
-                int bz = origin ? z : coordinate(argument(a, api, 3));
+                LuaPositionArguments.Position position = origin ? null
+                        : LuaPositionArguments.cell(a, api, 1, "isPowered");
+                int bx = origin ? x : position.xInt();
+                int by = origin ? y : position.yInt();
+                int bz = origin ? z : position.zInt();
                 return valueOf(
                         (origin || world.blockExists(bx, by, bz)) && world.isBlockIndirectlyGettingPowered(bx, by, bz));
             }
@@ -222,9 +233,10 @@ public final class LuaWorldActionAccess {
         api.set("getBlock", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 scope.requireActive();
-                int bx = coordinate(argument(a, api, 1));
-                int by = integer(argument(a, api, 2), "getBlock.y", 0, 127);
-                int bz = coordinate(argument(a, api, 3));
+                LuaPositionArguments.Position position = LuaPositionArguments.cell(a, api, 1, "getBlock");
+                int bx = position.xInt();
+                int by = position.yInt();
+                int bz = position.zInt();
                 if (!world.blockExists(bx, by, bz)) {
                     return NIL;
                 }
@@ -237,14 +249,16 @@ public final class LuaWorldActionAccess {
         api.set("setBlock", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 scope.requireMutable();
-                int bx = coordinate(argument(a, api, 1));
-                int by = integer(argument(a, api, 2), "y", 0, 127);
-                int bz = coordinate(argument(a, api, 3));
-                int id = id(argument(a, api, 4), "setBlock.id");
+                LuaPositionArguments.Position position = LuaPositionArguments.cell(a, api, 1, "setBlock");
+                int bx = position.xInt();
+                int by = position.yInt();
+                int bz = position.zInt();
+                int id = id(argument(a, api, position.nextArgument), "setBlock.id");
                 if (id >= Block.blocksList.length || id != 0 && Block.blocksList[id] == null) {
                     throw LuaDeclarationValues.error("setBlock.id", "unknown block");
                 }
-                int damage = argument(a, api, 5).isnil() ? 0 : integer(argument(a, api, 5), "setBlock.damage", 0, 15);
+                LuaValue damageValue = argument(a, api, position.nextArgument + 1);
+                int damage = damageValue.isnil() ? 0 : integer(damageValue, "setBlock.damage", 0, 15);
                 return valueOf(world.setBlockAndMetadataWithNotify(bx, by, bz, id, damage));
             }
         });
@@ -301,9 +315,11 @@ public final class LuaWorldActionAccess {
             public Varargs invoke(Varargs a) {
                 scope.requireMutable();
                 boolean origin = argument(a, api, 1).isnil();
-                int bx = origin ? x : coordinate(argument(a, api, 1));
-                int by = origin ? y : integer(argument(a, api, 2), "notifyNeighbors.y", 0, 127);
-                int bz = origin ? z : coordinate(argument(a, api, 3));
+                LuaPositionArguments.Position position = origin ? null
+                        : LuaPositionArguments.cell(a, api, 1, "notifyNeighbors");
+                int bx = origin ? x : position.xInt();
+                int by = origin ? y : position.yInt();
+                int bz = origin ? z : position.zInt();
                 if (!origin && !world.blockExists(bx, by, bz)) {
                     return FALSE;
                 }
@@ -389,9 +405,11 @@ public final class LuaWorldActionAccess {
             public Varargs invoke(Varargs a) {
                 scope.requireMutable();
                 boolean origin = argument(a, api, 1).isnil();
-                int bx = origin ? x : coordinate(argument(a, api, 1));
-                int by = origin ? y : integer(argument(a, api, 2), "notifyNeighbors.y", 0, 127);
-                int bz = origin ? z : coordinate(argument(a, api, 3));
+                LuaPositionArguments.Position position = origin ? null
+                        : LuaPositionArguments.cell(a, api, 1, "notifyNeighbors");
+                int bx = origin ? x : position.xInt();
+                int by = origin ? y : position.yInt();
+                int bz = origin ? z : position.zInt();
                 if (!origin && !world.blockExists(bx, by, bz)) {
                     return FALSE;
                 }

@@ -1,6 +1,6 @@
 # Position arguments across Lua APIs
 
-Status: active pre-1.0 proposal, 2026-10-21. This document defines a proposed compatibility contract; no Java or Lua API change is implemented here.
+Status: implemented on `feature/position-overloads`, 2026-10-21. The compatibility contract below describes the implemented behavior.
 
 ## Goal
 
@@ -16,7 +16,7 @@ entity:addVelocity(impulse)
 entity:addVelocity(0.2, 0.4, 0) -- existing form
 ```
 
-The numeric calls already exist; their position-table counterparts are proposed here.
+The numeric calls remain available alongside their position-table counterparts.
 
 ## Proposed call contract
 
@@ -59,8 +59,9 @@ Before coding, inventory every public signature in `../BetaMoon-VSC-Lua-Addon/in
 - Native block Y limits, X/Z bounds, chunk units, loaded-area behavior and callback authority are unchanged.
 - Public LuaLS overloads and wiki examples match the implemented methods; old numeric examples continue to run.
 
-## Decisions to settle before implementation
+## Resolved decisions
 
-- Confirm whether newly added table overloads reject every extra field or allow unrelated fields from larger snapshots. Strict named triples are recommended; current table-accepting APIs remain compatible.
-- Confirm which X/Z-only APIs should accept a full three-component position, and document explicitly when Y is ignored. Chunk units must remain distinguishable from block units.
-- Decide whether `betamoon.positions:integer` itself needs stricter exact-integer construction. The shared reader will enforce exactness at cell APIs regardless, but constructor behavior should not invite a silently truncated value.
+- Newly added table overloads reject unknown fields. Existing table forms in world data and capability lookups preserve their extra-field policy.
+- X/Z-only runtime queries accept `{x,z}` and full positions, ignoring Y. Generator and dimension chunk previews keep their existing chunk-index units; world `getChunk` still takes block coordinates.
+- `betamoon.positions:integer` rejects fractions, and `:float` rejects non-finite values and values outside the float range. The reader validates visible table fields, including fields edited after construction.
+- Shared-reader coverage includes world block and X/Z queries, world data and capabilities, multiblocks, entity motion/navigation/position and local offsets, particle setters, teleport mapping/inspection, feature placement, placement and regional searches, spatial fields, terrain and generator previews, dimension previews, and atmosphere queries. Declarative position fields, bounding boxes, audio option tables, and already-table-based transforms keep their own contracts.

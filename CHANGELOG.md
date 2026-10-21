@@ -21,6 +21,13 @@
 - Save changes atomically, detect conflicting file edits, and preserve unknown JSON fields.
 - Update live Lua values after saving and support `onChange` callbacks with error reporting and retry.
 
+### Position arguments
+
+- Accept named position tables and position objects alongside numeric coordinates in world, entity, multiblock,
+  particle, teleport, and worldgen runtime APIs. Preserve each operation's coordinate units and limits.
+- Require exact integers for block coordinates and integer position construction; reject non-finite and out-of-range
+  float positions.
+
 ### 0.11 integration and reliability
 
 - Integrate materials, step sounds and the script config editor on one development branch.

@@ -7,6 +7,7 @@ import betamoon.entity.motion.MotionVector;
 import betamoon.entity.motion.NativeEntityFields;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.utils.LuaDeclarationValues;
+import betamoon.luaapi.utils.LuaPositionArguments;
 import net.minecraft.src.AxisAlignedBB;
 import net.minecraft.src.Entity;
 import net.minecraft.src.EntityPlayer;
@@ -206,10 +207,8 @@ final class LuaEntityTransforms {
     }
 
     private static MotionVector vector(Varargs args, LuaTable receiver, String path) {
-        MotionVector result = new MotionVector(
-                LuaDeclarationValues.number(argument(args, receiver, 1), path + ".x"),
-                LuaDeclarationValues.number(argument(args, receiver, 2), path + ".y"),
-                LuaDeclarationValues.number(argument(args, receiver, 3), path + ".z"));
+        LuaPositionArguments.Position position = LuaPositionArguments.vector(args, receiver, 1, path);
+        MotionVector result = new MotionVector(position.x, position.y, position.z);
         if (!result.within(EntityTransforms.MAX_MOTION)) {
             throw LuaDeclarationValues.error(path, "components must be within -16..16");
         }

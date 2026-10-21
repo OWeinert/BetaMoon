@@ -9,6 +9,7 @@ import betamoon.capability.CapabilityOperationOverrides;
 import betamoon.data.DataRecords;
 import betamoon.luaapi.tileentity.LuaTileDataAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
+import betamoon.luaapi.utils.LuaPositionArguments;
 import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptErrors;
 import betamoon.tileentity.LuaTileEntity;
@@ -37,26 +38,14 @@ public final class LuaCapabilityAccess {
             public Varargs invoke(Varargs arguments) {
                 scope.requireActive();
                 int offset = arguments.arg1() == worldApi ? 1 : 0;
-                LuaValue first = arguments.arg(1 + offset);
-                int x;
-                int y;
-                int z;
-                int capabilityIndex;
-                if (first.istable()) {
-                    x = coordinate(first.get("x"), "getCapability.position.x");
-                    y = integer(first.get("y"), 0, 127, "getCapability.position.y");
-                    z = coordinate(first.get("z"), "getCapability.position.z");
-                    capabilityIndex = 2 + offset;
-                } else {
-                    x = coordinate(first, "getCapability.x");
-                    y = integer(arguments.arg(2 + offset), 0, 127, "getCapability.y");
-                    z = coordinate(arguments.arg(3 + offset), "getCapability.z");
-                    capabilityIndex = 4 + offset;
-                }
+                LuaPositionArguments.Position position = LuaPositionArguments.cellCompatible(arguments, worldApi, 1,
+                        "getCapability");
+                int capabilityIndex = position.nextArgument + offset;
                 CapabilityDefinition definition = CapabilitiesApi.definition(
                         arguments.arg(capabilityIndex), "getCapability.capability");
                 String face = face(arguments.arg(capabilityIndex + 1));
-                return external(scope, world, x, y, z, definition, face, false);
+                return external(scope, world, position.xInt(), position.yInt(), position.zInt(), definition, face,
+                        false);
             }
         });
     }
@@ -256,18 +245,6 @@ public final class LuaCapabilityAccess {
             throw new LuaError("Capability face must be north, south, east, west, up, or down.");
         }
         return face;
-    }
-
-    private static int coordinate(LuaValue value, String path) {
-        return integer(value, -30000000, 30000000, path);
-    }
-
-    private static int integer(LuaValue value, int minimum, int maximum, String path) {
-        int result = value.checkint();
-        if (result < minimum || result > maximum) {
-            throw new LuaError(path + " must be between " + minimum + " and " + maximum + ".");
-        }
-        return result;
     }
 
     private static LuaTable position(int x, int y, int z) {

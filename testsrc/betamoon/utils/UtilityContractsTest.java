@@ -4,6 +4,9 @@ import betamoon.io.FileIo;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.utils.LuaDeclarationValues;
+import betamoon.luaapi.utils.LuaPositionArguments;
+import betamoon.luaapi.utils.PositionF;
+import betamoon.luaapi.utils.PositionI;
 import betamoon.query.RecipeQueryUtils;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -27,6 +30,7 @@ public final class UtilityContractsTest {
         verifyNormalizedFileReading();
         verifyLuaArgumentResolution();
         verifyFiniteNumbers();
+        verifyPositionArguments();
         verifyCallbackPermissions();
         verifyKeyLayouts();
         verifyReflectionFallbacks();
@@ -68,6 +72,57 @@ public final class UtilityContractsTest {
             rejected = true;
         }
         require(rejected, "Non-finite declaration number was accepted");
+    }
+
+    private static void verifyPositionArguments() {
+        LuaTable receiver = new LuaTable();
+        LuaTable plain = new LuaTable();
+        plain.set("x", 10);
+        plain.set("y", 64);
+        plain.set("z", 20);
+        LuaPositionArguments.Position numeric = LuaPositionArguments.cell(
+                LuaValue.varargsOf(new LuaValue[]{receiver, LuaValue.valueOf(10), LuaValue.valueOf(64),
+                        LuaValue.valueOf(20), LuaValue.valueOf("tail")}), receiver, 1, "block");
+        LuaPositionArguments.Position named = LuaPositionArguments.cell(
+                LuaValue.varargsOf(new LuaValue[]{receiver, plain, LuaValue.valueOf("tail")}), receiver, 1, "block");
+        require(numeric.x == named.x && numeric.y == named.y && numeric.z == named.z,
+                "Numeric and named cell arguments differ");
+        require(numeric.nextArgument == 4 && named.nextArgument == 2, "Trailing argument index was not shifted");
+        require(LuaPositionArguments.cell(new PositionI(10, 64, 20), null, 1, "block").xInt() == 10,
+                "Integer position object was not accepted");
+        LuaTable legacy = new LuaTable();
+        legacy.set("x", 10);
+        legacy.set("z", 20);
+        legacy.set("y", "ignored by X/Z lookup");
+        legacy.set("extra", LuaValue.TRUE);
+        require(LuaPositionArguments.horizontalCompatible(legacy, null, 1, "getChunk").zInt() == 20,
+                "Existing X/Z table fields changed meaning");
+        legacy.set("y", LuaValue.NIL);
+        require(LuaPositionArguments.cellCompatibleDefaultY(legacy, null, 1, "getTile").yInt() == 0,
+                "Existing world-data Y default changed");
+        require(LuaPositionArguments.vector(new PositionF(0.25, 0.5, 1), null, 1, "motion").y == 0.5,
+                "Float position object was not accepted");
+        plain.set("x", 11);
+        require(LuaPositionArguments.cell(plain, null, 1, "block").xInt() == 11,
+                "Visible table mutation was ignored");
+        plain.set("x", 11.5);
+        rejectPosition(plain, "Fractional block coordinate was accepted");
+        plain.set("x", 11);
+        plain.set("unexpected", LuaValue.TRUE);
+        rejectPosition(plain, "Unknown position field was accepted");
+        plain.set("unexpected", LuaValue.NIL);
+        plain.set("z", Double.POSITIVE_INFINITY);
+        rejectPosition(plain, "Non-finite position coordinate was accepted");
+    }
+
+    private static void rejectPosition(LuaValue input, String message) {
+        boolean rejected = false;
+        try {
+            LuaPositionArguments.cell(input, null, 1, "block");
+        } catch (LuaError expected) {
+            rejected = true;
+        }
+        require(rejected, message);
     }
 
     private static void verifyCallbackPermissions() {

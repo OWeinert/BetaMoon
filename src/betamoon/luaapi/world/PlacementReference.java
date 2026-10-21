@@ -1,6 +1,7 @@
 package betamoon.luaapi.world;
 
 import betamoon.luaapi.utils.LuaDataReference;
+import betamoon.luaapi.utils.LuaPositionArguments;
 import betamoon.worldgen.WorldGenKey;
 import betamoon.worldgen.WorldGenRegistry;
 import net.minecraft.src.World;
@@ -37,11 +38,14 @@ public class PlacementReference extends LuaTable implements LuaDataReference {
             public Varargs invoke(Varargs arguments) {
                 int offset = arguments.arg1() == PlacementReference.this ? 1 : 0;
                 World world = LuaWorldActionAccess.requireWorld(arguments.arg(1 + offset));
-                int x = coordinate(arguments.arg(2 + offset), "placement.locateCandidate.x");
-                int z = coordinate(arguments.arg(3 + offset), "placement.locateCandidate.z");
-                int maxChunks = arguments.arg(4 + offset).isnil()
+                LuaPositionArguments.Position position = LuaPositionArguments.horizontal(arguments,
+                        PlacementReference.this, 2, "placement.locateCandidate");
+                int x = position.xInt();
+                int z = position.zInt();
+                int maxChunks = arguments.arg(position.nextArgument + offset).isnil()
                         ? 32
-                        : integer(arguments.arg(4 + offset), "placement.locateCandidate.maxChunks", 0, 128);
+                        : integer(arguments.arg(position.nextArgument + offset),
+                                "placement.locateCandidate.maxChunks", 0, 128);
                 WorldGenRegistry.PlacementCandidateLocation candidate = WorldGenRegistry.locatePlacementCandidate(world,
                         PlacementReference.this.key, x, z, maxChunks);
                 if (candidate == null) {
@@ -60,10 +64,6 @@ public class PlacementReference extends LuaTable implements LuaDataReference {
 
     public WorldGenKey key() {
         return key;
-    }
-
-    private static int coordinate(LuaValue value, String path) {
-        return integer(value, path, -30000000, 30000000);
     }
 
     private static int integer(LuaValue value, String path, int min, int max) {

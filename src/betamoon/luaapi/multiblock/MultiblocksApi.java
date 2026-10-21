@@ -8,6 +8,7 @@ import betamoon.instrumentation.agent.AgentRuntime;
 import betamoon.instrumentation.diagnostics.HookDiagnostic;
 import betamoon.instrumentation.diagnostics.HookStatus;
 import betamoon.luaapi.utils.LuaCallbackScope;
+import betamoon.luaapi.utils.LuaPositionArguments;
 import betamoon.multiblock.MultiblockDefinition;
 import betamoon.multiblock.MultiblockMatchJob;
 import betamoon.multiblock.MultiblockOrientation;
@@ -78,10 +79,12 @@ public final class MultiblocksApi {
         method(api, "checkMultiblock", args -> {
             scope.requireActive();
             MultiblockDefinition definition = definition(args.arg1());
-            int x = coordinate(args.arg(2), "x");
-            int y = coordinate(args.arg(3), "y");
-            int z = coordinate(args.arg(4), "z");
-            LuaValue options = args.arg(5);
+            LuaPositionArguments.Position position = LuaPositionArguments.integers(args, null, 2,
+                    "checkMultiblock", -32000032, 32000032, -32000032, 32000032);
+            int x = position.xInt();
+            int y = position.yInt();
+            int z = position.zInt();
+            LuaValue options = args.arg(position.nextArgument);
             if (!options.isnil()) {
                 fields(options, "checkMultiblock.options", "facing", "mirror", "detailed", "repeats");
             }
@@ -121,8 +124,10 @@ public final class MultiblocksApi {
         });
         method(api, "getMultiblock", args -> {
             scope.requireActive();
-            MultiblockRuntime.Instance found = MultiblockRuntime.get(world, coordinate(args.arg1(), "x"),
-                    coordinate(args.arg(2), "y"), coordinate(args.arg(3), "z"));
+            LuaPositionArguments.Position position = LuaPositionArguments.integers(args, null, 1,
+                    "getMultiblock", -32000032, 32000032, -32000032, 32000032);
+            MultiblockRuntime.Instance found = MultiblockRuntime.get(world, position.xInt(), position.yInt(),
+                    position.zInt());
             return found == null ? LuaValue.NIL : instance(scope, found, false);
         });
     }
