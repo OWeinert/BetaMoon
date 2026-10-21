@@ -5,7 +5,9 @@ import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiGeometry.Constraints;
 import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.framework.GuiTextureCache;
+import betamoon.gui.widget.GuiButton;
 import betamoon.gui.widget.GuiScrollView;
+import betamoon.luaapi.config.ScriptConfigRegistry;
 import betamoon.luamodloader.LuaModLoader;
 import betamoon.luamodloader.LuaScriptErrors;
 import betamoon.luamodloader.LuaScriptErrors.ScriptIssue;
@@ -16,6 +18,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Consumer;
 
 /** Script details with measured, consecutive sections and the same interactive entries as the popup. */
 final class GuiPanelScriptInfo extends GuiContainer {
@@ -25,11 +28,16 @@ final class GuiPanelScriptInfo extends GuiContainer {
     private static final int DEPENDENCY_LINE_HEIGHT = 12;
     private static final int IMAGE_SIZE = 72;
     private static final int IMAGE_GAP = 12;
+    private static final int CONFIG_BUTTON_SIZE = 20;
+    private static final int CONFIG_ICON_SIZE = 16;
+    private static final int CONFIG_ICON_INSET = (CONFIG_BUTTON_SIZE - CONFIG_ICON_SIZE) / 2;
+    private static final String CONFIG_ICON = "/resources/betamoon/gui/symbol_config.png";
     private static final float SECTION_SCALE = 1.25F;
     private static final int WARNING_SIZE = GuiScriptRestartIndicator.DEFAULT_SIZE;
     private final ScriptInfoContent content;
     private final GuiScrollView scrollView;
     private final GuiScriptRestartIndicator warningIndicator = new GuiScriptRestartIndicator(null);
+    private final GuiButton configureButton;
     private ScriptMod selected;
     private ScriptInfoLayout currentLayout;
     private long issueRevision = -1;
@@ -37,10 +45,19 @@ final class GuiPanelScriptInfo extends GuiContainer {
     private float headerScale = 1.0F;
 
     GuiPanelScriptInfo() {
-        this(new GuiScriptIssueActions());
+        this(new GuiScriptIssueActions(), null);
     }
 
     GuiPanelScriptInfo(GuiScriptIssueActions actions) {
+        this(actions, null);
+    }
+
+    GuiPanelScriptInfo(GuiScriptIssueActions actions, Consumer<ScriptMod> configure) {
+        configureButton = new GuiButton("", CONFIG_BUTTON_SIZE, () -> {
+            if (selected != null && configure != null) {
+                configure.accept(selected);
+            }
+        });
         content = new ScriptInfoContent(actions);
         scrollView = add(new GuiScrollView(content, GuiScrollView.Policy.VERTICAL));
     }
@@ -103,6 +120,7 @@ final class GuiPanelScriptInfo extends GuiContainer {
         private ScriptInfoContent(GuiScriptIssueActions actions) {
             errors = add(new GuiScriptIssueEntries(actions));
             warnings = add(new GuiScriptIssueEntries(actions));
+            add(configureButton);
         }
 
         @Override
@@ -111,6 +129,13 @@ final class GuiPanelScriptInfo extends GuiContainer {
                 return;
             }
             ScriptInfoLayout layout = currentLayout;
+            boolean configurable = selected.isLoaded()
+                    && !ScriptConfigRegistry.forScript(selected.getSourceFileName()).isEmpty();
+            configureButton.setVisible(configurable);
+            int buttonX = Math.max(getLeft(), Math.min(getLeft() + IMAGE_SIZE + IMAGE_GAP,
+                    getRight() - CONFIG_BUTTON_SIZE));
+            configureButton.arrange(context, Rect.fromPositionAndSize(buttonX,
+                    getTop() + IMAGE_SIZE - CONFIG_BUTTON_SIZE, CONFIG_BUTTON_SIZE, CONFIG_BUTTON_SIZE));
             errors.setVisible(layout.errorY >= 0);
             warnings.setVisible(layout.warningY >= 0);
             if (layout.errorY >= 0) {
@@ -151,6 +176,21 @@ final class GuiPanelScriptInfo extends GuiContainer {
                 heading(context, "Dependencies", layout.dependencyY, context.getRenderer().getTheme().textPrimary);
                 drawDependencies(context, layout.dependencies, selected.getMissingDependencies(), getLeft(),
                         getTop() + layout.dependencyY + HEADER_HEIGHT, getWidth());
+            }
+        }
+
+        @Override
+        protected void renderAfterChildren(GuiContext context) {
+            if (!configureButton.isVisible()) {
+                return;
+            }
+            Rect icon = Rect.fromPositionAndSize(configureButton.getLeft() + CONFIG_ICON_INSET,
+                    configureButton.getTop() + CONFIG_ICON_INSET,
+                    CONFIG_ICON_SIZE, CONFIG_ICON_SIZE);
+            context.getRenderer().drawPackagedTexture(CONFIG_ICON, icon);
+            if (configureButton.contains(context.getMouseX(), context.getMouseY())
+                    && context.getRenderer().isPointVisible(context.getMouseX(), context.getMouseY())) {
+                context.showTooltip("Configure script settings");
             }
         }
 

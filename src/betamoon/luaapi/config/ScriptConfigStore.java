@@ -18,12 +18,15 @@ final class ScriptConfigStore {
     private final Path root;
     private final Path file;
     private final Map<String, Object> defaults;
+    private final Map<String, ScriptConfigField> fields;
     private byte[] observedBytes;
 
-    ScriptConfigStore(Path root, ScriptConfigKey key, Map<String, Object> defaults) {
+    ScriptConfigStore(Path root, ScriptConfigKey key, Map<String, Object> defaults,
+            Map<String, ScriptConfigField> fields) {
         this.root = root.toAbsolutePath().normalize();
         this.file = key.fileUnder(this.root);
         this.defaults = defaults;
+        this.fields = fields;
     }
 
     String fileName() {
@@ -48,18 +51,27 @@ final class ScriptConfigStore {
 
     void save(LuaTable values) throws IOException {
         Map<String, Object> snapshot = ScriptConfigValues.snapshot(values, defaults);
-        Map<String, Object> merged = ScriptConfigValues.merge(defaults, snapshot);
+        Map<String, Object> merged = saveDraft(snapshot);
+        ScriptConfigValues.update(values, ScriptConfigValues.toLua(merged).checktable());
+    }
+
+    Map<String, Object> saveDraft(Map<String, Object> draft) throws IOException {
+        return saveDraft(draft, observedBytes);
+    }
+
+    Map<String, Object> saveDraft(Map<String, Object> draft, byte[] expectedRevision) throws IOException {
+        Map<String, Object> merged = ScriptConfigValues.merge(defaults, draft, fields);
         byte[] bytes = ScriptConfigValues.json(merged);
         if (bytes.length > MAX_FILE_BYTES) {
             throw new IOException("Config exceeds " + MAX_FILE_BYTES + " bytes");
         }
         byte[] current = readFile();
-        if (!Arrays.equals(current, observedBytes)) {
+        if (!Arrays.equals(current, expectedRevision)) {
             throw new IOException("Config changed on disk; reload it before saving");
         }
         writeFile(bytes);
         observedBytes = bytes;
-        ScriptConfigValues.update(values, ScriptConfigValues.toLua(merged).checktable());
+        return merged;
     }
 
     void reload(LuaTable values) throws IOException {
@@ -77,9 +89,25 @@ final class ScriptConfigStore {
         observedBytes = bytes;
     }
 
+    DiskDraft readDraftFromDisk() throws IOException {
+        byte[] bytes = readFile();
+        Map<String, Object> loaded = bytes == null ? defaults : parse(bytes);
+        return new DiskDraft(ScriptConfigValues.copy(loaded), bytes);
+    }
+
+    static final class DiskDraft {
+        final Map<String, Object> values;
+        final byte[] revision;
+
+        DiskDraft(Map<String, Object> values, byte[] revision) {
+            this.values = values;
+            this.revision = revision == null ? null : revision.clone();
+        }
+    }
+
     private Map<String, Object> parse(byte[] bytes) throws IOException {
         try {
-            return ScriptConfigValues.merge(defaults, ModelJson.read(bytes));
+            return ScriptConfigValues.merge(defaults, ModelJson.read(bytes), fields);
         } catch (LuaError error) {
             throw new IOException(error.getMessage(), error);
         }

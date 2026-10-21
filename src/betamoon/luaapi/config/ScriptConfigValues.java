@@ -30,6 +30,38 @@ final class ScriptConfigValues {
         return result;
     }
 
+    static Object snapshotValue(LuaValue value) {
+        LuaTable wrapper = new LuaTable();
+        wrapper.set("value", value);
+        return snapshot(wrapper, null).get("value");
+    }
+
+    static Map<String, Object> copy(Map<String, Object> source) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> result = (Map<String, Object>) copyValue(source);
+        return result;
+    }
+
+    private static Object copyValue(Object value) {
+        if (value instanceof Map) {
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> source = (Map<String, Object>) value;
+            for (Map.Entry<String, Object> entry : source.entrySet()) {
+                result.put(entry.getKey(), copyValue(entry.getValue()));
+            }
+            return result;
+        }
+        if (value instanceof List) {
+            List<Object> result = new ArrayList<Object>();
+            for (Object entry : (List<?>) value) {
+                result.add(copyValue(entry));
+            }
+            return result;
+        }
+        return value;
+    }
+
     private Object fromLua(LuaValue value, String path, int depth, Object expected, boolean root) {
         if (depth > MAX_DEPTH || ++count > MAX_VALUES) {
             throw new LuaError(path + ": config nesting or value count exceeds limits");
@@ -57,7 +89,8 @@ final class ScriptConfigValues {
         try {
             LuaValue[] keys = table.keys();
             if (keys.length == 0) {
-                return !root && expected instanceof List ? new ArrayList<Object>()
+                return !root && expected instanceof List
+                        ? new ArrayList<Object>()
                         : new LinkedHashMap<String, Object>();
             }
             boolean numeric = keys[0].isint() && keys[0].toint() >= 1;
@@ -92,8 +125,8 @@ final class ScriptConfigValues {
             }
             for (Map.Entry<String, LuaValue> entry : ordered.entrySet()) {
                 Object expectedField = expected instanceof Map ? ((Map<?, ?>) expected).get(entry.getKey()) : null;
-                result.put(entry.getKey(), fromLua(entry.getValue(), path + "." + entry.getKey(), depth + 1,
-                        expectedField, false));
+                result.put(entry.getKey(),
+                        fromLua(entry.getValue(), path + "." + entry.getKey(), depth + 1, expectedField, false));
             }
             return result;
         } finally {
@@ -101,11 +134,12 @@ final class ScriptConfigValues {
         }
     }
 
-    static Map<String, Object> merge(Map<String, Object> defaults, Map<String, Object> loaded) {
+    static Map<String, Object> merge(Map<String, Object> defaults, Map<String, Object> loaded,
+            Map<String, ScriptConfigField> fields) {
         reserved(loaded);
-        checkJson(loaded, "config", 0, new int[] { 0 });
+        checkJson(loaded, "config", 0, new int[]{0});
         @SuppressWarnings("unchecked")
-        Map<String, Object> result = (Map<String, Object>) mergeValue(defaults, loaded, "config");
+        Map<String, Object> result = (Map<String, Object>) mergeValue(defaults, loaded, "config", null, fields);
         return result;
     }
 
@@ -131,7 +165,8 @@ final class ScriptConfigValues {
         }
     }
 
-    private static Object mergeValue(Object fallback, Object value, String path) {
+    private static Object mergeValue(Object fallback, Object value, String path, ScriptConfigField field,
+            Map<String, ScriptConfigField> children) {
         if (fallback instanceof Map) {
             if (!(value instanceof Map)) {
                 throw new LuaError(path + ": expected an object");
@@ -141,10 +176,25 @@ final class ScriptConfigValues {
             @SuppressWarnings("unchecked")
             Map<String, Object> actual = (Map<String, Object>) value;
             Map<String, Object> merged = new LinkedHashMap<String, Object>();
+            if (field != null && "dictionary".equals(field.collectionKind())) {
+                for (Map.Entry<String, Object> entry : actual.entrySet()) {
+                    if (entry.getKey().isEmpty()) {
+                        throw new LuaError(path + ": dictionary keys cannot be empty");
+                    }
+                    ScriptConfigField descriptor = field.valueField();
+                    merged.put(entry.getKey(), mergeValue(descriptor.defaultValue(), entry.getValue(),
+                            path + "." + entry.getKey(), descriptor, descriptor.children()));
+                }
+                return merged;
+            }
             for (Map.Entry<String, Object> entry : actual.entrySet()) {
                 Object defaultValue = declared.get(entry.getKey());
-                merged.put(entry.getKey(), defaultValue == null ? entry.getValue()
-                        : mergeValue(defaultValue, entry.getValue(), path + "." + entry.getKey()));
+                ScriptConfigField child = children == null ? null : children.get(entry.getKey());
+                merged.put(entry.getKey(),
+                        defaultValue == null
+                                ? entry.getValue()
+                                : mergeValue(defaultValue, entry.getValue(), path + "." + entry.getKey(), child,
+                                        child == null ? null : child.children()));
             }
             for (Map.Entry<String, Object> entry : declared.entrySet()) {
                 if (!actual.containsKey(entry.getKey())) {
@@ -153,8 +203,17 @@ final class ScriptConfigValues {
             }
             return merged;
         }
-        if (fallback instanceof List && value instanceof List
-                || fallback instanceof String && value instanceof String
+        if (fallback instanceof List && value instanceof List && field != null
+                && "list".equals(field.collectionKind())) {
+            List<Object> merged = new ArrayList<Object>();
+            ScriptConfigField descriptor = field.element();
+            for (Object item : (List<?>) value) {
+                merged.add(mergeValue(descriptor.defaultValue(), item, path + "[" + (merged.size() + 1) + "]",
+                        descriptor, descriptor.children()));
+            }
+            return merged;
+        }
+        if (fallback instanceof List && value instanceof List || fallback instanceof String && value instanceof String
                 || fallback instanceof Boolean && value instanceof Boolean
                 || fallback instanceof Number && value instanceof Number) {
             return value;

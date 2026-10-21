@@ -12,7 +12,7 @@ import org.lwjgl.input.Keyboard;
 /**
  * Retained wrapper around Minecraft's native button renderer and hit behavior.
  */
-public final class GuiButton extends GuiElement {
+public class GuiButton extends GuiElement {
     private static final int DEFAULT_HEIGHT = 20;
 
     private final NativeButton nativeButton;
