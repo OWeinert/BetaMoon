@@ -1135,7 +1135,8 @@ state.height
 
 The state view is read-only and expires with its context if it contains world
 access. The initial fluid creation release does not need a new coordinate-taking
-query API; world position argument unification remains separately deferred.
+query API; world position argument unification is now a separate active pre-1.0
+proposal in [Position arguments](POSITION_ARGUMENT_EXPANSION_PROPOSAL.md).
 
 ## 22. Presets
 
