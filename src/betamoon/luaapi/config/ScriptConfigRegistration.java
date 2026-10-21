@@ -56,6 +56,19 @@ public final class ScriptConfigRegistration {
         return metadata.fields;
     }
 
+    public List<ScriptConfigLayoutEntry> layout() {
+        return metadata.layout;
+    }
+
+    public boolean canResetField(ScriptConfigField field, Object before, Object candidate, String path) {
+        try {
+            ScriptConfigEdits.validateField(field, before, candidate, path);
+            return true;
+        } catch (ScriptConfigValidationException error) {
+            return false;
+        }
+    }
+
     public Map<String, Object> defaults() {
         return ScriptConfigValues.copy(store.defaults());
     }

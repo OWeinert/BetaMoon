@@ -26,11 +26,13 @@ public final class ScriptConfigField {
     private final ScriptConfigField keyField;
     private final ScriptConfigField valueField;
     private final Map<String, ScriptConfigField> children;
+    private final List<ScriptConfigLayoutEntry> layout;
 
     ScriptConfigField(String name, String label, String description, Object defaultValue, Double minimum,
             Double maximum, Double step, String input, String collectionKind, List<ScriptConfigChoice> choices,
             boolean expanded, boolean readOnly, String readOnlyReason, int maxItems, ScriptConfigField element,
-            ScriptConfigField keyField, ScriptConfigField valueField, Map<String, ScriptConfigField> children) {
+            ScriptConfigField keyField, ScriptConfigField valueField, Map<String, ScriptConfigField> children,
+            List<ScriptConfigLayoutEntry> layout) {
         this.name = name;
         this.label = label;
         this.description = description;
@@ -49,6 +51,7 @@ public final class ScriptConfigField {
         this.keyField = keyField;
         this.valueField = valueField;
         this.children = Collections.unmodifiableMap(new LinkedHashMap<String, ScriptConfigField>(children));
+        this.layout = Collections.unmodifiableList(new ArrayList<ScriptConfigLayoutEntry>(layout));
     }
 
     public String name() {
@@ -132,6 +135,10 @@ public final class ScriptConfigField {
         return children;
     }
 
+    public List<ScriptConfigLayoutEntry> layout() {
+        return layout;
+    }
+
     private static Object immutable(Object value) {
         if (value instanceof Map) {
             Map<String, Object> copy = new LinkedHashMap<String, Object>();
@@ -172,6 +179,7 @@ public final class ScriptConfigField {
                 ? "cycle"
                 : value instanceof String || value instanceof Number ? "text" : null;
         return new ScriptConfigField(name, name, "", value, null, null, null, input, null,
-                Collections.<ScriptConfigChoice>emptyList(), false, false, "", 64, item, null, null, nested);
+                Collections.<ScriptConfigChoice>emptyList(), false, false, "", 64, item, null, null, nested,
+                Collections.<ScriptConfigLayoutEntry>emptyList());
     }
 }

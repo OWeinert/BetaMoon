@@ -12,6 +12,7 @@ import betamoon.gui.widget.GuiDropdownMenu;
 import betamoon.gui.widget.GuiScrollView;
 import betamoon.luaapi.config.ScriptConfigChoice;
 import betamoon.luaapi.config.ScriptConfigField;
+import betamoon.luaapi.config.ScriptConfigLayoutEntry;
 import betamoon.luaapi.config.ScriptConfigRegistration;
 import betamoon.luaapi.config.ScriptConfigRegistry;
 import betamoon.luaapi.config.ScriptConfigValidationException;
@@ -47,6 +48,10 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
     private static final int FIELD_INPUT_HEIGHT = 18;
     private static final int FIELD_BUTTON_HEIGHT = 20;
     private static final int FIELD_ROW_HEIGHT = 28;
+    private static final int FIELD_DECORATION_HEIGHT = 22;
+    private static final int FIELD_DIVIDER_HEIGHT = 14;
+    private static final int FIELD_RESET_WIDTH = 44;
+    private static final int FIELD_RESET_GAP = 4;
     private static final int FIELD_HEADING_TOP_GAP = 4;
     private static final int FIELD_SEPARATOR_COLOR = 0x55777777;
     private static final int FIELD_HEADING_TEXT_COLOR = McColors.AQUA.getArgb(0xFF);
@@ -141,6 +146,7 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
             if (row.keyInput != null) {
                 row.keyInput.tick();
             }
+            row.updateResetEnabled();
         }
     }
 
@@ -366,6 +372,7 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
 
     private final class FormContent extends GuiContainer {
         private final List<FieldRow> rows = new ArrayList<FieldRow>();
+        private final List<Decoration> decorations = new ArrayList<Decoration>();
         private final List<Integer> rowOffsets = new ArrayList<Integer>();
         private int measuredHeight = 8;
 
@@ -381,23 +388,44 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
             dropdown.close();
             clear();
             rows.clear();
+            decorations.clear();
             rowOffsets.clear();
             measuredHeight = 8;
             if (sections.isEmpty()) {
                 return;
             }
             Section section = section();
-            for (Map.Entry<String, ScriptConfigField> entry : section.registration.fields().entrySet()) {
-                addField(entry.getValue(), section.draft, section.baseline, entry.getKey(),
-                        fieldPath("", entry.getKey()), 0, false, false, false);
-            }
+            addLayoutFields(section.registration.fields(), section.registration.layout(), section.draft,
+                    section.baseline, "", 0, false);
             measureRows();
             requestLayout();
+        }
+
+        private void addLayoutFields(Map<String, ScriptConfigField> fields, List<ScriptConfigLayoutEntry> layout,
+                Map<String, Object> parent, Object baselineParent, String parentPath, int depth,
+                boolean inheritedReadOnly) {
+            if (layout.isEmpty()) {
+                for (Map.Entry<String, ScriptConfigField> entry : fields.entrySet()) {
+                    addField(entry.getValue(), parent, baselineParent, entry.getKey(),
+                            fieldPath(parentPath, entry.getKey()), depth, false, inheritedReadOnly, false);
+                }
+                return;
+            }
+            for (ScriptConfigLayoutEntry entry : layout) {
+                if (entry.kind() == ScriptConfigLayoutEntry.Kind.FIELD) {
+                    String key = entry.text();
+                    addField(fields.get(key), parent, baselineParent, key, fieldPath(parentPath, key), depth,
+                            false, inheritedReadOnly, false);
+                } else {
+                    decorations.add(new Decoration(entry, rows.size(), depth));
+                }
+            }
         }
 
         private void measureRows() {
             int offset = 4;
             List<FieldRow> openCollections = new ArrayList<FieldRow>();
+            int decorationIndex = 0;
             for (int index = 0; index < rows.size(); index++) {
                 FieldRow row = rows.get(index);
                 while (!openCollections.isEmpty()
@@ -406,11 +434,22 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
                     collection.addTopOffset = offset;
                     offset += FIELD_ROW_HEIGHT;
                 }
+                while (decorationIndex < decorations.size()
+                        && decorations.get(decorationIndex).beforeIndex == index) {
+                    Decoration decoration = decorations.get(decorationIndex++);
+                    decoration.topOffset = offset;
+                    offset += decoration.entry.kind() == ScriptConfigLayoutEntry.Kind.HEADING
+                            ? FIELD_DECORATION_HEIGHT : FIELD_DIVIDER_HEIGHT;
+                }
                 if (index > 0 && row.toggle != null) {
                     offset += FIELD_HEADING_TOP_GAP;
                 }
                 rowOffsets.add(Integer.valueOf(offset));
                 offset += FIELD_ROW_HEIGHT;
+                if (!row.choiceButtons.isEmpty()) {
+                    row.choiceTopOffset = offset;
+                    offset += row.choiceButtons.size() * FIELD_ROW_HEIGHT;
+                }
                 if (row.toggle != null && row.action != null && isExpanded(row)) {
                     openCollections.add(row);
                 }
@@ -436,6 +475,7 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
                     inheritedReadOnly, dictionaryEntry);
             rows.add(row);
             if (("text".equals(field.input()) && field.collectionKind() != null)
+                    || "multiSelect".equals(field.input())
                     || row.toggle != null && !isExpanded(row)) {
                 return;
             }
@@ -448,10 +488,8 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
                                 readOnly, true);
                     }
                 } else {
-                    for (Map.Entry<String, ScriptConfigField> entry : field.children().entrySet()) {
-                        addField(entry.getValue(), object, baselineValue, entry.getKey(),
-                                fieldPath(path, entry.getKey()), depth + 1, false, readOnly, false);
-                    }
+                    addLayoutFields(field.children(), field.layout(), object, baselineValue, path, depth + 1,
+                            readOnly);
                 }
             } else if (value instanceof List) {
                 List<?> values = (List<?>) value;
@@ -494,11 +532,60 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
             }
         }
 
+        private void focusChoice(String path, int choiceIndex) {
+            for (FieldRow row : rows) {
+                if (!row.path.equals(path) || choiceIndex >= row.choiceButtons.size()) {
+                    continue;
+                }
+                GuiButton button = row.choiceButtons.get(choiceIndex);
+                getGuiContext().deferAfterRender(() -> {
+                    scroll.reveal(button.getBounds());
+                    getGuiContext().requestFocus(button);
+                });
+                return;
+            }
+        }
+
+        private void resetField(FieldRow target) {
+            dropdown.close();
+            if (!commitInputsExcept(target)) {
+                return;
+            }
+            Object currentValue = value(target.parent, target.slot);
+            Object candidate = resetCandidate(currentValue, target.field);
+            if (!section().registration.canResetField(target.field, target.baselineValue, candidate,
+                    validationPath(target.path))) {
+                message = validationPath(target.path) + ": reset would change a read-only value.";
+                return;
+            }
+            setValue(target.parent, target.slot, candidate);
+            message = "Default is in the draft. Save to apply it.";
+            rebuild();
+        }
+
+        private Object resetCandidate(Object currentValue, ScriptConfigField field) {
+            Object fallback = field.defaultValue();
+            if (currentValue instanceof Map && fallback instanceof Map
+                    && !"dictionary".equals(field.collectionKind())) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> candidate = (Map<String, Object>) copyValue(currentValue);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> defaults = (Map<String, Object>) fallback;
+                replaceDeclared(candidate, defaults, field.children());
+                return candidate;
+            }
+            return copyValue(fallback);
+        }
+
         private boolean commitInputs() {
+            return commitInputsExcept(null);
+        }
+
+        private boolean commitInputsExcept(FieldRow target) {
             try {
                 Map<FieldRow, Object> edits = new LinkedHashMap<FieldRow, Object>();
                 Map<Map<String, Object>, Map<String, String>> keyEdits = new IdentityHashMap<Map<String, Object>, Map<String, String>>();
-                if (!collectInputEdits(edits, keyEdits) || !uniqueKeys(keyEdits)) {
+                if (!collectInputEdits(edits, keyEdits, target) || !uniqueKeys(keyEdits)) {
                     return false;
                 }
                 applyInputEdits(edits);
@@ -514,8 +601,11 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
         }
 
         private boolean collectInputEdits(Map<FieldRow, Object> edits,
-                Map<Map<String, Object>, Map<String, String>> keyEdits) {
+                Map<Map<String, Object>, Map<String, String>> keyEdits, FieldRow target) {
             for (FieldRow row : rows) {
+                if (target != null && (row.path.equals(target.path) || row.path.startsWith(target.path + "/"))) {
+                    continue;
+                }
                 if (row.keyInput != null && !row.structureReadOnly) {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> dictionary = (Map<String, Object>) row.parent;
@@ -746,9 +836,7 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
                 int controlLeft = columns.controlLeft + indentation;
                 int controlWidth = controlWidth(row, columns, indentation);
                 if (row.toggle != null) {
-                    int toggleRight = row.remove == null
-                            ? columns.controlLeft + columns.controlWidth
-                            : controlLeft + controlWidth;
+                    int toggleRight = controlLeft + controlWidth;
                     row.toggle.arrange(context, Rect.fromPositionAndSize(columns.left, y,
                             Math.max(0, toggleRight - columns.left), FIELD_ROW_HEIGHT));
                 }
@@ -792,6 +880,16 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
                             Rect.fromPositionAndSize(controlLeft + controlWidth + FIELD_COLUMN_GAP / 2,
                                     y + FIELD_CONTROL_TOP_OFFSET, 22, FIELD_BUTTON_HEIGHT));
                 }
+                if (row.resetField != null) {
+                    row.resetField.arrange(context, Rect.fromPositionAndSize(
+                            controlLeft + controlWidth + FIELD_RESET_GAP, y + FIELD_CONTROL_TOP_OFFSET,
+                            FIELD_RESET_WIDTH, FIELD_BUTTON_HEIGHT));
+                }
+                for (int choiceIndex = 0; choiceIndex < row.choiceButtons.size(); choiceIndex++) {
+                    row.choiceButtons.get(choiceIndex).arrange(context, Rect.fromPositionAndSize(
+                            controlLeft, getTop() + row.choiceTopOffset + choiceIndex * FIELD_ROW_HEIGHT
+                                    + FIELD_CONTROL_TOP_OFFSET, Math.max(0, controlWidth), FIELD_BUTTON_HEIGHT));
+                }
             }
         }
 
@@ -799,10 +897,11 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
         protected void renderBeforeChildren(GuiContext context) {
             FormColumns columns = columns();
             drawNestedGroupEdges(context, columns);
+            renderDecorations(context, columns);
             for (int index = 0; index < rows.size(); index++) {
                 FieldRow row = rows.get(index);
                 int y = rowTop(index);
-                if (index > 0 && row.depth == 0 && columns.groupWidth > 16) {
+                if (index > 0 && row.depth == 0 && columns.groupWidth > 16 && !decoratedBefore(index)) {
                     context.getRenderer().drawHorizontalLine(columns.left + 8, columns.left + columns.groupWidth - 8,
                             y - 2, FIELD_SEPARATOR_COLOR);
                 }
@@ -824,6 +923,16 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
                     }
                     context.getRenderer().drawText(visibleLabel, labelLeft, labelY, labelColor);
                 }
+                if ("multiSelect".equals(row.field.input())) {
+                    @SuppressWarnings("unchecked")
+                    List<Object> selected = (List<Object>) value(row.parent, row.slot);
+                    String summary = selected.size() + "/" + row.field.choices().size() + " set";
+                    int summaryLeft = columns.controlLeft + indentation;
+                    context.getRenderer().drawText(context.getRenderer().trimToWidth(summary,
+                            Math.max(0, controlWidth(row, columns, indentation) - 12)), summaryLeft, labelY,
+                            row.readOnly ? context.getRenderer().getTheme().textMuted
+                                    : context.getRenderer().getTheme().textPrimary);
+                }
                 if (row.keyModified()) {
                     int markerX = row.keyInput.getRight() + FIELD_MARKER_GAP;
                     int markerY = y + FIELD_CONTROL_TOP_OFFSET - context.getRenderer().lineHeight() / 2;
@@ -831,7 +940,9 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
                 }
                 if (row.valueModified()
                         && (row.input != null || row.action != null || row.slider != null || row.toggle != null)) {
-                    GuiElement markedControl = row.remove != null
+                    GuiElement markedControl = row.resetField != null
+                            ? row.resetField
+                            : row.remove != null
                             ? row.remove
                             : row.input != null
                                     ? row.input
@@ -855,6 +966,30 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
                     }
                     addTooltipText(context, details, "Default: " + display(row.field.defaultValue()));
                     context.showTooltip(details);
+                }
+            }
+        }
+
+        private boolean decoratedBefore(int index) {
+            for (Decoration decoration : decorations) {
+                if (decoration.beforeIndex == index) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private void renderDecorations(GuiContext context, FormColumns columns) {
+            for (Decoration decoration : decorations) {
+                int y = getTop() + decoration.topOffset;
+                int left = columns.left + decoration.depth * FIELD_NESTED_INDENT;
+                if (decoration.entry.kind() == ScriptConfigLayoutEntry.Kind.HEADING) {
+                    String text = context.getRenderer().trimToWidth(decoration.entry.text(),
+                            Math.max(0, columns.groupWidth - decoration.depth * FIELD_NESTED_INDENT));
+                    context.getRenderer().drawText(text, left, y + 7, FIELD_HEADING_TEXT_COLOR);
+                } else if (columns.groupWidth > 16) {
+                    context.getRenderer().drawHorizontalLine(left + 8, columns.left + columns.groupWidth - 8,
+                            y + FIELD_DIVIDER_HEIGHT / 2, FIELD_GROUP_EDGE_COLOR);
                 }
             }
         }
@@ -973,7 +1108,9 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
 
         private int indentation(FieldRow row, FormColumns columns) {
             int removeWidth = row.remove == null ? 0 : 22 + FIELD_COLUMN_GAP / 2;
-            int available = Math.max(0, columns.controlWidth - removeWidth - FIELD_MIN_CONTROL_WIDTH);
+            int resetWidth = row.resetField == null ? 0 : FIELD_RESET_WIDTH + FIELD_RESET_GAP;
+            int available = Math.max(0,
+                    columns.controlWidth - removeWidth - resetWidth - FIELD_MIN_CONTROL_WIDTH);
             int requested = row.depth * FIELD_NESTED_INDENT;
             if (row.remove != null) {
                 requested += FIELD_NESTED_INDENT;
@@ -983,7 +1120,21 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
 
         private int controlWidth(FieldRow row, FormColumns columns, int indentation) {
             int removeWidth = row.remove == null ? 0 : 22 + FIELD_COLUMN_GAP / 2;
-            return Math.max(0, columns.controlWidth - indentation - removeWidth);
+            int resetWidth = row.resetField == null ? 0 : FIELD_RESET_WIDTH + FIELD_RESET_GAP;
+            return Math.max(0, columns.controlWidth - indentation - removeWidth - resetWidth);
+        }
+    }
+
+    private static final class Decoration {
+        private final ScriptConfigLayoutEntry entry;
+        private final int beforeIndex;
+        private final int depth;
+        private int topOffset;
+
+        private Decoration(ScriptConfigLayoutEntry entry, int beforeIndex, int depth) {
+            this.entry = entry;
+            this.beforeIndex = beforeIndex;
+            this.depth = depth;
         }
     }
 
@@ -1058,7 +1209,10 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
         private GuiConfigSlider slider;
         private GuiButton action;
         private GuiButton remove;
+        private GuiButton resetField;
         private SectionToggle toggle;
+        private final List<GuiButton> choiceButtons = new ArrayList<GuiButton>();
+        private int choiceTopOffset = -1;
 
         private FieldRow(ScriptConfigField field, Object parent, Object slot, Object baselineValue, String path,
                 int depth, boolean removable, boolean readOnly, boolean structureReadOnly, boolean dictionaryEntry) {
@@ -1116,6 +1270,34 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
                     updateChoiceLabel();
                 }));
                 updateChoiceLabel();
+            } else if ("multiSelect".equals(field.input())) {
+                if (form.isExpanded(this)) {
+                    for (int index = 0; index < field.choices().size(); index++) {
+                        ScriptConfigChoice choice = field.choices().get(index);
+                        int choiceIndex = index;
+                        GuiButton button = form.add(new GuiButton("", () -> {
+                            if (!form.commitInputs()) {
+                                return;
+                            }
+                            @SuppressWarnings("unchecked")
+                            List<Object> current = (List<Object>) value(parent, this.slot);
+                            boolean wasSelected = selected(current, choice);
+                            List<Object> updated = new ArrayList<Object>();
+                            for (ScriptConfigChoice option : field.choices()) {
+                                if (option == choice ? !wasSelected : selected(current, option)) {
+                                    updated.add(option.value());
+                                }
+                            }
+                            setValue(parent, this.slot, updated);
+                            form.rebuild();
+                            form.focusChoice(this.path, choiceIndex);
+                        }));
+                        button.setEnabled(!readOnly);
+                        button.setLabel((selected((List<?>) currentValue, choice) ? "[x] " : "[ ] ")
+                                + choice.label());
+                        choiceButtons.add(button);
+                    }
+                }
             } else if (currentValue instanceof String || currentValue instanceof Number) {
                 input = form.add(new GuiConfigInput(GuiScreenScriptConfig.this, String.valueOf(currentValue)));
             } else if ("collection".equals(field.input())) {
@@ -1199,7 +1381,36 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
                     form.rebuild();
                 }));
                 remove.setEnabled(!readOnly && !structureReadOnly);
+            } else {
+                resetField = form.add(new GuiButton("Reset", () -> form.resetField(this)));
+                updateResetEnabled();
             }
+        }
+
+        private boolean selected(List<?> values, ScriptConfigChoice choice) {
+            for (Object value : values) {
+                if (choice.matches(value)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private void updateResetEnabled() {
+            if (resetField == null) {
+                return;
+            }
+            Object currentValue = value(parent, slot);
+            Object candidate = form.resetCandidate(currentValue, field);
+            boolean differs = !Objects.equals(candidate, currentValue);
+            if (input != null && !readOnly) {
+                String defaultText = field.collectionKind() == null
+                        ? String.valueOf(candidate) : ScriptConfigTextValues.format(candidate, field);
+                differs |= !Objects.equals(input.value(), defaultText);
+            }
+            resetField.setEnabled(!readOnly && differs
+                    && section().registration.canResetField(field, baselineValue, candidate,
+                            form.validationPath(path)));
         }
 
         private void updateChoiceLabel() {
@@ -1230,6 +1441,9 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
                         && !Objects.equals(currentValue, baselineValue);
             }
             if (currentValue instanceof List && baselineValue instanceof List) {
+                if ("multiSelect".equals(field.input())) {
+                    return !Objects.equals(currentValue, baselineValue);
+                }
                 return !form.isExpanded(this)
                         ? !Objects.equals(currentValue, baselineValue)
                         : ((List<?>) currentValue).size() != ((List<?>) baselineValue).size();

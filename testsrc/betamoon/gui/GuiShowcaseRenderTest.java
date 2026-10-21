@@ -995,7 +995,13 @@ public final class GuiShowcaseRenderTest {
                         + "rates={input='text',kind='dictionary',key={input='text'},"
                         + "value={default=0.5,min=0,max=1,step=0.25}},"
                         + "volumes={fields={music={input='slider',min=0,max=1,step=0.25},"
-                        + "effects={input='slider',min=0,max=1,step=0.25}}}}})").call();
+                        + "effects={input='slider',min=0,max=1,step=0.25}}}}}); "
+                        + "betamoon.config('showcase:organized',"
+                        + "{effects={},title='Display',intensity=1,audio={music=0.5}},"
+                        + "{label='Organized',layout={{heading='Visual'},'effects','title','intensity',"
+                        + "{divider=true},{heading='Audio'},'audio'},"
+                        + "fields={effects={input='multiSelect',choices={{value='fog',label='Fog'},'particles'}},"
+                        + "audio={expanded=true,layout={{heading='Levels'},'music'}}}})").call();
             } finally {
                 owner.invoke(null, new Object[]{null});
             }
@@ -1273,6 +1279,66 @@ public final class GuiShowcaseRenderTest {
             require(compactSaved.contains("green, blue") && compactSaved.contains("say \\\"hi\\\"")
                     && compactSaved.contains("\"a:b\": 1"),
                     "Compact controls save quoted strings and typed dictionary values");
+            nextSection.invoke(configuration);
+            renderScreen(configuration, minecraft, output, "script-config-organized.png");
+            GuiButton effectsReset = (GuiButton) configRowMember(configuration, "effects", null, "resetField");
+            require(!effectsReset.isEnabled(), "A field at its declared default has no active Reset button");
+            GuiElement effectsToggle = (GuiElement) configRowMember(configuration, "effects", null, "toggle");
+            require(configScene.mousePressed(effectsToggle.getRight() - 9, effectsToggle.getTop() + 14, 0),
+                    "Multi-select summary expands its choices");
+            configuration.drawScreen(0, 0, 0.0F);
+            @SuppressWarnings("unchecked")
+            List<GuiButton> effectChoices = (List<GuiButton>) configRowMember(configuration, "effects", null,
+                    "choiceButtons");
+            require(effectChoices.size() == 2 && effectChoices.get(0).getLabel().startsWith("[ ]"),
+                    "Expanded multi-select displays checkable choices");
+            GuiScrollView organizedScroll = (GuiScrollView) scrollField.get(configuration);
+            organizedScroll.reveal(effectChoices.get(0).getBounds());
+            configuration.drawScreen(0, 0, 0.0F);
+            require(configScene.mousePressed(effectChoices.get(0).getLeft() + 5, effectChoices.get(0).getTop() + 10,
+                    0), "A multi-select choice receives clicks");
+            configuration.drawScreen(0, 0, 0.0F);
+            configScene.update();
+            configuration.drawScreen(0, 0, 0.0F);
+            @SuppressWarnings("unchecked")
+            List<GuiButton> focusedChoices = (List<GuiButton>) configRowMember(configuration, "effects", null,
+                    "choiceButtons");
+            require(configScene.getFocusedElement() == focusedChoices.get(0),
+                    "Toggling a choice restores keyboard focus to that choice");
+            configScene.keyTyped(' ', Keyboard.KEY_SPACE, false);
+            configuration.drawScreen(0, 0, 0.0F);
+            configScene.update();
+            configuration.drawScreen(0, 0, 0.0F);
+            configScene.keyTyped(' ', Keyboard.KEY_SPACE, false);
+            configuration.drawScreen(0, 0, 0.0F);
+            Object organizedSection = ((List<?>) configSectionsField.get(configuration)).get(4);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> organizedDraft = (Map<String, Object>) sectionDraftField.get(organizedSection);
+            require(((List<?>) organizedDraft.get("effects")).size() == 1,
+                    "Selecting a choice changes the draft without saving");
+            effectsReset = (GuiButton) configRowMember(configuration, "effects", null, "resetField");
+            require(effectsReset.isEnabled(), "A nondefault multi-select can be reset per field");
+            GuiConfigInput intensityInput = (GuiConfigInput) configRowMember(configuration, "intensity", null,
+                    "input");
+            GuiTextBox intensityText = (GuiTextBox) textField.get(intensityInput);
+            intensityText.setText("bad");
+            organizedScroll.reveal(effectsReset.getBounds());
+            configuration.drawScreen(0, 0, 0.0F);
+            require(configScene.mousePressed(effectsReset.getLeft() + 5, effectsReset.getTop() + 10, 0),
+                    "Per-field Reset receives clicks");
+            require(((List<?>) organizedDraft.get("effects")).size() == 1
+                    && "bad".equals(intensityInput.value()) && configScene.getFocusedElement() == intensityInput,
+                    "Invalid unrelated text stays in place and blocks per-field Reset");
+            intensityText.setText("1.0");
+            organizedScroll.reveal(effectsReset.getBounds());
+            configuration.drawScreen(0, 0, 0.0F);
+            require(configScene.mousePressed(effectsReset.getLeft() + 5, effectsReset.getTop() + 10, 0),
+                    "Per-field Reset applies after unrelated text is valid");
+            require(((List<?>) organizedDraft.get("effects")).isEmpty(),
+                    "Per-field Reset restores the declared choice array in the draft");
+            require(!new String(Files.readAllBytes(new File(configRoot, "showcase/organized.json").toPath()),
+                    StandardCharsets.UTF_8).contains("fog"),
+                    "Reset does not write before Save");
             renderScreen(scripts, minecraft, output, "scripts-name-tooltip.png", 45, 57);
             renderScreen(new GuiPopupDebugMenu(scripts), minecraft, output, "debug-menu.png");
             renderScreen(new GuiPopupDebugExport(scripts, (Exception) null), minecraft, output, "debug-export.png");
@@ -1284,6 +1350,7 @@ public final class GuiShowcaseRenderTest {
             Files.deleteIfExists(new File(configRoot, "showcase/audio.json").toPath());
             Files.deleteIfExists(new File(configRoot, "showcase/collections.json").toPath());
             Files.deleteIfExists(new File(configRoot, "showcase/compact.json").toPath());
+            Files.deleteIfExists(new File(configRoot, "showcase/organized.json").toPath());
             Files.deleteIfExists(new File(configRoot, "showcase").toPath());
             Files.deleteIfExists(configRoot.toPath());
             NonReloadableScriptRegistry.unmark(restartFile);
