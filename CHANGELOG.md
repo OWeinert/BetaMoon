@@ -27,6 +27,14 @@
 - Require exact integers for block coordinates and integer position construction; reject non-finite and out-of-range
   float positions.
 
+### Biome and region generation overrides
+
+- Let scripts register selectable Overworld biome/region packages while Minecraft remains the base generator.
+- Apply scoped terrain sources, material rules, carvers, surfaces and population suppression through native and
+  owned generation stages. Keep biome identity and unaffected native raw columns intact.
+- Save selected packages, effective order and dependency signatures with generation settings; reject changed or
+  missing enabled definitions on reopen. Add point/chunk inspection for target influence and selected channels.
+
 ### 0.11 integration and reliability
 
 - Integrate materials, step sounds and the script config editor on one development branch.

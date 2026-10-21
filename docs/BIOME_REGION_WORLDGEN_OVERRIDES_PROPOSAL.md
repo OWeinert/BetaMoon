@@ -1,6 +1,6 @@
 # Biome and region worldgen overrides: delivery proposal
 
-Status: active pre-1.0 proposal, 2026-10-21. [World creation proposal section 13](WORLD_CREATION_GENERATION_SETTINGS_PROPOSAL.md#13-biome--and-region-scoped-worldgen-overrides) remains the accepted feature scope. This document turns that scope into implementation boundaries and decisions to settle. No override API is implemented here.
+Status: accepted pre-1.0 design, 2026-10-21. [World creation proposal section 13](WORLD_CREATION_GENERATION_SETTINGS_PROPOSAL.md#13-biome--and-region-scoped-worldgen-overrides) remains the feature scope. The implemented first contract and remaining refinements are tracked in [the implementation plan](BIOME_REGION_OVERRIDE_IMPLEMENTATION_PLAN.md).
 
 ## Player and author contract
 

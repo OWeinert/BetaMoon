@@ -373,6 +373,7 @@ public final class InstrumentationTransformTest {
                     || diagnostic.getHookId().startsWith("betamoon:world_creation")
                     || diagnostic.getHookId().startsWith("betamoon:world_join")
                     || diagnostic.getHookId().startsWith("betamoon:world_population")
+                    || diagnostic.getHookId().startsWith("betamoon:worldgen_override")
                     || diagnostic.getHookId().startsWith("betamoon:fluid_ecology")
                     || diagnostic.getHookId().startsWith("betamoon:atmosphere")
                     || diagnostic.getHookId().startsWith("betamoon:regional_structure_chunk")

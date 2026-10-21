@@ -380,6 +380,11 @@ final class FeaturePlacementRegistry {
                                 context.failure() == null ? FeatureResult.OUT_OF_BOUNDS : context.failure());
                         continue;
                     }
+                    if (!WorldGenerationRuntime.overridePopulationEnabled(world, placement.key.toString(),
+                            origin.x, origin.z, false)) {
+                        reject(placement.key, "terrain_override");
+                        continue;
+                    }
                     if (placement.conditions.spatial != null) {
                         if (generationFields == null) {
                             generationFields = WorldGenerationRuntime.fieldContext(world);
