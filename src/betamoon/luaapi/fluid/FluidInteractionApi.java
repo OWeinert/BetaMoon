@@ -75,8 +75,8 @@ final class FluidInteractionApi {
         }
         LuaTable reference = new LuaTable();
         reference.set("key", key.toString());
-        reference.set("replace", new FluidReference(replaced));
-        reference.set("counterpart", new FluidReference(counterpart));
+        reference.set("replace", FluidReference.of(replaced));
+        reference.set("counterpart", FluidReference.of(counterpart));
         reference.set("exists", LuaValue.TRUE);
         return reference;
     }

@@ -34,6 +34,7 @@ public final class LuaModPackagesTest {
         try {
             verifyDistributedExamples(new File("examples"));
             verifyDiscoveryAndManifestMetadata(root);
+            verifyManifestVersionSyntax();
             verifyScriptsDirectoryMigration(root);
             verifyScriptConfigPlacement(root);
             verifyRequireCachingAndInitModules(root);
@@ -186,7 +187,8 @@ public final class LuaModPackagesTest {
         write(new File(packaged, "betamoon.mod.json"),
                 "{\n" + "  \"entrypoint\": \"src/clockwork.lua\",\n" + "  \"name\": \"Clockwork\",\n"
                         + "  \"version\": \"1.2.0\",\n" + "  \"description\": \"Machines\",\n"
-                        + "  \"dependencies\": [\"Foundation\"],\n" + "  \"image\": \"icon.png\"\n}\n");
+                        + "  \"dependencies\": [{\"name\":\"Foundation\",\"minVersion\":\"1.2.0\"}],\n"
+                        + "  \"image\": \"icon.png\"\n}\n");
         write(new File(packaged, "src/clockwork.lua"), "name='Clockwork'\nversion='1.2.0'\n"
                 + "dependencies={'Foundation'}\nimage='icon.png'\nfunction modInit() end\n");
 
@@ -205,8 +207,26 @@ public final class LuaModPackagesTest {
         require("Clockwork".equals(parsed.getDisplayName()) && "1.2.0".equals(parsed.getVersion())
                 && parsed.getDependencies().equals(Collections.singletonList("Foundation")),
                 "Manifest metadata must fall back when the entrypoint omits it");
+        require("1.2.0".equals(parsed.minimumDependencyVersions.get("Foundation")),
+                "A versioned manifest dependency must reach the resolver");
         require(parsed.resolveImageFile(scripts).equals(new File(packaged, "icon.png").getCanonicalFile()),
                 "A package image must resolve relative to its mod root");
+    }
+
+    private static void verifyManifestVersionSyntax() throws IOException {
+        LuaModManifest mixed = LuaModManifest.parse("{\"entrypoint\":\"main.lua\",\"dependencies\":["
+                + "\"Plain\",{\"name\":\"Versioned\",\"minVersion\":\"2.0.1\"}]}");
+        require(mixed.dependencies().equals(java.util.Arrays.asList("Plain", "Versioned"))
+                && mixed.minimumDependencyVersions().size() == 1,
+                "Name-only and versioned dependencies must coexist");
+        try {
+            LuaModManifest.parse("{\"entrypoint\":\"main.lua\",\"dependencies\":["
+                    + "{\"name\":\"Bad\",\"minVersion\":\"1.2\"}]}");
+            throw new AssertionError("Ambiguous version syntax was accepted");
+        } catch (IOException expected) {
+            require(expected.getMessage().contains("three non-negative numeric parts"),
+                    "Invalid minimum versions must explain the accepted form");
+        }
     }
 
     private static void verifyRequireCachingAndInitModules(File root) throws IOException {

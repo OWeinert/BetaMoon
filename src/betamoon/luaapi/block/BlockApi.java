@@ -2,6 +2,7 @@ package betamoon.luaapi.block;
 
 import net.minecraft.src.Block;
 import betamoon.luamodloader.LuaContentRegistry;
+import betamoon.luaapi.resource.ResourceApi;
 import org.luaj.vm2.LuaValue;
 
 /** Declarative entry point for block creation and registration. */
@@ -18,6 +19,7 @@ public final class BlockApi {
         }
         LuaValue key = definition.get("key");
         LuaContentRegistry.recordDeclaredKey("block", block.blockID, key.isstring() ? key.tojstring() : null);
+        ResourceApi.invalidateNameIndexes();
         return block;
     }
 }

@@ -73,6 +73,7 @@ final class RetainedScriptCatalog {
         ScriptMod restored = LuaScriptRegistry.findByFile(fileName);
         if (restored != null) {
             restored.source = active.source;
+            restored.minimumDependencyVersions = active.minimumDependencyVersions;
         }
         LuaScriptRegistry.markLoadedByFile(fileName);
     }

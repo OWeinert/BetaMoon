@@ -132,7 +132,7 @@ public final class LuaFluidDefinition extends LuaTable {
                         + " uses vanilla '" + draft.carrier().value()
                         + "' as its carrier material. Native material checks may treat it as vanilla fluid.");
             }
-            return new FluidReference(registration);
+            return FluidReference.of(registration);
         } catch (IllegalArgumentException | IllegalStateException error) {
             throw new LuaError("Fluid '" + draft.key() + "': " + error.getMessage());
         }

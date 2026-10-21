@@ -97,8 +97,9 @@ public final class FluidLuaApiTest {
                 + "assert(acid.bucketItem.id==28200 and acid.bucketItem.fluid.key==acid.key);"
                 + "assert(not pcall(function() acid.key='changed' end));"
                 + "assert(not pcall(function() rawset(acid,'key','changed') end));"
-                + "assert(betamoon.fluids:get('quality:acid').key==acid.key);"
-                + "assert(betamoon.fluids:one{key='quality:acid',isVanilla=false}.key==acid.key)").call();
+                + "assert(betamoon.fluids:get('quality:acid')==acid);"
+                + "assert(betamoon.fluids:one{key='quality:acid',isVanilla=false}==acid);"
+                + "assert(betamoon.fluids:first{key='quality:acid'}==acid)").call();
 
         require(Block.blocksList[240] instanceof FluidBlock && Block.blocksList[241] instanceof FluidBlock,
                 "Shorthand creates two specialized fluid blocks");

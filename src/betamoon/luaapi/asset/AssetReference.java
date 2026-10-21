@@ -17,7 +17,9 @@ import betamoon.client.audio.ClientSounds;
 import betamoon.client.audio.SoundAsset;
 import betamoon.luamodloader.ScriptAssetScope;
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.util.Map;
+import java.util.WeakHashMap;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -28,7 +30,19 @@ import org.luaj.vm2.lib.ZeroArgFunction;
  * table fields.
  */
 public final class AssetReference extends LuaTable {
+    private static final Map<AssetId, WeakReference<AssetReference>> REFERENCES = new WeakHashMap<>();
+
+    static synchronized AssetReference of(AssetId id) {
+        WeakReference<AssetReference> cached = REFERENCES.get(id);
+        AssetReference reference = cached == null ? null : cached.get();
+        if (reference == null) {
+            reference = new AssetReference(id);
+            REFERENCES.put(id, new WeakReference<>(reference));
+        }
+        return reference;
+    }
     private final AssetId id;
+    private boolean frozen;
 
     AssetReference(AssetId id) {
         this.id = id;
@@ -58,6 +72,43 @@ public final class AssetReference extends LuaTable {
                 return source();
             }
         });
+        frozen = true;
+    }
+
+    @Override
+    public void set(LuaValue key, LuaValue value) {
+        requireMutable();
+        super.set(key, value);
+    }
+
+    @Override
+    public void set(int key, LuaValue value) {
+        requireMutable();
+        super.set(key, value);
+    }
+
+    @Override
+    public void rawset(LuaValue key, LuaValue value) {
+        requireMutable();
+        super.rawset(key, value);
+    }
+
+    @Override
+    public void rawset(int key, LuaValue value) {
+        requireMutable();
+        super.rawset(key, value);
+    }
+
+    @Override
+    public LuaValue setmetatable(LuaValue metatable) {
+        requireMutable();
+        return super.setmetatable(metatable);
+    }
+
+    private void requireMutable() {
+        if (frozen) {
+            throw new LuaError("Asset reference '" + id + "' is read-only");
+        }
     }
 
     private void attachModelOperations() {

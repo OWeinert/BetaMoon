@@ -121,7 +121,8 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
         next.setEnabled(sections.size() > 1);
         reload.setVisible(
                 message.contains("disk") || message.contains("memory") || section.registration.malformedAtOpen());
-        String reloadLabel = section.registration.malformedAtOpen() ? "Replace Invalid File" : "Reload Draft";
+        String reloadLabel = section.registration.malformedAtOpen() && !section.registration.schemaRepairRequired()
+                ? "Replace Invalid File" : "Reload Draft";
         if (!reloadLabel.equals(reload.getLabel())) {
             reload.setLabel(reloadLabel);
         }
@@ -199,7 +200,7 @@ public final class GuiScreenScriptConfig extends GuiComponentScreen {
         dropdown.close();
         try {
             Section section = section();
-            if (section.registration.malformedAtOpen()) {
+            if (section.registration.malformedAtOpen() && !section.registration.schemaRepairRequired()) {
                 section.registration.resolveMalformedFile();
                 message = "The invalid file will be replaced only when you Save.";
             } else if (message.contains("memory")) {

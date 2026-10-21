@@ -102,6 +102,7 @@ public final class MetadataVariantsTest {
     }
 
     private static void verifyItems(Globals lua) {
+        lua.load("assert(betamoon.items:get('variants_item')==nil)").call();
         lua.load("types={'item','food','pickaxe','axe','shovel','hoe','sword','armor'}; "
                 + "for i,kind in ipairs(types) do "
                 + "local def={id=29000+i,key='variants_'..kind,type=kind,displayName='Fallback',"
@@ -122,6 +123,8 @@ public final class MetadataVariantsTest {
                 + "assert(v.damage==32767 and v.displayName=='Last Variant'); "
                 + "assert(betamoon.items:getRequired(v).damage==32767); "
                 + "assert(betamoon.items:getRequired('variants_item',1).displayName=='Variant One'); "
+                + "assert(betamoon.items:getRequired('item.variants_item',1).id==29001); "
+                + "assert(betamoon.items:getRequired('other:variants_item').id==29001); "
                 + "assert(not pcall(function() betamoon.items:get(29001,0.5) end)); "
                 + "assert(not pcall(function() betamoon.blocks:get(betamoon.items:get(35,16)) end)); "
                 + "local v=betamoon.blocks:getRequired(35,14); assert(v.damage==14); "

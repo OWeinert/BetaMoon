@@ -64,6 +64,10 @@ public final class ScriptConfigRegistration {
         return malformedAtOpen;
     }
 
+    public boolean schemaRepairRequired() {
+        return store.schemaRepairRequired();
+    }
+
     public String applyError() {
         return applyError;
     }
@@ -88,6 +92,9 @@ public final class ScriptConfigRegistration {
     /** Explicitly allows replacing a file that failed to parse when opened. */
     public void resolveMalformedFile() {
         requireActive();
+        if (store.schemaRepairRequired()) {
+            throw new LuaError("Repair the versioned config file or migration, then reload the draft");
+        }
         malformedAtOpen = false;
     }
 

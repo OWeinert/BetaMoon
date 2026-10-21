@@ -96,8 +96,11 @@ final class ScriptModParser {
         if (modReload == null || modUnload == null) {
             return null;
         }
-        return LuaScriptRegistry.updateParsed(source, modName, dependencies, modInit, modReload, modUnload,
-                description, version, imagePath);
+        ScriptMod parsed = LuaScriptRegistry.updateParsed(source, modName, dependencies, modInit, modReload,
+                modUnload, description, version, imagePath);
+        parsed.minimumDependencyVersions = manifest == null
+                ? Collections.<String, String>emptyMap() : manifest.minimumDependencyVersions();
+        return parsed;
     }
 
     private String resolveString(Globals globals, String field, String manifestValue, boolean required,

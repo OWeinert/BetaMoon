@@ -5,7 +5,10 @@ import betamoon.client.audio.SoundAsset;
 import betamoon.luaapi.resource.OverrideManager;
 import betamoon.luaapi.utils.LuaDataReference;
 import betamoon.luamodloader.ScriptResourceTracker;
+import java.lang.ref.WeakReference;
 import java.util.List;
+import java.util.Map;
+import java.util.WeakHashMap;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -15,12 +18,24 @@ import org.luaj.vm2.lib.ZeroArgFunction;
 
 /** Stable live Lua reference to a sound-event key. */
 public final class SoundEventReference extends LuaTable implements LuaDataReference {
+    private static final Map<AssetKey, WeakReference<SoundEventReference>> REFERENCES = new WeakHashMap<>();
+
+    static synchronized SoundEventReference of(AssetKey key) {
+        WeakReference<SoundEventReference> cached = REFERENCES.get(key);
+        SoundEventReference reference = cached == null ? null : cached.get();
+        if (reference == null) {
+            reference = new SoundEventReference(key);
+            REFERENCES.put(key, new WeakReference<>(reference));
+        }
+        return reference;
+    }
     @Override
     public Object declarationValue() {
         return key.toString();
     }
 
     private final AssetKey key;
+    private boolean frozen;
 
     SoundEventReference(AssetKey key) {
         this.key = key;
@@ -34,6 +49,43 @@ public final class SoundEventReference extends LuaTable implements LuaDataRefere
                 return applyOverride(args.arg(args.arg1() == SoundEventReference.this ? 2 : 1));
             }
         });
+        frozen = true;
+    }
+
+    @Override
+    public void set(LuaValue field, LuaValue value) {
+        requireMutable();
+        super.set(field, value);
+    }
+
+    @Override
+    public void set(int field, LuaValue value) {
+        requireMutable();
+        super.set(field, value);
+    }
+
+    @Override
+    public void rawset(LuaValue field, LuaValue value) {
+        requireMutable();
+        super.rawset(field, value);
+    }
+
+    @Override
+    public void rawset(int field, LuaValue value) {
+        requireMutable();
+        super.rawset(field, value);
+    }
+
+    @Override
+    public LuaValue setmetatable(LuaValue metatable) {
+        requireMutable();
+        return super.setmetatable(metatable);
+    }
+
+    private void requireMutable() {
+        if (frozen) {
+            throw new LuaError("Sound event reference '" + key + "' is read-only");
+        }
     }
 
     @Override

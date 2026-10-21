@@ -19,3 +19,12 @@
 - Make nested sections and collections collapsible. They start closed unless declared with `expanded = true`.
 - Save changes atomically, detect conflicting file edits, and preserve unknown JSON fields.
 - Update live Lua values after saving and support `onChange` callbacks with error reporting and retry.
+
+### 0.11 integration and reliability
+
+- Integrate materials, step sounds and the script config editor on one development branch.
+- Keep fluid, asset and sound-event Lua reference identity stable while held; preserve value-like block/item views.
+- Allow opt-in config schema versions with validated, atomic migration and protection for newer or failed files.
+- Index block/item names for repeated lookups while preserving aliases and first-match behavior.
+- Allow packaged dependencies to require a minimum three-part numeric version.
+- Keep stable keys and field paths distinct from presentation labels in new diagnostics.

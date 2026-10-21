@@ -260,6 +260,58 @@ final class ScriptConfigValues {
         throw new LuaError("Unsupported config value");
     }
 
+    static LuaValue immutableSnapshot(Object value) {
+        if (value instanceof Map) {
+            ImmutableTable result = new ImmutableTable();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> object = (Map<String, Object>) value;
+            for (Map.Entry<String, Object> entry : object.entrySet()) {
+                result.putInitial(LuaValue.valueOf(entry.getKey()), immutableSnapshot(entry.getValue()));
+            }
+            return result;
+        }
+        if (value instanceof List) {
+            ImmutableTable result = new ImmutableTable();
+            List<?> array = (List<?>) value;
+            for (int index = 0; index < array.size(); index++) {
+                result.putInitial(LuaValue.valueOf(index + 1), immutableSnapshot(array.get(index)));
+            }
+            return result;
+        }
+        return toLua(value);
+    }
+
+    private static final class ImmutableTable extends LuaTable {
+        private void putInitial(LuaValue key, LuaValue value) {
+            super.rawset(key, value);
+        }
+
+        @Override
+        public void set(LuaValue key, LuaValue value) {
+            throw new LuaError("Config migration input is read-only");
+        }
+
+        @Override
+        public void set(int key, LuaValue value) {
+            throw new LuaError("Config migration input is read-only");
+        }
+
+        @Override
+        public void rawset(LuaValue key, LuaValue value) {
+            throw new LuaError("Config migration input is read-only");
+        }
+
+        @Override
+        public void rawset(int key, LuaValue value) {
+            throw new LuaError("Config migration input is read-only");
+        }
+
+        @Override
+        public LuaValue setmetatable(LuaValue metatable) {
+            throw new LuaError("Config migration input is read-only");
+        }
+    }
+
     static void update(LuaTable target, LuaTable loaded) {
         for (LuaValue key : target.keys()) {
             if (loaded.rawget(key).isnil()) {

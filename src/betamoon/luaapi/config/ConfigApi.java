@@ -41,7 +41,7 @@ public final class ConfigApi {
                 File root = configRoot == null ? defaultRoot() : configRoot;
                 String source = owner == null ? "<unowned>" : owner;
                 ScriptConfigMetadata metadata = ScriptConfigMetadata.parse(key.toString(), defaults, options);
-                ScriptConfigStore store = new ScriptConfigStore(root.toPath(), key, defaults, metadata.fields);
+                ScriptConfigStore store = new ScriptConfigStore(root.toPath(), key, defaults, metadata);
                 ScriptConfigRegistry.checkAvailable(source, key.toString(), store);
                 Map<String, Object> initial;
                 boolean malformed = false;

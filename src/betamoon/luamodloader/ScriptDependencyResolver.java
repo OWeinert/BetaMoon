@@ -62,6 +62,7 @@ final class ScriptDependencyResolver {
 
         List<String> missingDependencies = new ArrayList<>();
         List<String> failedDependencies = new ArrayList<>();
+        List<VersionMismatch> incompatibleDependencies = new ArrayList<>();
         for (int i = 0; i < mod.dependencies.size(); i++) {
             String dependency = mod.dependencies.get(i);
             if (!modsByName.containsKey(dependency)) {
@@ -72,6 +73,21 @@ final class ScriptDependencyResolver {
             visit(dependency, modsByName, states, ordered, stack, errors, failed);
             if (failed.contains(dependency)) {
                 failedDependencies.add(dependency);
+                continue;
+            }
+            String minimumVersion = mod.minimumDependencyVersions.get(dependency);
+            if (minimumVersion != null) {
+                String installedVersion = modsByName.get(dependency).version;
+                try {
+                    if (PackageVersion.parse(installedVersion)
+                            .compareTo(PackageVersion.parse(minimumVersion)) < 0) {
+                        incompatibleDependencies.add(new VersionMismatch(dependency, installedVersion,
+                                minimumVersion, false));
+                    }
+                } catch (IllegalArgumentException error) {
+                    incompatibleDependencies.add(new VersionMismatch(dependency, installedVersion,
+                            minimumVersion, true));
+                }
             }
         }
 
@@ -84,6 +100,12 @@ final class ScriptDependencyResolver {
         if (!failedDependencies.isEmpty()) {
             fail(name, "Dependency failed to load for '" + name + "': " + formatNames(failedDependencies), errors,
                     failed);
+            finishVisit(name, stack, states);
+            return;
+        }
+        if (!incompatibleDependencies.isEmpty()) {
+            fail(name, "Incompatible dependencies for '" + name + "': "
+                    + formatVersions(incompatibleDependencies), errors, failed);
             finishVisit(name, stack, states);
             return;
         }
@@ -147,6 +169,37 @@ final class ScriptDependencyResolver {
             builder.append("'").append(names.get(i)).append("'");
         }
         return builder.toString();
+    }
+
+    private String formatVersions(List<VersionMismatch> mismatches) {
+        List<String> messages = new ArrayList<>();
+        for (VersionMismatch mismatch : mismatches) {
+            messages.add(mismatch.message());
+        }
+        return String.join(", ", messages);
+    }
+
+    private static final class VersionMismatch {
+        private final String dependencyName;
+        private final String installedVersion;
+        private final String minimumVersion;
+        private final boolean unsupported;
+
+        private VersionMismatch(String dependencyName, String installedVersion, String minimumVersion,
+                boolean unsupported) {
+            this.dependencyName = dependencyName;
+            this.installedVersion = installedVersion;
+            this.minimumVersion = minimumVersion;
+            this.unsupported = unsupported;
+        }
+
+        private String message() {
+            if (unsupported) {
+                return "'" + dependencyName + "' has unsupported version '" + installedVersion
+                        + "', requires at least " + minimumVersion;
+            }
+            return "'" + dependencyName + "' has " + installedVersion + ", requires at least " + minimumVersion;
+        }
     }
 
     enum VisitState {

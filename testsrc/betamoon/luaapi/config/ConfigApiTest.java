@@ -71,6 +71,36 @@ public final class ConfigApiTest {
             require(read(broken).contains("\"enabled\": true"),
                     "An invalid initial file uses defaults and can be replaced explicitly");
 
+            Path schema = root.resolve("schema.json");
+            Files.write(schema, "{\"oldName\":5,\"extra\":\"kept\",\"nested\":{\"value\":1}}"
+                    .getBytes(StandardCharsets.UTF_8));
+            run(lua, "migrationCalls=0; migrated=betamoon.config('schema',{newName=1},"
+                    + "{schemaVersion=2,migrate=function(old,version) "
+                    + "migrationCalls=migrationCalls+1; assert(version==0 and old.oldName==5); "
+                    + "assert(not pcall(function() old.oldName=7 end)); "
+                    + "assert(not pcall(function() old.nested.value=7 end)); "
+                    + "return {newName=old.oldName,extra=old.extra} end})\n"
+                    + "assert(migrated.newName==5 and migrated.extra=='kept' and migrationCalls==1)\n");
+            require(read(schema).contains("\"$schemaVersion\": 2")
+                    && !read(schema).contains("oldName"), "Migration rewrites the validated result atomically");
+            run(lua, "assert(migrated.reload() and migrationCalls==1); migrated.newName=6; "
+                    + "assert(migrated.save())\n");
+            require(read(schema).contains("\"newName\": 6"), "Versioned saves retain the schema marker");
+
+            Path rejectedSchema = root.resolve("rejected_schema.json");
+            String invalidMigration = "{\"oldName\":7}";
+            Files.write(rejectedSchema, invalidMigration.getBytes(StandardCharsets.UTF_8));
+            run(lua, "rejected=betamoon.config('rejected_schema',{newName=1},"
+                    + "{schemaVersion=1,migrate=function(old) return {newName='wrong'} end})\n"
+                    + "assert(rejected.newName==1 and not pcall(function() rejected.save() end))\n");
+            require(read(rejectedSchema).equals(invalidMigration), "Failed migration preserves the original file");
+            Files.write(rejectedSchema, "{\"$schemaVersion\":4,\"newName\":9}"
+                    .getBytes(StandardCharsets.UTF_8));
+            run(lua, "assert(not pcall(function() rejected.reload() end))\n"
+                    + "assert(not pcall(function() rejected.save() end))\n");
+            require(read(rejectedSchema).contains("\"$schemaVersion\":4"),
+                    "A newer schema cannot be overwritten by fallback defaults");
+
             run(lua, "changes=0; paths=nil; ui=betamoon.config('mymod:ui',"
                     + "{volume=2,enabled=true,nested={ratio=0.5},items={}},"
                     + "{label='Gameplay',fields={volume={label='Volume',min=0,max=10,step=1},"
@@ -268,6 +298,8 @@ public final class ConfigApiTest {
             deleteIfPresent(root.resolve("mymod"));
             deleteIfPresent(root.resolve("mymod.json"));
             deleteIfPresent(root.resolve("broken.json"));
+            deleteIfPresent(root.resolve("schema.json"));
+            deleteIfPresent(root.resolve("rejected_schema.json"));
             deleteIfPresent(root);
         }
     }

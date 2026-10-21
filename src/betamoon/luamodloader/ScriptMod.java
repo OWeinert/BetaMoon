@@ -5,12 +5,14 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import org.luaj.vm2.LuaValue;
 
 public class ScriptMod {
     final String sourceFileName;
     String name;
     List<String> dependencies;
+    Map<String, String> minimumDependencyVersions = Collections.emptyMap();
     LuaValue modInit;
     LuaValue modReload;
     LuaValue modUnload;

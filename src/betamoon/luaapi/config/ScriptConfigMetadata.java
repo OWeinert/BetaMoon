@@ -20,21 +20,41 @@ final class ScriptConfigMetadata {
     final String description;
     final Map<String, ScriptConfigField> fields;
     final LuaValue onChange;
+    final int schemaVersion;
+    final LuaValue migrate;
 
     private ScriptConfigMetadata(String label, String description, Map<String, ScriptConfigField> fields,
-            LuaValue onChange) {
+            LuaValue onChange, int schemaVersion, LuaValue migrate) {
         this.label = label;
         this.description = description;
         this.fields = Collections.unmodifiableMap(fields);
         this.onChange = onChange;
+        this.schemaVersion = schemaVersion;
+        this.migrate = migrate;
     }
 
     static ScriptConfigMetadata parse(String key, Map<String, Object> defaults, LuaValue argument) {
         LuaTable metadata = argument.isnil() ? new LuaTable() : argument.checktable();
-        checkKeys(metadata, "config options", "label", "description", "fields", "onChange");
+        checkKeys(metadata, "config options", "label", "description", "fields", "onChange", "schemaVersion",
+                "migrate");
         LuaValue callback = metadata.get("onChange");
         if (!callback.isnil() && !callback.isfunction()) {
             throw new LuaError("config options.onChange must be a function");
+        }
+        LuaValue versionValue = metadata.get("schemaVersion");
+        int schemaVersion = 0;
+        if (!versionValue.isnil()) {
+            if (!versionValue.isint() || versionValue.toint() < 1) {
+                throw new LuaError("config options.schemaVersion must be a positive integer");
+            }
+            schemaVersion = versionValue.toint();
+        }
+        LuaValue migrate = metadata.get("migrate");
+        if (!migrate.isnil() && (!migrate.isfunction() || schemaVersion == 0)) {
+            throw new LuaError("config options.migrate requires schemaVersion and must be a function");
+        }
+        if (schemaVersion > 0 && defaults.containsKey(ScriptConfigStore.VERSION_FIELD)) {
+            throw new LuaError("config defaults reserve '" + ScriptConfigStore.VERSION_FIELD + "' for schemaVersion");
         }
         LuaTable fieldMetadata = optionalTable(metadata.get("fields"), "config options.fields");
         for (LuaValue field : fieldMetadata.keys()) {
@@ -48,7 +68,7 @@ final class ScriptConfigMetadata {
                     field(entry.getKey(), entry.getValue(), fieldMetadata.get(entry.getKey()), 0, false));
         }
         return new ScriptConfigMetadata(string(metadata, "label", key), string(metadata, "description", ""), fields,
-                callback);
+                callback, schemaVersion, migrate);
     }
 
     /**

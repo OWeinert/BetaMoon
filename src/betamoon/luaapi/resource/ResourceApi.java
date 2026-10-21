@@ -27,6 +27,7 @@ import betamoon.resources.EnumTexAtlas;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -55,6 +56,8 @@ import static betamoon.luaapi.utils.LuaDeclarationValues.integer;
 
 /** Installs the concise registry, reference, query, and override APIs. */
 public final class ResourceApi {
+    private static final NameIndex BLOCK_NAMES = new NameIndex(true);
+    private static final NameIndex ITEM_NAMES = new NameIndex(false);
     private static final OverrideManager.Property<Block, HardnessLayer> BLOCK_HARDNESS_PROPERTY = new OverrideManager.Property<Block, HardnessLayer>(
             "hardness", new OverrideManager.PropertyAdapter<Block, HardnessLayer>() {
                 public HardnessLayer read(Block target) {
@@ -87,6 +90,11 @@ public final class ResourceApi {
             });
 
     private ResourceApi() {
+    }
+
+    public static void invalidateNameIndexes() {
+        BLOCK_NAMES.invalidate();
+        ITEM_NAMES.invalidate();
     }
 
     /** Adds resource registration, lookup and override entry points. */
@@ -170,19 +178,9 @@ public final class ResourceApi {
 
         private LuaValue reference(String key) {
             String expected = key.indexOf(':') >= 0 ? key.substring(key.indexOf(':') + 1) : key;
-            int length = blocks ? Block.blocksList.length : Item.itemsList.length;
-            for (int id = 0; id < length; id++) {
-                LuaValue reference = reference(id, 0);
-                if (reference.isnil()) {
-                    continue;
-                }
-                String name = reference.get("name").optjstring("");
-                String bare = name.startsWith("tile.") || name.startsWith("item.") ? name.substring(5) : name;
-                if (key.equals(name) || expected.equals(name) || expected.equals(bare)) {
-                    return reference;
-                }
-            }
-            return NIL;
+            NameIndex index = blocks ? BLOCK_NAMES : ITEM_NAMES;
+            int id = index.first(key, expected);
+            return id < 0 ? NIL : reference(id, 0);
         }
 
         private List<LuaValue> find(LuaValue criteria) {
@@ -197,6 +195,64 @@ public final class ResourceApi {
                 }
             }
             return values;
+        }
+    }
+
+    /** Names point to IDs so cached searches never retain native or Lua references. */
+    private static final class NameIndex {
+        private final boolean blocks;
+        private final Map<String, Integer> exactIds = new HashMap<String, Integer>();
+        private final Map<String, Integer> aliasIds = new HashMap<String, Integer>();
+        private boolean dirty = true;
+
+        private NameIndex(boolean blocks) {
+            this.blocks = blocks;
+        }
+
+        synchronized void invalidate() {
+            dirty = true;
+        }
+
+        synchronized int first(String key, String expected) {
+            if (dirty) {
+                rebuild();
+            }
+            Integer exact = exactIds.get(key);
+            Integer alias = aliasIds.get(expected);
+            if (exact == null) {
+                return alias == null ? -1 : alias.intValue();
+            }
+            return alias == null ? exact.intValue() : Math.min(exact.intValue(), alias.intValue());
+        }
+
+        private void rebuild() {
+            exactIds.clear();
+            aliasIds.clear();
+            int length = blocks ? Block.blocksList.length : Item.itemsList.length;
+            for (int id = 0; id < length; id++) {
+                String name;
+                if (blocks) {
+                    Block block = Block.blocksList[id];
+                    if (block == null) {
+                        continue;
+                    }
+                    name = block.getBlockName();
+                } else {
+                    Item item = Item.itemsList[id];
+                    if (item == null) {
+                        continue;
+                    }
+                    name = item.getItemName();
+                }
+                if (name == null) {
+                    name = "";
+                }
+                exactIds.putIfAbsent(name, Integer.valueOf(id));
+                aliasIds.putIfAbsent(name, Integer.valueOf(id));
+                String bare = name.startsWith("tile.") || name.startsWith("item.") ? name.substring(5) : name;
+                aliasIds.putIfAbsent(bare, Integer.valueOf(id));
+            }
+            dirty = false;
         }
     }
 
