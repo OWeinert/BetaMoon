@@ -10,6 +10,7 @@ import betamoon.instrumentation.diagnostics.HookDiagnostic;
 import betamoon.instrumentation.diagnostics.HookStatus;
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
+import betamoon.luaapi.utils.LuaPositionArguments;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.particles.ParticleDefinition;
 import betamoon.particles.ParticleDiagnostics;
@@ -294,17 +295,14 @@ public final class ParticlesApi {
             set("setPosition", new VarArgFunction() {
                 public Varargs invoke(Varargs args) {
                     requireOwner();
-                    for (int i = 1; i <= 3; i++) {
-                        if (argument(args, EffectHandle.this, i).isnil()) {
-                            throw new LuaError("particleEffect.setPosition: x, y, and z are required");
-                        }
+                    LuaPositionArguments.Position position = LuaPositionArguments.vector(args, EffectHandle.this, 1,
+                            "particleEffect.setPosition");
+                    double x = position.x;
+                    double y = position.y;
+                    double z = position.z;
+                    if (Math.abs(x) > 30000000 || Math.abs(y) > 30000000 || Math.abs(z) > 30000000) {
+                        throw new LuaError("particleEffect.setPosition: coordinates must be within world bounds");
                     }
-                    double x = ParticleDeclarations.bounded(argument(args, EffectHandle.this, 1), 0,
-                            "particleEffect.setPosition.x", -30000000, 30000000);
-                    double y = ParticleDeclarations.bounded(argument(args, EffectHandle.this, 2), 0,
-                            "particleEffect.setPosition.y", -30000000, 30000000);
-                    double z = ParticleDeclarations.bounded(argument(args, EffectHandle.this, 3), 0,
-                            "particleEffect.setPosition.z", -30000000, 30000000);
                     LuaCallbackScope.requireNoBindingMutation();
                     try {
                         effect.position(x, y, z);

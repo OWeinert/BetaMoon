@@ -3,6 +3,7 @@ package betamoon.luaapi.multiblock;
 import betamoon.content.ContentKey;
 import betamoon.luaapi.block.BlockFaces;
 import betamoon.luaapi.utils.LuaCallbackScope;
+import betamoon.luaapi.utils.LuaPositionArguments;
 import betamoon.multiblock.ControllerlessMultiblockRuntime;
 import betamoon.multiblock.MultiblockActivationResult;
 import betamoon.multiblock.MultiblockDefinition;
@@ -118,10 +119,12 @@ public final class MultiblockQueryApi {
         });
         method(api, "getMultiblocksAt", args -> {
             scope.requireActive();
-            int x = coordinate(args.arg1(), "x");
-            int y = integer(args.arg(2), "y", 0, 127);
-            int z = coordinate(args.arg(3), "z");
-            LuaValue options = args.arg(4);
+            LuaPositionArguments.Position position = LuaPositionArguments.integers(args, null, 1,
+                    "getMultiblocksAt", -32000000, 31999999, 0, 127);
+            int x = position.xInt();
+            int y = position.yInt();
+            int z = position.zInt();
+            LuaValue options = args.arg(position.nextArgument);
             ContentKey filter = null;
             if (!options.isnil()) {
                 fields(options, "getMultiblocksAt.options", "definition");
@@ -153,9 +156,11 @@ public final class MultiblockQueryApi {
             if (definition.management == null) {
                 throw new LuaError("activateMultiblock requires managed controllerless discovery");
             }
-            MultiblockPosition anchor = new MultiblockPosition(coordinate(args.arg(2), "x"),
-                    integer(args.arg(3), "y", 0, 127), coordinate(args.arg(4), "z"));
-            LuaValue options = args.arg(5).isnil() ? new LuaTable() : args.arg(5);
+            LuaPositionArguments.Position position = LuaPositionArguments.integers(args, null, 2,
+                    "activateMultiblock", -32000000, 31999999, 0, 127);
+            MultiblockPosition anchor = new MultiblockPosition(position.xInt(), position.yInt(), position.zInt());
+            LuaValue options = args.arg(position.nextArgument).isnil()
+                    ? new LuaTable() : args.arg(position.nextArgument);
             fields(options, "activateMultiblock.options", "facing", "mirror", "repeats", "clicked", "face");
             int facing = options.get("facing").isnil()
                     ? definition.management.facings.get(0)

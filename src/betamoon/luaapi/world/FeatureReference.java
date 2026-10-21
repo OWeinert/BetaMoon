@@ -2,6 +2,7 @@ package betamoon.luaapi.world;
 
 import betamoon.dimension.DimensionIdentity;
 import betamoon.luaapi.utils.LuaDataReference;
+import betamoon.luaapi.utils.LuaPositionArguments;
 import betamoon.worldgen.BlockPosition;
 import betamoon.worldgen.FeatureOptions;
 import betamoon.worldgen.FeatureResult;
@@ -40,10 +41,12 @@ public final class FeatureReference extends LuaTable implements LuaDataReference
             public Varargs invoke(Varargs arguments) {
                 int offset = arguments.arg1() == FeatureReference.this ? 1 : 0;
                 World world = LuaWorldActionAccess.requireMutableWorld(arguments.arg(1 + offset));
-                int x = coordinate(arguments.arg(2 + offset), "feature.place.x");
-                int y = integer(arguments.arg(3 + offset), "feature.place.y", 0, 127);
-                int z = coordinate(arguments.arg(4 + offset), "feature.place.z");
-                LuaValue options = arguments.arg(5 + offset);
+                LuaPositionArguments.Position position = LuaPositionArguments.cell(arguments, FeatureReference.this, 2,
+                        preview ? "feature.preview" : "feature.place");
+                int x = position.xInt();
+                int y = position.yInt();
+                int z = position.zInt();
+                LuaValue options = arguments.arg(position.nextArgument + offset);
                 long salt = options.istable() && !options.get("seed").isnil() ? options.get("seed").checklong() : 0L;
                 FeatureOptions featureOptions = parseOptions(options, preview ? "feature.preview" : "feature.place");
                 String dimension = DimensionIdentity.key(world).toString();
@@ -109,21 +112,6 @@ public final class FeatureReference extends LuaTable implements LuaDataReference
         value.set("y", position.y);
         value.set("z", position.z);
         return value;
-    }
-
-    private static int coordinate(LuaValue value, String path) {
-        return integer(value, path, -30000000, 30000000);
-    }
-
-    private static int integer(LuaValue value, String path, int min, int max) {
-        if (!value.isint()) {
-            throw new LuaError(path + ": expected an integer");
-        }
-        int result = value.toint();
-        if (result < min || result > max) {
-            throw new LuaError(path + ": expected " + min + ".." + max);
-        }
-        return result;
     }
 
     @Override

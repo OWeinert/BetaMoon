@@ -4,7 +4,7 @@ import betamoon.atmosphere.AtmosphereRegistry;
 import betamoon.instrumentation.api.RequiredNativeHooks;
 import betamoon.luaapi.utils.LuaDataReference;
 import betamoon.luaapi.utils.LuaDataSnapshot;
-import betamoon.luaapi.utils.LuaDeclarationValues;
+import betamoon.luaapi.utils.LuaPositionArguments;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptResourceTracker;
 import betamoon.runtime.RuntimeEnvironment;
@@ -70,9 +70,11 @@ public final class AtmospheresApi {
             @Override
             public Varargs invoke(Varargs args) {
                 World world = LuaWorldActionAccess.requireWorld(argument(args, registry, 1));
-                double x = coordinate(argument(args, registry, 2), "atmosphere.x");
-                double y = coordinate(argument(args, registry, 3), "atmosphere.y");
-                double z = coordinate(argument(args, registry, 4), "atmosphere.z");
+                LuaPositionArguments.Position position = LuaPositionArguments.vector(args, registry, 2,
+                        "atmosphere.getActive");
+                double x = coordinate(position.x, "atmosphere.x");
+                double y = coordinate(position.y, "atmosphere.y");
+                double z = coordinate(position.z, "atmosphere.z");
                 LuaTable result = new LuaTable();
                 AtmosphereRegistry.Presentation presentation = AtmosphereRegistry.queryPresentation(world, x, y, z);
                 result.set("profiles", contributions(presentation.profiles()));
@@ -104,12 +106,11 @@ public final class AtmospheresApi {
         return result;
     }
 
-    private static double coordinate(LuaValue value, String path) {
-        double result = LuaDeclarationValues.number(value, path);
-        if (Math.abs(result) > 30000000) {
+    private static double coordinate(double value, String path) {
+        if (Math.abs(value) > 30000000) {
             throw new LuaError(path + ": coordinate exceeds world bounds");
         }
-        return result;
+        return value;
     }
 
     private static LuaValue argument(Varargs args, LuaValue receiver, int index) {

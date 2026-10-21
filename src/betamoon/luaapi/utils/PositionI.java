@@ -39,9 +39,12 @@ public final class PositionI extends LuaTable {
         @Override
         public Varargs invoke(Varargs args) {
             int base = (args.narg() >= 3 && args.arg(1).istable()) ? 2 : 1;
-            int x = args.checkint(base);
-            int y = args.checkint(base + 1);
-            int z = args.checkint(base + 2);
+            int x = LuaDeclarationValues.integer(args.arg(base), "positions.integer.x",
+                    Integer.MIN_VALUE, Integer.MAX_VALUE);
+            int y = LuaDeclarationValues.integer(args.arg(base + 1), "positions.integer.y",
+                    Integer.MIN_VALUE, Integer.MAX_VALUE);
+            int z = LuaDeclarationValues.integer(args.arg(base + 2), "positions.integer.z",
+                    Integer.MIN_VALUE, Integer.MAX_VALUE);
             return new PositionI(x, y, z);
         }
     }

@@ -9,8 +9,8 @@ import betamoon.dimension.DimensionQueries;
 import betamoon.dimension.DimensionRegistry;
 import betamoon.luaapi.utils.LuaDataReference;
 import betamoon.luaapi.utils.LuaDataSnapshot;
-import betamoon.luaapi.utils.LuaDeclarationValues;
 import betamoon.luaapi.utils.LuaDetachedData;
+import betamoon.luaapi.utils.LuaPositionArguments;
 import betamoon.worldgen.terrain.GeneratorPreview;
 import java.io.IOException;
 import java.util.Map;
@@ -134,14 +134,18 @@ public final class DimensionsApi {
                                 return failure("native_preview_unavailable");
                             }
                             if (method.equals("previewChunk")) {
-                                int x = integer(args, 2, -1875000, 1874999);
-                                int z = integer(args, 3, -1875000, 1874999);
+                                LuaPositionArguments.Position position = LuaPositionArguments.horizontal(args,
+                                        Reference.this, 2, "dimension.previewChunk", -1875000, 1874999);
+                                int x = position.xInt();
+                                int z = position.zInt();
                                 return LuaDetachedData.copy(GeneratorPreview.chunk(binding.profile,
                                         DimensionQueries.previewContext(world, key), x, z));
                             }
                             String output = argument(args, Reference.this, 2).checkjstring();
-                            int x = integer(args, 3, -30000000, 29999999);
-                            int z = integer(args, 4, -30000000, 29999999);
+                            LuaPositionArguments.Position position = LuaPositionArguments.horizontal(args,
+                                    Reference.this, 3, "dimension.sampleHeightOutput", -30000000, 29999999);
+                            int x = position.xInt();
+                            int z = position.zInt();
                             if (binding.profile.settings == null
                                     || !binding.profile.settings.heightOutputs.containsKey(output)) {
                                 return failure("unknown_output");
@@ -158,10 +162,6 @@ public final class DimensionsApi {
                     }
                 });
             }
-        }
-
-        private int integer(Varargs args, int index, int min, int max) {
-            return LuaDeclarationValues.integer(argument(args, this, index), "dimension.coordinate", min, max);
         }
 
         @Override
