@@ -1,7 +1,7 @@
 # Config editor: multi-select, layout and per-field reset
 
-Status: active pre-1.0 proposal, 2026-10-21. This document records a proposed Lua-facing contract and editor
-behavior. No API or GUI implementation is included here.
+Status: implemented on `feature/script-config-gui`, 2026-10-21. This document records the design contract for the
+Lua-facing config editor additions; the implementation, API definitions and wiki documentation live alongside it.
 
 ## Goal and scope
 

@@ -213,6 +213,11 @@ final class ScriptConfigValues {
             }
             return merged;
         }
+        if (fallback instanceof List && value instanceof List && field != null
+                && "multiSelect".equals(field.input())) {
+            ScriptConfigEdits.validateMultiSelect(field, (List<?>) value, path);
+            return value;
+        }
         if (fallback instanceof List && value instanceof List || fallback instanceof String && value instanceof String
                 || fallback instanceof Boolean && value instanceof Boolean
                 || fallback instanceof Number && value instanceof Number) {

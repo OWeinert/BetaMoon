@@ -57,6 +57,10 @@ final class ScriptConfigEdits {
                 throw new ScriptConfigValidationException(path, "must be an array");
             }
             List<?> values = (List<?>) value;
+            if ("multiSelect".equals(field.input())) {
+                validateMultiSelect(field, values, path);
+                return;
+            }
             List<?> previous = before instanceof List ? (List<?>) before : Collections.emptyList();
             if (values.size() > field.maxItems()) {
                 throw new ScriptConfigValidationException(path,
@@ -109,6 +113,25 @@ final class ScriptConfigEdits {
             }
         } else if (fallback instanceof String && !field.choices().isEmpty() && field.choice(value) == null) {
             throw new ScriptConfigValidationException(path, "must be one of its declared choices");
+        }
+    }
+
+    static void validateMultiSelect(ScriptConfigField field, List<?> values, String path) {
+        if (values.size() > field.choices().size()) {
+            throw new ScriptConfigValidationException(path, "has more entries than declared choices");
+        }
+        List<Object> seen = new ArrayList<Object>();
+        for (int index = 0; index < values.size(); index++) {
+            Object selected = values.get(index);
+            String itemPath = path + "[" + (index + 1) + "]";
+            ScriptConfigChoice choice = field.choice(selected);
+            if (choice == null) {
+                throw new ScriptConfigValidationException(itemPath, "must be a declared choice");
+            }
+            if (seen.contains(choice.value())) {
+                throw new ScriptConfigValidationException(itemPath, "duplicates an earlier choice");
+            }
+            seen.add(choice.value());
         }
     }
 

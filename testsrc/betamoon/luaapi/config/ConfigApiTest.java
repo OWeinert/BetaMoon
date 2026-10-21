@@ -180,6 +180,49 @@ public final class ConfigApiTest {
                     + "assert(not pcall(function() betamoon.config('mymod:bad-type',{value=true},"
                     + "{fields={value={input='text'}}}) end))\n");
 
+            run(lua, "multi=betamoon.config('mymod:multi',{effects={},audio={music=0.5,ambient=0.25}},"
+                    + "{layout={{heading='Visual'},'effects',{divider=true},{heading='Audio'},'audio'},"
+                    + "fields={effects={input='multiSelect',choices={{value='fog',label='Fog'},'particles'}},"
+                    + "audio={layout={{heading='Levels'},'music','ambient'},fields={music={min=0,max=1}}}}})\n"
+                    + "assert(type(multi.effects)=='table' and #multi.effects==0)\n");
+            ScriptConfigRegistration multi = find("config_api_test.lua", "mymod:multi");
+            require(multi.fields().get("effects").defaultValue() instanceof List,
+                    "An empty multi-select default is an array");
+            require(multi.layout().size() == 5 && multi.fields().get("audio").layout().size() == 3,
+                    "Top-level and nested layouts retain their presentation order");
+            Map<String, Object> multiDraft = multi.draft();
+            @SuppressWarnings("unchecked")
+            List<Object> effects = (List<Object>) multiDraft.get("effects");
+            effects.add("particles");
+            effects.add("fog");
+            multi.saveDraft(multiDraft);
+            run(lua, "assert(multi.effects[1]=='particles' and multi.effects[2]=='fog')\n"
+                    + "multi.effects={'missing'}; assert(not pcall(function() multi.save() end))\n"
+                    + "multi.effects={'particles','fog'}\n");
+            require(read(root.resolve("mymod/multi.json")).contains("[\"particles\", \"fog\"]"),
+                    "A multi-select saves ordinary JSON arrays without reordering untouched values");
+            multiDraft = multi.draft();
+            @SuppressWarnings("unchecked")
+            List<Object> repeated = (List<Object>) multiDraft.get("effects");
+            repeated.add("fog");
+            require(!canSave(multi, multiDraft), "A repeated multi-select value cannot be saved");
+            String unknownChoice = "{\"effects\":[\"removed\"],\"audio\":{\"music\":0.5,\"ambient\":0.25}}";
+            Files.write(root.resolve("mymod/multi.json"), unknownChoice.getBytes(StandardCharsets.UTF_8));
+            try {
+                multi.reloadDraftFromDisk();
+                throw new AssertionError("Removed choices must fail on reload");
+            } catch (IOException expected) {
+                require(expected.getMessage().contains("effects[1]"), "Reload error identifies the selected value");
+            }
+            require(read(root.resolve("mymod/multi.json")).equals(unknownChoice),
+                    "Failed multi-select reload preserves the original file");
+            run(lua, "assert(not pcall(function() betamoon.config('mymod:bad-multi',{values={'fog','fog'}},"
+                    + "{fields={values={input='multiSelect',choices={'fog'}}}}) end))\n"
+                    + "assert(not pcall(function() betamoon.config('mymod:bad-layout',{value=1},"
+                    + "{layout={'unknown'}}) end))\n"
+                    + "assert(not pcall(function() betamoon.config('mymod:bad-divider',{value=1},"
+                    + "{layout={{divider=true},'value'}}) end))\n");
+
             run(lua, "collections=betamoon.config('mymod:collections',"
                     + "{tasks={'first'},volumes={music=0.5,effects=0.75},empty={}},"
                     + "{fields={tasks={input='collection',kind='list',expanded=true,maxItems=3,"
@@ -291,6 +334,7 @@ public final class ConfigApiTest {
             deleteIfPresent(root.resolve("scoped.json"));
             deleteIfPresent(root.resolve("mymod/unstable.json"));
             deleteIfPresent(root.resolve("mymod/inputs.json"));
+            deleteIfPresent(root.resolve("mymod/multi.json"));
             deleteIfPresent(root.resolve("mymod/collections.json"));
             deleteIfPresent(root.resolve("mymod/compact.json"));
             deleteIfPresent(root.resolve("mymod/ui.json"));

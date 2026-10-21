@@ -17,6 +17,7 @@
 - Let scripts select text fields, sliders, dropdowns, or cycling buttons for values. Lists and dictionaries can use
   individual controls or comma-separated text.
 - Make nested sections and collections collapsible. They start closed unless declared with `expanded = true`.
+- Add fixed-choice multi-select lists, optional editor headings/dividers and field order, and draft-only per-field Reset buttons.
 - Save changes atomically, detect conflicting file edits, and preserve unknown JSON fields.
 - Update live Lua values after saving and support `onChange` callbacks with error reporting and retry.
 
