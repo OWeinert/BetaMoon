@@ -20,10 +20,20 @@ public final class AssetFoundationTest {
 
     public static void main(String[] arguments) throws Exception {
         verifyIdentitiesAndPaths();
+        verifyNativeCatalog();
         verifyInferredPaths();
         verifyAtomicPublicationAndOwnership();
         verifyGenerationLifetime();
         System.out.println("Asset foundations passed: identity, paths, ownership, atomic publication and lifetime.");
+    }
+
+    private static void verifyNativeCatalog() {
+        AssetDefinition sand = BuiltinAssets.find(new AssetId(AssetKind.TEXTURE,
+                AssetKey.parse("minecraft:block/sand")));
+        require(sand != null && sand.getNativeTexture().getIndex() == 18,
+                "Native image metadata must load without Minecraft, Lua or graphics dependencies");
+        require(sand.getOverridePath().toString().equals("terrain.png"),
+                "Native image metadata preserves the vanilla texture-pack path");
     }
 
     private static void verifyInferredPaths() throws Exception {

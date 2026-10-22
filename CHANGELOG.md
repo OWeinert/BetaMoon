@@ -41,4 +41,11 @@
 - Allow opt-in config schema versions with validated, atomic migration and protection for newer or failed files.
 - Index block/item names for repeated lookups while preserving aliases and first-match behavior.
 - Allow packaged dependencies to require a minimum three-part numeric version.
-- Keep stable keys and field paths distinct from presentation labels in new diagnostics.
+
+### Built-in assets
+
+- Add `minecraft:block/full_block`, a full-cube model with the `default` material slot.
+- Expose Minecraft's whole client PNG images and terrain/item atlas cells through the texture asset API.
+- Resolve native references through the selected vanilla texture pack and its client-JAR fallback, using native
+  paths such as `terrain.png` and `gui/items.png`.
+- Support live native atlas cells in block, item and entity model materials.

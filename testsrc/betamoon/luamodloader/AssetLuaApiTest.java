@@ -85,6 +85,8 @@ public final class AssetLuaApiTest {
             String source = "name='Asset API test'\n"
                     + "assert(not pcall(function() betamoon.assets.textures:add{key='mymod:early',path='guard.png'} end))\n"
                     + "function modInit()\n"
+                    + " assert(not pcall(function() betamoon.assets.textures:add{key='minecraft:block/sand',path='guard.png'} end))\n"
+                    + " assert(not pcall(function() betamoon.assets.textures:add{key='minecraft:custom',path='guard.png'} end))\n"
                     + " local t=betamoon.assets.textures:add{key='mymod:guard',path='guard.png'}\n"
                     + " local moving=betamoon.assets.textures:add{key='mymod:moving',path='strip.png',"
                     + "animation={frameTicks=2}}\n"

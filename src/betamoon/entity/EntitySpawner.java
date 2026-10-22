@@ -65,6 +65,13 @@ public final class EntitySpawner {
         entity.prevRotationYaw = yaw;
         entity.prevRotationPitch = pitch;
         entity.setPosition(x, y, z);
+        // RenderManager interpolates from lastTickPos even before the first update.
+        entity.prevPosX = entity.posX;
+        entity.prevPosY = entity.posY;
+        entity.prevPosZ = entity.posZ;
+        entity.lastTickPosX = entity.posX;
+        entity.lastTickPosY = entity.posY;
+        entity.lastTickPosZ = entity.posZ;
         if (entity instanceof LuaProjectileEntity) {
             LuaProjectileEntity projectile = (LuaProjectileEntity) entity;
             projectile.setOwner(owner);

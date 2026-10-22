@@ -67,7 +67,7 @@ public final class ModelLuaApiTest {
                         "Built-in model must have renderable geometry");
             }
         }
-        require(BuiltinAssets.models().size() == 57, "Expected 52 model shapes and five aliases");
+        require(BuiltinAssets.models().size() == 58, "Expected 53 model shapes and five aliases");
         Set<AssetPath> bundledFiles = new HashSet<>();
         for (Map.Entry<AssetId, AssetDefinition> entry : BuiltinAssets.models().entrySet()) {
             bundledFiles.add(entry.getValue().getFallbackPath());
@@ -77,7 +77,7 @@ public final class ModelLuaApiTest {
                         "Rotational shape must not have a directional model key: " + name);
             }
         }
-        require(bundledFiles.size() == 52, "Expected one bundled file per distinct shape");
+        require(bundledFiles.size() == 53, "Expected one bundled file per distinct shape");
         require(distinctGeometry("fence", "fence_north", "fence_north_east"),
                 "Fence connection variants must have distinct geometry");
         require(distinctGeometry("torch", "torch_wall", "lever"),

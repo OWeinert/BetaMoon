@@ -85,6 +85,7 @@ public final class ModelRenderTest {
                 }
             }
             ModelVariantRenderTest.run(textureId);
+            NativeTextureRenderTest.run(root);
             BufferedImage replacement = new BufferedImage(64, 32, BufferedImage.TYPE_INT_ARGB);
             for (int y = 0; y < 32; y++) {
                 for (int x = 0; x < 64; x++) {

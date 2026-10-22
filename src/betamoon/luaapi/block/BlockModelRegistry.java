@@ -6,6 +6,7 @@ import betamoon.assets.model.ModelVector;
 import betamoon.client.render.ModelAppearance;
 import betamoon.client.render.ModelAppearanceSet;
 import betamoon.client.render.ModelRenderer;
+import betamoon.client.render.ModelTextureBinding;
 import betamoon.luaapi.asset.ModelAppearanceDeclaration;
 import forge.MinecraftForgeClient;
 import java.util.LinkedHashMap;
@@ -158,8 +159,9 @@ public final class BlockModelRegistry {
             for (Map.Entry<String, ModelAppearanceDeclaration.Material> entry : appearance.definition.materials
                     .entrySet()) {
                 boolean breaking = renderer.overrideBlockTexture >= 0;
+                ModelTextureBinding texture = appearance.textures.get(entry.getKey());
                 if (!breaking) {
-                    MinecraftForgeClient.bindTexture(appearance.textures.get(entry.getKey()));
+                    MinecraftForgeClient.bindTexture(texture.resource());
                 }
                 Tessellator tessellator = Tessellator.instance;
                 ModelAppearanceDeclaration.Material material = entry.getValue();
@@ -183,8 +185,8 @@ public final class BlockModelRegistry {
                             for (int index = 0; index < 4; index++) {
                                 int i = side == 0 ? index : 3 - index;
                                 ModelVector uv = face.uv.get(i);
-                                double u = uv.x * material.scaleU + material.u;
-                                double v = uv.y * material.scaleV + material.v;
+                                double u = texture.mapU(uv.x * material.scaleU + material.u);
+                                double v = texture.mapV(uv.y * material.scaleV + material.v);
                                 if (breaking) {
                                     u = (renderer.overrideBlockTexture % 16 + (i == 1 || i == 2 ? 1 : 0)) / 16.0;
                                     v = (renderer.overrideBlockTexture / 16 + (i >= 2 ? 1 : 0)) / 16.0;

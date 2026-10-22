@@ -5,6 +5,8 @@ import betamoon.client.assets.ClientAssets;
 import betamoon.client.assets.TextureAsset;
 import betamoon.client.assets.TextureImage;
 import betamoon.client.assets.TexturePixelUpload;
+import betamoon.client.assets.NativeTextureResources;
+import betamoon.assets.NativeTextureSource;
 import betamoon.luaapi.asset.AssetInputs;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -38,6 +40,19 @@ public final class LuaTextureResources {
     }
 
     public static synchronized String register(AssetLocation location) {
+        NativeTextureSource source = location.getNativeTexture();
+        if (source != null) {
+            if (source.isCell()) {
+                throw new LuaError("This texture field requires a whole image; use a minecraft:image/... key"
+                        + " or a model appearance for a native atlas cell");
+            }
+            try {
+                NativeTextureResources.inspect(source);
+                return source.getResource();
+            } catch (IOException error) {
+                throw new LuaError("Texture: " + error.getMessage());
+            }
+        }
         ClientAssets.requestRefresh();
         String key = location.getCacheKey();
         String resource = RESOURCES_BY_KEY.get(key);
@@ -80,7 +95,15 @@ public final class LuaTextureResources {
 
     public static synchronized int[] dimensions(String resource) {
         BufferedImage image = load(resource);
-        return image == null ? null : new int[]{image.getWidth(), image.getHeight()};
+        if (image != null) {
+            return new int[]{image.getWidth(), image.getHeight()};
+        }
+        try {
+            NativeTextureResources.Selection nativeImage = NativeTextureResources.inspectImage(resource);
+            return nativeImage == null ? null : new int[]{nativeImage.width, nativeImage.height};
+        } catch (IOException error) {
+            throw new LuaError("Texture: " + error.getMessage());
+        }
     }
 
     public static synchronized void release(String resource) {
