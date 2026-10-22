@@ -293,3 +293,9 @@ wiki validation on the final integrated feature tree before merge.
   off, unavailable input hovers, native collision remains active and disabling/unloading restores native motion.
   The actual script passes LuaJ syntax/loading, real declaration/rule readers, control/lifecycle smoke checks,
   manifest validation and LuaLS without diagnostics. The package README contains the uncompleted manual checklist.
+- Internal sprint playtest (2026-10-22): Left Ctrl starts latched sprinting on foot or in flight. Forward release,
+  water entry and clipped forward displacement cancel it; a fresh press is required to restart. Native walking
+  uses a 1.3 acceleration multiplier; flight doubles horizontal speed. Intact forward motion preserves sprint
+  through side, floor, ceiling and step contact. The reusable LuaJ smoke runner verifies the actual script,
+  real declaration/rule readers, Ctrl binding, cancellation, ownership/suspension and fresh bindings. It and
+  LuaLS pass; manual gameplay acceptance remains open.
