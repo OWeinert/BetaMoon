@@ -299,3 +299,9 @@ wiki validation on the final integrated feature tree before merge.
   through side, floor, ceiling and step contact. The reusable LuaJ smoke runner verifies the actual script,
   real declaration/rule readers, Ctrl binding, cancellation, ownership/suspension and fresh bindings. It and
   LuaLS pass; manual gameplay acceptance remains open.
+- Internal sprint-jump correction (2026-10-22): added a 0.2 blocks/tick forward takeoff force to accepted native
+  ground jumps while this script owns sprint motion. It respects jump vetoes, adds no vertical force and does
+  not repeat while airborne or during flight. The real transformed-player comparison covers complete jumps:
+  walking 2.0352 blocks, acceleration-only sprint 2.6458, corrected sprint 3.6292, with equal 1.2522-block height.
+  Rotated facing and jump veto pass (`build/sprint-jump-check/native.log`), alongside the expanded package smoke
+  runner and LuaLS. No engine or public Lua API change was needed; manual replay remains open.
