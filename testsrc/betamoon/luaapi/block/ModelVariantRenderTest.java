@@ -4,6 +4,7 @@ import betamoon.client.render.ModelAppearanceSet;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.Block;
 import net.minecraft.src.Chunk;
@@ -13,6 +14,9 @@ import net.minecraft.src.ItemStack;
 import net.minecraft.src.Material;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.RenderEngine;
+import net.minecraft.src.RenderBlocks;
+import net.minecraft.src.Tessellator;
+import betamoon.luaapi.asset.ModelAppearanceDeclaration;
 import net.minecraft.src.TileEntityChest;
 import net.minecraft.src.Vec3D;
 import net.minecraft.src.World;
@@ -128,6 +132,61 @@ public final class ModelVariantRenderTest {
             }
         }
         return count;
+    }
+
+    public static void runNativeAtlas(int texture) throws Exception {
+        Field unsafeField = Unsafe.class.getDeclaredField("theUnsafe");
+        unsafeField.setAccessible(true);
+        Unsafe unsafe = (Unsafe) unsafeField.get(null);
+        TestWorld world = (TestWorld) unsafe.allocateInstance(TestWorld.class);
+        world.chunk = new Chunk(world, new byte[32768], 0, 0);
+        world.chunk.blocks[0] = (byte) 223;
+        LuaBlock block = new LuaBlock(223, 1, Material.rock, "native_atlas");
+        Globals lua = JsePlatform.standardGlobals();
+        lua.load("appearance={model='minecraft:block/full_block',texture='minecraft:block/sand',"
+                + "material={lighting='unlit'}}").call();
+        Minecraft minecraft = (Minecraft) unsafe.allocateInstance(TestMinecraft.class);
+        minecraft.renderEngine = new RenderEngine(null, null) {
+            public int getTexture(String path) {
+                require("/terrain.png".equals(path), "Static native model must bind the vanilla atlas path");
+                return texture;
+            }
+        };
+        Field instance = ModLoader.class.getDeclaredField("instance");
+        instance.setAccessible(true);
+        Object previous = instance.get(null);
+        instance.set(null, minecraft);
+        GL11.glPushMatrix();
+        try {
+            BlockModelRegistry.install(223, new ModelAppearanceSet(
+                    new ModelAppearanceDeclaration(lua.get("appearance")), Collections.emptyMap()));
+            GL11.glTranslated(-0.5, 0, -0.5);
+            GL11.glDepthMask(true);
+            GL11.glEnable(GL11.GL_TEXTURE_2D);
+            GL11.glDisable(GL11.GL_CULL_FACE);
+            GL11.glColor4f(1, 1, 1, 1);
+            GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
+            Tessellator.firstInstance.startDrawingQuads();
+            require(BlockModelRegistry.renderWorld(new RenderBlocks(world), world, 0, 0, 0, block),
+                    "Native atlas appearances must remain eligible for static chunk rendering");
+            Tessellator.firstInstance.draw();
+            ByteBuffer pixels = BufferUtils.createByteBuffer(256 * 256 * 4);
+            GL11.glReadPixels(0, 0, 256, 256, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
+            int blue = 0;
+            for (int i = 0; i < 256 * 256; i++) {
+                if ((pixels.get(i * 4) & 255) == 0 && (pixels.get(i * 4 + 1) & 255) == 0
+                        && (pixels.get(i * 4 + 2) & 255) == 255) {
+                    blue++;
+                }
+            }
+            require(blue > 1000, "Static chunk tessellation must sample the same live atlas cell as entity rendering");
+            require(world.chunk.blocks[0] == (byte) 223 && !world.chunk.isModified,
+                    "Native visual binding must preserve world data");
+        } finally {
+            GL11.glPopMatrix();
+            BlockModelRegistry.install(223, null);
+            instance.set(null, previous);
+        }
     }
 
     private static final class TestMinecraft extends Minecraft {

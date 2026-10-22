@@ -12,7 +12,6 @@ import betamoon.entity.EntityPresentationState;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.asset.ModelAppearanceDeclaration;
 import betamoon.luaapi.asset.PoseReference;
-import betamoon.resources.LuaTextureResources;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -36,7 +35,7 @@ public final class ModelAppearance implements AutoCloseable {
     private static boolean texturesNeedPreload;
     public final ModelAppearanceDeclaration definition;
     private final ModelAppearance parent;
-    public final Map<String, String> textures = new LinkedHashMap<>();
+    public final Map<String, ModelTextureBinding> textures = new LinkedHashMap<>();
     public final List<ModelAppearance> layers = new ArrayList<>();
     private ModelAsset<ModelGeometry> model;
     private ModelAsset<ModelAnimations> animations;
@@ -62,7 +61,7 @@ public final class ModelAppearance implements AutoCloseable {
                 animations = ClientModelAssets.animations(definition.animation);
             }
             for (Map.Entry<String, ModelAppearanceDeclaration.Material> material : definition.materials.entrySet()) {
-                textures.put(material.getKey(), LuaTextureResources.register(material.getValue().texture));
+                textures.put(material.getKey(), new ModelTextureBinding(material.getValue().texture));
             }
             refresh();
             for (ModelAppearanceDeclaration layer : definition.layers) {
@@ -103,8 +102,8 @@ public final class ModelAppearance implements AutoCloseable {
         int bound = GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
         try {
             for (ModelAppearance appearance : new ArrayList<>(LIVE)) {
-                for (String texture : appearance.textures.values()) {
-                    minecraft.renderEngine.getTexture(texture);
+                for (ModelTextureBinding texture : appearance.textures.values()) {
+                    minecraft.renderEngine.getTexture(texture.resource());
                 }
             }
             texturesNeedPreload = false;
@@ -131,6 +130,9 @@ public final class ModelAppearance implements AutoCloseable {
     }
 
     private void refresh() throws IOException {
+        for (ModelTextureBinding texture : textures.values()) {
+            texture.refresh();
+        }
         ModelGeometry candidate = model.getContent().getValue();
         ModelAnimations.Clip candidateClip;
         try {
@@ -164,6 +166,12 @@ public final class ModelAppearance implements AutoCloseable {
             for (ModelGeometry.Quad face : bone.faces) {
                 if (!textures.containsKey(face.material)) {
                     throw new IOException("Missing material binding: " + face.material);
+                }
+                ModelTextureBinding texture = textures.get(face.material);
+                ModelAppearanceDeclaration.Material material = definition.materials.get(face.material);
+                for (ModelVector uv : face.uv) {
+                    texture.mapU(uv.x * material.scaleU + material.u);
+                    texture.mapV(uv.y * material.scaleV + material.v);
                 }
             }
         }
@@ -243,8 +251,8 @@ public final class ModelAppearance implements AutoCloseable {
         for (ModelAppearance layer : layers) {
             layer.close();
         }
-        for (String texture : textures.values()) {
-            LuaTextureResources.release(texture);
+        for (ModelTextureBinding texture : textures.values()) {
+            texture.close();
         }
         if (model != null) {
             model.close();
