@@ -75,7 +75,7 @@ public final class LuaPositionArguments {
         }
         double x = component(input, path + ".x", integral, minXZ, maxXZ);
         if (horizontal) {
-            double z = component(args.arg(first + offset + 1), path + ".z", true, minXZ, maxXZ);
+            double z = component(args.arg(first + offset + 1), path + ".z", integral, minXZ, maxXZ);
             return new Position(x, 0, z, first + 2, false);
         }
         LuaValue yValue = args.arg(first + offset + 1);

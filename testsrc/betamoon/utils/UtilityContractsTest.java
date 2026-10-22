@@ -31,6 +31,7 @@ public final class UtilityContractsTest {
         verifyLuaArgumentResolution();
         verifyFiniteNumbers();
         verifyPositionArguments();
+        verifyPlaneArguments();
         verifyCallbackPermissions();
         verifyKeyLayouts();
         verifyReflectionFallbacks();
@@ -113,6 +114,37 @@ public final class UtilityContractsTest {
         plain.set("unexpected", LuaValue.NIL);
         plain.set("z", Double.POSITIVE_INFINITY);
         rejectPosition(plain, "Non-finite position coordinate was accepted");
+    }
+
+    private static void verifyPlaneArguments() {
+        LuaTable receiver = new LuaTable();
+        LuaTable point = new LuaTable();
+        point.set("x", -73.25);
+        point.set("z", 92.5);
+
+        for (LuaValue owner : new LuaValue[]{null, receiver}) {
+            LuaValue[] prefix = owner == null ? new LuaValue[0] : new LuaValue[]{owner};
+            Varargs numericArguments = LuaValue.varargsOf(prefix, LuaValue.varargsOf(new LuaValue[]{
+                    LuaValue.valueOf(-73.25), LuaValue.valueOf(92.5), LuaValue.valueOf("tail")}));
+            LuaPositionArguments.Position numeric = LuaPositionArguments.plane(
+                    numericArguments, owner, 1, "field.sample");
+            LuaPositionArguments.Position named = LuaPositionArguments.plane(
+                    LuaValue.varargsOf(prefix, LuaValue.varargsOf(point, LuaValue.valueOf("tail"))),
+                    owner, 1, "field.sample");
+            require(numeric.x == named.x && numeric.y == named.y && numeric.z == named.z,
+                    "Numeric and named floating X/Z arguments differ");
+            require(numeric.z == 92.5 && numeric.y == 0,
+                    "Floating X/Z queries must preserve nonzero fractional Z and default Y to zero");
+            require(numeric.nextArgument == 3 && named.nextArgument == 2,
+                    "Floating X/Z queries consumed the wrong number of arguments");
+        }
+
+        requireDenied(() -> LuaPositionArguments.horizontal(
+                LuaValue.varargsOf(LuaValue.valueOf(-73), LuaValue.valueOf(92.5)), null, 1, "getChunk"),
+                "Integer X/Z queries accepted a fractional Z coordinate");
+        requireDenied(() -> LuaPositionArguments.plane(
+                LuaValue.varargsOf(LuaValue.valueOf(-73), LuaValue.valueOf(Double.NaN)), null, 1, "field.sample"),
+                "Floating X/Z queries accepted a non-finite Z coordinate");
     }
 
     private static void rejectPosition(LuaValue input, String message) {

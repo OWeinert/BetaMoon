@@ -34,6 +34,7 @@
   particle, teleport, and worldgen runtime APIs. Preserve each operation's coordinate units and limits.
 - Require exact integers for block coordinates and integer position construction; reject non-finite and out-of-range
   float positions.
+- Preserve nonzero and fractional Z coordinates in numeric X/Z spatial-field queries.
 
 ### Optimization and reliability
 
