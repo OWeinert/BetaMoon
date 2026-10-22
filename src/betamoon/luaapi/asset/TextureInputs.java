@@ -22,7 +22,11 @@ public final class TextureInputs {
             }
             AssetLocation location = AssetInputs.read(asset, AssetKind.TEXTURE);
             LuaValue playback = value.get("animation");
-            return playback.isnil() ? location : location.withTextureAnimation(animation(playback));
+            try {
+                return playback.isnil() ? location : location.withTextureAnimation(animation(playback));
+            } catch (IllegalArgumentException error) {
+                throw new LuaError(error.getMessage());
+            }
         }
         return AssetInputs.read(value, AssetKind.TEXTURE);
     }

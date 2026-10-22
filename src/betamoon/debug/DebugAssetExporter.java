@@ -56,6 +56,9 @@ final class DebugAssetExporter implements DebugExporter {
         for (Map.Entry<AssetId, AssetDefinition> entry : BuiltinAssets.models().entrySet()) {
             assets.add(new AssetRow(entry.getKey(), entry.getValue(), "minecraft", true));
         }
+        for (Map.Entry<AssetId, AssetDefinition> entry : BuiltinAssets.textures().entrySet()) {
+            assets.add(new AssetRow(entry.getKey(), entry.getValue(), entry.getKey().getKey().getNamespace(), true));
+        }
         for (AssetRegistration registration : ScriptAssetScope.snapshot()) {
             AssetDefinition definition = registration.getDefinition();
             assets.add(new AssetRow(definition.getId(), definition, registration.getOwner(), false));
@@ -87,6 +90,11 @@ final class DebugAssetExporter implements DebugExporter {
                     writer.newLine();
                     writer.write("built-in: " + row.builtIn);
                     writer.newLine();
+                    if (row.definition.getNativeTexture() != null && row.definition.getNativeTexture().isCell()) {
+                        writer.write("native atlas: " + row.definition.getNativeTexture().getAtlas() + " | cell: "
+                                + row.definition.getNativeTexture().getIndex());
+                        writer.newLine();
+                    }
                     if (!row.id.equals(row.definition.getId())) {
                         writer.write("alias of: " + row.definition.getId().getKey());
                         writer.newLine();

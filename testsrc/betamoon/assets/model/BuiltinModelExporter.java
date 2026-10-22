@@ -115,7 +115,7 @@ public final class BuiltinModelExporter {
                 render(output, Block.snow, Integer.parseInt(name.substring(5)) - 1, 0, 0, 0, 0);
             } else if (name.equals("slab")) {
                 render(output, Block.stairSingle, 0, 0, 0, 0, 0);
-            } else if (name.equals("slab_double")) {
+            } else if (name.equals("slab_double") || name.equals("full_block")) {
                 render(output, Block.stairDouble, 0, 0, 0, 0, 0);
             } else if (name.startsWith("pressure_plate")) {
                 render(output, Block.pressurePlateStone, name.endsWith("pressed") ? 1 : 0, 0, 0, 0, 0);

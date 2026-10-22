@@ -37,6 +37,9 @@ final class AssetDeclaration {
         }
         try {
             AssetId id = new AssetId(kind, AssetKey.parse(table.get("key").checkjstring()));
+            if (kind == AssetKind.TEXTURE && "minecraft".equals(id.getKey().getNamespace())) {
+                throw new LuaError("The minecraft texture namespace is reserved for built-in references");
+            }
             LuaValue playback = table.get("animation");
             if (playback == LuaValue.FALSE) {
                 throw new LuaError("Texture asset animation must be a playback table");

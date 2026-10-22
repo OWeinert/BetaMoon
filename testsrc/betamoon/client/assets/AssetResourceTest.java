@@ -57,6 +57,7 @@ public final class AssetResourceTest {
             verifyTransparentGuiSprites();
             verifyAudio();
             verifySoundOverrides(root);
+            NativeTextureTest.run();
             System.out.println("Asset resources passed: ZIP fallback, cache/refresh, virtual PNGs, "
                     + "transparent GUI sprites, WAV and OGG.");
         } finally {
@@ -162,7 +163,7 @@ public final class AssetResourceTest {
     }
 
     private static void verifyBuiltinControlTextures(Path root) throws Exception {
-        require(BuiltinAssets.textures().size() == 94,
+        require(BuiltinAssets.textures().values().stream().filter(value -> value.getNativeTexture() == null).count() == 94,
                 "The complete implemented and reserved control sprite catalog must be present");
         require(BuiltinAssets.find(new AssetId(AssetKind.TEXTURE,
                         AssetKey.parse("betamoon:gui/controls/radio/on_focused"))) != null
@@ -178,6 +179,9 @@ public final class AssetResourceTest {
 
         ClientAssets.useProviders(new FileAssetProvider(root.toFile()), null, message -> { });
         for (AssetDefinition builtinDefinition : BuiltinAssets.textures().values()) {
+            if (builtinDefinition.getNativeTexture() != null) {
+                continue;
+            }
             TextureImage image = ClientAssets.resolveTexture(new AssetLocation(builtinDefinition)).getValue();
             require(image.getImage().getWidth() > 0 && image.getImage().getHeight() > 0,
                     "Every built-in control sprite must decode");

@@ -5,6 +5,7 @@ import betamoon.assets.AssetId;
 import betamoon.assets.AssetKind;
 import betamoon.assets.AssetPath;
 import betamoon.assets.TextureAnimation;
+import betamoon.assets.NativeTextureSource;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptAssetScope;
 
@@ -20,6 +21,7 @@ public final class AssetLocation {
     private final boolean builtin;
     private final String defaultSource;
     private final TextureAnimation textureAnimation;
+    private final NativeTextureSource nativeTexture;
 
     public AssetLocation(AssetDefinition definition) {
         builtin = definition.isBuiltin();
@@ -29,6 +31,7 @@ public final class AssetLocation {
         override = definition.getOverridePath();
         defaultSource = definition.getDefaultSource();
         textureAnimation = definition.getTextureAnimation();
+        nativeTexture = definition.getNativeTexture();
     }
 
     public AssetLocation(AssetKind kind, AssetPath path) {
@@ -39,6 +42,7 @@ public final class AssetLocation {
         override = path.getDirectOverridePath();
         defaultSource = LuaScriptRegistry.getCurrentScriptFile();
         textureAnimation = null;
+        nativeTexture = null;
     }
 
     private AssetLocation(AssetLocation original, TextureAnimation animation) {
@@ -49,17 +53,25 @@ public final class AssetLocation {
         override = original.override;
         defaultSource = original.defaultSource;
         textureAnimation = animation;
+        nativeTexture = original.nativeTexture;
     }
 
     public AssetLocation withTextureAnimation(TextureAnimation animation) {
         if (kind != AssetKind.TEXTURE) {
             throw new IllegalArgumentException("Only texture assets accept animation metadata");
         }
+        if (nativeTexture != null) {
+            throw new IllegalArgumentException("Native textures use Minecraft's animation playback");
+        }
         return new AssetLocation(this, animation);
     }
 
     public TextureAnimation getTextureAnimation() {
         return textureAnimation;
+    }
+
+    public NativeTextureSource getNativeTexture() {
+        return nativeTexture;
     }
 
     public AssetKind getKind() {
