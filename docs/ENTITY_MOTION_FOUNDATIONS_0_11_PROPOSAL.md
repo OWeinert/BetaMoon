@@ -265,7 +265,8 @@ wiki validation on the final integrated feature tree before merge.
 - `EntityPlayerFlightTest` is a test fixture, not a new distributed example. Its Lua source exercises hover,
   logical movement, ascent/descent, sneak controls, captured/rebound input, ordered edges, focus/screens,
   deliberate fall handling, native restoration after yield/disable/unload/error, fresh respawn/world bindings,
-  unsupported remote environment and look ownership. A usable flight snippet is included in the user-facing wiki.
+  unsupported remote environment and look ownership. The wiki documents the API with short snippets;
+  the full flight scenario remains in the automated fixture rather than the API reference.
 - `PackagedEntityMotionTest` remaps these same fixtures and runs them in a separate Java 8 JVM containing the
   shipped mod/agent and recompiled obfuscated client, without named game classes or a vanilla-class fallback.
   The vanilla client supplies only non-class resources. Both named and packaged movement scenarios pass.
@@ -282,3 +283,7 @@ wiki validation on the final integrated feature tree before merge.
   eight handle methods and five callbacks.
 - Interactive acceptance: no new human gameplay/flight playthrough is claimed. The user's earlier completed
   0.11 playthrough remains baseline acceptance. Automated native and packaged flight acceptance is complete.
+- Documentation correction (2026-10-22): removed the full flight implementation from the wiki after user
+  feedback. A complete gameplay example belongs in a separate script package; no standalone package has yet
+  been created. API behavior and automated flight coverage are unchanged. Movement API coverage, 275 wiki
+  tables, 1,128 local links and 349 Lua snippets pass after removal (`motion-wiki-concise.log`).
