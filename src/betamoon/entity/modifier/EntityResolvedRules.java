@@ -9,7 +9,7 @@ import java.util.Map;
  * baseline on each use.
  */
 public final class EntityResolvedRules {
-    static final EntityResolvedRules EMPTY = new EntityResolvedRules(
+    public static final EntityResolvedRules EMPTY = new EntityResolvedRules(
             new EnumMap<EntityMovementRule, EntityResolvedRule>(EntityMovementRule.class));
 
     private final Map<EntityMovementRule, EntityResolvedRule> rules;

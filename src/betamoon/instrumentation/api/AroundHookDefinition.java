@@ -22,6 +22,7 @@ public final class AroundHookDefinition implements HookDefinition {
     private final int priority;
     private final boolean skipWhenCapturedNonZero;
     private final boolean cleanupOnException;
+    private final HandlerRef exceptionHandler;
 
     private AroundHookDefinition(Builder builder) {
         this.id = builder.id;
@@ -34,6 +35,7 @@ public final class AroundHookDefinition implements HookDefinition {
         this.priority = builder.priority;
         this.skipWhenCapturedNonZero = builder.skipWhenCapturedNonZero;
         this.cleanupOnException = builder.cleanupOnException;
+        this.exceptionHandler = builder.exceptionHandler == null ? builder.returnHandler : builder.exceptionHandler;
     }
 
     public static Builder builder(String id, MethodRef target) {
@@ -82,6 +84,10 @@ public final class AroundHookDefinition implements HookDefinition {
         return cleanupOnException;
     }
 
+    public HandlerRef getExceptionHandler() {
+        return exceptionHandler;
+    }
+
     @Override
     public int getPriority() {
         return priority;
@@ -102,6 +108,7 @@ public final class AroundHookDefinition implements HookDefinition {
         private int priority;
         private boolean skipWhenCapturedNonZero;
         private boolean cleanupOnException;
+        private HandlerRef exceptionHandler;
 
         private Builder(String id, MethodRef target) {
             if (id == null || id.trim().length() == 0) {
@@ -151,6 +158,19 @@ public final class AroundHookDefinition implements HookDefinition {
          */
         public Builder cleanupOnException() {
             this.cleanupOnException = true;
+            return this;
+        }
+
+        /**
+         * Uses the return bindings with a distinct void handler for an exceptional
+         * exit.
+         */
+        public Builder cleanupOnException(HandlerRef handler) {
+            if (handler == null) {
+                throw new IllegalArgumentException("Exception cleanup handler is required");
+            }
+            this.cleanupOnException = true;
+            this.exceptionHandler = handler;
             return this;
         }
 

@@ -1,7 +1,7 @@
 # Entity movement foundations for BetaMoon 0.11
 
 Date: 2026-10-22.
-Status: development authorized by the user; this document is the delivery plan.
+Status: M1-M6 implemented and automated acceptance verified on the dedicated feature branch.
 Branch: `feature/entity-motion-foundations`, based on integrated `dev` in BetaMoon, the Lua addon and wiki.
 
 ## 1. Outcome and scope
@@ -43,9 +43,9 @@ can await a player, but may not claim a capability whose hooks are missing or fa
 Player input and mob AI feed the same motion contract. Player-only conveniences are local access, automatic
 rebinding, routed input and the native sneak body adjustment. Supported entity movement remains shared.
 
-## 3. Planned Lua surface
+## 3. Delivered Lua surface
 
-These signatures are proposed until their complete runtime increment ships. Do not expose placeholder methods.
+These methods are implemented together with the rule, lifecycle and movement contracts below.
 
 | Entry point | Contract |
 | --- | --- |
@@ -123,8 +123,9 @@ controller `manual` continues to mean input ownership; it does not become a seco
 2. Snapshot eligible definitions, native intent, movement state and input observations.
 3. Evaluate motion producers by priority and lexical owner/key; nil yields, the first valid table claims.
 4. Resolve static rules plus the winning source's temporary replacements; prepare rotation and fall rebasing.
-5. Consume enabled native jump/fluid lift, then gather independent force contributions.
-6. Commit the validated numeric step once and execute native or manual motion through native collision.
+5. Prepare the prospective post-jump/pre-heading state and gather independent force contributions against it.
+6. Commit the validated decision once, consume enabled native jump/fluid lift and apply forces before heading,
+   then execute native or manual motion through native collision. Native jump/statistics are never replayed.
 7. Publish fresh post-step observations and clear all temporary state in `finally`.
 
 A command has required `mode="native"` or `mode="manual"`, optional complete `velocity`, optional partial
@@ -183,11 +184,12 @@ Inspect `EntityPlayerSP.onLivingUpdate`, `MovementInputFromOptions.updatePlayerM
 `Entity.updateFallState`, `EntityLiving.fall` and the player statistics wrapper. Audit subclass overrides before
 advertising each target. Include BetaMoon fluid/lifecycle hooks in ordering checks.
 
-The current framework has around-method, call-redirect and field-read-redirect definitions. It does not offer
-a general semantic numeric transform, and call redirects do not match superclass `INVOKESPECIAL`. Add a reusable
-primitive only after inspecting the exact needed seam. Avoid global constant replacement or instruction-index
-guesses. Check named and supported obfuscated classes, exact matches, verifier behavior, repeated transforms
-and unsupported hook diagnostics. Missing hooks must prevent registration, not create ineffective sources.
+The implementation adds exact mapped field-write/operand transformations to the existing around-method,
+call-redirect and field-read-redirect definitions. Match the assigned native field, arithmetic opcode and exact
+consumer count, rather than global constants or instruction indexes. Normal completion and exceptional cleanup
+use distinct handlers. Java 7+ targets recompute verification frames from resource metadata without defining
+classes during transformation. Named and obfuscated fixtures verify exact matches, idempotence and JVM behavior.
+Missing hooks prevent registration rather than creating ineffective sources.
 
 ## 8. Implementation milestones
 
@@ -242,4 +244,41 @@ wiki validation on the final integrated feature tree before merge.
   foundation test, existing integration suites, RetroMCP packaging and packaged Java 8 agent verification:
   110 tasks, 108 executed and two up-to-date, in 1m35s. Proposal links and its Lua snippet syntax passed.
   Evidence: `build/flight-feasibility-audit/foundation-full.log` and `rule-foundation-final.log`.
-- M2-M6 remain pending. Native movement/instrumentation and the public Lua API are unchanged at this checkpoint.
+- M2-M6 implemented: owned source generations and bounded target/local bindings; atomic handle updates and
+  recovery; native rule consumers; public declarations and diagnostics; one prepared/committed living step;
+  prioritized producers, independent forces, read-only callbacks and post-collision observations.
+- Source failures remove the whole source before commit; observer failure is isolated. Replacing/clearing the
+  specifically failed callback or explicit retry recovers it. Contact-time edits preserve committed decisions;
+  closed/unloaded owners receive no later callback. Cleanup uses detached snapshots and does not read old worlds.
+- Force callbacks read the prospective committed numbers from `ctx.movement`, including jump, selected rotation
+  and fall rebasing. Live facade queries inspect the uncommitted body. Native bookkeeping runs once only after
+  preparation succeeds. Remaining force callbacks may be reevaluated when another source fails before commit.
+- Runtime self-review fixed unsupported lifecycle/remote/no-clip rule leakage, stale detach world reads,
+  observer publication after native exceptions, and modern obfuscated class verification frames. Static rules
+  use revision-cached resolutions; class movement audits are cached without caching mutable lifecycle eligibility.
+- `EntityMotionApiTest` runs actual transformed native bodies and the public Lua facade. Coverage includes
+  native/neutral/removed-source parity on airborne land, ground, water, lava and ladders; non-default drag and
+  fluid lift; jump veto/scaling/statistics; producer order and temporary replacements; force bounds/faults;
+  observers; atomic invalid updates; ownership/read-only/thread checks; native save isolation; death cleanup;
+  source limits (64/256/4096); BetaMoon native-lifecycle AI intent; explicit unsupported targets; walls, floors,
+  ceilings, slab stepping and loaded-only refusal; contact-time edits/unload and exceptional cleanup.
+- `EntityPlayerFlightTest` is a test fixture, not a new distributed example. Its Lua source exercises hover,
+  logical movement, ascent/descent, sneak controls, captured/rebound input, ordered edges, focus/screens,
+  deliberate fall handling, native restoration after yield/disable/unload/error, fresh respawn/world bindings,
+  unsupported remote environment and look ownership. A usable flight snippet is included in the user-facing wiki.
+- `PackagedEntityMotionTest` remaps these same fixtures and runs them in a separate Java 8 JVM containing the
+  shipped mod/agent and recompiled obfuscated client, without named game classes or a vanilla-class fallback.
+  The vanilla client supplies only non-class resources. Both named and packaged movement scenarios pass.
+- Full verification: `gradlew build agentSmokeTest --offline --continue --console=plain` passed **112 tasks**
+  (110 executed, two up-to-date) in 1m44s. Final additional coverage and packaged replay passed in
+  `motion-final-native.log`; GUI offscreen acceptance passed 800 ticks, five selectors and five rendered pages
+  in `motion-review.log`. Model rendering and atmosphere OpenGL restoration also passed in `motion-render.log`.
+  Final native/instrumentation/packaged/agent replay passed 19 tasks in 31s in `motion-final-native.log`.
+  Java evidence is under `build/flight-feasibility-audit/`.
+- Addon: canonical reference and split definitions synchronized, 19 Node tests passed, VSIX rebuilt, and real
+  packaged LuaLS diagnostics/completion/hover checks passed. Wiki: 275 tables / 1,979 rows, 1,128 local links
+  and 350 Lua snippets passed. Final link validation is recorded in `motion-wiki.log` in the same evidence
+  directory. The movement-specific coverage check covers all 14 leaves, four entry points,
+  eight handle methods and five callbacks.
+- Interactive acceptance: no new human gameplay/flight playthrough is claimed. The user's earlier completed
+  0.11 playthrough remains baseline acceptance. Automated native and packaged flight acceptance is complete.
