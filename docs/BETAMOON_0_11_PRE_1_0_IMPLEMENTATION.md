@@ -53,3 +53,14 @@ Final verification on the integrated branch:
 
 Local Java evidence and the requested task manifest are under `build/verification-0.11/`. The existing local
 Gradle configuration and canonical addon reference retain their ignored-file status.
+
+## Entity movement follow-up (2026-10-22)
+
+The user authorized completion of the shared entity rule/motion foundations in 0.11, using Minecraft's
+existing bodies and collision solver. The dedicated [entity movement proposal](ENTITY_MOTION_FOUNDATIONS_0_11_PROPOSAL.md)
+is the implementation plan on `feature/entity-motion-foundations`, with matching addon/wiki branches.
+
+M1 adds internal immutable rule values, strict declaration parsing and deterministic bounded composition.
+Its focused tests and the full build/packaged-agent gate pass. Owned source lifecycle, native consumers,
+public rules and motion callbacks remain subsequent milestones. The earlier playthrough acceptance above
+covers the integrated baseline; acceptance of the new movement APIs will be recorded separately when usable.
