@@ -284,6 +284,12 @@ wiki validation on the final integrated feature tree before merge.
 - Interactive acceptance: no new human gameplay/flight playthrough is claimed. The user's earlier completed
   0.11 playthrough remains baseline acceptance. Automated native and packaged flight acceptance is complete.
 - Documentation correction (2026-10-22): removed the full flight implementation from the wiki after user
-  feedback. A complete gameplay example belongs in a separate script package; no standalone package has yet
-  been created. API behavior and automated flight coverage are unchanged. Movement API coverage, 275 wiki
+  feedback. A complete gameplay example belongs in a separate script package. API behavior and automated
+  flight coverage are unchanged. Movement API coverage, 275 wiki
   tables, 1,128 local links and 349 Lua snippets pass after removal (`motion-wiki-concise.log`).
+- Internal playtest delivery (2026-10-22): following the user's explicit authorization, added the opt-in
+  `internal/playtest_0_11_0/packs/bm011_flight/` package beside the config playtest and preserved it in the private
+  backup. G toggles flight; H reports status; resolved movement/jump/sneak control flight. Fresh bindings start
+  off, unavailable input hovers, native collision remains active and disabling/unloading restores native motion.
+  The actual script passes LuaJ syntax/loading, real declaration/rule readers, control/lifecycle smoke checks,
+  manifest validation and LuaLS without diagnostics. The package README contains the uncompleted manual checklist.
