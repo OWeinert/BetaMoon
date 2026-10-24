@@ -53,3 +53,20 @@ Final verification on the integrated branch:
 
 Local Java evidence and the requested task manifest are under `build/verification-0.11/`. The existing local
 Gradle configuration and canonical addon reference retain their ignored-file status.
+
+## Entity movement follow-up (2026-10-22)
+
+The user authorized completion of the shared entity rule/motion foundations in 0.11, using Minecraft's
+existing bodies and collision solver. The dedicated [entity movement proposal](ENTITY_MOTION_FOUNDATIONS_0_11_PROPOSAL.md)
+is the implementation plan on `feature/entity-motion-foundations`, with matching addon/wiki branches.
+
+M1-M6 are implemented: immutable rule composition, owned source handles and binding lifetimes, native consumers,
+shared native/manual motion, independent forces, routed player input and observations. The addon reference,
+split definitions and wiki are synchronized. Tests cover native living mobs, native-lifecycle BetaMoon AI,
+the actual local-player path, lifecycle/fault/permission scenarios and source limits. The same Lua flight
+fixture passes in an isolated JVM with the shipped agent and recompiled obfuscated client.
+
+The full build/check/packaged-agent gate passed 112 tasks; GUI offscreen coverage and the final expanded native
+and obfuscated movement scenarios passed. See the dedicated proposal's development record and
+`build/flight-feasibility-audit/` for evidence. The earlier user playthrough covers the integrated baseline;
+the new movement/flight acceptance is automated, with no additional human playthrough claimed.

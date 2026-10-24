@@ -2,6 +2,7 @@ package betamoon.client.tick;
 
 import betamoon.BetaMoonClient;
 import betamoon.client.atmosphere.AtmosphereRuntime;
+import betamoon.entity.modifier.EntityModifierRuntime;
 import betamoon.event.Events;
 import betamoon.event.context.GameEventCtx;
 import betamoon.event.context.GuiEventCtx;
@@ -66,6 +67,9 @@ public final class ClientTickEvents {
     }
 
     private static void synchronizeLifecycle(Minecraft minecraft) {
+        if (minecraft != null) {
+            EntityModifierRuntime.synchronize(minecraft.theWorld, minecraft.thePlayer);
+        }
         BetaMoonClient client = BetaMoonClient.getInstance();
         if (client != null && minecraft != null) {
             client.synchronizeTickLifecycle(minecraft);

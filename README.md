@@ -22,6 +22,7 @@ Extensive Lua scripting for **Minecraft Beta 1.7.3**.
 - Save-bound terrain generators, shared spatial fields, material rules, carvers and population controls.
 - Persistent custom dimensions with independent generation/environment and queued teleportation with safe return history.
 - Scoped player and entity access for checked movement, position, rotation and velocity changes.
+- Owned living-entity movement rules, native/manual motion and additive forces, including Lua-authored player flight.
 - Scoped fog, sky and light tints, plus ambient and weather sounds.
 - Input maps, hotkeys, event-driven behavior, and overrides for registered content.
 

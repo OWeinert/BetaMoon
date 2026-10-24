@@ -14,7 +14,10 @@ import java.util.Map;
 import net.minecraft.src.EntityPlayerSP;
 import net.minecraft.src.MovementInputFromOptions;
 
-/** Per-stage player control ownership. Native behavior is untouched without an active layer. */
+/**
+ * Per-stage player control ownership. Native behavior is untouched without an
+ * active layer.
+ */
 public final class PlayerControllerRuntime {
     public static final int MAX_CONTROLLERS = 256;
     public static final int MAX_ACTIVATIONS = 256;
@@ -74,8 +77,7 @@ public final class PlayerControllerRuntime {
         public final boolean sneak;
 
         public Movement(float forward, float strafe, boolean jump, boolean sneak) {
-            if (!Float.isFinite(forward) || !Float.isFinite(strafe)
-                    || Math.abs(forward) > 1 || Math.abs(strafe) > 1) {
+            if (!Float.isFinite(forward) || !Float.isFinite(strafe) || Math.abs(forward) > 1 || Math.abs(strafe) > 1) {
                 throw new IllegalArgumentException("Movement forward and strafe must be finite in -1..1");
             }
             this.forward = forward;
@@ -126,8 +128,8 @@ public final class PlayerControllerRuntime {
         public final int button;
         public final boolean held;
 
-        private Snapshot(Stage stage, EntityPlayerSP player, long tick, Movement movement, Facing facing,
-                String action, int button, boolean held) {
+        private Snapshot(Stage stage, EntityPlayerSP player, long tick, Movement movement, Facing facing, String action,
+                int button, boolean held) {
             this.stage = stage;
             this.player = player;
             this.tick = tick;
@@ -213,8 +215,8 @@ public final class PlayerControllerRuntime {
             if (player == null || player.worldObj == null || player.isDead || player.health <= 0) {
                 throw new IllegalArgumentException("Controller requires a live local player");
             }
-            if (PlayerControllerRuntime.this.player != player || world != player.worldObj
-                    || screen != null || !focused) {
+            if (PlayerControllerRuntime.this.player != player || world != player.worldObj || screen != null
+                    || !focused) {
                 throw new IllegalStateException("Controller activation requires focused gameplay");
             }
             if (priority < InputRouter.MIN_PRIORITY || priority > InputRouter.MAX_PRIORITY) {
@@ -283,9 +285,8 @@ public final class PlayerControllerRuntime {
                 throw new IllegalArgumentException("Controller action kind and result must be supplied together");
             }
             if (actionKind != null && !"attack".equals(actionKind) && !"use".equals(actionKind)
-                    && !"heldBreaking".equals(actionKind) && !"open".equals(actionKind)
-                    && !"drop".equals(actionKind) && !"hotbar".equals(actionKind)
-                    && !"hotbarWheel".equals(actionKind)) {
+                    && !"heldBreaking".equals(actionKind) && !"open".equals(actionKind) && !"drop".equals(actionKind)
+                    && !"hotbar".equals(actionKind) && !"hotbarWheel".equals(actionKind)) {
                 throw new IllegalArgumentException("Unknown controller action kind: " + actionKind);
             }
             submittedMovement = movement;
@@ -352,6 +353,7 @@ public final class PlayerControllerRuntime {
     private Facing tickFacing;
     private Activation facingOwner;
     private boolean suppressNativeLook;
+    private Movement logicalMovement;
 
     public PlayerControllerRuntime(FailureHandler failures) {
         this.failures = failures;
@@ -439,6 +441,7 @@ public final class PlayerControllerRuntime {
     }
 
     public void movement(MovementInputFromOptions input, EntityPlayerSP localPlayer) {
+        logicalMovement = null;
         if (localPlayer == null || input == null) {
             return;
         }
@@ -448,13 +451,13 @@ public final class PlayerControllerRuntime {
         }
         Mode mode = winner.registration.definition.mode(Stage.MOVEMENT);
         if (mode == Mode.DISABLED) {
+            logicalMovement = Movement.ZERO;
             Movement.ZERO.apply(input);
         } else if (mode == Mode.MANUAL) {
             Movement movement = winner.submittedCycle == cycle ? winner.submittedMovement : null;
             if (winner.registration.handlers.containsKey(Stage.MOVEMENT)) {
-                Decision decision = invoke(winner, Stage.MOVEMENT,
-                        new Snapshot(Stage.MOVEMENT, localPlayer, cycle, Movement.nativeState(input), null,
-                                null, -1, false));
+                Decision decision = invoke(winner, Stage.MOVEMENT, new Snapshot(Stage.MOVEMENT, localPlayer, cycle,
+                        Movement.nativeState(input), null, null, -1, false));
                 if (winner.failedStages.contains(Stage.MOVEMENT)) {
                     movement(input, localPlayer);
                     return;
@@ -464,10 +467,13 @@ public final class PlayerControllerRuntime {
                 }
             }
             if (movement == null) {
+                logicalMovement = Movement.ZERO;
                 Movement.ZERO.apply(input);
             } else if (movement.sneak) {
+                logicalMovement = movement;
                 new Movement(movement.forward * 0.3F, movement.strafe * 0.3F, movement.jump, true).apply(input);
             } else {
+                logicalMovement = movement;
                 movement.apply(input);
             }
         } else {
@@ -477,11 +483,22 @@ public final class PlayerControllerRuntime {
             if (winner.failedStages.contains(Stage.MOVEMENT)) {
                 movement(input, localPlayer);
             } else if (decision.movement != null) {
+                logicalMovement = decision.movement;
                 decision.movement.apply(input);
             } else if (!decision.pass) {
+                logicalMovement = Movement.ZERO;
                 Movement.ZERO.apply(input);
             }
         }
+    }
+
+    public Movement logicalMovement(Movement nativeLogical) {
+        return logicalMovement == null ? nativeLogical : logicalMovement;
+    }
+
+    public boolean ownsLook(EntityPlayerSP localPlayer) {
+        Activation active = winner(Stage.LOOK);
+        return active != null && active.player == localPlayer;
     }
 
     private void resolveLookForTick() {
@@ -500,9 +517,8 @@ public final class PlayerControllerRuntime {
             suppressNativeLook = true;
             tickFacing = winner.submittedCycle == cycle ? winner.submittedFacing : null;
             if (winner.registration.handlers.containsKey(Stage.LOOK)) {
-                Decision decision = invoke(winner, Stage.LOOK,
-                        new Snapshot(Stage.LOOK, winner.player, cycle, null,
-                                new Facing(winner.player.rotationYaw, winner.player.rotationPitch), null, -1, false));
+                Decision decision = invoke(winner, Stage.LOOK, new Snapshot(Stage.LOOK, winner.player, cycle, null,
+                        new Facing(winner.player.rotationYaw, winner.player.rotationPitch), null, -1, false));
                 if (winner.failedStages.contains(Stage.LOOK)) {
                     resolveLookForTick();
                     return;
@@ -555,16 +571,16 @@ public final class PlayerControllerRuntime {
                 return submitted;
             }
             Decision decision = invoke(winner, Stage.WORLD_ACTIONS,
-                    new Snapshot(Stage.WORLD_ACTIONS, localPlayer, cycle, null, null,
-                            action, button, held));
+                    new Snapshot(Stage.WORLD_ACTIONS, localPlayer, cycle, null, null, action, button, held));
             return winner.failedStages.contains(Stage.WORLD_ACTIONS)
-                    ? allowWorldAction(localPlayer, button, held) : submitted || decision.pass;
+                    ? allowWorldAction(localPlayer, button, held)
+                    : submitted || decision.pass;
         }
-        Decision decision = invoke(winner, Stage.WORLD_ACTIONS,
-                new Snapshot(Stage.WORLD_ACTIONS, localPlayer, cycle, null, null,
-                        held ? "heldBreaking" : button == 0 ? "attack" : "use", button, held));
+        Decision decision = invoke(winner, Stage.WORLD_ACTIONS, new Snapshot(Stage.WORLD_ACTIONS, localPlayer, cycle,
+                null, null, held ? "heldBreaking" : button == 0 ? "attack" : "use", button, held));
         return winner.failedStages.contains(Stage.WORLD_ACTIONS)
-                ? allowWorldAction(localPlayer, button, held) : decision.pass;
+                ? allowWorldAction(localPlayer, button, held)
+                : decision.pass;
     }
 
     public boolean allowInventory(EntityPlayerSP localPlayer, String action, int code) {
@@ -585,12 +601,14 @@ public final class PlayerControllerRuntime {
             Decision decision = invoke(winner, Stage.INVENTORY,
                     new Snapshot(Stage.INVENTORY, localPlayer, cycle, null, null, action, code, false));
             return winner.failedStages.contains(Stage.INVENTORY)
-                    ? allowInventory(localPlayer, action, code) : submitted || decision.pass;
+                    ? allowInventory(localPlayer, action, code)
+                    : submitted || decision.pass;
         }
         Decision decision = invoke(winner, Stage.INVENTORY,
                 new Snapshot(Stage.INVENTORY, localPlayer, cycle, null, null, action, code, false));
         return winner.failedStages.contains(Stage.INVENTORY)
-                ? allowInventory(localPlayer, action, code) : decision.pass;
+                ? allowInventory(localPlayer, action, code)
+                : decision.pass;
     }
 
     public void unloadOwner(String owner) {

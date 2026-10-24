@@ -86,14 +86,14 @@ public final class InstrumentationTransformTest {
     private static void verifyReverseClassNames(TinyMappingResolver mappings) {
         require("net/minecraft/src/GuiMainMenu".equals(mappings.resolveNamedClass("fu", RuntimeNamespace.CLIENT)),
                 "Client screen names must resolve from the shipped obfuscated class identity");
-        require("net/minecraft/src/ContainerWorkbench".equals(
-                mappings.resolveNamedClass("fu", RuntimeNamespace.SERVER)),
+        require("net/minecraft/src/ContainerWorkbench"
+                .equals(mappings.resolveNamedClass("fu", RuntimeNamespace.SERVER)),
                 "Reverse class lookup must distinguish client and server names");
-        require("net/minecraft/src/GuiMainMenu".equals(
-                mappings.resolveNamedClass("net/minecraft/src/GuiMainMenu", RuntimeNamespace.NAMED)),
+        require("net/minecraft/src/GuiMainMenu"
+                .equals(mappings.resolveNamedClass("net/minecraft/src/GuiMainMenu", RuntimeNamespace.NAMED)),
                 "Named runtime classes must preserve their canonical identity");
-        require("example/CustomScreen".equals(
-                mappings.resolveNamedClass("example/CustomScreen", RuntimeNamespace.CLIENT)),
+        require("example/CustomScreen"
+                .equals(mappings.resolveNamedClass("example/CustomScreen", RuntimeNamespace.CLIENT)),
                 "Unmapped custom classes must retain their actual identity");
     }
 
@@ -132,7 +132,7 @@ public final class InstrumentationTransformTest {
         BetaMoonTransformer transformer = new BetaMoonTransformer(registry.freeze(mappings, RuntimeNamespace.NAMED),
                 mappings, new TransformationReport(), true, false);
         ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
-        writer.visit(Opcodes.V1_6, Opcodes.ACC_PUBLIC, targetName, null, "java/lang/Object", null);
+        writer.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC, targetName, null, "java/lang/Object", null);
         MethodVisitor method = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "run", "(Z)V", null, null);
         method.visitCode();
         Label normal = new Label();
@@ -193,7 +193,7 @@ public final class InstrumentationTransformTest {
         BetaMoonTransformer transformer = new BetaMoonTransformer(registry.freeze(mappings, RuntimeNamespace.NAMED),
                 mappings, report, true, false);
         ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
-        writer.visit(Opcodes.V1_6, Opcodes.ACC_PUBLIC, targetName, null, "java/lang/Object", null);
+        writer.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC, targetName, null, "java/lang/Object", null);
         writer.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "calls", "I", null, null).visitEnd();
         MethodVisitor method = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "run", "(I)Z", null, null);
         method.visitCode();
@@ -240,7 +240,7 @@ public final class InstrumentationTransformTest {
         BetaMoonTransformer transformer = new BetaMoonTransformer(registry.freeze(mappings, RuntimeNamespace.NAMED),
                 mappings, report, true, false);
         ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
-        writer.visit(Opcodes.V1_6, Opcodes.ACC_PUBLIC, targetName, null, "java/lang/Object", null);
+        writer.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC, targetName, null, "java/lang/Object", null);
         writer.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "calls", "I", null, null).visitEnd();
         MethodVisitor method = writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "run",
                 "(I)Ljava/lang/String;", null, null);
@@ -365,6 +365,7 @@ public final class InstrumentationTransformTest {
                     || diagnostic.getHookId().startsWith("betamoon:model_render")
                     || diagnostic.getHookId().startsWith("betamoon:entity_lifecycle")
                     || diagnostic.getHookId().startsWith("betamoon:entity_natural_spawn")
+                    || diagnostic.getHookId().startsWith("betamoon:entity_motion")
                     || diagnostic.getHookId().startsWith("betamoon:client_control")
                     || diagnostic.getHookId().startsWith("betamoon:tick_events")
                     || diagnostic.getHookId().startsWith("betamoon:worldgen_surface")
@@ -502,6 +503,7 @@ public final class InstrumentationTransformTest {
         require(population != null && countCallbackCalls(population, "generate") == 24
                 && countCallbackCalls(population, "snow") == 1, "Native population must expose every category gate");
         verifyClientControlSeams(mappings, clientJarPath, transformer);
+        EntityMotionHookTest.verify(mappings, clientJarPath);
         verifyFluidInteractionSeam(mappings, clientJarPath, transformer, RuntimeNamespace.CLIENT);
         verifyFluidContactSeams(mappings, clientJarPath, transformer, RuntimeNamespace.CLIENT);
         verifyEcologySeams(mappings, clientJarPath, transformer, RuntimeNamespace.CLIENT);
