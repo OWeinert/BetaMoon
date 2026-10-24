@@ -3,6 +3,7 @@ package betamoon.instrumentation.transform;
 import betamoon.instrumentation.agent.AgentRuntime;
 import betamoon.instrumentation.api.CallRedirectHookDefinition;
 import betamoon.instrumentation.api.FieldReadRedirectHookDefinition;
+import betamoon.instrumentation.api.FieldValueTransformHookDefinition;
 import betamoon.instrumentation.diagnostics.TransformationReport;
 import betamoon.instrumentation.mapping.MappingResolver;
 import betamoon.instrumentation.registry.ClassTransformPlan;
@@ -24,6 +25,7 @@ public final class BetaMoonTransformer implements ClassFileTransformer {
     private final AroundMethodInjector aroundInjector;
     private final CallRedirectInjector callRedirectInjector;
     private final FieldReadRedirectInjector fieldReadRedirectInjector;
+    private final FieldValueTransformInjector fieldValueTransformInjector;
     private final boolean strict;
     private final boolean debug;
 
@@ -34,6 +36,7 @@ public final class BetaMoonTransformer implements ClassFileTransformer {
         this.aroundInjector = new AroundMethodInjector(mappings);
         this.callRedirectInjector = new CallRedirectInjector(mappings);
         this.fieldReadRedirectInjector = new FieldReadRedirectInjector(mappings);
+        this.fieldValueTransformInjector = new FieldValueTransformInjector(mappings);
         this.strict = strict;
         this.debug = debug;
     }
@@ -59,7 +62,9 @@ public final class BetaMoonTransformer implements ClassFileTransformer {
                         ? callRedirectInjector.apply(classNode, hook)
                         : hook.getDefinition() instanceof FieldReadRedirectHookDefinition
                                 ? fieldReadRedirectInjector.apply(classNode, hook)
-                                : aroundInjector.apply(classNode, hook);
+                                : hook.getDefinition() instanceof FieldValueTransformHookDefinition
+                                        ? fieldValueTransformInjector.apply(classNode, hook)
+                                        : aroundInjector.apply(classNode, hook);
                 results.add(new HookResult(hook, outcome));
                 modified |= outcome == HookTransformOutcome.APPLIED;
             }
@@ -68,7 +73,7 @@ public final class BetaMoonTransformer implements ClassFileTransformer {
                 return null;
             }
 
-            ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
+            ClassWriter writer = new HierarchyClassWriter(loader, classNode);
             classNode.accept(writer);
             byte[] transformed = writer.toByteArray();
             recordResults(results, className);

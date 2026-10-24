@@ -2,6 +2,13 @@
 
 ## 0.11.0
 
+### Entity movement
+
+- Add owned, composable movement rules for supported singleplayer players and living entities, including gravity,
+  air/fluid drag, acceleration, jumping, sneak behavior, fall tracking and fall damage.
+- Add per-step native/manual motion commands, independent additive forces and post-collision observations.
+  Expose logical player input and routed physical edges.
+
 ### Materials and step sounds
 
 - Add custom block materials for blocks and fluids while retaining vanilla material support.

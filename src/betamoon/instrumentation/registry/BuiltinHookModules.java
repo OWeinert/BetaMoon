@@ -12,6 +12,7 @@ import betamoon.instrumentation.hooks.control.ClientControlHook;
 import betamoon.instrumentation.hooks.dimension.DimensionHook;
 import betamoon.instrumentation.hooks.dimension.DimensionMapHook;
 import betamoon.instrumentation.hooks.entity.EntityLifecycleHook;
+import betamoon.instrumentation.hooks.entity.EntityMotionHook;
 import betamoon.instrumentation.hooks.entity.EntityNaturalSpawnHook;
 import betamoon.instrumentation.hooks.entity.EntityTrackingHook;
 import betamoon.instrumentation.hooks.event.TickEventHook;
@@ -33,8 +34,8 @@ import betamoon.instrumentation.hooks.worldgen.WorldCreationHook;
 import betamoon.instrumentation.hooks.worldgen.WorldGeneratorHook;
 import betamoon.instrumentation.hooks.worldgen.WorldJoinHook;
 import betamoon.instrumentation.hooks.worldgen.WorldPopulationHook;
-import betamoon.instrumentation.hooks.worldgen.WorldgenSurfaceHook;
 import betamoon.instrumentation.hooks.worldgen.WorldgenOverrideHook;
+import betamoon.instrumentation.hooks.worldgen.WorldgenSurfaceHook;
 import betamoon.runtime.RuntimeSide;
 
 /** Registers the hooks shipped in the BetaMoon JAR. */
@@ -72,6 +73,7 @@ public final class BuiltinHookModules {
     }
 
     private static void registerClient(HookRegistry registry) {
+        registry.registerModule(new EntityMotionHook());
         registry.registerModule(new StepSoundHook());
         registry.registerModule(new FluidEcologyHook(false));
         registry.registerModule(new WorldGeneratorHook());

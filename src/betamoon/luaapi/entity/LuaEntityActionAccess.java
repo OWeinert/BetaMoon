@@ -52,6 +52,7 @@ public final class LuaEntityActionAccess {
     public static LuaTable create(LuaCallbackScope scope, EntityPlayer player, final Entity entity) {
 
         final LuaEntityReference api = new LuaEntityReference(scope, entity);
+        EntityModifiersApi.attach(api, scope, entity);
         LuaEntityTransforms.attach(api, scope, entity);
         api.set("isPlayer", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -318,8 +319,7 @@ public final class LuaEntityActionAccess {
                     return FALSE;
                 }
                 String name = argument(a, api, 1).checkjstring();
-                LuaPositionArguments.Position position = LuaPositionArguments.vector(a, api, 2,
-                        "setInteractionOffset");
+                LuaPositionArguments.Position position = LuaPositionArguments.vector(a, api, 2, "setInteractionOffset");
                 double x = position.x;
                 double y = position.y;
                 double z = position.z;
@@ -336,8 +336,7 @@ public final class LuaEntityActionAccess {
                 public Varargs invoke(Varargs a) {
                     scope.requireMutable();
                     String name = argument(a, api, 1).checkjstring();
-                    LuaPositionArguments.Position position = LuaPositionArguments.vector(a, api, 2,
-                            "setSensorOffset");
+                    LuaPositionArguments.Position position = LuaPositionArguments.vector(a, api, 2, "setSensorOffset");
                     double x = position.x;
                     double y = position.y;
                     double z = position.z;
@@ -638,7 +637,8 @@ public final class LuaEntityActionAccess {
                 int y = position.yInt();
                 int z = position.zInt();
                 float range = argument(a, api, position.nextArgument).isnil()
-                        ? 16 : (float) number(argument(a, api, position.nextArgument), "getPathTo.range");
+                        ? 16
+                        : (float) number(argument(a, api, position.nextArgument), "getPathTo.range");
                 if (range <= 0 || range > 32 || !entity.worldObj.blockExists(x, y, z)
                         || !pathAreaLoaded(entity, range)) {
                     return NIL;
