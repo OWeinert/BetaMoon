@@ -1,0 +1,380 @@
+package betamoon.interop.binding;
+
+import betamoon.interop.discovery.NativeLoaderRegistry;
+import betamoon.interop.discovery.NativeIndexSnapshot;
+import betamoon.interop.catalog.JvmDescriptors;
+import betamoon.interop.reference.NativeMemberRef;
+import betamoon.interop.reference.NativeTypeRef;
+import betamoon.interop.runtime.NativeContext;
+import betamoon.interop.value.NativeConversions;
+import betamoon.interop.value.NativeExactValue;
+import java.lang.ref.WeakReference;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Supplier;
+import org.objectweb.asm.Type;
+
+/**
+ * General binder for Minecraft and arbitrary mod classes. No invocation trial
+ * is used to select overloads.
+ */
+public final class NativeBindings {
+    public final NativeNames names;
+    private final NativeLoaderRegistry loaders;
+    private final Thread client = Thread.currentThread();
+    private final Supplier<NativeIndexSnapshot> snapshots;
+    private final Map<String, WeakReference<Class<?>>> types = new HashMap<>();
+    private final ClassValue<Map<String, NativeMemberPlan>> plans = new ClassValue<Map<String, NativeMemberPlan>>() {
+        @Override
+        protected Map<String, NativeMemberPlan> computeValue(Class<?> type) {
+            return new HashMap<>();
+        }
+    };
+    private final ClassValue<Map<String, List<NativeMemberPlan>>> methodSets = new ClassValue<Map<String, List<NativeMemberPlan>>>() {
+        @Override
+        protected Map<String, List<NativeMemberPlan>> computeValue(Class<?> type) {
+            return new HashMap<>();
+        }
+    };
+
+    public NativeBindings(NativeNames names, NativeLoaderRegistry loaders) {
+        this(names, loaders, NativeIndexSnapshot::empty);
+    }
+
+    public NativeBindings(NativeNames names, NativeLoaderRegistry loaders, Supplier<NativeIndexSnapshot> snapshots) {
+        this.names = names;
+        this.loaders = loaders;
+        this.snapshots = snapshots;
+    }
+
+    public NativeIndexSnapshot snapshot() {
+        return snapshots.get();
+    }
+
+    public void requireThread() {
+        if (!onClientThread()) {
+            throw new NativeAccessFailure("wrong_thread", "native binding runs on the client thread");
+        }
+    }
+
+    public boolean onClientThread() {
+        return Thread.currentThread() == client;
+    }
+
+    public NativeTypeRef reference(Class<?> type) {
+        requireThread();
+        if (type.isPrimitive()) {
+            return NativeTypeRef.named(type.getName(), "runtime", null, null);
+        }
+        return NativeTypeRef.descriptor(JvmDescriptors.remap(Type.getDescriptor(type), names::canonicalName), "auto")
+                .selected(null, loaders.id(type.getClassLoader()), loaders.originId(type));
+    }
+
+    public Class<?> type(NativeTypeRef reference, NativeContext context) {
+        context.check();
+        String key = reference.key() + ":" + loaders.bindingRevision();
+        WeakReference<Class<?>> cached = types.get(key);
+        Class<?> result = cached == null ? null : cached.get();
+        if (result != null) {
+            return result;
+        }
+        Class<?> primitive = NativeConversions.primitive(reference.name());
+        if (primitive != null) {
+            return primitive;
+        }
+        context.prepare();
+        String descriptor = names.descriptor(reference.descriptor, reference.names);
+        String binary = descriptor.startsWith("[")
+                ? descriptor.replace('/', '.')
+                : descriptor.substring(1, descriptor.length() - 1).replace('/', '.');
+        List<ClassLoader> routes = reference.loaderId == null
+                ? loaders.bindingLoaders()
+                : Collections.singletonList(loaders.bindingLoader(reference.loaderId));
+        if (reference.loaderId == null) {
+            routes.add(null);
+        }
+        Set<Class<?>> candidates = Collections.newSetFromMap(new IdentityHashMap<>());
+        LinkageError dependency = null;
+        for (ClassLoader route : routes) {
+            try {
+                Class<?> candidate = Class.forName(binary, false, route);
+                if (reference.loaderId != null && !reference.loaderId.equals(loaders.id(candidate.getClassLoader()))) {
+                    continue;
+                }
+                if (reference.originId != null && !reference.originId.equals(loaders.originId(candidate))) {
+                    continue;
+                }
+                candidates.add(candidate);
+            } catch (ClassNotFoundException exception) {
+                // Try other known routes; the same parent-defined Class is deduplicated by
+                // identity.
+            } catch (LinkageError exception) {
+                dependency = exception;
+            } catch (SecurityException exception) {
+                throw new NativeAccessFailure("access_denied", reference.name(), exception);
+            }
+        }
+        if (candidates.size() > 1) {
+            throw new NativeAccessFailure("ambiguous_loader", reference.name() + "; select loaderId/originId");
+        }
+        if (candidates.isEmpty()) {
+            throw dependency == null
+                    ? new NativeAccessFailure("class_not_found", reference.name())
+                    : new NativeAccessFailure("missing_dependency", reference.name(), dependency);
+        }
+        result = candidates.iterator().next();
+        if (types.size() >= 1024) {
+            types.clear();
+        }
+        types.put(key, new WeakReference<>(result));
+        return result;
+    }
+
+    public NativeMemberPlan exact(NativeMemberRef reference, NativeContext context, boolean direct) {
+        Class<?> lookup = type(reference.lookupType, context);
+        Map<String, NativeMemberPlan> cache = plans.get(lookup);
+        String key = reference.key() + ":" + direct;
+        NativeMemberPlan previous = cache.get(key);
+        if (previous != null) {
+            return previous;
+        }
+        context.prepare();
+        Class<?> declaring = reference.declaringType == null ? null : type(reference.declaringType, context);
+        if (declaring != null && !declaring.isAssignableFrom(lookup)) {
+            throw new NativeAccessFailure("wrong_declaring_owner", reference.declaringType.name());
+        }
+        String descriptor = reference.descriptor == null
+                ? null
+                : names.descriptor(reference.descriptor, reference.descriptorNames);
+        List<NativeMemberPlan> found = new ArrayList<>();
+        try {
+            if (reference.kind == NativeMemberRef.Kind.CONSTRUCTOR) {
+                for (Constructor<?> constructor : lookup.getDeclaredConstructors()) {
+                    if (Type.getConstructorDescriptor(constructor).equals(descriptor)) {
+                        found.add(new NativeMemberPlan(constructor, names));
+                    }
+                }
+            } else {
+                for (Class<?> owner : declaring == null ? hierarchy(lookup) : Collections.singletonList(declaring)) {
+                    if (reference.kind == NativeMemberRef.Kind.METHOD) {
+                        for (Method method : owner.getDeclaredMethods()) {
+                            if (Type.getMethodDescriptor(method).equals(descriptor)
+                                    && names.methodMatches(method, reference.name, reference.names)) {
+                                if (!found.isEmpty() && declaring == null && !Modifier.isPrivate(method.getModifiers())
+                                        && method.getDeclaringClass()
+                                                .isAssignableFrom(found.get(0).member.getDeclaringClass())) {
+                                    continue;
+                                }
+                                found.add(new NativeMemberPlan(method, names));
+                            }
+                        }
+                    } else {
+                        for (Field field : owner.getDeclaredFields()) {
+                            String actual = Type.getDescriptor(field.getType());
+                            if ((descriptor == null || descriptor.equals(actual)) && names.fieldMatches(owner,
+                                    field.getName(), actual, reference.name, reference.names)) {
+                                found.add(new NativeMemberPlan(field, names));
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (LinkageError exception) {
+            throw new NativeAccessFailure("missing_dependency", reference.key(), exception);
+        } catch (SecurityException exception) {
+            throw new NativeAccessFailure("access_denied", reference.key(), exception);
+        }
+        if (found.size() != 1) {
+            throw new NativeAccessFailure(found.isEmpty() ? "member_not_found" : "ambiguous_member", reference.key());
+        }
+        NativeMemberPlan selected = found.get(0);
+        if (selected.nonPublic && !direct) {
+            throw new NativeAccessFailure("nonpublic_requires_direct", selected.identity());
+        }
+        selected.accessibility(context, direct);
+        if (cache.size() >= 512) {
+            cache.clear();
+        }
+        cache.put(key, selected);
+        return selected;
+    }
+
+    public NativeMemberPlan method(NativeTypeRef reference, String name, Object receiver, Object[] arguments,
+            NativeContext context) {
+        return overload(methods(reference, name, receiver == null, context), arguments, context,
+                reference.name() + "." + name);
+    }
+
+    public boolean hasMethod(NativeTypeRef reference, String name, boolean isStatic, NativeContext context) {
+        return !methods(reference, name, isStatic, context).isEmpty();
+    }
+
+    private List<NativeMemberPlan> methods(NativeTypeRef reference, String name, boolean isStatic,
+            NativeContext context) {
+        Class<?> lookup = type(reference, context);
+        String cacheKey = name + ":" + reference.names + ":" + isStatic;
+        Map<String, List<NativeMemberPlan>> cache = methodSets.get(lookup);
+        if (cache.containsKey(cacheKey)) {
+            return cache.get(cacheKey);
+        }
+        context.prepare();
+        List<NativeMemberPlan> candidates = new ArrayList<>();
+        Map<String, Class<?>> signatures = new HashMap<>();
+        try {
+            for (Class<?> owner : hierarchy(lookup)) {
+                for (Method method : owner.getDeclaredMethods()) {
+                    if (!Modifier.isPublic(method.getModifiers()) || !Modifier.isPublic(owner.getModifiers())
+                            || method.isSynthetic() || method.isBridge()
+                            || Modifier.isStatic(method.getModifiers()) != isStatic
+                            || !names.methodMatches(method, name, reference.names)) {
+                        continue;
+                    }
+                    String descriptor = Type.getMethodDescriptor(method);
+                    String key = method.getName() + descriptor.substring(0, descriptor.indexOf(')') + 1);
+                    Class<?> previousOwner = signatures.putIfAbsent(key, owner);
+                    if (previousOwner == null || previousOwner == owner) {
+                        candidates.add(new NativeMemberPlan(method, names));
+                    }
+                }
+            }
+        } catch (LinkageError exception) {
+            throw new NativeAccessFailure("missing_dependency", reference.name() + "." + name, exception);
+        } catch (SecurityException exception) {
+            throw new NativeAccessFailure("access_denied", reference.name() + "." + name, exception);
+        }
+        candidates.sort(Comparator.comparing(NativeMemberPlan::identity));
+        List<NativeMemberPlan> result = Collections.unmodifiableList(candidates);
+        if (cache.size() >= 512) {
+            cache.clear();
+        }
+        cache.put(cacheKey, result);
+        return result;
+    }
+
+    public NativeMemberPlan constructor(Class<?> type, Object[] arguments, NativeContext context) {
+        Map<String, List<NativeMemberPlan>> cache = methodSets.get(type);
+        List<NativeMemberPlan> candidates = cache.get("<constructors>");
+        if (candidates == null) {
+            context.prepare();
+            candidates = new ArrayList<>();
+            try {
+                for (Constructor<?> constructor : type.getConstructors()) {
+                    if (Modifier.isPublic(type.getModifiers())) {
+                        candidates.add(new NativeMemberPlan(constructor, names));
+                    }
+                }
+            } catch (LinkageError exception) {
+                throw new NativeAccessFailure("missing_dependency", type.getName(), exception);
+            } catch (SecurityException exception) {
+                throw new NativeAccessFailure("access_denied", type.getName(), exception);
+            }
+            candidates = Collections.unmodifiableList(candidates);
+            cache.put("<constructors>", candidates);
+        }
+        return overload(candidates, arguments, context, type.getName() + ".new");
+    }
+
+    public Object[] arguments(NativeMemberPlan plan, Object[] arguments, NativeContext context) {
+        if (plan.parameters.length != arguments.length) {
+            throw new NativeAccessFailure("argument_count", plan.identity());
+        }
+        Object[] converted = new Object[arguments.length];
+        for (int i = 0; i < arguments.length; i++) {
+            validateNull(arguments[i], plan.parameters[i], context);
+            converted[i] = NativeConversions.convert(arguments[i], plan.parameters[i]);
+        }
+        return converted;
+    }
+
+    public void validateNull(Object value, Class<?> target, NativeContext context) {
+        if (value instanceof NativeExactValue) {
+            NativeExactValue exact = (NativeExactValue) value;
+            if (exact.value == null && exact.type != null && !target.isAssignableFrom(type(exact.type, context))) {
+                throw new NativeAccessFailure("conversion_failed",
+                        "typed null is not assignable to " + target.getName());
+            }
+        }
+    }
+
+    private NativeMemberPlan overload(List<NativeMemberPlan> candidates, Object[] arguments, NativeContext context,
+            String selector) {
+        NativeMemberPlan best = null;
+        int bestCost = Integer.MAX_VALUE;
+        List<String> ties = new ArrayList<>();
+        for (NativeMemberPlan candidate : candidates) {
+            if (candidate.parameters.length != arguments.length) {
+                continue;
+            }
+            int total = 0;
+            for (int i = 0; i < arguments.length; i++) {
+                int cost;
+                try {
+                    validateNull(arguments[i], candidate.parameters[i], context);
+                    cost = NativeConversions.cost(arguments[i], candidate.parameters[i]);
+                    if (arguments[i] instanceof NativeExactValue) {
+                        NativeExactValue exact = (NativeExactValue) arguments[i];
+                        if (exact.value == null && exact.type != null) {
+                            cost = NativeConversions.distance(type(exact.type, context), candidate.parameters[i]);
+                        }
+                    }
+                } catch (NativeAccessFailure exception) {
+                    cost = -1;
+                }
+                if (cost < 0) {
+                    total = -1;
+                    break;
+                }
+                total += cost;
+            }
+            if (total >= 0 && total <= bestCost) {
+                if (total < bestCost) {
+                    ties.clear();
+                    best = candidate;
+                    bestCost = total;
+                }
+                ties.add(candidate.identity());
+            }
+        }
+        if (best == null || ties.size() != 1) {
+            Collections.sort(ties);
+            throw new NativeAccessFailure(best == null ? "no_matching_overload" : "ambiguous_overload",
+                    selector + "; candidates " + ties);
+        }
+        return best;
+    }
+
+    private static List<Class<?>> hierarchy(Class<?> start) {
+        List<Class<?>> result = new ArrayList<>();
+        Deque<Class<?>> pending = new ArrayDeque<>();
+        Set<Class<?>> visited = new HashSet<>();
+        pending.add(start);
+        while (!pending.isEmpty()) {
+            Class<?> type = pending.removeFirst();
+            if (!visited.add(type)) {
+                continue;
+            }
+            result.add(type);
+            if (type.getSuperclass() != null) {
+                pending.add(type.getSuperclass());
+            }
+            List<Class<?>> interfaces = new ArrayList<>();
+            Collections.addAll(interfaces, type.getInterfaces());
+            interfaces.sort(Comparator.comparing(Class::getName));
+            pending.addAll(interfaces);
+        }
+        return result;
+    }
+}

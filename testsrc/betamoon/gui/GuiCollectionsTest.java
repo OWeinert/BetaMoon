@@ -11,6 +11,7 @@ import betamoon.gui.framework.GuiInputEvent;
 import betamoon.gui.framework.GuiLayouts;
 import betamoon.gui.framework.GuiScene;
 import betamoon.gui.widget.GuiButton;
+import betamoon.gui.widget.GuiCheckboxControl;
 import betamoon.gui.widget.GuiDialog;
 import betamoon.gui.widget.GuiScrollView;
 import betamoon.luamodloader.LuaScriptRegistry;
@@ -32,6 +33,7 @@ public final class GuiCollectionsTest {
         verifyInputRouting();
         verifyStackLayout();
         verifyFocusAndPointerCapture();
+        verifyNativeExportCheckbox();
         verifyScrollbarRouting();
         verifyDialogGeometry();
         verifyScriptOrdering();
@@ -53,6 +55,26 @@ public final class GuiCollectionsTest {
         }
         GuiUpdateNotice hidden = new GuiUpdateNotice(null, "0.6.0");
         require(!hidden.isVisible(), "No update means no visible card");
+    }
+
+    private static void verifyNativeExportCheckbox() {
+        List<Boolean> changes = new ArrayList<>();
+        GuiCheckboxControl checkbox = new GuiCheckboxControl("Include detailed native catalogs", false, changes::add);
+        GuiScene scene = createScene(checkbox, 300, 24);
+        scene.render(-1, -1, 0);
+        require(!checkbox.isSelected(), "Native catalogs must start unchecked");
+        require(scene.mousePressed(150, 10, 0) && checkbox.isSelected(), "Checkbox label is not clickable");
+        scene.keyTyped(' ', Keyboard.KEY_SPACE, false);
+        require(!checkbox.isSelected() && changes.equals(Arrays.asList(true, false)), "Keyboard checkbox toggle failed");
+        scene.mousePressed(10, 10, 0);
+        scene.updateEnvironment(null, null, 320, 28, 320, 28);
+        scene.render(-1, -1, 0);
+        require(checkbox.isSelected(), "Checkbox state was lost during layout");
+        checkbox.setEnabled(false);
+        scene.mousePressed(10, 10, 0);
+        require(checkbox.isSelected(), "Disabled checkbox changed state");
+        require(!new GuiCheckboxControl("Include detailed native catalogs", false, changes::add).isSelected(),
+                "A new menu should start unchecked");
     }
 
     private static void verifyInputRouting() {

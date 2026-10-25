@@ -1,5 +1,7 @@
 package betamoon;
 
+import betamoon.interop.discovery.NativeDiscoveryRuntime;
+
 import betamoon.luaapi.config.ScriptConfigRegistry;
 
 import betamoon.client.LuaLoaderClientFeedback;
@@ -126,6 +128,9 @@ public final class BetaMoonClient {
     }
 
     public boolean onTickInGUI(net.minecraft.client.Minecraft mc, GuiScreen current) {
+        if (!agentRegistered) {
+            NativeDiscoveryRuntime.poll();
+        }
         ScriptConfigRegistry.tick();
         if (common.areScriptsLoaded()) {
             pollScriptChanges();
@@ -142,6 +147,9 @@ public final class BetaMoonClient {
     }
 
     public boolean onTickInGame(net.minecraft.client.Minecraft mc) {
+        if (!agentRegistered) {
+            NativeDiscoveryRuntime.poll();
+        }
         ScriptConfigRegistry.tick();
         if (common.areScriptsLoaded()) {
             pollScriptChanges();
@@ -238,6 +246,7 @@ public final class BetaMoonClient {
             // This makes sure that any content from other mods that might be referenced by
             // scripts is present.
             if (finishedLoading && !common.areScriptsLoaded()) {
+                NativeDiscoveryRuntime.startClient();
                 common.loadScripts();
                 if (!config.getShowScriptErrorPopupOnStartup().getValue()) {
                     LuaScriptErrors.ignore();

@@ -18,6 +18,7 @@ import betamoon.gui.framework.GuiRenderer;
 import betamoon.gui.framework.GuiScene;
 import betamoon.gui.framework.GuiTextureCache;
 import betamoon.gui.widget.GuiButton;
+import betamoon.gui.widget.GuiCheckboxControl;
 import betamoon.gui.widget.GuiDropdownButton;
 import betamoon.gui.widget.GuiDropdownMenu;
 import betamoon.gui.widget.GuiMinecraftButton;
@@ -1340,7 +1341,7 @@ public final class GuiShowcaseRenderTest {
                     StandardCharsets.UTF_8).contains("fog"),
                     "Reset does not write before Save");
             renderScreen(scripts, minecraft, output, "scripts-name-tooltip.png", 45, 57);
-            renderScreen(new GuiPopupDebugMenu(scripts), minecraft, output, "debug-menu.png");
+            renderNativeDebugMenu(minecraft, output);
             renderScreen(new GuiPopupDebugExport(scripts, (Exception) null), minecraft, output, "debug-export.png");
             renderScreen(new GuiPopupScriptErrors(scripts), minecraft, output, "script-errors.png");
             renderScreen(new GuiPopupAgentWarning(scripts), minecraft, output, "agent-warning.png");
@@ -1358,6 +1359,70 @@ public final class GuiShowcaseRenderTest {
             LuaScriptRegistry.clear();
             GuiTextureCache.shared().clear();
         }
+    }
+
+    private static void renderNativeDebugMenu(Minecraft minecraft, File output) throws Exception {
+        GuiPopupDebugMenu screen = new GuiPopupDebugMenu(null);
+        Field sceneField = GuiComponentScreen.class.getDeclaredField("scene");
+        sceneField.setAccessible(true);
+        int previousWidth = minecraft.displayWidth;
+        int previousHeight = minecraft.displayHeight;
+        for (int[] size : new int[][] {{320, 240}, {427, 240}, {640, 360}}) {
+            minecraft.displayWidth = size[0];
+            minecraft.displayHeight = size[1];
+            screen.setWorldAndResolution(minecraft, size[0], size[1]);
+            setupFrame(size[0], size[1]);
+            screen.drawScreen(0, 0, 0);
+            setupFrame(size[0], size[1]);
+            screen.drawScreen(0, 0, 0);
+            GuiScene scene = (GuiScene) sceneField.get(screen);
+            GuiCheckboxControl checkbox = findNativeCheckbox(scene.getContent());
+            require(checkbox != null && checkbox.getTop() >= 0 && checkbox.getBottom() <= size[1],
+                    "Native export checkbox must remain within the viewport");
+            require(checkbox.getLeft() >= 0 && checkbox.getRight() <= size[0],
+                    "Native export checkbox exceeds the viewport width");
+            String suffix = size[0] + "x" + size[1] + ".png";
+            ImageIO.write(capture(size[0], size[1]), "png", new File(output, "debug-menu-" + suffix));
+            if (!checkbox.isSelected()) {
+                require(scene.mousePressed(checkbox.getLeft() + 5, checkbox.getTop() + 5, 0),
+                        "Native catalog checkbox must receive clicks");
+                require(checkbox.isSelected(), "Native catalog checkbox did not toggle");
+            }
+            screen.onGuiClosed();
+            screen.setWorldAndResolution(minecraft, size[0], size[1]);
+            setupFrame(size[0], size[1]);
+            screen.drawScreen(0, 0, 0);
+            require(checkbox.isSelected(), "Returning to Debug Tools lost the checkbox selection");
+            ImageIO.write(capture(size[0], size[1]), "png", new File(output, "debug-menu-checked-" + suffix));
+            require(GL11.glGetError() == GL11.GL_NO_ERROR, "Native debug menu produced an OpenGL error");
+        }
+        require(!findNativeCheckbox(newDebugScene(minecraft)).isSelected(),
+                "A new Debug Tools flow must start with detailed catalogs unchecked");
+        minecraft.displayWidth = previousWidth;
+        minecraft.displayHeight = previousHeight;
+    }
+
+    private static GuiElement newDebugScene(Minecraft minecraft) throws Exception {
+        GuiPopupDebugMenu fresh = new GuiPopupDebugMenu(null);
+        fresh.setWorldAndResolution(minecraft, 320, 240);
+        Field field = GuiComponentScreen.class.getDeclaredField("scene");
+        field.setAccessible(true);
+        return ((GuiScene) field.get(fresh)).getContent();
+    }
+
+    private static GuiCheckboxControl findNativeCheckbox(GuiElement element) {
+        if (element instanceof GuiCheckboxControl) {
+            return (GuiCheckboxControl) element;
+        }
+        if (element instanceof GuiContainer) {
+            for (GuiElement child : ((GuiContainer) element).getChildren()) {
+                GuiCheckboxControl match = findNativeCheckbox(child);
+                if (match != null) {
+                    return match;
+                }
+            }
+        }
+        return null;
     }
 
     private static GuiDropdownButton<?> findDropdownButton(GuiElement element) {

@@ -31,6 +31,7 @@ public final class BetaMoonAgent {
         }
         TransformationReport report = new TransformationReport();
         AgentRuntime.initialize(report);
+        AgentLoadedTypes.attach(instrumentation);
         AgentOptions options = null;
         try {
             options = AgentOptions.parse(rawOptions);

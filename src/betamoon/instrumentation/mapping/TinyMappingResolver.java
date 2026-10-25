@@ -42,6 +42,15 @@ public final class TinyMappingResolver implements MappingResolver {
     }
 
     public static TinyMappingResolver read(InputStream input) throws IOException {
+        return read(input, false);
+    }
+
+    /** Strict catalog input validation, leaving existing instrumentation fallback behavior unchanged. */
+    public static TinyMappingResolver readStrict(InputStream input) throws IOException {
+        return read(input, true);
+    }
+
+    private static TinyMappingResolver read(InputStream input, boolean strict) throws IOException {
         if (input == null) {
             throw new IllegalArgumentException("Mapping input is required");
         }
@@ -58,11 +67,17 @@ public final class TinyMappingResolver implements MappingResolver {
 
             List<String> namespaces = new ArrayList<String>();
             for (int i = 3; i < headerParts.length; i++) {
+                if (strict && (headerParts[i].isEmpty() || namespaces.contains(headerParts[i]))) {
+                    throw new IOException("Empty or duplicate Tiny namespace: " + headerParts[i]);
+                }
                 namespaces.add(headerParts[i]);
             }
             int namedIndex = namespaces.indexOf(RuntimeNamespace.NAMED.getMappingName());
             if (namedIndex < 0) {
                 throw new IOException("Tiny mappings do not contain the named namespace");
+            }
+            if (strict && namedIndex != 0) {
+                throw new IOException("Native catalog descriptors require named as the Tiny source namespace");
             }
 
             Map<String, ClassMapping> classes = new HashMap<String, ClassMapping>();
@@ -83,6 +98,9 @@ public final class TinyMappingResolver implements MappingResolver {
                         throw new IOException("Missing named class at Tiny mapping line " + lineNumber);
                     }
                     currentClass = new ClassMapping(names);
+                    if (strict && classes.containsKey(namedClass)) {
+                        throw new IOException("Duplicate Tiny class at line " + lineNumber + ": " + namedClass);
+                    }
                     classes.put(namedClass, currentClass);
                 } else if (parts.length > 2 && parts[0].length() == 0 && currentClass != null) {
                     if ("m".equals(parts[1]) || "f".equals(parts[1])) {
@@ -90,18 +108,54 @@ public final class TinyMappingResolver implements MappingResolver {
                         String descriptor = parts[2];
                         String[] names = copyRange(parts, 3, namespaces.size());
                         String key = memberKey(names[namedIndex], descriptor);
+                        Map<String, String[]> members = "m".equals(parts[1])
+                                ? currentClass.methods : currentClass.fields;
+                        if (strict && (names[namedIndex].isEmpty() || members.containsKey(key))) {
+                            throw new IOException("Empty or duplicate Tiny member at line " + lineNumber);
+                        }
                         if ("m".equals(parts[1])) {
                             currentClass.methods.put(key, names);
                         } else {
                             currentClass.fields.put(key, names);
                         }
                     }
+                } else if (strict && parts.length > 1 && parts[0].isEmpty()
+                        && ("m".equals(parts[1]) || "f".equals(parts[1]))) {
+                    throw new IOException("Tiny member has no declaring class at line " + lineNumber);
                 }
             }
             return new TinyMappingResolver(namespaces, classes);
         } finally {
             reader.close();
         }
+    }
+
+    public TinyMappingSnapshot snapshot() {
+        Map<String, TinyMappingSnapshot.ClassEntry> entries = new HashMap<>();
+        for (Map.Entry<String, ClassMapping> entry : classes.entrySet()) {
+            ClassMapping mapping = entry.getValue();
+            List<TinyMappingSnapshot.MemberEntry> members = new ArrayList<>();
+            exportMembers(mapping.fields, false, members);
+            exportMembers(mapping.methods, true, members);
+            entries.put(entry.getKey(), new TinyMappingSnapshot.ClassEntry(exportNames(mapping.names), members));
+        }
+        return new TinyMappingSnapshot(namespaces, entries);
+    }
+
+    private void exportMembers(Map<String, String[]> source, boolean method,
+            List<TinyMappingSnapshot.MemberEntry> target) {
+        for (Map.Entry<String, String[]> entry : source.entrySet()) {
+            String descriptor = entry.getKey().substring(entry.getKey().indexOf('\u0000') + 1);
+            target.add(new TinyMappingSnapshot.MemberEntry(method, descriptor, exportNames(entry.getValue())));
+        }
+    }
+
+    private Map<String, String> exportNames(String[] names) {
+        Map<String, String> result = new HashMap<>();
+        for (int i = 0; i < namespaces.size(); i++) {
+            result.put(namespaces.get(i), names[i]);
+        }
+        return result;
     }
 
     @Override

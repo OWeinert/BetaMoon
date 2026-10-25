@@ -1,0 +1,187 @@
+package betamoon.luaapi.interop;
+
+import betamoon.interop.binding.NativeAccessFailure;
+import betamoon.interop.binding.NativeMemberPlan;
+import betamoon.interop.catalog.CatalogValues;
+import betamoon.interop.reference.NativeMemberRef;
+import betamoon.interop.reference.NativeTypeRef;
+import betamoon.interop.runtime.NativeContext;
+import betamoon.interop.value.NativeConversions;
+import java.lang.reflect.Array;
+import java.util.List;
+import java.util.Map;
+import org.luaj.vm2.LuaValue;
+
+/**
+ * Class structure can be cached; an object payload lives only in its context's
+ * cleared-on-close registry.
+ */
+final class NativeLuaView extends NativeLuaHandle {
+    final boolean classView;
+    final NativeContext context;
+    private final NativeAccessApi host;
+    private final boolean direct;
+    private final NativeTypeRef lookup;
+    private final Class<?> type;
+    private final Integer identity;
+
+    NativeLuaView(NativeAccessApi host, NativeContext context, boolean direct, Object object) {
+        this(host, context, direct, context.bindings.reference(object.getClass()), object.getClass(),
+                context.retainScoped(object));
+    }
+
+    NativeLuaView(NativeAccessApi host, NativeContext context, boolean direct, NativeTypeRef lookup, Class<?> type) {
+        this(host, context, direct, lookup, type, null);
+    }
+
+    private NativeLuaView(NativeAccessApi host, NativeContext context, boolean direct, NativeTypeRef lookup,
+            Class<?> type, Integer identity) {
+        super(identity == null ? "Native class(" + type.getName() + ")" : "Native object(" + type.getName() + ")");
+        this.host = host;
+        this.context = context;
+        this.direct = direct;
+        this.lookup = lookup;
+        this.type = type;
+        this.identity = identity;
+        this.classView = identity == null;
+        properties.put("describe", NativeLuaSupport.function(this, args -> {
+            context.check();
+            return host.metadata(CatalogValues.record("type", context.bindings.reference(type), "identity",
+                    classView ? "class" : context.identity(identity), "bound", true, "policy",
+                    direct ? "direct" : "managed"), true);
+        }));
+        properties.put("sameObject",
+                NativeLuaSupport.function(this,
+                        args -> LuaValue.valueOf(!classView && args.arg1() instanceof NativeLuaView
+                                && !((NativeLuaView) args.arg1()).classView
+                                && payload(context) == ((NativeLuaView) args.arg1()).payload(context))));
+        properties.put("method", NativeLuaSupport.function(this, args -> new NativeLuaMethod(host, context, direct,
+                host.selector(lookup, NativeMemberRef.Kind.METHOD, args))));
+        properties.put("field", NativeLuaSupport.function(this, args -> {
+            NativeMemberRef reference = host.selector(lookup, NativeMemberRef.Kind.FIELD, args);
+            return new NativeLuaField(host, context, direct, context.bindings.exact(reference, context, direct),
+                    identity);
+        }));
+        if (classView) {
+            properties.put("constructor",
+                    NativeLuaSupport.function(this,
+                            args -> new NativeLuaMethod(host, context, direct,
+                                    new NativeMemberRef(NativeMemberRef.Kind.CONSTRUCTOR, lookup, null, "new",
+                                            NativeAccessApi.text(args.arg1()), null, null))));
+            properties.put("new", NativeLuaSupport.function(this, args -> {
+                Object[] input = host.arguments(args, context);
+                NativeMemberPlan constructor = context.bindings.constructor(type, input, context);
+                return host.result(constructor.call(context, direct, null,
+                        context.bindings.arguments(constructor, input, context)), context, direct);
+            }));
+            properties.put("enum", NativeLuaSupport.function(this, args -> {
+                context.require(NativeContext.Effect.INITIALIZE, direct);
+                if (!type.isEnum()) {
+                    throw new NativeAccessFailure("not_an_enum", type.getName());
+                }
+                return host.result(enumValue(type, NativeAccessApi.text(args.arg1())), context, direct);
+            }));
+        } else if (type.isArray() || List.class.isAssignableFrom(type) || Map.class.isAssignableFrom(type)) {
+            NativeLuaContainers.attach(this, host, context, direct, () -> payload(context));
+        }
+    }
+
+    Object payload(NativeContext caller) {
+        caller.check();
+        if (caller.bindings != context.bindings || classView) {
+            throw new NativeAccessFailure("wrong_native_context", "expected an object in this native session");
+        }
+        return context.value(identity);
+    }
+
+    @Override
+    public LuaValue get(LuaValue key) {
+        try {
+            context.check();
+            LuaValue helper = super.get(key);
+            if (!helper.isnil()) {
+                return helper;
+            }
+            if (!classView && type.isArray() && key.type() == TNUMBER) {
+                Object array = payload(context);
+                return host.result(Array.get(array, NativeAccessApi.integer(key, 0, Array.getLength(array) - 1)),
+                        context, direct);
+            }
+            String name = NativeAccessApi.text(key);
+            NativeMemberPlan field = ordinaryField(name);
+            boolean method = context.bindings.hasMethod(lookup, name, classView, context);
+            if (field != null && method) {
+                throw new NativeAccessFailure("ambiguous_member", name + "; use field() or method()");
+            }
+            if (field != null) {
+                return host.result(field.get(context, direct, classView ? null : payload(context)), context, direct);
+            }
+            if (method) {
+                return NativeLuaSupport.function(this, args -> {
+                    Object receiver = classView ? null : payload(context);
+                    Object[] input = host.arguments(args, context);
+                    NativeMemberPlan plan = context.bindings.method(lookup, name, receiver, input, context);
+                    Object result = plan.call(context, direct, receiver,
+                            context.bindings.arguments(plan, input, context));
+                    return plan.valueType == Void.TYPE ? LuaValue.NONE : host.result(result, context, direct);
+                });
+            }
+            throw new NativeAccessFailure("member_not_found", name + "; nonpublic access uses exact direct selectors");
+        } catch (NativeAccessFailure | IllegalArgumentException exception) {
+            throw NativeLuaSupport.error(exception);
+        }
+    }
+
+    @Override
+    public void set(LuaValue key, LuaValue value) {
+        try {
+            context.check();
+            if (!classView && type.isArray() && key.type() == TNUMBER) {
+                context.require(NativeContext.Effect.WRITE, direct);
+                Object array = payload(context);
+                int index = NativeAccessApi.integer(key, 0, Array.getLength(array) - 1);
+                Object input = host.argument(value, context);
+                context.bindings.validateNull(input, type.getComponentType(), context);
+                Array.set(array, index, NativeConversions.convert(input, type.getComponentType()));
+                return;
+            }
+            String name = NativeAccessApi.text(key);
+            if (properties.containsKey(name)) {
+                throw new NativeAccessFailure("reserved_member_name", "select the native field through field()");
+            }
+            NativeMemberPlan field = ordinaryField(name);
+            if (field == null || context.bindings.hasMethod(lookup, name, classView, context)) {
+                throw new NativeAccessFailure("ambiguous_or_missing_field", name + "; use field()");
+            }
+            Object input = host.argument(value, context);
+            context.bindings.validateNull(input, field.valueType, context);
+            field.set(context, direct, classView ? null : payload(context),
+                    NativeConversions.convert(input, field.valueType));
+        } catch (NativeAccessFailure | IllegalArgumentException exception) {
+            throw NativeLuaSupport.error(exception);
+        }
+    }
+
+    private NativeMemberPlan ordinaryField(String name) {
+        try {
+            NativeMemberPlan field = context.bindings.exact(
+                    new NativeMemberRef(NativeMemberRef.Kind.FIELD, lookup, null, name, null, null, null), context,
+                    false);
+            return field.isStatic == classView ? field : null;
+        } catch (NativeAccessFailure exception) {
+            if (exception.reason.equals("member_not_found") || exception.reason.equals("nonpublic_requires_direct")) {
+                return null;
+            }
+            throw exception;
+        }
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static Object enumValue(Class<?> type, String name) {
+        try {
+            return Enum.valueOf((Class) type, name);
+        } catch (IllegalArgumentException exception) {
+            throw new NativeAccessFailure("enum_constant_not_found", type.getName() + "." + name, exception);
+        }
+    }
+}

@@ -12,11 +12,16 @@ public final class DebugExports {
 
     /** Exports every catalog category while preserving independent successes. */
     public static DebugExportResult exportAll() {
+        return exportAll(false);
+    }
+
+    /** Includes bulky native catalogs only when explicitly selected for this run. */
+    public static DebugExportResult exportAll(boolean includeNativeCatalogs) {
         File root = DebugExportPaths.resolveDebugDir();
         if (root == null) {
             return DebugExportResult.failed(null, "Debug export directory could not be created.", 0L);
         }
-        return DebugExportSession.run(root, "complete", DebugExportCatalog.completeDefinitions());
+        return DebugExportSession.run(root, "complete", DebugExportCatalog.completeDefinitions(includeNativeCatalogs));
     }
 
     /** Exports one catalog category. */

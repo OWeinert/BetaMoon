@@ -7,6 +7,10 @@ import java.util.List;
 /** Ordered source of truth shared by the debug menu and Export All. */
 public final class DebugExportCatalog {
     public static final String SCRIPT_REPORT_ID = "script-report";
+    public static final String NATIVE_ACCESS_ID = "native-access";
+    private static final DebugExportDefinition NATIVE_SUMMARY = new DebugExportDefinition(NATIVE_ACCESS_ID,
+            "Native access", "Native discovery status and failures.", true, new DebugNativeExporter(false),
+            "native_summary.txt", "native_failures.txt");
     private static final List<DebugExportDefinition> DEFINITIONS = create();
 
     private DebugExportCatalog() {
@@ -26,10 +30,15 @@ public final class DebugExportCatalog {
     }
 
     static List<DebugExportDefinition> completeDefinitions() {
+        return completeDefinitions(false);
+    }
+
+    static List<DebugExportDefinition> completeDefinitions(boolean includeNativeCatalogs) {
         List<DebugExportDefinition> result = new ArrayList<DebugExportDefinition>();
         for (DebugExportDefinition definition : DEFINITIONS) {
             if (definition.isIncludedInComplete()) {
-                result.add(definition);
+                result.add(!includeNativeCatalogs && NATIVE_ACCESS_ID.equals(definition.getId())
+                        ? NATIVE_SUMMARY : definition);
             }
         }
         return Collections.unmodifiableList(result);
@@ -64,6 +73,10 @@ public final class DebugExportCatalog {
         values.add(new DebugExportDefinition("runtime", "Runtime diagnostics",
                 "Java-agent hook outcomes and read-only counts for live runtime registrations.", true,
                 new DebugRuntimeExporter(), "instrumentation.txt", "runtime_registrations.txt"));
+        values.add(new DebugExportDefinition(NATIVE_ACCESS_ID, "Native access",
+                "Detailed class/member catalogs, origins, source-file indexes, and native diagnostics.", true,
+                new DebugNativeExporter(true), "native_summary.txt", "native_failures.txt", "native_origins.json",
+                "native_classes.jsonl", "native_members.jsonl", "native_sources.jsonl", "native_hooks.json"));
         return Collections.unmodifiableList(values);
     }
 }

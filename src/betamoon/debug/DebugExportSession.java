@@ -138,6 +138,44 @@ final class DebugExportSession {
         return result;
     }
 
+    /** Raw UTF-8 structured data with no prose prefix. Completion is recorded by the same session machinery. */
+    DebugExportResult.FileResult writeStructuredFile(String name, TextContent content) throws Exception {
+        if (current == null || !current.definition.getFileNames().contains(name)) {
+            throw new IllegalArgumentException("Structured exporter produced an undeclared file: " + name);
+        }
+        validateFileName(name);
+        if (!current.producedNames.add(name)) {
+            throw new IllegalStateException("Exporter produced the same file twice: " + name);
+        }
+        File temporary = new File(temporaryDirectory, name + ".part");
+        File output = new File(temporaryDirectory, name);
+        int records;
+        try {
+            try (BufferedWriter writer = writer(temporary)) {
+                records = content.write(writer);
+            }
+            try {
+                Files.move(temporary.toPath(), output.toPath(), StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException exception) {
+                Files.move(temporary.toPath(), output.toPath());
+            }
+        } catch (Exception exception) {
+            Files.deleteIfExists(temporary.toPath());
+            Files.deleteIfExists(output.toPath());
+            current.producedNames.remove(name);
+            throw exception;
+        }
+        DebugExportResult.FileResult result = new DebugExportResult.FileResult(name, records);
+        current.files.add(result);
+        return result;
+    }
+
+    void incomplete(String reason) {
+        if (current != null) {
+            current.failure = reason;
+        }
+    }
+
     void warn(String warning) {
         if (current == null) {
             throw new IllegalStateException("A debug export warning requires an active category");

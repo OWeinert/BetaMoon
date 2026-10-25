@@ -29,6 +29,8 @@ build/
 runtime/
 !/src/betamoon/runtime/
 !/src/betamoon/runtime/**
+!/src/betamoon/interop/runtime/
+!/src/betamoon/interop/runtime/**
 jars/
 temp/
 reobf/

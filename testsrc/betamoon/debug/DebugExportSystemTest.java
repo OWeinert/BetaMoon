@@ -35,6 +35,7 @@ public final class DebugExportSystemTest {
         verifyScriptPathRedaction();
         verifyScriptReport();
         verifySnapshotBoundaries();
+        NativeDebugExportTest.run();
         System.out.println("Debug export infrastructure checks passed.");
     }
 
@@ -44,7 +45,7 @@ public final class DebugExportSystemTest {
         DebugExportResult result = DebugExportSession.run(root, "catalog", DebugExportCatalog.completeDefinitions());
         require(result.getStatus() == DebugExportResult.Status.COMPLETE,
                 "Live catalog export was incomplete: " + firstFailure(result));
-        for (DebugExportDefinition definition : DebugExportCatalog.definitions()) {
+        for (DebugExportDefinition definition : DebugExportCatalog.completeDefinitions()) {
             for (String file : definition.getFileNames()) {
                 require(new File(result.getDirectory(), file).isFile(), "Catalog export omitted " + file);
             }
@@ -53,7 +54,7 @@ public final class DebugExportSystemTest {
 
     private static void verifyCatalog() {
         List<DebugExportDefinition> definitions = DebugExportCatalog.definitions();
-        require(definitions.size() == 8, "Unexpected debug export category count");
+        require(definitions.size() == 9, "Unexpected debug export category count");
         require(definitions.get(0) == DebugExportCatalog.find(DebugExportCatalog.SCRIPT_REPORT_ID),
                 "The full script report must be the first visible tool");
         Set<String> ids = new HashSet<String>();
@@ -66,8 +67,12 @@ public final class DebugExportSystemTest {
                 require(files.add(file), "Debug export file belongs to multiple categories: " + file);
             }
         }
-        require(DebugExportCatalog.completeDefinitions().equals(definitions),
-                "Complete snapshot is not driven by the visible catalog");
+        require(DebugExportCatalog.completeDefinitions(true).equals(definitions),
+                "Detailed complete snapshot is not driven by the visible catalog");
+        DebugExportDefinition nativeDefault = DebugExportCatalog.completeDefinitions().get(definitions.size() - 1);
+        require(nativeDefault.getId().equals(DebugExportCatalog.NATIVE_ACCESS_ID)
+                && nativeDefault.getFileNames().equals(Arrays.asList("native_summary.txt", "native_failures.txt")),
+                "Ordinary Export All must include only compact native diagnostics");
         try {
             definitions.clear();
             throw new AssertionError("Debug export catalog is mutable");
