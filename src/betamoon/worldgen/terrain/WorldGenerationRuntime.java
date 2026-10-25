@@ -9,6 +9,7 @@ import betamoon.loot.LootTableRegistry;
 import betamoon.worldgen.GenerationStage;
 import betamoon.worldgen.WorldGenRegistry;
 import betamoon.worldgen.creation.GenerationCatalog;
+import betamoon.worldgen.creation.GenerationBiomes;
 import betamoon.worldgen.creation.GenerationDraft;
 import betamoon.worldgen.creation.GenerationSelection;
 import betamoon.worldgen.creation.GenerationSelectionStore;
@@ -21,6 +22,9 @@ import betamoon.worldgen.spatial.SpatialRegistry;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
@@ -102,9 +106,13 @@ public final class WorldGenerationRuntime {
             if (selection != null) {
                 selection = selections.read();
                 selection.validate(world.getRandomSeed());
+                if (!selection.overrideOrder.isEmpty()) {
+                    GenerationHookAvailability.requireOverrideReady();
+                }
                 SELECTIONS.put(world, selection);
             }
             if (selection != null && selection.preset.equals(GenerationCatalog.MINECRAFT)
+                    && selection.overrideOrder.isEmpty()
                     && selection.population().nativeCategories.size() == 9
                     && selection.population().stages.size() == GenerationStage.values().length) {
                 prepareNativeAnchor(world, saveHandler);
@@ -167,7 +175,7 @@ public final class WorldGenerationRuntime {
                             + "restore a consistent world backup before opening this world");
                 }
             }
-            WORLDS.put(world, new Binding(profile, manifest, store, saveHandler));
+            WORLDS.put(world, new Binding(profile, manifest, store, saveHandler, selection));
             WorldGenRegistry.pinGenerationCatalogs(world);
             if (!profile.nativeBase.equals("overworld")) {
                 world.worldProvider.worldChunkMgr = NativeGeneratorFamily.climate(world, profile.nativeBase);
@@ -357,6 +365,122 @@ public final class WorldGenerationRuntime {
         return binding == null ? null : binding.profile;
     }
 
+    public static synchronized List<BiomeRegionOverride> overrides(World world) {
+        Binding binding = WORLDS.get(world);
+        return binding == null ? Collections.emptyList() : binding.overrides;
+    }
+
+    public static synchronized boolean overridePopulationEnabled(World world, String key, int x, int z,
+            boolean nativeCategory) {
+        List<BiomeRegionOverride> overrides = overrides(world);
+        if (overrides.isEmpty()) {
+            return true;
+        }
+        FieldContext fields = fieldContext(world);
+        for (BiomeRegionOverride override : overrides) {
+            if ((nativeCategory ? override.disabledNative : override.disabledPlacements).contains(key)) {
+                if (BiomeOverrideOperations.selected(fields, override, x, z)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    public static synchronized Map<String, Object> inspectOverrides(World world, int x, int z) {
+        FieldContext fields = fieldContext(world);
+        GenerationSelection selection = SELECTIONS.get(world);
+        Binding binding = WORLDS.get(world);
+        TerrainRegistry.Snapshot definitions = binding == null ? TerrainRegistry.snapshot()
+                : binding.terrainDefinitions;
+        String preset = selection == null ? "minecraft" : selection.preset;
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("preset", preset);
+        result.put("biome", GenerationBiomes.key(fields.environment.biome(x, z)));
+        result.put("x", x);
+        result.put("z", z);
+        List<Map<String, Object>> packages = new ArrayList<Map<String, Object>>();
+        for (BiomeRegionOverride override : definitions.overrides()) {
+            if (!override.compatible(preset)) {
+                continue;
+            }
+            String choice = "override/" + override.key;
+            boolean enabled = selection != null && selection.enabled(choice);
+            double influence = enabled ? override.influence(fields, x, z) : 0;
+            Map<String, Object> entry = new LinkedHashMap<String, Object>();
+            entry.put("key", override.key);
+            entry.put("displayName", override.displayName);
+            entry.put("enabled", enabled);
+            entry.put("reason", selection == null || !selection.choices.containsKey(choice) ? "not_in_save"
+                    : !selection.choices.get(choice) ? "disabled_by_player"
+                            : !enabled ? "disabled_by_parent" : influence == 0 ? "outside_target" : "active");
+            entry.put("influence", influence);
+            entry.put("selected", enabled && BiomeOverrideOperations.selected(fields, override, x, z));
+            entry.put("order", enabled ? selection.overrideOrder.indexOf(override.key) + 1 : 0);
+            entry.put("channels", override.channels());
+            entry.put("signature", override.signature);
+            packages.add(entry);
+        }
+        result.put("packages", packages);
+        return result;
+    }
+
+    public static synchronized Map<String, Object> inspectOverrideChunk(World world, int chunkX, int chunkZ) {
+        FieldContext fields = fieldContext(world);
+        GenerationSelection selection = SELECTIONS.get(world);
+        Binding binding = WORLDS.get(world);
+        TerrainRegistry.Snapshot definitions = binding == null ? TerrainRegistry.snapshot()
+                : binding.terrainDefinitions;
+        String preset = selection == null ? "minecraft" : selection.preset;
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("preset", preset);
+        result.put("chunkX", chunkX);
+        result.put("chunkZ", chunkZ);
+        List<Map<String, Object>> packages = new ArrayList<Map<String, Object>>();
+        for (BiomeRegionOverride override : definitions.overrides()) {
+            if (!override.compatible(preset)) {
+                continue;
+            }
+            boolean enabled = selection != null && selection.enabled("override/" + override.key);
+            double minimum = 1;
+            double maximum = 0;
+            int selectedColumns = 0;
+            int influencedColumns = 0;
+            if (enabled) {
+                for (int x = 0; x < 16; x++) {
+                    for (int z = 0; z < 16; z++) {
+                        int worldX = chunkX * 16 + x;
+                        int worldZ = chunkZ * 16 + z;
+                        double influence = override.influence(fields, worldX, worldZ);
+                        minimum = Math.min(minimum, influence);
+                        maximum = Math.max(maximum, influence);
+                        if (influence > 0) {
+                            influencedColumns++;
+                        }
+                        if (BiomeOverrideOperations.selected(fields, override, worldX, worldZ)) {
+                            selectedColumns++;
+                        }
+                    }
+                }
+            } else {
+                minimum = 0;
+            }
+            Map<String, Object> entry = new LinkedHashMap<String, Object>();
+            entry.put("key", override.key);
+            entry.put("enabled", enabled);
+            entry.put("order", enabled ? selection.overrideOrder.indexOf(override.key) + 1 : 0);
+            entry.put("minInfluence", minimum);
+            entry.put("maxInfluence", maximum);
+            entry.put("influencedColumns", influencedColumns);
+            entry.put("selectedColumns", selectedColumns);
+            entry.put("channels", override.channels());
+            entry.put("signature", override.signature);
+            packages.add(entry);
+        }
+        result.put("packages", packages);
+        return result;
+    }
+
     public static synchronized boolean hasSavedSelection(World world) {
         return SELECTIONS.containsKey(world);
     }
@@ -477,12 +601,20 @@ public final class WorldGenerationRuntime {
         private final SpatialRegistry.Snapshot spatial;
         private final TerrainRegistry.Snapshot terrainDefinitions;
         private final Map<AssetKey, LootTableDefinition> lootDefinitions;
+        private final List<BiomeRegionOverride> overrides;
 
         private Binding(WorldGeneratorProfile profile, WorldGeneratorManifest manifest, GeneratorManifestStore store,
-                ISaveHandler saveHandler) {
+                ISaveHandler saveHandler, GenerationSelection selection) {
             this.profile = profile;
             lootDefinitions = LootTableRegistry.captureDefinitions();
             terrainDefinitions = TerrainRegistry.snapshot();
+            List<BiomeRegionOverride> selected = new ArrayList<BiomeRegionOverride>();
+            if (selection != null) {
+                for (String key : selection.overrideOrder) {
+                    selected.add(terrainDefinitions.override(key));
+                }
+            }
+            overrides = Collections.unmodifiableList(selected);
             this.manifest = manifest;
             this.store = store;
             this.saveHandler = saveHandler;

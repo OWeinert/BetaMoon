@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -24,17 +25,20 @@ final class LuaModManifest {
     private final String version;
     private final String description;
     private final List<String> dependencies;
+    private final Map<String, String> minimumDependencyVersions;
     private final boolean dependenciesDeclared;
     private final String image;
 
     private LuaModManifest(String entrypoint, String name, String version, String description,
-            List<String> dependencies, boolean dependenciesDeclared, String image) {
+            List<String> dependencies, Map<String, String> minimumDependencyVersions,
+            boolean dependenciesDeclared, String image) {
         this.entrypoint = entrypoint;
         this.name = name;
         this.version = version;
         this.description = description;
         this.dependencies = dependencies == null ? null
                 : Collections.unmodifiableList(new ArrayList<>(dependencies));
+        this.minimumDependencyVersions = Collections.unmodifiableMap(new LinkedHashMap<>(minimumDependencyVersions));
         this.dependenciesDeclared = dependenciesDeclared;
         this.image = image;
     }
@@ -65,6 +69,7 @@ final class LuaModManifest {
         String version = null;
         String description = null;
         List<String> dependencies = null;
+        Map<String, String> minimumDependencyVersions = new LinkedHashMap<>();
         boolean dependenciesDeclared = false;
         String image = null;
         for (Object rawEntry : root.func_27214_c().entrySet()) {
@@ -81,7 +86,7 @@ final class LuaModManifest {
             } else if ("description".equals(fieldName)) {
                 description = string(value, "description", true);
             } else if ("dependencies".equals(fieldName)) {
-                dependencies = dependencies(value);
+                dependencies = dependencies(value, minimumDependencyVersions);
                 dependenciesDeclared = true;
             } else if ("image".equals(fieldName)) {
                 image = string(value, "image", false);
@@ -100,7 +105,8 @@ final class LuaModManifest {
         if (image != null) {
             validatePath(image, "image");
         }
-        return new LuaModManifest(entrypoint, name, version, description, dependencies, dependenciesDeclared, image);
+        return new LuaModManifest(entrypoint, name, version, description, dependencies,
+                minimumDependencyVersions, dependenciesDeclared, image);
     }
 
     String entrypoint() {
@@ -127,6 +133,10 @@ final class LuaModManifest {
         return dependencies;
     }
 
+    Map<String, String> minimumDependencyVersions() {
+        return minimumDependencyVersions;
+    }
+
     String image() {
         return image;
     }
@@ -144,14 +154,45 @@ final class LuaModManifest {
     }
 
     @SuppressWarnings("unchecked")
-    private static List<String> dependencies(J_JsonNode value) throws IOException {
+    private static List<String> dependencies(J_JsonNode value, Map<String, String> minimumVersions)
+            throws IOException {
         if (value.func_27218_a() != EnumJsonNodeType.ARRAY) {
-            throw new IOException("Manifest dependencies must be an array of strings");
+            throw new IOException("Manifest dependencies must be an array of names or version requirements");
         }
         List<String> result = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         for (J_JsonNode dependency : (List<J_JsonNode>) value.func_27215_d()) {
-            String name = string(dependency, "dependency", false);
+            String name;
+            if (dependency.func_27218_a() == EnumJsonNodeType.STRING) {
+                name = string(dependency, "dependency", false);
+            } else if (dependency.func_27218_a() == EnumJsonNodeType.OBJECT) {
+                String requiredName = null;
+                String minimumVersion = null;
+                for (Object rawEntry : dependency.func_27214_c().entrySet()) {
+                    Map.Entry<?, ?> field = (Map.Entry<?, ?>) rawEntry;
+                    String fieldName = ((J_JsonNode) field.getKey()).func_27216_b();
+                    J_JsonNode fieldValue = (J_JsonNode) field.getValue();
+                    if ("name".equals(fieldName)) {
+                        requiredName = string(fieldValue, "dependency name", false);
+                    } else if ("minVersion".equals(fieldName)) {
+                        minimumVersion = string(fieldValue, "dependency minVersion", false);
+                    } else {
+                        throw new IOException("Manifest dependency has unknown field '" + fieldName + "'");
+                    }
+                }
+                if (requiredName == null || minimumVersion == null) {
+                    throw new IOException("Manifest versioned dependency requires name and minVersion");
+                }
+                try {
+                    PackageVersion.parse(minimumVersion);
+                } catch (IllegalArgumentException error) {
+                    throw new IOException("Manifest dependency '" + requiredName + "': " + error.getMessage(), error);
+                }
+                name = requiredName;
+                minimumVersions.put(name, minimumVersion);
+            } else {
+                throw new IOException("Manifest dependency must be a string or version requirement object");
+            }
             if (!seen.add(name)) {
                 throw new IOException("Manifest dependencies contains duplicate '" + name + "'");
             }

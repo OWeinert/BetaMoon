@@ -67,7 +67,7 @@ public final class AssetsApi {
                         ScriptResourceTracker.track(sound::close);
                     }
                     ClientAssets.requestRefresh();
-                    return new AssetReference(definition.getId());
+                    return AssetReference.of(definition.getId());
                 } catch (IOException | IllegalArgumentException | IllegalStateException error) {
                     if (definition != null) {
                         ScriptAssetScope.discardPending(definition);
@@ -93,7 +93,7 @@ public final class AssetsApi {
                         }
                         return NIL;
                     }
-                    return new AssetReference(id);
+                    return AssetReference.of(id);
                 } catch (IllegalArgumentException error) {
                     throw new LuaError("Asset: " + error.getMessage());
                 }

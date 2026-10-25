@@ -92,6 +92,8 @@ public final class DebugExportFormatterTest {
         String keys = readExport(result, "content_keys.txt");
         require(blocks.contains("block ID: 239 | canonical key: debugformat:block/keyed"),
                 "Block lists must show the declared canonical key");
+        require(blocks.contains("step sound: stone | step sound event: none"),
+                "Block lists must identify vanilla step sounds without a custom event");
         require(items.contains("canonical key: debugformat:item/keyed_item"),
                 "Item lists must show the declared canonical key");
         require(keys.contains("canonical key: debugformat:block/keyed")

@@ -2,6 +2,7 @@ package betamoon.luaapi.particle;
 
 import betamoon.client.particles.ParticleSprite;
 import betamoon.luaapi.utils.LuaCallbackScope;
+import betamoon.luaapi.utils.LuaPositionArguments;
 import java.util.function.DoubleConsumer;
 import java.util.function.DoubleSupplier;
 import org.luaj.vm2.LuaTable;
@@ -67,14 +68,14 @@ public final class LuaParticleAccess {
         api.set("setVelocity", new VarArgFunction() {
             public Varargs invoke(Varargs args) {
                 scope.requireMutable();
-                for (int i = 1; i <= 3; i++) {
-                    if (argument(args, api, i).isnil()) {
-                        throw new LuaError("particle.setVelocity: x, y, and z are required");
-                    }
+                LuaPositionArguments.Position position = LuaPositionArguments.vector(args, api, 1,
+                        "particle.setVelocity");
+                double x = position.x;
+                double y = position.y;
+                double z = position.z;
+                if (Math.abs(x) > 16 || Math.abs(y) > 16 || Math.abs(z) > 16) {
+                    throw new LuaError("particle.setVelocity: components must be within -16..16");
                 }
-                double x = ParticleDeclarations.bounded(argument(args, api, 1), 0, "particle.setVelocity.x", -16, 16);
-                double y = ParticleDeclarations.bounded(argument(args, api, 2), 0, "particle.setVelocity.y", -16, 16);
-                double z = ParticleDeclarations.bounded(argument(args, api, 3), 0, "particle.setVelocity.z", -16, 16);
                 particle.velocity(x, y, z);
                 return NONE;
             }

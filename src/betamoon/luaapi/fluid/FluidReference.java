@@ -4,6 +4,9 @@ import betamoon.fluid.FluidBlockRole;
 import betamoon.fluid.FluidDefinition;
 import betamoon.fluid.FluidRegistration;
 import betamoon.luaapi.resource.ResourceApi;
+import java.lang.ref.WeakReference;
+import java.util.Map;
+import java.util.WeakHashMap;
 import net.minecraft.src.Block;
 import net.minecraft.src.Item;
 import org.luaj.vm2.LuaError;
@@ -12,11 +15,22 @@ import org.luaj.vm2.LuaValue;
 
 /** Read-only-by-contract Lua view over a stable fluid registration. */
 public final class FluidReference extends LuaTable {
+    private static final Map<FluidRegistration, WeakReference<FluidReference>> REFERENCES = new WeakHashMap<>();
     private final FluidRegistration registration;
     private final boolean includeResources;
 
     public FluidReference(FluidRegistration registration) {
         this(registration, true);
+    }
+
+    public static synchronized FluidReference of(FluidRegistration registration) {
+        WeakReference<FluidReference> cached = REFERENCES.get(registration);
+        FluidReference reference = cached == null ? null : cached.get();
+        if (reference == null) {
+            reference = new FluidReference(registration);
+            REFERENCES.put(registration, new WeakReference<>(reference));
+        }
+        return reference;
     }
 
     public FluidReference(FluidRegistration registration, boolean includeResources) {

@@ -9,6 +9,7 @@ import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.utils.LuaDataSnapshot;
 import betamoon.luaapi.utils.LuaDetachedData;
+import betamoon.luaapi.utils.LuaPositionArguments;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptExecution;
 import betamoon.luamodloader.ScriptResourceTracker;
@@ -120,9 +121,11 @@ public final class TeleportApi {
             public Varargs invoke(Varargs args) {
                 DimensionKey source = DimensionsApi.key(argument(args, api, 1));
                 DimensionKey target = DimensionsApi.key(argument(args, api, 2));
+                LuaPositionArguments.Position position = LuaPositionArguments.vector(args, api, 3,
+                        "mapCoordinates");
                 try {
-                    TeleportLocation location = new TeleportLocation(source, coordinate(argument(args, api, 3)),
-                            coordinate(argument(args, api, 4)), coordinate(argument(args, api, 5)), 0, 0);
+                    TeleportLocation location = new TeleportLocation(source, position.x, position.y, position.z,
+                            0, 0);
                     return LuaDetachedData.copy(TeleportService
                             .mapCoordinates(location, target, DimensionsApi.coordinateScale(argument(args, api, 1)),
                                     DimensionsApi.coordinateScale(argument(args, api, 2)))
@@ -137,10 +140,12 @@ public final class TeleportApi {
             @Override
             public Varargs invoke(Varargs args) {
                 World world = LuaWorldActionAccess.requireWorld(argument(args, api, 1));
-                double x = coordinate(argument(args, api, 2));
-                double y = coordinate(argument(args, api, 3));
-                double z = coordinate(argument(args, api, 4));
-                LuaValue raw = argument(args, api, 5);
+                LuaPositionArguments.Position position = LuaPositionArguments.vector(args, api, 2,
+                        "inspectArrival");
+                double x = position.x;
+                double y = position.y;
+                double z = position.z;
+                LuaValue raw = argument(args, api, position.nextArgument);
                 Map<String, Object> settings = raw.isnil()
                         ? new HashMap<String, Object>()
                         : LuaDataSnapshot.object(raw, "teleport.inspectArrival", Double.MAX_VALUE);
@@ -249,14 +254,6 @@ public final class TeleportApi {
             });
         }
         return handle;
-    }
-
-    private static double coordinate(LuaValue value) {
-        double coordinate = value.checkdouble();
-        if (!Double.isFinite(coordinate)) {
-            throw new LuaError("Teleport coordinates must be finite");
-        }
-        return coordinate;
     }
 
     private static LuaValue argument(Varargs args, LuaValue receiver, int index) {

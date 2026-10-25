@@ -5,8 +5,8 @@ import betamoon.dimension.DimensionIdentity;
 import betamoon.dimension.DimensionRuntime;
 import betamoon.luaapi.utils.LuaDataReference;
 import betamoon.luaapi.utils.LuaDataSnapshot;
-import betamoon.luaapi.utils.LuaDeclarationValues;
 import betamoon.luaapi.utils.LuaDetachedData;
+import betamoon.luaapi.utils.LuaPositionArguments;
 import betamoon.runtime.RuntimeEnvironment;
 import betamoon.worldgen.WorldGenKey;
 import betamoon.worldgen.WorldGenKind;
@@ -170,13 +170,18 @@ public final class SpatialWorldGenApi {
                         return varargsOf(new LuaValue[]{NIL, valueOf("definition_unavailable")});
                     }
                     int offset = arguments.arg1() == Reference.this ? 1 : 0;
-                    boolean three = arguments.narg() - offset == 4;
-                    if (arguments.narg() - offset != 3 && !three) {
-                        throw new LuaError("field:sample expects world,x,z or world,x,y,z");
+                    LuaValue firstPosition = argument(arguments, Reference.this, 2);
+                    boolean table = firstPosition.istable();
+                    boolean three = table ? !firstPosition.get("y").isnil() : arguments.narg() - offset == 4;
+                    if (arguments.narg() - offset != (table ? 2 : three ? 4 : 3)) {
+                        throw new LuaError("field:sample expects world,x,z or world,x,y,z or a position table");
                     }
-                    double x = coordinate(argument(arguments, Reference.this, 2), "field.x");
-                    double y = three ? coordinate(argument(arguments, Reference.this, 3), "field.y") : 0;
-                    double z = coordinate(argument(arguments, Reference.this, three ? 4 : 3), "field.z");
+                    LuaPositionArguments.Position position = three
+                            ? LuaPositionArguments.vector(arguments, Reference.this, 2, "field.sample")
+                            : LuaPositionArguments.plane(arguments, Reference.this, 2, "field.sample");
+                    double x = coordinate(position.x, "field.x");
+                    double y = coordinate(position.y, "field.y");
+                    double z = coordinate(position.z, "field.z");
                     if ((field.dependencies & 2) != 0 && !three) {
                         return varargsOf(new LuaValue[]{NIL, valueOf("requires_y")});
                     }
@@ -215,11 +220,10 @@ public final class SpatialWorldGenApi {
         }
     }
 
-    private static double coordinate(LuaValue value, String path) {
-        double number = LuaDeclarationValues.number(value, path);
-        if (Math.abs(number) > 30000000) {
+    private static double coordinate(double value, String path) {
+        if (Math.abs(value) > 30000000) {
             throw new LuaError(path + ": coordinate outside +/-30000000");
         }
-        return number;
+        return value;
     }
 }

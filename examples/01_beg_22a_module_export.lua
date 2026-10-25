@@ -1,4 +1,4 @@
--- Load this together with 01_beg_21b_module_import.lua to share a block reference between scripts.
+-- Load this together with 01_beg_22b_module_import.lua to share a block reference between scripts.
 -- The export table is created, populated and registered during modInit.
 -- The public export key below is a chosen string; it need not match this file's number.
 
@@ -7,7 +7,7 @@ version = "2.0.0"
 description = "Adds Exported Block and shares its resource handle through the script_export module. This is " ..
     "the exporting half of a two-script example that keeps block registration separate from world " ..
     "generation.\n\n" ..
-    "Load this file together with beginner example 18b, Script Import Example, to generate the " ..
+    "Load this file together with beginner example 22b, Script Import Example, to generate the " ..
     "block in new Overworld terrain. This file alone registers block ID 207 but supplies neither a " ..
     "recipe nor ore generation; you can obtain it with an inventory editor or item-spawning tool. " ..
     "Place it and mine it with a stone pickaxe or better, then compare the exported table with the " ..

@@ -171,6 +171,18 @@ public final class SoundEvents {
         }
     }
 
+    /** Plays a native step-sound request through its registered audio event. */
+    public static void playStep(AssetKey key, double x, double y, double z, float nativeVolume, float nativePitch)
+            throws IOException {
+        SoundEventDefinition event = find(key);
+        if (event == null) {
+            throw new IOException("Step sound event is no longer registered: " + key);
+        }
+        float eventPitch = event.pitchMin + RANDOM.nextFloat() * (event.pitchMax - event.pitchMin);
+        play(key, x, y, z, Math.min(4.0F, nativeVolume * event.volume),
+                Math.max(0.01F, Math.min(4.0F, nativePitch * eventPitch)), Float.NaN);
+    }
+
     static List<SoundAsset> acquire(SoundEventPatch patch) {
         return patch.clips == null ? Collections.<SoundAsset>emptyList() : acquire(patch.clips, "Sound event override");
     }

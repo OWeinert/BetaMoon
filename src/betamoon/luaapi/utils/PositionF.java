@@ -43,9 +43,12 @@ public final class PositionF extends LuaTable {
         @Override
         public Varargs invoke(Varargs args) {
             int base = (args.narg() >= 3 && args.arg(1).istable()) ? 2 : 1;
-            double x = args.checkdouble(base);
-            double y = args.checkdouble(base + 1);
-            double z = args.checkdouble(base + 2);
+            double x = LuaDeclarationValues.number(args.arg(base), "positions.float.x");
+            double y = LuaDeclarationValues.number(args.arg(base + 1), "positions.float.y");
+            double z = LuaDeclarationValues.number(args.arg(base + 2), "positions.float.z");
+            if (!Float.isFinite((float) x) || !Float.isFinite((float) y) || !Float.isFinite((float) z)) {
+                throw LuaDeclarationValues.error("positions.float", "components exceed the float range");
+            }
             return new PositionF(x, y, z);
         }
     }

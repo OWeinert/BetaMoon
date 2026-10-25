@@ -10,6 +10,8 @@ import betamoon.luaapi.block.BlockApi;
 import betamoon.luaapi.block.FluidBlockRegistration;
 import betamoon.luaapi.item.FluidBucketRegistration;
 import betamoon.luaapi.item.ItemApi;
+import betamoon.luaapi.material.BlockMaterialRegistry;
+import betamoon.luaapi.material.BlockMaterialReference;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.src.Block;
@@ -123,21 +125,21 @@ public final class FluidApi {
         if (registration == null && required) {
             throw new LuaError("Fluid '" + key + "' is not registered.");
         }
-        return registration == null ? LuaValue.NIL : new FluidReference(registration);
+        return registration == null ? LuaValue.NIL : FluidReference.of(registration);
     }
 
     private static LuaValue find(LuaValue criteria) {
         List<FluidRegistration> matches = matches(criteria);
         LuaTable result = new LuaTable();
         for (int index = 0; index < matches.size(); index++) {
-            result.set(index + 1, new FluidReference(matches.get(index)));
+            result.set(index + 1, FluidReference.of(matches.get(index)));
         }
         return result;
     }
 
     private static LuaValue first(LuaValue criteria) {
         List<FluidRegistration> matches = matches(criteria);
-        return matches.isEmpty() ? LuaValue.NIL : new FluidReference(matches.get(0));
+        return matches.isEmpty() ? LuaValue.NIL : FluidReference.of(matches.get(0));
     }
 
     private static LuaValue one(LuaValue criteria) {
@@ -148,7 +150,7 @@ public final class FluidApi {
         if (matches.size() != 1) {
             throw new LuaError("Expected exactly one fluid, found " + matches.size() + ".");
         }
-        return new FluidReference(matches.get(0));
+        return FluidReference.of(matches.get(0));
     }
 
     private static List<FluidRegistration> matches(LuaValue criteria) {
@@ -174,8 +176,13 @@ public final class FluidApi {
             return false;
         }
         LuaValue material = criteria.get("material");
-        if (!material.isnil() && !fluid.carrier().value().equals(material.checkjstring())) {
-            return false;
+        if (!material.isnil()) {
+            String materialKey = material instanceof BlockMaterialReference
+                    ? BlockMaterialRegistry.resolve(material, "fluid find.material").key
+                    : material.checkjstring();
+            if (!fluid.carrier().value().equals(materialKey)) {
+                return false;
+            }
         }
         LuaValue preset = criteria.get("preset");
         if (!preset.isnil() && !fluid.preset().equals(preset.checkjstring())) {

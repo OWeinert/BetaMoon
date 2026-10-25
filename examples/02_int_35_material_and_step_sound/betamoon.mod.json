@@ -1,0 +1,7 @@
+{
+  "entrypoint": "main.lua",
+  "name": "Material and Step Sound Example",
+  "version": "1.0.0",
+  "description": "Adds a Ceramic Tile (248) with a custom solid material and an audio-asset-backed step sound, alongside a Stone Comparison Block (249) using vanilla material and step sound references. Copy this complete folder into betamoon/scripts and enable the BetaMoon Java agent. Obtain both blocks through a creative inventory and walk on or break them to compare their sounds.",
+  "dependencies": []
+}

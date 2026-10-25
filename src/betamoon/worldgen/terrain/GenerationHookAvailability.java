@@ -37,4 +37,11 @@ public final class GenerationHookAvailability {
             RequiredNativeHooks.require("Generator population", allowPending, "betamoon:world_population:" + operation);
         }
     }
+
+    public static void requireOverrideReady() {
+        requireReady();
+        RequiredNativeHooks.require("Biome and region terrain overrides", false,
+                "betamoon:worldgen_override:terrain", "betamoon:worldgen_override:caves",
+                "betamoon:worldgen_surface");
+    }
 }

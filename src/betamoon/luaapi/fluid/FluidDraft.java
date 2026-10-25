@@ -79,7 +79,7 @@ public final class FluidDraft {
     }
 
     public void requireHooks() {
-        FluidPolicyHookAvailability.requireEntity();
+        FluidPolicyHookAvailability.requireEntity(entity, carrier);
         try {
             RequiredNativeHooks.require("Fluid ecology", true, "betamoon:fluid_ecology:falling",
                     "betamoon:fluid_ecology:farmland", "betamoon:fluid_ecology:reeds", "betamoon:fluid_ecology:habitat",

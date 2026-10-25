@@ -1,5 +1,6 @@
 package betamoon.luaapi.player;
 
+import betamoon.luaapi.entity.EntityModifiersApi;
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.utils.LuaDeclarationValues;
@@ -13,13 +14,21 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-/** Scoped local-player access; nested calls inherit existing read-only authority. */
+/**
+ * Scoped local-player access; nested calls inherit existing read-only
+ * authority.
+ */
 public final class PlayersApi {
     private PlayersApi() {
     }
 
     public static void attach(LuaTable module) {
         final LuaTable players = new LuaTable();
+        players.set("modifyLocal", new VarArgFunction() {
+            public Varargs invoke(Varargs args) {
+                return EntityModifiersApi.registerLocal(args.arg(args.arg1() == players ? 2 : 1));
+            }
+        });
         players.set("withLocal", new VarArgFunction() {
             public Varargs invoke(Varargs args) {
                 LuaValue callback = args.arg(args.arg1() == players ? 2 : 1);

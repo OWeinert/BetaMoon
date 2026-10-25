@@ -1,8 +1,10 @@
 package betamoon.luaapi.world;
 
 import betamoon.luaapi.entity.LuaEntityActionAccess;
+import betamoon.luaapi.material.BlockMaterialRegistry;
 import betamoon.luaapi.system.SystemsApi;
 import betamoon.luaapi.utils.LuaCallbackScope;
+import betamoon.luaapi.utils.LuaPositionArguments;
 import betamoon.system.WorldServiceDefinition;
 import betamoon.system.WorldServiceRuntime;
 import betamoon.tileentity.LuaTileEntity;
@@ -60,35 +62,17 @@ public final class LuaWorldDataAccess {
         api.set("getBiomeData", new VarArgFunction() {
             public Varargs invoke(Varargs arguments) {
                 scope.requireActive();
-                int offset = arguments.arg1() == api ? 1 : 0;
-                LuaValue first = arguments.arg(1 + offset);
-                int x;
-                int z;
-                if (first.istable()) {
-                    x = coordinate(first.get("x"), "getBiomeData.position.x");
-                    z = coordinate(first.get("z"), "getBiomeData.position.z");
-                } else {
-                    x = coordinate(first, "getBiomeData.x");
-                    z = coordinate(arguments.arg(2 + offset), "getBiomeData.z");
-                }
-                return biome(world, x, z);
+                LuaPositionArguments.Position position = LuaPositionArguments.horizontalCompatible(
+                        arguments, api, 1, "getBiomeData");
+                return biome(world, position.xInt(), position.zInt());
             }
         });
         api.set("getChunk", new VarArgFunction() {
             public Varargs invoke(Varargs arguments) {
                 scope.requireActive();
-                int offset = arguments.arg1() == api ? 1 : 0;
-                LuaValue first = arguments.arg(1 + offset);
-                int x;
-                int z;
-                if (first.istable()) {
-                    x = coordinate(first.get("x"), "getChunk.position.x");
-                    z = coordinate(first.get("z"), "getChunk.position.z");
-                } else {
-                    x = coordinate(first, "getChunk.x");
-                    z = coordinate(arguments.arg(2 + offset), "getChunk.z");
-                }
-                return chunk(world, x, z);
+                LuaPositionArguments.Position position = LuaPositionArguments.horizontalCompatible(
+                        arguments, api, 1, "getChunk");
+                return chunk(world, position.xInt(), position.zInt());
             }
         });
         api.set("getPlayers", new VarArgFunction() {
@@ -145,11 +129,20 @@ public final class LuaWorldDataAccess {
         result.set("light", world.getBlockLightValue(position.x, position.y, position.z));
         result.set("hasTile", LuaValue.valueOf(world.getBlockTileEntity(position.x, position.y, position.z) != null));
         LuaTable materialView = new LuaTable();
+        BlockMaterialRegistry.Entry materialEntry = BlockMaterialRegistry.describe(material);
+        if (materialEntry != null) {
+            materialView.set("key", LuaValue.valueOf(materialEntry.key));
+        }
         materialView.set("liquid", LuaValue.valueOf(material.getIsLiquid()));
         materialView.set("solid", LuaValue.valueOf(material.getIsSolid()));
         materialView.set("burning", LuaValue.valueOf(material.getBurning()));
-        materialView.set("translucent", LuaValue.valueOf(material.getIsTranslucent()));
+        // Beta 1.7.3's getter returns false for translucent solids such as glass.
+        materialView.set("translucent", LuaValue.valueOf(!material.getIsTranslucent()));
+        materialView.set("harvestable", LuaValue.valueOf(material.getIsHarvestable()));
+        materialView.set("groundCover", LuaValue.valueOf(material.getIsGroundCover()));
+        materialView.set("blocksGrass", LuaValue.valueOf(material.getCanBlockGrass()));
         materialView.set("mobility", material.getMaterialMobility());
+        materialView.set("mapColor", material.materialMapColor.colorIndex);
         result.set("material", materialView);
         return result;
     }
@@ -265,16 +258,9 @@ public final class LuaWorldDataAccess {
     }
 
     private static Position position(Varargs arguments, LuaTable receiver, String path) {
-        int offset = arguments.arg1() == receiver ? 1 : 0;
-        LuaValue first = arguments.arg(1 + offset);
-        if (first.istable()) {
-            return new Position(coordinate(first.get("x"), path + ".position.x"),
-                    integer(first.get("y"), 0, 0, 127, path + ".position.y"),
-                    coordinate(first.get("z"), path + ".position.z"));
-        }
-        return new Position(coordinate(first, path + ".x"),
-                integer(arguments.arg(2 + offset), 0, 0, 127, path + ".y"),
-                coordinate(arguments.arg(3 + offset), path + ".z"));
+        LuaPositionArguments.Position parsed = LuaPositionArguments.cellCompatibleDefaultY(arguments, receiver, 1,
+                path);
+        return new Position(parsed.xInt(), parsed.yInt(), parsed.zInt());
     }
 
     private static LuaTable positioned(Position position) {
@@ -289,10 +275,6 @@ public final class LuaWorldDataAccess {
 
     private static boolean loaded(World world, int x, int z) {
         return world.blockExists(x, 64, z);
-    }
-
-    private static int coordinate(LuaValue value, String path) {
-        return integer(value, 0, -30000000, 30000000, path);
     }
 
     private static int integer(LuaValue value, int fallback, int minimum, int maximum, String path) {

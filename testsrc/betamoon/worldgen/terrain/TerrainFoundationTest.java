@@ -4,7 +4,13 @@ import betamoon.instrumentation.agent.AgentRuntime;
 import betamoon.worldgen.creation.GenerationCatalog;
 import betamoon.worldgen.creation.GenerationDraft;
 import betamoon.worldgen.creation.GenerationSelection;
+import betamoon.worldgen.creation.GenerationSelectionStore;
 import betamoon.worldgen.creation.WorldCreationSelection;
+import betamoon.worldgen.WorldGenKind;
+import betamoon.worldgen.BiomeGenRegistry;
+import betamoon.worldgen.BlockSet;
+import betamoon.worldgen.IntRange;
+import betamoon.worldgen.surface.SurfaceRuleSet;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -45,8 +51,11 @@ public final class TerrainFoundationTest {
         rawBuffers();
         nativeParity();
         worldBinding();
+        overrideContracts();
         if (AgentRuntime.isRegistered()) {
             instrumentedBoundaries();
+            nativeBiomeOverrides();
+            ownedBiomeOverride();
         }
         System.out.println("Terrain foundation passed: atomic manifest/reopen/corruption, signatures, "
                 + "raw metadata/heightmaps, native hashes and provider routing.");
@@ -286,6 +295,299 @@ public final class TerrainFoundationTest {
         require(WorldGenerationRuntime.manifest(world).originalSpawn != null,
                 "Actual native initial-spawn boundary must persist the original anchor");
         GeneratorProfileRegistry.replaceOwner(profile.owner, Collections.<WorldGeneratorProfile>emptyList());
+    }
+
+    private static void nativeBiomeOverrides() throws Exception {
+        long seed = 177;
+        try (BiomeGenRegistry.PublicationBatch surfaces = BiomeGenRegistry.beginPublication(
+                "override_surface_fixture.lua", "override_surface_fixture.lua")) {
+            BiomeGenRegistry.registerSurface("fixture:surface/gold_caps", (key, resourceOwner, owner, sourcePath) ->
+                    new SurfaceRuleSet(key, resourceOwner, owner, sourcePath,
+                            new BlockSet(Block.stone.blockID),
+                            Collections.singletonList(new SurfaceRuleSet.Layer(Block.blockGold.blockID,
+                                    new IntRange(1, 1))), null, 63));
+            surfaces.publish();
+        }
+        Map<String, Object> source = new LinkedHashMap<String, Object>();
+        source.put("key", "fixture:terrain_source/high_plains");
+        source.put("type", "heightmap");
+        source.put("height", 100.0);
+        source.put("solid", 1.0);
+        Map<String, Object> region = new LinkedHashMap<String, Object>();
+        region.put("minX", 0.0);
+        region.put("maxX", 8.0);
+        region.put("minZ", 0.0);
+        region.put("maxZ", 15.0);
+        Map<String, Object> terrain = new LinkedHashMap<String, Object>();
+        terrain.put("mode", "replace");
+        terrain.put("source", "fixture:terrain_source/high_plains");
+        Map<String, Object> caves = new LinkedHashMap<String, Object>();
+        caves.put("mode", "none");
+        Map<String, Object> materials = new LinkedHashMap<String, Object>();
+        materials.put("mode", "replace");
+        Map<String, Object> materialRule = new LinkedHashMap<String, Object>();
+        materialRule.put("type", "when");
+        Map<String, Object> condition = new LinkedHashMap<String, Object>();
+        condition.put("type", "below_y");
+        condition.put("y", 90.0);
+        materialRule.put("condition", condition);
+        materialRule.put("thenRule", 4.0);
+        materials.put("rule", materialRule);
+        Map<String, Object> surface = new LinkedHashMap<String, Object>();
+        surface.put("mode", "replace");
+        surface.put("surface", "fixture:surface/gold_caps");
+        Map<String, Object> population = new LinkedHashMap<String, Object>();
+        population.put("disableNative", Collections.singletonList("ores"));
+        Map<String, Object> override = new LinkedHashMap<String, Object>();
+        override.put("key", "fixture:terrain_override/high_plains");
+        override.put("bases", Collections.singletonList("minecraft"));
+        override.put("region", region);
+        override.put("terrain", terrain);
+        override.put("carvers", caves);
+        override.put("materials", materials);
+        override.put("surfaces", surface);
+        override.put("population", population);
+        try (TerrainRegistry.Batch batch = TerrainRegistry.begin("override_fixture.lua")) {
+            TerrainRegistry.add(WorldGenKind.TERRAIN_SOURCE, source);
+            TerrainRegistry.add(WorldGenKind.TERRAIN_OVERRIDE, override);
+            batch.validate();
+            batch.publish();
+        }
+        Save baselineSave = new Save(Files.createTempDirectory("betamoon-native-override-base-"));
+        Fixture baseline = new Fixture(baselineSave, seed);
+        baseline.isNewWorld = true;
+        try (WorldCreationSelection pending = WorldCreationSelection.begin(
+                GenerationSelection.create(new GenerationDraft(new GenerationCatalog(null)), seed))) {
+            baseline.createOuterProvider();
+        }
+        Chunk expected = baseline.worldProvider.getChunkProvider().provideChunk(0, 0);
+        Save save = new Save(Files.createTempDirectory("betamoon-native-override-"));
+        Fixture world = new Fixture(save, seed);
+        world.isNewWorld = true;
+        GenerationDraft draft = new GenerationDraft(new GenerationCatalog(null));
+        require(!draft.selected("override/fixture:terrain_override/high_plains"),
+                "Override packages must begin disabled");
+        draft.toggle("override/fixture:terrain_override/high_plains");
+        try (WorldCreationSelection pending = WorldCreationSelection.begin(GenerationSelection.create(draft, seed))) {
+            world.createOuterProvider();
+        }
+        require(WorldGenerationRuntime.overrides(world).size() == 1, "Selected override was not pinned to the world");
+        Chunk actual = world.worldProvider.getChunkProvider().provideChunk(0, 0);
+        require((actual.blocks[(1 << 11) | (1 << 7) | 80] & 255) == Block.cobblestone.blockID
+                        && (actual.blocks[(1 << 11) | (1 << 7) | 100] & 255) == Block.blockGold.blockID
+                        && expected.blocks[(1 << 11) | (1 << 7) | 100] == 0,
+                "Native Plains override did not apply terrain, underground material and custom surface");
+        require(!WorldGenerationRuntime.overridePopulationEnabled(world, "ores", 1, 1, true)
+                        && WorldGenerationRuntime.overridePopulationEnabled(world, "ores", 14, 1, true),
+                "Scoped native population suppression ignored the region boundary");
+        Map<String, Object> point = WorldGenerationRuntime.inspectOverrides(world, 1, 1);
+        require(((List<?>) point.get("packages")).size() == 1
+                        && point.get("biome") != null,
+                "Point diagnostics omitted the pinned override or saved biome");
+        for (int z = 0; z < 16; z++) {
+            for (int y = 0; y < 128; y++) {
+                int index = (14 << 11) | (z << 7) | y;
+                require(actual.blocks[index] == expected.blocks[index],
+                        "Native raw output changed outside the override region");
+            }
+        }
+        world.selectInitialSpawn();
+        Fixture reopened = new Fixture(save, seed);
+        reopened.createOuterProvider();
+        require(WorldGenerationRuntime.overrides(reopened).size() == 1
+                        && chunkHash(actual).equals(chunkHash(reopened.worldProvider.getChunkProvider()
+                                .provideChunk(0, 0))),
+                "Saved override selection did not reproduce the native chunk after reopening");
+        nativeCaveOnlyOverride(seed, baseline);
+        TerrainRegistry.retainOwners(Collections.<String>emptySet());
+        BiomeGenRegistry.retainOwners(Collections.<String>emptySet());
+    }
+
+    private static void nativeCaveOnlyOverride(long seed, Fixture baseline) throws Exception {
+        Map<String, Object> cave = new LinkedHashMap<String, Object>();
+        cave.put("key", "fixture:carver/negative_cavern");
+        cave.put("type", "field");
+        cave.put("field", 0.0);
+        cave.put("min", 0.0);
+        cave.put("max", 0.0);
+        cave.put("minY", 40.0);
+        cave.put("maxY", 60.0);
+        cave.put("avoidFluids", false);
+        Map<String, Object> region = new LinkedHashMap<String, Object>();
+        region.put("minX", -16.0);
+        region.put("maxX", -9.0);
+        region.put("minZ", 0.0);
+        region.put("maxZ", 15.0);
+        Map<String, Object> channel = new LinkedHashMap<String, Object>();
+        channel.put("mode", "add");
+        channel.put("entries", Collections.singletonList("fixture:carver/negative_cavern"));
+        Map<String, Object> override = new LinkedHashMap<String, Object>();
+        override.put("key", "fixture:terrain_override/negative_cavern");
+        override.put("bases", Collections.singletonList("minecraft"));
+        override.put("region", region);
+        override.put("carvers", channel);
+        try (TerrainRegistry.Batch batch = TerrainRegistry.begin("override_cave_fixture.lua")) {
+            TerrainRegistry.add(WorldGenKind.CARVER, cave);
+            TerrainRegistry.add(WorldGenKind.TERRAIN_OVERRIDE, override);
+            batch.publish();
+        }
+        GenerationDraft draft = new GenerationDraft(new GenerationCatalog(null));
+        draft.toggle("override/fixture:terrain_override/negative_cavern");
+        Save save = new Save(Files.createTempDirectory("betamoon-negative-cavern-"));
+        Fixture world = new Fixture(save, seed);
+        world.isNewWorld = true;
+        try (WorldCreationSelection pending = WorldCreationSelection.begin(GenerationSelection.create(draft, seed))) {
+            world.createOuterProvider();
+        }
+        Chunk original = baseline.worldProvider.getChunkProvider().provideChunk(-1, 0);
+        Chunk carved = world.worldProvider.getChunkProvider().provideChunk(-1, 0);
+        int removed = 0;
+        for (int z = 0; z < 16; z++) {
+            for (int y = 40; y <= 60; y++) {
+                int inside = (1 << 11) | (z << 7) | y;
+                if (original.blocks[inside] != 0 && carved.blocks[inside] == 0) {
+                    removed++;
+                }
+            }
+            for (int y = 0; y < 128; y++) {
+                int outside = (14 << 11) | (z << 7) | y;
+                require(original.blocks[outside] == carved.blocks[outside],
+                        "Cave-only override changed a native column outside its negative-coordinate target");
+            }
+        }
+        require(removed > 0, "Cave-only override did not carve selected native columns");
+    }
+
+    private static void ownedBiomeOverride() throws Exception {
+        Map<String, Object> base = new LinkedHashMap<String, Object>();
+        base.put("key", "fixture:terrain_source/base_plain");
+        base.put("type", "heightmap");
+        base.put("height", 64.0);
+        base.put("solid", 1.0);
+        Map<String, Object> raised = new LinkedHashMap<String, Object>();
+        raised.put("key", "fixture:terrain_source/raised_wool");
+        raised.put("type", "heightmap");
+        raised.put("height", 80.0);
+        Map<String, Object> wool = new LinkedHashMap<String, Object>();
+        wool.put("block", (double) Block.cloth.blockID);
+        wool.put("metadata", 4.0);
+        raised.put("solid", wool);
+        Map<String, Object> dimension = new LinkedHashMap<String, Object>();
+        dimension.put("terrain", "fixture:terrain_source/base_plain");
+        dimension.put("surfaces", "none");
+        Map<String, Object> generator = new LinkedHashMap<String, Object>();
+        generator.put("key", "fixture:generator/plain_base");
+        generator.put("dimensions", Collections.singletonMap("overworld", dimension));
+        Map<String, Object> region = new LinkedHashMap<String, Object>();
+        region.put("minX", 0.0);
+        region.put("maxX", 7.0);
+        region.put("minZ", 0.0);
+        region.put("maxZ", 15.0);
+        Map<String, Object> override = new LinkedHashMap<String, Object>();
+        override.put("key", "fixture:terrain_override/owned_wool");
+        override.put("bases", Collections.singletonList("fixture:generator/plain_base"));
+        override.put("region", region);
+        Map<String, Object> channel = new LinkedHashMap<String, Object>();
+        channel.put("mode", "replace");
+        channel.put("source", "fixture:terrain_source/raised_wool");
+        override.put("terrain", channel);
+        try (TerrainRegistry.Batch batch = TerrainRegistry.begin("owned_override_fixture.lua")) {
+            TerrainRegistry.add(WorldGenKind.TERRAIN_SOURCE, base);
+            TerrainRegistry.add(WorldGenKind.TERRAIN_SOURCE, raised);
+            TerrainRegistry.add(WorldGenKind.GENERATOR, generator);
+            TerrainRegistry.add(WorldGenKind.TERRAIN_OVERRIDE, override);
+            batch.publish();
+        }
+        WorldGeneratorProfile profile = GeneratorProfileRegistry.snapshot().get("fixture:generator/plain_base");
+        GenerationDraft draft = new GenerationDraft(new GenerationCatalog(profile));
+        draft.toggle("override/fixture:terrain_override/owned_wool");
+        Save save = new Save(Files.createTempDirectory("betamoon-owned-override-"));
+        Fixture world = new Fixture(save, 287);
+        world.isNewWorld = true;
+        try (WorldCreationSelection pending = WorldCreationSelection.begin(GenerationSelection.create(draft, 287))) {
+            world.createOuterProvider();
+        }
+        Chunk chunk = world.worldProvider.getChunkProvider().provideChunk(0, 0);
+        require((chunk.blocks[(1 << 11) | (1 << 7) | 75] & 255) == Block.cloth.blockID
+                        && chunk.data.getNibble(1, 75, 1) == 4
+                        && chunk.blocks[(14 << 11) | (1 << 7) | 75] == 0,
+                "Owned terrain override lost selected occupancy, metadata or outside columns");
+        TerrainRegistry.retainOwners(Collections.<String>emptySet());
+    }
+
+    private static void overrideContracts() throws Exception {
+        Map<String, Object> surface = new LinkedHashMap<String, Object>();
+        surface.put("mode", "none");
+        Map<String, Object> first = new LinkedHashMap<String, Object>();
+        first.put("key", "fixture:terrain_override/first");
+        first.put("bases", Collections.singletonList("minecraft"));
+        first.put("surfaces", surface);
+        Map<String, Object> region = new LinkedHashMap<String, Object>();
+        region.put("minX", 0.0);
+        region.put("maxX", 15.0);
+        region.put("minZ", 0.0);
+        region.put("maxZ", 15.0);
+        first.put("region", region);
+        Map<String, Object> blend = new LinkedHashMap<String, Object>();
+        blend.put("width", 4.0);
+        first.put("blend", blend);
+        Map<String, Object> second = new LinkedHashMap<String, Object>();
+        second.put("key", "fixture:terrain_override/second");
+        second.put("bases", Collections.singletonList("minecraft"));
+        second.put("surfaces", surface);
+        publishOverrides(first, second);
+        Fixture sample = new Fixture(null, 41);
+        BiomeRegionOverride boundary = TerrainRegistry.snapshot().override("fixture:terrain_override/first");
+        require(boundary.influence(WorldGenerationRuntime.fieldContext(sample), -1, 5) == 0
+                        && boundary.influence(WorldGenerationRuntime.fieldContext(sample), 0, 5) > 0
+                        && boundary.influence(WorldGenerationRuntime.fieldContext(sample), 3, 5) == 1,
+                "Inside blending did not preserve the outside or reach full influence");
+        GenerationDraft conflicting = new GenerationDraft(new GenerationCatalog(null));
+        conflicting.toggle("override/fixture:terrain_override/first");
+        conflicting.toggle("override/fixture:terrain_override/second");
+        expect(IllegalArgumentException.class, () -> GenerationSelection.create(conflicting, 41));
+
+        first.put("before", Collections.singletonList("fixture:terrain_override/second"));
+        publishOverrides(first, second);
+        GenerationDraft ordered = new GenerationDraft(new GenerationCatalog(null));
+        ordered.toggle("override/fixture:terrain_override/first");
+        ordered.toggle("override/fixture:terrain_override/second");
+        GenerationSelection selection = GenerationSelection.create(ordered, 41);
+        require(selection.overrideOrder.equals(Arrays.asList("fixture:terrain_override/first",
+                        "fixture:terrain_override/second")), "Explicit override ordering was not saved");
+        Path path = Files.createTempFile("betamoon-override-order-", ".dat");
+        GenerationSelectionStore store = new GenerationSelectionStore(path.toFile());
+        store.write(selection);
+        require(store.read().overrideOrder.equals(selection.overrideOrder),
+                "Override ordering did not survive schema 3 reload");
+        Map<String, Object> later = new LinkedHashMap<String, Object>();
+        later.put("key", "fixture:terrain_override/installed_later");
+        later.put("bases", Collections.singletonList("minecraft"));
+        later.put("surfaces", surface);
+        try (TerrainRegistry.Batch batch = TerrainRegistry.begin("later_override_contracts.lua")) {
+            TerrainRegistry.add(WorldGenKind.TERRAIN_OVERRIDE, later);
+            batch.publish();
+        }
+        selection.validate(41);
+        require(!selection.enabled("override/fixture:terrain_override/installed_later"),
+                "A newly installed override activated in a saved world");
+        first.put("displayName", "Renamed for players");
+        publishOverrides(first, second);
+        selection.validate(41);
+        first.put("priority", 2.0);
+        publishOverrides(first, second);
+        expect(IllegalStateException.class, () -> store.read().validate(41));
+        TerrainRegistry.retainOwners(Collections.singleton("later_override_contracts.lua"));
+        expect(IllegalStateException.class, () -> store.read().validate(41));
+        TerrainRegistry.retainOwners(Collections.<String>emptySet());
+    }
+
+    private static void publishOverrides(Map<String, Object> first, Map<String, Object> second) {
+        try (TerrainRegistry.Batch batch = TerrainRegistry.begin("override_contracts.lua")) {
+            TerrainRegistry.add(WorldGenKind.TERRAIN_OVERRIDE, first);
+            TerrainRegistry.add(WorldGenKind.TERRAIN_OVERRIDE, second);
+            batch.publish();
+        }
     }
 
     private static WorldCreationSelection choose(WorldGeneratorProfile profile, long seed) {

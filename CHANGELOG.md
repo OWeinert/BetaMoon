@@ -1,52 +1,59 @@
 # Changelog
 
-## 0.10.0
+## 0.11.0
 
-### World generation
+### Entity movement
 
-- Add saved generator profiles with flat, void, heightmap, density, Beta-style, blended and composed terrain.
-- Add shared spatial fields, noise and fixed/original-spawn anchors for terrain, biomes, placements, structures,
-  natural spawns and loot.
-- Add height profiles, material rules, cave carvers, named placement heights and population controls.
-- Let players choose a generator and enable or disable generation content in Create World, with choices saved per world.
-- Warn about missing saved generators and offer confirmed, temporary Minecraft generation without replacing saved choices.
-- Add read-only terrain previews, field inspection and CSV exports.
+- Add owned, composable movement rules for supported singleplayer players and living entities, including gravity,
+  air/fluid drag, acceleration, jumping, sneak behavior, fall tracking and fall damage.
+- Add per-step native/manual motion commands, independent additive forces and post-collision observations.
+  Expose logical player input and routed physical edges.
 
-### Dimensions and teleportation
+### Materials and step sounds
 
-- Add persistent custom dimensions with builtin or custom generation, independent environment rules, seeds and
-  spawn/respawn settings.
-- Add queued player teleportation within and between dimensions, with safe arrival searches, optional platforms and
-  saved return history.
-- Add Minecraft-style loading progress and saved-dimension recovery with explicit backup and rescue to the Overworld.
-- Add custom-dimension selectors to world generation, natural spawning and atmospheres, and scoped player access in
-  event/input callbacks.
+- Add custom block materials for blocks and fluids while retaining vanilla material support.
+- Add sound-event-backed step sounds for blocks alongside vanilla step sounds.
+- Include material and step sound details in block debug exports.
 
-### Blocks and items
+### Script configuration
 
-- Add metadata-dependent names and textures, declared block inventory subtypes and metadata-aware resource queries.
-- Add opt-in subtype-preserving block drops; metadata zero remains the default.
+- Add an in-game editor for script configuration, with staged changes, defaults, and validation.
+- Support boolean, number, string, list, dictionary, and fixed nested settings with optional labels, descriptions,
+  bounds, choices, and read-only entries.
+- Let scripts select text fields, sliders, dropdowns, or cycling buttons for values. Lists and dictionaries can use
+  individual controls or comma-separated text.
+- Make nested sections and collections collapsible. They start closed unless declared with `expanded = true`.
+- Add fixed-choice multi-select lists, optional editor headings/dividers and field order, and draft-only per-field Reset buttons.
+- Save changes atomically, detect conflicting file edits, and preserve unknown JSON fields.
+- Update live Lua values after saving and support `onChange` callbacks with error reporting and retry.
 
-### Player and entity access
+### Biome and region generation overrides
 
-- Add scoped local-player access, position/rotation transforms, collision-aware movement, velocity impulses and support queries.
+- Let scripts register selectable Overworld biome/region packages while Minecraft remains the base generator.
+- Apply scoped terrain sources, material rules, carvers, surfaces and population suppression through native and
+  owned generation stages. Keep biome identity and unaffected native raw columns intact.
+- Save selected packages, effective order and dependency signatures with generation settings; reject changed or
+  missing enabled definitions on reopen. Add point/chunk inspection for target influence and selected channels.
 
-### Container GUIs
+### Position arguments
 
-- Add resizable visual slots and panels with Minecraft-style borders.
-- Add state-driven element bindings, GUI events, runtime element controls and independent property transitions.
-- Add translation, scaling, clipping, tinting, opacity and interpolation/easing helpers for supported elements.
+- Accept named position tables and position objects alongside numeric coordinates in world, entity, multiblock,
+  particle, teleport, and worldgen runtime APIs. Preserve each operation's coordinate units and limits.
+- Require exact integers for block coordinates and integer position construction; reject non-finite and out-of-range
+  float positions.
+- Preserve nonzero and fractional Z coordinates in numeric X/Z spatial-field queries.
 
-### Atmospheres and fluids
+### Optimization and reliability
 
-- Add biome-, region- and dimension-scoped fog, sky/light colors and ambient/weather sound layers.
-- Add independent custom-fluid ecology traits and fluid-aware placement filters.
+- Keep fluid, asset and sound-event Lua reference identity stable while held; preserve value-like block/item views.
+- Allow opt-in config schema versions with validated, atomic migration and protection for newer or failed files.
+- Index block/item names for repeated lookups while preserving aliases and first-match behavior.
+- Allow packaged dependencies to require a minimum three-part numeric version.
 
-### Compatibility and fixes
+### Built-in assets
 
-- Improve script diagnostics with runtime error indicators, grouped issue lists, clipboard actions, and detailed reports.
-- Add rotating runtime logs, independent file and console severity settings, and script-owned Lua logging.
-- Improve configuration readability with spaced setting groups and headings.
-- Standardize biome labels on `displayName`, keeping `name` as a deprecated compatibility alias.
-- Correct biome key lookups and surface rules applying to the wrong chunk columns.
-- Preserve script ownership during callbacks so script-owned operations and cleanup use the declaring script.
+- Add `minecraft:block/full_block`, a full-cube model with the `default` material slot.
+- Expose Minecraft's whole client PNG images and terrain/item atlas cells through the texture asset API.
+- Resolve native references through the selected vanilla texture pack and its client-JAR fallback, using native
+  paths such as `terrain.png` and `gui/items.png`.
+- Support live native atlas cells in block, item and entity model materials.

@@ -49,6 +49,7 @@ public final class ClientAssets {
     }
 
     public static TextureAsset acquireTexture(AssetLocation location) throws IOException {
+        requireStandalone(location);
         ensureProviders();
         TextureAsset current = TEXTURES.get(location.getCacheKey());
         if (current != null) {
@@ -64,6 +65,7 @@ public final class ClientAssets {
     }
 
     public static ResolvedAsset<TextureImage> resolveTexture(AssetLocation location) throws IOException {
+        requireStandalone(location);
         AssetResolver textureResolver = getResolver(location);
         if (location.isBuiltin()) {
             textureResolver = textureResolver.withDefaults(BuiltinAssetProvider.INSTANCE, "builtin");
@@ -113,10 +115,12 @@ public final class ClientAssets {
      * resource paths.
      */
     public static void refresh() {
+        NativeTextureResources.refresh();
         try {
             if (!testProviders) {
                 installNativeProviders();
             }
+            NativeTextureResources.reopenSelectedPack(testProviders ? null : selectedPack);
             ClientSounds.refresh(diagnostics);
             ClientModelAssets.refresh(diagnostics);
             for (TextureAsset asset : new ArrayList<>(TEXTURES.values())) {
@@ -131,6 +135,13 @@ public final class ClientAssets {
             EntityVisuals.retryFailed();
         } catch (IOException error) {
             diagnostics.accept("Asset refresh failed: " + error.getMessage());
+        }
+    }
+
+    private static void requireStandalone(AssetLocation location) throws IOException {
+        if (location.getNativeTexture() != null) {
+            throw new IOException("Native Minecraft textures require a model appearance, a whole-image GUI/armor"
+                    + " field, or a matching block/item atlas field; this consumer requires a standalone PNG");
         }
     }
 

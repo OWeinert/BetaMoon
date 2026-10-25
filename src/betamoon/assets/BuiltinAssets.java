@@ -1,5 +1,10 @@
 package betamoon.assets;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -29,6 +34,7 @@ public final class BuiltinAssets {
         Map<AssetId, AssetDefinition> assets = new LinkedHashMap<>();
         assets.putAll(createModels());
         addControlTextures(assets);
+        addNativeTextures(assets);
         return Collections.unmodifiableMap(assets);
     }
 
@@ -65,6 +71,7 @@ public final class BuiltinAssets {
         alias(models, "rail", "rail_straight");
         add(models, "slab");
         add(models, "slab_double");
+        add(models, "full_block");
         for (int layers = 1; layers <= 8; layers++) {
             add(models, "snow_" + layers);
         }
@@ -126,6 +133,46 @@ public final class BuiltinAssets {
                 AssetKey.parse("betamoon:" + name),
                 AssetPath.parse("builtin/betamoon/textures/" + name + ".png"), "png");
         assets.put(definition.getId(), definition);
+    }
+
+    private static void addNativeTextures(Map<AssetId, AssetDefinition> assets) {
+        InputStream manifest = BuiltinAssets.class.getResourceAsStream("/builtin/minecraft/client_images.txt");
+        if (manifest == null) {
+            manifest = BuiltinAssets.class.getResourceAsStream("/resources/builtin/minecraft/client_images.txt");
+        }
+        if (manifest == null) {
+            throw new IllegalStateException("Native Minecraft image catalog is missing");
+        }
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(manifest, StandardCharsets.UTF_8))) {
+            String path;
+            while ((path = reader.readLine()) != null) {
+                if (path.isEmpty() || path.startsWith("#")) {
+                    continue;
+                }
+                if (!path.endsWith(".png")) {
+                    throw new IllegalArgumentException("Native image catalog entry must end in .png: " + path);
+                }
+                addNative(assets, "image/" + path.substring(0, path.length() - 4),
+                        NativeTextureSource.image(AssetPath.parse(path)));
+            }
+        } catch (IOException error) {
+            throw new IllegalStateException("Cannot read native Minecraft image catalog", error);
+        }
+        for (String atlas : new String[]{"terrain", "items"}) {
+            for (int index = 0; index < 256; index++) {
+                addNative(assets, "atlas/" + atlas + "/" + index, NativeTextureSource.cell(atlas, index));
+            }
+        }
+        AssetDefinition sand = assets.get(new AssetId(AssetKind.TEXTURE,
+                AssetKey.parse("minecraft:atlas/terrain/18")));
+        assets.put(new AssetId(AssetKind.TEXTURE, AssetKey.parse("minecraft:block/sand")), sand);
+    }
+
+    private static void addNative(Map<AssetId, AssetDefinition> assets, String name, NativeTextureSource source) {
+        AssetDefinition definition = AssetDefinition.nativeTexture(AssetKey.parse("minecraft:" + name), source);
+        if (assets.put(definition.getId(), definition) != null) {
+            throw new IllegalArgumentException("Duplicate native texture: " + name);
+        }
     }
 
     private static Map<AssetId, AssetDefinition> select(AssetKind kind) {

@@ -1,6 +1,7 @@
 package betamoon.client.assets;
 
 import betamoon.luamodloader.ScriptResourceTracker;
+import betamoon.assets.NativeTextureSource;
 import betamoon.resources.BetaMoonTextureStatic;
 import betamoon.resources.EnumTexAtlas;
 import java.awt.image.BufferedImage;
@@ -27,6 +28,14 @@ public final class AtlasTextures {
     }
 
     public static int register(EnumTexAtlas atlas, AssetLocation location) throws IOException {
+        NativeTextureSource source = location.getNativeTexture();
+        if (source != null) {
+            if (!source.isCell() || !source.getResource().equals(atlas.getAtlasPath())) {
+                throw new IOException("This texture field requires a cell from " + atlas.getAtlasPath()
+                        + "; got " + location.getCacheKey());
+            }
+            return source.getIndex();
+        }
         ClientAssets.requestRefresh();
         String key = atlas.getAtlasPath() + "\n" + location.getCacheKey();
         Slot existing = SLOTS.get(key);

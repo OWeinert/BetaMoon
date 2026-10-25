@@ -38,54 +38,59 @@ public final class WorldPopulationCallbacks {
     }
 
     public static boolean generate(WorldGenLakes generator, World world, Random random, int x, int y, int z) {
-        return NativePopulationRuntime.enabled("lakes") && generator.generate(world, random, x, y, z);
+        return enabled(world, "lakes", x, z) && generator.generate(world, random, x, y, z);
     }
 
     public static boolean generate(WorldGenDungeons generator, World world, Random random, int x, int y, int z) {
-        return NativePopulationRuntime.enabled("dungeons") && generator.generate(world, random, x, y, z);
+        return enabled(world, "dungeons", x, z) && generator.generate(world, random, x, y, z);
     }
 
     public static boolean generate(WorldGenClay generator, World world, Random random, int x, int y, int z) {
-        return NativePopulationRuntime.enabled("clay") && generator.generate(world, random, x, y, z);
+        return enabled(world, "clay", x, z) && generator.generate(world, random, x, y, z);
     }
 
     public static boolean generate(WorldGenMinable generator, World world, Random random, int x, int y, int z) {
-        return NativePopulationRuntime.enabled("ores") && generator.generate(world, random, x, y, z);
+        return enabled(world, "ores", x, z) && generator.generate(world, random, x, y, z);
     }
 
     public static boolean generate(WorldGenerator generator, World world, Random random, int x, int y, int z) {
-        return NativePopulationRuntime.enabled("trees") && generator.generate(world, random, x, y, z);
+        return enabled(world, "trees", x, z) && generator.generate(world, random, x, y, z);
     }
 
     public static boolean generate(WorldGenFlowers generator, World world, Random random, int x, int y, int z) {
-        return NativePopulationRuntime.enabled("vegetation") && generator.generate(world, random, x, y, z);
+        return enabled(world, "vegetation", x, z) && generator.generate(world, random, x, y, z);
     }
 
     public static boolean generate(WorldGenTallGrass generator, World world, Random random, int x, int y, int z) {
-        return NativePopulationRuntime.enabled("vegetation") && generator.generate(world, random, x, y, z);
+        return enabled(world, "vegetation", x, z) && generator.generate(world, random, x, y, z);
     }
 
     public static boolean generate(WorldGenDeadBush generator, World world, Random random, int x, int y, int z) {
-        return NativePopulationRuntime.enabled("vegetation") && generator.generate(world, random, x, y, z);
+        return enabled(world, "vegetation", x, z) && generator.generate(world, random, x, y, z);
     }
 
     public static boolean generate(WorldGenReed generator, World world, Random random, int x, int y, int z) {
-        return NativePopulationRuntime.enabled("vegetation") && generator.generate(world, random, x, y, z);
+        return enabled(world, "vegetation", x, z) && generator.generate(world, random, x, y, z);
     }
 
     public static boolean generate(WorldGenPumpkin generator, World world, Random random, int x, int y, int z) {
-        return NativePopulationRuntime.enabled("vegetation") && generator.generate(world, random, x, y, z);
+        return enabled(world, "vegetation", x, z) && generator.generate(world, random, x, y, z);
     }
 
     public static boolean generate(WorldGenCactus generator, World world, Random random, int x, int y, int z) {
-        return NativePopulationRuntime.enabled("vegetation") && generator.generate(world, random, x, y, z);
+        return enabled(world, "vegetation", x, z) && generator.generate(world, random, x, y, z);
     }
 
     public static boolean generate(WorldGenLiquids generator, World world, Random random, int x, int y, int z) {
-        return NativePopulationRuntime.enabled("springs") && generator.generate(world, random, x, y, z);
+        return enabled(world, "springs", x, z) && generator.generate(world, random, x, y, z);
     }
 
     public static boolean snow(World world, int x, int y, int z, int block) {
-        return NativePopulationRuntime.enabled("snow") && world.setBlockWithNotify(x, y, z, block);
+        return enabled(world, "snow", x, z) && world.setBlockWithNotify(x, y, z, block);
+    }
+
+    private static boolean enabled(World world, String category, int x, int z) {
+        return NativePopulationRuntime.enabled(category)
+                && WorldGenerationRuntime.overridePopulationEnabled(world, category, x, z, true);
     }
 }

@@ -1,15 +1,14 @@
 package betamoon.luaapi.block;
 
 import betamoon.BetaMoonCommon;
-
 import betamoon.client.render.ModelAppearanceSet;
 import betamoon.client.render.ModelRenderingSupport;
-import java.io.IOException;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luamodloader.LuaContentRegistry;
 import betamoon.resources.EnumTexAtlas;
 import betamoon.tileentity.TileEntityRegistry;
 import forge.MinecraftForge;
+import java.io.IOException;
 import java.util.Map;
 import net.minecraft.src.ModLoader;
 import org.luaj.vm2.LuaError;
@@ -77,6 +76,9 @@ final class BlockRegistration {
 
     private static LuaBlock createOrRetain(BlockDeclaration definition) {
         String signature = "block:" + definition.materialName.toLowerCase();
+        if (!definition.materialSignature.startsWith("vanilla:")) {
+            signature += ":" + definition.materialSignature;
+        }
         LuaContentRegistry.Entry existing = LuaContentRegistry.find("block", definition.id);
         if (existing != null) {
             LuaContentRegistry.remember("block", definition.id, existing.value, signature);

@@ -4,6 +4,7 @@ import betamoon.assets.io.FileAssetProvider;
 import betamoon.client.assets.AtlasTextures;
 import betamoon.client.assets.ClientAssets;
 import betamoon.fluid.FluidBlockRole;
+import betamoon.fluid.FluidCarrier;
 import betamoon.fluid.FluidEntityPolicy;
 import betamoon.fluid.FluidFlowPolicy;
 import betamoon.fluid.FluidRegistration;
@@ -21,9 +22,11 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import net.minecraft.src.Block;
 import net.minecraft.src.Item;
+import net.minecraft.src.Material;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.Session;
 import org.luaj.vm2.Globals;
+import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.jse.JsePlatform;
 
@@ -45,6 +48,7 @@ public final class FluidLuaApiTest {
             Globals lua = JsePlatform.standardGlobals();
             new BetaMoonModule().call(LuaValue.NIL, lua);
             verifyShorthand(lua);
+            verifyCustomMaterial(lua);
             verifyPolicyParsing(lua);
             verifyAdvancedBinding(lua);
             verifyInteractions(lua);
@@ -70,6 +74,7 @@ public final class FluidLuaApiTest {
             AgentRuntime.getReport().applied("betamoon:fluid_contact:" + id, "test");
         }
         AgentRuntime.getReport().waiting("betamoon:fluid_contact:item_water_movement", "EntityItem");
+        AgentRuntime.getReport().applied("betamoon:fluid_contact:item_lava_material", "test");
         for (String id : new String[]{"wet", "air_hud", "updateFogColor_material", "updateFogColor",
                 "setupFog_material", "setupFog", "overlay_visibility", "overlay_texture"}) {
             AgentRuntime.getReport().applied("betamoon:fluid_camera:" + id, "test");
@@ -92,8 +97,9 @@ public final class FluidLuaApiTest {
                 + "assert(acid.bucketItem.id==28200 and acid.bucketItem.fluid.key==acid.key);"
                 + "assert(not pcall(function() acid.key='changed' end));"
                 + "assert(not pcall(function() rawset(acid,'key','changed') end));"
-                + "assert(betamoon.fluids:get('quality:acid').key==acid.key);"
-                + "assert(betamoon.fluids:one{key='quality:acid',isVanilla=false}.key==acid.key)").call();
+                + "assert(betamoon.fluids:get('quality:acid')==acid);"
+                + "assert(betamoon.fluids:one{key='quality:acid',isVanilla=false}==acid);"
+                + "assert(betamoon.fluids:first{key='quality:acid'}==acid)").call();
 
         require(Block.blocksList[240] instanceof FluidBlock && Block.blocksList[241] instanceof FluidBlock,
                 "Shorthand creates two specialized fluid blocks");
@@ -124,6 +130,27 @@ public final class FluidLuaApiTest {
                 + "assert(brine.flowingBlock.id==242 and brine.stillBlock.id==246 and brine.bucketItem==nil)").call();
         require(FluidRegistry.instance().isSameFluid(242, 246),
                 "Advanced binding supports deliberately non-adjacent pair IDs");
+    }
+
+    private static void verifyCustomMaterial(Globals lua) {
+        lua.load("mercuryMaterial=betamoon.materials.blocks:add{key='quality:material/mercury',"
+                + "kind='liquid',mapColor='iron'};"
+                + "mercury=betamoon.fluids:add{key='quality:fluid/mercury',material=mercuryMaterial,"
+                + "blocks={flowing={id=253,key='quality:block/mercury_flowing'},"
+                + "still={id=254,key='quality:block/mercury_still'}},"
+                + "appearance={still=21,flowing=22}};"
+                + "assert(mercury.material==mercuryMaterial.key);"
+                + "assert(betamoon.fluids:one{material=mercuryMaterial}.key==mercury.key);"
+                + "assert(not pcall(function() betamoon.fluids:define{key='quality:fluid/invalid_material',"
+                + "material='rock',appearance={still=1,flowing=2}} end))").call();
+        FluidRegistration mercury = FluidRegistry.instance().getByBlockId(253);
+        require(mercury == FluidRegistry.instance().getByBlockId(254),
+                "Custom liquid material is shared by flowing and still roles");
+        require(mercury.definition().carrier().material().getIsLiquid()
+                && mercury.definition().carrier().material() != Material.water,
+                "Custom fluid uses a distinct native liquid material");
+        require(mercury.definition().carrier().material() != FluidRegistry.instance().getByBlockId(240)
+                .definition().carrier().material(), "Custom and vanilla carrier fluids have separate material identity");
     }
 
     private static void verifyPolicyParsing(Globals lua) {
@@ -173,6 +200,27 @@ public final class FluidLuaApiTest {
         }
         require(Block.blocksList[249] == null && Block.blocksList[250] == null,
                 "Missing entity hooks reject shorthand before native block allocation");
+        String itemHook = "betamoon:fluid_contact:item_lava_material";
+        AgentRuntime.getReport().failed(itemHook, "Unavailable test hook");
+        try {
+            FluidPolicyHookAvailability.requireEntity(FluidEntityPolicy.forPreset("neutral"), FluidCarrier.WATER);
+            boolean rejected = false;
+            try {
+                FluidPolicyHookAvailability.requireEntity(FluidEntityPolicy.forPreset("lava"), FluidCarrier.WATER);
+            } catch (LuaError expected) {
+                rejected = true;
+            }
+            require(rejected, "Lava movement requires the native item lava hook");
+            rejected = false;
+            try {
+                FluidPolicyHookAvailability.requireEntity(FluidEntityPolicy.forPreset("neutral"), FluidCarrier.LAVA);
+            } catch (LuaError expected) {
+                rejected = true;
+            }
+            require(rejected, "A vanilla lava carrier requires suppression of unintended item lava behavior");
+        } finally {
+            AgentRuntime.getReport().applied(itemHook, "test");
+        }
     }
 
     private static FluidFlowPolicy policy(Globals lua, String preset, String flow) {

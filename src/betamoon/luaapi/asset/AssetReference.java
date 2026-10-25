@@ -13,11 +13,15 @@ import betamoon.assets.model.ModelAnimations;
 import betamoon.assets.model.ModelPose;
 import betamoon.client.assets.ClientAssets;
 import betamoon.client.assets.TextureAsset;
+import betamoon.client.assets.NativeTextureResources;
+import betamoon.assets.NativeTextureSource;
 import betamoon.client.audio.ClientSounds;
 import betamoon.client.audio.SoundAsset;
 import betamoon.luamodloader.ScriptAssetScope;
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.util.Map;
+import java.util.WeakHashMap;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -28,7 +32,19 @@ import org.luaj.vm2.lib.ZeroArgFunction;
  * table fields.
  */
 public final class AssetReference extends LuaTable {
+    private static final Map<AssetId, WeakReference<AssetReference>> REFERENCES = new WeakHashMap<>();
+
+    static synchronized AssetReference of(AssetId id) {
+        WeakReference<AssetReference> cached = REFERENCES.get(id);
+        AssetReference reference = cached == null ? null : cached.get();
+        if (reference == null) {
+            reference = new AssetReference(id);
+            REFERENCES.put(id, new WeakReference<>(reference));
+        }
+        return reference;
+    }
     private final AssetId id;
+    private boolean frozen;
 
     AssetReference(AssetId id) {
         this.id = id;
@@ -58,6 +74,43 @@ public final class AssetReference extends LuaTable {
                 return source();
             }
         });
+        frozen = true;
+    }
+
+    @Override
+    public void set(LuaValue key, LuaValue value) {
+        requireMutable();
+        super.set(key, value);
+    }
+
+    @Override
+    public void set(int key, LuaValue value) {
+        requireMutable();
+        super.set(key, value);
+    }
+
+    @Override
+    public void rawset(LuaValue key, LuaValue value) {
+        requireMutable();
+        super.rawset(key, value);
+    }
+
+    @Override
+    public void rawset(int key, LuaValue value) {
+        requireMutable();
+        super.rawset(key, value);
+    }
+
+    @Override
+    public LuaValue setmetatable(LuaValue metatable) {
+        requireMutable();
+        return super.setmetatable(metatable);
+    }
+
+    private void requireMutable() {
+        if (frozen) {
+            throw new LuaError("Asset reference '" + id + "' is read-only");
+        }
     }
 
     private void attachModelOperations() {
@@ -112,6 +165,9 @@ public final class AssetReference extends LuaTable {
         AssetLocation location = new AssetLocation(definition());
         try {
             if (id.getKind() == AssetKind.TEXTURE) {
+                if (location.getNativeTexture() != null) {
+                    return describeNative(location.getNativeTexture());
+                }
                 try (TextureAsset texture = ClientAssets.acquireTexture(location)) {
                     return describe(texture.getContent());
                 }
@@ -139,6 +195,28 @@ public final class AssetReference extends LuaTable {
         result.set("kind", content.getSourceKind());
         result.set("name", content.getSourceName());
         result.set("path", content.getSourcePath().toString());
+        return result;
+    }
+
+    private static LuaTable describeNative(NativeTextureSource source) throws IOException {
+        NativeTextureResources.Selection selection = NativeTextureResources.inspect(source);
+        LuaTable result = new LuaTable();
+        result.set("kind", "minecraft");
+        result.set("name", selection.packName);
+        result.set("path", source.getPath().toString());
+        result.set("origin", selection.origin);
+        result.set("width", selection.width);
+        result.set("height", selection.height);
+        if (source.isCell()) {
+            LuaTable region = new LuaTable();
+            region.set("atlas", source.getAtlas());
+            region.set("index", source.getIndex());
+            region.set("column", source.getColumn());
+            region.set("row", source.getRow());
+            region.set("columns", 16);
+            region.set("rows", 16);
+            result.set("region", region);
+        }
         return result;
     }
 }

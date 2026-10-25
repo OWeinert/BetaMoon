@@ -2,6 +2,7 @@ package betamoon.instrumentation.hooks.worldgen;
 
 import betamoon.gui.GuiMissingWorldGenerator;
 import betamoon.gui.GuiWorldGenerationError;
+import betamoon.luaapi.material.WorldMaterialSignatures;
 import betamoon.teleport.SavedDimensionLoad;
 import betamoon.teleport.TeleportRuntime;
 import betamoon.worldgen.creation.MissingWorldGenerator;
@@ -32,6 +33,14 @@ public final class WorldJoinCallbacks {
         if (!TeleportRuntime.startingWorldLoad()) {
             return 1;
         }
+        Path directory;
+        try {
+            directory = worldDirectory(folder);
+            WorldMaterialSignatures.preflight(directory);
+        } catch (IOException error) {
+            minecraft.displayGuiScreen(new GuiWorldGenerationError(minecraft.currentScreen, error.getMessage()));
+            return 1;
+        }
         WorldGeneratorFallback.startingWorld();
         if (SavedDimensionLoad.start(minecraft, folder, name) != 0) {
             return 1;
@@ -40,6 +49,15 @@ public final class WorldJoinCallbacks {
         LOADING.set(Boolean.TRUE);
         try {
             minecraft.startWorld(folder, name, seed);
+            if (minecraft.theWorld != null) {
+                try {
+                    WorldMaterialSignatures.record(directory);
+                } catch (IOException error) {
+                    minecraft.changeWorld1(null);
+                    minecraft.displayGuiScreen(new GuiWorldGenerationError(parent,
+                            "Could not save world material dependencies: " + error.getMessage()));
+                }
+            }
         } catch (RuntimeException exception) {
             // Native construction has not installed a world yet. Never save a partially
             // constructed replacement while reporting an incompatible generator.
@@ -63,11 +81,8 @@ public final class WorldJoinCallbacks {
                 ? folder
                 : save.getDisplayName();
         try {
-            Path root = new File(Minecraft.getMinecraftDir(), "saves").toPath().toAbsolutePath().normalize();
-            Path directory = root.resolve(folder).normalize();
-            if (!directory.startsWith(root) || directory.equals(root)) {
-                throw new IOException("Invalid world save folder");
-            }
+            Path directory = worldDirectory(folder);
+            WorldMaterialSignatures.preflight(directory);
             WorldInfo info = minecraft.getSaveLoader().func_22173_b(folder);
             if (info == null) {
                 return 0;
@@ -95,6 +110,15 @@ public final class WorldJoinCallbacks {
         if (minecraft.theWorld != null) {
             minecraft.displayGuiScreen(null);
         }
+    }
+
+    private static Path worldDirectory(String folder) throws IOException {
+        Path root = new File(Minecraft.getMinecraftDir(), "saves").toPath().toAbsolutePath().normalize();
+        Path directory = root.resolve(folder).normalize();
+        if (!directory.startsWith(root) || directory.equals(root)) {
+            throw new IOException("Invalid world save folder");
+        }
+        return directory;
     }
 
 }

@@ -794,7 +794,11 @@ public final class EntityLuaApiTest {
             require(destroyedDrop.attackEntityFrom(null, 5) && destroyedDrop.isDead
                     && "destroyed".equals(lua.get("pickupOrder").tojstring()),
                     "Native pickup damage must report an accepted hit and a destroyed removal reason");
-            EntitySpawner.Result spawned = EntitySpawner.spawn(world, lamp.key, 2, 64, 2, 0, 0);
+            EntitySpawner.Result spawned = EntitySpawner.spawn(world, lamp.key, 2.5, 64.01, 2.5, 0, 0);
+            require(spawned.entity != null && spawned.entity.prevPosX == 2.5 && spawned.entity.prevPosY == 64.01
+                    && spawned.entity.prevPosZ == 2.5 && spawned.entity.lastTickPosX == 2.5
+                    && spawned.entity.lastTickPosY == 64.01 && spawned.entity.lastTickPosZ == 2.5,
+                    "New entities must render at their spawn position before the first update");
             require(spawned.entity != null && lua.get("spawnCount").toint() == 1,
                     "New instances must dispatch onSpawn only after insertion");
             ((LuaPropEntity) spawned.entity).entityState().removalReason("explicit");

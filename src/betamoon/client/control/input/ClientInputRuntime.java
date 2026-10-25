@@ -45,11 +45,13 @@ public final class ClientInputRuntime {
         keyboardConsumed = false;
         mouseConsumed = false;
         if (minecraft == null) {
+            MotionInputObservation.begin(null, false);
             ROUTER.beginCycle(null, null, null, false);
             CONTROLLERS.beginCycle(null, null, null, false);
             return;
         }
         boolean focused = !Display.isCreated() || Display.isActive();
+        MotionInputObservation.begin(minecraft, focused);
         ROUTER.beginCycle(minecraft.theWorld, minecraft.thePlayer, minecraft.currentScreen, focused);
         CONTROLLERS.beginCycle(minecraft.theWorld, minecraft.thePlayer, minecraft.currentScreen, focused);
     }
@@ -65,6 +67,9 @@ public final class ClientInputRuntime {
             keyboardConsumed = ROUTER.accept(InputDeviceEvent.key(keyCode, Keyboard.getEventKeyState()));
             keyboardConsumed |= capturesGuiInput();
             keyboardConsumed |= ROUTER.captures(InputFamily.INVENTORY) && isInventoryKey(keyCode);
+            MotionInputObservation.accept(keyCode, Keyboard.getEventKeyState(),
+                    !keyboardConsumed && !ROUTER.captures(InputFamily.MOVEMENT)
+                            && !ROUTER.isPhysicalConsumed(InputDeviceEvent.Device.KEYBOARD, keyCode));
             if (!keyboardConsumed && Keyboard.getEventKeyState() && isInventoryKey(keyCode) && currentMinecraft != null
                     && currentMinecraft.currentScreen == null) {
                 keyboardConsumed = !CONTROLLERS.allowInventory(currentMinecraft.thePlayer, inventoryAction(keyCode),
@@ -167,7 +172,9 @@ public final class ClientInputRuntime {
     }
 
     public static void applyControllerMovement(MovementInputFromOptions input, EntityPlayerSP player) {
+        PlayerControllerRuntime.Movement raw = MotionInputObservation.nativeLogical(input);
         CONTROLLERS.movement(input, player);
+        MotionInputObservation.resolved(player, CONTROLLERS.logicalMovement(raw));
     }
 
     public static boolean consumesLook() {

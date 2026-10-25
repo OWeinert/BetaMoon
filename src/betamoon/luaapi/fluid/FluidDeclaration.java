@@ -14,6 +14,7 @@ import betamoon.fluid.FluidEntityPolicy;
 import betamoon.fluid.FluidFlowPolicy;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.asset.AssetInputs;
+import betamoon.luaapi.material.BlockMaterialRegistry;
 import betamoon.luaapi.utils.LuaContentNamespaces;
 import betamoon.luaapi.utils.LuaDeclarationValues;
 import betamoon.luamodloader.LuaScriptRegistry;
@@ -101,11 +102,17 @@ final class FluidDeclaration {
     }
 
     private static FluidCarrier carrier(LuaValue value) {
-        try {
-            return FluidCarrier.fromName(value.checkjstring());
-        } catch (IllegalArgumentException error) {
-            throw new LuaError("fluid.material: " + error.getMessage());
+        BlockMaterialRegistry.Entry material = BlockMaterialRegistry.resolve(value, "fluid.material");
+        if ("water".equals(material.key)) {
+            return FluidCarrier.WATER;
         }
+        if ("lava".equals(material.key)) {
+            return FluidCarrier.LAVA;
+        }
+        if (!material.custom() || !material.material.getIsLiquid()) {
+            throw new LuaError("fluid.material: expected water, lava, or a registered liquid material");
+        }
+        return new FluidCarrier.Custom(material.key, material.signature, material.material);
     }
 
     private static FluidFlowPolicy preset(String preset) {

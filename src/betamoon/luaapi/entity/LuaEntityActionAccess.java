@@ -23,6 +23,7 @@ import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.audio.SoundEvents;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.utils.LuaDeclarationValues;
+import betamoon.luaapi.utils.LuaPositionArguments;
 import net.minecraft.src.Entity;
 import net.minecraft.src.EntityCreature;
 import net.minecraft.src.EntityList;
@@ -51,6 +52,7 @@ public final class LuaEntityActionAccess {
     public static LuaTable create(LuaCallbackScope scope, EntityPlayer player, final Entity entity) {
 
         final LuaEntityReference api = new LuaEntityReference(scope, entity);
+        EntityModifiersApi.attach(api, scope, entity);
         LuaEntityTransforms.attach(api, scope, entity);
         api.set("isPlayer", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
@@ -193,9 +195,10 @@ public final class LuaEntityActionAccess {
         api.set("setVelocity", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 scope.requireMutable();
-                double x = number(argument(a, api, 1), "velocity.x");
-                double y = number(argument(a, api, 2), "velocity.y");
-                double z = number(argument(a, api, 3), "velocity.z");
+                LuaPositionArguments.Position position = LuaPositionArguments.vector(a, api, 1, "setVelocity");
+                double x = position.x;
+                double y = position.y;
+                double z = position.z;
                 if (Math.abs(x) > 16 || Math.abs(y) > 16 || Math.abs(z) > 16) {
                     throw LuaDeclarationValues.error("setVelocity",
                             "each motion component must be within -16..16 blocks per tick");
@@ -245,15 +248,16 @@ public final class LuaEntityActionAccess {
         api.set("facePosition", new VarArgFunction() {
             public Varargs invoke(Varargs a) {
                 scope.requireMutable();
-                double x = number(argument(a, api, 1), "facePosition.x");
-                double y = number(argument(a, api, 2), "facePosition.y");
-                double z = number(argument(a, api, 3), "facePosition.z");
-                float maxYaw = argument(a, api, 4).isnil()
+                LuaPositionArguments.Position position = LuaPositionArguments.vector(a, api, 1, "facePosition");
+                double x = position.x;
+                double y = position.y;
+                double z = position.z;
+                float maxYaw = argument(a, api, position.nextArgument).isnil()
                         ? 180
-                        : (float) number(argument(a, api, 4), "facePosition.maxYaw");
-                float maxPitch = argument(a, api, 5).isnil()
+                        : (float) number(argument(a, api, position.nextArgument), "facePosition.maxYaw");
+                float maxPitch = argument(a, api, position.nextArgument + 1).isnil()
                         ? 180
-                        : (float) number(argument(a, api, 5), "facePosition.maxPitch");
+                        : (float) number(argument(a, api, position.nextArgument + 1), "facePosition.maxPitch");
                 if (maxYaw < 0 || maxYaw > 180 || maxPitch < 0 || maxPitch > 180) {
                     throw LuaDeclarationValues.error("facePosition", "maximum yaw and pitch must be 0..180 degrees");
                 }
@@ -297,9 +301,10 @@ public final class LuaEntityActionAccess {
                     return FALSE;
                 }
                 String name = argument(a, api, 1).checkjstring();
-                double x = number(argument(a, api, 2), "setPartOffset.x");
-                double y = number(argument(a, api, 3), "setPartOffset.y");
-                double z = number(argument(a, api, 4), "setPartOffset.z");
+                LuaPositionArguments.Position position = LuaPositionArguments.vector(a, api, 2, "setPartOffset");
+                double x = position.x;
+                double y = position.y;
+                double z = position.z;
                 if (Math.abs(x) > 16 || Math.abs(y) > 16 || Math.abs(z) > 16) {
                     throw LuaDeclarationValues.error("setPartOffset",
                             "offset components must be within -16..16 blocks");
@@ -314,9 +319,10 @@ public final class LuaEntityActionAccess {
                     return FALSE;
                 }
                 String name = argument(a, api, 1).checkjstring();
-                double x = number(argument(a, api, 2), "setInteractionOffset.x");
-                double y = number(argument(a, api, 3), "setInteractionOffset.y");
-                double z = number(argument(a, api, 4), "setInteractionOffset.z");
+                LuaPositionArguments.Position position = LuaPositionArguments.vector(a, api, 2, "setInteractionOffset");
+                double x = position.x;
+                double y = position.y;
+                double z = position.z;
                 if (Math.abs(x) > 16 || Math.abs(y) > 16 || Math.abs(z) > 16) {
                     throw LuaDeclarationValues.error("setInteractionOffset",
                             "offset components must be within -16..16 blocks");
@@ -330,9 +336,10 @@ public final class LuaEntityActionAccess {
                 public Varargs invoke(Varargs a) {
                     scope.requireMutable();
                     String name = argument(a, api, 1).checkjstring();
-                    double x = number(argument(a, api, 2), "setSensorOffset.x");
-                    double y = number(argument(a, api, 3), "setSensorOffset.y");
-                    double z = number(argument(a, api, 4), "setSensorOffset.z");
+                    LuaPositionArguments.Position position = LuaPositionArguments.vector(a, api, 2, "setSensorOffset");
+                    double x = position.x;
+                    double y = position.y;
+                    double z = position.z;
                     if (Math.abs(x) > 16 || Math.abs(y) > 16 || Math.abs(z) > 16) {
                         throw LuaDeclarationValues.error("setSensorOffset",
                                 "offset components must be within -16..16 blocks");
@@ -567,12 +574,13 @@ public final class LuaEntityActionAccess {
                         || entity instanceof LuaLivingEntity && !((LuaLivingEntity) entity).usesNativeNavigation()) {
                     return FALSE;
                 }
-                int x = integer(argument(a, api, 1), "navigateTo.x", -30000000, 30000000);
-                int y = integer(argument(a, api, 2), "navigateTo.y", 0, 127);
-                int z = integer(argument(a, api, 3), "navigateTo.z", -30000000, 30000000);
-                float range = argument(a, api, 4).isnil()
+                LuaPositionArguments.Position position = LuaPositionArguments.cell(a, api, 1, "navigateTo");
+                int x = position.xInt();
+                int y = position.yInt();
+                int z = position.zInt();
+                float range = argument(a, api, position.nextArgument).isnil()
                         ? 16
-                        : (float) number(argument(a, api, 4), "navigateTo.range");
+                        : (float) number(argument(a, api, position.nextArgument), "navigateTo.range");
                 if (range <= 0 || range > 32 || !entity.worldObj.blockExists(x, y, z)
                         || !pathAreaLoaded(entity, range)) {
                     return FALSE;
@@ -624,10 +632,13 @@ public final class LuaEntityActionAccess {
                 if (entity.worldObj == null || entity.isDead) {
                     return NIL;
                 }
-                int x = integer(argument(a, api, 1), "getPathTo.x", -30000000, 30000000);
-                int y = integer(argument(a, api, 2), "getPathTo.y", 0, 127);
-                int z = integer(argument(a, api, 3), "getPathTo.z", -30000000, 30000000);
-                float range = argument(a, api, 4).isnil() ? 16 : (float) number(argument(a, api, 4), "getPathTo.range");
+                LuaPositionArguments.Position position = LuaPositionArguments.cell(a, api, 1, "getPathTo");
+                int x = position.xInt();
+                int y = position.yInt();
+                int z = position.zInt();
+                float range = argument(a, api, position.nextArgument).isnil()
+                        ? 16
+                        : (float) number(argument(a, api, position.nextArgument), "getPathTo.range");
                 if (range <= 0 || range > 32 || !entity.worldObj.blockExists(x, y, z)
                         || !pathAreaLoaded(entity, range)) {
                     return NIL;
@@ -639,11 +650,11 @@ public final class LuaEntityActionAccess {
                 LuaTable points = new LuaTable();
                 for (int index = 1; index <= path.pathLength && index <= 256; index++) {
                     Vec3D point = path.getPosition(entity);
-                    LuaTable position = new LuaTable();
-                    position.set("x", point.xCoord);
-                    position.set("y", point.yCoord);
-                    position.set("z", point.zCoord);
-                    points.set(index, position);
+                    LuaTable waypoint = new LuaTable();
+                    waypoint.set("x", point.xCoord);
+                    waypoint.set("y", point.yCoord);
+                    waypoint.set("z", point.zCoord);
+                    points.set(index, waypoint);
                     path.incrementPathIndex();
                 }
                 return points;
@@ -725,9 +736,10 @@ public final class LuaEntityActionAccess {
                 if (entity instanceof LuaEntityPart || entity.isDead || entity.worldObj == null) {
                     return FALSE;
                 }
-                double x = number(argument(a, api, 1), "setPosition.x");
-                double y = number(argument(a, api, 2), "setPosition.y");
-                double z = number(argument(a, api, 3), "setPosition.z");
+                LuaPositionArguments.Position position = LuaPositionArguments.vector(a, api, 1, "setPosition");
+                double x = position.x;
+                double y = position.y;
+                double z = position.z;
                 if (Math.abs(x) > 30000000 || Math.abs(z) > 30000000 || y < -64 || y > 4096
                         || !entity.worldObj.blockExists((int) Math.floor(x), 64, (int) Math.floor(z))) {
                     return FALSE;
@@ -1063,9 +1075,10 @@ public final class LuaEntityActionAccess {
         return new VarArgFunction() {
             public Varargs invoke(Varargs args) {
                 scope.requireMutable();
-                double x = number(argument(args, receiver, 1), method + ".x");
-                double y = number(argument(args, receiver, 2), method + ".y");
-                double z = number(argument(args, receiver, 3), method + ".z");
+                LuaPositionArguments.Position position = LuaPositionArguments.vector(args, receiver, 1, method);
+                double x = position.x;
+                double y = position.y;
+                double z = position.z;
                 if (x < min || x > max || y < min || y > max || z < min || z > max) {
                     throw LuaDeclarationValues.error(method, "components must be within " + min + ".." + max);
                 }

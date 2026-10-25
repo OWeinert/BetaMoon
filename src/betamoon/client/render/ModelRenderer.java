@@ -83,7 +83,8 @@ public final class ModelRenderer {
             if (translucent != (pass == 1)) {
                 continue;
             }
-            binder.bind(appearance.textures.get(entry.getKey()));
+            ModelTextureBinding texture = appearance.textures.get(entry.getKey());
+            binder.bind(texture.resource());
             for (int sided = 0; sided < 2; sided++) {
                 state(material, brightness);
                 if (sided == 1) {
@@ -106,8 +107,8 @@ public final class ModelRenderer {
                             GL11.glNormal3d(normal.x, normal.y, normal.z);
                             for (int i = 0; i < 4; i++) {
                                 ModelVector uv = face.uv.get(i);
-                                GL11.glTexCoord2d(uv.x * material.scaleU + material.u,
-                                        uv.y * material.scaleV + material.v);
+                                GL11.glTexCoord2d(texture.mapU(uv.x * material.scaleU + material.u),
+                                        texture.mapV(uv.y * material.scaleV + material.v));
                                 GL11.glVertex3d(vertices[i].x, vertices[i].y, vertices[i].z);
                             }
                         }

@@ -248,6 +248,12 @@ final class RegionalStructureRegistry {
                 Candidate candidate = candidate(definition, world.getRandomSeed(), dimension, regionX, regionZ);
                 int startX = (candidate.chunkX << 4) + 8;
                 int startZ = (candidate.chunkZ << 4) + 8;
+                if (!WorldGenerationRuntime.overridePopulationEnabled(world, definition.key.toString(),
+                        startX, startZ, false)) {
+                    index.reject(id);
+                    reject(definition.key, "terrain_override");
+                    continue;
+                }
                 if (!definition.heightType.equals("fixed") && !world.blockExists(startX, 64, startZ)) {
                     continue;
                 }

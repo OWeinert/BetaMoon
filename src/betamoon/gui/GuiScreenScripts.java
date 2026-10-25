@@ -29,7 +29,8 @@ public final class GuiScreenScripts extends GuiComponentScreen {
 
     private final GuiScreen parent;
     private final GuiPanelScriptList listPanel = new GuiPanelScriptList();
-    private final GuiPanelScriptInfo infoPanel = new GuiPanelScriptInfo();
+    private final GuiPanelScriptInfo infoPanel = new GuiPanelScriptInfo(new GuiScriptIssueActions(),
+            this::openConfig);
     private final GuiButton backButton;
     private final GuiButton openScriptsButton;
     private final GuiButton reloadButton;
@@ -111,6 +112,12 @@ public final class GuiScreenScripts extends GuiComponentScreen {
     private void showErrorPopup() {
         if (!LuaScriptErrors.getEntries().isEmpty()) {
             showScreen(new GuiPopupScriptErrors(this));
+        }
+    }
+
+    private void openConfig(ScriptMod script) {
+        if (script.isLoaded()) {
+            showScreen(new GuiScreenScriptConfig(this, script));
         }
     }
 

@@ -44,6 +44,9 @@ final class AroundMethodInjector {
                 targetMatch.namespace);
         ResolvedMethod returnHandler = mappings.resolveMethod(definition.getReturnHandler().getMethod(),
                 targetMatch.namespace);
+        ResolvedMethod exceptionHandler = mappings.resolveMethod(definition.getExceptionHandler().getMethod(),
+                targetMatch.namespace);
+        boolean separateCleanup = !exceptionHandler.toString().equals(returnHandler.toString());
 
         if ((targetMatch.method.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE)) != 0) {
             throw failure(definition, "Cannot inject into an abstract or native method: " + targetMatch.target);
@@ -66,7 +69,8 @@ final class AroundMethodInjector {
                     + ": " + returnHandler);
         }
         if (definition.cleansUpOnException()) {
-            if (targetReturnType.getSort() != Type.VOID || returnHandlerType.getSort() != Type.VOID) {
+            if (targetReturnType.getSort() != Type.VOID || returnHandlerType.getSort() != Type.VOID
+                    || Type.getReturnType(exceptionHandler.getDescriptor()).getSort() != Type.VOID) {
                 throw failure(definition, "Exceptional cleanup requires a void target and void cleanup handler");
             }
             for (ValueBinding binding : definition.getReturnBindings()) {
@@ -83,10 +87,13 @@ final class AroundMethodInjector {
 
         int captureCalls = countHandlerCalls(targetMatch.method, captureHandler);
         int returnCalls = countHandlerCalls(targetMatch.method, returnHandler);
-        if (captureCalls == 1 && returnCalls == returns.size() + (definition.cleansUpOnException() ? 1 : 0)) {
+        int exceptionCalls = separateCleanup ? countHandlerCalls(targetMatch.method, exceptionHandler) : 0;
+        if (captureCalls == 1
+                && returnCalls == returns.size() + (definition.cleansUpOnException() && !separateCleanup ? 1 : 0)
+                && exceptionCalls == (definition.cleansUpOnException() && separateCleanup ? 1 : 0)) {
             return HookTransformOutcome.ALREADY_APPLIED;
         }
-        if (captureCalls != 0 || returnCalls != 0) {
+        if (captureCalls != 0 || returnCalls != 0 || exceptionCalls != 0) {
             throw failure(definition, "Target contains partial or conflicting instrumentation (capture calls "
                     + captureCalls + ", return calls " + returnCalls + ", return instructions " + returns.size() + ")");
         }
@@ -95,6 +102,10 @@ final class AroundMethodInjector {
                 false);
         validateBindings(definition, targetMatch, returnHandler, definition.getReturnBindings(), targetReturnType,
                 captureType, true);
+        if (definition.cleansUpOnException()) {
+            validateBindings(definition, targetMatch, exceptionHandler, definition.getReturnBindings(),
+                    targetReturnType, captureType, true);
+        }
 
         int captureLocal = targetMatch.method.maxLocals;
         targetMatch.method.maxLocals += captureType.getSize();
@@ -170,8 +181,8 @@ final class AroundMethodInjector {
             LabelNode cleanupEnd = new LabelNode();
             LabelNode cleanupFailed = new LabelNode();
             exceptional.add(cleanupStart);
-            exceptional.add(new MethodInsnNode(Opcodes.INVOKESTATIC, returnHandler.getOwner(), returnHandler.getName(),
-                    returnHandler.getDescriptor(), false));
+            exceptional.add(new MethodInsnNode(Opcodes.INVOKESTATIC, exceptionHandler.getOwner(),
+                    exceptionHandler.getName(), exceptionHandler.getDescriptor(), false));
             exceptional.add(cleanupEnd);
             exceptional.add(new JumpInsnNode(Opcodes.GOTO, rethrow));
             exceptional.add(cleanupFailed);

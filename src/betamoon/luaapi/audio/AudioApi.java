@@ -38,7 +38,7 @@ public final class AudioApi {
                 } catch (IllegalStateException error) {
                     throw new LuaError("Sound event: " + error.getMessage());
                 }
-                return new SoundEventReference(definition.key);
+                return SoundEventReference.of(definition.key);
             }
         });
         events.set("get", lookup(events, false));
@@ -70,7 +70,7 @@ public final class AudioApi {
                 }
                 List<LuaValue> matches = new ArrayList<LuaValue>();
                 for (SoundEvents.Entry entry : SoundEvents.entries()) {
-                    SoundEventReference reference = new SoundEventReference(entry.base.key);
+                    SoundEventReference reference = SoundEventReference.of(entry.base.key);
                     if (reference.matches(criteria)) {
                         matches.add(reference);
                     }
@@ -103,7 +103,7 @@ public final class AudioApi {
                     }
                     return NIL;
                 }
-                return new SoundEventReference(key);
+                return SoundEventReference.of(key);
             }
         };
     }

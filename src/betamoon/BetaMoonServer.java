@@ -2,6 +2,7 @@ package betamoon;
 
 import betamoon.config.BetaMoonConfig;
 import betamoon.io.BetaMoonDirectories;
+import betamoon.luaapi.config.ScriptConfigRegistry;
 import java.io.File;
 
 /** Dedicated-server entry point. It contains no client or GUI dependencies. */
@@ -46,6 +47,7 @@ public final class BetaMoonServer {
 
     /** Runs server-side maintenance on the Minecraft server thread. */
     public void tick() {
+        ScriptConfigRegistry.tick();
         if (started && config.getHotReloadOnFileChange().getValue()) {
             common.pollScripts();
         }

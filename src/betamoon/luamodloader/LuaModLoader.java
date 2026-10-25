@@ -12,6 +12,7 @@ import betamoon.loot.LootTableRegistry;
 import betamoon.luaapi.block.BlockCallbackRegistry;
 import betamoon.luaapi.fluid.FluidDefinitionTracker;
 import betamoon.luaapi.module.ModuleRegistry;
+import betamoon.luaapi.resource.ResourceApi;
 import betamoon.multiblock.MultiblockRegistry;
 import betamoon.particles.ParticleRegistry;
 import betamoon.recipes.RecipeModificationHandler;
@@ -83,6 +84,7 @@ public final class LuaModLoader {
     }
 
     private void loadAndRunInternal() {
+        ResourceApi.invalidateNameIndexes();
         LuaContentRegistry.beginLoadPass();
         FluidDefinitionTracker.beginLoadPass();
         FluidInteractionRegistry.instance().beginLoadPass();

@@ -6,6 +6,7 @@ import betamoon.worldgen.WorldGenRegistry;
 import betamoon.worldgen.biome.BiomeDefinition;
 import betamoon.worldgen.spatial.SpatialRegistry;
 import betamoon.worldgen.terrain.TerrainRegistry;
+import betamoon.worldgen.terrain.BiomeRegionOverride;
 import betamoon.worldgen.terrain.GenerationSignature;
 import betamoon.worldgen.terrain.GeneratorProfileRegistry;
 import betamoon.worldgen.terrain.PopulationPolicy;
@@ -31,6 +32,7 @@ public final class GenerationSelection {
     public final Map<String, String> dependencies;
     public final Map<String, String> profileDependencies;
     public final List<String> climate;
+    public final List<String> overrideOrder;
 
     public GenerationSelection(long seed, String preset, Map<String, Boolean> choices,
             Map<String, List<String>> parents, Map<String, String> dependencies,
@@ -58,7 +60,105 @@ public final class GenerationSelection {
             }
         }
         enabled = Collections.unmodifiableSet(resolved);
+        List<String> order = new ArrayList<String>();
+        for (String entry : enabled) {
+            if (entry.startsWith("override/")) {
+                order.add(entry.substring("override/".length()));
+            }
+        }
+        overrideOrder = Collections.unmodifiableList(sortOverrides(order));
         validateBiomes();
+    }
+
+    private static List<String> sortOverrides(List<String> keys) {
+        Map<String, Set<String>> following = new TreeMap<String, Set<String>>();
+        for (String key : keys) {
+            following.put(key, new TreeSet<String>());
+        }
+        for (String key : keys) {
+            BiomeRegionOverride override = TerrainRegistry.snapshot().overrideOrNull(key);
+            if (override == null) {
+                continue;
+            }
+            for (String later : override.before) {
+                if (following.containsKey(later)) {
+                    following.get(key).add(later);
+                }
+            }
+            for (String earlier : override.after) {
+                if (following.containsKey(earlier)) {
+                    following.get(earlier).add(key);
+                }
+            }
+        }
+        for (int first = 0; first < keys.size(); first++) {
+            BiomeRegionOverride left = TerrainRegistry.snapshot().overrideOrNull(keys.get(first));
+            if (left == null) {
+                continue;
+            }
+            for (int second = first + 1; second < keys.size(); second++) {
+                BiomeRegionOverride right = TerrainRegistry.snapshot().overrideOrNull(keys.get(second));
+                if (right == null || left.priority != right.priority || !left.mayOverlap(right)) {
+                    continue;
+                }
+                boolean terrainConflict = left.terrain != null && right.terrain != null;
+                boolean carverConflict = !left.carverMode.equals("inherit")
+                        && !right.carverMode.equals("inherit")
+                        && (!left.carverMode.equals("add") || !right.carverMode.equals("add"));
+                boolean materialConflict = left.material != null && right.material != null;
+                boolean terrainMaterialConflict = left.terrain != null && right.material != null
+                        || right.terrain != null && left.material != null;
+                boolean surfaceConflict = !left.surfaceMode.equals("inherit") && !right.surfaceMode.equals("inherit");
+                if ((terrainConflict || carverConflict || materialConflict || terrainMaterialConflict
+                        || surfaceConflict)
+                        && !reachable(following, left.key, right.key, new TreeSet<String>())
+                        && !reachable(following, right.key, left.key, new TreeSet<String>())) {
+                    throw new IllegalArgumentException("Overlapping replacement overrides require distinct priority "
+                            + "or before/after ordering: " + left.key + " and " + right.key);
+                }
+            }
+        }
+        List<String> sorted = new ArrayList<String>();
+        Set<String> remaining = new TreeSet<String>(keys);
+        while (!remaining.isEmpty()) {
+            String next = null;
+            for (String candidate : remaining) {
+                boolean incoming = false;
+                for (String other : remaining) {
+                    incoming |= following.get(other).contains(candidate);
+                }
+                if (!incoming && (next == null || compareOverrides(candidate, next) < 0)) {
+                    next = candidate;
+                }
+            }
+            if (next == null) {
+                throw new IllegalArgumentException("Cyclic terrain override ordering: " + remaining);
+            }
+            sorted.add(next);
+            remaining.remove(next);
+        }
+        return sorted;
+    }
+
+    private static boolean reachable(Map<String, Set<String>> graph, String from, String to, Set<String> visited) {
+        if (!visited.add(from)) {
+            return false;
+        }
+        for (String next : graph.get(from)) {
+            if (next.equals(to) || reachable(graph, next, to, visited)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int compareOverrides(String left, String right) {
+        BiomeRegionOverride first = TerrainRegistry.snapshot().overrideOrNull(left);
+        BiomeRegionOverride second = TerrainRegistry.snapshot().overrideOrNull(right);
+        int leftPriority = first == null ? 0 : first.priority;
+        int rightPriority = second == null ? 0 : second.priority;
+        int compared = Integer.compare(leftPriority, rightPriority);
+        return compared == 0 ? left.compareTo(right) : compared;
     }
 
     private boolean resolve(String key, Set<String> visiting, Map<String, Boolean> memo) {
@@ -159,6 +259,8 @@ public final class GenerationSelection {
         for (String key : enabled) {
             if (key.startsWith("biome/") && GenerationBiomes.resolve(key.substring(6)) == null) {
                 missing.add(key.substring(6));
+            } else if (key.startsWith("override/") && !TerrainRegistry.snapshot().hasOverride(key.substring(9))) {
+                missing.add(key.substring(9));
             }
         }
         return new ArrayList<String>(missing);
@@ -189,6 +291,12 @@ public final class GenerationSelection {
         for (String key : enabled) {
             if (key.startsWith("biome/") && GenerationBiomes.resolve(key.substring(6)) == null) {
                 throw new IllegalStateException("This world requires missing biome " + key.substring(6));
+            } else if (key.startsWith("override/")) {
+                BiomeRegionOverride override = TerrainRegistry.snapshot().overrideOrNull(key.substring(9));
+                if (override == null || !override.compatible(preset)) {
+                    throw new IllegalStateException("This world requires missing or incompatible terrain override "
+                            + key.substring(9));
+                }
             }
         }
     }
@@ -242,6 +350,11 @@ public final class GenerationSelection {
                 if (biome != null && biome.surface != null) {
                     keys.add(biome.surface.toString());
                 }
+            } else if (key.startsWith("override/")) {
+                BiomeRegionOverride override = TerrainRegistry.snapshot().overrideOrNull(key.substring(9));
+                if (override != null) {
+                    keys.add("terrain_override:" + override.key);
+                }
             }
         }
         boolean expanded;
@@ -271,6 +384,13 @@ public final class GenerationSelection {
                 result.put(key, signature);
             }
         }
+        for (String key : overrideOrder) {
+            BiomeRegionOverride override = TerrainRegistry.snapshot().overrideOrNull(key);
+            if (override != null) {
+                result.put("terrain_override:" + key, override.signature);
+            }
+        }
+        result.put("terrain_override_order", GenerationSignature.of(overrideSignatures()));
         // Track existence even for declarations registered by legacy facades.
         for (WorldGenRegistry.PlacementDescription entry : WorldGenRegistry.placementSnapshot()) {
             if (enabled("placement/" + entry.key)) {
@@ -283,6 +403,14 @@ public final class GenerationSelection {
             }
         }
         return result;
+    }
+
+    private Map<String, String> overrideSignatures() {
+        Map<String, String> signatures = new LinkedHashMap<String, String>();
+        for (int index = 0; index < overrideOrder.size(); index++) {
+            signatures.put(Integer.toString(index), overrideOrder.get(index));
+        }
+        return signatures;
     }
 
     public PopulationPolicy population() {

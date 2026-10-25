@@ -34,6 +34,7 @@ public final class LoaderCollectionsTest {
             verifyRetainedContent();
             verifyDependencyOrdering();
             verifyDependencyFailures();
+            verifyVersionedDependencies();
             verifyScriptParsing();
             verifyLifecycleOwnership();
             verifyModuleLifecycle();
@@ -221,6 +222,33 @@ public final class LoaderCollectionsTest {
         require(missing.getMissingDependencies().equals(Collections.singletonList("absent")),
                 "Missing dependency names must remain available to the GUI");
         require(!errors.isEmpty(), "Dependency failures must produce diagnostics");
+    }
+
+    private static void verifyVersionedDependencies() {
+        LuaScriptRegistry.clear();
+        LuaScriptErrors.clear();
+        ScriptMod library = script("library", Collections.emptyList());
+        library.version = "1.2.0";
+        ScriptMod consumer = script("consumer", Collections.singletonList("library"));
+        consumer.minimumDependencyVersions = Collections.singletonMap("library", "1.2.0");
+        LuaModLoader loader = new LuaModLoader();
+        List<String> errors = new ArrayList<>();
+        Map<String, ScriptMod> indexed = loader.indexModsByName(Arrays.asList(consumer, library), errors);
+        require(loader.orderMods(indexed, errors).indexOf(library) == 0 && errors.isEmpty(),
+                "An equal minimum version must allow dependency ordering");
+
+        library.version = "1.1.9";
+        errors.clear();
+        require(loader.orderMods(indexed, errors).equals(Collections.singletonList(library))
+                && contains(errors, "has 1.1.9, requires at least 1.2.0"),
+                "An incompatible version must fail the consumer before initialization");
+        library.version = "preview";
+        errors.clear();
+        require(loader.orderMods(indexed, errors).equals(Collections.singletonList(library))
+                && contains(errors, "unsupported version 'preview'"),
+                "A versioned dependency must reject an ambiguous installed version");
+        require(PackageVersion.parse("10000000000.2.0").compareTo(PackageVersion.parse("9.20.0")) > 0,
+                "Numeric comparison must not overflow integer components");
     }
 
     private static void verifyLifecycleOwnership() {

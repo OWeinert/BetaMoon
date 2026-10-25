@@ -2,6 +2,7 @@ package betamoon.luaapi.item;
 
 import net.minecraft.src.Item;
 import betamoon.luamodloader.LuaContentRegistry;
+import betamoon.luaapi.resource.ResourceApi;
 import net.minecraft.src.ItemStack;
 import org.luaj.vm2.LuaValue;
 
@@ -24,6 +25,7 @@ public final class ItemApi {
         }
         LuaValue key = definition.get("key");
         LuaContentRegistry.recordDeclaredKey("item", item.shiftedIndex, key.isstring() ? key.tojstring() : null);
+        ResourceApi.invalidateNameIndexes();
         return item;
     }
 }

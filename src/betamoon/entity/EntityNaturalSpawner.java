@@ -13,7 +13,6 @@ import java.util.Set;
 import net.minecraft.src.ChunkCoordIntPair;
 import net.minecraft.src.ChunkCoordinates;
 import net.minecraft.src.EntityPlayer;
-import net.minecraft.src.Material;
 import net.minecraft.src.MathHelper;
 import net.minecraft.src.World;
 
@@ -153,7 +152,7 @@ public final class EntityNaturalSpawner {
             return false;
         }
         return world.isBlockNormalCube(x, y - 1, z) && !world.isBlockNormalCube(x, y, z)
-                && world.getBlockMaterial(x, y, z) != Material.water && world.getBlockMaterial(x, y, z) != Material.lava
+                && !world.getBlockMaterial(x, y, z).getIsLiquid()
                 && !world.isBlockNormalCube(x, y + 1, z);
     }
 
