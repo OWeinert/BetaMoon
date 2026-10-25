@@ -1,10 +1,11 @@
 package betamoon.luaapi.tileentity;
 
 import betamoon.data.DataField;
+import betamoon.gui.presentation.GuiConditionOperator;
+import betamoon.gui.presentation.GuiControlType;
 import betamoon.tileentity.ContainerControlDefinition;
 import betamoon.tileentity.ContainerDefinition;
 import betamoon.tileentity.ContainerGuiDefinition;
-import betamoon.tileentity.GuiConditionOperator;
 import betamoon.tileentity.TileDataType;
 import betamoon.tileentity.TileEntityDefinition;
 import java.util.ArrayList;
@@ -55,8 +56,8 @@ final class ContainerControlParser {
             }
             int maximumLength = field.get("maxLength").optint(type == TileDataType.STRING ? 256 : 0);
             if (type == TileDataType.STRING && (maximumLength < 1 || maximumLength > MAX_TEXT_LENGTH)) {
-                throw new LuaError("container.state." + name + ".maxLength must be between 1 and "
-                        + MAX_TEXT_LENGTH + ".");
+                throw new LuaError(
+                        "container.state." + name + ".maxLength must be between 1 and " + MAX_TEXT_LENGTH + ".");
             }
             if (defaultValue instanceof String && ((String) defaultValue).length() > maximumLength) {
                 throw new LuaError("container.state." + name + ".default exceeds maxLength.");
@@ -96,57 +97,52 @@ final class ContainerControlParser {
     private static ContainerControlDefinition parseControl(String name, LuaValue value, TileEntityDefinition tile,
             Map<String, ContainerDefinition.SessionField> session) {
         String path = "container.controls." + name;
-        ContainerControlDefinition.Type type;
+        GuiControlType type;
         try {
-            type = ContainerControlDefinition.Type.valueOf(required(value, "type").checkjstring().toUpperCase());
+            type = GuiControlType.valueOf(required(value, "type").checkjstring().toUpperCase());
         } catch (IllegalArgumentException error) {
             throw new LuaError(path + ".type must be action, toggle, number, text, choice, or custom.");
         }
         Binding binding = binding(value.get("bind"), path, type, tile, session);
-        double minimum = type == ContainerControlDefinition.Type.NUMBER
-                ? required(value, "minimum").checkdouble() : 0.0D;
-        double maximum = type == ContainerControlDefinition.Type.NUMBER
-                ? required(value, "maximum").checkdouble() : 1.0D;
+        double minimum = type == GuiControlType.NUMBER ? required(value, "minimum").checkdouble() : 0.0D;
+        double maximum = type == GuiControlType.NUMBER ? required(value, "maximum").checkdouble() : 1.0D;
         double step = value.get("step").optdouble(1.0D);
         double pageStep = value.get("pageStep").optdouble(step * 10.0D);
-        if (type == ContainerControlDefinition.Type.NUMBER
+        if (type == GuiControlType.NUMBER
                 && (!Double.isFinite(minimum) || !Double.isFinite(maximum) || !Double.isFinite(step)
                         || !Double.isFinite(pageStep) || maximum <= minimum || step <= 0.0D || pageStep <= 0.0D)) {
             throw new LuaError(path + " requires finite minimum < maximum and positive step/pageStep.");
         }
-        if (type == ContainerControlDefinition.Type.NUMBER && binding.type == DataField.Type.INTEGER
+        if (type == GuiControlType.NUMBER && binding.type == DataField.Type.INTEGER
                 && !(integer(minimum) && integer(maximum) && integer(step) && integer(pageStep))) {
-            throw new LuaError(path + " uses an integer binding, so minimum, maximum, step, and pageStep"
-                    + " must be integers.");
+            throw new LuaError(
+                    path + " uses an integer binding, so minimum, maximum, step, and pageStep" + " must be integers.");
         }
         int maximumLength = value.get("maxLength").optint(256);
-        if (type == ContainerControlDefinition.Type.TEXT
-                && (maximumLength < 1 || maximumLength > MAX_TEXT_LENGTH)) {
+        if (type == GuiControlType.TEXT && (maximumLength < 1 || maximumLength > MAX_TEXT_LENGTH)) {
             throw new LuaError(path + ".maxLength must be between 1 and " + MAX_TEXT_LENGTH + ".");
         }
-        List<Object> choices = type == ContainerControlDefinition.Type.CHOICE
-                ? choices(required(value, "values"), path + ".values") : Collections.emptyList();
+        List<Object> choices = type == GuiControlType.CHOICE
+                ? choices(required(value, "values"), path + ".values")
+                : Collections.emptyList();
         validateBindingType(path, type, binding.type, choices);
         choices = normalizeChoices(binding.type, choices);
-        return new ContainerControlDefinition(name, type, binding.source, binding.field,
-                minimum, maximum, step, pageStep, maximumLength, value.get("wrap").optboolean(true), choices,
+        return new ContainerControlDefinition(name, type, binding.source, binding.field, minimum, maximum, step,
+                pageStep, maximumLength, value.get("wrap").optboolean(true), choices,
                 condition(value.get("enabledWhen"), tile, session, path + ".enabledWhen"),
                 callback(value.get("beforeChange"), path + ".beforeChange"),
                 callback(value.get("onActivate"), path + ".onActivate"),
-                callback(value.get("onChange"), path + ".onChange"),
-                callback(value.get("onEdit"), path + ".onEdit"),
-                callback(value.get("onCommit"), path + ".onCommit"),
-                callback(value.get("onInput"), path + ".onInput"));
+                callback(value.get("onChange"), path + ".onChange"), callback(value.get("onEdit"), path + ".onEdit"),
+                callback(value.get("onCommit"), path + ".onCommit"), callback(value.get("onInput"), path + ".onInput"));
     }
 
-    private static Binding binding(LuaValue value, String path, ContainerControlDefinition.Type type,
-            TileEntityDefinition tile, Map<String, ContainerDefinition.SessionField> session) {
-        if ((type == ContainerControlDefinition.Type.ACTION || type == ContainerControlDefinition.Type.CUSTOM)
-                && !value.isnil()) {
+    private static Binding binding(LuaValue value, String path, GuiControlType type, TileEntityDefinition tile,
+            Map<String, ContainerDefinition.SessionField> session) {
+        if ((type == GuiControlType.ACTION || type == GuiControlType.CUSTOM) && !value.isnil()) {
             throw new LuaError(path + ".bind is unsupported for action and custom controls.");
         }
         if (value.isnil()) {
-            if (type == ContainerControlDefinition.Type.ACTION || type == ContainerControlDefinition.Type.CUSTOM) {
+            if (type == GuiControlType.ACTION || type == GuiControlType.CUSTOM) {
                 return new Binding(ContainerControlDefinition.Source.NONE, null, null);
             }
             throw new LuaError(path + ".bind is required for value controls.");
@@ -171,17 +167,16 @@ final class ContainerControlParser {
         return new Binding(ContainerControlDefinition.Source.SESSION, sessionName, dataType(field.type));
     }
 
-    private static void validateBindingType(String path, ContainerControlDefinition.Type control,
-            DataField.Type field,
+    private static void validateBindingType(String path, GuiControlType control, DataField.Type field,
             List<Object> choices) {
-        if (control == ContainerControlDefinition.Type.ACTION || control == ContainerControlDefinition.Type.CUSTOM) {
+        if (control == GuiControlType.ACTION || control == GuiControlType.CUSTOM) {
             return;
         }
-        boolean valid = control == ContainerControlDefinition.Type.TOGGLE && field == DataField.Type.BOOLEAN
-                || control == ContainerControlDefinition.Type.NUMBER
+        boolean valid = control == GuiControlType.TOGGLE && field == DataField.Type.BOOLEAN
+                || control == GuiControlType.NUMBER
                         && (field == DataField.Type.INTEGER || field == DataField.Type.NUMBER)
-                || control == ContainerControlDefinition.Type.TEXT && field == DataField.Type.STRING
-                || control == ContainerControlDefinition.Type.CHOICE && choiceType(field, choices);
+                || control == GuiControlType.TEXT && field == DataField.Type.STRING
+                || control == GuiControlType.CHOICE && choiceType(field, choices);
         if (!valid) {
             throw new LuaError(path + ".bind has an incompatible field type.");
         }

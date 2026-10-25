@@ -1,4 +1,4 @@
-package betamoon.tileentity;
+package betamoon.gui.presentation;
 
 import betamoon.luamodloader.ScriptResourceTracker;
 import java.util.ArrayList;
@@ -9,7 +9,7 @@ import java.util.Set;
 import org.luaj.vm2.LuaValue;
 
 /** Immutable presentation contract, including event-family subscriptions. */
-public final class ContainerGuiPresentationDefinition {
+public final class GuiPresentationDefinition {
     public static final Set<String> EVENT_TYPES;
     static {
         Set<String> events = new LinkedHashSet<>();
@@ -18,14 +18,14 @@ public final class ContainerGuiPresentationDefinition {
         EVENT_TYPES = Collections.unmodifiableSet(events);
     }
 
-    public final List<ContainerGuiNodeDefinition> nodes;
+    public final List<GuiNodeDefinition> nodes;
     public final LuaValue onEvent;
     public final Set<String> events;
     public final String callbackOwner;
     public final long ownerGeneration;
 
-    public ContainerGuiPresentationDefinition(List<ContainerGuiNodeDefinition> nodes, LuaValue onEvent,
-            Set<String> events, String callbackOwner) {
+    public GuiPresentationDefinition(List<GuiNodeDefinition> nodes, LuaValue onEvent, Set<String> events,
+            String callbackOwner) {
         this.callbackOwner = callbackOwner;
         this.ownerGeneration = ScriptResourceTracker.ownerGeneration(callbackOwner);
         this.nodes = Collections.unmodifiableList(new ArrayList<>(nodes));

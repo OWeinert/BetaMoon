@@ -1,12 +1,12 @@
 package betamoon.luaapi.tileentity;
 
 import betamoon.gui.animation.GuiTransitionPolicy;
+import betamoon.gui.presentation.GuiNodeDefinition;
+import betamoon.gui.presentation.GuiPresentationDefinition;
+import betamoon.gui.presentation.GuiProperties;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.tileentity.ContainerDefinition;
 import betamoon.tileentity.ContainerGuiDefinition;
-import betamoon.tileentity.ContainerGuiNodeDefinition;
-import betamoon.tileentity.ContainerGuiPresentationDefinition;
-import betamoon.tileentity.ContainerGuiProperties;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -16,9 +16,12 @@ import java.util.Set;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
 
-/** Preserves group identity while retaining the existing flattened render/layout declarations. */
+/**
+ * Preserves group identity while retaining the existing flattened render/layout
+ * declarations.
+ */
 final class ContainerPresentationParser {
-    private final List<ContainerGuiNodeDefinition> nodes = new ArrayList<>();
+    private final List<GuiNodeDefinition> nodes = new ArrayList<>();
     private final Set<String> ids = new HashSet<>();
     private final List<ContainerGuiDefinition.Element> elements;
     private final ContainerDefinition container;
@@ -29,7 +32,7 @@ final class ContainerPresentationParser {
         this.container = container;
     }
 
-    static ContainerGuiPresentationDefinition parse(LuaValue gui, List<ContainerGuiDefinition.Element> elements,
+    static GuiPresentationDefinition parse(LuaValue gui, List<ContainerGuiDefinition.Element> elements,
             ContainerDefinition container) {
         ContainerPresentationParser parser = new ContainerPresentationParser(elements, container);
         if (!gui.get("elements").isnil()) {
@@ -42,7 +45,7 @@ final class ContainerPresentationParser {
         Set<String> events = new LinkedHashSet<>();
         LuaValue selected = gui.get("events");
         if (selected.isnil()) {
-            events.addAll(ContainerGuiPresentationDefinition.EVENT_TYPES);
+            events.addAll(GuiPresentationDefinition.EVENT_TYPES);
             events.remove("animation_property");
         } else {
             if (!selected.istable() || selected.checktable().keys().length != selected.length()) {
@@ -50,17 +53,17 @@ final class ContainerPresentationParser {
             }
             for (int i = 1; i <= selected.length(); i++) {
                 String type = selected.get(i).checkjstring();
-                if (!ContainerGuiPresentationDefinition.EVENT_TYPES.contains(type)) {
+                if (!GuiPresentationDefinition.EVENT_TYPES.contains(type)) {
                     throw new LuaError("Unknown GUI event family: " + type);
                 }
                 events.add(type);
             }
         }
-        for (ContainerGuiNodeDefinition node : parser.nodes) {
+        for (GuiNodeDefinition node : parser.nodes) {
             if ("item".equals(node.type)) {
                 int parent = node.parent;
                 while (parent >= 0) {
-                    ContainerGuiNodeDefinition ancestor = parser.nodes.get(parent);
+                    GuiNodeDefinition ancestor = parser.nodes.get(parent);
                     Object opacity = ancestor.properties.baseline().get("opacity");
                     if (opacity instanceof Number && ((Number) opacity).doubleValue() != 1) {
                         throw new LuaError("Item-containing groups do not support non-unit opacity.");
@@ -70,7 +73,7 @@ final class ContainerPresentationParser {
             }
         }
         String callbackOwner = LuaScriptRegistry.getCurrentScriptFile();
-        return new ContainerGuiPresentationDefinition(parser.nodes, callback, events,
+        return new GuiPresentationDefinition(parser.nodes, callback, events,
                 callbackOwner == null ? container.owner : callbackOwner);
     }
 
@@ -114,11 +117,13 @@ final class ContainerPresentationParser {
             if (!binding.isnil() && !binding.isfunction()) {
                 throw new LuaError(nodePath + ".bind must be a function.");
             }
-            ContainerGuiProperties properties = new ContainerGuiProperties(type, element, value);
+            GuiProperties properties = new GuiProperties(type, element, value);
             GuiTransitionPolicy policy = properties.transition(value.get("transition"));
             int index = nodes.size();
-            nodes.add(new ContainerGuiNodeDefinition(id, nodePath, type, parent, element,
-                    group ? ContainerGuiParser.parseCondition(value.get("visibleWhen"), container) : element.visibleWhen,
+            nodes.add(new GuiNodeDefinition(id, nodePath, type, parent, element,
+                    group
+                            ? ContainerGuiParser.parseCondition(value.get("visibleWhen"), container)
+                            : element.visibleWhen,
                     properties, binding, policy, !value.get("transition").isnil()));
             if (group) {
                 read(value.get("elements"), index, nodePath + ".elements", depth + 1);

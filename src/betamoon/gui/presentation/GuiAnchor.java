@@ -1,6 +1,6 @@
-package betamoon.tileentity;
+package betamoon.gui.presentation;
 
-/** Calculates positions for the supported container GUI anchors. */
+/** Calculates positions for the supported document anchors. */
 public enum GuiAnchor {
     TOP_LEFT("top_left", Horizontal.LEFT, Vertical.TOP), TOP_CENTER("top_center", Horizontal.CENTER,
             Vertical.TOP), TOP_RIGHT("top_right", Horizontal.RIGHT, Vertical.TOP), CENTER("center", Horizontal.CENTER,

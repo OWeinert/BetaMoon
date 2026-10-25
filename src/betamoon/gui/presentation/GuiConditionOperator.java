@@ -1,6 +1,6 @@
-package betamoon.tileentity;
+package betamoon.gui.presentation;
 
-/** Operators supported by a container element's visibleWhen declaration. */
+/** Operators supported by a presentation element's visibleWhen declaration. */
 public enum GuiConditionOperator {
     ALL("all", false), ANY("any", false), EQUALS("equals", false), NOT_EQUALS("notEquals", false), GREATER_THAN(
             "greaterThan", true), GREATER_OR_EQUAL("greaterOrEqual",

@@ -1,25 +1,27 @@
-package betamoon.tileentity;
+package betamoon.gui.presentation;
 
 import betamoon.gui.animation.GuiTransitionPolicy;
 import org.luaj.vm2.LuaValue;
 
-/** Registered node identity/hierarchy; never stores values or tracks belonging to an open screen. */
-public final class ContainerGuiNodeDefinition {
+/**
+ * Registered node identity/hierarchy; never stores values or tracks belonging
+ * to an open screen.
+ */
+public final class GuiNodeDefinition {
     public final String id;
     public final String path;
     public final String type;
     public final int parent;
-    public final ContainerGuiDefinition.Element element;
-    public final ContainerGuiDefinition.Condition condition;
-    public final ContainerGuiProperties properties;
+    public final GuiDocumentDefinition.Element element;
+    public final GuiDocumentDefinition.Condition condition;
+    public final GuiProperties properties;
     public final LuaValue binding;
     public final GuiTransitionPolicy transition;
     public final boolean explicitTransition;
 
-    public ContainerGuiNodeDefinition(String id, String path, String type, int parent,
-            ContainerGuiDefinition.Element element, ContainerGuiDefinition.Condition condition,
-            ContainerGuiProperties properties, LuaValue binding, GuiTransitionPolicy transition,
-            boolean explicitTransition) {
+    public GuiNodeDefinition(String id, String path, String type, int parent, GuiDocumentDefinition.Element element,
+            GuiDocumentDefinition.Condition condition, GuiProperties properties, LuaValue binding,
+            GuiTransitionPolicy transition, boolean explicitTransition) {
         this.id = id;
         this.path = path;
         this.type = type;

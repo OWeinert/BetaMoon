@@ -1,10 +1,10 @@
 package betamoon.luaapi.tileentity;
 
+import betamoon.gui.presentation.GuiAnchor;
+import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.tileentity.ContainerDefinition;
 import betamoon.tileentity.ContainerGuiDefinition;
-import betamoon.tileentity.GuiAnchor;
 import betamoon.tileentity.TileEntityRegistry;
-import betamoon.luamodloader.LuaScriptRegistry;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;

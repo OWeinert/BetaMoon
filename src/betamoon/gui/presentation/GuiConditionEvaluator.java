@@ -1,17 +1,18 @@
-package betamoon.tileentity;
+package betamoon.gui.presentation;
 
 /**
- * Evaluates a prevalidated GUI visibility condition against current tile data.
+ * Evaluates a prevalidated GUI visibility condition against host-provided
+ * values.
  */
 public final class GuiConditionEvaluator {
     private GuiConditionEvaluator() {
     }
 
-    public static boolean evaluate(ContainerGuiDefinition.Condition condition, ValueProvider values) {
+    public static boolean evaluate(GuiDocumentDefinition.Condition condition, ValueProvider values) {
         return evaluate(condition, values, field -> null);
     }
 
-    public static boolean evaluate(ContainerGuiDefinition.Condition condition, ValueProvider data,
+    public static boolean evaluate(GuiDocumentDefinition.Condition condition, ValueProvider data,
             ValueProvider session) {
         if (condition == null) {
             return true;
@@ -33,7 +34,7 @@ public final class GuiConditionEvaluator {
             return false;
         }
 
-        Object actual = (condition.source == ContainerGuiDefinition.Condition.Source.SESSION ? session : data)
+        Object actual = (condition.source == GuiDocumentDefinition.Condition.Source.SESSION ? session : data)
                 .get(condition.field);
         if (condition.operator == GuiConditionOperator.EQUALS) {
             return equal(actual, condition.expected);

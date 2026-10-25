@@ -1,6 +1,6 @@
-package betamoon.tileentity;
+package betamoon.gui.presentation;
 
-/** Direction and clipping geometry for a container progress image. */
+/** Direction and clipping geometry for a presentation progress image. */
 public enum ProgressDirection {
     LEFT_TO_RIGHT("left_to_right", false, false), RIGHT_TO_LEFT("right_to_left", false,
             true), TOP_TO_BOTTOM("top_to_bottom", true, false), BOTTOM_TO_TOP("bottom_to_top", true, true);

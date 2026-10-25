@@ -1,29 +1,22 @@
 package betamoon.tileentity;
 
+import betamoon.gui.presentation.GuiControlType;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import org.luaj.vm2.LuaValue;
 
-/** Structural and live gameplay definition for one interactive container control. */
+/**
+ * Structural and live gameplay definition for one interactive container
+ * control.
+ */
 public final class ContainerControlDefinition {
-    public enum Type {
-        ACTION,
-        TOGGLE,
-        NUMBER,
-        TEXT,
-        CHOICE,
-        CUSTOM
-    }
-
     public enum Source {
-        NONE,
-        DATA,
-        SESSION
+        NONE, DATA, SESSION
     }
 
     public final String name;
-    public final Type type;
+    public final GuiControlType type;
     public final Source source;
     public final String field;
     public final double minimum;
@@ -41,10 +34,10 @@ public final class ContainerControlDefinition {
     public volatile LuaValue onCommit;
     public volatile LuaValue onInput;
 
-    public ContainerControlDefinition(String name, Type type, Source source, String field,
-            double minimum, double maximum, double step, double pageStep, int maximumLength, boolean wrap,
-            List<Object> choices, ContainerGuiDefinition.Condition enabledWhen, LuaValue beforeChange,
-            LuaValue onActivate, LuaValue onChange, LuaValue onEdit, LuaValue onCommit, LuaValue onInput) {
+    public ContainerControlDefinition(String name, GuiControlType type, Source source, String field, double minimum,
+            double maximum, double step, double pageStep, int maximumLength, boolean wrap, List<Object> choices,
+            ContainerGuiDefinition.Condition enabledWhen, LuaValue beforeChange, LuaValue onActivate, LuaValue onChange,
+            LuaValue onEdit, LuaValue onCommit, LuaValue onInput) {
         this.name = name;
         this.type = type;
         this.source = source;

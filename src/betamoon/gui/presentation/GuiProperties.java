@@ -1,23 +1,26 @@
-package betamoon.tileentity;
+package betamoon.gui.presentation;
 
-import betamoon.gui.animation.GuiEasing;
 import betamoon.gui.animation.GuiAnimationValueError;
+import betamoon.gui.animation.GuiEasing;
 import betamoon.gui.animation.GuiTransitionPolicy;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-import java.util.Map;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
-/** The single capability/value contract for container presentation declarations and updates. */
-public final class ContainerGuiProperties {
-    private static final Set<String> COLORS = new LinkedHashSet<>(Arrays.asList(
-            "color", "tint", "iconTint", "backgroundTint"));
+/**
+ * The single capability/value contract for presentation declarations and
+ * updates.
+ */
+public final class GuiProperties {
+    private static final Set<String> COLORS = new LinkedHashSet<>(
+            Arrays.asList("color", "tint", "iconTint", "backgroundTint"));
     private static final Map<String, Integer> NAMED_COLORS = namedColors();
     private final String type;
     private final Map<String, Object> baseline = new LinkedHashMap<>();
@@ -25,7 +28,7 @@ public final class ContainerGuiProperties {
     private final Map<String, Double> minimums = new LinkedHashMap<>();
     private final Map<String, Double> maximums = new LinkedHashMap<>();
 
-    public ContainerGuiProperties(String type, ContainerGuiDefinition.Element element, LuaValue declaration) {
+    public GuiProperties(String type, GuiDocumentDefinition.Element element, LuaValue declaration) {
         this.type = type;
         numeric("x", declaration.get("x").optint(0), -Double.MAX_VALUE, Double.MAX_VALUE);
         numeric("y", declaration.get("y").optint(0), -Double.MAX_VALUE, Double.MAX_VALUE);
@@ -46,51 +49,55 @@ public final class ContainerGuiProperties {
                 baseline.put("clip", Boolean.FALSE);
             }
             artwork("tint", 0xFFFFFF);
-        } else if (element instanceof ContainerGuiDefinition.PanelElement) {
-            ContainerGuiDefinition.PanelElement panel = (ContainerGuiDefinition.PanelElement) element;
+        } else if (element instanceof GuiDocumentDefinition.PanelElement) {
+            GuiDocumentDefinition.PanelElement panel = (GuiDocumentDefinition.PanelElement) element;
             size("width", panel.width, 9, 256);
             size("height", panel.height, 9, 256);
             artwork("tint", panel.color);
-        } else if (element instanceof ContainerGuiDefinition.ImageElement) {
-            ContainerGuiDefinition.ImageElement image = (ContainerGuiDefinition.ImageElement) element;
+        } else if (element instanceof GuiDocumentDefinition.ImageElement) {
+            GuiDocumentDefinition.ImageElement image = (GuiDocumentDefinition.ImageElement) element;
             boolean slot = "slot".equals(type);
             size("width", image.width - (slot ? 2 : 0), 1, slot ? 254 : Double.MAX_VALUE);
             size("height", image.height - (slot ? 2 : 0), 1, slot ? 254 : Double.MAX_VALUE);
             artwork("tint", 0xFFFFFF);
-        } else if (element instanceof ContainerGuiDefinition.ProgressElement) {
-            ContainerGuiDefinition.ProgressElement progress = (ContainerGuiDefinition.ProgressElement) element;
-            double maxWidth = progress.background == null ? Integer.MAX_VALUE
-                    : Math.floor(Integer.MAX_VALUE * Math.min(1, progress.image.width / (double) progress.background.width));
-            double maxHeight = progress.background == null ? Integer.MAX_VALUE
-                    : Math.floor(Integer.MAX_VALUE * Math.min(1, progress.image.height / (double) progress.background.height));
+        } else if (element instanceof GuiDocumentDefinition.ProgressElement) {
+            GuiDocumentDefinition.ProgressElement progress = (GuiDocumentDefinition.ProgressElement) element;
+            double maxWidth = progress.background == null
+                    ? Integer.MAX_VALUE
+                    : Math.floor(
+                            Integer.MAX_VALUE * Math.min(1, progress.image.width / (double) progress.background.width));
+            double maxHeight = progress.background == null
+                    ? Integer.MAX_VALUE
+                    : Math.floor(Integer.MAX_VALUE
+                            * Math.min(1, progress.image.height / (double) progress.background.height));
             size("width", progress.image.width, 1, maxWidth);
             size("height", progress.image.height, 1, maxHeight);
             artwork("tint", 0xFFFFFF);
             if (progress.background != null) {
                 artwork("backgroundTint", null);
             }
-        } else if (element instanceof ContainerGuiDefinition.StateImageElement) {
+        } else if (element instanceof GuiDocumentDefinition.StateImageElement) {
             size("width", null, 1, Double.MAX_VALUE);
             size("height", null, 1, Double.MAX_VALUE);
             artwork("tint", 0xFFFFFF);
-        } else if (element instanceof ContainerGuiDefinition.TextElement) {
-            ContainerGuiDefinition.TextElement text = (ContainerGuiDefinition.TextElement) element;
+        } else if (element instanceof GuiDocumentDefinition.TextElement) {
+            GuiDocumentDefinition.TextElement text = (GuiDocumentDefinition.TextElement) element;
             size("width", text.width, 0, Double.MAX_VALUE);
             baseline.put("text", text.text);
             artwork("color", text.color);
             baseline.put("align", text.align);
             baseline.put("shadow", text.shadow);
-        } else if (element instanceof ContainerGuiDefinition.RectangleElement) {
-            ContainerGuiDefinition.RectangleElement rectangle = (ContainerGuiDefinition.RectangleElement) element;
+        } else if (element instanceof GuiDocumentDefinition.RectangleElement) {
+            GuiDocumentDefinition.RectangleElement rectangle = (GuiDocumentDefinition.RectangleElement) element;
             size("width", rectangle.width, 1, Double.MAX_VALUE);
             size("height", rectangle.height, 1, Double.MAX_VALUE);
             artwork("color", rectangle.color);
-        } else if (element instanceof ContainerGuiDefinition.TooltipElement) {
-            ContainerGuiDefinition.TooltipElement tooltip = (ContainerGuiDefinition.TooltipElement) element;
+        } else if (element instanceof GuiDocumentDefinition.TooltipElement) {
+            GuiDocumentDefinition.TooltipElement tooltip = (GuiDocumentDefinition.TooltipElement) element;
             size("width", tooltip.width, 1, Double.MAX_VALUE);
             size("height", tooltip.height, 1, Double.MAX_VALUE);
-        } else if (element instanceof ContainerGuiDefinition.ControlElement) {
-            control((ContainerGuiDefinition.ControlElement) element);
+        } else if (element instanceof GuiDocumentDefinition.ControlElement) {
+            control((GuiDocumentDefinition.ControlElement) element);
         }
         for (String name : Arrays.asList("translateX", "translateY", "scaleX", "scaleY", "originX", "originY",
                 "opacity", "tint", "backgroundTint", "iconTint", "clip", "width", "height")) {
@@ -103,8 +110,8 @@ public final class ContainerGuiProperties {
             if (!value.isnil()) {
                 if (Arrays.asList("x", "y", "width", "height").contains(name)) {
                     double number = value.type() == LuaValue.TNUMBER ? value.todouble() : Double.NaN;
-                    if (!Double.isFinite(number) || number != Math.rint(number)
-                            || number < Integer.MIN_VALUE || number > Integer.MAX_VALUE) {
+                    if (!Double.isFinite(number) || number != Math.rint(number) || number < Integer.MIN_VALUE
+                            || number > Integer.MAX_VALUE) {
                         throw new LuaError("Static " + name + " requires an integer in the renderer's range.");
                     }
                 }
@@ -114,16 +121,16 @@ public final class ContainerGuiProperties {
         validateOrigins(baseline);
     }
 
-    private void control(ContainerGuiDefinition.ControlElement control) {
+    private void control(GuiDocumentDefinition.ControlElement control) {
         double minWidth = 1;
         double minHeight = 1;
-        if (control.presentation == ContainerGuiDefinition.ControlElement.Presentation.CHECKBOX) {
+        if (control.presentation == GuiDocumentDefinition.ControlElement.Presentation.CHECKBOX) {
             minWidth = 12;
             minHeight = 12;
-        } else if (control.presentation == ContainerGuiDefinition.ControlElement.Presentation.CHOICE) {
+        } else if (control.presentation == GuiDocumentDefinition.ControlElement.Presentation.CHOICE) {
             minWidth = 32;
             minHeight = 12;
-        } else if (control.presentation == ContainerGuiDefinition.ControlElement.Presentation.SLIDER) {
+        } else if (control.presentation == GuiDocumentDefinition.ControlElement.Presentation.SLIDER) {
             boolean vertical = "vertical".equals(control.orientation);
             minWidth = vertical ? 12 : 8;
             minHeight = vertical ? 8 : 12;
@@ -136,8 +143,8 @@ public final class ContainerGuiProperties {
         if (control.icon != null) {
             artwork("iconTint", null);
         }
-        if (control.presentation != ContainerGuiDefinition.ControlElement.Presentation.SLIDER
-                && control.presentation != ContainerGuiDefinition.ControlElement.Presentation.TEXT_BOX) {
+        if (control.presentation != GuiDocumentDefinition.ControlElement.Presentation.SLIDER
+                && control.presentation != GuiDocumentDefinition.ControlElement.Presentation.TEXT_BOX) {
             baseline.put("text", control.text);
         }
     }
@@ -205,8 +212,8 @@ public final class ContainerGuiProperties {
         }
         if ("color".equals(name) && value.type() == LuaValue.TNUMBER) {
             double number = value.todouble();
-            if (!Double.isFinite(number) || number != Math.rint(number)
-                    || number < Integer.MIN_VALUE || number > 0xFFFFFFFFL) {
+            if (!Double.isFinite(number) || number != Math.rint(number) || number < Integer.MIN_VALUE
+                    || number > 0xFFFFFFFFL) {
                 throw new ValueError("color requires an RGB/ARGB integer or supported named color.");
             }
             return Integer.valueOf((int) (long) number);
@@ -318,17 +325,19 @@ public final class ContainerGuiProperties {
 
     private static Map<String, Integer> namedColors() {
         Map<String, Integer> values = new LinkedHashMap<>();
-        String[] names = {"black", "dark_gray", "gray", "white", "red", "dark_red", "green", "dark_green",
-                "yellow", "gold", "blue", "aqua"};
-        int[] colors = {0, 0x555555, 0xAAAAAA, 0xFFFFFF, 0xFF5555, 0xAA0000, 0x55FF55, 0x00AA00,
-                0xFFFF55, 0xFFAA00, 0x5555FF, 0x55FFFF};
+        String[] names = {"black", "dark_gray", "gray", "white", "red", "dark_red", "green", "dark_green", "yellow",
+                "gold", "blue", "aqua"};
+        int[] colors = {0, 0x555555, 0xAAAAAA, 0xFFFFFF, 0xFF5555, 0xAA0000, 0x55FF55, 0x00AA00, 0xFFFF55, 0xFFAA00,
+                0x5555FF, 0x55FFFF};
         for (int i = 0; i < names.length; i++) {
             values.put(names[i], colors[i]);
         }
         return values;
     }
 
-    /** Dynamic value failures are recoverable; malformed property contracts are not. */
+    /**
+     * Dynamic value failures are recoverable; malformed property contracts are not.
+     */
     public static final class ValueError extends GuiAnimationValueError {
         public ValueError(String message) {
             super(message);

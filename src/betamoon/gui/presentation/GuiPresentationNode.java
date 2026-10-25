@@ -1,4 +1,4 @@
-package betamoon.tileentity;
+package betamoon.gui.presentation;
 
 import betamoon.gui.animation.GuiAnimationRequest;
 import betamoon.gui.animation.GuiTransitionPolicy;
@@ -8,9 +8,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/** Mutable presentation of one node in one open screen, never shared through the registry. */
-public final class ContainerGuiNode {
-    public final ContainerGuiNodeDefinition definition;
+/**
+ * Mutable presentation of one node in one open screen, never shared through the
+ * registry.
+ */
+public final class GuiPresentationNode {
+    public final GuiNodeDefinition definition;
     final Map<String, Object> baseline = new LinkedHashMap<>();
     final Map<String, Object> bindingValues = new LinkedHashMap<>();
     final Map<String, Object> derived = new LinkedHashMap<>();
@@ -29,7 +32,7 @@ public final class ContainerGuiNode {
     int evaluations;
     int suppressedDiagnostics;
 
-    ContainerGuiNode(ContainerGuiNodeDefinition definition) {
+    GuiPresentationNode(GuiNodeDefinition definition) {
         this.definition = definition;
         for (String name : new String[]{"hovered", "pressed", "focused", "disabled", "selected", "invalid"}) {
             interactionKeys.put(name, "interaction:" + definition.path + ":" + name);
@@ -69,8 +72,8 @@ public final class ContainerGuiNode {
         }
     }
 
-    void retarget(Map<String, Object> values, GuiTransitionPolicy transition, GuiAnimationRequest request,
-            double now, boolean immediate, boolean explicit, String reason) {
+    void retarget(Map<String, Object> values, GuiTransitionPolicy transition, GuiAnimationRequest request, double now,
+            boolean immediate, boolean explicit, String reason) {
         sample(now);
         for (Map.Entry<String, Object> entry : values.entrySet()) {
             String property = entry.getKey();

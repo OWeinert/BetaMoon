@@ -1,5 +1,7 @@
 package betamoon.tileentity;
 
+import betamoon.gui.presentation.GuiConditionEvaluator;
+import betamoon.gui.presentation.GuiControlType;
 import betamoon.gui.presentation.GuiInputSnapshot;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.tileentity.LuaTileDataAccess;
@@ -9,8 +11,8 @@ import betamoon.luamodloader.ScriptExecution;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.ItemStack;
 import org.luaj.vm2.LuaError;
@@ -19,7 +21,9 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-/** Authoritative value validation and callback dispatch for one open container. */
+/**
+ * Authoritative value validation and callback dispatch for one open container.
+ */
 public final class ContainerControlRuntime {
     private final ContainerDefinition definition;
     private final LuaTileEntity tile;
@@ -61,17 +65,17 @@ public final class ContainerControlRuntime {
         if (!enabled(control)) {
             return false;
         }
-        if (control.type == ContainerControlDefinition.Type.ACTION) {
+        if (control.type == GuiControlType.ACTION) {
             LuaTable observed = observers.isEmpty() ? input : GuiInputSnapshot.copy(input);
             CallbackResult result = invoke(control, "onActivate", control.onActivate, input);
             boolean accepted = result.success && !"deny".equals(result.result);
             notifyControl(control, "activate", accepted, null, null, observed);
             return accepted;
         }
-        if (control.type == ContainerControlDefinition.Type.TOGGLE) {
+        if (control.type == GuiControlType.TOGGLE) {
             return change(control, Boolean.valueOf(!Boolean.TRUE.equals(value(control))), input, false);
         }
-        if (control.type == ContainerControlDefinition.Type.CHOICE) {
+        if (control.type == GuiControlType.CHOICE) {
             return cycle(control, 1, input);
         }
         return false;
@@ -130,10 +134,9 @@ public final class ContainerControlRuntime {
         if (!active) {
             return;
         }
-        ContainerControlDefinition synthetic = new ContainerControlDefinition("close",
-                ContainerControlDefinition.Type.ACTION, ContainerControlDefinition.Source.NONE, null,
-                0, 0, 0, 0, 0, false, java.util.Collections.emptyList(), null,
-                LuaValue.NIL, definition.closeAction, LuaValue.NIL, LuaValue.NIL, LuaValue.NIL, LuaValue.NIL);
+        ContainerControlDefinition synthetic = new ContainerControlDefinition("close", GuiControlType.ACTION,
+                ContainerControlDefinition.Source.NONE, null, 0, 0, 0, 0, 0, false, java.util.Collections.emptyList(),
+                null, LuaValue.NIL, definition.closeAction, LuaValue.NIL, LuaValue.NIL, LuaValue.NIL, LuaValue.NIL);
         invoke(synthetic, "onClose", definition.closeAction, input("close"));
         active = false;
         session.close();
@@ -153,8 +156,8 @@ public final class ContainerControlRuntime {
         Object previous = value(control);
         Object attempted = proposed;
         LuaTable observed = observers.isEmpty() ? input : GuiInputSnapshot.copy(input);
-        CallbackResult before = invoke(control, "beforeChange", control.beforeChange, input,
-                toLua(proposed), toLua(previous));
+        CallbackResult before = invoke(control, "beforeChange", control.beforeChange, input, toLua(proposed),
+                toLua(previous));
         if (!before.success || "deny".equals(before.result)) {
             notifyControl(control, commit ? "commit" : "change", false, attempted, previous, observed);
             return false;
@@ -178,20 +181,20 @@ public final class ContainerControlRuntime {
     }
 
     private Object validate(ContainerControlDefinition control, Object proposed) {
-        if (control.type == ContainerControlDefinition.Type.TOGGLE && !(proposed instanceof Boolean)) {
+        if (control.type == GuiControlType.TOGGLE && !(proposed instanceof Boolean)) {
             throw new LuaError("Toggle values must be boolean.");
         }
-        if (control.type == ContainerControlDefinition.Type.NUMBER) {
+        if (control.type == GuiControlType.NUMBER) {
             if (!(proposed instanceof Number) || !Double.isFinite(((Number) proposed).doubleValue())) {
                 throw new LuaError("Number control values must be finite numbers.");
             }
             return normalizeNumber(control, ((Number) proposed).doubleValue());
         }
-        if (control.type == ContainerControlDefinition.Type.TEXT) {
+        if (control.type == GuiControlType.TEXT) {
             String text = String.valueOf(proposed);
             return text.length() > control.maximumLength ? text.substring(0, control.maximumLength) : text;
         }
-        if (control.type == ContainerControlDefinition.Type.CHOICE && !control.choices.contains(proposed)) {
+        if (control.type == GuiControlType.CHOICE && !control.choices.contains(proposed)) {
             throw new LuaError("Choice value is not one of the declared values.");
         }
         return proposed;
@@ -215,8 +218,8 @@ public final class ContainerControlRuntime {
         }
     }
 
-    private CallbackResult invoke(ContainerControlDefinition control, String name, LuaValue callback,
-            LuaTable input, LuaValue... arguments) {
+    private CallbackResult invoke(ContainerControlDefinition control, String name, LuaValue callback, LuaTable input,
+            LuaValue... arguments) {
         if (callback.isnil() || disabledCallbacks.contains(control.name + ":" + name)) {
             return CallbackResult.pass();
         }
@@ -241,8 +244,7 @@ public final class ContainerControlRuntime {
         LuaScriptErrors.add(definition.owner, message, LuaScriptErrors.Outcome.CALLBACK_DISABLED, error);
     }
 
-    private LuaTable context(final LuaCallbackScope scope, final ContainerControlDefinition control,
-            LuaTable input) {
+    private LuaTable context(final LuaCallbackScope scope, final ContainerControlDefinition control, LuaTable input) {
         LuaTable context = guiContext(scope);
         LuaTable controlValue = new LuaTable();
         controlValue.set("key", control.name);
@@ -274,8 +276,8 @@ public final class ContainerControlRuntime {
         return () -> observers.remove(listener);
     }
 
-    private void notifyControl(ContainerControlDefinition control, String phase, boolean accepted,
-            Object proposed, Object previous, LuaTable input) {
+    private void notifyControl(ContainerControlDefinition control, String phase, boolean accepted, Object proposed,
+            Object previous, LuaTable input) {
         for (Consumer<Notification> observer : observers) {
             observer.accept(new Notification(control.name, phase, accepted, proposed, value(control), previous, input));
         }

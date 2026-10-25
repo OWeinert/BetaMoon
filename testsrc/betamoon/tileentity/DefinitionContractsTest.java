@@ -1,8 +1,12 @@
 package betamoon.tileentity;
 
-import betamoon.recipes.custom.RecipeDefinitionIsolationTest;
-import betamoon.recipes.NativeRecipeInspectorTest;
+import betamoon.gui.presentation.GuiAnchor;
+import betamoon.gui.presentation.GuiConditionEvaluator;
+import betamoon.gui.presentation.GuiConditionOperator;
+import betamoon.gui.presentation.ProgressDirection;
 import betamoon.luaapi.block.BlockShapeDefinition;
+import betamoon.recipes.NativeRecipeInspectorTest;
+import betamoon.recipes.custom.RecipeDefinitionIsolationTest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;

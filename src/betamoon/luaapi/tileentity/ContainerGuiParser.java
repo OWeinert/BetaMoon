@@ -1,17 +1,18 @@
 package betamoon.luaapi.tileentity;
 
 import betamoon.data.DataField;
+import betamoon.gui.presentation.GuiAnchor;
+import betamoon.gui.presentation.GuiConditionOperator;
+import betamoon.gui.presentation.GuiControlType;
+import betamoon.gui.presentation.GuiProperties;
+import betamoon.gui.presentation.ProgressDirection;
 import betamoon.gui.texture.BuiltinGuiSprites;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.asset.AssetInputs;
 import betamoon.luamodloader.ScriptResourceTracker;
 import betamoon.resources.LuaTextureResources;
-import betamoon.tileentity.ContainerGuiDefinition;
-import betamoon.tileentity.ContainerGuiProperties;
 import betamoon.tileentity.ContainerDefinition;
-import betamoon.tileentity.GuiAnchor;
-import betamoon.tileentity.GuiConditionOperator;
-import betamoon.tileentity.ProgressDirection;
+import betamoon.tileentity.ContainerGuiDefinition;
 import betamoon.tileentity.TileEntityDefinition;
 import java.awt.geom.Area;
 import java.awt.geom.Rectangle2D;
@@ -49,8 +50,8 @@ final class ContainerGuiParser {
         if (style != null && !"minecraft".equals(style) && !"chest".equals(style)) {
             throw new LuaError("background.style must be 'minecraft'.");
         }
-        int tint = value.get("tint").isnil() ? 0xFFFFFF : ContainerGuiProperties.color(value.get("tint"));
-        int slotTint = value.get("slotTint").isnil() ? tint : ContainerGuiProperties.color(value.get("slotTint"));
+        int tint = value.get("tint").isnil() ? 0xFFFFFF : GuiProperties.color(value.get("tint"));
+        int slotTint = value.get("slotTint").isnil() ? tint : GuiProperties.color(value.get("slotTint"));
         return new ContainerGuiDefinition.Background(texture, style, value.get("drawSlotFrames").toboolean(), rows,
                 tint, slotTint);
     }
@@ -212,7 +213,7 @@ final class ContainerGuiParser {
                 if (control == null) {
                     throw new LuaError("Unknown container control: " + controlName);
                 }
-                betamoon.tileentity.ContainerControlDefinition.Type expected = controlType(type);
+                GuiControlType expected = controlType(type);
                 if (control.type != expected) {
                     throw new LuaError(
                             "GUI element type '" + type + "' is incompatible with control '" + controlName + "'.");
@@ -364,23 +365,23 @@ final class ContainerGuiParser {
         return 0;
     }
 
-    private static betamoon.tileentity.ContainerControlDefinition.Type controlType(String type) {
+    private static GuiControlType controlType(String type) {
         if ("button".equals(type) || "icon_button".equals(type)) {
-            return betamoon.tileentity.ContainerControlDefinition.Type.ACTION;
+            return GuiControlType.ACTION;
         }
         if ("toggle".equals(type) || "checkbox".equals(type) || "toggle_button".equals(type)) {
-            return betamoon.tileentity.ContainerControlDefinition.Type.TOGGLE;
+            return GuiControlType.TOGGLE;
         }
         if ("slider".equals(type)) {
-            return betamoon.tileentity.ContainerControlDefinition.Type.NUMBER;
+            return GuiControlType.NUMBER;
         }
         if ("text_box".equals(type)) {
-            return betamoon.tileentity.ContainerControlDefinition.Type.TEXT;
+            return GuiControlType.TEXT;
         }
         if ("choice".equals(type)) {
-            return betamoon.tileentity.ContainerControlDefinition.Type.CHOICE;
+            return GuiControlType.CHOICE;
         }
-        return betamoon.tileentity.ContainerControlDefinition.Type.CUSTOM;
+        return GuiControlType.CUSTOM;
     }
 
     private static boolean isControlElement(String type) {
@@ -686,8 +687,8 @@ final class ContainerGuiParser {
             throw new LuaError("Nine-slice border must fit inside half of the texture dimensions.");
         }
         return new ContainerGuiDefinition.Texture(resource, 0, 0, dimensions[0], dimensions[1], dimensions[0],
-                dimensions[1], border, path.istable() && !path.get("tint").isnil()
-                        ? ContainerGuiProperties.color(path.get("tint")) : 0xFFFFFF);
+                dimensions[1], border,
+                path.istable() && !path.get("tint").isnil() ? GuiProperties.color(path.get("tint")) : 0xFFFFFF);
     }
 
     private static ContainerGuiDefinition.Texture builtinBackground(String name, int rows) {
@@ -714,8 +715,8 @@ final class ContainerGuiParser {
         name = name.toLowerCase();
         BuiltinGuiSprites.Sprite sprite = BuiltinGuiSprites.find(name);
         if (sprite != null) {
-            return new ContainerGuiDefinition.Texture(sprite.resource, 0, 0, sprite.width, sprite.height,
-                    sprite.width, sprite.height);
+            return new ContainerGuiDefinition.Texture(sprite.resource, 0, 0, sprite.width, sprite.height, sprite.width,
+                    sprite.height);
         }
         if ("minecraft:slot".equals(name)) {
             return atlas("/gui/container.png", 7, 17, 18, 18);
