@@ -24,7 +24,7 @@ import net.minecraft.src.World;
  * This class must remain free of client-only and dedicated-server-only types.
  */
 public final class BetaMoonCommon {
-    public static final String VERSION = "0.11.0";
+    public static final String VERSION = "1.0.0";
     public static final Logger LOGGER = RuntimeLogs.logger();
 
     private final LuaModLoader luaModLoader;

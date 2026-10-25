@@ -2,7 +2,9 @@
 
 Extensive Lua scripting for **Minecraft Beta 1.7.3**.
 
-[Wiki](https://github.com/OWeinert/BetaMoon/wiki) · [Lua API](https://github.com/OWeinert/BetaMoon/wiki/API-Documentation) · [Example scripts](examples/README.md) · [Changelog](CHANGELOG.md) · [Downloads](https://github.com/OWeinert/BetaMoon/releases)
+Development branch for **1.0.0**. See [Releases](https://github.com/OWeinert/BetaMoon/releases) for published builds.
+
+[Wiki](https://github.com/OWeinert/BetaMoon/wiki) Â· [Lua API](https://github.com/OWeinert/BetaMoon/wiki/API-Documentation) Â· [Example scripts](examples/README.md) Â· [Changelog](CHANGELOG.md) Â· [Downloads](https://github.com/OWeinert/BetaMoon/releases)
 
 [![Modrinth](https://img.shields.io/badge/dynamic/json?labelColor=black&color=grey&label=&suffix=%20downloads&query=downloads&url=https://api.modrinth.com/v2/project/BwTdIvv1&style=flat&logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAJPUExURQAAABvZahWnUha1WAYzGQlHIxvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZav///9ScwmYAAADDdFJOUwAAAAAAAA8zW3uOYwIBK3rB6Pn+ml18KiGL5HEDquOIH07R/UzKz2zu+uLHIibtafWkVCMNBRqg7/RQuT8EQbvT+5ETDBSU/NAgCSdZlcQKii7mtxJY5fF/7D1SRkB+EcWh4UilOOtPMdTCR1PqN969vmGDCw7G4DSSsAcGHrSPr3bds5CEwDKoXumcZdwcG4KmjayX32A79pjOqRjIFoXynVYVgPi6qxDnL78p2obVJFquNbGZCPdyvHPZ1yhuh8s+iRzcsrEAAAABYktHRMQUDBvhAAAAB3RJTUUH5wQXDwgZWDUtiQAAAqRJREFUOMttU/k7lFEU/k4L4hsxtNAnhRgiJZOiSfbI2oJpmRFCi2kV0aaNVLTIEpVISmnf97r/WO+534yZnqfzw73vOe+559xz7rmKIoVYvLx95vj6qUSqVBW3sGrwnxsQaAwSwcDz5i9g0wxPfmFIqJCyiEgLE4vDl7iD8PGlETotIqOQahlAdJTLA5sWY5JsbNzysHiihEBWViRqRDOlgyFmJVtMq5JWJ5vhvyZlLevrEmUILKl8PihtvYWcYt6QLmNwFjjEb4SSkZnlZLO5yJzcPBg35bODwZfPZxYwWbC5sKjYzwBUkssxSg1wKNsCtHUb89vTy3GwopBxDmcJ9YdDJYB1B9t2WmUtcbtkqt18Mxsp9irsezS2VEu+uka/mqUWSrFd2VsnhLEetoZ9TFv3HwCexdUdjBWi0aH4YTuEvtoPM3/EO1nnuTpEjD2qHIM54DhR0wmA5hZySzIntyknsbZyi8IB0tp07tRpBDKfgeWsdDjHDlFGRIjnl3O0t573gcMFUBeVS1gvlxB1dOZxv0pIu9IF01UDZRdjr1SuZQhxvbvnRrmsMePmrdsrGPRaKP8OLtmn9KM7A4N3xb8yNExUb5RlZt2btpZbXajzPoYkBaDKrtADp3HkYdloo56ndgx37UcHxSP0tIWBGH9cg1nx6TJFTNhS7eCfcA1PJ+GgDbLDs2GuX3V05Ohj0xYSBGumyq/yfApw4EWTRxPJqxQvIF6+ks9Gr0d4nN+8Nbhoi+NdJEwVSc6hVNvHOUvg+5qeDxoP3GQz6x8/qXLuZ6Op7SPy+gNTnydSELabk1Z8Mbs/hlr4dbobfUgxJMS3UdXza9H33jqnA3/OH41FCZ7/l7HW8vOXiWc9GvPf06D953/T2O/EP8HBNtcH0Zm/lqFNUgTAex4AAAAldEVYdGRhdGU6Y3JlYXRlADIwMjMtMDQtMjNUMTU6MDg6MjQrMDA6MDAE5dOaAAAAJXRFWHRkYXRlOm1vZGlmeQAyMDIzLTA0LTIzVDE1OjA4OjI0KzAwOjAwdbhrJgAAACh0RVh0ZGF0ZTp0aW1lc3RhbXAAMjAyMy0wNC0yM1QxNTowODoyNSswMDowMITaQU0AAAAASUVORK5CYII=)](https://modrinth.com/mod/betamoon)
 [![CurseForge](https://cf.way2muchnoise.eu/full_1750754_downloads.svg)](https://www.curseforge.com/minecraft/mc-mods/betamoon)
@@ -40,20 +42,20 @@ Read the release notes when updating and keep persistent IDs and schemas stable 
 | [MinecraftForge](https://mcarchive.net/mods/minecraftforge?gvsn=b1.7.3) | Beta 1.7.3 build; use Forge 1.0.6 for this setup |
 | BetaMoon | Matching mod JAR, also enabled as a Java agent |
 
-The packaged BetaMoon 0.11.0 JAR bundles LuaJ 3.0.1 and the agent's runtime dependencies.
+The packaged BetaMoon 1.0.0 JAR bundles LuaJ 3.0.1 and the agent's runtime dependencies.
 
 ## MultiMC installation
 
 [MultiMC](https://multimc.org/) keeps the mod setup and Java configuration within a Minecraft instance.
 
 1. **Create the instance.** Select Minecraft Beta 1.7.3.
-2. **Select Java 8.** Open **Edit Instance → Settings → Java**, enable the **Java installation** override and select your Java 8 executable. On Windows, use `bin/javaw.exe` inside the Java installation.
-3. **Install the JAR mods.** Open **Version → Add to Minecraft.jar**. Add ModLoader first, then Forge.
-4. **Install BetaMoon.** Open **Loader mods**, add `betamoon-0.11.0.jar` and make sure it is enabled.
-5. **Enable the Java agent.** Return to **Settings → Java**, enable the **Java arguments** override and append the argument below to the instance's existing arguments. Replace the example with the absolute path to the installed BetaMoon JAR.
+2. **Select Java 8.** Open **Edit Instance â†’ Settings â†’ Java**, enable the **Java installation** override and select your Java 8 executable. On Windows, use `bin/javaw.exe` inside the Java installation.
+3. **Install the JAR mods.** Open **Version â†’ Add to Minecraft.jar**. Add ModLoader first, then Forge.
+4. **Install BetaMoon.** Open **Loader mods**, add `betamoon-1.0.0.jar` and make sure it is enabled.
+5. **Enable the Java agent.** Return to **Settings â†’ Java**, enable the **Java arguments** override and append the argument below to the instance's existing arguments. Replace the example with the absolute path to the installed BetaMoon JAR.
 
    ```text
-   -javaagent:"C:/your/path/to/MultiMC/instances/your_instance_name/.minecraft/mods/betamoon-0.11.0.jar"
+   -javaagent:"C:/your/path/to/MultiMC/instances/your_instance_name/.minecraft/mods/betamoon-1.0.0.jar"
    ```
 
 6. **Launch Minecraft.** Inspect the console for initialization errors, then open BetaMoon's **Scripts** screen.
@@ -67,11 +69,11 @@ Use these steps with a launcher that supports a modified `minecraft.jar` and cus
 1. **Prepare the instance.** Install Minecraft Beta 1.7.3 and configure the launcher to use Java 8 for that instance.
 2. **Back up `minecraft.jar`.** Locate the instance's game JAR, conventionally `.minecraft/bin/minecraft.jar`, and make a backup before editing it.
 3. **Install ModLoader and Forge.** Open the JAR with an archive editor. Add ModLoader's contents, remove the original `META-INF` signature directory, then add Forge's contents.
-4. **Install BetaMoon.** Put `betamoon-0.11.0.jar` in the instance's `.minecraft/mods` folder.
+4. **Install BetaMoon.** Put `betamoon-1.0.0.jar` in the instance's `.minecraft/mods` folder.
 5. **Enable the Java agent.** Append the following to the launcher's JVM arguments for this instance, using the actual absolute path to the installed JAR:
 
    ```text
-   -javaagent:"C:/Users/YourName/AppData/Roaming/.minecraft/mods/betamoon-0.11.0.jar"
+   -javaagent:"C:/Users/YourName/AppData/Roaming/.minecraft/mods/betamoon-1.0.0.jar"
    ```
 
    If a script launches Java directly, place this JVM option before the main class or `-jar` argument in the existing launch command.
@@ -87,7 +89,7 @@ global block/item interaction events, custom dimensions and teleportation. Java 
 Use an absolute path to the same JAR installed in the instance. On Windows, use forward slashes and quote the path as shown above, especially when it contains spaces. On macOS or Linux, substitute the corresponding absolute path, for example:
 
 ```text
--javaagent:"/your/path/to/MultiMC/instances/your_instance_name/.minecraft/mods/betamoon-0.11.0.jar"
+-javaagent:"/your/path/to/MultiMC/instances/your_instance_name/.minecraft/mods/betamoon-1.0.0.jar"
 ```
 
 Update the argument whenever you move or rename the JAR, including after a version upgrade, and restart Minecraft. If BetaMoon shows an agent warning, click its displayed argument to copy the detected JAR path, paste it into the instance's Java arguments and restart.
@@ -124,7 +126,7 @@ Click an error or warning in **Script Issues** or a script's details to copy its
 report with all recorded issues, occurrence times and callback context, script versions and dependencies, Java and
 system details, memory usage, relevant settings, and available graphics, dimension and mod information. Reports are
 saved in `betamoon/reports/` inside the Minecraft instance; a popup shows the clickable file path after saving.
-Reports are also available from the pinned **Full script report** section in **Scripts → Debug**, even with no issues.
+Reports are also available from the pinned **Full script report** section in **Scripts â†’ Debug**, even with no issues.
 **Export All** in Debug Tools includes the report as `script_report.txt` in its export directory.
 Script names are red when errors are recorded and yellow when only warnings are recorded.
 
