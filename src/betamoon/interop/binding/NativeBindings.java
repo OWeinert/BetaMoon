@@ -8,6 +8,7 @@ import betamoon.interop.reference.NativeMemberRef;
 import betamoon.interop.reference.NativeTypeRef;
 import betamoon.interop.runtime.NativeContext;
 import betamoon.interop.runtime.NativeOwnedValues;
+import betamoon.interop.interfaces.NativeInterfaces;
 import betamoon.interop.value.NativeConversions;
 import betamoon.interop.value.NativeExactValue;
 import java.lang.ref.WeakReference;
@@ -36,6 +37,7 @@ import org.objectweb.asm.Type;
 public final class NativeBindings {
     public final NativeNames names;
     public final NativeOwnedValues owned = new NativeOwnedValues(this);
+    public final NativeInterfaces interfaces = new NativeInterfaces(this);
     private final NativeLoaderRegistry loaders;
     private final Thread client = Thread.currentThread();
     private final Supplier<NativeIndexSnapshot> snapshots;
@@ -81,7 +83,8 @@ public final class NativeBindings {
     public Map<String, Object> diagnostics() {
         synchronized (failures) {
             return CatalogValues.record("session", closed ? "closed" : "active", "cachedTypeSelectors",
-                    cachedTypeSelectors, "failures", new HashMap<>(failures), "ownership", owned.diagnostics());
+                    cachedTypeSelectors, "failures", new HashMap<>(failures), "ownership", owned.diagnostics(),
+                    "interfaces", interfaces.diagnostics());
         }
     }
 
@@ -101,6 +104,7 @@ public final class NativeBindings {
     public void close() {
         requireThread();
         try {
+            interfaces.close();
             owned.close();
         } finally {
             closed = true;

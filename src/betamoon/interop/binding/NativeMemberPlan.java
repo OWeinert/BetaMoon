@@ -139,6 +139,11 @@ public final class NativeMemberPlan {
         return member.getDeclaringClass().getName() + "." + member.getName() + descriptor;
     }
 
+    public void prepareInvocation(NativeContext context, boolean direct) {
+        context.require(NativeContext.Effect.UNKNOWN, direct);
+        accessibility(context, direct);
+    }
+
     void accessibility(NativeContext context, boolean direct) {
         if (!nonPublic) {
             return;

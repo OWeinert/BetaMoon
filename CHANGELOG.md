@@ -11,3 +11,5 @@
 - Exact direct access to private/protected fields and methods, including inherited and nested fields.
 - Native callback phase guards, world/player/screen lifetime checks, and owner-bound native copies and retention.
 - Explicit native disposal, scoped owned-value reuse, and native effect/ownership diagnostics.
+- Lua-backed Java interfaces with exact method callbacks, return validation, and per-method execution policies.
+- Reusable owned native attachments and current-world observers with deferred registration cleanup.

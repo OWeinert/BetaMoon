@@ -16,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.function.Consumer;
 
 /**
  * Owner/generation cleanup without retaining Lua closures in handles or
@@ -95,11 +96,35 @@ public final class NativeOwnedValues {
         return identities.get(value);
     }
 
+    /**
+     * Java-owned resources can disable dispatch before their native payload is
+     * dropped.
+     */
+    public void onInvalidation(NativeOwnedValue token, Consumer<String> action) {
+        bindings.requireThread();
+        Entry entry = entries.get(token.identity);
+        if (entry == null || entry.token != token || entry.invalidation != null) {
+            throw new NativeAccessFailure("owned_value_closed", "cannot install a resource lifecycle");
+        }
+        entry.invalidation = action;
+    }
+
+    public void invalidate(NativeOwnedValue token, String reason) {
+        bindings.requireThread();
+        Entry entry = entries.get(token.identity);
+        if (entry != null && entry.token == token) {
+            invalidate(entry, reason);
+        }
+    }
+
     Object use(NativeOwnedValue token, NativeContext context) {
         context.check();
         owner(token, context);
         Entry entry = entries.get(token.identity);
         if (entry == null) {
+            throw new NativeAccessFailure("owned_value_closed", token.state);
+        }
+        if (!token.state.equals("active")) {
             throw new NativeAccessFailure("owned_value_closed", token.state);
         }
         if (token.lifetime.equals("world")) {
@@ -184,12 +209,22 @@ public final class NativeOwnedValues {
         }
     }
 
+    public void checkOwner(NativeOwnedValue token, NativeContext context) {
+        context.check();
+        owner(token, context);
+    }
+
     private void invalidate(Entry entry, String reason) {
         if (entries.remove(entry.token.identity) == null) {
             return;
         }
         identities.remove(entry.value);
         entry.token.state = reason;
+        if (entry.invalidation != null) {
+            Consumer<String> action = entry.invalidation;
+            entry.invalidation = null;
+            action.accept(reason);
+        }
         if (entry.disposer != null) {
             pending.add(entry);
         } else {
@@ -298,6 +333,7 @@ public final class NativeOwnedValues {
         private final Method disposer;
         private final Object world;
         private final Object player;
+        private Consumer<String> invalidation;
 
         private Entry(NativeOwnedValue token, Object value, Method disposer, Object world, Object player) {
             this.token = token;

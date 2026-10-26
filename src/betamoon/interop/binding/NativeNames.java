@@ -46,6 +46,14 @@ public final class NativeNames {
         return canonicalName.equals("java/lang/String") ? type == String.class : type == curated.get(canonicalName);
     }
 
+    public Class<?> curatedType(String canonicalName) {
+        Class<?> type = curated.get(canonicalName);
+        if (type == null) {
+            throw new NativeAccessFailure("native_adapter_unavailable", canonicalName);
+        }
+        return type;
+    }
+
     public String runtimeClass(String internal, String policy) {
         TinyMappingSnapshot.ClassEntry entry = mappings.getClasses().get(internal);
         if (policy.equals("runtime") || entry == null) {

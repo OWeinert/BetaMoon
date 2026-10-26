@@ -5,7 +5,7 @@ import betamoon.interop.runtime.NativeOwnedValue;
 /**
  * No native payload or invocation authority is carried by a retainable handle.
  */
-final class NativeLuaOwned extends NativeLuaHandle {
+class NativeLuaOwned extends NativeLuaHandle {
     final NativeOwnedValue value;
 
     NativeLuaOwned(NativeAccessApi host, NativeOwnedValue value) {

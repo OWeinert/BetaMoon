@@ -18,7 +18,7 @@ public final class NativeOwnedValue {
     final String lifetime;
     public final NativeTypeRef type;
     private final WeakReference<NativeOwnedValues> registry;
-    String state = "active";
+    volatile String state = "active";
 
     NativeOwnedValue(NativeOwnedValues registry, long identity, String owner, long generation, String lifetime,
             NativeTypeRef type) {
@@ -36,6 +36,20 @@ public final class NativeOwnedValue {
 
     public void release(NativeContext context, boolean direct) {
         registry().release(this, context, direct);
+    }
+
+    public void checkOwner(NativeContext context) {
+        registry().checkOwner(this, context);
+    }
+
+    /**
+     * Disables Java-owned callback payloads without touching the client registry
+     * off-thread.
+     */
+    public void disable(String reason) {
+        if (state.equals("active")) {
+            state = reason;
+        }
     }
 
     public Map<String, Object> describe() {

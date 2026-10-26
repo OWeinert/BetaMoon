@@ -155,6 +155,12 @@ final class NativeLuaAccess extends NativeLuaHandle {
             }
             return new NativeLuaOwned(host, context.bindings.owned.retain(context, copy, lifetime, null));
         }));
+        properties.put("implement", NativeLuaSupport.scopedFunction(this, context,
+                args -> NativeLuaInterfaces.implement(host, context, args.arg1(), direct, false)));
+        properties.put("attach", NativeLuaSupport.scopedFunction(this, context,
+                args -> NativeLuaInterfaces.attach(host, context, args.arg1(), direct)));
+        properties.put("observeWorld", NativeLuaSupport.scopedFunction(this, context,
+                args -> NativeLuaInterfaces.observeWorld(host, context, args.arg1())));
     }
 
     private static Object object(NativeAccessApi host, NativeContext context, LuaValue value) {

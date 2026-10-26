@@ -35,6 +35,12 @@ public final class NativeEventAccess {
         callback.nativeEntry(entry(callback, ModLoader.getMinecraftInstance(), world, subject));
     }
 
+    public static NativeEntry interfaceEntry(LuaCallbackScope callback) {
+        Minecraft client = ModLoader.getMinecraftInstance();
+        NativeEntry entry = client == null ? null : entry(callback, client, client.theWorld, null);
+        return entry == null ? null : entry.asInterface();
+    }
+
     public static NativeEntry entry(LuaCallbackScope callback, Minecraft client, World world, Object subject) {
         NativeBindings bindings = NativeDiscoveryRuntime.bindingsIfAvailable();
         if (bindings == null || client == null || !bindings.onClientThread()) {

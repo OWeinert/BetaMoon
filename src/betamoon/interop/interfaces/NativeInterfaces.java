@@ -1,0 +1,399 @@
+package betamoon.interop.interfaces;
+
+import betamoon.interop.attachments.NativeAttachment;
+import betamoon.interop.attachments.NativeAttachmentDisposal;
+import betamoon.interop.binding.NativeAccessFailure;
+import betamoon.interop.binding.NativeBindings;
+import betamoon.interop.binding.NativeMemberPlan;
+import betamoon.interop.catalog.CatalogValues;
+import betamoon.interop.reference.NativeTypeRef;
+import betamoon.interop.runtime.NativeContext;
+import betamoon.interop.runtime.NativeEntry;
+import betamoon.interop.runtime.NativeOwnedValue;
+import betamoon.luaapi.utils.LuaCallbackScope;
+import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.luamodloader.ScriptResourceTracker;
+import java.lang.ref.WeakReference;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
+
+/**
+ * Client-owned proxy/attachment lifecycle. Foreign retained proxies only weakly
+ * refer back here.
+ */
+public final class NativeInterfaces {
+    @FunctionalInterface
+    public interface Callback {
+        Object invoke(Method method, Object[] arguments, LuaCallbackScope scope);
+    }
+
+    public static final class MethodCallback {
+        public final Callback callback;
+        public final String policy;
+
+        public MethodCallback(Callback callback, String policy) {
+            if (callback == null || !policy.equals("query") && !policy.equals("gameplay")) {
+                throw new NativeAccessFailure("invalid_interface_policy", "choose query or gameplay per method");
+            }
+            this.callback = callback;
+            this.policy = policy;
+        }
+    }
+
+    private final NativeBindings bindings;
+    private final Map<NativeOwnedValue, Entry> entries = new IdentityHashMap<>();
+    private final ConcurrentLinkedQueue<NativeImplementation> disabled = new ConcurrentLinkedQueue<>();
+    private final List<Removal> removals = new ArrayList<>();
+    private final AtomicLong failures = new AtomicLong();
+    private Function<LuaCallbackScope, NativeEntry> entryFactory = scope -> null;
+    private volatile Map<String, Object> status = CatalogValues.record("implementations", 0, "attachments", 0,
+            "pendingRemovals", 0);
+
+    public NativeInterfaces(NativeBindings bindings) {
+        this.bindings = bindings;
+    }
+
+    public void entryFactory(Function<LuaCallbackScope, NativeEntry> factory) {
+        bindings.requireThread();
+        entryFactory = factory;
+    }
+
+    public NativeImplementation create(NativeContext context, NativeInterfaceContract contract,
+            Map<String, MethodCallback> supplied, String policy, String lifetime, boolean observerDefaults) {
+        context.prepare();
+        if (entries.size() >= 2048 || removals.size() >= 2048
+                || entries.values().stream().filter(entry -> entry.owner.equals(context.owner())).count() >= 256) {
+            throw new NativeAccessFailure("native_interface_limit",
+                    "implementation/attachment lifecycle registry is full");
+        }
+        if (!policy.equals("query") && !policy.equals("gameplay")) {
+            throw new NativeAccessFailure("invalid_interface_policy", "choose query or gameplay");
+        }
+        Map<String, MethodCallback> callbacks = new LinkedHashMap<>(supplied);
+        if (!contract.methods.keySet().containsAll(callbacks.keySet())) {
+            throw new NativeAccessFailure("invalid_interface_method", "callback is outside the interface contract");
+        }
+        for (Map.Entry<String, Method> method : contract.methods.entrySet()) {
+            if (!callbacks.containsKey(method.getKey())) {
+                if (!observerDefaults || method.getValue().getReturnType() != Void.TYPE) {
+                    throw new NativeAccessFailure("missing_interface_method", method.getKey());
+                }
+                callbacks.put(method.getKey(), new MethodCallback((selected, arguments, scope) -> null, "query"));
+            }
+        }
+        if (observerDefaults && (!policy.equals("query")
+                || contract.methods.values().stream().anyMatch(method -> method.getReturnType() != Void.TYPE)
+                || callbacks.values().stream().anyMatch(callback -> !callback.policy.equals("query")))) {
+            throw new NativeAccessFailure("invalid_observer_contract",
+                    "observer defaults require read-only void methods");
+        }
+        Handler handler = new Handler(this, callbacks, observerDefaults);
+        Object proxy;
+        try {
+            proxy = Proxy.newProxyInstance(contract.loader, contract.interfaces.toArray(new Class<?>[0]), handler);
+        } catch (IllegalArgumentException | SecurityException | LinkageError exception) {
+            handler.clear();
+            throw new NativeAccessFailure("native_proxy_creation_failed", "interface visibility or JVM contract",
+                    exception);
+        }
+        NativeOwnedValue owned = bindings.owned.retain(context, proxy, lifetime, null);
+        List<NativeTypeRef> interfaces = new ArrayList<>();
+        for (Class<?> type : contract.interfaces) {
+            interfaces.add(bindings.reference(type));
+        }
+        NativeImplementation token = new NativeImplementation(owned, interfaces, policy, context.owner());
+        handler.token = token;
+        String owner = context.owner();
+        long generation = ScriptResourceTracker.ownerGeneration(owner);
+        ScriptResourceTracker.Cleanup cleanup = () -> handler.disable("stale_owner");
+        Entry entry = new Entry(token, handler, owner, generation, cleanup);
+        entries.put(owned, entry);
+        bindings.owned.onInvalidation(owned, handler::disable);
+        ScriptResourceTracker.track(cleanup);
+        publish();
+        return token;
+    }
+
+    public NativeAttachment attach(NativeContext context, NativeImplementation token, Object receiver,
+            NativeMemberPlan add, NativeMemberPlan remove, String lifetime, boolean managed) {
+        context.require(managed ? NativeContext.Effect.WRITE : NativeContext.Effect.UNKNOWN, !managed);
+        Object proxy = token.value.use(context);
+        Entry entry = requireEntry(token);
+        if (entry.attachment != null) {
+            throw new NativeAccessFailure("already_attached", "one implementation belongs to one managed attachment");
+        }
+        if (!lifetime.equals("owner") && !lifetime.equals("world")) {
+            throw new NativeAccessFailure("invalid_native_lifetime", "choose owner or world explicitly");
+        }
+        if (lifetime.equals("owner") && receiver != null
+                && (context.isRoot(receiver) || bindings.borrowedRootType(receiver.getClass()))) {
+            throw new NativeAccessFailure("borrowed_root", "live roots require world attachment lifetime");
+        }
+        Object world = lifetime.equals("world") ? context.root("world") : null;
+        if (lifetime.equals("world") && world == null) {
+            throw new NativeAccessFailure("world_unavailable", "world attachment requires the current world");
+        }
+        NativeAttachment attachment = new NativeAttachment(receiver, proxy, add, remove);
+        attachment.prepare(context);
+        entry.attachment = attachment;
+        entry.handler.attachmentStatus = attachment.status;
+        entry.worldBound = lifetime.equals("world");
+        entry.world = world;
+        entry.player = entry.worldBound ? context.root("player") : null;
+        entry.hostLease = receiver == null ? null : bindings.owned.find(receiver);
+        try {
+            attachment.install(context);
+            requireLive(token, context);
+        } catch (RuntimeException | Error failure) {
+            entry.handler.disable("attachment_install_failed");
+            flushDisabled();
+            throw failure;
+        }
+        publish();
+        return attachment;
+    }
+
+    public void requireLive(NativeImplementation token, NativeContext context) {
+        token.value.use(context);
+        Entry entry = requireEntry(token);
+        if (entry.worldBound && (entry.world != context.root("world") || entry.player != context.root("player"))
+                || entry.hostLease != null && !entry.hostLease.describe().get("state").equals("active")) {
+            entry.handler.disable("stale_environment");
+            throw new NativeAccessFailure("stale_environment", "attachment world/player/host changed");
+        }
+    }
+
+    /**
+     * Only invalidation is immediate; no native code or list mutation runs here.
+     */
+    public void requestClose(NativeImplementation token, NativeContext context) {
+        token.value.checkOwner(context);
+        Entry entry = entries.get(token.value);
+        if (entry != null) {
+            entry.handler.disable("released");
+        }
+    }
+
+    private Entry requireEntry(NativeImplementation token) {
+        Entry entry = entries.get(token.value);
+        if (entry == null || !entry.handler.active()) {
+            throw new NativeAccessFailure("native_implementation_closed", "implementation is disabled");
+        }
+        return entry;
+    }
+
+    /**
+     * The caller is the audited client lifecycle boundary, outside native/Lua
+     * dispatch.
+     */
+    public void observe(Object world, Object player) {
+        bindings.requireThread();
+        NativeAttachmentDisposal.drain();
+        for (Entry entry : new ArrayList<>(entries.values())) {
+            if (entry.generation != ScriptResourceTracker.ownerGeneration(entry.owner)
+                    || !entry.token.value.describe().get("state").equals("active")
+                    || entry.worldBound && (entry.world != world || entry.player != player)
+                    || entry.hostLease != null && !entry.hostLease.describe().get("state").equals("active")) {
+                entry.handler.disable("stale_environment");
+            }
+        }
+        flushDisabled();
+        drainRemovals();
+    }
+
+    public void close() {
+        bindings.requireThread();
+        for (Entry entry : new ArrayList<>(entries.values())) {
+            entry.handler.disable("session_closed");
+        }
+        flushDisabled();
+        drainRemovals();
+        for (Removal removal : removals) {
+            NativeAttachmentDisposal.defer(removal.owner, removal.attachment, failures);
+        }
+        removals.clear();
+        entryFactory = scope -> null;
+        publish();
+    }
+
+    public Map<String, Object> diagnostics() {
+        Map<String, Object> result = new LinkedHashMap<>(status);
+        result.put("failures", failures.get());
+        return result;
+    }
+
+    private void flushDisabled() {
+        NativeImplementation token;
+        while ((token = disabled.poll()) != null) {
+            Entry entry = entries.remove(token.value);
+            if (entry != null) {
+                ScriptResourceTracker.untrack(entry.owner, entry.cleanup);
+                bindings.owned.invalidate(token.value, (String) token.value.describe().get("state"));
+                if (entry.attachment != null) {
+                    entry.attachment.pending();
+                    removals.add(new Removal(entry.owner, entry.attachment));
+                }
+            }
+        }
+        publish();
+    }
+
+    private void drainRemovals() {
+        if (NativeContext.hasFrame() || !NativeContext.cleanupAllowed()) {
+            return;
+        }
+        List<Removal> work = new ArrayList<>(removals);
+        removals.clear();
+        for (Removal removal : work) {
+            NativeAttachmentDisposal.remove(removal.owner, removal.attachment, failures);
+        }
+        publish();
+    }
+
+    private void publish() {
+        status = CatalogValues.record("implementations", entries.size(), "attachments",
+                entries.values().stream().filter(entry -> entry.attachment != null).count(), "pendingRemovals",
+                removals.size());
+    }
+
+    private static final class Handler implements InvocationHandler {
+        private final WeakReference<NativeInterfaces> registry;
+        private volatile Map<String, MethodCallback> callbacks;
+        private final boolean observer;
+        private NativeImplementation token;
+        private volatile NativeAttachment.Status attachmentStatus;
+
+        private Handler(NativeInterfaces registry, Map<String, MethodCallback> callbacks, boolean observer) {
+            this.registry = new WeakReference<>(registry);
+            this.callbacks = Collections.unmodifiableMap(new LinkedHashMap<>(callbacks));
+            this.observer = observer;
+        }
+
+        private boolean active() {
+            return callbacks != null;
+        }
+
+        private void clear() {
+            callbacks = null;
+        }
+
+        private synchronized boolean disable(String reason) {
+            if (!active()) {
+                return false;
+            }
+            clear();
+            token.value.disable(reason);
+            NativeAttachment.Status attachment = attachmentStatus;
+            if (attachment != null) {
+                attachment.pending();
+            }
+            NativeInterfaces service = registry.get();
+            if (service != null) {
+                service.disabled.add(token);
+            }
+            return true;
+        }
+
+        @Override
+        public Object invoke(Object proxy, Method method, Object[] arguments) {
+            if (NativeInterfaceContract.objectMethod(method)) {
+                switch (method.getName()) {
+                    case "equals":
+                        return proxy == arguments[0];
+                    case "hashCode":
+                        return System.identityHashCode(proxy);
+                    default:
+                        return "BetaMoon native implementation@" + Integer.toHexString(System.identityHashCode(proxy));
+                }
+            }
+            NativeInterfaces service = registry.get();
+            try {
+                Map<String, MethodCallback> dispatch = callbacks;
+                if (service == null || dispatch == null) {
+                    throw new NativeAccessFailure("native_implementation_closed", method.getName());
+                }
+                service.bindings.requireThread();
+                if (!token.value.describe().get("state").equals("active")) {
+                    throw new NativeAccessFailure("stale_owner", "native implementation lifetime ended");
+                }
+                MethodCallback selected = dispatch.get(NativeInterfaceContract.key(method));
+                boolean gameplay = selected.policy.equals("gameplay");
+                if (gameplay && !NativeContext.hasFrame()) {
+                    throw new NativeAccessFailure("native_context_unavailable",
+                            "gameplay callback requires an audited caller");
+                }
+                try (LuaCallbackScope scope = new LuaCallbackScope(gameplay)) {
+                    NativeEntry entry = NativeContext.hasFrame()
+                            ? NativeContext.interfaceEntry(scope)
+                            : service.entryFactory.apply(scope);
+                    if (entry == null) {
+                        throw new NativeAccessFailure("native_context_unavailable",
+                                "consumer has no client callback entry");
+                    }
+                    scope.nativeEntry(entry);
+                    return selected.callback.invoke(method, arguments == null ? new Object[0] : arguments, scope);
+                }
+            } catch (RuntimeException | LinkageError failure) {
+                boolean stale = failure instanceof NativeAccessFailure
+                        && Arrays.asList("stale_owner", "stale_environment", "world_unavailable", "owned_value_closed",
+                                "native_session_closed").contains(((NativeAccessFailure) failure).reason);
+                if (service != null && disable(stale ? "stale_environment" : "callback_failed")) {
+                    if (!stale) {
+                        service.failures.incrementAndGet();
+                        LuaScriptErrors.add(token.owner, "Native interface callback disabled: " + method.getName(),
+                                LuaScriptErrors.Outcome.CALLBACK_DISABLED, failure);
+                    }
+                }
+                if (observer && method.getReturnType() == Void.TYPE) {
+                    return null;
+                }
+                throw failure instanceof NativeAccessFailure
+                        ? (NativeAccessFailure) failure
+                        : new NativeAccessFailure("native_callback_failed", method.getName(), failure);
+            }
+        }
+    }
+
+    private static final class Entry {
+        private final NativeImplementation token;
+        private final Handler handler;
+        private final String owner;
+        private final long generation;
+        private final ScriptResourceTracker.Cleanup cleanup;
+        private NativeAttachment attachment;
+        private boolean worldBound;
+        private Object world;
+        private Object player;
+        private NativeOwnedValue hostLease;
+
+        private Entry(NativeImplementation token, Handler handler, String owner, long generation,
+                ScriptResourceTracker.Cleanup cleanup) {
+            this.token = token;
+            this.handler = handler;
+            this.owner = owner;
+            this.generation = generation;
+            this.cleanup = cleanup;
+        }
+    }
+
+    private static final class Removal {
+        private final String owner;
+        private final NativeAttachment attachment;
+
+        private Removal(String owner, NativeAttachment attachment) {
+            this.owner = owner;
+            this.attachment = attachment;
+        }
+    }
+}

@@ -8,6 +8,8 @@ import betamoon.interop.catalog.CatalogValues;
 import betamoon.interop.binding.NativeBindings;
 import betamoon.interop.binding.NativeNames;
 import betamoon.interop.mapping.NativeNamespaceDetector;
+import betamoon.interop.runtime.NativeEventAccess;
+import betamoon.interop.attachments.NativeAttachmentDisposal;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -21,6 +23,7 @@ import net.minecraft.src.GuiScreen;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.World;
+import net.minecraft.src.IWorldAccess;
 
 /**
  * Small game adapter. All classloader/code-source/census inspection stays on
@@ -100,6 +103,7 @@ public final class NativeDiscoveryRuntime {
                 bindings = new NativeBindings(
                         new NativeNames(TinyMappingResolver.readStrict(input).snapshot(), namespace, curatedTypes()),
                         LOADERS, NativeDiscoveryRuntime::snapshot);
+                bindings.interfaces.entryFactory(NativeEventAccess::interfaceEntry);
             } catch (Exception exception) {
                 NativeOriginCache.warn(warnings, "native_binding_unavailable: " + exception.getMessage());
             }
@@ -156,8 +160,10 @@ public final class NativeDiscoveryRuntime {
     }
 
     public static void observeClient(Minecraft client) {
+        NativeAttachmentDisposal.drain();
         if (bindings != null && client != null) {
             bindings.owned.observe(client.theWorld, client.thePlayer);
+            bindings.interfaces.observe(client.theWorld, client.thePlayer);
         }
     }
 
@@ -165,6 +171,7 @@ public final class NativeDiscoveryRuntime {
         Map<String, Class<?>> result = new LinkedHashMap<>();
         result.put("net/minecraft/src/World", World.class);
         result.put("net/minecraft/src/ItemStack", ItemStack.class);
+        result.put("net/minecraft/src/IWorldAccess", IWorldAccess.class);
         return result;
     }
 }

@@ -9,7 +9,7 @@ import java.util.function.BooleanSupplier;
 /** Explicit audited callback policy; it holds no owner or Lua closure. */
 public final class NativeEntry {
     public enum Phase {
-        CLIENT, GAMEPLAY, QUERY, BINDING
+        CLIENT, GAMEPLAY, QUERY, BINDING, INTERFACE
     }
 
     private final NativeBindings bindings;
@@ -32,5 +32,9 @@ public final class NativeEntry {
     public NativeContext open(String owner) {
         callback.requireActive();
         return NativeContext.open(bindings, owner, callback, mutable, roots, environment, phase);
+    }
+
+    public NativeEntry asInterface() {
+        return new NativeEntry(bindings, callback, Phase.INTERFACE, mutable, roots, environment);
     }
 }

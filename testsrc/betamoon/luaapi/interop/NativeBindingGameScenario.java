@@ -70,6 +70,8 @@ public final class NativeBindingGameScenario {
         Map<String, Class<?>> curated = new LinkedHashMap<>();
         curated.put("net/minecraft/src/World", worldType);
         curated.put("net/minecraft/src/ItemStack", stackType);
+        curated.put("net/minecraft/src/IWorldAccess", Class.forName(
+                symbolic.runtimeClass("net/minecraft/src/IWorldAccess", "mapped").replace('/', '.'), false, gameLoader));
         NativeNames names = new NativeNames(mappings.snapshot(), namespace, curated);
         if (namespace.equals("client")) {
             try {
@@ -175,6 +177,7 @@ public final class NativeBindingGameScenario {
                 });
                 verifyEventEntry(lua, bindings, names, worldType, world);
                 verifyCuratedIdentity(lua, bindings, names, loaders, stackType);
+                NativeWorldObserverScenario.verify(lua, bindings, worldType, world);
             }
         } finally {
             loaders.close();

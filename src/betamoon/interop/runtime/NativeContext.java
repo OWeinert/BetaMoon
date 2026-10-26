@@ -112,6 +112,16 @@ public final class NativeContext implements AutoCloseable {
         return value;
     }
 
+    public static boolean hasFrame() {
+        return CURRENT.get() != null;
+    }
+
+    public static NativeEntry interfaceEntry(LuaCallbackScope callback) {
+        NativeContext parent = current();
+        return new NativeEntry(parent.bindings, callback, NativeEntry.Phase.INTERFACE,
+                callback.isMutable() && parent.mutable, parent.roots, parent.environment);
+    }
+
     public NativeContext child() {
         check();
         return new NativeContext(bindings, owner, callback, mutable, roots, environment, phase);
@@ -208,7 +218,7 @@ public final class NativeContext implements AutoCloseable {
         boolean effects = mutable && CURRENT.get().mutable && cleanupAllowed();
         return CatalogValues.record("phase", phase.name().toLowerCase(Locale.ROOT), "side", "client", "lifetime",
                 lease == null ? "callback" : "owned_borrow", "reads", true, "gameplayWrites", effects,
-                "directInitialization", effects, "directUnknownCalls", effects, "attachments", false, "hookEdits",
+                "directInitialization", effects, "directUnknownCalls", effects, "attachments", effects, "hookEdits",
                 false);
     }
 
