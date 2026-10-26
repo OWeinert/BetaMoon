@@ -5,6 +5,7 @@ import betamoon.interop.binding.NativeMemberPlan;
 import betamoon.interop.reference.NativeMemberRef;
 import betamoon.interop.reference.NativeTypeRef;
 import betamoon.interop.runtime.NativeContext;
+import betamoon.interop.runtime.NativeOwnedValue;
 import betamoon.interop.value.NativeConversions;
 import java.lang.reflect.Array;
 import java.util.Arrays;
@@ -14,11 +15,13 @@ import org.luaj.vm2.LuaValue;
 final class NativeLuaAccess extends NativeLuaHandle {
     NativeLuaAccess(NativeAccessApi host, NativeContext context, boolean direct) {
         super(direct ? "Native direct access" : "Native managed access");
-        properties.put("direct", NativeLuaSupport.function(this, args -> {
+        properties.put("describe",
+                NativeLuaSupport.scopedFunction(this, context, args -> host.metadata(context.describe(), true)));
+        properties.put("direct", NativeLuaSupport.scopedFunction(this, context, args -> {
             context.check();
             return new NativeLuaAccess(host, context, true);
         }));
-        properties.put("bind", NativeLuaSupport.function(this, args -> {
+        properties.put("bind", NativeLuaSupport.scopedFunction(this, context, args -> {
             context.check();
             try {
                 LuaValue request = args.arg1();
@@ -47,28 +50,30 @@ final class NativeLuaAccess extends NativeLuaHandle {
                 throw exception;
             }
         }));
-        properties.put("call", NativeLuaSupport.function(this, args -> {
+        properties.put("call", NativeLuaSupport.scopedFunction(this, context, args -> {
             context.check();
             if (args.narg() < 3) {
                 throw new NativeAccessFailure("receiver_required", "supply type, method name and receiver/nil");
             }
             NativeTypeRef type = host.type(args.arg1(), LuaValue.NIL);
             String name = NativeAccessApi.text(args.arg(2));
-            Object receiver = host.receiver(args.arg(3), context);
-            Object[] input = host.arguments(args.subargs(4), context);
-            NativeMemberPlan plan = context.bindings.method(type, name, receiver, input, context);
-            Object result = plan.call(context, direct, receiver, context.bindings.arguments(plan, input, context));
-            return plan.valueType == Void.TYPE ? LuaValue.NONE : host.result(result, context, direct);
+            NativeContext execution = host.operationContext(context, args.subargs(3));
+            Object receiver = host.receiver(args.arg(3), execution);
+            Object[] input = host.arguments(args.subargs(4), execution);
+            NativeMemberPlan plan = execution.bindings.method(type, name, receiver, input, execution);
+            Object result = plan.call(execution, direct, receiver,
+                    execution.bindings.arguments(plan, input, execution));
+            return plan.valueType == Void.TYPE ? LuaValue.NONE : host.result(result, execution, direct);
         }));
         for (String name : new String[]{"client", "world", "player", "screen", "subject"}) {
-            properties.put(name, NativeLuaSupport.function(this, args -> {
+            properties.put(name, NativeLuaSupport.scopedFunction(this, context, args -> {
                 Object root = context.root(name);
                 return root == null
                         ? NativeAccessApi.absent(name + "_unavailable", LuaValue.NIL)
                         : host.result(root, context, direct);
             }));
         }
-        properties.put("array", NativeLuaSupport.function(this, args -> {
+        properties.put("array", NativeLuaSupport.scopedFunction(this, context, args -> {
             context.prepare();
             NativeTypeRef component = host.type(args.arg1(), LuaValue.NIL);
             Class<?> type = context.bindings.type(component, context);
@@ -93,6 +98,77 @@ final class NativeLuaAccess extends NativeLuaHandle {
             }
             return host.result(result, context, direct);
         }));
+        properties.put("retain", NativeLuaSupport.scopedFunction(this, context, args -> {
+            context.require(NativeContext.Effect.UNKNOWN, direct);
+            Object value = object(host, context, args.arg1());
+            LuaTable options = NativeAccessApi.options(args.arg(2), "lifetime", "dispose");
+            String lifetime = NativeAccessApi.text(options.get("lifetime"));
+            NativeMemberPlan disposer = null;
+            if (!options.get("dispose").isnil()) {
+                LuaValue selected = options.get("dispose");
+                NativeMemberRef member = selected instanceof NativeLuaReference
+                        ? ((NativeLuaReference) selected).memberRef
+                        : host.methodRecord(selected);
+                if (member == null || member.kind != NativeMemberRef.Kind.METHOD) {
+                    throw new NativeAccessFailure("invalid_native_disposer", "use an exact instance method ()V");
+                }
+                disposer = context.bindings.exact(member, context, true);
+            }
+            return new NativeLuaOwned(host, context.bindings.owned.retain(context, value, lifetime, disposer));
+        }));
+        properties.put("use", NativeLuaSupport.scopedFunction(this, context, args -> {
+            NativeOwnedValue value = owned(args.arg1());
+            Object object = value.use(context);
+            return host.result(object, context.ownedScope(value), direct);
+        }));
+        properties.put("release", NativeLuaSupport.scopedFunction(this, context, args -> {
+            owned(args.arg1()).release(context, direct);
+            return LuaValue.NONE;
+        }));
+        properties.put("copy", NativeLuaSupport.scopedFunction(this, context, args -> {
+            context.require(NativeContext.Effect.WRITE, direct);
+            Object value = object(host, context, args.arg1());
+            LuaTable options = NativeAccessApi.options(args.arg(2), "lifetime");
+            String lifetime = options.get("lifetime").isnil() ? "owner" : NativeAccessApi.text(options.get("lifetime"));
+            Class<?> type = value.getClass();
+            Object copy;
+            if (type.isArray() && type.getComponentType().isPrimitive()) {
+                int length = Array.getLength(value);
+                if (length > 16384) {
+                    throw new NativeAccessFailure("native_copy_limit", "primitive array copy exceeds 16384 elements");
+                }
+                copy = Array.newInstance(type.getComponentType(), length);
+                System.arraycopy(value, 0, copy, 0, length);
+            } else if (context.bindings.names.curatedClass(type, "net/minecraft/src/ItemStack")) {
+                NativeTypeRef reference = context.bindings.reference(type);
+                NativeMemberRef method = new NativeMemberRef(NativeMemberRef.Kind.METHOD, reference, reference, "copy",
+                        "()Lnet/minecraft/src/ItemStack;", "mapped", "mapped");
+                NativeMemberPlan plan = context.bindings.exact(method, context, false);
+                copy = plan.call(context, false, value, new Object[0]);
+                if (copy == null || copy == value || copy.getClass() != type) {
+                    throw new NativeAccessFailure("native_copy_failed",
+                            "stack copy did not return an independent stack");
+                }
+            } else {
+                throw new NativeAccessFailure("unsupported_native_copy",
+                        "supported copies: primitive arrays and ItemStack");
+            }
+            return new NativeLuaOwned(host, context.bindings.owned.retain(context, copy, lifetime, null));
+        }));
+    }
+
+    private static Object object(NativeAccessApi host, NativeContext context, LuaValue value) {
+        if (!(value instanceof NativeLuaView) || ((NativeLuaView) value).classView) {
+            throw new NativeAccessFailure("native_object_required", "use a scoped native object view");
+        }
+        return host.receiver(value, context);
+    }
+
+    private static NativeOwnedValue owned(LuaValue value) {
+        if (!(value instanceof NativeLuaOwned)) {
+            throw new NativeAccessFailure("owned_value_required", "use a handle returned by copy() or direct retain()");
+        }
+        return ((NativeLuaOwned) value).value;
     }
 
     static int sequence(LuaTable table, int maximum) {

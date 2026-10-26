@@ -33,20 +33,21 @@ public final class NativeMemberPlan {
             parameters = method.getParameterTypes();
             valueType = method.getReturnType();
             descriptor = Type.getMethodDescriptor(method);
-            String owner = names.canonicalClass(method.getDeclaringClass());
-            if (owner.equals("java/lang/String") && ((method.getName().equals("length") && descriptor.equals("()I"))
-                    || (method.getName().equals("charAt") && descriptor.equals("(I)C"))
-                    || (method.getName().equals("substring") && (descriptor.equals("(I)Ljava/lang/String;")
-                            || descriptor.equals("(II)Ljava/lang/String;"))))) {
+            if (names.curatedClass(method.getDeclaringClass(), "java/lang/String")
+                    && ((method.getName().equals("length") && descriptor.equals("()I"))
+                            || (method.getName().equals("charAt") && descriptor.equals("(I)C"))
+                            || (method.getName().equals("substring") && (descriptor.equals("(I)Ljava/lang/String;")
+                                    || descriptor.equals("(II)Ljava/lang/String;"))))) {
                 effect = NativeContext.Effect.READ;
-            } else if (owner.equals("net/minecraft/src/World") && descriptor.equals("(III)I")
-                    && (names.methodMatches(method, "getBlockId", "mapped")
+            } else if (names.curatedClass(method.getDeclaringClass(), "net/minecraft/src/World")
+                    && descriptor.equals("(III)I") && (names.methodMatches(method, "getBlockId", "mapped")
                             || names.methodMatches(method, "getBlockMetadata", "mapped"))) {
                 // Both can load chunks. They are permitted gameplay operations, not pure
                 // getters.
                 effect = NativeContext.Effect.WRITE;
-            } else if (owner.equals("net/minecraft/src/ItemStack") && parameters.length == 0
-                    && valueType == method.getDeclaringClass() && names.methodMatches(method, "copy", "mapped")) {
+            } else if (names.curatedClass(method.getDeclaringClass(), "net/minecraft/src/ItemStack")
+                    && parameters.length == 0 && valueType == method.getDeclaringClass()
+                    && names.methodMatches(method, "copy", "mapped")) {
                 effect = NativeContext.Effect.READ;
             } else {
                 effect = NativeContext.Effect.UNKNOWN;
@@ -106,7 +107,9 @@ public final class NativeMemberPlan {
         accessibility(context, direct);
         context.require(isStatic ? NativeContext.Effect.INITIALIZE : NativeContext.Effect.READ, direct);
         try {
-            return ((Field) member).get(receiver);
+            Object result = ((Field) member).get(receiver);
+            context.check();
+            return result;
         } catch (IllegalAccessException | SecurityException exception) {
             throw new NativeAccessFailure("access_denied", identity(), exception);
         } catch (LinkageError exception) {
@@ -124,6 +127,7 @@ public final class NativeMemberPlan {
         accessibility(context, direct);
         try {
             ((Field) member).set(receiver, value);
+            context.check();
         } catch (IllegalAccessException | SecurityException exception) {
             throw new NativeAccessFailure("access_denied", identity(), exception);
         } catch (LinkageError exception) {

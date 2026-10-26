@@ -16,6 +16,7 @@ import betamoon.entity.LivingDefinition;
 import betamoon.entity.PickupDefinition;
 import betamoon.entity.ProjectileDefinition;
 import betamoon.luaapi.resource.OverrideManager;
+import betamoon.luamodloader.ScriptExecution;
 import betamoon.luaapi.utils.LuaOverrideCallback;
 import betamoon.luaapi.utils.LuaOverrideDefinition;
 import betamoon.luaapi.utils.LuaOverrideLayers;
@@ -33,64 +34,63 @@ import org.luaj.vm2.lib.ZeroArgFunction;
 
 /** Stable live reference to a BetaMoon entity type. */
 public final class EntityTypeReference extends LuaTable {
-    private static final OverrideManager.Property<EntityTypeRegistry.Entry, Patch> DEFINITION =
-            new OverrideManager.Property<EntityTypeRegistry.Entry, Patch>("definition",
-                    new OverrideManager.PropertyAdapter<EntityTypeRegistry.Entry, Patch>() {
-                        public Patch read(EntityTypeRegistry.Entry target) {
-                            EntityTypeDefinition value = target.base;
-                            return Patch.base(value);
-                        }
+    private static final OverrideManager.Property<EntityTypeRegistry.Entry, Patch> DEFINITION = new OverrideManager.Property<EntityTypeRegistry.Entry, Patch>(
+            "definition", new OverrideManager.PropertyAdapter<EntityTypeRegistry.Entry, Patch>() {
+                public Patch read(EntityTypeRegistry.Entry target) {
+                    EntityTypeDefinition value = target.base;
+                    return Patch.base(value);
+                }
 
-                        public void write(EntityTypeRegistry.Entry target, Patch value) {
-                            target.definition = value.original == null ? value.apply(target.base) : value.original;
+                public void write(EntityTypeRegistry.Entry target, Patch value) {
+                    target.definition = value.original == null ? value.apply(target.base) : value.original;
+                }
+            }, new OverrideManager.ValueResolver<Patch>() {
+                public Patch resolve(Patch base, List<Patch> layers) {
+                    if (layers.isEmpty()) {
+                        return base;
+                    }
+                    String displayName = base.displayName;
+                    Float width = base.width;
+                    Float height = base.height;
+                    Integer tickInterval = base.tickInterval;
+                    EntityBodyDefinition body = base.body;
+                    EntityRenderDefinition render = base.render;
+                    EntitySoundsDefinition sounds = base.sounds;
+                    EntitySpawnDefinition spawning = base.spawning;
+                    EntityBehaviorDefinition behavior = base.behavior;
+                    ProjectileDefinition projectile = base.projectile;
+                    LivingDefinition living = base.living;
+                    PickupDefinition pickup = base.pickup;
+                    EntityPhysicsDefinition physics = base.physics;
+                    EntityHealthDefinition health = base.health;
+                    EntityDropDefinition drops = base.drops;
+                    Map<String, LuaOverrideLayers<LuaOverrideDefinition>> callbacks = new LinkedHashMap<>();
+                    for (Patch layer : layers) {
+                        displayName = layer.displayName == null ? displayName : layer.displayName;
+                        width = layer.width == null ? width : layer.width;
+                        height = layer.height == null ? height : layer.height;
+                        tickInterval = layer.tickInterval == null ? tickInterval : layer.tickInterval;
+                        body = layer.body == null ? body : layer.body;
+                        render = layer.render == null ? render : layer.render;
+                        sounds = layer.sounds == null ? sounds : layer.sounds;
+                        spawning = layer.spawning == null ? spawning : layer.spawning;
+                        behavior = layer.behavior == null ? behavior : layer.behavior;
+                        projectile = layer.projectile == null ? projectile : layer.projectile;
+                        living = layer.living == null ? living : layer.living;
+                        pickup = layer.pickup == null ? pickup : layer.pickup;
+                        physics = layer.physics == null ? physics : layer.physics;
+                        health = layer.health == null ? health : layer.health;
+                        drops = layer.drops == null ? drops : layer.drops;
+                        for (Map.Entry<String, LuaOverrideLayers<LuaOverrideDefinition>> callback : layer.callbacks
+                                .entrySet()) {
+                            callbacks.put(callback.getKey(),
+                                    LuaOverrideLayers.concat(callbacks.get(callback.getKey()), callback.getValue()));
                         }
-                    }, new OverrideManager.ValueResolver<Patch>() {
-                        public Patch resolve(Patch base, List<Patch> layers) {
-                            if (layers.isEmpty()) {
-                                return base;
-                            }
-                            String displayName = base.displayName;
-                            Float width = base.width;
-                            Float height = base.height;
-                            Integer tickInterval = base.tickInterval;
-                            EntityBodyDefinition body = base.body;
-                            EntityRenderDefinition render = base.render;
-                            EntitySoundsDefinition sounds = base.sounds;
-                            EntitySpawnDefinition spawning = base.spawning;
-                            EntityBehaviorDefinition behavior = base.behavior;
-                            ProjectileDefinition projectile = base.projectile;
-                            LivingDefinition living = base.living;
-                            PickupDefinition pickup = base.pickup;
-                            EntityPhysicsDefinition physics = base.physics;
-                            EntityHealthDefinition health = base.health;
-                            EntityDropDefinition drops = base.drops;
-                            Map<String, LuaOverrideLayers<LuaOverrideDefinition>> callbacks = new LinkedHashMap<>();
-                            for (Patch layer : layers) {
-                                displayName = layer.displayName == null ? displayName : layer.displayName;
-                                width = layer.width == null ? width : layer.width;
-                                height = layer.height == null ? height : layer.height;
-                                tickInterval = layer.tickInterval == null ? tickInterval : layer.tickInterval;
-                                body = layer.body == null ? body : layer.body;
-                                render = layer.render == null ? render : layer.render;
-                                sounds = layer.sounds == null ? sounds : layer.sounds;
-                                spawning = layer.spawning == null ? spawning : layer.spawning;
-                                behavior = layer.behavior == null ? behavior : layer.behavior;
-                                projectile = layer.projectile == null ? projectile : layer.projectile;
-                                living = layer.living == null ? living : layer.living;
-                                pickup = layer.pickup == null ? pickup : layer.pickup;
-                                physics = layer.physics == null ? physics : layer.physics;
-                                health = layer.health == null ? health : layer.health;
-                                drops = layer.drops == null ? drops : layer.drops;
-                                for (Map.Entry<String, LuaOverrideLayers<LuaOverrideDefinition>> callback
-                                        : layer.callbacks.entrySet()) {
-                                    callbacks.put(callback.getKey(), LuaOverrideLayers.concat(
-                                            callbacks.get(callback.getKey()), callback.getValue()));
-                                }
-                            }
-                            return new Patch(displayName, width, height, tickInterval, body, render, sounds, spawning,
-                                    behavior, projectile, living, pickup, physics, health, drops, callbacks, null);
-                        }
-                    });
+                    }
+                    return new Patch(displayName, width, height, tickInterval, body, render, sounds, spawning, behavior,
+                            projectile, living, pickup, physics, health, drops, callbacks, null);
+                }
+            });
 
     private final AssetKey key;
 
@@ -155,12 +155,10 @@ public final class EntityTypeReference extends LuaTable {
         if (entry == null) {
             return false;
         }
-        if (!criteria.get("key").isnil()
-                && !key.toString().equals(criteria.get("key").checkjstring())) {
+        if (!criteria.get("key").isnil() && !key.toString().equals(criteria.get("key").checkjstring())) {
             return false;
         }
-        if (!criteria.get("owner").isnil()
-                && !entry.owner.equals(criteria.get("owner").checkjstring())) {
+        if (!criteria.get("owner").isnil() && !entry.owner.equals(criteria.get("owner").checkjstring())) {
             return false;
         }
         return criteria.get("kind").isnil()
@@ -181,8 +179,7 @@ public final class EntityTypeReference extends LuaTable {
         }
         final LuaTable handle = new LuaTable();
         handle.set("target", this);
-        if (!when.isnil() && !when.get("owner").isnil()
-                && !entry.owner.equals(when.get("owner").checkjstring())) {
+        if (!when.isnil() && !when.get("owner").isnil() && !entry.owner.equals(when.get("owner").checkjstring())) {
             handle.set("active", FALSE);
             handle.set("reason", "target owner did not match");
             return handle;
@@ -261,8 +258,8 @@ public final class EntityTypeReference extends LuaTable {
         }
         Patch patch = new Patch(displayName, width, height, tickInterval, body, render, sounds, spawning, behavior,
                 projectile, living, pickup, physics, health, drops, callbacks, null);
-        final OverrideManager.Layer<EntityTypeRegistry.Entry, Patch> layer = OverrideManager.apply(
-                "entityType:" + key, entry, DEFINITION, patch, value.get("priority").optint(0));
+        final OverrideManager.Layer<EntityTypeRegistry.Entry, Patch> layer = OverrideManager.apply("entityType:" + key,
+                entry, DEFINITION, patch, value.get("priority").optint(0));
         handle.set("active", TRUE);
         handle.set("remove", new VarArgFunction() {
             public Varargs invoke(Varargs args) {
@@ -277,10 +274,10 @@ public final class EntityTypeReference extends LuaTable {
     }
 
     private static boolean isCallback(String name) {
-        return name.equals("onInteract") || name.equals("onImpact") || name.equals("onTick")
-                || name.equals("onPickup") || name.equals("onSpawn") || name.equals("onLoad")
-                || name.equals("onDeath") || name.equals("onRemove") || name.equals("onActivate")
-                || name.equals("onDeactivate") || name.equals("onBeforeDamage") || name.equals("onAfterDamage");
+        return name.equals("onInteract") || name.equals("onImpact") || name.equals("onTick") || name.equals("onPickup")
+                || name.equals("onSpawn") || name.equals("onLoad") || name.equals("onDeath") || name.equals("onRemove")
+                || name.equals("onActivate") || name.equals("onDeactivate") || name.equals("onBeforeDamage")
+                || name.equals("onAfterDamage");
     }
 
     private static void validateCallbackKind(String name, EntityKind kind) {
@@ -360,23 +357,20 @@ public final class EntityTypeReference extends LuaTable {
         private EntityTypeDefinition apply(EntityTypeDefinition base) {
             return new EntityTypeDefinition(base.key, base.kind, base.lifecycle,
                     displayName == null ? base.displayName : displayName,
-                    width == null ? base.width : width.floatValue(),
-                    height == null ? base.height : height.floatValue(),
+                    width == null ? base.width : width.floatValue(), height == null ? base.height : height.floatValue(),
                     body == null ? base.body : body, render == null ? base.render : render,
-                    sounds == null ? base.sounds : sounds, spawning == null ? base.spawning : spawning,
-                    base.inventory, base.equipment, base.relations, base.mount,
-                    behavior == null ? base.behavior : behavior, base.appearance,
-                    projectile == null ? base.projectile : projectile, living == null ? base.living : living,
-                    pickup == null ? base.pickup : pickup, physics == null ? base.physics : physics,
-                    health == null ? base.health : health, drops == null ? base.drops : drops,
-                    base.data, base.parts, base.sensors,
+                    sounds == null ? base.sounds : sounds, spawning == null ? base.spawning : spawning, base.inventory,
+                    base.equipment, base.relations, base.mount, behavior == null ? base.behavior : behavior,
+                    base.appearance, projectile == null ? base.projectile : projectile,
+                    living == null ? base.living : living, pickup == null ? base.pickup : pickup,
+                    physics == null ? base.physics : physics, health == null ? base.health : health,
+                    drops == null ? base.drops : drops, base.data, base.parts, base.sensors,
                     callback(base.onInteract, "onInteract"), callback(base.onImpact, "onImpact"),
                     callback(base.onTick, "onTick"), callback(base.onPickup, "onPickup"),
                     callback(base.onSpawn, "onSpawn"), callback(base.onLoad, "onLoad"),
                     callback(base.onDeath, "onDeath"), callback(base.onRemove, "onRemove"),
                     callback(base.onActivate, "onActivate"), callback(base.onDeactivate, "onDeactivate"),
-                    callback(base.onBeforeDamage, "onBeforeDamage"),
-                    callback(base.onAfterDamage, "onAfterDamage"),
+                    callback(base.onBeforeDamage, "onBeforeDamage"), callback(base.onAfterDamage, "onAfterDamage"),
                     tickInterval == null ? base.tickInterval : tickInterval.intValue());
         }
 
@@ -389,9 +383,13 @@ public final class EntityTypeReference extends LuaTable {
             return new VarArgFunction() {
                 public Varargs invoke(Varargs args) {
                     final LuaTable context = args.arg1().checktable();
-                    return callback.invoke(context,
-                            () -> original.isnil() ? LuaValue.NIL : original.call(context),
-                            LuaOverrideCallback.Result.VALUE);
+                    return callback
+                            .invoke(context,
+                                    () -> original.isnil()
+                                            ? LuaValue.NIL
+                                            : ScriptExecution.invoke(LuaScriptRegistry.getCurrentScriptFile(),
+                                                    "entity.base", original, context).arg1(),
+                                    LuaOverrideCallback.Result.VALUE);
                 }
             };
         }

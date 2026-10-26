@@ -1,6 +1,7 @@
 package betamoon.luaapi.interop;
 
 import betamoon.interop.binding.NativeAccessFailure;
+import betamoon.interop.runtime.NativeContext;
 import java.util.Map;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -29,7 +30,19 @@ final class NativeLuaSupport {
         };
     }
 
+    static LuaValue scopedFunction(LuaValue self, NativeContext context, Action action) {
+        return function(self, arguments -> {
+            context.check();
+            Varargs result = action.run(arguments);
+            context.check();
+            return result;
+        });
+    }
+
     static LuaError error(RuntimeException exception) {
+        if (exception instanceof NativeAccessFailure) {
+            NativeContext.recordFailure(((NativeAccessFailure) exception).reason);
+        }
         return new BridgeError(exception);
     }
 

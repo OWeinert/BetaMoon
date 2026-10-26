@@ -1,5 +1,8 @@
 package betamoon.luaapi.entity;
 
+import betamoon.interop.runtime.NativeEventAccess;
+import betamoon.luaapi.interop.NativeCallbackTable;
+
 import betamoon.entity.modifier.EntityModifierCallbacks;
 import betamoon.entity.modifier.EntityModifierContext;
 import betamoon.entity.motion.EntityMotionCommand;
@@ -71,7 +74,8 @@ final class LuaModifierCallbacks {
 
         final LuaValue invoke(String phase, EntityModifierContext context, LuaValue event) {
             try (LuaCallbackScope scope = new LuaCallbackScope(false)) {
-                LuaTable ctx = new LuaTable();
+                NativeEventAccess.configure(scope, context.world, context.entity);
+                LuaTable ctx = new NativeCallbackTable(scope);
                 ctx.set("tick", LuaValue.valueOf(context.tick));
                 ctx.set("dt", LuaValue.valueOf(0.05));
                 ctx.set("generation", LuaValue.valueOf(context.generation));

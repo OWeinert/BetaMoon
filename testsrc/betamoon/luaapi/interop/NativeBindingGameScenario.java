@@ -15,6 +15,8 @@ import betamoon.interop.discovery.NativeLoaderRegistry;
 import betamoon.interop.reference.NativeMemberRef;
 import betamoon.interop.reference.NativeTypeRef;
 import betamoon.interop.runtime.NativeContext;
+import betamoon.interop.runtime.NativeEntry;
+import betamoon.interop.runtime.NativeEventAccess;
 import betamoon.luaapi.event.EventsApi;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luamodloader.ScriptExecution;
@@ -58,11 +60,17 @@ public final class NativeBindingGameScenario {
         try (InputStream input = gameLoader.getResourceAsStream("betamoon/instrumentation/mapping/b1.7.3.tiny")) {
             mappings = TinyMappingResolver.readStrict(input);
         }
-        NativeNames names = new NativeNames(mappings.snapshot(), namespace);
-        Class<?> worldType = Class.forName(names.runtimeClass("net/minecraft/src/World", "mapped").replace('/', '.'),
+        NativeNames symbolic = new NativeNames(mappings.snapshot(), namespace);
+        Class<?> worldType = Class.forName(symbolic.runtimeClass("net/minecraft/src/World", "mapped").replace('/', '.'),
                 false, gameLoader);
         Class<?> clientType = Class.forName(
-                names.runtimeClass("net/minecraft/client/Minecraft", "mapped").replace('/', '.'), false, gameLoader);
+                symbolic.runtimeClass("net/minecraft/client/Minecraft", "mapped").replace('/', '.'), false, gameLoader);
+        Class<?> stackType = Class.forName(
+                symbolic.runtimeClass("net/minecraft/src/ItemStack", "mapped").replace('/', '.'), false, gameLoader);
+        Map<String, Class<?>> curated = new LinkedHashMap<>();
+        curated.put("net/minecraft/src/World", worldType);
+        curated.put("net/minecraft/src/ItemStack", stackType);
+        NativeNames names = new NativeNames(mappings.snapshot(), namespace, curated);
         if (namespace.equals("client")) {
             try {
                 gameLoader.loadClass("net.minecraft.src.World");
@@ -146,16 +154,83 @@ public final class NativeBindingGameScenario {
                                 + "local stack=assert(a:bind('net.minecraft.src.ItemStack')):constructor('(III)V'):new(1,5,2); "
                                 + "local copy=stack:copy(); assert(copy.stackSize==5 and not copy:sameObject(stack)); "
                                 + "copy.stackSize=2; assert(stack.stackSize==5); "
+                                + "ownedStack=access:copy(stack); local owned=access:use(ownedStack); "
+                                + "owned.stackSize=8; assert(stack.stackSize==5); "
+                                + "ownedCells=a:copy(a:array('int',{4,5}),{lifetime='world'}); "
+                                + "assert(not pcall(function() a:retain(world,{lifetime='owner'}) end)); "
                                 + "local field=stack:field('itemDamage','I'); assert(field:get()==2); "
                                 + "field:set(3); assert(field:get()==3);", "native game binding").call();
                     }
+                    try (LuaCallbackScope callback = new LuaCallbackScope(true);
+                            NativeContext context = NativeContext.open(bindings, OWNER, callback, true, roots,
+                                    () -> true)) {
+                        lua.set("access", NativeAccessApi.contextAccess(context));
+                        lua.load("assert(access:use(ownedStack).stackSize==8); "
+                                + "assert(access:use(ownedCells)[1]==5); access:direct():release(ownedStack); "
+                                + "assert(ownedStack:describe().state=='released')", "owned game copies").call();
+                    }
+                    bindings.owned.observe(null, null);
+                    lua.load("assert(ownedCells:describe().state=='stale_world')", "world copy expiry").call();
                     return null;
                 });
                 verifyEventEntry(lua, bindings, names, worldType, world);
+                verifyCuratedIdentity(lua, bindings, names, loaders, stackType);
             }
         } finally {
             loaders.close();
         }
+    }
+
+    private static void verifyCuratedIdentity(Globals lua, NativeBindings bindings, NativeNames names,
+            NativeLoaderRegistry loaders, Class<?> stackType) throws Exception {
+        Method copy = Arrays
+                .stream(stackType.getDeclaredMethods()).filter(method -> method.getParameterTypes().length == 0
+                        && method.getReturnType() == stackType && names.methodMatches(method, "copy", "mapped"))
+                .findFirst().get();
+        String internal = Type.getInternalName(stackType);
+        ClassWriter writer = new ClassWriter(0);
+        writer.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC, internal, null, "java/lang/Object", null);
+        MethodVisitor method = writer.visitMethod(Opcodes.ACC_PUBLIC, copy.getName(), "()L" + internal + ";", null,
+                null);
+        method.visitCode();
+        method.visitVarInsn(Opcodes.ALOAD, 0);
+        method.visitInsn(Opcodes.ARETURN);
+        method.visitMaxs(1, 1);
+        method.visitEnd();
+        writer.visitEnd();
+        byte[] bytes = writer.toByteArray();
+        ClassLoader duplicate = new ClassLoader(stackType.getClassLoader()) {
+            @Override
+            protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+                if (name.equals(stackType.getName())) {
+                    Class<?> loaded = findLoadedClass(name);
+                    return loaded == null ? defineClass(name, bytes, 0, bytes.length) : loaded;
+                }
+                return super.loadClass(name, resolve);
+            }
+        };
+        Class<?> fake = Class.forName(stackType.getName(), false, duplicate);
+        Object object = allocate(fake);
+        loaders.capture(Collections.singletonList(stackType), Collections.singletonList(fake),
+                Collections.singletonList(fake), false, null, false);
+        ScriptExecution.withOwner(OWNER, () -> {
+            try (LuaCallbackScope callback = new LuaCallbackScope(true);
+                    NativeContext context = NativeContext.open(bindings, OWNER, callback, true,
+                            Collections.singletonMap("subject", object), () -> true)) {
+                NativeTypeRef reference = bindings.reference(fake);
+                NativeMemberPlan selected = bindings.exact(new NativeMemberRef(NativeMemberRef.Kind.METHOD, reference,
+                        reference, copy.getName(), "()L" + internal + ";", "runtime", "runtime"), context, true);
+                if (selected.effect != NativeContext.Effect.UNKNOWN) {
+                    throw new AssertionError("A duplicate Minecraft-named class acquired curated effects");
+                }
+                lua.set("duplicateAccess", NativeAccessApi.contextAccess(context));
+                lua.load(
+                        "local a=duplicateAccess; local ok,e=pcall(function() a:copy(a:subject()) end); "
+                                + "assert(not ok and tostring(e):find('unsupported_native_copy'))",
+                        "duplicate copy refusal").call();
+            }
+            return null;
+        });
     }
 
     private static void verifyEventEntry(Globals lua, NativeBindings bindings, NativeNames names, Class<?> worldType,
@@ -181,6 +256,7 @@ public final class NativeBindingGameScenario {
         Object previous = installed.get(null);
         try {
             installed.set(null, bindings);
+            verifyEnvironment(lua, bindings, names, worldType, world, clientType, client);
             ScriptExecution.invoke(OWNER, "register event",
                     lua.load("betamoon.events:on('world_join',function(ctx) "
                             + "assert(ctx.native:direct():world():getBlockId(1,2,3)==6); eventSeen=true; "
@@ -199,6 +275,62 @@ public final class NativeBindingGameScenario {
             installed.set(null, previous);
             ScriptResourceTracker.unload(OWNER);
         }
+    }
+
+    private static void verifyEnvironment(Globals lua, NativeBindings bindings, NativeNames names, Class<?> worldType,
+            Object world, Class<?> clientType, Object client) throws Exception {
+        ClassLoader loader = worldType.getClassLoader();
+        Class<?> playerType = Class.forName(
+                names.runtimeClass("net/minecraft/src/EntityPlayerSP", "mapped").replace('/', '.'), false, loader);
+        Class<?> screenType = Class
+                .forName(names.runtimeClass("net/minecraft/src/GuiScreen", "mapped").replace('/', '.'), false, loader);
+        Object player = allocate(playerType);
+        Object replacement = allocate(playerType);
+        Object replacementScreen = allocate(screenType);
+        ScriptExecution.withOwner(OWNER, () -> {
+            try (LuaCallbackScope callback = new LuaCallbackScope(true);
+                    NativeContext context = NativeContext.open(bindings, OWNER, callback, true, Collections.emptyMap(),
+                            () -> true)) {
+                NativeTypeRef entity = NativeTypeRef.named("net.minecraft.src.Entity", "mapped", null, null);
+                Field entityWorld = (Field) bindings.exact(new NativeMemberRef(NativeMemberRef.Kind.FIELD, entity, null,
+                        "worldObj", "Lnet/minecraft/src/World;", null, null), context, true).member;
+                entityWorld.set(player, world);
+                entityWorld.set(replacement, world);
+                NativeTypeRef minecraft = NativeTypeRef.named("net.minecraft.client.Minecraft", "mapped", null, null);
+                Field clientPlayer = (Field) bindings.exact(new NativeMemberRef(NativeMemberRef.Kind.FIELD, minecraft,
+                        null, "thePlayer", "Lnet/minecraft/src/EntityPlayerSP;", null, null), context, true).member;
+                Field clientScreen = (Field) bindings.exact(new NativeMemberRef(NativeMemberRef.Kind.FIELD, minecraft,
+                        null, "currentScreen", "Lnet/minecraft/src/GuiScreen;", null, null), context, true).member;
+                clientPlayer.set(client, player);
+                Method entry = NativeEventAccess.class.getMethod("entry", LuaCallbackScope.class, clientType, worldType,
+                        Object.class);
+                try (LuaCallbackScope event = new LuaCallbackScope(true);
+                        NativeContext scope = ((NativeEntry) entry.invoke(null, event, client, world, player))
+                                .open(OWNER)) {
+                    lua.set("changingAccess", NativeAccessApi.contextAccess(scope));
+                    lua.load(
+                            "assert(changingAccess:player()); " + "assert(changingAccess:describe().phase=='gameplay')",
+                            "current player root").call();
+                    clientPlayer.set(client, replacement);
+                    lua.load("local ok,e=pcall(function() changingAccess:world() end); "
+                            + "assert(not ok and tostring(e):find('stale_environment'))", "player replacement").call();
+                }
+                try (LuaCallbackScope event = new LuaCallbackScope(false);
+                        NativeContext scope = ((NativeEntry) entry.invoke(null, event, client, world, replacement))
+                                .open(OWNER)) {
+                    lua.set("changingAccess", NativeAccessApi.contextAccess(scope));
+                    lua.load("assert(changingAccess:describe().phase=='query')", "query phase").call();
+                    clientScreen.set(client, replacementScreen);
+                    lua.load("local ok,e=pcall(function() changingAccess:client() end); "
+                            + "assert(not ok and tostring(e):find('stale_environment'))", "screen replacement").call();
+                }
+                clientScreen.set(client, null);
+                clientPlayer.set(client, null);
+            } catch (ReflectiveOperationException exception) {
+                throw new AssertionError(exception);
+            }
+            return null;
+        });
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

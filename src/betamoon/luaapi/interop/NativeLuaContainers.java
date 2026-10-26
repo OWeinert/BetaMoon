@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
 import org.luaj.vm2.LuaError;
 
 /**
@@ -21,37 +22,39 @@ final class NativeLuaContainers {
     private NativeLuaContainers() {
     }
 
-    static void attach(NativeLuaHandle view, NativeAccessApi host, NativeContext context, boolean direct,
-            Supplier<Object> receiver) {
+    static void attach(NativeLuaView view, NativeAccessApi host, boolean direct, Supplier<Object> receiver) {
         view.properties.put("length", function(view, args -> {
+            NativeContext execution = view.executionContext();
             Object object = receiver.get();
-            read(context, direct, object);
+            read(execution, direct, object);
             return LuaValue.valueOf(size(object));
         }));
         view.properties.put("getAt", function(view, args -> {
+            NativeContext execution = view.executionContext();
             Object object = receiver.get();
-            read(context, direct, object);
+            read(execution, direct, object);
             Object value;
             if (object instanceof Map) {
-                value = ((Map<?, ?>) object).get(convertKey(host, args.arg1(), context));
+                value = ((Map<?, ?>) object).get(convertKey(host, args.arg1(), execution));
             } else {
                 int index = NativeAccessApi.integer(args.arg1(), 0, size(object) - 1);
                 value = object.getClass().isArray() ? Array.get(object, index) : ((List<?>) object).get(index);
             }
-            return host.result(value, context, direct);
+            return host.result(value, execution, direct);
         }));
         view.properties.put("setAt", function(view, args -> {
+            NativeContext execution = view.executionContext();
             Object object = receiver.get();
-            write(context, direct, object);
-            Object value = convertKey(host, args.arg(2), context);
+            write(execution, direct, object);
+            Object value = convertKey(host, args.arg(2), execution);
             if (object instanceof Map) {
-                put(object, convertKey(host, args.arg1(), context), value);
+                put(object, convertKey(host, args.arg1(), execution), value);
             } else {
                 int index = NativeAccessApi.integer(args.arg1(), 0, size(object) - 1);
                 if (object.getClass().isArray()) {
                     Class<?> component = object.getClass().getComponentType();
-                    Object input = host.argument(args.arg(2), context);
-                    context.bindings.validateNull(input, component, context);
+                    Object input = host.argument(args.arg(2), execution);
+                    execution.bindings.validateNull(input, component, execution);
                     Array.set(object, index, NativeConversions.convert(input, component));
                 } else {
                     setList(object, index, value);
@@ -60,11 +63,12 @@ final class NativeLuaContainers {
             return LuaValue.NONE;
         }));
         view.properties.put("setAll", function(view, args -> {
+            NativeContext execution = view.executionContext();
             Object object = receiver.get();
             if (!object.getClass().isArray()) {
                 throw new NativeAccessFailure("array_required", "setAll is an atomic validated array batch");
             }
-            write(context, direct, object);
+            write(execution, direct, object);
             int start = NativeAccessApi.integer(args.arg1(), 0, size(object));
             LuaTable sequence = args.arg(2).checktable();
             int count = NativeLuaAccess.sequence(sequence, 16384);
@@ -74,8 +78,8 @@ final class NativeLuaContainers {
             Class<?> component = object.getClass().getComponentType();
             Object[] values = new Object[count];
             for (int i = 0; i < count; i++) {
-                Object input = host.argument(sequence.get(i + 1), context);
-                context.bindings.validateNull(input, component, context);
+                Object input = host.argument(sequence.get(i + 1), execution);
+                execution.bindings.validateNull(input, component, execution);
                 values[i] = NativeConversions.convert(input, component);
             }
             for (int i = 0; i < count; i++) {
@@ -84,27 +88,30 @@ final class NativeLuaContainers {
             return LuaValue.NONE;
         }));
         view.properties.put("add", function(view, args -> {
+            NativeContext execution = view.executionContext();
             Object object = receiver.get();
-            write(context, direct, object);
+            write(execution, direct, object);
             if (!(object instanceof List)) {
                 throw new NativeAccessFailure("list_required", "add requires a native List");
             }
-            addList(object, convertKey(host, args.arg1(), context));
+            addList(object, convertKey(host, args.arg1(), execution));
             return LuaValue.NONE;
         }));
         view.properties.put("removeAt", function(view, args -> {
+            NativeContext execution = view.executionContext();
             Object object = receiver.get();
-            write(context, direct, object);
+            write(execution, direct, object);
             Object removed = object instanceof Map
-                    ? ((Map<?, ?>) object).remove(convertKey(host, args.arg1(), context))
+                    ? ((Map<?, ?>) object).remove(convertKey(host, args.arg1(), execution))
                     : object instanceof List
                             ? ((List<?>) object).remove(NativeAccessApi.integer(args.arg1(), 0, size(object) - 1))
                             : unsupported();
-            return host.result(removed, context, direct);
+            return host.result(removed, execution, direct);
         }));
         view.properties.put("snapshot", function(view, args -> {
+            NativeContext execution = view.executionContext();
             Object object = receiver.get();
-            read(context, direct, object);
+            read(execution, direct, object);
             int limit = args.arg1().isnil() ? 128 : NativeAccessApi.integer(args.arg1(), 1, 1000);
             LuaTable values = new LuaTable();
             boolean detached = true;
@@ -120,8 +127,8 @@ final class NativeLuaContainers {
                         break;
                     }
                     LuaTable pair = new LuaTable();
-                    LuaValue key = host.result(entry.getKey(), context, direct);
-                    LuaValue value = host.result(entry.getValue(), context, direct);
+                    LuaValue key = host.result(entry.getKey(), execution, direct);
+                    LuaValue value = host.result(entry.getValue(), execution, direct);
                     detached &= !(key instanceof NativeLuaView) && !(value instanceof NativeLuaView);
                     pair.set("key", key);
                     pair.set("value", value);
@@ -133,7 +140,7 @@ final class NativeLuaContainers {
                     if (!consume(remaining, value)) {
                         break;
                     }
-                    LuaValue converted = host.result(value, context, direct);
+                    LuaValue converted = host.result(value, execution, direct);
                     detached &= !(converted instanceof NativeLuaView);
                     values.set(++count, converted);
                 }
@@ -154,10 +161,13 @@ final class NativeLuaContainers {
         return remaining[0] >= 0;
     }
 
-    private static LuaValue function(NativeLuaHandle view, NativeLuaSupport.Action action) {
+    private static LuaValue function(NativeLuaView view, NativeLuaSupport.Action action) {
         return NativeLuaSupport.function(view, arguments -> {
+            NativeContext execution = view.executionContext();
             try {
-                return action.run(arguments);
+                Varargs result = action.run(arguments);
+                execution.check();
+                return result;
             } catch (NativeAccessFailure | LuaError exception) {
                 throw exception;
             } catch (RuntimeException exception) {

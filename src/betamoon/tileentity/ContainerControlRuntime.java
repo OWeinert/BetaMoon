@@ -1,5 +1,8 @@
 package betamoon.tileentity;
 
+import betamoon.interop.runtime.NativeEventAccess;
+import betamoon.luaapi.interop.NativeCallbackTable;
+
 import betamoon.gui.presentation.GuiInputSnapshot;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.tileentity.LuaTileDataAccess;
@@ -19,7 +22,9 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-/** Authoritative value validation and callback dispatch for one open container. */
+/**
+ * Authoritative value validation and callback dispatch for one open container.
+ */
 public final class ContainerControlRuntime {
     private final ContainerDefinition definition;
     private final LuaTileEntity tile;
@@ -131,9 +136,9 @@ public final class ContainerControlRuntime {
             return;
         }
         ContainerControlDefinition synthetic = new ContainerControlDefinition("close",
-                ContainerControlDefinition.Type.ACTION, ContainerControlDefinition.Source.NONE, null,
-                0, 0, 0, 0, 0, false, java.util.Collections.emptyList(), null,
-                LuaValue.NIL, definition.closeAction, LuaValue.NIL, LuaValue.NIL, LuaValue.NIL, LuaValue.NIL);
+                ContainerControlDefinition.Type.ACTION, ContainerControlDefinition.Source.NONE, null, 0, 0, 0, 0, 0,
+                false, java.util.Collections.emptyList(), null, LuaValue.NIL, definition.closeAction, LuaValue.NIL,
+                LuaValue.NIL, LuaValue.NIL, LuaValue.NIL);
         invoke(synthetic, "onClose", definition.closeAction, input("close"));
         active = false;
         session.close();
@@ -153,8 +158,8 @@ public final class ContainerControlRuntime {
         Object previous = value(control);
         Object attempted = proposed;
         LuaTable observed = observers.isEmpty() ? input : GuiInputSnapshot.copy(input);
-        CallbackResult before = invoke(control, "beforeChange", control.beforeChange, input,
-                toLua(proposed), toLua(previous));
+        CallbackResult before = invoke(control, "beforeChange", control.beforeChange, input, toLua(proposed),
+                toLua(previous));
         if (!before.success || "deny".equals(before.result)) {
             notifyControl(control, commit ? "commit" : "change", false, attempted, previous, observed);
             return false;
@@ -215,8 +220,8 @@ public final class ContainerControlRuntime {
         }
     }
 
-    private CallbackResult invoke(ContainerControlDefinition control, String name, LuaValue callback,
-            LuaTable input, LuaValue... arguments) {
+    private CallbackResult invoke(ContainerControlDefinition control, String name, LuaValue callback, LuaTable input,
+            LuaValue... arguments) {
         if (callback.isnil() || disabledCallbacks.contains(control.name + ":" + name)) {
             return CallbackResult.pass();
         }
@@ -241,8 +246,7 @@ public final class ContainerControlRuntime {
         LuaScriptErrors.add(definition.owner, message, LuaScriptErrors.Outcome.CALLBACK_DISABLED, error);
     }
 
-    private LuaTable context(final LuaCallbackScope scope, final ContainerControlDefinition control,
-            LuaTable input) {
+    private LuaTable context(final LuaCallbackScope scope, final ContainerControlDefinition control, LuaTable input) {
         LuaTable context = guiContext(scope);
         LuaTable controlValue = new LuaTable();
         controlValue.set("key", control.name);
@@ -255,7 +259,8 @@ public final class ContainerControlRuntime {
 
     public LuaTable guiContext(final LuaCallbackScope scope) {
         requireActive();
-        LuaTable context = new LuaTable();
+        NativeEventAccess.configure(scope, tile.worldObj, tile);
+        LuaTable context = new NativeCallbackTable(scope);
         context.set("player", player(player));
         LuaTable tileValue = new LuaTable();
         tileValue.set("x", tile.xCoord);
@@ -274,8 +279,8 @@ public final class ContainerControlRuntime {
         return () -> observers.remove(listener);
     }
 
-    private void notifyControl(ContainerControlDefinition control, String phase, boolean accepted,
-            Object proposed, Object previous, LuaTable input) {
+    private void notifyControl(ContainerControlDefinition control, String phase, boolean accepted, Object proposed,
+            Object previous, LuaTable input) {
         for (Consumer<Notification> observer : observers) {
             observer.accept(new Notification(control.name, phase, accepted, proposed, value(control), previous, input));
         }

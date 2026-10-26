@@ -1,6 +1,8 @@
 package betamoon.luaapi.config;
 
 import betamoon.assets.model.ModelJson;
+import betamoon.luamodloader.LuaScriptRegistry;
+import betamoon.luamodloader.ScriptExecution;
 import java.io.IOException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
@@ -26,8 +28,7 @@ final class ScriptConfigStore {
     private byte[] observedBytes;
     private boolean migrationBlocked;
 
-    ScriptConfigStore(Path root, ScriptConfigKey key, Map<String, Object> defaults,
-            ScriptConfigMetadata metadata) {
+    ScriptConfigStore(Path root, ScriptConfigKey key, Map<String, Object> defaults, ScriptConfigMetadata metadata) {
         this.root = root.toAbsolutePath().normalize();
         this.file = key.fileUnder(this.root);
         this.defaults = defaults;
@@ -140,15 +141,17 @@ final class ScriptConfigStore {
             Object marker = values.remove(VERSION_FIELD);
             int fileVersion = version(marker);
             if (fileVersion > schemaVersion) {
-                throw new IOException("Config schema " + fileVersion + " is newer than supported schema "
-                        + schemaVersion);
+                throw new IOException(
+                        "Config schema " + fileVersion + " is newer than supported schema " + schemaVersion);
             }
             if (fileVersion < schemaVersion) {
                 if (migrate.isnil()) {
                     throw new IOException("Config schema " + fileVersion + " requires a migration to " + schemaVersion);
                 }
-                LuaValue result = migrate.call(ScriptConfigValues.immutableSnapshot(values),
-                        LuaValue.valueOf(fileVersion));
+                LuaValue result = ScriptExecution
+                        .invoke(LuaScriptRegistry.getCurrentScriptFile(), "config.migrate", migrate, LuaValue
+                                .varargsOf(ScriptConfigValues.immutableSnapshot(values), LuaValue.valueOf(fileVersion)))
+                        .arg1();
                 if (!result.istable()) {
                     throw new IOException("Config migration must return a table");
                 }

@@ -1,5 +1,8 @@
 package betamoon.tileentity;
 
+import betamoon.interop.runtime.NativeEventAccess;
+import betamoon.luaapi.interop.NativeCallbackTable;
+
 import betamoon.data.DataField;
 import betamoon.gui.animation.GuiAnimationRequest;
 import betamoon.gui.animation.GuiAnimationValueError;
@@ -30,7 +33,10 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-/** Coordinates source batches, pure derivation, atomic geometry, events and per-screen ownership. */
+/**
+ * Coordinates source batches, pure derivation, atomic geometry, events and
+ * per-screen ownership.
+ */
 public final class ContainerPresentationRuntime implements AutoCloseable {
     private final ContainerGuiDefinition definition;
     private final LuaTileEntity tile;
@@ -94,7 +100,8 @@ public final class ContainerPresentationRuntime implements AutoCloseable {
             node.targets.putAll(node.baseline);
             node.displayed.putAll(node.baseline);
         }
-        subscriptions.add(controls.session().observe((key, previous, value) -> change("state:" + key, previous, value)));
+        subscriptions
+                .add(controls.session().observe((key, previous, value) -> change("state:" + key, previous, value)));
         subscriptions.add(tile.observeGuiData((key, previous, value) -> {
             TileEntityDefinition.Field field = definition.container.tileEntity.fields.get(key);
             if (field != null) {
@@ -103,15 +110,15 @@ public final class ContainerPresentationRuntime implements AutoCloseable {
         }));
         if (definition.presentation.listens("control")) {
             subscriptions.add(controls.observeControls(notification -> queue("control", () -> {
-            LuaTable event = new LuaTable();
-            event.set("control", notification.control);
-            event.set("phase", notification.phase);
-            event.set("accepted", LuaValue.valueOf(notification.accepted));
-            event.set("proposed", lua(notification.proposed));
-            event.set("value", lua(notification.value));
-            event.set("previous", lua(notification.previous));
-            event.set("input", notification.input);
-            return event;
+                LuaTable event = new LuaTable();
+                event.set("control", notification.control);
+                event.set("phase", notification.phase);
+                event.set("accepted", LuaValue.valueOf(notification.accepted));
+                event.set("proposed", lua(notification.proposed));
+                event.set("value", lua(notification.value));
+                event.set("previous", lua(notification.previous));
+                event.set("input", notification.input);
+                return event;
             })));
         }
     }
@@ -129,7 +136,10 @@ public final class ContainerPresentationRuntime implements AutoCloseable {
         return node;
     }
 
-    /** Internal diagnostics only: immutable snapshots do not expose mutable render state to Lua. */
+    /**
+     * Internal diagnostics only: immutable snapshots do not expose mutable render
+     * state to Lua.
+     */
     public Map<String, Object> debugSnapshot() {
         sample();
         Map<String, Object> result = new LinkedHashMap<>();
@@ -194,7 +204,10 @@ public final class ContainerPresentationRuntime implements AutoCloseable {
         }
     }
 
-    /** Called on the UI update/input boundary, including while world simulation is paused. */
+    /**
+     * Called on the UI update/input boundary, including while world simulation is
+     * paused.
+     */
     public void update() {
         requireActive();
         if (delivering) {
@@ -269,7 +282,9 @@ public final class ContainerPresentationRuntime implements AutoCloseable {
         deliver();
     }
 
-    /** Java-only sampling; it cannot evaluate a binding or invoke an event callback. */
+    /**
+     * Java-only sampling; it cannot evaluate a binding or invoke an event callback.
+     */
     public void sample() {
         double now = clock.getAsDouble();
         for (ContainerGuiNode node : nodes) {
@@ -340,7 +355,8 @@ public final class ContainerPresentationRuntime implements AutoCloseable {
         nativeData.clear();
         for (TileEntityDefinition.Field field : definition.container.tileEntity.fields.values()) {
             nativeData.put(field.name, tile.getDataValue(field.name));
-            if (field.sync && (field.schema.type == DataField.Type.INTEGER || field.schema.type == DataField.Type.BOOLEAN)) {
+            if (field.sync
+                    && (field.schema.type == DataField.Type.INTEGER || field.schema.type == DataField.Type.BOOLEAN)) {
                 data.put(field.name, nativeData.get(field.name));
             }
         }
@@ -357,8 +373,8 @@ public final class ContainerPresentationRuntime implements AutoCloseable {
             GuiTransitionPolicy policy = node.definition.transition;
             if (!node.definition.binding.isnil()) {
                 node.evaluations++;
-                Varargs result = ScriptExecution.invoke(definition.presentation.callbackOwner, "gui.bind." + label(node),
-                        node.definition.binding, view(node, scope, reads));
+                Varargs result = ScriptExecution.invoke(definition.presentation.callbackOwner,
+                        "gui.bind." + label(node), node.definition.binding, view(node, scope, reads));
                 output = node.definition.properties.read(result.arg1());
                 LuaValue dynamicPolicy = result.arg(2);
                 if (!dynamicPolicy.isnil()) {
@@ -392,7 +408,8 @@ public final class ContainerPresentationRuntime implements AutoCloseable {
     }
 
     private LuaTable view(ContainerGuiNode node, LuaCallbackScope scope, Set<String> reads) {
-        LuaTable view = new LuaTable();
+        NativeEventAccess.configure(scope, tile.worldObj, tile);
+        LuaTable view = new NativeCallbackTable(scope);
         view.set("state", observed(scope, reads, "state", state));
         view.set("data", observed(scope, reads, "data", data));
         view.set("interaction", new VarArgFunction() {
@@ -401,7 +418,8 @@ public final class ContainerPresentationRuntime implements AutoCloseable {
                 scope.requireActive();
                 int offset = arguments.arg1() == view ? 1 : 0;
                 String name = arguments.arg(offset + 1).checkjstring();
-                ContainerGuiNode target = arguments.arg(offset + 2).isnil() ? node
+                ContainerGuiNode target = arguments.arg(offset + 2).isnil()
+                        ? node
                         : element(arguments.arg(offset + 2).checkjstring());
                 requireInteraction(target, name);
                 String key = interactionKey(target, name);
@@ -544,7 +562,8 @@ public final class ContainerPresentationRuntime implements AutoCloseable {
         });
     }
 
-    private LuaTable requestEvent(ContainerGuiNode node, GuiAnimationRequest request, boolean completed, String reason) {
+    private LuaTable requestEvent(ContainerGuiNode node, GuiAnimationRequest request, boolean completed,
+            String reason) {
         LuaTable event = new LuaTable();
         event.set("elementId", lua(node.definition.id));
         event.set("requestId", request.id);
@@ -583,8 +602,9 @@ public final class ContainerPresentationRuntime implements AutoCloseable {
     }
 
     private static int priority(String event) {
-        return "open".equals(event) || "reload".equals(event) ? 0 : "change".equals(event) ? 1
-                : event.startsWith("animation") ? 3 : 2;
+        return "open".equals(event) || "reload".equals(event)
+                ? 0
+                : "change".equals(event) ? 1 : event.startsWith("animation") ? 3 : 2;
     }
 
     private void invokeEvent(QueuedEvent event) {
@@ -594,8 +614,8 @@ public final class ContainerPresentationRuntime implements AutoCloseable {
             context.set("gui", guiAccess(scope));
             LuaTable payload = event.payload.get();
             payload.set("type", event.type);
-            ScriptExecution.invoke(definition.presentation.callbackOwner, "gui.onEvent." + event.type, definition.presentation.onEvent,
-                    LuaValue.varargsOf(new LuaValue[]{context, payload}));
+            ScriptExecution.invoke(definition.presentation.callbackOwner, "gui.onEvent." + event.type,
+                    definition.presentation.onEvent, LuaValue.varargsOf(new LuaValue[]{context, payload}));
             commitCommands();
         } catch (Throwable error) {
             if (commands != null) {
@@ -626,8 +646,8 @@ public final class ContainerPresentationRuntime implements AutoCloseable {
 
     private LuaTable nodeHandle(ContainerGuiNode node) {
         LuaTable handle = new LuaTable();
-        for (String method : Arrays.asList("set", "animate", "override", "clearOverride", "cancel", "finish",
-                "refresh", "get", "target")) {
+        for (String method : Arrays.asList("set", "animate", "override", "clearOverride", "cancel", "finish", "refresh",
+                "get", "target")) {
             handle.set(method, new VarArgFunction() {
                 @Override
                 public Varargs invoke(Varargs args) {
@@ -659,13 +679,16 @@ public final class ContainerPresentationRuntime implements AutoCloseable {
                         }
                         LuaValue options = args.arg(offset + 2);
                         GuiTransitionPolicy policy = options.isnil()
-                                ? "animate".equals(method) ? node.definition.explicitTransition
-                                        ? node.definition.transition : GuiTransitionPolicy.DEFAULT
-                                : GuiTransitionPolicy.IMMEDIATE
+                                ? "animate".equals(method)
+                                        ? node.definition.explicitTransition
+                                                ? node.definition.transition
+                                                : GuiTransitionPolicy.DEFAULT
+                                        : GuiTransitionPolicy.IMMEDIATE
                                 : node.definition.properties.transition(options);
                         GuiAnimationRequest request = "animate".equals(method)
                                 || "override".equals(method) && !options.isnil() && options != FALSE
-                                ? request(node, values.keySet()) : null;
+                                        ? request(node, values.keySet())
+                                        : null;
                         command = new Command(node, method, values, policy, request);
                     } else {
                         Set<String> selected = selection(node, args.arg(offset + 1));
@@ -820,19 +843,21 @@ public final class ContainerPresentationRuntime implements AutoCloseable {
                 if (track != null) {
                     Object displayed = node.get(name);
                     ContainerGuiNode.Override previous = node.overrides.get(name);
-                    node.overrides.put(name, new ContainerGuiNode.Override(displayed, previous != null && previous.held));
+                    node.overrides.put(name,
+                            new ContainerGuiNode.Override(displayed, previous != null && previous.held));
                     node.targets.put(name, displayed);
                     track.request.property(name, false, "explicit_cancel");
                 }
             } else {
                 values.put(name, property.getValue());
-                node.overrides.put(name, new ContainerGuiNode.Override(property.getValue(),
-                        "override".equals(command.method)));
+                node.overrides.put(name,
+                        new ContainerGuiNode.Override(property.getValue(), "override".equals(command.method)));
             }
         }
         if (!values.isEmpty()) {
             GuiAnimationRequest request = command.request == null && !"set".equals(command.method)
-                    ? request(node, values.keySet()) : command.request;
+                    ? request(node, values.keySet())
+                    : command.request;
             boolean immediate = "set".equals(command.method)
                     || "override".equals(command.method) && command.request == null;
             node.retarget(values, command.policy, request, now, immediate, true, "replaced");
@@ -850,8 +875,8 @@ public final class ContainerPresentationRuntime implements AutoCloseable {
     }
 
     private boolean callbacksValid() {
-        return !ownerInvalidated && ScriptResourceTracker.ownerGeneration(definition.presentation.callbackOwner)
-                == definition.presentation.ownerGeneration;
+        return !ownerInvalidated && ScriptResourceTracker
+                .ownerGeneration(definition.presentation.callbackOwner) == definition.presentation.ownerGeneration;
     }
 
     private void requireHandleActive() {
@@ -904,8 +929,10 @@ public final class ContainerPresentationRuntime implements AutoCloseable {
         String detail = error.getMessage() == null ? error.toString() : error.getMessage();
         String category = detail.replaceAll("[-+]?[0-9]+(?:\\.[0-9]+)?", "#");
         if (node.diagnostics.size() < 32 && node.diagnostics.add(category)) {
-            report("element " + label(node) + " bind", error, node.suspended
-                    ? LuaScriptErrors.Outcome.BINDING_SUSPENDED : LuaScriptErrors.Outcome.APPEARANCE_RETAINED);
+            report("element " + label(node) + " bind", error,
+                    node.suspended
+                            ? LuaScriptErrors.Outcome.BINDING_SUSPENDED
+                            : LuaScriptErrors.Outcome.APPEARANCE_RETAINED);
         } else if (node.suppressedDiagnostics < Integer.MAX_VALUE) {
             node.suppressedDiagnostics++;
         }
@@ -941,7 +968,10 @@ public final class ContainerPresentationRuntime implements AutoCloseable {
         return LuaValue.valueOf(String.valueOf(value));
     }
 
-    /** Validates a new visual revision before detaching this screen's active presentation. */
+    /**
+     * Validates a new visual revision before detaching this screen's active
+     * presentation.
+     */
     public ContainerPresentationRuntime reload(ContainerGuiDefinition replacement) {
         requireActive();
         if (replacement.container != definition.container) {
@@ -965,9 +995,8 @@ public final class ContainerPresentationRuntime implements AutoCloseable {
                 }
                 for (Map.Entry<String, ContainerGuiNode.Override> entry : previous.overrides.entrySet()) {
                     String property = entry.getKey();
-                    if (next.definition.properties.supports(property)
-                            && (entry.getValue().held
-                                    || Objects.equals(previous.derived.get(property), next.derived.get(property)))) {
+                    if (next.definition.properties.supports(property) && (entry.getValue().held
+                            || Objects.equals(previous.derived.get(property), next.derived.get(property)))) {
                         next.definition.properties.read(property, lua(entry.getValue().value));
                         next.overrides.put(property, entry.getValue());
                         next.targets.put(property, entry.getValue().value);
@@ -995,8 +1024,8 @@ public final class ContainerPresentationRuntime implements AutoCloseable {
                     GuiAnimationRequest request = candidate.request(next, retained.keySet());
                     for (Map.Entry<String, ContainerGuiNode.Track> entry : retained.entrySet()) {
                         ContainerGuiNode.Track track = entry.getValue();
-                        next.tracks.put(entry.getKey(), new ContainerGuiNode.Track(track.from, track.to, track.start,
-                                track.options, request));
+                        next.tracks.put(entry.getKey(),
+                                new ContainerGuiNode.Track(track.from, track.to, track.start, track.options, request));
                     }
                     request.commit();
                 }
@@ -1108,7 +1137,9 @@ public final class ContainerPresentationRuntime implements AutoCloseable {
                         overridden.add(property);
                     }
                 } else if (!"clearOverride".equals(command.method) || overridden.remove(property)) {
-                    Object value = "clearOverride".equals(command.method) ? node.derived.get(property) : entry.getValue();
+                    Object value = "clearOverride".equals(command.method)
+                            ? node.derived.get(property)
+                            : entry.getValue();
                     targets.put(property, value);
                     boolean immediate = "set".equals(command.method)
                             || "override".equals(command.method) && command.request == null;
@@ -1140,13 +1171,13 @@ public final class ContainerPresentationRuntime implements AutoCloseable {
         private final GuiAnimationRequest request;
         private final GuiAnimationRequest owner;
 
-        private Command(ContainerGuiNode node, String method, Map<String, Object> values,
-                GuiTransitionPolicy policy, GuiAnimationRequest request) {
+        private Command(ContainerGuiNode node, String method, Map<String, Object> values, GuiTransitionPolicy policy,
+                GuiAnimationRequest request) {
             this(node, method, values, policy, request, null);
         }
 
-        private Command(ContainerGuiNode node, String method, Map<String, Object> values,
-                GuiTransitionPolicy policy, GuiAnimationRequest request, GuiAnimationRequest owner) {
+        private Command(ContainerGuiNode node, String method, Map<String, Object> values, GuiTransitionPolicy policy,
+                GuiAnimationRequest request, GuiAnimationRequest owner) {
             this.node = node;
             this.method = method;
             this.values = values;

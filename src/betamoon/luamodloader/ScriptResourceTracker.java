@@ -35,6 +35,20 @@ public final class ScriptResourceTracker {
         entries.add(cleanup);
     }
 
+    /**
+     * Removes one installed cleanup by identity when its owning session has already
+     * closed it.
+     */
+    public static synchronized void untrack(String owner, Cleanup cleanup) {
+        List<Cleanup> entries = CLEANUPS.get(owner);
+        if (entries != null) {
+            entries.removeIf(entry -> entry == cleanup);
+            if (entries.isEmpty()) {
+                CLEANUPS.remove(owner);
+            }
+        }
+    }
+
     /** Associates a short-lived runtime object with the declaring script. */
     public static synchronized void trackOwned(final Object value) {
         final String owner = LuaScriptRegistry.getCurrentScriptFile();
@@ -76,7 +90,10 @@ public final class ScriptResourceTracker {
         }
     }
 
-    /** A declaration can compare this token without retaining its owner's cleanup list. */
+    /**
+     * A declaration can compare this token without retaining its owner's cleanup
+     * list.
+     */
     public static synchronized long ownerGeneration(String owner) {
         Long generation = OWNER_GENERATIONS.get(owner);
         return generation == null ? 0 : generation.longValue();

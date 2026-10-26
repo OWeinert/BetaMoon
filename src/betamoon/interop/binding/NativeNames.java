@@ -5,6 +5,7 @@ import betamoon.interop.catalog.JvmDescriptors;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -20,10 +21,16 @@ public final class NativeNames {
     private final TinyMappingSnapshot mappings;
     private final String namespace;
     private final Map<String, String> canonical = new HashMap<>();
+    private final Map<String, Class<?>> curated;
 
     public NativeNames(TinyMappingSnapshot mappings, String namespace) {
+        this(mappings, namespace, Collections.emptyMap());
+    }
+
+    public NativeNames(TinyMappingSnapshot mappings, String namespace, Map<String, Class<?>> curated) {
         this.mappings = mappings;
         this.namespace = namespace;
+        this.curated = Collections.unmodifiableMap(new HashMap<>(curated));
         for (Map.Entry<String, TinyMappingSnapshot.ClassEntry> entry : mappings.getClasses().entrySet()) {
             String runtime = entry.getValue().getNames().get(namespace);
             if (runtime != null && !runtime.isEmpty()) {
@@ -33,6 +40,10 @@ public final class NativeNames {
                 }
             }
         }
+    }
+
+    public boolean curatedClass(Class<?> type, String canonicalName) {
+        return canonicalName.equals("java/lang/String") ? type == String.class : type == curated.get(canonicalName);
     }
 
     public String runtimeClass(String internal, String policy) {

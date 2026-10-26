@@ -3,9 +3,11 @@ package betamoon.interop.binding;
 import betamoon.interop.discovery.NativeLoaderRegistry;
 import betamoon.interop.discovery.NativeIndexSnapshot;
 import betamoon.interop.catalog.JvmDescriptors;
+import betamoon.interop.catalog.CatalogValues;
 import betamoon.interop.reference.NativeMemberRef;
 import betamoon.interop.reference.NativeTypeRef;
 import betamoon.interop.runtime.NativeContext;
+import betamoon.interop.runtime.NativeOwnedValues;
 import betamoon.interop.value.NativeConversions;
 import betamoon.interop.value.NativeExactValue;
 import java.lang.ref.WeakReference;
@@ -33,9 +35,13 @@ import org.objectweb.asm.Type;
  */
 public final class NativeBindings {
     public final NativeNames names;
+    public final NativeOwnedValues owned = new NativeOwnedValues(this);
     private final NativeLoaderRegistry loaders;
     private final Thread client = Thread.currentThread();
     private final Supplier<NativeIndexSnapshot> snapshots;
+    private volatile boolean closed;
+    private volatile int cachedTypeSelectors;
+    private final Map<String, Long> failures = new HashMap<>();
     private final Map<String, WeakReference<Class<?>>> types = new HashMap<>();
     private final ClassValue<Map<String, NativeMemberPlan>> plans = new ClassValue<Map<String, NativeMemberPlan>>() {
         @Override
@@ -64,14 +70,56 @@ public final class NativeBindings {
         return snapshots.get();
     }
 
+    public void recordFailure(String reason) {
+        synchronized (failures) {
+            if (onClientThread() && (failures.containsKey(reason) || failures.size() < 128)) {
+                failures.put(reason, failures.getOrDefault(reason, 0L) + 1L);
+            }
+        }
+    }
+
+    public Map<String, Object> diagnostics() {
+        synchronized (failures) {
+            return CatalogValues.record("session", closed ? "closed" : "active", "cachedTypeSelectors",
+                    cachedTypeSelectors, "failures", new HashMap<>(failures), "ownership", owned.diagnostics());
+        }
+    }
+
     public void requireThread() {
         if (!onClientThread()) {
             throw new NativeAccessFailure("wrong_thread", "native binding runs on the client thread");
+        }
+        if (closed) {
+            throw new NativeAccessFailure("native_session_closed", "native session ended");
         }
     }
 
     public boolean onClientThread() {
         return Thread.currentThread() == client;
+    }
+
+    public void close() {
+        requireThread();
+        try {
+            owned.close();
+        } finally {
+            closed = true;
+            types.clear();
+            cachedTypeSelectors = 0;
+        }
+    }
+
+    public boolean borrowedRootType(Class<?> type) {
+        requireThread();
+        for (Class<?> current = type; current != null; current = current.getSuperclass()) {
+            String name = names.canonicalClass(current);
+            if (name.equals("net/minecraft/src/World") || name.equals("net/minecraft/src/Entity")
+                    || name.equals("net/minecraft/src/TileEntity") || name.equals("net/minecraft/src/GuiScreen")
+                    || name.equals("net/minecraft/client/Minecraft")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public NativeTypeRef reference(Class<?> type) {
@@ -140,6 +188,7 @@ public final class NativeBindings {
             types.clear();
         }
         types.put(key, new WeakReference<>(result));
+        cachedTypeSelectors = types.size();
         return result;
     }
 

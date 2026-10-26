@@ -80,6 +80,9 @@ public final class NativeLoaderRegistry implements AutoCloseable {
                 return null;
             }
             URL location = type.getProtectionDomain().getCodeSource().getLocation();
+            if (location == null) {
+                return null;
+            }
             Path path = localOrigins.get(location.toExternalForm());
             if (path == null && "file".equalsIgnoreCase(location.getProtocol())) {
                 path = Paths.get(location.toURI()).toAbsolutePath().normalize();
@@ -203,6 +206,9 @@ public final class NativeLoaderRegistry implements AutoCloseable {
         }
 
         private Path local(URL url) {
+            if (url == null) {
+                return null;
+            }
             try {
                 URI uri = url.toURI();
                 if ("jar".equals(uri.getScheme())) {

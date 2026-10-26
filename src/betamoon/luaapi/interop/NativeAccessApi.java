@@ -236,7 +236,9 @@ public final class NativeAccessApi {
         if (!(value instanceof NativeLuaView) || ((NativeLuaView) value).classView) {
             throw new NativeAccessFailure("wrong_receiver", "expected a native object view or nil for a static call");
         }
-        return ((NativeLuaView) value).payload(context);
+        Object result = ((NativeLuaView) value).payload(context);
+        context.retainScoped(result);
+        return result;
     }
 
     Object argument(LuaValue value, NativeContext context) {
@@ -244,7 +246,9 @@ public final class NativeAccessApi {
             return ((NativeLuaExact) value).exact;
         }
         if (value instanceof NativeLuaView && !((NativeLuaView) value).classView) {
-            return ((NativeLuaView) value).payload(context);
+            Object result = ((NativeLuaView) value).payload(context);
+            context.retainScoped(result);
+            return result;
         }
         switch (value.type()) {
             case LuaValue.TBOOLEAN:
@@ -265,6 +269,17 @@ public final class NativeAccessApi {
         Object[] result = new Object[values.narg()];
         for (int i = 0; i < result.length; i++) {
             result[i] = argument(values.arg(i + 1), context);
+        }
+        return result;
+    }
+
+    NativeContext operationContext(NativeContext context, Varargs arguments) {
+        NativeContext result = context;
+        for (int i = 1; i <= arguments.narg(); i++) {
+            if (arguments.arg(i) instanceof NativeLuaView) {
+                NativeLuaView view = (NativeLuaView) arguments.arg(i);
+                result = result.inheritOwnership(view.executionContext());
+            }
         }
         return result;
     }

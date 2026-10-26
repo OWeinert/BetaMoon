@@ -168,6 +168,7 @@ public final class BetaMoonClient {
      * callbacks.
      */
     public void synchronizeTickLifecycle(net.minecraft.client.Minecraft mc) {
+        NativeDiscoveryRuntime.observeClient(mc);
         eventHandler.synchronizeLifecycle(mc);
     }
 

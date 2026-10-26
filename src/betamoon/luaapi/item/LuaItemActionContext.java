@@ -1,5 +1,8 @@
 package betamoon.luaapi.item;
 
+import betamoon.interop.runtime.NativeEventAccess;
+import betamoon.luaapi.interop.NativeCallbackContext;
+
 import betamoon.luaapi.block.LuaBlockActionContext;
 import betamoon.luaapi.multiblock.MultiblockQueryApi;
 import betamoon.luaapi.entity.LuaEntityActionAccess;
@@ -26,7 +29,12 @@ import static betamoon.luaapi.utils.LuaDeclarationValues.number;
  * Context for a held or inventory item; block access exists only for a block
  * target.
  */
-public final class LuaItemActionContext extends LuaTable implements AutoCloseable {
+public final class LuaItemActionContext extends LuaTable implements AutoCloseable, NativeCallbackContext {
+    @Override
+    public LuaCallbackScope nativeCallbackScope() {
+        return scope;
+    }
+
     private final LuaCallbackScope scope;
     private final EntityPlayer player;
     private final LuaBlockActionContext blockTarget;
@@ -36,6 +44,7 @@ public final class LuaItemActionContext extends LuaTable implements AutoCloseabl
             boolean mutable) {
         this.player = player;
         scope = new LuaCallbackScope(mutable && !world.multiplayerWorld);
+        NativeEventAccess.configure(scope, world, player);
         set("world", LuaWorldActionAccess.create(scope, world, x, y, z));
         set("stack", LuaItemStackAccess.create(scope, player, stack));
         MultiblockQueryApi.attachItem(this, scope, world, player, stack, x, y, z, face);

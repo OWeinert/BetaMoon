@@ -1,5 +1,8 @@
 package betamoon.multiblock;
 
+import betamoon.interop.runtime.NativeEventAccess;
+import betamoon.luaapi.interop.NativeCallbackTable;
+
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.block.BlockFace;
 import betamoon.luaapi.multiblock.MultiblocksApi;
@@ -31,7 +34,8 @@ final class MultiblockLifecycle {
             return !query;
         }
         try (LuaCallbackScope scope = new LuaCallbackScope(!query)) {
-            LuaTable context = new LuaTable();
+            NativeEventAccess.configure(scope, instance.world(), null);
+            LuaTable context = new NativeCallbackTable(scope);
             context.set("owner", instance.definition.owner);
             context.set("key", instance.definition.key.toString());
             context.set("x", instance.position.x);

@@ -18,6 +18,7 @@ import java.util.Map;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.GuiScreen;
+import net.minecraft.src.ItemStack;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.World;
 
@@ -26,10 +27,10 @@ import net.minecraft.src.World;
  * the client thread.
  */
 public final class NativeDiscoveryRuntime {
-    private static NativeDiscoveryService service;
+    private static volatile NativeDiscoveryService service;
     private static final NativeLoaderRegistry LOADERS = new NativeLoaderRegistry();
     private static Path instance;
-    private static NativeBindings bindings;
+    private static volatile NativeBindings bindings;
 
     private NativeDiscoveryRuntime() {
     }
@@ -48,11 +49,19 @@ public final class NativeDiscoveryRuntime {
     }
 
     public static NativeIndexSnapshot snapshot() {
-        return service == null ? NativeIndexSnapshot.empty() : service.snapshot();
+        NativeDiscoveryService current = service;
+        return current == null ? NativeIndexSnapshot.empty() : current.snapshot();
     }
 
     public static Map<String, Object> status() {
-        return service == null ? CatalogValues.record("status", "not_started", "generation", 0) : service.status();
+        NativeDiscoveryService current = service;
+        NativeBindings execution = bindings;
+        Map<String, Object> result = new LinkedHashMap<>(
+                current == null ? CatalogValues.record("status", "not_started", "generation", 0) : current.status());
+        if (execution != null) {
+            result.put("execution", execution.diagnostics());
+        }
+        return result;
     }
 
     public static void requireClientAccess() {
@@ -89,8 +98,8 @@ public final class NativeDiscoveryRuntime {
             try (InputStream input = NativeDiscoveryRuntime.class
                     .getResourceAsStream("/betamoon/instrumentation/mapping/b1.7.3.tiny")) {
                 bindings = new NativeBindings(
-                        new NativeNames(TinyMappingResolver.readStrict(input).snapshot(), namespace), LOADERS,
-                        NativeDiscoveryRuntime::snapshot);
+                        new NativeNames(TinyMappingResolver.readStrict(input).snapshot(), namespace, curatedTypes()),
+                        LOADERS, NativeDiscoveryRuntime::snapshot);
             } catch (Exception exception) {
                 NativeOriginCache.warn(warnings, "native_binding_unavailable: " + exception.getMessage());
             }
@@ -126,12 +135,36 @@ public final class NativeDiscoveryRuntime {
     }
 
     public static void close() {
-        if (service != null) {
-            service.close();
-            service = null;
-        }
-        LOADERS.close();
+        NativeBindings execution = bindings;
+        NativeDiscoveryService current = service;
         bindings = null;
-        instance = null;
+        service = null;
+        try {
+            if (execution != null) {
+                execution.close();
+            }
+        } finally {
+            try {
+                if (current != null) {
+                    current.close();
+                }
+            } finally {
+                LOADERS.close();
+                instance = null;
+            }
+        }
+    }
+
+    public static void observeClient(Minecraft client) {
+        if (bindings != null && client != null) {
+            bindings.owned.observe(client.theWorld, client.thePlayer);
+        }
+    }
+
+    private static Map<String, Class<?>> curatedTypes() {
+        Map<String, Class<?>> result = new LinkedHashMap<>();
+        result.put("net/minecraft/src/World", World.class);
+        result.put("net/minecraft/src/ItemStack", ItemStack.class);
+        return result;
     }
 }

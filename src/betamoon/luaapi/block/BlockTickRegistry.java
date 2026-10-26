@@ -1,14 +1,14 @@
 package betamoon.luaapi.block;
 
-
 import betamoon.luaapi.utils.LuaCallbackScope;
+import betamoon.luaapi.interop.NativeCallbackContext;
 import betamoon.luaapi.utils.LuaOverrideCallback;
 import betamoon.luaapi.utils.PositionI;
 import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptErrors;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptResourceTracker;
-import betamoon.luamodloader.SlowScriptCallbackMonitor;
+import betamoon.luamodloader.ScriptExecution;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -414,33 +414,28 @@ public final class BlockTickRegistry {
             if (!activeTick) {
                 return;
             }
-            long startedNanos = System.nanoTime();
             try (TickContext context = new TickContext(world, x, y, z, blockId, random, true)) {
-                tickAction.call(context);
+                ScriptExecution.invoke(owner, "block.onTick", tickAction, context);
             } catch (Throwable error) {
                 activeTick = false;
                 report(owner, "onTick", error);
-            } finally {
-                SlowScriptCallbackMonitor.record(owner, "block.onTick", startedNanos);
             }
         }
 
         private void invokeDisplay(World world, int x, int y, int z, Random random) {
-            long startedNanos = System.nanoTime();
             try (TickContext context = new TickContext(world, x, y, z, blockId, random, false)) {
-                displayAction.call(context);
+                ScriptExecution.invoke(owner, "block.onDisplayTick", displayAction, context);
             } catch (Throwable error) {
                 activeDisplay = false;
                 report(owner, "onDisplayTick", error);
-            } finally {
-                SlowScriptCallbackMonitor.record(owner, "block.onDisplayTick", startedNanos);
             }
         }
     }
 
     /** Lua-facing context shared by gameplay and display tick actions. */
-    private static final class TickContext extends LuaTable implements AutoCloseable {
+    private static final class TickContext extends LuaTable implements AutoCloseable, NativeCallbackContext {
         private final LuaBlockActionContext actionContext;
+        private final boolean nativeGameplay;
         private final World world;
         private final int x;
         private final int y;
@@ -453,6 +448,7 @@ public final class BlockTickRegistry {
             this.y = y;
             this.z = z;
             this.blockId = blockId;
+            nativeGameplay = gameplay;
             actionContext = new LuaBlockActionContext(world, x, y, z, null, null, -1, gameplay);
             set("state", actionContext.get("state"));
             set("redstone", actionContext.get("redstone"));
@@ -468,6 +464,11 @@ public final class BlockTickRegistry {
             if (gameplay) {
                 set("schedule", new Schedule(this));
             }
+        }
+
+        @Override
+        public LuaCallbackScope nativeCallbackScope() {
+            return nativeGameplay ? actionContext.callbackScope() : null;
         }
 
         @Override

@@ -1,5 +1,7 @@
 package betamoon.entity;
 
+import betamoon.interop.runtime.NativeEventAccess;
+import betamoon.luaapi.interop.NativeCallbackTable;
 
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
@@ -12,7 +14,9 @@ import java.util.WeakHashMap;
 import net.minecraft.src.EntityPlayer;
 import org.luaj.vm2.LuaTable;
 
-/** One post-collection reaction after an entire pickup stack enters inventory. */
+/**
+ * One post-collection reaction after an entire pickup stack enters inventory.
+ */
 final class PickupEvent {
     private static final Set<EntityTypeDefinition> DISABLED = Collections.newSetFromMap(new WeakHashMap<>());
 
@@ -20,18 +24,19 @@ final class PickupEvent {
     }
 
     static void collected(LuaPickupEntity pickup, EntityPlayer player, EntityTypeDefinition definition) {
-        EntityPresentationEvents.sound(pickup,
-                definition.sounds.get(EntitySoundsDefinition.Event.PICKUP));
+        EntityPresentationEvents.sound(pickup, definition.sounds.get(EntitySoundsDefinition.Event.PICKUP));
         if (definition.onPickup.isnil() || DISABLED.contains(definition)) {
             return;
         }
         try (LuaCallbackScope scope = new LuaCallbackScope(true)) {
-            LuaTable context = new LuaTable();
+            NativeEventAccess.configure(scope, pickup.worldObj, pickup);
+            LuaTable context = new NativeCallbackTable(scope);
             context.set("entity", LuaEntityActionAccess.create(scope, player, pickup));
             context.set("player", LuaEntityActionAccess.create(scope, player, player));
             context.set("world", LuaWorldActionAccess.create(scope, pickup.worldObj, (int) Math.floor(pickup.posX),
                     (int) Math.floor(pickup.posY), (int) Math.floor(pickup.posZ), pickup));
-            ScriptExecution.invoke(EntityTypeRegistry.owner(definition.key), "entity.onPickup", definition.onPickup, context);
+            ScriptExecution.invoke(EntityTypeRegistry.owner(definition.key), "entity.onPickup", definition.onPickup,
+                    context);
         } catch (RuntimeException error) {
             if (DISABLED.add(definition)) {
                 String message = definition.key + ".onPickup disabled after error: " + error.getMessage();

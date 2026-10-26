@@ -1,5 +1,8 @@
 package betamoon.luaapi.capability;
 
+import betamoon.interop.runtime.NativeEventAccess;
+import betamoon.luaapi.interop.NativeCallbackTable;
+
 import betamoon.assets.AssetKey;
 import betamoon.capability.CapabilityAttachmentDefinition;
 import betamoon.capability.CapabilityDefinition;
@@ -23,7 +26,10 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 import org.luaj.vm2.lib.VarArgFunction;
 
-/** Scoped local data access and stale-safe external operation proxies for tile capabilities. */
+/**
+ * Scoped local data access and stale-safe external operation proxies for tile
+ * capabilities.
+ */
 public final class LuaCapabilityAccess {
     private static final int MAX_CALL_DEPTH = 16;
     private static final int MAX_CALLS_PER_TICK = 4096;
@@ -41,8 +47,8 @@ public final class LuaCapabilityAccess {
                 LuaPositionArguments.Position position = LuaPositionArguments.cellCompatible(arguments, worldApi, 1,
                         "getCapability");
                 int capabilityIndex = position.nextArgument + offset;
-                CapabilityDefinition definition = CapabilitiesApi.definition(
-                        arguments.arg(capabilityIndex), "getCapability.capability");
+                CapabilityDefinition definition = CapabilitiesApi.definition(arguments.arg(capabilityIndex),
+                        "getCapability.capability");
                 String face = face(arguments.arg(capabilityIndex + 1));
                 return external(scope, world, position.xInt(), position.yInt(), position.zInt(), definition, face,
                         false);
@@ -59,8 +65,7 @@ public final class LuaCapabilityAccess {
 
     public static LuaTable networkProxy(LuaCallbackScope scope, CapabilityInstance instance) {
         LuaTileEntity tile = instance.tile;
-        return proxy(scope, tile.worldObj, tile.xCoord, tile.yCoord, tile.zCoord,
-                tile, instance, null, false);
+        return proxy(scope, tile.worldObj, tile.xCoord, tile.yCoord, tile.zCoord, tile, instance, null, false);
     }
 
     private static VarArgFunction localLookup(final LuaTable registry, final LuaCallbackScope scope,
@@ -68,8 +73,8 @@ public final class LuaCapabilityAccess {
         return new VarArgFunction() {
             public Varargs invoke(Varargs arguments) {
                 scope.requireActive();
-                CapabilityDefinition definition = CapabilitiesApi.definition(
-                        arguments.arg(arguments.arg1() == registry ? 2 : 1), "capabilities");
+                CapabilityDefinition definition = CapabilitiesApi
+                        .definition(arguments.arg(arguments.arg1() == registry ? 2 : 1), "capabilities");
                 CapabilityInstance instance = tile.getCapability(definition.key);
                 if (instance == null) {
                     if (required) {
@@ -77,8 +82,7 @@ public final class LuaCapabilityAccess {
                     }
                     return NIL;
                 }
-                return proxy(scope, tile.worldObj, tile.xCoord, tile.yCoord, tile.zCoord,
-                        tile, instance, null, true);
+                return proxy(scope, tile.worldObj, tile.xCoord, tile.yCoord, tile.zCoord, tile, instance, null, true);
             }
         };
     }
@@ -103,8 +107,8 @@ public final class LuaCapabilityAccess {
         return proxy(scope, world, x, y, z, tile, instance, face, false);
     }
 
-    private static LuaTable proxy(LuaCallbackScope scope, World world, int x, int y, int z,
-            LuaTileEntity tile, CapabilityInstance instance, String face, boolean local) {
+    private static LuaTable proxy(LuaCallbackScope scope, World world, int x, int y, int z, LuaTileEntity tile,
+            CapabilityInstance instance, String face, boolean local) {
         LuaTable proxy = new LuaTable();
         proxy.set("key", instance.attachment.capability.key.toString());
         proxy.set("position", position(x, y, z));
@@ -148,10 +152,10 @@ public final class LuaCapabilityAccess {
         return data;
     }
 
-    private static LuaTable context(LuaCallbackScope scope, CapabilityInstance instance, String face,
-            boolean mutable) {
+    private static LuaTable context(LuaCallbackScope scope, CapabilityInstance instance, String face, boolean mutable) {
         LuaTileEntity tile = instance.tile;
-        LuaTable context = new LuaTable();
+        NativeEventAccess.configure(scope, tile.worldObj, tile);
+        LuaTable context = new NativeCallbackTable(scope);
         context.set("x", tile.xCoord);
         context.set("y", tile.yCoord);
         context.set("z", tile.zCoord);
@@ -160,8 +164,7 @@ public final class LuaCapabilityAccess {
         LuaTable capability = new LuaTable();
         capability.set("key", instance.attachment.capability.key.toString());
         capability.set("data", data(scope, instance, mutable));
-        capability.set("config", DataRecords.write(
-                instance.attachment.capability.config, instance.attachment.config));
+        capability.set("config", DataRecords.write(instance.attachment.capability.config, instance.attachment.config));
         if (face != null) {
             capability.set("face", face);
             Object port = instance.attachment.port(face, tile);
@@ -192,8 +195,7 @@ public final class LuaCapabilityAccess {
         if (depth >= MAX_CALL_DEPTH) {
             throw new LuaError("Capability call depth exceeds " + MAX_CALL_DEPTH + ".");
         }
-        Map<String, Object> request = DataRecords.read(
-                operation.request, requestValue, "capability request", true);
+        Map<String, Object> request = DataRecords.read(operation.request, requestValue, "capability request", true);
         Map<String, Object> checkpoint = instance.data.checkpoint();
         DEPTH.set(Integer.valueOf(depth + 1));
         boolean mutable = operation.mode == CapabilityOperationDefinition.Mode.ACTION && scope.isMutable();
@@ -202,15 +204,14 @@ public final class LuaCapabilityAccess {
             LuaValue requestTable = DataRecords.write(operation.request, request);
             LuaValue response = CapabilityOperationOverrides.invoke(instance, operationName, callbackContext,
                     requestTable, instance.attachment.operations.get(operationName));
-            Map<String, Object> parsed = DataRecords.read(
-                    operation.response, response, "capability response", true);
+            Map<String, Object> parsed = DataRecords.read(operation.response, response, "capability response", true);
             return DataRecords.write(operation.response, parsed);
         } catch (Throwable error) {
             instance.data.restore(checkpoint);
             instance.disable(operationName);
             String detail = error.getMessage() == null ? error.toString() : error.getMessage();
-            String message = "capability " + instance.attachment.capability.key + " operation '"
-                    + operationName + "' was disabled after an error: " + detail;
+            String message = "capability " + instance.attachment.capability.key + " operation '" + operationName
+                    + "' was disabled after an error: " + detail;
             LuaScriptErrors.add(instance.attachment.capability.owner, message,
                     LuaScriptErrors.Outcome.CALLBACK_DISABLED, error);
             throw error instanceof LuaError ? (LuaError) error : new LuaError(message);
@@ -282,8 +283,7 @@ public final class LuaCapabilityAccess {
         public Varargs invoke(Varargs arguments) {
             scope.requireActive();
             int offset = arguments.arg1() == receiver ? 1 : 0;
-            if (!world.blockExists(x, y, z) || world.getBlockTileEntity(x, y, z) != expected
-                    || expected.func_31006_g()
+            if (!world.blockExists(x, y, z) || world.getBlockTileEntity(x, y, z) != expected || expected.func_31006_g()
                     || expected.getCapability(expectedInstance.attachment.capability.key) != expectedInstance
                     || Boolean.FALSE.equals(expectedInstance.attachment.port(face, expected))) {
                 throw new LuaError("Capability handle is stale or no longer available.");

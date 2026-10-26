@@ -9,3 +9,5 @@
 - Native debug reports with an optional detailed-catalog checkbox in Debug Tools.
 - Native type reflection, scoped Minecraft/mod calls, exact values, typed arrays and native collection views.
 - Exact direct access to private/protected fields and methods, including inherited and nested fields.
+- Native callback phase guards, world/player/screen lifetime checks, and owner-bound native copies and retention.
+- Explicit native disposal, scoped owned-value reuse, and native effect/ownership diagnostics.

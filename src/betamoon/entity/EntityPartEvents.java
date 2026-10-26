@@ -1,5 +1,7 @@
 package betamoon.entity;
 
+import betamoon.interop.runtime.NativeEventAccess;
+import betamoon.luaapi.interop.NativeCallbackTable;
 
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.InteractionOutcome;
@@ -19,8 +21,8 @@ import org.luaj.vm2.LuaValue;
 
 /** Routes part-local interaction and damage before the parent fallback. */
 final class EntityPartEvents {
-    private static final Map<EntityPartDefinition, Set<String>> DISABLED =
-            Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<EntityPartDefinition, Set<String>> DISABLED = Collections
+            .synchronizedMap(new WeakHashMap<>());
 
     private EntityPartEvents() {
     }
@@ -37,8 +39,9 @@ final class EntityPartEvents {
             try (LuaCallbackScope scope = new LuaCallbackScope(!target.worldObj.multiplayerWorld)) {
                 LuaTable context = context(scope, target);
                 context.set("player", LuaEntityActionAccess.create(scope, player, player));
-                InteractionOutcome result = InteractionOutcome.fromLua(ScriptExecution.invoke(EntityTypeRegistry.owner(target.entityState().definition().key),
-                        "entity.part.onInteract", part.onInteract, context).arg1(),
+                InteractionOutcome result = InteractionOutcome.fromLua(
+                        ScriptExecution.invoke(EntityTypeRegistry.owner(target.entityState().definition().key),
+                                "entity.part.onInteract", part.onInteract, context).arg1(),
                         "entity.parts." + part.name + ".onInteract");
                 if (result != InteractionOutcome.PASS) {
                     return true;
@@ -67,12 +70,14 @@ final class EntityPartEvents {
                 if (attacker != null) {
                     context.set("attacker", LuaEntityActionAccess.create(scope, null, attacker));
                 }
-                LuaValue result = ScriptExecution.invoke(EntityTypeRegistry.owner(target.entityState().definition().key),
-                        "entity.part.onDamage", part.onDamage, context).arg1();
+                LuaValue result = ScriptExecution
+                        .invoke(EntityTypeRegistry.owner(target.entityState().definition().key), "entity.part.onDamage",
+                                part.onDamage, context)
+                        .arg1();
                 if (!result.isnil()) {
                     double proposed = result.checkdouble();
-                    if (!Double.isFinite(proposed) || proposed != Math.floor(proposed)
-                            || proposed < 0 || proposed > 32767) {
+                    if (!Double.isFinite(proposed) || proposed != Math.floor(proposed) || proposed < 0
+                            || proposed > 32767) {
                         throw new IllegalArgumentException("part damage must return an integer 0..32767 or nil");
                     }
                     applied = (int) proposed;
@@ -94,13 +99,13 @@ final class EntityPartEvents {
     }
 
     private static LuaTable context(LuaCallbackScope scope, LuaEntityPart target) {
-        LuaTable context = new LuaTable();
+        NativeEventAccess.configure(scope, target.worldObj, target);
+        LuaTable context = new NativeCallbackTable(scope);
         context.set("entity", LuaEntityActionAccess.create(scope, null, target.parent()));
         context.set("part", target.partName());
         context.set("hitbox", LuaEntityActionAccess.create(scope, null, target));
-        context.set("world", LuaWorldActionAccess.create(scope, target.worldObj,
-                (int) Math.floor(target.posX), (int) Math.floor(target.posY), (int) Math.floor(target.posZ),
-                target.parent()));
+        context.set("world", LuaWorldActionAccess.create(scope, target.worldObj, (int) Math.floor(target.posX),
+                (int) Math.floor(target.posY), (int) Math.floor(target.posZ), target.parent()));
         return context;
     }
 

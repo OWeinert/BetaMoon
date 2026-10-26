@@ -166,7 +166,7 @@ public final class BetaMoonModule extends TwoArgFunction {
 
         @Override
         public Varargs invoke(Varargs arguments) {
-            return ScriptExecution.invoke(source, delegate, arguments);
+            return ScriptExecution.invokeApi(source, delegate, arguments);
         }
     }
 }

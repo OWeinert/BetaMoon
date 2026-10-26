@@ -69,6 +69,7 @@ public final class ClientTickEvents {
     }
 
     private static void synchronizeLifecycle(Minecraft minecraft) {
+        NativeDiscoveryRuntime.observeClient(minecraft);
         if (minecraft != null) {
             EntityModifierRuntime.synchronize(minecraft.theWorld, minecraft.thePlayer);
         }

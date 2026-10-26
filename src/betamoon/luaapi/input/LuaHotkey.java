@@ -2,7 +2,12 @@ package betamoon.luaapi.input;
 
 import betamoon.client.control.input.HotkeyEvent;
 import betamoon.client.control.input.HotkeyRegistration;
+import betamoon.client.control.input.ClientInputRuntime;
+import betamoon.interop.runtime.NativeEventAccess;
+import betamoon.luaapi.interop.NativeCallbackTable;
+import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luamodloader.ScriptExecution;
+import net.minecraft.client.Minecraft;
 import net.minecraft.src.KeyBinding;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -37,7 +42,7 @@ final class LuaHotkey extends LuaTable {
                             throw new LuaError("Hotkey callback must be a function or nil.");
                         }
                         final LuaValue function = callback.checkfunction();
-                        registration.on(event -> ScriptExecution.invoke(owner, function, event(event)));
+                        registration.on(event -> invokeCallback(owner, function, event));
                     }
                     return LuaHotkey.this;
                 } catch (IllegalStateException error) {
@@ -82,6 +87,15 @@ final class LuaHotkey extends LuaTable {
         result.set("binding", LuaValue.valueOf(event.binding()));
         result.set("keyCode", LuaValue.valueOf(event.keyCode()));
         return result;
+    }
+
+    private static void invokeCallback(String owner, LuaValue callback, HotkeyEvent event) {
+        Minecraft client = ClientInputRuntime.client();
+        try (LuaCallbackScope scope = new LuaCallbackScope(true)) {
+            scope.nativeEntry(NativeEventAccess.entry(scope, client, client == null ? null : client.theWorld,
+                    client == null ? null : client.thePlayer));
+            ScriptExecution.invoke(owner, "input.hotkey", callback, NativeCallbackTable.wrap(scope, event(event)));
+        }
     }
 
     KeyBinding nativeBinding() {

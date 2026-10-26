@@ -1,5 +1,8 @@
 package betamoon.client.particles;
 
+import betamoon.interop.runtime.NativeEventAccess;
+import betamoon.luaapi.interop.NativeCallbackTable;
+
 import betamoon.luaapi.particle.LuaParticleAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luamodloader.ScriptExecution;
@@ -120,7 +123,8 @@ public final class ParticleSprite extends EntityFX {
         double oldDrag = drag;
         boolean oldStopped = stopped;
         try (LuaCallbackScope scope = new LuaCallbackScope(true)) {
-            LuaTable context = new LuaTable();
+            NativeEventAccess.configure(scope, worldObj, this);
+            LuaTable context = new NativeCallbackTable(scope);
             context.set("particle", LuaParticleAccess.create(scope, this));
             context.set("memory", memory);
             context.set("age", particleAge);

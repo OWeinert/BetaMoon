@@ -10,9 +10,8 @@ import betamoon.event.context.GameEventCtx;
 import betamoon.event.context.PlayerEventCtx;
 import betamoon.event.context.WorldEventCtx;
 import betamoon.luaapi.LuaApiUtils;
-import betamoon.interop.runtime.NativeContext;
 import betamoon.interop.runtime.NativeEventAccess;
-import betamoon.luaapi.interop.NativeAccessApi;
+import betamoon.luaapi.interop.NativeCallbackTable;
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.utils.LuaDetachedData;
@@ -136,13 +135,11 @@ public final class EventsApi {
                 try (ScriptDiagnostics.Scope diagnostic = ScriptDiagnostics
                         .gameContext(() -> ClientScriptDiagnostics.occurrence(minecraft, world));
                         LuaCallbackScope scope = LuaCallbackScope
-                                .withQueuedTeleport(current && !TeleportRuntime.frozen(), current);
-                        NativeContext nativeScope = nativeContext
-                                ? NativeEventAccess.open(owner, scope, minecraft, world, player)
-                                : null) {
+                                .withQueuedTeleport(current && !TeleportRuntime.frozen(), current)) {
                     LuaValue view = contextFactory.apply(ctx);
-                    if (nativeScope != null && view.istable()) {
-                        view.set("native", NativeAccessApi.contextAccess(nativeScope));
+                    if (nativeContext) {
+                        scope.nativeEntry(NativeEventAccess.entry(scope, minecraft, world, player));
+                        view = NativeCallbackTable.wrap(scope, view);
                     }
                     if (view.istable() && world != null) {
                         view.set("world", LuaWorldActionAccess.create(scope, world, 0, 0, 0));

@@ -1,5 +1,8 @@
 package betamoon.luaapi.block;
 
+import betamoon.interop.runtime.NativeEventAccess;
+import betamoon.luaapi.interop.NativeCallbackContext;
+
 import betamoon.luaapi.multiblock.MultiblocksApi;
 
 import betamoon.luaapi.entity.LuaEntityActionAccess;
@@ -28,7 +31,12 @@ import static betamoon.luaapi.utils.LuaDeclarationValues.string;
 /**
  * Live, invocation-scoped access. Query contexts prohibit gameplay mutation.
  */
-public final class LuaBlockActionContext extends LuaTable implements AutoCloseable {
+public final class LuaBlockActionContext extends LuaTable implements AutoCloseable, NativeCallbackContext {
+    @Override
+    public LuaCallbackScope nativeCallbackScope() {
+        return scope;
+    }
+
     public final World world;
     public final int x;
     public final int y;
@@ -50,6 +58,7 @@ public final class LuaBlockActionContext extends LuaTable implements AutoCloseab
         this.z = z;
         this.player = player;
         this.scope = new LuaCallbackScope(mutable && !world.multiplayerWorld);
+        NativeEventAccess.configure(scope, world, player);
         this.blockId = blockId;
         this.initialMetadata = metadata;
         set("x", x);

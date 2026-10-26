@@ -2,8 +2,10 @@ package betamoon.luaapi.interop;
 
 import betamoon.interop.binding.NativeMemberPlan;
 import betamoon.interop.binding.NativeAccessFailure;
+import betamoon.interop.catalog.CatalogValues;
 import betamoon.interop.reference.NativeMemberRef;
 import betamoon.interop.runtime.NativeContext;
+import java.util.Locale;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
@@ -24,10 +26,18 @@ final class NativeLuaMethod extends NativeLuaHandle {
                     "select a field through a bound object/class view");
         }
         this.plan = context.bindings.exact(reference, context, direct);
+        properties.put("describe", NativeLuaSupport.scopedFunction(this, context, args -> {
+            context.check();
+            return host.metadata(CatalogValues.record("identity", plan.identity(), "descriptor", plan.descriptor,
+                    "effect", plan.isStatic ? "initialize" : plan.effect.name().toLowerCase(Locale.ROOT),
+                    "effectConfidence", plan.effect == NativeContext.Effect.UNKNOWN ? "unknown" : "curated",
+                    "virtualOverridesRechecked", true, "nonPublic", plan.nonPublic, "policy",
+                    direct ? "direct" : "managed", "context", context.describe()), true);
+        }));
         if (reference.kind == NativeMemberRef.Kind.CONSTRUCTOR) {
-            properties.put("new", NativeLuaSupport.function(this, this::construct));
+            properties.put("new", NativeLuaSupport.scopedFunction(this, context, this::construct));
         } else {
-            properties.put("call", NativeLuaSupport.function(this, this::callSelected));
+            properties.put("call", NativeLuaSupport.scopedFunction(this, context, this::callSelected));
         }
     }
 
@@ -36,17 +46,19 @@ final class NativeLuaMethod extends NativeLuaHandle {
         if (arguments.narg() < 1) {
             throw new NativeAccessFailure("receiver_required", "supply an instance receiver or an explicit nil");
         }
-        Object receiver = host.receiver(arguments.arg1(), context);
-        Object[] input = host.arguments(arguments.subargs(2), context);
-        Object[] converted = context.bindings.arguments(plan, input, context);
-        Object result = plan.call(context, direct, receiver, converted);
-        return plan.valueType == Void.TYPE ? LuaValue.NONE : host.result(result, context, direct);
+        NativeContext execution = host.operationContext(context, arguments);
+        Object receiver = host.receiver(arguments.arg1(), execution);
+        Object[] input = host.arguments(arguments.subargs(2), execution);
+        Object[] converted = execution.bindings.arguments(plan, input, execution);
+        Object result = plan.call(execution, direct, receiver, converted);
+        return plan.valueType == Void.TYPE ? LuaValue.NONE : host.result(result, execution, direct);
     }
 
     Varargs construct(Varargs arguments) {
         context.check();
-        Object[] converted = context.bindings.arguments(plan, host.arguments(arguments, context), context);
-        return host.result(plan.call(context, direct, null, converted), context, direct);
+        NativeContext execution = host.operationContext(context, arguments);
+        Object[] converted = execution.bindings.arguments(plan, host.arguments(arguments, execution), execution);
+        return host.result(plan.call(execution, direct, null, converted), execution, direct);
     }
 
     @Override

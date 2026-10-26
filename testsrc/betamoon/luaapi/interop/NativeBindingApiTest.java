@@ -209,6 +209,8 @@ public final class NativeBindingApiTest {
                         + "local str=n:value('java.lang.String','hello'); "
                         + "len=n:type('java.lang.String'):method('length','()I'); assert(len:call(str)==5); "
                         + "assert(not pcall(function() o:fail() end));");
+                NativeAuthorityTest.verify(lua, bindings, OWNER);
+                NativeOwnershipTest.verify(lua, bindings);
                 try (LuaCallbackScope readOnly = LuaCallbackScope.binding()) {
                     run(lua, "assert(arr[0]==5); "
                             + "assert(deep:get()==8); assert(not pcall(function() deep:set(2) end)); "
@@ -334,7 +336,7 @@ public final class NativeBindingApiTest {
     }
 
     private static void run(Globals lua, String source) {
-        ScriptExecution.invoke(OWNER, "native-test", lua.load(source, "native binding fixture"), LuaValue.NONE);
+        ScriptExecution.invokeApi(OWNER, lua.load(source, "native binding fixture"), LuaValue.NONE);
     }
 
     private static void expect(Globals lua, String source, String reason) {

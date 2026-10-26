@@ -1,5 +1,8 @@
 package betamoon.system;
 
+import betamoon.interop.runtime.NativeEventAccess;
+import betamoon.luaapi.interop.NativeCallbackTable;
+
 import betamoon.data.DataStore;
 import betamoon.dimension.DimensionRuntime;
 import betamoon.luaapi.utils.LuaCallbackScope;
@@ -106,7 +109,8 @@ public final class WorldServiceRuntime {
 
     private static LuaTable context(World world, Instance instance, LuaCallbackScope scope) {
         ChunkCoordinates spawn = world.getSpawnPoint();
-        LuaTable result = new LuaTable();
+        NativeEventAccess.configure(scope, world, null);
+        LuaTable result = new NativeCallbackTable(scope);
         result.set("key", instance.definition.key.toString());
         result.set("world", LuaWorldActionAccess.create(scope, world, spawn.x, spawn.y, spawn.z));
         result.set("data", data(instance, scope));
