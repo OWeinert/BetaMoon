@@ -161,6 +161,9 @@ public final class NativeDiscoveryRuntime {
     }
 
     public static void close() {
+        if (bindings != null) {
+            bindings.clients.requireCloseBoundary();
+        }
         NativeBindings execution = bindings;
         NativeDiscoveryService current = service;
         bindings = null;
@@ -184,6 +187,7 @@ public final class NativeDiscoveryRuntime {
     public static void observeClient(Minecraft client) {
         NativeAttachmentDisposal.drain();
         if (bindings != null && client != null) {
+            bindings.clients.observe();
             bindings.owned.observe(client.theWorld, client.thePlayer);
             bindings.interfaces.observe(client.theWorld, client.thePlayer);
         }

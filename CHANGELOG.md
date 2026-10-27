@@ -22,3 +22,4 @@
 - Reliable lazy hook activation across game classloaders and isolated diagnostics for incompatible hook agents.
 - Copied native exception causes, actionable failure guidance, exact hook-site inspection and verified editor diagnostic exports.
 - Reusable native data plans with general field/call/array/collection selections, runtime inputs and detached one/many-request snapshots.
+- Explicit client preparation/action capabilities with owned screen resources, authorized deferred commands and lifecycle cleanup.

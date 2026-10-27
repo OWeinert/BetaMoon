@@ -22,6 +22,15 @@ public final class NativeDiagnosticGuidance {
         String code;
         String message;
         switch (reason == null ? "" : reason) {
+            case "native_client_action_denied":
+                code = "use_authorized_input";
+                message = "Submit the owning host's prepared command during its current authorized input callback.";
+                break;
+            case "native_client_limit":
+                code = "reduce_client_resources";
+                message = "Reduce prepared resources or queued commands and release unused host resources.";
+                break;
+            case "native_client_context_unavailable":
             case "native_context_unavailable":
             case "native_phase_denied":
             case "native_preparation_denied":
@@ -59,6 +68,7 @@ public final class NativeDiagnosticGuidance {
             case "inactive_scope":
             case "stale_environment":
             case "hook_call_expired":
+            case "native_client_resource_closed":
             case "owned_value_closed":
             case "native_implementation_closed":
             case "native_session_closed":
@@ -117,6 +127,11 @@ public final class NativeDiagnosticGuidance {
                 code = "use_client_entry";
                 message = "Use an audited client-thread entry; synchronous native callbacks cannot be moved to a worker.";
                 break;
+            case "native_client_resource_unavailable":
+            case "native_client_preparation_failed":
+            case "native_client_environment_failed":
+            case "native_client_disposal_failed":
+            case "native_client_action_failed":
             case "native_exception":
             case "callback_failed":
             case "callback_disabled":

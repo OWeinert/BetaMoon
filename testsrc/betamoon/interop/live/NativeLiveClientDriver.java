@@ -77,6 +77,9 @@ public final class NativeLiveClientDriver {
                 call(client, CLIENT, "displayGuiScreen", "(Lnet/minecraft/src/GuiScreen;)V", new Object[]{null});
             }
             if (stage == 0) {
+                if (Boolean.getBoolean("betamoon.native.x3") && !NativeX3LiveClientChecks.beforeWorld(client)) {
+                    return;
+                }
                 if (Boolean.getBoolean("betamoon.native.n7") && !NativeN7LiveClientChecks.beforeWorld(client)) {
                     return;
                 }
@@ -199,7 +202,8 @@ public final class NativeLiveClientDriver {
     private static void write(String status, String error) throws Exception {
         String result = CatalogJson.encode(CatalogValues.record("status", status, "namespace",
                 namespace.getMappingName(), "ticks", ticks, "stage", stage, "error", error, "renderedClient", true,
-                "worldCreatedNormally", true, "observerReloadAndWorldCleanup", status.equals("passed"), "n7Acceptance",
+                "worldCreatedNormally", true, "observerReloadAndWorldCleanup", status.equals("passed"), "x3Acceptance",
+                "true".equals(System.getProperty("betamoon.x3.passed")), "n7Acceptance",
                 Boolean.getBoolean("betamoon.native.n7") && "passed".equals(System.getProperty("betamoon.n7.phase"))));
         Files.write(Paths.get(System.getProperty("betamoon.live.result")), result.getBytes(StandardCharsets.UTF_8));
         System.out.println("[N6-LIVE] " + result);

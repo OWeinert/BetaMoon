@@ -2,6 +2,7 @@ package betamoon.interop.binding;
 
 import betamoon.interop.catalog.CatalogValues;
 import betamoon.interop.catalog.JvmDescriptors;
+import betamoon.interop.client.NativeClientSessions;
 import betamoon.interop.discovery.NativeIndexSnapshot;
 import betamoon.interop.discovery.NativeLoaderRegistry;
 import betamoon.interop.interfaces.NativeInterfaces;
@@ -37,6 +38,7 @@ import org.objectweb.asm.Type;
  */
 public final class NativeBindings {
     public final NativeNames names;
+    public final NativeClientSessions clients = new NativeClientSessions(this);
     public final NativeDataQueries dataQueries = new NativeDataQueries(this);
     public final NativeOwnedValues owned = new NativeOwnedValues(this);
     public final NativeInterfaces interfaces = new NativeInterfaces(this);
@@ -160,8 +162,8 @@ public final class NativeBindings {
         synchronized (failures) {
             return CatalogValues.record("session", closed ? "closed" : "active", "cachedTypeSelectors",
                     cachedTypeSelectors, "failures", new HashMap<>(failures), "failureDetails",
-                    failureJournal.snapshot(), "ownership", owned.diagnostics(), "interfaces",
-                    interfaces.diagnostics());
+                    failureJournal.snapshot(), "ownership", owned.diagnostics(), "interfaces", interfaces.diagnostics(),
+                    "client", clients.diagnostics());
         }
     }
 
@@ -180,7 +182,9 @@ public final class NativeBindings {
 
     public void close() {
         requireThread();
+        clients.requireCloseBoundary();
         try {
+            clients.close();
             interfaces.close();
             owned.close();
         } finally {

@@ -33,6 +33,7 @@ public final class NativeContext implements AutoCloseable {
     private final long ownerGeneration;
     private final LuaCallbackScope callback;
     private final boolean mutable;
+    private final NativePermissions permissions;
     private final boolean readable;
     public final NativeEntry.Phase phase;
     private final Map<String, Object> roots;
@@ -46,7 +47,7 @@ public final class NativeContext implements AutoCloseable {
     private boolean active = true;
     private int nextValue;
 
-    private NativeContext(NativeBindings bindings, String owner, LuaCallbackScope callback, boolean mutable,
+    private NativeContext(NativeBindings bindings, String owner, LuaCallbackScope callback, NativePermissions requested,
             Map<String, Object> roots, BooleanSupplier environment, NativeEntry.Phase phase) {
         if (bindings != null) {
             bindings.requireThread();
@@ -63,8 +64,14 @@ public final class NativeContext implements AutoCloseable {
         this.owner = owner;
         this.ownerGeneration = ScriptResourceTracker.ownerGeneration(owner);
         this.callback = callback;
-        this.mutable = mutable && (parent == null || parent.mutable);
-        this.readable = bindings != null && (parent == null || parent.readable);
+        NativePermissions permitted = requested;
+        if (requested.allows(NativePermissions.Capability.GAMEPLAY) && !callback.isMutable()) {
+            permitted = permitted.intersect(NativePermissions.READ_ONLY);
+        }
+        permissions = parent == null ? permitted : permitted.intersect(parent.permissions);
+        this.mutable = permissions.allows(NativePermissions.Capability.GAMEPLAY);
+        this.readable = bindings != null && permissions.allows(NativePermissions.Capability.READ)
+                && (parent == null || parent.readable);
         this.phase = phase;
         this.lease = null;
         this.roots = new HashMap<>(roots);
@@ -81,6 +88,7 @@ public final class NativeContext implements AutoCloseable {
         ownerGeneration = source.ownerGeneration;
         callback = source.callback;
         mutable = source.mutable;
+        permissions = source.permissions;
         readable = source.readable;
         phase = source.phase;
         roots = new HashMap<>(source.roots);
@@ -96,7 +104,13 @@ public final class NativeContext implements AutoCloseable {
 
     public static NativeContext open(NativeBindings bindings, String owner, LuaCallbackScope callback, boolean mutable,
             Map<String, Object> roots, BooleanSupplier environment, NativeEntry.Phase phase) {
-        return new NativeContext(bindings, owner, callback, mutable, roots, environment, phase);
+        return open(bindings, owner, callback, NativePermissions.legacy(mutable), roots, environment, phase);
+    }
+
+    public static NativeContext open(NativeBindings bindings, String owner, LuaCallbackScope callback,
+            NativePermissions permissions, Map<String, Object> roots, BooleanSupplier environment,
+            NativeEntry.Phase phase) {
+        return new NativeContext(bindings, owner, callback, permissions, roots, environment, phase);
     }
 
     /**
@@ -104,7 +118,7 @@ public final class NativeContext implements AutoCloseable {
      * scope.
      */
     public static NativeContext denied(String owner) {
-        return new NativeContext(null, owner, null, false, new HashMap<>(), null, null);
+        return new NativeContext(null, owner, null, NativePermissions.NONE, new HashMap<>(), null, null);
     }
 
     public static NativeContext current() {
@@ -139,7 +153,7 @@ public final class NativeContext implements AutoCloseable {
 
     public NativeContext child() {
         check();
-        return new NativeContext(bindings, owner, callback, mutable, roots, environment, phase);
+        return new NativeContext(bindings, owner, callback, permissions, roots, environment, phase);
     }
 
     public String owner() {
@@ -228,18 +242,51 @@ public final class NativeContext implements AutoCloseable {
         }
     }
 
+    /**
+     * Trusted client disposers do not invoke Lua and may retire an already
+     * invalidated owner's resources.
+     */
+    public static boolean clientCleanupAllowed() {
+        NativeContext current = CURRENT.get();
+        if (current != null
+                && (!current.active || !current.permissions.allows(NativePermissions.Capability.CLIENT_RESOURCE))) {
+            return false;
+        }
+        try {
+            LuaCallbackScope.requireNoBindingMutation();
+            LuaCallbackScope.requireUiStateWrite();
+            return true;
+        } catch (RuntimeException denied) {
+            return false;
+        }
+    }
+
     public Map<String, Object> describe() {
         check();
         boolean effects = mutable && CURRENT.get().mutable && cleanupAllowed();
         return CatalogValues.record("phase", phase.name().toLowerCase(Locale.ROOT), "side", "client", "lifetime",
                 lease == null ? "callback" : "owned_borrow", "reads", true, "gameplayWrites", effects,
-                "directInitialization", effects, "directUnknownCalls", effects, "attachments", effects, "hookEdits",
-                false);
+                "directInitialization", effects && permissions.allows(NativePermissions.Capability.INITIALIZATION),
+                "directUnknownCalls", effects && permissions.allows(NativePermissions.Capability.UNKNOWN_EFFECT),
+                "attachments", effects, "hookEdits", false, "bindingPreparation",
+                permitsClientCapability(NativePermissions.Capability.BINDING_PREPARATION), "clientResources",
+                permitsClientCapability(NativePermissions.Capability.CLIENT_RESOURCE), "clientActions",
+                permitsClientCapability(NativePermissions.Capability.CLIENT_ACTION));
+    }
+
+    private boolean permitsClientCapability(NativePermissions.Capability capability) {
+        try {
+            requireCapability(capability);
+            return true;
+        } catch (RuntimeException denied) {
+            return false;
+        }
     }
 
     public Map<String, Object> failureContext() {
         return CatalogValues.record("owner", owner, "ownerGeneration", ownerGeneration, "phase",
-                phase == null ? "metadata" : phase.name().toLowerCase(Locale.ROOT), "scopeActive", active);
+                phase == null ? "metadata" : phase.name().toLowerCase(Locale.ROOT), "scopeActive", active,
+                "capabilities", permissions.describe());
     }
 
     public static void recordFailure(NativeAccessFailure failure) {
@@ -306,9 +353,12 @@ public final class NativeContext implements AutoCloseable {
         if (effect == Effect.READ) {
             return;
         }
-        if (!mutable || CURRENT.get() == null || !CURRENT.get().mutable) {
-            throw new NativeAccessFailure("native_phase_denied", "native effects require a mutable native callback");
-        }
+        NativePermissions.Capability capability = effect == Effect.WRITE
+                ? NativePermissions.Capability.GAMEPLAY
+                : effect == Effect.UNKNOWN
+                        ? NativePermissions.Capability.UNKNOWN_EFFECT
+                        : NativePermissions.Capability.INITIALIZATION;
+        requireCapability(capability);
         callback.requireMutable();
         LuaCallbackScope.requireGameplayWrite();
         LuaCallbackScope.requireUiStateWrite();
@@ -318,7 +368,26 @@ public final class NativeContext implements AutoCloseable {
     }
 
     public void prepare() {
-        require(Effect.UNKNOWN, true);
+        requireCapability(NativePermissions.Capability.BINDING_PREPARATION);
+    }
+
+    public void requireClientResource() {
+        requireCapability(NativePermissions.Capability.CLIENT_RESOURCE);
+    }
+
+    public void requireClientAction() {
+        requireCapability(NativePermissions.Capability.CLIENT_ACTION);
+    }
+
+    private void requireCapability(NativePermissions.Capability capability) {
+        check();
+        if (!permissions.allows(capability) || CURRENT.get() == null || !CURRENT.get().permissions.allows(capability)) {
+            throw new NativeAccessFailure("native_phase_denied",
+                    "native entry does not permit " + capability.name().toLowerCase(Locale.ROOT));
+        }
+        callback.requireActive();
+        LuaCallbackScope.requireNoBindingMutation();
+        LuaCallbackScope.requireUiStateWrite();
     }
 
     public Object root(String name) {
