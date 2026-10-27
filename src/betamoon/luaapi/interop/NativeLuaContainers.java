@@ -2,10 +2,10 @@ package betamoon.luaapi.interop;
 
 import betamoon.interop.binding.NativeAccessFailure;
 import betamoon.interop.runtime.NativeContext;
+import betamoon.interop.value.NativeContainerPolicy;
 import betamoon.interop.value.NativeConversions;
 import betamoon.interop.value.NativeExactValue;
 import java.lang.reflect.Array;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -178,15 +178,11 @@ final class NativeLuaContainers {
     }
 
     private static void read(NativeContext context, boolean direct, Object object) {
-        context.require(object.getClass().isArray() || object.getClass() == ArrayList.class
-                ? NativeContext.Effect.READ
-                : NativeContext.Effect.UNKNOWN, direct);
+        context.require(NativeContainerPolicy.effect(object, false), direct);
     }
 
     private static void write(NativeContext context, boolean direct, Object object) {
-        context.require(object.getClass().isArray() || object.getClass() == ArrayList.class
-                ? NativeContext.Effect.WRITE
-                : NativeContext.Effect.UNKNOWN, direct);
+        context.require(NativeContainerPolicy.effect(object, true), direct);
     }
 
     private static int size(Object object) {

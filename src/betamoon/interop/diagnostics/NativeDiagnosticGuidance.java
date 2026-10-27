@@ -95,6 +95,23 @@ public final class NativeDiagnosticGuidance {
                 code = "check_entry_permissions";
                 message = "Check member visibility and current entry permissions; direct() preserves enclosing restrictions.";
                 break;
+            case "native_data_work_limit":
+            case "native_data_byte_limit":
+            case "native_data_input_limit":
+            case "native_data_depth_limit":
+                code = "reduce_data_query";
+                message = "Reduce the selection, slice, input size or batch; nested and repeated queries share entry limits.";
+                break;
+            case "native_data_projection_required":
+            case "native_data_cycle":
+            case "invalid_data_projection":
+                code = "check_data_projection";
+                message = "Select native object fields explicitly and keep traversed shapes acyclic and bounded.";
+                break;
+            case "native_data_collection_changed":
+                code = "retry_stable_selection";
+                message = "Sample when the collection is stable; a query does not freeze native state or roll back calls.";
+                break;
             case "unsupported_thread":
             case "wrong_thread":
                 code = "use_client_entry";

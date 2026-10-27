@@ -5,6 +5,7 @@ import betamoon.interop.catalog.JvmDescriptors;
 import betamoon.interop.discovery.NativeIndexSnapshot;
 import betamoon.interop.discovery.NativeLoaderRegistry;
 import betamoon.interop.interfaces.NativeInterfaces;
+import betamoon.interop.query.NativeDataQueries;
 import betamoon.interop.reference.NativeMemberRef;
 import betamoon.interop.reference.NativeTypeRef;
 import betamoon.interop.runtime.NativeContext;
@@ -36,6 +37,7 @@ import org.objectweb.asm.Type;
  */
 public final class NativeBindings {
     public final NativeNames names;
+    public final NativeDataQueries dataQueries = new NativeDataQueries(this);
     public final NativeOwnedValues owned = new NativeOwnedValues(this);
     public final NativeInterfaces interfaces = new NativeInterfaces(this);
     private final NativeLoaderRegistry loaders;
@@ -67,6 +69,11 @@ public final class NativeBindings {
         this.names = names;
         this.loaders = loaders;
         this.snapshots = snapshots;
+    }
+
+    public long bindingRevision() {
+        requireThread();
+        return loaders.bindingRevision();
     }
 
     public NativeIndexSnapshot snapshot() {
@@ -178,6 +185,7 @@ public final class NativeBindings {
             owned.close();
         } finally {
             closed = true;
+            dataQueries.clear();
             types.clear();
             cachedTypeSelectors = 0;
         }
@@ -267,6 +275,7 @@ public final class NativeBindings {
         }
         result = candidates.iterator().next();
         if (types.size() >= 1024) {
+            dataQueries.clear();
             types.clear();
         }
         types.put(key, new WeakReference<>(result));

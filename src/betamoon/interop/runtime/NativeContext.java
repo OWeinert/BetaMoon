@@ -3,6 +3,7 @@ package betamoon.interop.runtime;
 import betamoon.interop.binding.NativeAccessFailure;
 import betamoon.interop.binding.NativeBindings;
 import betamoon.interop.catalog.CatalogValues;
+import betamoon.interop.query.NativeDataBudget;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptResourceTracker;
@@ -26,6 +27,7 @@ public final class NativeContext implements AutoCloseable {
     private static final AtomicLong IDENTITIES = new AtomicLong();
     public final NativeBindings bindings;
     private final NativeContext parent;
+    public final NativeDataBudget dataBudget;
     private final Thread thread = Thread.currentThread();
     private final String owner;
     private final long ownerGeneration;
@@ -51,6 +53,7 @@ public final class NativeContext implements AutoCloseable {
         }
         this.bindings = bindings;
         this.parent = CURRENT.get();
+        dataBudget = parent == null ? new NativeDataBudget() : parent.dataBudget;
         int depth = 0;
         for (NativeContext entry = parent; entry != null; entry = entry.parent) {
             if (++depth >= 16) {
@@ -73,6 +76,7 @@ public final class NativeContext implements AutoCloseable {
         source.check();
         bindings = source.bindings;
         parent = source;
+        dataBudget = source.dataBudget;
         owner = source.owner;
         ownerGeneration = source.ownerGeneration;
         callback = source.callback;

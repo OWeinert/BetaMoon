@@ -17,6 +17,7 @@ final class NativeLuaAccess extends NativeLuaHandle {
     NativeLuaAccess(NativeAccessApi host, NativeContext context, boolean direct) {
         super(direct ? "Native direct access" : "Native managed access");
         diagnosticDirect = direct;
+        NativeLuaDataQueries.attach(this, host, context, direct);
         properties.put("describe",
                 NativeLuaSupport.scopedFunction(this, context, args -> host.metadata(context.describe(), true)));
         properties.put("direct", NativeLuaSupport.scopedFunction(this, context, args -> {

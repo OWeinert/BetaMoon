@@ -76,7 +76,13 @@ public final class NativeMemberPlan {
         }
     }
 
-    private Object executeCall(NativeContext context, boolean direct, Object receiver, Object[] arguments) {
+    public void preflightPolicy(NativeContext context, boolean direct) {
+        context.check();
+        accessibility(context, direct);
+        context.require(isStatic ? NativeContext.Effect.INITIALIZE : effect, direct);
+    }
+
+    public void preflight(NativeContext context, boolean direct, Object receiver) {
         context.check();
         receiver(receiver);
         accessibility(context, direct);
@@ -90,9 +96,17 @@ public final class NativeMemberPlan {
                 }
             } catch (NoSuchMethodException exception) {
                 actual = NativeContext.Effect.UNKNOWN;
+            } catch (SecurityException exception) {
+                throw new NativeAccessFailure("access_denied", identity(), exception);
+            } catch (LinkageError exception) {
+                throw new NativeAccessFailure("native_linkage_failure", identity(), exception);
             }
         }
         context.require(isStatic ? NativeContext.Effect.INITIALIZE : actual, direct);
+    }
+
+    private Object executeCall(NativeContext context, boolean direct, Object receiver, Object[] arguments) {
+        preflight(context, direct, receiver);
         try {
             Object result;
             if (member instanceof Method) {
@@ -122,10 +136,7 @@ public final class NativeMemberPlan {
     }
 
     private Object executeGet(NativeContext context, boolean direct, Object receiver) {
-        context.check();
-        receiver(receiver);
-        accessibility(context, direct);
-        context.require(isStatic ? NativeContext.Effect.INITIALIZE : NativeContext.Effect.READ, direct);
+        preflight(context, direct, receiver);
         try {
             Object result = ((Field) member).get(receiver);
             context.check();

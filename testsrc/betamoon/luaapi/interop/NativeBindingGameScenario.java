@@ -70,8 +70,9 @@ public final class NativeBindingGameScenario {
         Map<String, Class<?>> curated = new LinkedHashMap<>();
         curated.put("net/minecraft/src/World", worldType);
         curated.put("net/minecraft/src/ItemStack", stackType);
-        curated.put("net/minecraft/src/IWorldAccess", Class.forName(
-                symbolic.runtimeClass("net/minecraft/src/IWorldAccess", "mapped").replace('/', '.'), false, gameLoader));
+        curated.put("net/minecraft/src/IWorldAccess",
+                Class.forName(symbolic.runtimeClass("net/minecraft/src/IWorldAccess", "mapped").replace('/', '.'),
+                        false, gameLoader));
         NativeNames names = new NativeNames(mappings.snapshot(), namespace, curated);
         if (namespace.equals("client")) {
             try {
@@ -146,10 +147,27 @@ public final class NativeBindingGameScenario {
                                 + "assert(assert(a:bind(Get)):call(world,10,64,10)==84); "
                                 + "local ok,err=pcall(function() Get:call(world,10,64,10) end); "
                                 + "assert(not ok and tostring(err):find('direct_required')); "
+                                + "local blockPlan=n:dataPlan{type=World,calls={{key='id',method=Get,arguments={{input='x'},{input='y'},{input='z'}}}}}; "
+                                + "bulkBlocks=assert(a:sampleMany(blockPlan,{{receiver=world,inputs={x=1,y=2,z=3}},{receiver=world,inputs={x=4,y=5,z=6}}})); "
+                                + "assert(bulkBlocks[1].id==6 and bulkBlocks[2].id==15); "
+                                + "local Entity=n:type('net.minecraft.src.Entity'); "
+                                + "local entity=assert(a:bind('net.minecraft.src.EntityItem')):constructor('(Lnet/minecraft/src/World;)V'):new(world); "
+                                + "entity.posX=12.5; entity.posY=64; entity.posZ=-3.5; "
+                                + "local positionPlan=n:dataPlan{type=Entity,fields={x=Entity:field('posX','D'),y=Entity:field('posY','D'),z=Entity:field('posZ','D')}}; "
+                                + "bulkPosition=assert(access:sample(positionPlan,entity)); "
+                                + "assert(bulkPosition.x==12.5 and bulkPosition.y==64 and bulkPosition.z==-3.5); "
+                                + "local Chunk=n:type('net.minecraft.src.Chunk'); "
+                                + "local chunk=assert(a:bind(Chunk)):constructor('(Lnet/minecraft/src/World;[BII)V'):new(world,a:array('byte',1024),2,3); "
+                                + "chunk.heightMap[0]=-1; chunk.blocks[0]=-128; "
+                                + "local chunkPlan=n:dataPlan{type=Chunk,fields={heights={field=Chunk:field('heightMap','[B'),slice={start=0,count=256}},blocks={field=Chunk:field('blocks','[B'),slice={start=0,count=512}}}}; "
+                                + "bulkChunk=assert(access:sample(chunkPlan,chunk)); "
+                                + "assert(#bulkChunk.heights==256 and #bulkChunk.blocks==512 and bulkChunk.heights[1]==-1 and bulkChunk.blocks[1]==-128); "
                                 + "local api=assert(a:bind('fixture.nativeaccess.ModApi',{names='runtime'})); "
                                 + "local inspect=api:method('inspect','(Lnet/minecraft/src/World;III)I'); "
                                 + "assert(inspect:call(nil,world,1,2,3)==6); "
                                 + "local info=Get:describe(); assert(info.returnType.name=='int'); "
+                                + "local infoPlan=n:dataPlan{type=World,calls={{key='value',method=info,arguments={2,3,4}}}}; "
+                                + "assert(a:sample(infoPlan,world).value==9); "
                                 + "local own=n:typeOf(world):method('getBlockId','(III)I'):describe(); "
                                 + "assert(own.declaringTypeRef.name=='fixture.nativeaccess.WorldMod'); "
                                 + "assert(assert(a:bind(info)):call(world,2,3,4)==9); "
@@ -171,6 +189,8 @@ public final class NativeBindingGameScenario {
                                 + "assert(access:use(ownedCells)[1]==5); access:direct():release(ownedStack); "
                                 + "assert(ownedStack:describe().state=='released')", "owned game copies").call();
                     }
+                    lua.load("assert(bulkPosition.x==12.5 and bulkChunk.heights[1]==-1 and bulkBlocks[2].id==15)",
+                            "detached native query results").call();
                     bindings.owned.observe(null, null);
                     lua.load("assert(ownedCells:describe().state=='stale_world')", "world copy expiry").call();
                     return null;

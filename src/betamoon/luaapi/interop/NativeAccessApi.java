@@ -1,8 +1,8 @@
 package betamoon.luaapi.interop;
 
-import betamoon.interop.diagnostics.NativeDiagnosticGuidance;
 import betamoon.interop.binding.NativeAccessFailure;
 import betamoon.interop.catalog.CatalogValues;
+import betamoon.interop.diagnostics.NativeDiagnosticGuidance;
 import betamoon.interop.discovery.NativeIndexSnapshot;
 import betamoon.interop.reference.NativeMemberRef;
 import betamoon.interop.reference.NativeMemberReference;
@@ -37,6 +37,7 @@ public final class NativeAccessApi {
 
     void attach(LuaTable api) {
         api.set("NULL", NativeLuaExact.NULL);
+        api.set("dataPlan", NativeLuaSupport.function(api, args -> NativeLuaDataPlan.create(args.arg1())));
         api.set("type",
                 NativeLuaSupport.function(api, args -> new NativeLuaReference(this, type(args.arg1(), args.arg(2)))));
         api.set("typeOf", NativeLuaSupport.function(api, args -> {

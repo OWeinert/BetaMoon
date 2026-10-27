@@ -21,3 +21,4 @@
 - Bounded native refresh cancellation with scan diagnostics and integrated lifecycle/performance verification.
 - Reliable lazy hook activation across game classloaders and isolated diagnostics for incompatible hook agents.
 - Copied native exception causes, actionable failure guidance, exact hook-site inspection and verified editor diagnostic exports.
+- Reusable native data plans with general field/call/array/collection selections, runtime inputs and detached one/many-request snapshots.
