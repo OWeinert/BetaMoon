@@ -15,7 +15,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** One immutable, detached generation; every query/export sees exactly one published instance. */
+/**
+ * One immutable, detached generation; every query/export sees exactly one
+ * published instance.
+ */
 public final class NativeIndexSnapshot {
     public static final String[] KINDS = {"classes", "members", "origins", "loaders", "files", "sources", "hooks"};
     public final long generation;
@@ -24,15 +27,17 @@ public final class NativeIndexSnapshot {
     public final Map<String, Object> coverage;
     public final List<String> warnings;
     public final NativeSourceIndex sources;
+    public final long hookRevision;
     private final Map<String, List<Map<String, Object>>> tables;
 
     private NativeIndexSnapshot(long generation, String namespace, String mappingSha256,
-            Map<String, List<Map<String, Object>>> tables, Map<String, Object> coverage,
-            List<String> warnings, NativeSourceIndex sources) {
+            Map<String, List<Map<String, Object>>> tables, Map<String, Object> coverage, List<String> warnings,
+            NativeSourceIndex sources) {
         this.generation = generation;
         this.namespace = namespace;
         this.mappingSha256 = mappingSha256;
         this.sources = sources;
+        this.hookRevision = 0;
         this.coverage = CatalogValues.object(CatalogValues.freeze(coverage));
         this.warnings = Collections.unmodifiableList(new ArrayList<>(warnings));
         Map<String, List<Map<String, Object>>> frozen = new LinkedHashMap<>();
@@ -55,6 +60,35 @@ public final class NativeIndexSnapshot {
         return rows;
     }
 
+    /**
+     * Shares the large immutable class tables; captures only the bounded hook
+     * status separately.
+     */
+    public NativeIndexSnapshot withHooks(List<Map<String, Object>> hooks, long revision, String status) {
+        return new NativeIndexSnapshot(this, hooks, revision, status);
+    }
+
+    private NativeIndexSnapshot(NativeIndexSnapshot base, List<Map<String, Object>> hooks, long revision,
+            String status) {
+        generation = base.generation;
+        namespace = base.namespace;
+        mappingSha256 = base.mappingSha256;
+        sources = base.sources;
+        warnings = base.warnings;
+        hookRevision = revision;
+        Map<String, Object> coverage = new LinkedHashMap<>(base.coverage);
+        coverage.put("hooks", status);
+        this.coverage = CatalogValues.object(CatalogValues.freeze(coverage));
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (Map<String, Object> hook : hooks) {
+            rows.add(CatalogValues.object(CatalogValues.freeze(hook)));
+        }
+        rows.sort(Comparator.comparing(NativeIndexSnapshot::sortKey));
+        Map<String, List<Map<String, Object>>> tables = new LinkedHashMap<>(base.tables);
+        tables.put("hooks", Collections.unmodifiableList(rows));
+        this.tables = Collections.unmodifiableMap(tables);
+    }
+
     public static NativeIndexSnapshot empty() {
         return new NativeIndexSnapshot(0, "unknown", "unknown", Collections.emptyMap(),
                 CatalogValues.record("ready", false, "runtimeUniverseComplete", false),
@@ -63,8 +97,8 @@ public final class NativeIndexSnapshot {
 
     private static String sortKey(Map<String, Object> row) {
         return row.getOrDefault("declaringType", "") + ":" + row.getOrDefault("name", row.getOrDefault("path", ""))
-                + ":" + row.getOrDefault("descriptor", "") + ":" + row.getOrDefault("originId", "")
-                + ":" + row.getOrDefault("id", "");
+                + ":" + row.getOrDefault("descriptor", "") + ":" + row.getOrDefault("originId", "") + ":"
+                + row.getOrDefault("id", "");
     }
 
     public static final class Builder {
@@ -119,11 +153,12 @@ public final class NativeIndexSnapshot {
                 throw new IOException("aggregate_index_limit");
             }
             estimatedBytes += bytes;
-            tables.get("origins").add(CatalogValues.record("id", input.id, "name", input.path.getFileName().toString(),
-                    "path", input.path.toString(), "loaderIds", input.loaderIds, "modEntries", input.modEntries,
-                    "evidence", input.evidence, "fingerprint", metadata.fingerprint,
-                    "fingerprintKind", metadata.fingerprintKind, "runtimeVisible", !input.loaderIds.isEmpty(),
-                    "status", "indexed", "cacheHit", result.cacheHit, "classCount", metadata.classes.size()));
+            tables.get("origins")
+                    .add(CatalogValues.record("id", input.id, "name", input.path.getFileName().toString(), "path",
+                            input.path.toString(), "loaderIds", input.loaderIds, "modEntries", input.modEntries,
+                            "evidence", input.evidence, "fingerprint", metadata.fingerprint, "fingerprintKind",
+                            metadata.fingerprintKind, "runtimeVisible", !input.loaderIds.isEmpty(), "status", "indexed",
+                            "cacheHit", result.cacheHit, "classCount", metadata.classes.size()));
             for (NativeClassInfo type : metadata.classes.values()) {
                 addType(input, metadata, type);
             }
@@ -142,13 +177,16 @@ public final class NativeIndexSnapshot {
 
         public void failed(NativeOriginInput input, String reason) {
             failures++;
-            tables.get("origins").add(CatalogValues.record("id", input.id, "name", input.path.getFileName().toString(),
-                    "path", input.path.toString(), "loaderIds", input.loaderIds, "modEntries", input.modEntries,
-                    "evidence", input.evidence, "status", "failed", "reason", reason));
+            tables.get("origins")
+                    .add(CatalogValues.record("id", input.id, "name", input.path.getFileName().toString(), "path",
+                            input.path.toString(), "loaderIds", input.loaderIds, "modEntries", input.modEntries,
+                            "evidence", input.evidence, "status", "failed", "reason", reason));
         }
 
         private void addType(NativeOriginInput input, OriginMetadata metadata, NativeClassInfo type) {
-            String canonical = input.gameOrigin && bundled != null ? bundled.classNames.get(type.getInternalName()) : null;
+            String canonical = input.gameOrigin && bundled != null
+                    ? bundled.classNames.get(type.getInternalName())
+                    : null;
             String name = (canonical == null ? type.getInternalName() : canonical).replace('/', '.');
             List<String> defining = loaded.getOrDefault(input.id + ":" + type.getInternalName().replace('/', '.'),
                     Collections.emptyList());
@@ -156,22 +194,22 @@ public final class NativeIndexSnapshot {
             List<Map<String, Object>> source = sources.find(name, type.getSourceFile(), metadata.fingerprint);
             boolean available = source.stream().anyMatch(row -> Boolean.TRUE.equals(row.get("available"))
                     && !"source_mismatch".equals(row.get("confidence")));
-            Map<String, Object> row = CatalogValues.record("id", input.id + ":" + type.getInternalName(),
-                    "name", name, "runtimeName", type.getInternalName().replace('/', '.'),
-                    "canonicalName", canonical == null ? null : canonical.replace('/', '.'),
-                    "nameDomain", canonical == null ? "runtime" : "mapped", "namespace", namespace,
-                    "kind", type.getKind(), "access", visibility(type.getAccess()), "modifiers", type.getAccess(),
-                    "originId", input.id, "loaderIds", input.loaderIds, "definingLoaderIds", defining,
-                    "runtimeVisible", !input.loaderIds.isEmpty(), "loaded", observed, "bound", false,
-                    "structureEvidence", "class_file", "runtimeStructureVerified", false,
-                    "stateAsOfGeneration", generation, "sourceAvailable", available, "sourceFile", type.getSourceFile(),
-                    "memberCount", type.getMembers().size(), "superName", type.getSuperName(),
+            Map<String, Object> row = CatalogValues.record("id", input.id + ":" + type.getInternalName(), "name", name,
+                    "runtimeName", type.getInternalName().replace('/', '.'), "canonicalName",
+                    canonical == null ? null : canonical.replace('/', '.'), "nameDomain",
+                    canonical == null ? "runtime" : "mapped", "namespace", namespace, "kind", type.getKind(), "access",
+                    visibility(type.getAccess()), "modifiers", type.getAccess(), "originId", input.id, "loaderIds",
+                    input.loaderIds, "definingLoaderIds", defining, "runtimeVisible", !input.loaderIds.isEmpty(),
+                    "loaded", observed, "bound", false, "structureEvidence", "class_file", "runtimeStructureVerified",
+                    false, "stateAsOfGeneration", generation, "sourceAvailable", available, "sourceFile",
+                    type.getSourceFile(), "memberCount", type.getMembers().size(), "superName", type.getSuperName(),
                     "interfaces", type.getInterfaces(), "signature", type.getSignature(), "sourceMatches", source);
             tables.get("classes").add(row);
             for (NativeMemberInfo member : type.getMembers().values()) {
                 Map<String, Object> alias = input.gameOrigin && bundled != null
                         ? bundled.memberNames.get(BundledNativeCatalog.memberKey(type.getInternalName(),
-                                member.getName(), member.getDescriptor())) : null;
+                                member.getName(), member.getDescriptor()))
+                        : null;
                 Map<String, Object> entry = NativeCatalogRecords.member(type, member);
                 entry.put("id", input.id + ":" + type.getInternalName() + ":" + member.getKey());
                 entry.put("name", alias == null ? member.getName() : alias.get("name"));
@@ -196,13 +234,14 @@ public final class NativeIndexSnapshot {
 
         public NativeIndexSnapshot build(List<String> warnings) {
             return new NativeIndexSnapshot(generation, namespace, bundled == null ? "unknown" : bundled.mappingSha256,
-                    tables, CatalogValues.record("ready", true, "knownOriginsComplete",
+                    tables,
+                    CatalogValues.record("ready", true, "knownOriginsComplete",
                             failures == 0 && !limited && !capture.warnings.contains("origin_count_limit"),
                             "runtimeUniverseComplete", false, "loadedCensusComplete", capture.completeCensus,
-                            "loadedStateAsOfGeneration", generation, "indexedOrigins", successes,
-                            "failedOrigins", failures, "cacheHits", cacheHits, "estimatedMetadataBytes", estimatedBytes,
-                            "indexLimited", limited, "warningsMayBeTruncated", warnings.size() >= 64,
-                            "hooks", "not_implemented"), warnings, sources);
+                            "loadedStateAsOfGeneration", generation, "indexedOrigins", successes, "failedOrigins",
+                            failures, "cacheHits", cacheHits, "estimatedMetadataBytes", estimatedBytes, "indexLimited",
+                            limited, "warningsMayBeTruncated", warnings.size() >= 64, "hooks", "not_implemented"),
+                    warnings, sources);
         }
     }
 

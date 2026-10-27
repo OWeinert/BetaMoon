@@ -1,14 +1,14 @@
 package betamoon.interop.binding;
 
-import betamoon.interop.discovery.NativeLoaderRegistry;
-import betamoon.interop.discovery.NativeIndexSnapshot;
-import betamoon.interop.catalog.JvmDescriptors;
 import betamoon.interop.catalog.CatalogValues;
+import betamoon.interop.catalog.JvmDescriptors;
+import betamoon.interop.discovery.NativeIndexSnapshot;
+import betamoon.interop.discovery.NativeLoaderRegistry;
+import betamoon.interop.interfaces.NativeInterfaces;
 import betamoon.interop.reference.NativeMemberRef;
 import betamoon.interop.reference.NativeTypeRef;
 import betamoon.interop.runtime.NativeContext;
 import betamoon.interop.runtime.NativeOwnedValues;
-import betamoon.interop.interfaces.NativeInterfaces;
 import betamoon.interop.value.NativeConversions;
 import betamoon.interop.value.NativeExactValue;
 import java.lang.ref.WeakReference;
@@ -44,6 +44,7 @@ public final class NativeBindings {
     private volatile boolean closed;
     private volatile int cachedTypeSelectors;
     private final Map<String, Long> failures = new HashMap<>();
+    private final NativeFailureJournal failureJournal = new NativeFailureJournal();
     private final Map<String, WeakReference<Class<?>>> types = new HashMap<>();
     private final ClassValue<Map<String, NativeMemberPlan>> plans = new ClassValue<Map<String, NativeMemberPlan>>() {
         @Override
@@ -73,18 +74,87 @@ public final class NativeBindings {
     }
 
     public void recordFailure(String reason) {
+        recordFailure(new NativeAccessFailure(reason, null));
+    }
+
+    public void recordFailure(NativeAccessFailure failure) {
         synchronized (failures) {
-            if (onClientThread() && (failures.containsKey(reason) || failures.size() < 128)) {
+            String reason = failure.reason;
+            if (failures.containsKey(reason) || failures.size() < 128) {
                 failures.put(reason, failures.getOrDefault(reason, 0L) + 1L);
+                failureJournal.record(failure);
             }
         }
+    }
+
+    public NativeAccessFailure explain(NativeAccessFailure failure, NativeTypeRef type, NativeMemberRef member,
+            NativeMemberPlan plan, NativeContext context, boolean direct) {
+        NativeIndexSnapshot snapshot = snapshot();
+        Map<String, Object> details = CatalogValues.record("namespace", snapshot.namespace, "mappingSha256",
+                snapshot.mappingSha256, "generation", snapshot.generation, "policy", direct ? "direct" : "managed");
+        if (context != null) {
+            details.putAll(context.failureContext());
+        }
+        if (type != null) {
+            details.put("requestedType", type.name());
+            details.put("requestedNames", type.names);
+            details.put("requestedLoaderId", type.loaderId);
+            details.put("requestedOriginId", type.originId);
+        }
+        if (member != null) {
+            details.put("requestedMember", member.name);
+            details.put("requestedDescriptor", member.descriptor);
+            details.put("requestedDeclaringType", member.declaringType == null ? null : member.declaringType.name());
+            details.put("requestedDescriptorNames", member.descriptorNames);
+        }
+        if (plan != null) {
+            Class<?> owner = plan.member.getDeclaringClass();
+            details.put("runtimeOwner", owner.getName());
+            details.put("runtimeMember", plan.member.getName());
+            details.put("runtimeDescriptor", plan.descriptor);
+            if (onClientThread()) {
+                details.put("definingLoaderId", loaders.id(owner.getClassLoader()));
+                details.put("originId", loaders.originId(owner));
+            }
+        }
+        if (type != null && member != null) {
+            List<Map<String, Object>> alternatives = new ArrayList<>();
+            List<Map<String, Object>> rows = snapshot.rows("members");
+            String owner = member.declaringType == null ? type.name() : member.declaringType.name();
+            int low = 0;
+            int high = rows.size();
+            while (low < high) {
+                int middle = (low + high) >>> 1;
+                // Snapshot keys append ':' after the owner; '$' nested names sort before that
+                // separator.
+                if ((String.valueOf(rows.get(middle).get("declaringType")) + ":").compareTo(owner + ":") < 0) {
+                    low = middle + 1;
+                } else {
+                    high = middle;
+                }
+            }
+            for (int index = low; index < rows.size() && index < low + 256 && alternatives.size() < 8; index++) {
+                Map<String, Object> row = rows.get(index);
+                if (!owner.equals(row.get("declaringType"))) {
+                    break;
+                }
+                if (member.name.equals(row.get("name"))) {
+                    alternatives.add(CatalogValues.record("name", row.get("name"), "descriptor", row.get("descriptor"),
+                            "originId", row.get("originId"), "access", row.get("access")));
+                }
+            }
+            details.put("availableOverloads", alternatives);
+            details.put("alternativesBounded", true);
+        }
+        return failure.explain(details);
     }
 
     public Map<String, Object> diagnostics() {
         synchronized (failures) {
             return CatalogValues.record("session", closed ? "closed" : "active", "cachedTypeSelectors",
-                    cachedTypeSelectors, "failures", new HashMap<>(failures), "ownership", owned.diagnostics(),
-                    "interfaces", interfaces.diagnostics());
+                    cachedTypeSelectors, "failures", new HashMap<>(failures), "failureDetails",
+                    failureJournal.snapshot(), "ownership", owned.diagnostics(), "interfaces",
+                    interfaces.diagnostics());
         }
     }
 
@@ -136,6 +206,14 @@ public final class NativeBindings {
     }
 
     public Class<?> type(NativeTypeRef reference, NativeContext context) {
+        try {
+            return resolveType(reference, context);
+        } catch (NativeAccessFailure failure) {
+            throw explain(failure, reference, null, null, context, false);
+        }
+    }
+
+    private Class<?> resolveType(NativeTypeRef reference, NativeContext context) {
         context.check();
         String key = reference.key() + ":" + loaders.bindingRevision();
         WeakReference<Class<?>> cached = types.get(key);
@@ -197,6 +275,14 @@ public final class NativeBindings {
     }
 
     public NativeMemberPlan exact(NativeMemberRef reference, NativeContext context, boolean direct) {
+        try {
+            return resolveExact(reference, context, direct);
+        } catch (NativeAccessFailure failure) {
+            throw explain(failure, reference.lookupType, reference, null, context, direct);
+        }
+    }
+
+    private NativeMemberPlan resolveExact(NativeMemberRef reference, NativeContext context, boolean direct) {
         Class<?> lookup = type(reference.lookupType, context);
         Map<String, NativeMemberPlan> cache = plans.get(lookup);
         String key = reference.key() + ":" + direct;
@@ -267,8 +353,13 @@ public final class NativeBindings {
 
     public NativeMemberPlan method(NativeTypeRef reference, String name, Object receiver, Object[] arguments,
             NativeContext context) {
-        return overload(methods(reference, name, receiver == null, context), arguments, context,
-                reference.name() + "." + name);
+        try {
+            return overload(methods(reference, name, receiver == null, context), arguments, context,
+                    reference.name() + "." + name);
+        } catch (NativeAccessFailure failure) {
+            failure.explain(CatalogValues.record("requestedMember", name));
+            throw explain(failure, reference, null, null, context, false);
+        }
     }
 
     public boolean hasMethod(NativeTypeRef reference, String name, boolean isStatic, NativeContext context) {

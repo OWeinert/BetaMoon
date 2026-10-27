@@ -44,6 +44,8 @@ final class NativeLuaView extends NativeLuaHandle {
         this.type = type;
         this.identity = identity;
         this.classView = identity == null;
+        diagnosticType = lookup;
+        diagnosticDirect = direct;
         properties.put("describe", NativeLuaSupport.scopedFunction(this, context, args -> {
             NativeContext execution = executionContext();
             return host.metadata(CatalogValues.record("type", context.bindings.reference(type), "identity",
@@ -62,7 +64,7 @@ final class NativeLuaView extends NativeLuaHandle {
             NativeMemberRef reference = host.selector(lookup, NativeMemberRef.Kind.FIELD, args);
             Integer receiver = classView ? null : execution.retainScoped(payload(execution));
             return new NativeLuaField(host, execution, direct, execution.bindings.exact(reference, execution, direct),
-                    receiver);
+                    receiver, reference);
         }));
         if (classView) {
             properties.put("constructor",
@@ -127,17 +129,24 @@ final class NativeLuaView extends NativeLuaHandle {
             }
             if (method) {
                 return NativeLuaSupport.scopedFunction(this, context, args -> {
-                    NativeContext operation = host.operationContext(executionContext(), args);
-                    Object receiver = classView ? null : payload(operation);
-                    Object[] input = host.arguments(args, operation);
-                    NativeMemberPlan plan = operation.bindings.method(lookup, name, receiver, input, operation);
-                    Object result = plan.call(operation, direct, receiver,
-                            operation.bindings.arguments(plan, input, operation));
-                    return plan.valueType == Void.TYPE ? LuaValue.NONE : host.result(result, operation, direct);
+                    try {
+                        NativeContext operation = host.operationContext(executionContext(), args);
+                        Object receiver = classView ? null : payload(operation);
+                        Object[] input = host.arguments(args, operation);
+                        NativeMemberPlan plan = operation.bindings.method(lookup, name, receiver, input, operation);
+                        Object result = plan.call(operation, direct, receiver,
+                                operation.bindings.arguments(plan, input, operation));
+                        return plan.valueType == Void.TYPE ? LuaValue.NONE : host.result(result, operation, direct);
+                    } catch (NativeAccessFailure failure) {
+                        throw explain(failure, key);
+                    }
                 });
             }
             throw new NativeAccessFailure("member_not_found", name + "; nonpublic access uses exact direct selectors");
         } catch (NativeAccessFailure | IllegalArgumentException exception) {
+            if (exception instanceof NativeAccessFailure) {
+                explain((NativeAccessFailure) exception, key);
+            }
             throw NativeLuaSupport.error(exception);
         }
     }
@@ -168,8 +177,19 @@ final class NativeLuaView extends NativeLuaHandle {
             field.set(context, direct, classView ? null : payload(context),
                     NativeConversions.convert(input, field.valueType));
         } catch (NativeAccessFailure | IllegalArgumentException exception) {
+            if (exception instanceof NativeAccessFailure) {
+                explain((NativeAccessFailure) exception, key);
+            }
             throw NativeLuaSupport.error(exception);
         }
+    }
+
+    private NativeAccessFailure explain(NativeAccessFailure failure, LuaValue key) {
+        context.bindings.explain(failure, lookup, null, null, context, direct);
+        if (key.type() == TSTRING) {
+            failure.explain(CatalogValues.record("requestedMember", key.tojstring()));
+        }
+        return failure;
     }
 
     private NativeMemberPlan ordinaryField(String name) {

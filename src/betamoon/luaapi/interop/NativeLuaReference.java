@@ -1,13 +1,26 @@
 package betamoon.luaapi.interop;
 
 import betamoon.interop.reference.NativeMemberRef;
+import betamoon.interop.reference.NativeMemberReference;
+import betamoon.interop.reference.NativeReferenceSelectors;
 import betamoon.interop.reference.NativeTypeRef;
+import betamoon.interop.reference.NativeTypeReference;
 import betamoon.interop.runtime.NativeContext;
 import org.luaj.vm2.LuaValue;
 
-final class NativeLuaReference extends NativeLuaHandle {
+final class NativeLuaReference extends NativeLuaHandle implements NativeMemberReference, NativeTypeReference {
     final NativeTypeRef typeRef;
     final NativeMemberRef memberRef;
+
+    @Override
+    public NativeMemberRef nativeMemberReference() {
+        return memberRef;
+    }
+
+    @Override
+    public NativeTypeRef nativeTypeReference() {
+        return typeRef;
+    }
 
     NativeLuaReference(NativeAccessApi host, NativeTypeRef type) {
         super("Native TypeRef(" + type.name() + ")");
@@ -61,12 +74,6 @@ final class NativeLuaReference extends NativeLuaHandle {
 
     @Override
     public boolean eq_b(LuaValue other) {
-        if (!(other instanceof NativeLuaReference)) {
-            return false;
-        }
-        NativeLuaReference reference = (NativeLuaReference) other;
-        return typeRef != null
-                ? reference.typeRef != null && typeRef.key().equals(reference.typeRef.key())
-                : reference.memberRef != null && memberRef.key().equals(reference.memberRef.key());
+        return NativeReferenceSelectors.equal(this, other);
     }
 }

@@ -67,6 +67,16 @@ public final class NativeMemberPlan {
     }
 
     public Object call(NativeContext context, boolean direct, Object receiver, Object[] arguments) {
+        try {
+            return executeCall(context, direct, receiver, arguments);
+        } catch (NativeAccessFailure failure) {
+            throw context.bindings == null
+                    ? failure
+                    : context.bindings.explain(failure, null, null, this, context, direct);
+        }
+    }
+
+    private Object executeCall(NativeContext context, boolean direct, Object receiver, Object[] arguments) {
         context.check();
         receiver(receiver);
         accessibility(context, direct);
@@ -102,6 +112,16 @@ public final class NativeMemberPlan {
     }
 
     public Object get(NativeContext context, boolean direct, Object receiver) {
+        try {
+            return executeGet(context, direct, receiver);
+        } catch (NativeAccessFailure failure) {
+            throw context.bindings == null
+                    ? failure
+                    : context.bindings.explain(failure, null, null, this, context, direct);
+        }
+    }
+
+    private Object executeGet(NativeContext context, boolean direct, Object receiver) {
         context.check();
         receiver(receiver);
         accessibility(context, direct);
@@ -118,6 +138,16 @@ public final class NativeMemberPlan {
     }
 
     public void set(NativeContext context, boolean direct, Object receiver, Object value) {
+        try {
+            executeSet(context, direct, receiver, value);
+        } catch (NativeAccessFailure failure) {
+            throw context.bindings == null
+                    ? failure
+                    : context.bindings.explain(failure, null, null, this, context, direct);
+        }
+    }
+
+    private void executeSet(NativeContext context, boolean direct, Object receiver, Object value) {
         context.check();
         receiver(receiver);
         if (Modifier.isFinal(member.getModifiers())) {

@@ -73,6 +73,7 @@ public final class LuaModLoader {
             return;
         }
         phase = LoaderPhase.INITIAL_LOAD;
+        HookLifecycle.beginAttempt();
         try (ScriptDiagnostics.Scope diagnostic = ScriptDiagnostics.scope("startup", "script loading")) {
             LuaScriptErrors.clear();
             loadAndRunInternal();
@@ -80,6 +81,7 @@ public final class LuaModLoader {
         } finally {
             exportFailedAttempt("startup");
             phase = LoaderPhase.IDLE;
+            HookLifecycle.endAttempt();
         }
     }
 
@@ -160,6 +162,7 @@ public final class LuaModLoader {
             return;
         }
         phase = LoaderPhase.RELOAD_PREFLIGHT;
+        HookLifecycle.beginAttempt();
         ScriptReloadStatus.begin();
         boolean reloadFinished = false;
         try (ScriptDiagnostics.Scope diagnostic = ScriptDiagnostics.scope("reload", "reload preflight")) {
@@ -193,6 +196,7 @@ public final class LuaModLoader {
             phase = LoaderPhase.IDLE;
             int errorCount = LuaScriptErrors.getErrorCount();
             ScriptReloadStatus.complete(!reloadFinished && errorCount == 0 ? 1 : errorCount);
+            HookLifecycle.endAttempt();
         }
     }
 

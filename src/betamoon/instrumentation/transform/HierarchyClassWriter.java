@@ -100,6 +100,18 @@ final class HierarchyClassWriter extends ClassWriter {
         }
     }
 
+    boolean isInterface(String name) {
+        return !name.startsWith("[") && metadata(name).isInterface();
+    }
+
+    String superName(String name) {
+        return name.startsWith("[") ? "java/lang/Object" : metadata(name).parent;
+    }
+
+    boolean isAssignable(String target, String value) {
+        return assignable(target, value);
+    }
+
     private static String component(String array) {
         return array.substring(1);
     }

@@ -1,5 +1,8 @@
 package betamoon.luaapi.interop;
 
+import betamoon.interop.binding.NativeMemberPlan;
+import betamoon.interop.reference.NativeMemberRef;
+import betamoon.interop.reference.NativeTypeRef;
 import java.util.HashMap;
 import java.util.Map;
 import org.luaj.vm2.LuaError;
@@ -8,6 +11,10 @@ import org.luaj.vm2.LuaValue;
 /** Opaque Lua value without a LuaJ userdata payload or writable metatable. */
 abstract class NativeLuaHandle extends LuaValue {
     protected final Map<String, LuaValue> properties = new HashMap<>();
+    NativeTypeRef diagnosticType;
+    NativeMemberRef diagnosticMember;
+    NativeMemberPlan diagnosticPlan;
+    boolean diagnosticDirect;
     private final String label;
 
     NativeLuaHandle(String label) {

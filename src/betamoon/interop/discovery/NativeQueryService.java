@@ -13,11 +13,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
-/** Pure metadata queries. Pagination retains no snapshot, native object, loader or Lua callback. */
+/**
+ * Pure metadata queries. Pagination retains no snapshot, native object, loader
+ * or Lua callback.
+ */
 public final class NativeQueryService {
     private static final Set<String> KEYS = new HashSet<>(Arrays.asList("kind", "name", "prefix", "glob", "package",
             "originId", "loaderId", "declaringType", "memberKind", "access", "names", "side", "loaded", "bound",
-            "sourceAvailable", "includeSynthetic", "descriptor", "limit", "cursor"));
+            "sourceAvailable", "includeSynthetic", "descriptor", "limit", "cursor", "owner", "status"));
 
     private NativeQueryService() {
     }
@@ -31,6 +34,9 @@ public final class NativeQueryService {
         }
         Map<String, Object> identity = new TreeMap<>(filter);
         identity.remove("cursor");
+        if (kind.equals("hooks")) {
+            identity.put("hookRevision", snapshot.hookRevision);
+        }
         String digest = CatalogFingerprint.sha256(CatalogJson.encode(identity).getBytes(StandardCharsets.UTF_8));
         List<Map<String, Object>> rows = snapshot.rows(kind);
         int start = cursor(snapshot.generation, digest, filter.get("cursor"));
@@ -49,8 +55,10 @@ public final class NativeQueryService {
             }
             position++;
         }
-        String next = position < rows.size() ? Base64.getUrlEncoder().withoutPadding().encodeToString(
-                (snapshot.generation + ":" + digest + ":" + position).getBytes(StandardCharsets.UTF_8)) : null;
+        String next = position < rows.size()
+                ? Base64.getUrlEncoder().withoutPadding().encodeToString(
+                        (snapshot.generation + ":" + digest + ":" + position).getBytes(StandardCharsets.UTF_8))
+                : null;
         return CatalogValues.object(CatalogValues.freeze(CatalogValues.record("items", items, "nextCursor", next,
                 "generation", snapshot.generation, "coverage", snapshot.coverage, "warnings", snapshot.warnings)));
     }
@@ -76,8 +84,8 @@ public final class NativeQueryService {
                 if (!(entry.getValue() instanceof Boolean)) {
                     throw new IllegalArgumentException("Expected native query boolean: " + entry.getKey());
                 }
-            } else if (!entry.getKey().equals("limit") && (!(entry.getValue() instanceof String)
-                    || ((String) entry.getValue()).length() > 512)) {
+            } else if (!entry.getKey().equals("limit")
+                    && (!(entry.getValue() instanceof String) || ((String) entry.getValue()).length() > 512)) {
                 throw new IllegalArgumentException("Expected bounded native query string: " + entry.getKey());
             }
         }
@@ -98,6 +106,14 @@ public final class NativeQueryService {
     }
 
     private static boolean matches(Map<String, Object> row, Map<String, Object> filter) {
+        if (filter.containsKey("owner") && !filter.get("owner").equals(row.get("owner"))
+                && (!(row.get("owners") instanceof List)
+                        || !((List<?>) row.get("owners")).contains(filter.get("owner")))) {
+            return false;
+        }
+        if (filter.containsKey("status") && !filter.get("status").equals(row.get("status"))) {
+            return false;
+        }
         if (!Boolean.TRUE.equals(filter.get("includeSynthetic")) && row.get("modifiers") instanceof Number) {
             int flags = ((Number) row.get("modifiers")).intValue();
             if ((flags & 0x1000) != 0 || ("METHOD".equals(row.get("kind")) && (flags & 0x40) != 0)) {
@@ -165,7 +181,8 @@ public final class NativeQueryService {
         int star = -1;
         int retry = 0;
         while (position < text.length()) {
-            if (token < pattern.length() && (pattern.charAt(token) == '?' || pattern.charAt(token) == text.charAt(position))) {
+            if (token < pattern.length()
+                    && (pattern.charAt(token) == '?' || pattern.charAt(token) == text.charAt(position))) {
                 token++;
                 position++;
             } else if (token < pattern.length() && pattern.charAt(token) == '*') {
@@ -189,7 +206,8 @@ public final class NativeQueryService {
             return 0;
         }
         try {
-            String[] parts = new String(Base64.getUrlDecoder().decode((String) value), StandardCharsets.UTF_8).split(":");
+            String[] parts = new String(Base64.getUrlDecoder().decode((String) value), StandardCharsets.UTF_8)
+                    .split(":");
             if (parts.length != 3 || Long.parseLong(parts[0]) != generation || !parts[1].equals(digest)) {
                 throw new IllegalArgumentException("stale_cursor");
             }

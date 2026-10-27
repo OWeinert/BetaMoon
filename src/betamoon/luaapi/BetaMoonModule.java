@@ -1,5 +1,6 @@
 package betamoon.luaapi;
 
+import betamoon.hooks.HookLuaValue;
 import betamoon.luaapi.asset.AssetsApi;
 import betamoon.luaapi.audio.AudioApi;
 import betamoon.luaapi.audio.StepSoundApi;
@@ -81,6 +82,7 @@ public final class BetaMoonModule extends TwoArgFunction {
         ConfigApi.attach(module, configRoot, source);
         EventsApi.attach(module);
         NativeDiscoveryApi.attach(module, source);
+        module.set("hooks", HookLuaValue.facade(null));
         AssetsApi.attach(module);
         ParticlesApi.attach(module);
         MultiblocksApi.attach(module);

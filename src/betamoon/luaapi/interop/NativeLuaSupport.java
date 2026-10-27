@@ -32,16 +32,27 @@ final class NativeLuaSupport {
 
     static LuaValue scopedFunction(LuaValue self, NativeContext context, Action action) {
         return function(self, arguments -> {
-            context.check();
-            Varargs result = action.run(arguments);
-            context.check();
-            return result;
+            try {
+                context.check();
+                Varargs result = action.run(arguments);
+                context.check();
+                return result;
+            } catch (NativeAccessFailure failure) {
+                NativeLuaHandle handle = self instanceof NativeLuaHandle ? (NativeLuaHandle) self : null;
+                if (context.bindings != null) {
+                    throw context.bindings.explain(failure, handle == null ? null : handle.diagnosticType,
+                            handle == null ? null : handle.diagnosticMember,
+                            handle == null ? null : handle.diagnosticPlan, context,
+                            handle != null && handle.diagnosticDirect);
+                }
+                throw failure;
+            }
         });
     }
 
     static LuaError error(RuntimeException exception) {
         if (exception instanceof NativeAccessFailure) {
-            NativeContext.recordFailure(((NativeAccessFailure) exception).reason);
+            NativeContext.recordFailure((NativeAccessFailure) exception);
         }
         return new BridgeError(exception);
     }

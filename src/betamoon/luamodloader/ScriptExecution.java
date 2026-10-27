@@ -42,6 +42,14 @@ public final class ScriptExecution {
         return invoke(source, "callback", function, arguments, null, true);
     }
 
+    /**
+     * A dispatcher that already owns an audited native scope preserves it while
+     * attributing the callback.
+     */
+    public static Varargs invokeNative(String source, String phase, LuaValue function, Varargs arguments) {
+        return invoke(source, phase, function, arguments, null, true);
+    }
+
     private static Varargs invoke(String source, String callbackName, LuaValue function, Varargs arguments,
             LuaCallbackScope scope, boolean api) {
         Objects.requireNonNull(callbackName, "Callback name");

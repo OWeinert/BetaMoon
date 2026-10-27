@@ -1,36 +1,38 @@
 package betamoon.luaapi.interop;
 
 import betamoon.instrumentation.mapping.TinyMappingResolver;
+import betamoon.interop.NativeDiscoveryTest;
+import betamoon.interop.binding.NativeAccessFailure;
 import betamoon.interop.binding.NativeBindings;
 import betamoon.interop.binding.NativeNames;
+import betamoon.interop.catalog.CatalogJson;
 import betamoon.interop.discovery.NativeDiscoveryService;
 import betamoon.interop.discovery.NativeIndexSnapshot;
 import betamoon.interop.discovery.NativeLoaderRegistry;
 import betamoon.interop.fixture.NativeFixtureMod;
+import betamoon.interop.reference.NativeMemberRef;
+import betamoon.interop.reference.NativeTypeRef;
 import betamoon.interop.runtime.NativeContext;
-import betamoon.interop.NativeDiscoveryTest;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luamodloader.ScriptExecution;
 import betamoon.luamodloader.ScriptResourceTracker;
 import java.io.ByteArrayInputStream;
+import java.io.FilePermission;
+import java.lang.reflect.ReflectPermission;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.Permission;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import java.lang.reflect.ReflectPermission;
-import java.security.Permission;
-import java.io.FilePermission;
-import java.net.URL;
-import java.net.URLClassLoader;
-import betamoon.interop.binding.NativeAccessFailure;
-import betamoon.interop.reference.NativeMemberRef;
-import betamoon.interop.reference.NativeTypeRef;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -234,6 +236,34 @@ public final class NativeBindingApiTest {
                     throw new AssertionError("Fatal native signal was swallowed");
                 } catch (NativeFixtureMod.FixtureFatalError expected) {
                 }
+                run(lua, "for i=1,3 do pcall(function() C:method('which','(Z)V') end) end");
+                Map<String, Object> journal = (Map<String, Object>) bindings.diagnostics().get("failureDetails");
+                boolean selectorRecorded = false;
+                for (Object item : (List<?>) journal.get("records")) {
+                    Map<?, ?> record = (Map<?, ?>) item;
+                    if ("which".equals(record.get("requestedMember"))
+                            && "(Z)V".equals(record.get("requestedDescriptor"))) {
+                        require(((Number) record.get("count")).longValue() >= 3,
+                                "Failure history was not deduplicated");
+                        require("direct".equals(record.get("policy")) && OWNER.equals(record.get("owner")),
+                                "Failure lost owner/policy context");
+                        require(record.get("availableOverloads") instanceof List,
+                                "Failure lost metadata-only overload alternatives");
+                        List<?> alternatives = (List<?>) record.get("availableOverloads");
+                        require(!alternatives.isEmpty() && alternatives.size() <= 8,
+                                "Indexed overload alternatives were missing or exceeded their budget");
+                        selectorRecorded = true;
+                    }
+                }
+                require(selectorRecorded, "Native failure history omitted the attempted exact selector");
+                require(CatalogJson.encode(journal).length() < 5 * 1024 * 1024, "Unbounded native failure history");
+                for (int i = 0; i < 80; i++) {
+                    bindings.recordFailure(new NativeAccessFailure("bounded_fixture_" + i, "fixture"));
+                }
+                Map<?, ?> boundedJournal = (Map<?, ?>) bindings.diagnostics().get("failureDetails");
+                require(((List<?>) boundedJournal.get("records")).size() == 64
+                        && ((Number) boundedJournal.get("omitted")).longValue() > 0,
+                        "Failure history did not enforce its record budget");
                 verifyDeniedReflection(bindings, nativeScope);
                 verifyOriginReads(bindings);
                 verifyLoaderChanges(registry, bindings, nativeScope);

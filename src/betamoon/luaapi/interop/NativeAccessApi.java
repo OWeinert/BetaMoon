@@ -4,6 +4,8 @@ import betamoon.interop.binding.NativeAccessFailure;
 import betamoon.interop.catalog.CatalogValues;
 import betamoon.interop.discovery.NativeIndexSnapshot;
 import betamoon.interop.reference.NativeMemberRef;
+import betamoon.interop.reference.NativeMemberReference;
+import betamoon.interop.reference.NativeReferenceSelectors;
 import betamoon.interop.reference.NativeReflection;
 import betamoon.interop.reference.NativeTypeRef;
 import betamoon.interop.runtime.NativeContext;
@@ -76,38 +78,32 @@ public final class NativeAccessApi {
         return new NativeLuaAccess(new NativeAccessApi(() -> detached), context, false);
     }
 
+    public static LuaValue hookValue(Object value, NativeContext context) {
+        return new NativeAccessApi(context.bindings::snapshot).result(value, context, false);
+    }
+
+    public static Object hookConvert(LuaValue value, Class<?> type, NativeContext context) {
+        context.check();
+        NativeAccessApi host = new NativeAccessApi(context.bindings::snapshot);
+        Object input = host.argument(value, context);
+        context.bindings.validateNull(input, type, context);
+        return NativeConversions.convert(input, type);
+    }
+
     NativeTypeRef type(LuaValue value, LuaValue suppliedOptions) {
-        LuaTable options = options(suppliedOptions, "names", "loaderId", "originId");
-        String names = optionalText(options.get("names"));
-        String loader = optionalText(options.get("loaderId"));
-        String origin = optionalText(options.get("originId"));
-        if (value instanceof NativeLuaReference && ((NativeLuaReference) value).typeRef != null) {
-            return ((NativeLuaReference) value).typeRef.selected(names, loader, origin);
-        }
-        return NativeTypeRef.named(text(value), names, loader, origin);
+        return NativeReferenceSelectors.type(value, suppliedOptions);
     }
 
     NativeMemberRef selector(NativeTypeRef lookup, NativeMemberRef.Kind kind, Varargs args) {
-        String name = text(args.arg1());
-        LuaValue descriptor = args.arg(2);
-        LuaValue supplied = args.arg(3);
-        if (kind == NativeMemberRef.Kind.FIELD && descriptor.istable()) {
-            supplied = descriptor;
-            descriptor = LuaValue.NIL;
-        }
-        LuaTable options = options(supplied, "names", "descriptorNames", "declaringType");
-        NativeTypeRef declaring = options.get("declaringType").isnil()
-                ? null
-                : type(options.get("declaringType"), LuaValue.NIL);
-        return new NativeMemberRef(kind, lookup, declaring, name, descriptor.isnil() ? null : text(descriptor),
-                optionalText(options.get("names")), optionalText(options.get("descriptorNames")));
+        return NativeReferenceSelectors.member(lookup, kind, args);
     }
 
     Varargs describe(LuaValue value, LuaValue suppliedOptions) {
         NativeIndexSnapshot snapshot = snapshots.get();
-        NativeLuaReference reference = value instanceof NativeLuaReference
-                ? (NativeLuaReference) value
-                : new NativeLuaReference(this, type(value, suppliedOptions));
+        NativeLuaReference reference = value instanceof NativeMemberReference
+                && ((NativeMemberReference) value).nativeMemberReference() != null
+                        ? new NativeLuaReference(this, ((NativeMemberReference) value).nativeMemberReference())
+                        : new NativeLuaReference(this, type(value, suppliedOptions));
         Map<String, Object> description;
         NativeTypeRef requestedType = reference.typeRef == null ? null : type(reference, suppliedOptions);
         try {
@@ -211,8 +207,8 @@ public final class NativeAccessApi {
     NativeMemberRef methodRecord(LuaValue record) {
         LuaTable table = record.checktable();
         LuaValue ref = table.rawget("ref");
-        if (ref instanceof NativeLuaReference && ((NativeLuaReference) ref).memberRef != null) {
-            return ((NativeLuaReference) ref).memberRef;
+        if (ref instanceof NativeMemberReference && ((NativeMemberReference) ref).nativeMemberReference() != null) {
+            return ((NativeMemberReference) ref).nativeMemberReference();
         }
         Map<String, Object> values = CatalogValues.record("kind", text(table.get("kind")), "declaringType",
                 text(table.get("declaringType")), "name", text(table.get("name")), "descriptor",

@@ -1,5 +1,6 @@
 package betamoon.instrumentation.transform;
 
+import betamoon.hooks.HookPreparation;
 import betamoon.instrumentation.agent.AgentRuntime;
 import betamoon.instrumentation.api.CallRedirectHookDefinition;
 import betamoon.instrumentation.api.FieldReadRedirectHookDefinition;
@@ -14,12 +15,14 @@ import java.security.ProtectionDomain;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.tree.ClassNode;
 
 /** Applies immutable transformation plans as JVM classes are defined. */
 public final class BetaMoonTransformer implements ClassFileTransformer {
+    private static final AtomicBoolean USER_BRIDGE_FAILURE_REPORTED = new AtomicBoolean();
     private final Map<String, ClassTransformPlan> plans;
     private final TransformationReport report;
     private final AroundMethodInjector aroundInjector;
@@ -44,6 +47,26 @@ public final class BetaMoonTransformer implements ClassFileTransformer {
     @Override
     public byte[] transform(ClassLoader loader, String className, Class<?> classBeingRedefined,
             ProtectionDomain protectionDomain, byte[] classfileBuffer) throws IllegalClassFormatException {
+        if (className == null || classfileBuffer == null || classBeingRedefined != null) {
+            return null;
+        }
+        byte[] engine = transformEngine(loader, className, classfileBuffer);
+        byte[] input = engine == null ? classfileBuffer : engine;
+        try {
+            byte[] output = new ScriptHookTransformer(HookPreparation.current()).transform(loader, className, input);
+            return output == input ? engine : output;
+        } catch (VirtualMachineError | ThreadDeath fatal) {
+            throw fatal;
+        } catch (Throwable failure) {
+            if (USER_BRIDGE_FAILURE_REPORTED.compareAndSet(false, true)) {
+                System.err.println("[BetaMoon Hooks] agent_unavailable; valid engine bytes retained: " + failure);
+            }
+            return engine;
+        }
+    }
+
+    private byte[] transformEngine(ClassLoader loader, String className, byte[] classfileBuffer)
+            throws IllegalClassFormatException {
         if (className == null || classfileBuffer == null) {
             return null;
         }

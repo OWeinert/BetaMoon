@@ -4,7 +4,7 @@ Extensive Lua scripting for **Minecraft Beta 1.7.3**.
 
 Development branch for **1.0.0**. See [Releases](https://github.com/OWeinert/BetaMoon/releases) for published builds.
 
-[Wiki](https://github.com/OWeinert/BetaMoon/wiki) Â· [Lua API](https://github.com/OWeinert/BetaMoon/wiki/API-Documentation) Â· [Example scripts](examples/README.md) Â· [Changelog](CHANGELOG.md) Â· [Downloads](https://github.com/OWeinert/BetaMoon/releases)
+[Wiki](https://github.com/OWeinert/BetaMoon/wiki) · [Lua API](https://github.com/OWeinert/BetaMoon/wiki/API-Documentation) · [Example scripts](examples/README.md) · [Changelog](CHANGELOG.md) · [Downloads](https://github.com/OWeinert/BetaMoon/releases)
 
 [![Modrinth](https://img.shields.io/badge/dynamic/json?labelColor=black&color=grey&label=&suffix=%20downloads&query=downloads&url=https://api.modrinth.com/v2/project/BwTdIvv1&style=flat&logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAJPUExURQAAABvZahWnUha1WAYzGQlHIxvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZahvZav///9ScwmYAAADDdFJOUwAAAAAAAA8zW3uOYwIBK3rB6Pn+ml18KiGL5HEDquOIH07R/UzKz2zu+uLHIibtafWkVCMNBRqg7/RQuT8EQbvT+5ETDBSU/NAgCSdZlcQKii7mtxJY5fF/7D1SRkB+EcWh4UilOOtPMdTCR1PqN969vmGDCw7G4DSSsAcGHrSPr3bds5CEwDKoXumcZdwcG4KmjayX32A79pjOqRjIFoXynVYVgPi6qxDnL78p2obVJFquNbGZCPdyvHPZ1yhuh8s+iRzcsrEAAAABYktHRMQUDBvhAAAAB3RJTUUH5wQXDwgZWDUtiQAAAqRJREFUOMttU/k7lFEU/k4L4hsxtNAnhRgiJZOiSfbI2oJpmRFCi2kV0aaNVLTIEpVISmnf97r/WO+534yZnqfzw73vOe+559xz7rmKIoVYvLx95vj6qUSqVBW3sGrwnxsQaAwSwcDz5i9g0wxPfmFIqJCyiEgLE4vDl7iD8PGlETotIqOQahlAdJTLA5sWY5JsbNzysHiihEBWViRqRDOlgyFmJVtMq5JWJ5vhvyZlLevrEmUILKl8PihtvYWcYt6QLmNwFjjEb4SSkZnlZLO5yJzcPBg35bODwZfPZxYwWbC5sKjYzwBUkssxSg1wKNsCtHUb89vTy3GwopBxDmcJ9YdDJYB1B9t2WmUtcbtkqt18Mxsp9irsezS2VEu+uka/mqUWSrFd2VsnhLEetoZ9TFv3HwCexdUdjBWi0aH4YTuEvtoPM3/EO1nnuTpEjD2qHIM54DhR0wmA5hZySzIntyknsbZyi8IB0tp07tRpBDKfgeWsdDjHDlFGRIjnl3O0t573gcMFUBeVS1gvlxB1dOZxv0pIu9IF01UDZRdjr1SuZQhxvbvnRrmsMePmrdsrGPRaKP8OLtmn9KM7A4N3xb8yNExUb5RlZt2btpZbXajzPoYkBaDKrtADp3HkYdloo56ndgx37UcHxSP0tIWBGH9cg1nx6TJFTNhS7eCfcA1PJ+GgDbLDs2GuX3V05Ohj0xYSBGumyq/yfApw4EWTRxPJqxQvIF6+ks9Gr0d4nN+8Nbhoi+NdJEwVSc6hVNvHOUvg+5qeDxoP3GQz6x8/qXLuZ6Op7SPy+gNTnydSELabk1Z8Mbs/hlr4dbobfUgxJMS3UdXza9H33jqnA3/OH41FCZ7/l7HW8vOXiWc9GvPf06D953/T2O/EP8HBNtcH0Zm/lqFNUgTAex4AAAAldEVYdGRhdGU6Y3JlYXRlADIwMjMtMDQtMjNUMTU6MDg6MjQrMDA6MDAE5dOaAAAAJXRFWHRkYXRlOm1vZGlmeQAyMDIzLTA0LTIzVDE1OjA4OjI0KzAwOjAwdbhrJgAAACh0RVh0ZGF0ZTp0aW1lc3RhbXAAMjAyMy0wNC0yM1QxNTowODoyNSswMDowMITaQU0AAAAASUVORK5CYII=)](https://modrinth.com/mod/betamoon)
 [![CurseForge](https://cf.way2muchnoise.eu/full_1750754_downloads.svg)](https://www.curseforge.com/minecraft/mc-mods/betamoon)
@@ -28,6 +28,9 @@ Development branch for **1.0.0**. See [Releases](https://github.com/OWeinert/Bet
 - Scoped fog, sky and light tints, plus ambient and weather sounds.
 - Input maps, hotkeys, event-driven behavior, and overrides for registered content.
 
+Packaged mods can observe exact Minecraft/mod methods and explicitly edit their arguments or results through
+[scripted hooks](https://github.com/OWeinert/BetaMoon/wiki/API-Hooks).
+
 Scripts support hot reload, dependency ordering and shared modules. The in-game **Scripts** screen shows loading status and errors.
 
 Read the release notes when updating and keep persistent IDs and schemas stable for saved worlds. See [reload and compatibility](https://github.com/OWeinert/BetaMoon/wiki/Hot-Reload-and-Compatibility).
@@ -49,10 +52,10 @@ The packaged BetaMoon 1.0.0 JAR bundles LuaJ 3.0.1 and the agent's runtime depen
 [MultiMC](https://multimc.org/) keeps the mod setup and Java configuration within a Minecraft instance.
 
 1. **Create the instance.** Select Minecraft Beta 1.7.3.
-2. **Select Java 8.** Open **Edit Instance â†’ Settings â†’ Java**, enable the **Java installation** override and select your Java 8 executable. On Windows, use `bin/javaw.exe` inside the Java installation.
-3. **Install the JAR mods.** Open **Version â†’ Add to Minecraft.jar**. Add ModLoader first, then Forge.
+2. **Select Java 8.** Open **Edit Instance → Settings → Java**, enable the **Java installation** override and select your Java 8 executable. On Windows, use `bin/javaw.exe` inside the Java installation.
+3. **Install the JAR mods.** Open **Version → Add to Minecraft.jar**. Add ModLoader first, then Forge.
 4. **Install BetaMoon.** Open **Loader mods**, add `betamoon-1.0.0.jar` and make sure it is enabled.
-5. **Enable the Java agent.** Return to **Settings â†’ Java**, enable the **Java arguments** override and append the argument below to the instance's existing arguments. Replace the example with the absolute path to the installed BetaMoon JAR.
+5. **Enable the Java agent.** Return to **Settings → Java**, enable the **Java arguments** override and append the argument below to the instance's existing arguments. Replace the example with the absolute path to the installed BetaMoon JAR.
 
    ```text
    -javaagent:"C:/your/path/to/MultiMC/instances/your_instance_name/.minecraft/mods/betamoon-1.0.0.jar"
@@ -99,6 +102,8 @@ Update the argument whenever you move or rename the JAR, including after a versi
 Install [BetaMoon API from the Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=OWeinert.betamoon-api). Select **Install** on the listing to open
 VS Code, then confirm installation. Open your scripts folder and run **BetaMoon: Enable API for Workspace Folder**
 for completion, hover documentation and type checking. See the [setup guide](https://github.com/OWeinert/BetaMoon/wiki/VS-Code-and-LuaLS).
+For Minecraft and installed-mod native completion, export **Native access** from **Scripts → Debug**, then run
+**BetaMoon: Import Native Catalog** in VS Code and select the instance or export folder. Definitions are generated locally.
 
 ## Installing scripts
 
@@ -126,7 +131,7 @@ Click an error or warning in **Script Issues** or a script's details to copy its
 report with all recorded issues, occurrence times and callback context, script versions and dependencies, Java and
 system details, memory usage, relevant settings, and available graphics, dimension and mod information. Reports are
 saved in `betamoon/reports/` inside the Minecraft instance; a popup shows the clickable file path after saving.
-Reports are also available from the pinned **Full script report** section in **Scripts â†’ Debug**, even with no issues.
+Reports are also available from the pinned **Full script report** section in **Scripts → Debug**, even with no issues.
 **Export All** in Debug Tools includes the report as `script_report.txt` in its export directory.
 Script names are red when errors are recorded and yellow when only warnings are recorded.
 

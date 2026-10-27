@@ -23,6 +23,10 @@ public final class NativeNames {
     private final Map<String, String> canonical = new HashMap<>();
     private final Map<String, Class<?>> curated;
 
+    public String namespace() {
+        return namespace;
+    }
+
     public NativeNames(TinyMappingSnapshot mappings, String namespace) {
         this(mappings, namespace, Collections.emptyMap());
     }

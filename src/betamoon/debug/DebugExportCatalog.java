@@ -10,7 +10,7 @@ public final class DebugExportCatalog {
     public static final String NATIVE_ACCESS_ID = "native-access";
     private static final DebugExportDefinition NATIVE_SUMMARY = new DebugExportDefinition(NATIVE_ACCESS_ID,
             "Native access", "Native discovery status and failures.", true, new DebugNativeExporter(false),
-            "native_summary.txt", "native_failures.txt");
+            "native_summary.txt", "native_failures.txt", "native_failures.json", "native_hooks.json");
     private static final List<DebugExportDefinition> DEFINITIONS = create();
 
     private DebugExportCatalog() {
@@ -38,7 +38,8 @@ public final class DebugExportCatalog {
         for (DebugExportDefinition definition : DEFINITIONS) {
             if (definition.isIncludedInComplete()) {
                 result.add(!includeNativeCatalogs && NATIVE_ACCESS_ID.equals(definition.getId())
-                        ? NATIVE_SUMMARY : definition);
+                        ? NATIVE_SUMMARY
+                        : definition);
             }
         }
         return Collections.unmodifiableList(result);
@@ -47,8 +48,8 @@ public final class DebugExportCatalog {
     private static List<DebugExportDefinition> create() {
         List<DebugExportDefinition> values = new ArrayList<DebugExportDefinition>();
         values.add(new DebugExportDefinition(SCRIPT_REPORT_ID, "Full script report",
-                "Issues, script information, and environment diagnostics.", true,
-                new DebugScriptReportExporter(), "script_report.txt"));
+                "Issues, script information, and environment diagnostics.", true, new DebugScriptReportExporter(),
+                "script_report.txt"));
         values.add(new DebugExportDefinition("content", "Content keys and IDs",
                 "Blocks, items, canonical keys, numeric IDs, owners, and lookup names.", true,
                 new DebugContentExporter(), "blocks.txt", "items.txt", "content_keys.txt"));
@@ -75,8 +76,9 @@ public final class DebugExportCatalog {
                 new DebugRuntimeExporter(), "instrumentation.txt", "runtime_registrations.txt"));
         values.add(new DebugExportDefinition(NATIVE_ACCESS_ID, "Native access",
                 "Detailed class/member catalogs, origins, source-file indexes, and native diagnostics.", true,
-                new DebugNativeExporter(true), "native_summary.txt", "native_failures.txt", "native_origins.json",
-                "native_classes.jsonl", "native_members.jsonl", "native_sources.jsonl", "native_hooks.json"));
+                new DebugNativeExporter(true), "native_summary.txt", "native_failures.txt", "native_failures.json",
+                "native_origins.json", "native_classes.jsonl", "native_members.jsonl", "native_sources.jsonl",
+                "native_hooks.json", "native_catalog.jsonl", "native_catalog.json"));
         return Collections.unmodifiableList(values);
     }
 }

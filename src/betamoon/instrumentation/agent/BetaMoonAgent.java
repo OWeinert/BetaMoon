@@ -1,5 +1,6 @@
 package betamoon.instrumentation.agent;
 
+import betamoon.hooks.HookPreparation;
 import betamoon.instrumentation.diagnostics.TransformationReport;
 import betamoon.instrumentation.mapping.RuntimeNamespace;
 import betamoon.instrumentation.mapping.TinyMappingResolver;
@@ -36,6 +37,11 @@ public final class BetaMoonAgent {
         try {
             options = AgentOptions.parse(rawOptions);
             TinyMappingResolver mappings = loadMappings();
+            try {
+                HookPreparation.prepare(mappings);
+            } catch (Exception | LinkageError hookError) {
+                System.err.println("[BetaMoon Hooks] Preparation unavailable; engine plans retained: " + hookError);
+            }
             HookRegistry registry = new HookRegistry(report);
             RuntimeSide side = RuntimeEnvironment.side();
             BuiltinHookModules.registerForSide(registry, side);
@@ -43,9 +49,8 @@ public final class BetaMoonAgent {
             instrumentation.addTransformer(
                     new BetaMoonTransformer(plans, mappings, report, options.isStrict(), options.isDebug()), false);
             AgentRuntime.activate();
-            System.out
-                    .println("[BetaMoon Agent] Instrumentation active for " + side + " with " + plans.size()
-                            + " target class name(s)");
+            System.out.println("[BetaMoon Agent] Instrumentation active for " + side + " with " + plans.size()
+                    + " target class name(s)");
         } catch (Throwable error) {
             String message = "Agent initialization failed: " + error.getMessage();
             AgentRuntime.fail(message);

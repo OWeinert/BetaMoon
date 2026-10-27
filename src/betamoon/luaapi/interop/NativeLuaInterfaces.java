@@ -7,11 +7,12 @@ import betamoon.interop.interfaces.NativeImplementation;
 import betamoon.interop.interfaces.NativeInterfaceContract;
 import betamoon.interop.interfaces.NativeInterfaces;
 import betamoon.interop.reference.NativeMemberRef;
+import betamoon.interop.reference.NativeMemberReference;
 import betamoon.interop.reference.NativeTypeRef;
 import betamoon.interop.runtime.NativeContext;
+import betamoon.interop.value.NativeConversions;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luamodloader.ScriptExecution;
-import betamoon.interop.value.NativeConversions;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -167,8 +168,8 @@ final class NativeLuaInterfaces {
     }
 
     private static NativeMemberRef method(NativeAccessApi host, LuaValue value) {
-        NativeMemberRef method = value instanceof NativeLuaReference
-                ? ((NativeLuaReference) value).memberRef
+        NativeMemberRef method = value instanceof NativeMemberReference
+                ? ((NativeMemberReference) value).nativeMemberReference()
                 : host.methodRecord(value);
         if (method == null || method.kind != NativeMemberRef.Kind.METHOD) {
             throw new NativeAccessFailure("invalid_interface_method", "supply an exact method reference or metadata");

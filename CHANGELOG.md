@@ -13,3 +13,8 @@
 - Explicit native disposal, scoped owned-value reuse, and native effect/ownership diagnostics.
 - Lua-backed Java interfaces with exact method callbacks, return validation, and per-method execution policies.
 - Reusable owned native attachments and current-world observers with deferred registration cleanup.
+- Validated native authoring catalog exports and locally generated Minecraft/mod LuaLS definitions.
+- VS Code native catalog import/refresh, exact class/member selectors and verified local/archive source navigation.
+- Bounded contextual native failure diagnostics and native reflection/world-observer examples.
+- Scripted method hooks with automatic Lua registry capture, mapped/literal targets and reload preflight.
+- Scoped entry/return/error observations, transactional typed edits and cancellation, plus hook diagnostics and editor support.

@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
@@ -18,8 +19,9 @@ final class ScriptModParser {
             File canonical = scriptFile.getCanonicalFile();
             File root = canonical.getParentFile();
             String fileName = canonical.getName();
-            String owner = fileName.toLowerCase(java.util.Locale.ROOT).endsWith(".lua")
-                    ? fileName.substring(0, fileName.length() - 4) : fileName;
+            String owner = fileName.toLowerCase(Locale.ROOT).endsWith(".lua")
+                    ? fileName.substring(0, fileName.length() - 4)
+                    : fileName;
             LuaModSource source = new LuaModSource(root, canonical, null, owner, fileName, owner + "/",
                     Collections.singletonList(canonical), LuaModSource.Layout.SINGLE_FILE, null);
             return parse(source, scriptText, errors);
@@ -43,7 +45,9 @@ final class ScriptModParser {
             return null;
         }
 
+        HookLifecycle.Stage hooks;
         try {
+            hooks = HookLifecycle.stage(source, globals);
             ScriptExecution.invoke(sourceName, "entrypoint", globals.load(scriptText, "@" + sourceName), LuaValue.NONE);
         } catch (LuaError error) {
             errors.add("Error during Lua mod init: " + sourceName + " (" + error.getMessage() + ")");
@@ -75,8 +79,8 @@ final class ScriptModParser {
         }
         String description = resolveString(globals, "description", manifest == null ? null : manifest.description(),
                 false, true, sourceName, errors);
-        String version = resolveString(globals, "version", manifest == null ? null : manifest.version(), false,
-                false, sourceName, errors);
+        String version = resolveString(globals, "version", manifest == null ? null : manifest.version(), false, false,
+                sourceName, errors);
         String imagePath = resolveString(globals, "image", manifest == null ? null : manifest.image(), false, false,
                 sourceName, errors);
         if (hasNewError(sourceName)) {
@@ -96,10 +100,12 @@ final class ScriptModParser {
         if (modReload == null || modUnload == null) {
             return null;
         }
-        ScriptMod parsed = LuaScriptRegistry.updateParsed(source, modName, dependencies, modInit, modReload,
-                modUnload, description, version, imagePath);
+        ScriptMod parsed = LuaScriptRegistry.updateParsed(source, modName, dependencies, modInit, modReload, modUnload,
+                description, version, imagePath);
         parsed.minimumDependencyVersions = manifest == null
-                ? Collections.<String, String>emptyMap() : manifest.minimumDependencyVersions();
+                ? Collections.<String, String>emptyMap()
+                : manifest.minimumDependencyVersions();
+        parsed.hooks = hooks;
         return parsed;
     }
 
@@ -114,8 +120,8 @@ final class ScriptModParser {
             }
             luaString = luaValue.tojstring();
             if ((!allowEmpty && luaString.trim().isEmpty()) || !luaString.equals(luaString.trim())) {
-                metadataError(sourceName, field + " must be "
-                        + (allowEmpty ? "trimmed." : "a non-empty trimmed string."), errors);
+                metadataError(sourceName,
+                        field + " must be " + (allowEmpty ? "trimmed." : "a non-empty trimmed string."), errors);
                 return null;
             }
         }
@@ -147,8 +153,8 @@ final class ScriptModParser {
         }
         if (manifest != null && manifest.hasDependencies()) {
             if (luaDependencies != null && !manifest.dependencies().equals(luaDependencies)) {
-                metadataError(sourceName,
-                        "Metadata conflict for 'dependencies': manifest and entrypoint lists differ.", errors);
+                metadataError(sourceName, "Metadata conflict for 'dependencies': manifest and entrypoint lists differ.",
+                        errors);
                 return null;
             }
             return manifest.dependencies();

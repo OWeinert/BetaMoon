@@ -3,6 +3,7 @@ package betamoon.luaapi.interop;
 import betamoon.interop.binding.NativeAccessFailure;
 import betamoon.interop.binding.NativeMemberPlan;
 import betamoon.interop.reference.NativeMemberRef;
+import betamoon.interop.reference.NativeMemberReference;
 import betamoon.interop.reference.NativeTypeRef;
 import betamoon.interop.runtime.NativeContext;
 import betamoon.interop.runtime.NativeOwnedValue;
@@ -15,6 +16,7 @@ import org.luaj.vm2.LuaValue;
 final class NativeLuaAccess extends NativeLuaHandle {
     NativeLuaAccess(NativeAccessApi host, NativeContext context, boolean direct) {
         super(direct ? "Native direct access" : "Native managed access");
+        diagnosticDirect = direct;
         properties.put("describe",
                 NativeLuaSupport.scopedFunction(this, context, args -> host.metadata(context.describe(), true)));
         properties.put("direct", NativeLuaSupport.scopedFunction(this, context, args -> {
@@ -26,12 +28,13 @@ final class NativeLuaAccess extends NativeLuaHandle {
             try {
                 LuaValue request = args.arg1();
                 if (request.istable() && !(request.get("ref").isnil())
-                        && request.get("ref") instanceof NativeLuaReference) {
+                        && request.get("ref") instanceof NativeMemberReference) {
                     request = request.get("ref");
                 }
-                if (request instanceof NativeLuaReference && ((NativeLuaReference) request).memberRef != null) {
+                if (request instanceof NativeMemberReference
+                        && ((NativeMemberReference) request).nativeMemberReference() != null) {
                     NativeAccessApi.options(args.arg(2));
-                    NativeMemberRef member = ((NativeLuaReference) request).memberRef;
+                    NativeMemberRef member = ((NativeMemberReference) request).nativeMemberReference();
                     if (member.kind == NativeMemberRef.Kind.FIELD) {
                         throw new NativeAccessFailure("field_requires_receiver", "select a field through a bound view");
                     }
@@ -106,8 +109,8 @@ final class NativeLuaAccess extends NativeLuaHandle {
             NativeMemberPlan disposer = null;
             if (!options.get("dispose").isnil()) {
                 LuaValue selected = options.get("dispose");
-                NativeMemberRef member = selected instanceof NativeLuaReference
-                        ? ((NativeLuaReference) selected).memberRef
+                NativeMemberRef member = selected instanceof NativeMemberReference
+                        ? ((NativeMemberReference) selected).nativeMemberReference()
                         : host.methodRecord(selected);
                 if (member == null || member.kind != NativeMemberRef.Kind.METHOD) {
                     throw new NativeAccessFailure("invalid_native_disposer", "use an exact instance method ()V");

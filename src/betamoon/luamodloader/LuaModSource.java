@@ -1,6 +1,7 @@
 package betamoon.luamodloader;
 
 import betamoon.io.FileIo;
+import betamoon.io.PackagePaths;
 import betamoon.io.ZipArchiveIndex;
 import java.io.File;
 import java.io.IOException;
@@ -16,9 +17,7 @@ final class LuaModSource {
     static final long MAX_TOTAL_LUA_SOURCE_BYTES = 64L * 1024L * 1024L;
 
     enum Layout {
-        SINGLE_FILE,
-        DIRECTORY,
-        ZIP
+        SINGLE_FILE, DIRECTORY, ZIP
     }
 
     private final File scriptsRoot;
@@ -49,7 +48,8 @@ final class LuaModSource {
         this.entrypointPath = layout == Layout.DIRECTORY ? relative(moduleRoot, entrypoint) : entrypoint.getName();
         List<String> paths = new ArrayList<>();
         for (int i = 0; i < sourceFiles.size(); i++) {
-            paths.add(layout == Layout.DIRECTORY ? relative(moduleRoot, sourceFiles.get(i))
+            paths.add(layout == Layout.DIRECTORY
+                    ? relative(moduleRoot, sourceFiles.get(i))
                     : sourceFiles.get(i).getName());
         }
         this.sourcePaths = Collections.unmodifiableList(paths);
@@ -183,12 +183,7 @@ final class LuaModSource {
             return null;
         }
         File file = layout == Layout.SINGLE_FILE ? entrypoint : new File(root, path);
-        File canonicalRoot = root.getCanonicalFile();
-        File canonical = file.getCanonicalFile();
-        String rootPath = canonicalRoot.getPath();
-        if (canonical.equals(canonicalRoot) || !canonical.getPath().startsWith(rootPath + File.separator)) {
-            throw new IOException("Lua mod resource escapes its package root: " + path);
-        }
+        File canonical = PackagePaths.contained(root, file, false, "Lua mod resource");
         if (layout == Layout.SINGLE_FILE && !canonical.equals(entrypoint.getCanonicalFile())) {
             return null;
         }

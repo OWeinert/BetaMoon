@@ -5,8 +5,11 @@ import betamoon.interop.discovery.NativeDiscoveryRuntime;
 import betamoon.interop.discovery.NativeDiscoveryService;
 import betamoon.interop.discovery.NativeIndexSnapshot;
 import betamoon.interop.discovery.NativeQueryService;
-import betamoon.interop.reference.NativeTypeRef;
+import betamoon.interop.reference.NativeMemberRef;
+import betamoon.interop.reference.NativeMemberReference;
 import betamoon.interop.reference.NativeReflection;
+import betamoon.interop.reference.NativeTypeRef;
+import betamoon.interop.reference.NativeTypeReference;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luamodloader.ScriptResourceTracker;
 import java.io.IOException;
@@ -74,15 +77,19 @@ public final class NativeDiscoveryApi {
             NativeIndexSnapshot snapshot = backend.snapshot();
             String typeName;
             Map<String, Object> type;
-            if (args.arg1() instanceof NativeLuaReference) {
-                NativeLuaReference reference = (NativeLuaReference) args.arg1();
-                NativeTypeRef owner = reference.typeRef != null
-                        ? reference.typeRef
-                        : reference.memberRef.declaringType != null
-                                ? reference.memberRef.declaringType
-                                : reference.memberRef.lookupType;
-                if (reference.memberRef != null) {
-                    Map<String, Object> member = NativeReflection.describe(reference.memberRef, snapshot);
+            LuaValue reference = args.arg1();
+            NativeTypeRef typeRef = reference instanceof NativeTypeReference
+                    ? ((NativeTypeReference) reference).nativeTypeReference()
+                    : null;
+            NativeMemberRef memberRef = reference instanceof NativeMemberReference
+                    ? ((NativeMemberReference) reference).nativeMemberReference()
+                    : null;
+            if (typeRef != null || memberRef != null) {
+                NativeTypeRef owner = typeRef != null
+                        ? typeRef
+                        : memberRef.declaringType != null ? memberRef.declaringType : memberRef.lookupType;
+                if (memberRef != null) {
+                    Map<String, Object> member = NativeReflection.describe(memberRef, snapshot);
                     if (member != null) {
                         owner = (NativeTypeRef) member.get("declaringTypeRef");
                     }

@@ -25,6 +25,7 @@ public class ScriptMod {
     List<String> missingDependencies;
     LuaModSource source;
     String generationCodeSignature;
+    HookLifecycle.Stage hooks;
 
     /**
      * Creates a script entry for a file that has not yet been parsed.

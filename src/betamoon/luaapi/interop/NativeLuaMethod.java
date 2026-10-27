@@ -1,7 +1,7 @@
 package betamoon.luaapi.interop;
 
-import betamoon.interop.binding.NativeMemberPlan;
 import betamoon.interop.binding.NativeAccessFailure;
+import betamoon.interop.binding.NativeMemberPlan;
 import betamoon.interop.catalog.CatalogValues;
 import betamoon.interop.reference.NativeMemberRef;
 import betamoon.interop.runtime.NativeContext;
@@ -26,6 +26,10 @@ final class NativeLuaMethod extends NativeLuaHandle {
                     "select a field through a bound object/class view");
         }
         this.plan = context.bindings.exact(reference, context, direct);
+        diagnosticType = reference.lookupType;
+        diagnosticMember = reference;
+        diagnosticPlan = plan;
+        diagnosticDirect = direct;
         properties.put("describe", NativeLuaSupport.scopedFunction(this, context, args -> {
             context.check();
             return host.metadata(CatalogValues.record("identity", plan.identity(), "descriptor", plan.descriptor,

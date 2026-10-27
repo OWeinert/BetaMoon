@@ -2,6 +2,7 @@ package betamoon.debug;
 
 import betamoon.interop.catalog.CatalogJson;
 import betamoon.interop.catalog.CatalogValues;
+import betamoon.interop.catalog.NativeAuthoringCatalog;
 import betamoon.interop.discovery.NativeDiscoveryRuntime;
 import betamoon.interop.discovery.NativeIndexSnapshot;
 import java.util.Collections;
@@ -9,7 +10,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-/** Uses one immutable generation; never starts a scan, binds classes or scrapes live object fields. */
+/**
+ * Uses one immutable generation; never starts a scan, binds classes or scrapes
+ * live object fields.
+ */
 final class DebugNativeExporter implements DebugExporter {
     private final boolean detailed;
     private final Supplier<NativeIndexSnapshot> snapshots;
@@ -60,26 +64,47 @@ final class DebugNativeExporter implements DebugExporter {
                 writer.write(DebugExportNames.escapeText(warning));
                 writer.write('\n');
             }
+            if (status.get("execution") instanceof Map) {
+                writer.write("Native execution diagnostics: " + CatalogJson.encode(status.get("execution")) + "\n");
+            }
             return snapshot.warnings.size() + (status.get("lastFailure") == null ? 0 : 1);
+        });
+        session.writeStructuredFile("native_failures.json", writer -> {
+            writer.write(CatalogJson.encode(CatalogValues.record("schemaVersion", 1, "generation", snapshot.generation,
+                    "namespace", snapshot.namespace, "mappingSha256", snapshot.mappingSha256, "execution",
+                    status.get("execution"), "scanFailure", status.get("lastFailure"), "warnings", snapshot.warnings)));
+            writer.write('\n');
+            return 1;
+        });
+        session.writeStructuredFile("native_hooks.json", writer -> {
+            writer.write(CatalogJson.encode(CatalogValues.record("schemaVersion", 1, "generation", snapshot.generation,
+                    "status", snapshot.coverage.get("hooks"), "revision", snapshot.hookRevision, "items",
+                    snapshot.rows("hooks"))));
+            writer.write('\n');
+            return snapshot.rows("hooks").size();
         });
         if (!detailed) {
             return;
         }
         session.writeStructuredFile("native_origins.json", writer -> {
-            writer.write(CatalogJson.encode(CatalogValues.record("schemaVersion", 1,
-                    "generation", snapshot.generation, "coverage", snapshot.coverage,
-                    "origins", snapshot.rows("origins"), "loaders", snapshot.rows("loaders"))));
+            writer.write(CatalogJson.encode(CatalogValues.record("schemaVersion", 1, "generation", snapshot.generation,
+                    "coverage", snapshot.coverage, "origins", snapshot.rows("origins"), "loaders",
+                    snapshot.rows("loaders"))));
             writer.write('\n');
             return snapshot.rows("origins").size() + snapshot.rows("loaders").size();
         });
         rows(session, snapshot, "classes", "native_classes.jsonl");
         rows(session, snapshot, "members", "native_members.jsonl");
         rows(session, snapshot, "sources", "native_sources.jsonl");
-        session.writeStructuredFile("native_hooks.json", writer -> {
-            writer.write(CatalogJson.encode(CatalogValues.record("schemaVersion", 1, "generation", snapshot.generation,
-                    "status", "not_implemented", "items", Collections.emptyList())));
+        NativeAuthoringCatalog.Payload[] payload = new NativeAuthoringCatalog.Payload[1];
+        session.writeStructuredFile(NativeAuthoringCatalog.RECORDS_FILE, writer -> {
+            payload[0] = NativeAuthoringCatalog.write(writer, snapshot);
+            return payload[0].rows;
+        });
+        session.writeStructuredFile(NativeAuthoringCatalog.MANIFEST_FILE, writer -> {
+            writer.write(CatalogJson.encode(payload[0].manifest()));
             writer.write('\n');
-            return 0;
+            return 1;
         });
     }
 
@@ -87,9 +112,9 @@ final class DebugNativeExporter implements DebugExporter {
             throws Exception {
         List<Map<String, Object>> records = snapshot.rows(kind);
         session.writeStructuredFile(filename, writer -> {
-            writer.write(CatalogJson.encode(CatalogValues.record("recordType", "header", "schemaVersion", 1,
-                    "generation", snapshot.generation, "kind", kind, "totalRecords", records.size(),
-                    "coverage", snapshot.coverage)));
+            writer.write(CatalogJson.encode(
+                    CatalogValues.record("recordType", "header", "schemaVersion", 1, "generation", snapshot.generation,
+                            "kind", kind, "totalRecords", records.size(), "coverage", snapshot.coverage)));
             writer.write('\n');
             int count = 0;
             long characters = 0;

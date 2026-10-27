@@ -22,7 +22,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/** Verifies catalog consistency, transactional runs, UTF-8 output, and partial success. */
+/**
+ * Verifies catalog consistency, transactional runs, UTF-8 output, and partial
+ * success.
+ */
 public final class DebugExportSystemTest {
     private DebugExportSystemTest() {
     }
@@ -71,7 +74,9 @@ public final class DebugExportSystemTest {
                 "Detailed complete snapshot is not driven by the visible catalog");
         DebugExportDefinition nativeDefault = DebugExportCatalog.completeDefinitions().get(definitions.size() - 1);
         require(nativeDefault.getId().equals(DebugExportCatalog.NATIVE_ACCESS_ID)
-                && nativeDefault.getFileNames().equals(Arrays.asList("native_summary.txt", "native_failures.txt")),
+                && nativeDefault.getFileNames()
+                        .equals(Arrays.asList("native_summary.txt", "native_failures.txt", "native_failures.json",
+                                "native_hooks.json")),
                 "Ordinary Export All must include only compact native diagnostics");
         try {
             definitions.clear();
@@ -153,8 +158,8 @@ public final class DebugExportSystemTest {
     }
 
     private static void verifyEscaping() {
-        require("a\\\\b\\\"c\\nd\\re\\tf\\u0001".equals(
-                DebugExportNames.escapeText("a\\b\"c\nd\re\tf\u0001")), "Debug text escaping is incomplete");
+        require("a\\\\b\\\"c\\nd\\re\\tf\\u0001".equals(DebugExportNames.escapeText("a\\b\"c\nd\re\tf\u0001")),
+                "Debug text escaping is incomplete");
     }
 
     private static void verifyScriptPathRedaction() throws Exception {
@@ -169,8 +174,8 @@ public final class DebugExportSystemTest {
         DebugExportResult result = DebugExportSession.run(root, "redaction",
                 Arrays.asList(DebugExportCatalog.find("scripts")));
         require(result.getStatus() == DebugExportResult.Status.COMPLETE, "Script diagnostic export failed");
-        String issues = new String(Files.readAllBytes(
-                new File(result.getDirectory(), "script_issues.txt").toPath()), StandardCharsets.UTF_8);
+        String issues = new String(Files.readAllBytes(new File(result.getDirectory(), "script_issues.txt").toPath()),
+                StandardCharsets.UTF_8);
         require(!issues.contains(scriptsDirectory.getAbsolutePath()), "Script export disclosed its absolute root");
         require(issues.contains("<betamoon/scripts>"), "Script export omitted the redacted path marker");
         LuaScriptErrors.clear();
@@ -199,8 +204,8 @@ public final class DebugExportSystemTest {
         DebugExportResult empty = DebugExportSession.run(root, "empty", Arrays.asList(report));
         require(empty.getStatus() == DebugExportResult.Status.COMPLETE,
                 "A script report must remain available with no recorded issues");
-        String emptyText = new String(Files.readAllBytes(
-                new File(empty.getDirectory(), "script_report.txt").toPath()), StandardCharsets.UTF_8);
+        String emptyText = new String(Files.readAllBytes(new File(empty.getDirectory(), "script_report.txt").toPath()),
+                StandardCharsets.UTF_8);
         require(emptyText.contains("Errors: 0") && emptyText.contains("Warnings: 0")
                 && emptyText.contains("None recorded.") && emptyText.contains("Runtime environment"),
                 "Empty reports must include a clear issue summary and the normal diagnostic sections");
@@ -209,8 +214,8 @@ public final class DebugExportSystemTest {
         List<LuaScriptErrors.ScriptIssue> before = LuaScriptErrors.getEntries();
         LuaScriptErrors.ignore();
         DebugExportResult populated = DebugExportSession.run(root, "populated", Arrays.asList(report));
-        String text = new String(Files.readAllBytes(
-                new File(populated.getDirectory(), "script_report.txt").toPath()), StandardCharsets.UTF_8);
+        String text = new String(Files.readAllBytes(new File(populated.getDirectory(), "script_report.txt").toPath()),
+                StandardCharsets.UTF_8);
         require(populated.getStatus() == DebugExportResult.Status.COMPLETE && populated.getRecordCount() == 2,
                 "The report's manifest must count its recorded issues");
         require(text.contains("Errors: 1") && text.contains("Warnings: 1")

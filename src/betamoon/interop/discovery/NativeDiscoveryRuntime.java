@@ -2,28 +2,30 @@ package betamoon.interop.discovery;
 
 import betamoon.BetaMoonClient;
 import betamoon.BetaMoonCommon;
+import betamoon.hooks.HookPreparation;
 import betamoon.instrumentation.agent.AgentLoadedTypes;
 import betamoon.instrumentation.mapping.TinyMappingResolver;
-import betamoon.interop.catalog.CatalogValues;
+import betamoon.interop.attachments.NativeAttachmentDisposal;
 import betamoon.interop.binding.NativeBindings;
 import betamoon.interop.binding.NativeNames;
+import betamoon.interop.catalog.CatalogValues;
 import betamoon.interop.mapping.NativeNamespaceDetector;
 import betamoon.interop.runtime.NativeEventAccess;
-import betamoon.interop.attachments.NativeAttachmentDisposal;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.GuiScreen;
+import net.minecraft.src.IWorldAccess;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.ModLoader;
 import net.minecraft.src.World;
-import net.minecraft.src.IWorldAccess;
 
 /**
  * Small game adapter. All classloader/code-source/census inspection stays on
@@ -36,6 +38,19 @@ public final class NativeDiscoveryRuntime {
     private static volatile NativeBindings bindings;
 
     private NativeDiscoveryRuntime() {
+    }
+
+    public static List<ClassLoader> hookLoaders() {
+        NativeBindings current = bindings;
+        if (current != null) {
+            current.requireThread();
+        }
+        return LOADERS.bindingLoaders();
+    }
+
+    public static String hookNamespace() {
+        NativeBindings current = bindings;
+        return current == null ? "unknown" : current.names.namespace();
     }
 
     public static void startClient() {
@@ -53,7 +68,10 @@ public final class NativeDiscoveryRuntime {
 
     public static NativeIndexSnapshot snapshot() {
         NativeDiscoveryService current = service;
-        return current == null ? NativeIndexSnapshot.empty() : current.snapshot();
+        NativeIndexSnapshot snapshot = current == null ? NativeIndexSnapshot.empty() : current.snapshot();
+        HookPreparation hooks = HookPreparation.current();
+        return snapshot.withHooks(hooks == null ? Collections.emptyList() : hooks.status(),
+                hooks == null ? 0 : hooks.revision(), hooks == null ? "agent_unavailable" : "available");
     }
 
     public static Map<String, Object> status() {
@@ -64,6 +82,11 @@ public final class NativeDiscoveryRuntime {
         if (execution != null) {
             result.put("execution", execution.diagnostics());
         }
+        HookPreparation hooks = HookPreparation.current();
+        result.put("hooks",
+                CatalogValues.record("status", hooks == null ? "agent_unavailable" : "available", "revision",
+                        hooks == null ? 0 : hooks.revision(), "items",
+                        hooks == null ? Collections.emptyList() : hooks.status()));
         return result;
     }
 

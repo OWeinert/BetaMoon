@@ -1,21 +1,22 @@
 package betamoon.luamodloader;
 
+import betamoon.interop.catalog.CatalogJson;
 import betamoon.io.FileIo;
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import net.minecraft.src.EnumJsonNodeType;
-import net.minecraft.src.J_InvalidSyntaxException;
-import net.minecraft.src.J_JdomParser;
-import net.minecraft.src.J_JsonNode;
 
-/** Strict parser for the discovery-only manifest of a directory-based Lua mod. */
+/**
+ * Strict parser for the discovery-only manifest of a directory-based Lua mod.
+ */
 final class LuaModManifest {
     static final String FILE_NAME = "betamoon.mod.json";
     static final int MAX_BYTES = 64 * 1024;
@@ -30,14 +31,13 @@ final class LuaModManifest {
     private final String image;
 
     private LuaModManifest(String entrypoint, String name, String version, String description,
-            List<String> dependencies, Map<String, String> minimumDependencyVersions,
-            boolean dependenciesDeclared, String image) {
+            List<String> dependencies, Map<String, String> minimumDependencyVersions, boolean dependenciesDeclared,
+            String image) {
         this.entrypoint = entrypoint;
         this.name = name;
         this.version = version;
         this.description = description;
-        this.dependencies = dependencies == null ? null
-                : Collections.unmodifiableList(new ArrayList<>(dependencies));
+        this.dependencies = dependencies == null ? null : Collections.unmodifiableList(new ArrayList<>(dependencies));
         this.minimumDependencyVersions = Collections.unmodifiableMap(new LinkedHashMap<>(minimumDependencyVersions));
         this.dependenciesDeclared = dependenciesDeclared;
         this.image = image;
@@ -51,16 +51,16 @@ final class LuaModManifest {
     }
 
     static LuaModManifest parse(String source) throws IOException {
-        if (source.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > MAX_BYTES) {
+        if (source.getBytes(StandardCharsets.UTF_8).length > MAX_BYTES) {
             throw new IOException("Manifest exceeds " + MAX_BYTES + " bytes");
         }
-        J_JsonNode root;
+        Object root;
         try {
-            root = new J_JdomParser().func_27367_a(source);
-        } catch (J_InvalidSyntaxException error) {
+            root = CatalogJson.decode(source);
+        } catch (IllegalArgumentException error) {
             throw new IOException("Manifest is not valid JSON", error);
         }
-        if (root.func_27218_a() != EnumJsonNodeType.OBJECT) {
+        if (!(root instanceof Map)) {
             throw new IOException("Manifest root must be a JSON object");
         }
 
@@ -72,11 +72,11 @@ final class LuaModManifest {
         Map<String, String> minimumDependencyVersions = new LinkedHashMap<>();
         boolean dependenciesDeclared = false;
         String image = null;
-        for (Object rawEntry : root.func_27214_c().entrySet()) {
+        for (Object rawEntry : ((Map<?, ?>) root).entrySet()) {
             Map.Entry<?, ?> field = (Map.Entry<?, ?>) rawEntry;
-            J_JsonNode key = (J_JsonNode) field.getKey();
-            J_JsonNode value = (J_JsonNode) field.getValue();
-            String fieldName = key.func_27216_b();
+            String key = (String) field.getKey();
+            Object value = field.getValue();
+            String fieldName = key;
             if ("entrypoint".equals(fieldName)) {
                 entrypoint = string(value, "entrypoint", false);
             } else if ("name".equals(fieldName)) {
@@ -98,15 +98,15 @@ final class LuaModManifest {
             throw new IOException("Manifest requires a non-empty entrypoint");
         }
         if (!entrypoint.equals(entrypoint.trim()) || entrypoint.indexOf('\\') >= 0
-                || !entrypoint.toLowerCase(java.util.Locale.ROOT).endsWith(".lua")) {
+                || !entrypoint.toLowerCase(Locale.ROOT).endsWith(".lua")) {
             throw new IOException("Manifest entrypoint must be a relative .lua path using '/' separators");
         }
         validatePath(entrypoint, "entrypoint");
         if (image != null) {
             validatePath(image, "image");
         }
-        return new LuaModManifest(entrypoint, name, version, description, dependencies,
-                minimumDependencyVersions, dependenciesDeclared, image);
+        return new LuaModManifest(entrypoint, name, version, description, dependencies, minimumDependencyVersions,
+                dependenciesDeclared, image);
     }
 
     String entrypoint() {
@@ -141,37 +141,36 @@ final class LuaModManifest {
         return image;
     }
 
-    private static String string(J_JsonNode value, String field, boolean allowEmpty) throws IOException {
-        if (value.func_27218_a() != EnumJsonNodeType.STRING) {
+    private static String string(Object value, String field, boolean allowEmpty) throws IOException {
+        if (!(value instanceof String)) {
             throw new IOException("Manifest " + field + " must be a string");
         }
-        String result = value.func_27216_b();
+        String result = (String) value;
         if (!result.equals(result.trim()) || !allowEmpty && result.isEmpty()) {
-            throw new IOException("Manifest " + field + " must be "
-                    + (allowEmpty ? "trimmed" : "a non-empty trimmed string"));
+            throw new IOException(
+                    "Manifest " + field + " must be " + (allowEmpty ? "trimmed" : "a non-empty trimmed string"));
         }
         return result;
     }
 
     @SuppressWarnings("unchecked")
-    private static List<String> dependencies(J_JsonNode value, Map<String, String> minimumVersions)
-            throws IOException {
-        if (value.func_27218_a() != EnumJsonNodeType.ARRAY) {
+    private static List<String> dependencies(Object value, Map<String, String> minimumVersions) throws IOException {
+        if (!(value instanceof List)) {
             throw new IOException("Manifest dependencies must be an array of names or version requirements");
         }
         List<String> result = new ArrayList<>();
         Set<String> seen = new HashSet<>();
-        for (J_JsonNode dependency : (List<J_JsonNode>) value.func_27215_d()) {
+        for (Object dependency : (List<?>) value) {
             String name;
-            if (dependency.func_27218_a() == EnumJsonNodeType.STRING) {
+            if (dependency instanceof String) {
                 name = string(dependency, "dependency", false);
-            } else if (dependency.func_27218_a() == EnumJsonNodeType.OBJECT) {
+            } else if (dependency instanceof Map) {
                 String requiredName = null;
                 String minimumVersion = null;
-                for (Object rawEntry : dependency.func_27214_c().entrySet()) {
+                for (Object rawEntry : ((Map<?, ?>) dependency).entrySet()) {
                     Map.Entry<?, ?> field = (Map.Entry<?, ?>) rawEntry;
-                    String fieldName = ((J_JsonNode) field.getKey()).func_27216_b();
-                    J_JsonNode fieldValue = (J_JsonNode) field.getValue();
+                    String fieldName = (String) field.getKey();
+                    Object fieldValue = field.getValue();
                     if ("name".equals(fieldName)) {
                         requiredName = string(fieldValue, "dependency name", false);
                     } else if ("minVersion".equals(fieldName)) {

@@ -7,9 +7,9 @@ import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptResourceTracker;
 import java.util.HashMap;
-import java.util.Map;
-import java.util.Locale;
 import java.util.IdentityHashMap;
+import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 
@@ -114,6 +114,17 @@ public final class NativeContext implements AutoCloseable {
 
     public static boolean hasFrame() {
         return CURRENT.get() != null;
+    }
+
+    /**
+     * The hook native scope is read-only; test the enclosing edit authority before
+     * opening it.
+     */
+    public static boolean hookEditsAllowed() {
+        NativeContext current = CURRENT.get();
+        return current == null
+                ? cleanupAllowed()
+                : current.active && current.readable && current.mutable && cleanupAllowed();
     }
 
     public static NativeEntry interfaceEntry(LuaCallbackScope callback) {
@@ -222,10 +233,16 @@ public final class NativeContext implements AutoCloseable {
                 false);
     }
 
-    public static void recordFailure(String reason) {
+    public Map<String, Object> failureContext() {
+        return CatalogValues.record("owner", owner, "ownerGeneration", ownerGeneration, "phase",
+                phase == null ? "metadata" : phase.name().toLowerCase(Locale.ROOT), "scopeActive", active);
+    }
+
+    public static void recordFailure(NativeAccessFailure failure) {
         for (NativeContext entry = CURRENT.get(); entry != null; entry = entry.parent) {
             if (entry.bindings != null) {
-                entry.bindings.recordFailure(reason);
+                failure.explain(entry.failureContext());
+                entry.bindings.recordFailure(failure);
                 return;
             }
         }
