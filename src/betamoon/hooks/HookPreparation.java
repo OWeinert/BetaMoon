@@ -31,6 +31,8 @@ import org.luaj.vm2.Globals;
 public final class HookPreparation {
     private static final AtomicLong ATTEMPTS = new AtomicLong();
     private static volatile HookPreparation current;
+    private static volatile String unavailableReason;
+    private static volatile String unavailableMessage;
     private final File instance;
     private final TinyMappingResolver mappings;
     private final TinyMappingSnapshot mappingSnapshot;
@@ -137,21 +139,35 @@ public final class HookPreparation {
     }
 
     public static HookPreparation current() {
-        if (current == null && HookAgentBridge.remote() != null) {
+        if (current == null && unavailableReason == null && HookAgentBridge.remote() != null) {
             synchronized (HookPreparation.class) {
-                if (current == null) {
+                if (current == null && unavailableReason == null) {
                     try {
                         Map<?, ?> plan = (Map<?, ?>) HookAgentBridge.remote().plan.invokeExact();
                         if (Boolean.TRUE.equals(plan.get("available"))) {
                             current = importPlan(plan);
                         }
+                    } catch (VirtualMachineError | ThreadDeath fatal) {
+                        throw fatal;
                     } catch (Throwable error) {
-                        throw HookAgentBridge.failure(error);
+                        unavailableReason = "agent_unavailable";
+                        unavailableMessage = "Cannot import the agent hook plan: " + error.getMessage();
                     }
                 }
             }
         }
         return current;
+    }
+
+    public static List<Map<String, Object>> unavailableRecords() {
+        String reason = unavailableReason == null ? HookAgentBridge.unavailableReason() : unavailableReason;
+        String message = unavailableReason == null ? HookAgentBridge.unavailableMessage() : unavailableMessage;
+        if (reason == null) {
+            return Collections.emptyList();
+        }
+        String bounded = message == null ? "" : message.substring(0, Math.min(2048, message.length()));
+        return Collections.singletonList(CatalogValues.record("id", "hook-agent-unavailable", "name", "agent", "kind",
+                "HOOK_DIAGNOSTIC", "owner", "", "status", reason, "reason", reason, "message", bounded));
     }
 
     private static HookPreparation importPlan(Map<?, ?> plan) throws IOException {

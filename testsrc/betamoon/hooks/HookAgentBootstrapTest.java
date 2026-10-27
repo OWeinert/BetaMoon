@@ -4,6 +4,14 @@ import betamoon.instrumentation.agent.AgentLoadedTypes;
 import betamoon.instrumentation.agent.BetaMoonAgent;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.io.InputStream;
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -59,6 +67,7 @@ public final class HookAgentBootstrapTest {
                 "Packaged hook premain passed: ASM/LuaJ bundled; no Minecraft, ordinary Lua API, entrypoint or callback execution.");
         verifyIsolatedLoader();
         verifyChildRuntime();
+        verifyUnavailableRuntime();
     }
 
     private static void verifyIsolatedLoader() throws Exception {
@@ -74,9 +83,35 @@ public final class HookAgentBootstrapTest {
     }
 
     private static void verifyChildRuntime() throws Exception {
+        try (URLClassLoader child = childLoader(false, false)) {
+            Class<?> runtime = Class.forName("betamoon.hooks.HookChildRuntime", true, child);
+            runtime.getMethod("verify").invoke(null);
+        }
+    }
+
+    private static void verifyUnavailableRuntime() throws Exception {
+        for (boolean mappingsMismatch : new boolean[]{false, true}) {
+            try (URLClassLoader child = childLoader(!mappingsMismatch, mappingsMismatch)) {
+                Class<?> runtime = Class.forName("betamoon.hooks.HookUnavailableRuntime", true, child);
+                runtime.getMethod("verify", String.class).invoke(null,
+                        mappingsMismatch ? "agent_unavailable" : "dispatcher_not_visible");
+            }
+        }
+    }
+
+    private static URLClassLoader childLoader(boolean incompatible, boolean mappingsMismatch) {
         URL[] roots = {BetaMoonAgent.class.getProtectionDomain().getCodeSource().getLocation(),
                 HookAgentBootstrapTest.class.getProtectionDomain().getCodeSource().getLocation()};
-        try (URLClassLoader child = new URLClassLoader(roots, HookAgentBootstrapTest.class.getClassLoader()) {
+        return new URLClassLoader(roots, HookAgentBootstrapTest.class.getClassLoader()) {
+            @Override
+            public InputStream getResourceAsStream(String name) {
+                if (mappingsMismatch && name.equals("betamoon/instrumentation/mapping/b1.7.3.tiny")) {
+                    return new ByteArrayInputStream(
+                            "tiny\t2\t0\tnamed\tclient\tserver\n".getBytes(StandardCharsets.UTF_8));
+                }
+                return super.getResourceAsStream(name);
+            }
+
             @Override
             protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
                 synchronized (getClassLoadingLock(name)) {
@@ -94,9 +129,35 @@ public final class HookAgentBootstrapTest {
                     return super.loadClass(name, resolve);
                 }
             }
-        }) {
-            Class<?> runtime = Class.forName("betamoon.hooks.HookChildRuntime", true, child);
-            runtime.getMethod("verify").invoke(null);
-        }
+
+            @Override
+            protected Class<?> findClass(String name) throws ClassNotFoundException {
+                if (!incompatible || !name.equals("betamoon.hooks.HookAgentBridge")) {
+                    return super.findClass(name);
+                }
+                try (InputStream input = findResource(name.replace('.', '/') + ".class").openStream()) {
+                    ClassWriter output = new ClassWriter(0);
+                    new ClassReader(input).accept(new ClassVisitor(Opcodes.ASM9, output) {
+                        @Override
+                        public MethodVisitor visitMethod(int access, String method, String descriptor, String signature,
+                                String[] exceptions) {
+                            return new MethodVisitor(Opcodes.ASM9,
+                                    super.visitMethod(access, method, descriptor, signature, exceptions)) {
+                                @Override
+                                public void visitLdcInsn(Object value) {
+                                    super.visitLdcInsn("betamoon-hooks-jdk-abi-2".equals(value)
+                                            ? "fixture-incompatible-hook-abi"
+                                            : value);
+                                }
+                            };
+                        }
+                    }, 0);
+                    byte[] bytes = output.toByteArray();
+                    return defineClass(name, bytes, 0, bytes.length);
+                } catch (Exception failure) {
+                    throw new ClassNotFoundException(name, failure);
+                }
+            }
+        };
     }
 }

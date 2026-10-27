@@ -15,7 +15,6 @@ import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -70,7 +69,7 @@ public final class NativeDiscoveryRuntime {
         NativeDiscoveryService current = service;
         NativeIndexSnapshot snapshot = current == null ? NativeIndexSnapshot.empty() : current.snapshot();
         HookPreparation hooks = HookPreparation.current();
-        return snapshot.withHooks(hooks == null ? Collections.emptyList() : hooks.status(),
+        return snapshot.withHooks(hooks == null ? HookPreparation.unavailableRecords() : hooks.status(),
                 hooks == null ? 0 : hooks.revision(), hooks == null ? "agent_unavailable" : "available");
     }
 
@@ -86,7 +85,7 @@ public final class NativeDiscoveryRuntime {
         result.put("hooks",
                 CatalogValues.record("status", hooks == null ? "agent_unavailable" : "available", "revision",
                         hooks == null ? 0 : hooks.revision(), "items",
-                        hooks == null ? Collections.emptyList() : hooks.status()));
+                        hooks == null ? HookPreparation.unavailableRecords() : hooks.status()));
         return result;
     }
 

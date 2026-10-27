@@ -17,9 +17,9 @@ import org.luaj.vm2.lib.jse.JsePlatform;
  */
 public final class HookChildRuntime {
     public static void verify() throws Throwable {
+        HookPreparation preparation = HookPreparation.current();
         Class<?> target = Class.forName("fixture.hooks.ChildHookFixture", false,
                 HookChildRuntime.class.getClassLoader());
-        HookPreparation preparation = HookPreparation.current();
         if (preparation == null) {
             throw new AssertionError("child runtime did not import the frozen agent plan");
         }

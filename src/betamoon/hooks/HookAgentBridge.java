@@ -13,6 +13,9 @@ import java.util.function.Function;
  * and boxing. No game or Lua class crosses this ABI.
  */
 final class HookAgentBridge {
+    static final String PROTOCOL = "betamoon-hooks-jdk-abi-2";
+    private static String unavailableReason;
+    private static String unavailableMessage;
     private static final HookAgentBridge REMOTE = discover();
     final MethodHandle active;
     final MethodHandle before;
@@ -56,6 +59,14 @@ final class HookAgentBridge {
         return REMOTE;
     }
 
+    static String unavailableReason() {
+        return unavailableReason;
+    }
+
+    static String unavailableMessage() {
+        return unavailableMessage;
+    }
+
     private static HookAgentBridge discover() {
         try {
             ClassLoader system = ClassLoader.getSystemClassLoader();
@@ -64,15 +75,28 @@ final class HookAgentBridge {
                 return null;
             }
             String protocol = (String) dispatcher.getMethod("protocol").invoke(null);
-            if (!protocol.equals(HookDispatcher.protocol())) {
+            // Use the constant: invoking the child dispatcher here can initialize AGENT
+            // before REMOTE is published and permanently disconnect lazy target loaders.
+            if (!protocol.equals(PROTOCOL)) {
                 throw new HookFailure("dispatcher_not_visible", "agent and mod hook ABI versions differ");
             }
             Class<?> preparation = Class.forName(HookPreparation.class.getName(), false, system);
             return new HookAgentBridge(dispatcher, preparation);
         } catch (ClassNotFoundException absent) {
             return null;
-        } catch (ReflectiveOperationException error) {
-            throw new HookFailure("dispatcher_not_visible", "cannot link the system hook agent", error);
+        } catch (ReflectiveOperationException | HookFailure | LinkageError error) {
+            Throwable cause = error;
+            for (int depth = 0; cause != null && depth < 16; depth++, cause = cause.getCause()) {
+                if (cause instanceof VirtualMachineError) {
+                    throw (VirtualMachineError) cause;
+                }
+                if (cause instanceof ThreadDeath) {
+                    throw (ThreadDeath) cause;
+                }
+            }
+            unavailableReason = "dispatcher_not_visible";
+            unavailableMessage = "Cannot link the system hook agent: " + error.getMessage();
+            return null;
         }
     }
 

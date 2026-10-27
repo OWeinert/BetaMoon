@@ -29,7 +29,7 @@ public final class HookDispatcher {
     }
 
     public static String protocol() {
-        return "betamoon-hooks-jdk-abi-2";
+        return HookAgentBridge.PROTOCOL;
     }
 
     static void prepare(List<HookPreparation.Site> sites) {

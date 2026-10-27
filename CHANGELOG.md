@@ -19,3 +19,4 @@
 - Scripted method hooks with automatic Lua registry capture, mapped/literal targets and reload preflight.
 - Scoped entry/return/error observations, transactional typed edits and cancellation, plus hook diagnostics and editor support.
 - Bounded native refresh cancellation with scan diagnostics and integrated lifecycle/performance verification.
+- Reliable lazy hook activation across game classloaders and isolated diagnostics for incompatible hook agents.
