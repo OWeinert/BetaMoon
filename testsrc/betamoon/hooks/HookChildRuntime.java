@@ -82,9 +82,25 @@ public final class HookChildRuntime {
         if (allocated != 0 || checksum == 0) {
             throw new AssertionError("inactive child bridge allocated " + allocated + " bytes");
         }
+        for (int cycle = 0; cycle < 100; cycle++) {
+            HookDispatcher.Subscription repeated = HookDispatcher.subscribe(site, target, registration.definition,
+                    invocation -> registration.callback.call(new Call(invocation)));
+            try {
+                HookDispatcher.activate(Collections.singletonList(repeated));
+                if ((int) call.invokeExact(1) != 42) {
+                    throw new AssertionError("repeated hook activation lost its callback");
+                }
+            } finally {
+                repeated.close();
+            }
+            if ((int) call.invokeExact(1) != 2
+                    || preparation.status().stream().anyMatch(row -> "HOOK_SUBSCRIPTION".equals(row.get("kind")))) {
+                throw new AssertionError("repeated hook cleanup retained a callback subscription");
+            }
+        }
         System.out.println("Child-first hook bridge passed; inactive 100000 calls allocated " + allocated
-                + " bytes; active Lua short circuit ns p50=" + costs[500] + ", p95=" + costs[950] + ", p99="
-                + costs[990]);
+                + " bytes; 100 activation/cleanup cycles; active Lua short circuit ns p50=" + costs[500] + ", p95="
+                + costs[950] + ", p99=" + costs[990]);
     }
 
     private static final class Call extends HookLuaValue {

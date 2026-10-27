@@ -77,6 +77,9 @@ public final class NativeLiveClientDriver {
                 call(client, CLIENT, "displayGuiScreen", "(Lnet/minecraft/src/GuiScreen;)V", new Object[]{null});
             }
             if (stage == 0) {
+                if (Boolean.getBoolean("betamoon.native.n7") && !NativeN7LiveClientChecks.beforeWorld(client)) {
+                    return;
+                }
                 Class<?> controllerType = Class
                         .forName(mappings.resolveClass(new ClassRef("net/minecraft/src/PlayerControllerSP"), namespace)
                                 .replace('/', '.'), false, client.getClass().getClassLoader());
@@ -110,6 +113,9 @@ public final class NativeLiveClientDriver {
                 BetaMoonClient.getInstance().reloadLuaScripts();
                 stage = 4;
             } else if (stage == 4 && "attached".equals(System.getProperty("betamoon.live.lua"))) {
+                if (Boolean.getBoolean("betamoon.native.n7") && !NativeN7LiveClientChecks.inWorld(client, world)) {
+                    return;
+                }
                 call(client, CLIENT, "changeWorld1", "(Lnet/minecraft/src/World;)V", new Object[]{null});
                 stage = 5;
             } else if (stage == 5 && world == null && detached()
@@ -159,7 +165,7 @@ public final class NativeLiveClientDriver {
         }
     }
 
-    private static Object field(Object object, String owner, String name, String descriptor) throws Exception {
+    static Object field(Object object, String owner, String name, String descriptor) throws Exception {
         ResolvedField target = mappings.resolveField(new FieldRef(new ClassRef(owner), name, descriptor), namespace);
         Class<?> type = Class.forName(target.getOwner().replace('/', '.'), false, object.getClass().getClassLoader());
         Field field = type.getDeclaredField(target.getName());
@@ -176,7 +182,7 @@ public final class NativeLiveClientDriver {
         field.set(object, value);
     }
 
-    private static Object call(Object object, String owner, String name, String descriptor, Object... arguments)
+    static Object call(Object object, String owner, String name, String descriptor, Object... arguments)
             throws Exception {
         ResolvedMethod target = mappings.resolveMethod(new MethodRef(new ClassRef(owner), name, descriptor), namespace);
         Class<?> type = Class.forName(target.getOwner().replace('/', '.'), false, object.getClass().getClassLoader());
@@ -193,7 +199,8 @@ public final class NativeLiveClientDriver {
     private static void write(String status, String error) throws Exception {
         String result = CatalogJson.encode(CatalogValues.record("status", status, "namespace",
                 namespace.getMappingName(), "ticks", ticks, "stage", stage, "error", error, "renderedClient", true,
-                "worldCreatedNormally", true, "observerReloadAndWorldCleanup", status.equals("passed")));
+                "worldCreatedNormally", true, "observerReloadAndWorldCleanup", status.equals("passed"), "n7Acceptance",
+                Boolean.getBoolean("betamoon.native.n7") && "passed".equals(System.getProperty("betamoon.n7.phase"))));
         Files.write(Paths.get(System.getProperty("betamoon.live.result")), result.getBytes(StandardCharsets.UTF_8));
         System.out.println("[N6-LIVE] " + result);
     }
