@@ -6,6 +6,8 @@ import betamoon.instrumentation.mapping.TinyMappingResolver;
 import betamoon.instrumentation.mapping.TinyMappingSnapshot;
 import betamoon.interop.catalog.CatalogFingerprint;
 import betamoon.interop.catalog.CatalogValues;
+import betamoon.interop.diagnostics.NativeDiagnosticEvidence;
+import betamoon.interop.diagnostics.NativeDiagnosticGuidance;
 import betamoon.luamodloader.HookPackages;
 import java.io.File;
 import java.io.IOException;
@@ -40,6 +42,7 @@ public final class HookPreparation {
     private final Map<String, List<Site>> classes = new HashMap<>();
     private final Map<String, Site> sites = new LinkedHashMap<>();
     private final Map<String, List<HookDefinition>> definitions = new TreeMap<>();
+    private final Map<String, List<String>> definitionTargets = new HashMap<>();
     private final List<Map<String, Object>> diagnostics = new ArrayList<>();
     private final AtomicLong revision = new AtomicLong();
     private final String mappingResourceHash;
@@ -117,12 +120,23 @@ public final class HookPreparation {
                         alternatives.add(choice.key());
                     }
                     Set<String> frozen = Collections.unmodifiableSet(alternatives);
+                    List<String> targetNames = new ArrayList<>(alternatives);
+                    Collections.sort(targetNames);
+                    result.definitionTargets.put(registration.definition.identity(),
+                            Collections.unmodifiableList(targetNames));
                     for (HookTarget choice : choices) {
                         result.sites.get(choice.key()).alternatives.add(frozen);
                     }
+                    for (RuntimeNamespace namespace : new RuntimeNamespace[]{RuntimeNamespace.NAMED,
+                            RuntimeNamespace.CLIENT}) {
+                        for (HookTarget choice : HookTarget.resolve(registration.definition.target, mappings,
+                                result.mappingSnapshot, namespace)) {
+                            result.sites.get(choice.key()).namespaces.add(namespace.getMappingName());
+                        }
+                    }
                 }
             } catch (RuntimeException error) {
-                result.diagnose(snapshot.owner, "", reason(error), error.getMessage());
+                result.diagnose(snapshot.owner, "", reason(error), NativeDiagnosticEvidence.message(error));
             }
         }
         AgentLoadedTypes.visit(type -> {
@@ -151,7 +165,8 @@ public final class HookPreparation {
                         throw fatal;
                     } catch (Throwable error) {
                         unavailableReason = "agent_unavailable";
-                        unavailableMessage = "Cannot import the agent hook plan: " + error.getMessage();
+                        unavailableMessage = "Cannot import the agent hook plan: "
+                                + NativeDiagnosticEvidence.message(error);
                     }
                 }
             }
@@ -165,9 +180,10 @@ public final class HookPreparation {
         if (reason == null) {
             return Collections.emptyList();
         }
-        String bounded = message == null ? "" : message.substring(0, Math.min(2048, message.length()));
+        String bounded = message == null ? "" : NativeDiagnosticEvidence.bounded(message, 2048);
         return Collections.singletonList(CatalogValues.record("id", "hook-agent-unavailable", "name", "agent", "kind",
-                "HOOK_DIAGNOSTIC", "owner", "", "status", reason, "reason", reason, "message", bounded));
+                "HOOK_DIAGNOSTIC", "owner", "", "status", reason, "reason", reason, "message", bounded, "guidance",
+                NativeDiagnosticGuidance.forReason(reason)));
     }
 
     private static HookPreparation importPlan(Map<?, ?> plan) throws IOException {
@@ -191,6 +207,9 @@ public final class HookPreparation {
                     CatalogValues.text(row, "descriptor"));
             Site site = new Site(CatalogValues.integer(row, "id"), target);
             site.owners.addAll(CatalogValues.strings(row.get("owners")));
+            if (row.get("namespaces") instanceof List) {
+                site.namespaces.addAll(CatalogValues.strings(row.get("namespaces")));
+            }
             result.sites.put(target.key(), site);
             result.classes.computeIfAbsent(target.owner, ignored -> new ArrayList<>()).add(site);
         }
@@ -218,6 +237,10 @@ public final class HookPreparation {
                     site.fingerprint = (String) row.get("fingerprint");
                     site.inputHash = (String) row.get("inputHash");
                     site.outputHash = (String) row.get("outputHash");
+                    site.methodMatches = row.get("methodMatches") instanceof Number
+                            ? CatalogValues.integer(row, "methodMatches")
+                            : -1;
+                    site.structureAnalyzed = Boolean.TRUE.equals(row.get("structureAnalyzed"));
                 }
             }
             siteRevision = observed;
@@ -238,7 +261,8 @@ public final class HookPreparation {
         List<Map<String, Object>> sites = new ArrayList<>();
         for (Site site : preparation.sites.values()) {
             sites.add(CatalogValues.record("id", site.id, "owner", site.target.owner, "method", site.target.method,
-                    "descriptor", site.target.descriptor, "owners", new ArrayList<>(site.owners)));
+                    "descriptor", site.target.descriptor, "owners", new ArrayList<>(site.owners), "namespaces",
+                    new ArrayList<>(site.namespaces)));
         }
         return CatalogValues.object(
                 CatalogValues.freeze(CatalogValues.record("available", true, "instance", preparation.instance.getPath(),
@@ -251,7 +275,8 @@ public final class HookPreparation {
             for (Site site : current.sites.values()) {
                 result.add(CatalogValues.record("target", site.target.key(), "status", site.status, "normalReturns",
                         site.normalReturns, "fingerprint", site.fingerprint, "inputHash", site.inputHash, "outputHash",
-                        site.outputHash));
+                        site.outputHash, "methodMatches", site.methodMatches, "structureAnalyzed",
+                        site.structureAnalyzed));
             }
         }
         return result;
@@ -387,13 +412,19 @@ public final class HookPreparation {
                 throw HookAgentBridge.failure(error);
             }
         }
-        String bounded = message == null ? "" : message.substring(0, Math.min(2048, message.length()));
+        String bounded = message == null ? "" : NativeDiagnosticEvidence.bounded(message, 2048);
         if (diagnostics.size() == 128) {
             diagnostics.remove(0);
         }
-        diagnostics.add(CatalogValues.record("id", "diagnostic-" + revision.incrementAndGet(), "name", hook, "kind",
-                "HOOK_DIAGNOSTIC", "owner", owner, "hook", hook, "status", reason, "reason", reason, "message",
-                bounded));
+        Site site = sites.get(hook);
+        List<String> owners = site == null ? Collections.singletonList(owner) : new ArrayList<>(site.owners);
+        Map<String, Object> diagnostic = CatalogValues.record("id", "diagnostic-" + revision.incrementAndGet(), "name",
+                hook, "kind", "HOOK_DIAGNOSTIC", "owner", owner, "owners", owners, "hook", hook, "status", reason,
+                "reason", reason, "message", bounded, "guidance", NativeDiagnosticGuidance.forReason(reason));
+        if (site != null) {
+            diagnostic.put("target", site.target.key());
+        }
+        diagnostics.add(diagnostic);
         System.err.println("[BetaMoon Hooks] " + owner + "/" + hook + ": " + reason + ": " + bounded);
     }
 
@@ -410,24 +441,44 @@ public final class HookPreparation {
         }
         List<Map<String, Object>> result = new ArrayList<>(diagnostics);
         for (Site site : sites.values()) {
-            result.add(
-                    CatalogValues.record("id", "script-site-" + site.id, "name", site.target.key(), "kind", "HOOK_SITE",
-                            "declaringType", site.target.owner.replace('/', '.'), "descriptor", site.target.descriptor,
-                            "target", site.target.key(), "status", site.status, "owners", new ArrayList<>(site.owners),
-                            "envelopeVersion", 2, "normalReturns", site.normalReturns, "structuralFingerprint",
-                            site.fingerprint, "observedInputSha256", site.inputHash, "outputSha256", site.outputHash));
+            Map<String, Object> record = CatalogValues.record("id", "script-site-" + site.id, "name", site.target.key(),
+                    "kind", "HOOK_SITE", "declaringType", site.target.owner.replace('/', '.'), "descriptor",
+                    site.target.descriptor, "target", site.target.key(), "status", site.status, "owners",
+                    new ArrayList<>(site.owners), "envelopeVersion", 2, "normalReturns", site.normalReturns,
+                    "structuralFingerprint", site.fingerprint, "observedInputSha256", site.inputHash, "outputSha256",
+                    site.outputHash, "runtimeOwner", site.target.owner.replace('/', '.'), "runtimeMember",
+                    site.target.method, "runtimeDescriptor", site.target.descriptor, "namespaceCandidates",
+                    new ArrayList<>(site.namespaces), "installedEnvelopeVersion",
+                    site.status.equals("applied") ? 2 : null, "matchCounts",
+                    CatalogValues.record("methods", site.methodMatches < 0 ? null : site.methodMatches, "normalReturns",
+                            site.structureAnalyzed ? site.normalReturns : null),
+                    "provenance",
+                    CatalogValues.record("boundary", "engine_output_before_user_hooks", "observed",
+                            site.inputHash != null, "structureAnalyzed", site.structureAnalyzed,
+                            "laterTransformersObserved", false),
+                    "installedCapabilities", site.capabilities(), "guidance",
+                    NativeDiagnosticGuidance.forStatus(site.status));
+            result.add(record);
         }
         for (List<HookDefinition> owner : definitions.values()) {
             for (HookDefinition definition : owner) {
                 result.add(CatalogValues.record("id", "prepared-" + definition.identity(), "name", definition.id,
                         "kind", "HOOK_DECLARATION", "owner", definition.owner, "source", definition.file, "at",
                         definition.at, "effects", definition.edit ? "edit" : "observe", "priority", definition.priority,
-                        "required", definition.required, "status", "prepared", "sourceSha256",
-                        definition.sourceSha256));
+                        "required", definition.required, "status", "prepared", "sourceSha256", definition.sourceSha256,
+                        "targets", new ArrayList<>(allowedTargets(definition))));
             }
         }
-        result.addAll(HookDispatcher.status());
+        for (Map<String, Object> subscription : HookDispatcher.status()) {
+            Map<String, Object> row = new LinkedHashMap<>(subscription);
+            row.put("guidance", NativeDiagnosticGuidance.forStatus((String) row.get("status")));
+            result.add(row);
+        }
         return result;
+    }
+
+    private List<String> allowedTargets(HookDefinition definition) {
+        return definitionTargets.getOrDefault(definition.identity(), Collections.emptyList());
     }
 
     public long revision() {
@@ -453,9 +504,12 @@ public final class HookPreparation {
         public final int id;
         public final HookTarget target;
         public final Set<String> owners = new TreeSet<>();
+        public final Set<String> namespaces = new TreeSet<>();
         public final List<Set<String>> alternatives = new ArrayList<>();
         public volatile String status = "target_pending_load";
         public volatile int normalReturns;
+        public volatile int methodMatches = -1;
+        public volatile boolean structureAnalyzed;
         public volatile String fingerprint;
         public volatile String inputHash;
         public volatile String outputHash;
@@ -464,6 +518,21 @@ public final class HookPreparation {
             this.id = id;
             this.target = target;
             fingerprint = CatalogFingerprint.sha256(("envelope:2:" + target.key()).getBytes(StandardCharsets.UTF_8));
+        }
+
+        private List<String> capabilities() {
+            if (!status.equals("applied")) {
+                return Collections.emptyList();
+            }
+            List<String> result = new ArrayList<>();
+            Collections.addAll(result, "before", "error", "argument_edit", "early_return");
+            if (normalReturns > 0) {
+                result.add("after");
+                if (!target.descriptor.endsWith(")V")) {
+                    result.add("result_edit");
+                }
+            }
+            return result;
         }
     }
 }

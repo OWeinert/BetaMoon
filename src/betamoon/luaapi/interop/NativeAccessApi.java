@@ -1,5 +1,6 @@
 package betamoon.luaapi.interop;
 
+import betamoon.interop.diagnostics.NativeDiagnosticGuidance;
 import betamoon.interop.binding.NativeAccessFailure;
 import betamoon.interop.catalog.CatalogValues;
 import betamoon.interop.discovery.NativeIndexSnapshot;
@@ -115,8 +116,8 @@ public final class NativeAccessApi {
             }
         } catch (NativeAccessFailure failure) {
             if (failure.reason.equals("index_incomplete")) {
-                return absent(failure.reason, metadata(
-                        CatalogValues.record("coverage", snapshot.coverage, "message", failure.getMessage()), false));
+                return missing(failure.reason,
+                        CatalogValues.record("coverage", snapshot.coverage, "message", failure.getMessage()));
             }
             throw failure;
         }
@@ -133,7 +134,7 @@ public final class NativeAccessApi {
                     .anyMatch(row -> owner.originId.equals(row.get("id")) && "indexed".equals(row.get("status")))) {
                 reason = reference.typeRef == null ? "member_not_found" : "class_not_found";
             }
-            return absent(reason, metadata(snapshot.coverage, false));
+            return missing(reason, snapshot.coverage);
         }
         return metadata(description, true);
     }
@@ -427,6 +428,12 @@ public final class NativeAccessApi {
             throw new NativeAccessFailure("conversion_failed", "expected finite number");
         }
         return value.todouble();
+    }
+
+    private Varargs missing(String reason, Map<String, Object> detail) {
+        Map<String, Object> copy = new LinkedHashMap<>(detail);
+        copy.put("guidance", NativeDiagnosticGuidance.forReason(reason));
+        return absent(reason, metadata(copy, false));
     }
 
     static Varargs absent(String reason, LuaValue detail) {

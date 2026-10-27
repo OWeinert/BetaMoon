@@ -5,6 +5,7 @@ import betamoon.interop.discovery.NativeDiscoveryRuntime;
 import betamoon.interop.discovery.NativeDiscoveryService;
 import betamoon.interop.discovery.NativeIndexSnapshot;
 import betamoon.interop.discovery.NativeQueryService;
+import betamoon.interop.diagnostics.NativeDiagnosticGuidance;
 import betamoon.interop.reference.NativeMemberRef;
 import betamoon.interop.reference.NativeMemberReference;
 import betamoon.interop.reference.NativeReflection;
@@ -243,7 +244,9 @@ public final class NativeDiscoveryApi {
     }
 
     private static Varargs absent(String reason, Map<String, Object> detail) {
-        return LuaValue.varargsOf(new LuaValue[]{LuaValue.NIL, LuaValue.valueOf(reason), value(detail)});
+        Map<String, Object> enriched = new LinkedHashMap<>(detail);
+        enriched.put("guidance", NativeDiagnosticGuidance.forReason(reason));
+        return LuaValue.varargsOf(new LuaValue[]{LuaValue.NIL, LuaValue.valueOf(reason), value(enriched)});
     }
 
     private static LuaValue value(Object value) {

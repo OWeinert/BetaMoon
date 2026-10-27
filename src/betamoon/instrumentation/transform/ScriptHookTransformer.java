@@ -4,6 +4,7 @@ import betamoon.hooks.HookDispatcher;
 import betamoon.hooks.HookFailure;
 import betamoon.hooks.HookPreparation;
 import betamoon.interop.catalog.CatalogFingerprint;
+import betamoon.interop.diagnostics.NativeDiagnosticEvidence;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -46,6 +47,12 @@ final class ScriptHookTransformer {
             return input;
         }
         List<HookPreparation.Site> sites = preparation.sites(name);
+        String observedInput = CatalogFingerprint.sha256(input);
+        for (HookPreparation.Site site : sites) {
+            if (!site.status.equals("applied")) {
+                site.inputHash = observedInput;
+            }
+        }
         try {
             requireDispatcher(loader);
             ClassNode node = new ClassNode();
@@ -71,6 +78,7 @@ final class ScriptHookTransformer {
                         matches.add(method);
                     }
                 }
+                site.methodMatches = matches.size();
                 if (matches.size() != 1) {
                     throw new HookFailure("match_failed",
                             site.target.key() + ": expected 1 method; got " + matches.size());
@@ -106,7 +114,7 @@ final class ScriptHookTransformer {
                     site.status = reason;
                 }
                 preparation.diagnose(String.join(",", site.owners), site.target.key(), reason,
-                        "User group rejected; valid engine bytes retained: " + error.getMessage());
+                        "User group rejected; valid engine bytes retained: " + NativeDiagnosticEvidence.message(error));
             }
             return input;
         }
@@ -130,6 +138,7 @@ final class ScriptHookTransformer {
             }
         }
         site.normalReturns = returns.size();
+        site.structureAnalyzed = true;
         site.fingerprint = CatalogFingerprint.sha256(
                 ("envelope:2:" + site.target.key() + ":flags:" + method.access + ":normalReturns:" + returns.size())
                         .getBytes(StandardCharsets.UTF_8));

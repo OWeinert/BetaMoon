@@ -9,7 +9,7 @@ public final class DebugExportCatalog {
     public static final String SCRIPT_REPORT_ID = "script-report";
     public static final String NATIVE_ACCESS_ID = "native-access";
     private static final DebugExportDefinition NATIVE_SUMMARY = new DebugExportDefinition(NATIVE_ACCESS_ID,
-            "Native access", "Native discovery status and failures.", true, new DebugNativeExporter(false),
+            "Native Interop API", "Native discovery status and failures.", true, new DebugNativeExporter(false),
             "native_summary.txt", "native_failures.txt", "native_failures.json", "native_hooks.json");
     private static final List<DebugExportDefinition> DEFINITIONS = create();
 
@@ -74,7 +74,7 @@ public final class DebugExportCatalog {
         values.add(new DebugExportDefinition("runtime", "Runtime diagnostics",
                 "Java-agent hook outcomes and read-only counts for live runtime registrations.", true,
                 new DebugRuntimeExporter(), "instrumentation.txt", "runtime_registrations.txt"));
-        values.add(new DebugExportDefinition(NATIVE_ACCESS_ID, "Native access",
+        values.add(new DebugExportDefinition(NATIVE_ACCESS_ID, "Native Interop API",
                 "Detailed class/member catalogs, origins, source-file indexes, and native diagnostics.", true,
                 new DebugNativeExporter(true), "native_summary.txt", "native_failures.txt", "native_failures.json",
                 "native_origins.json", "native_classes.jsonl", "native_members.jsonl", "native_sources.jsonl",

@@ -4,7 +4,7 @@
 
 ### Added
 
-- Native-access catalog foundations for mapped Minecraft classes, native members, and source-file discovery.
+- Native Interop API catalog foundations for mapped Minecraft classes, native members, and source-file discovery.
 - Native class/member queries, installed-mod discovery, reusable metadata caches, and attached source browsing.
 - Native debug reports with an optional detailed-catalog checkbox in Debug Tools.
 - Native type reflection, scoped Minecraft/mod calls, exact values, typed arrays and native collection views.
@@ -20,3 +20,4 @@
 - Scoped entry/return/error observations, transactional typed edits and cancellation, plus hook diagnostics and editor support.
 - Bounded native refresh cancellation with scan diagnostics and integrated lifecycle/performance verification.
 - Reliable lazy hook activation across game classloaders and isolated diagnostics for incompatible hook agents.
+- Copied native exception causes, actionable failure guidance, exact hook-site inspection and verified editor diagnostic exports.

@@ -9,9 +9,13 @@ public class HookTargetFixture {
     }
 
     public static int bodyCalls;
+    public static RuntimeException injectedFailure;
 
     public int calculate(int value, long wide, double fraction, Object object) {
         bodyCalls++;
+        if (value == -2 && injectedFailure != null) {
+            throw injectedFailure;
+        }
         if (value < 0) {
             throw new IllegalArgumentException("native-body-failure");
         }

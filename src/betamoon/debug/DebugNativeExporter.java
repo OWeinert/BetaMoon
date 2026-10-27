@@ -1,11 +1,14 @@
 package betamoon.debug;
 
 import betamoon.interop.catalog.CatalogJson;
+import betamoon.interop.catalog.CatalogFingerprint;
 import betamoon.interop.catalog.CatalogValues;
 import betamoon.interop.catalog.NativeAuthoringCatalog;
 import betamoon.interop.discovery.NativeDiscoveryRuntime;
 import betamoon.interop.discovery.NativeIndexSnapshot;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -32,7 +35,7 @@ final class DebugNativeExporter implements DebugExporter {
         this(detailed, snapshots, Collections::emptyMap, rowLimit);
     }
 
-    private DebugNativeExporter(boolean detailed, Supplier<NativeIndexSnapshot> snapshots,
+    DebugNativeExporter(boolean detailed, Supplier<NativeIndexSnapshot> snapshots,
             Supplier<Map<String, Object>> statuses, int rowLimit) {
         this.detailed = detailed;
         this.snapshots = snapshots;
@@ -44,6 +47,11 @@ final class DebugNativeExporter implements DebugExporter {
     public void export(DebugExportSession session) throws Exception {
         NativeIndexSnapshot snapshot = snapshots.get();
         Map<String, Object> status = statuses.get();
+        String failureJson = CatalogJson.encode(CatalogValues.record("schemaVersion", 1, "generation",
+                snapshot.generation, "namespace", snapshot.namespace, "mappingSha256", snapshot.mappingSha256,
+                "evidence", "exported_snapshot", "execution", status.get("execution"), "scanFailure",
+                status.get("lastFailure"), "warnings", snapshot.warnings)) + "\n";
+        byte[] failureBytes = failureJson.getBytes(StandardCharsets.UTF_8);
         session.writeTextFile("native_summary.txt", writer -> {
             writer.write("Generation: " + snapshot.generation + "\nNamespace: " + snapshot.namespace
                     + "\nMapping SHA-256: " + snapshot.mappingSha256 + "\n");
@@ -70,10 +78,7 @@ final class DebugNativeExporter implements DebugExporter {
             return snapshot.warnings.size() + (status.get("lastFailure") == null ? 0 : 1);
         });
         session.writeStructuredFile("native_failures.json", writer -> {
-            writer.write(CatalogJson.encode(CatalogValues.record("schemaVersion", 1, "generation", snapshot.generation,
-                    "namespace", snapshot.namespace, "mappingSha256", snapshot.mappingSha256, "execution",
-                    status.get("execution"), "scanFailure", status.get("lastFailure"), "warnings", snapshot.warnings)));
-            writer.write('\n');
+            writer.write(failureJson);
             return 1;
         });
         session.writeStructuredFile("native_hooks.json", writer -> {
@@ -102,7 +107,10 @@ final class DebugNativeExporter implements DebugExporter {
             return payload[0].rows;
         });
         session.writeStructuredFile(NativeAuthoringCatalog.MANIFEST_FILE, writer -> {
-            writer.write(CatalogJson.encode(payload[0].manifest()));
+            Map<String, Object> manifest = new LinkedHashMap<>(payload[0].manifest());
+            manifest.put("diagnostics", CatalogValues.record("path", "native_failures.json", "bytes",
+                    failureBytes.length, "sha256", CatalogFingerprint.sha256(failureBytes)));
+            writer.write(CatalogJson.encode(manifest));
             writer.write('\n');
             return 1;
         });

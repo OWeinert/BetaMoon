@@ -5,6 +5,7 @@ import betamoon.hooks.HookInvocation;
 import betamoon.hooks.HookLuaValue;
 import betamoon.interop.binding.NativeAccessFailure;
 import betamoon.interop.catalog.CatalogValues;
+import betamoon.interop.diagnostics.NativeDiagnosticEvidence;
 import betamoon.interop.runtime.NativeContext;
 import betamoon.interop.value.NativeConversions;
 import org.luaj.vm2.LuaValue;
@@ -67,12 +68,10 @@ public final class NativeHookCall extends HookLuaValue {
         if (invocation.exception() != null) {
             Throwable error = invocation.exception();
             NativeAccessApi host = new NativeAccessApi(context.bindings::snapshot);
-            String message = error.getMessage();
             properties.put("exception",
-                    host.metadata(
-                            CatalogValues.record("type", error.getClass().getName(), "message",
-                                    message == null ? "" : message.substring(0, Math.min(2048, message.length()))),
-                            true));
+                    host.metadata(CatalogValues.record("type", error.getClass().getName(), "message",
+                            NativeDiagnosticEvidence.message(error), "nativeCauses",
+                            NativeDiagnosticEvidence.capture(error)), true));
         }
     }
 

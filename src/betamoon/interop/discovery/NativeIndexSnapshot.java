@@ -5,6 +5,7 @@ import betamoon.interop.catalog.CatalogValues;
 import betamoon.interop.catalog.NativeCatalogRecords;
 import betamoon.interop.catalog.NativeClassInfo;
 import betamoon.interop.catalog.NativeMemberInfo;
+import betamoon.interop.diagnostics.NativeDiagnosticGuidance;
 import betamoon.interop.source.NativeSourceIndex;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -81,7 +82,13 @@ public final class NativeIndexSnapshot {
         this.coverage = CatalogValues.object(CatalogValues.freeze(coverage));
         List<Map<String, Object>> rows = new ArrayList<>();
         for (Map<String, Object> hook : hooks) {
-            rows.add(CatalogValues.object(CatalogValues.freeze(hook)));
+            Map<String, Object> record = new LinkedHashMap<>(hook);
+            record.put("runtimeNamespace", namespace);
+            record.put("evidence", "captured_hook_status");
+            if (!record.containsKey("guidance")) {
+                record.put("guidance", NativeDiagnosticGuidance.forStatus((String) record.get("status")));
+            }
+            rows.add(CatalogValues.object(CatalogValues.freeze(record)));
         }
         rows.sort(Comparator.comparing(NativeIndexSnapshot::sortKey));
         Map<String, List<Map<String, Object>>> tables = new LinkedHashMap<>(base.tables);

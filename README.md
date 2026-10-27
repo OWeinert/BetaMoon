@@ -29,7 +29,7 @@ Development branch for **1.0.0**. See [Releases](https://github.com/OWeinert/Bet
 - Input maps, hotkeys, event-driven behavior, and overrides for registered content.
 
 Packaged mods can observe exact Minecraft/mod methods and explicitly edit their arguments or results through
-[scripted hooks](https://github.com/OWeinert/BetaMoon/wiki/API-Hooks).
+[Scripted Hooks API](https://github.com/OWeinert/BetaMoon/wiki/API-Hooks).
 
 Scripts support hot reload, dependency ordering and shared modules. The in-game **Scripts** screen shows loading status and errors.
 
@@ -102,7 +102,7 @@ Update the argument whenever you move or rename the JAR, including after a versi
 Install [BetaMoon API from the Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=OWeinert.betamoon-api). Select **Install** on the listing to open
 VS Code, then confirm installation. Open your scripts folder and run **BetaMoon: Enable API for Workspace Folder**
 for completion, hover documentation and type checking. See the [setup guide](https://github.com/OWeinert/BetaMoon/wiki/VS-Code-and-LuaLS).
-For Minecraft and installed-mod native completion, export **Native access** from **Scripts → Debug**, then run
+For Minecraft and installed-mod native completion, export **Native Interop API** from **Scripts → Debug**, then run
 **BetaMoon: Import Native Catalog** in VS Code and select the instance or export folder. Definitions are generated locally.
 
 ## Installing scripts

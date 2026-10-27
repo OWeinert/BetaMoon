@@ -16,7 +16,10 @@ import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.jse.JsePlatform;
 
-/** Exercises the actual Lua facade with an injected metadata backend, without loading Minecraft. */
+/**
+ * Exercises the actual Lua facade with an injected metadata backend, without
+ * loading Minecraft.
+ */
 public final class NativeDiscoveryApiTest {
     private NativeDiscoveryApiTest() {
     }
@@ -49,13 +52,14 @@ public final class NativeDiscoveryApiTest {
                 + "local p=n:query({name='fixture.Known',originId='game'}); assert(#p.items==1); "
                 + "p.items[1].name='tampered'; "
                 + "assert(n:query({name='fixture.Known',originId='game'}).items[1].name=='fixture.Known'); "
-                + "local c,reason=n:describe('missing.Type'); assert(c==nil and reason=='index_incomplete'); "
+                + "local c,reason,detail=n:describe('missing.Type'); assert(c==nil and reason=='index_incomplete'); "
+                + "assert(detail.guidance.code=='inspect_selector'); "
                 + "assert(n.describe('mod_Test').name=='mod_Test'); "
                 + "local src=n:source('fixture.Known',{originId='game'}); assert(src.available); "
                 + "local text=n:readSource(fixtureSourceId,{startLine=1,limit=1}); assert(text.lines[1]=='package fixture;'); "
                 + "assert(not pcall(function() n:query({limit=1.5}) end)); "
-                + "assert(not pcall(function() n:query({unknown=true}) end)); "
-                + "assert(n:status().status=='ready')").call();
+                + "assert(not pcall(function() n:query({unknown=true}) end)); " + "assert(n:status().status=='ready')")
+                .call();
         try (LuaCallbackScope ignored = LuaCallbackScope.binding()) {
             lua.load("assert(#betamoon.native:query({name='mod_Test'}).items==1); "
                     + "assert(not pcall(function() betamoon.native:refresh() end)); "

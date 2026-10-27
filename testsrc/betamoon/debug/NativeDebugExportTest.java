@@ -116,6 +116,15 @@ public final class NativeDebugExportTest {
                 .object(CatalogJson.decode(read(result, NativeAuthoringCatalog.MANIFEST_FILE)));
         require(NativeAuthoringCatalog.FORMAT.equals(manifest.get("format"))
                 && Boolean.TRUE.equals(manifest.get("transportComplete")), "Missing authoring handoff contract");
+        Map<String, Object> diagnostics = CatalogValues.object(manifest.get("diagnostics"));
+        byte[] failureBytes = Files.readAllBytes(result.getDirectory().toPath().resolve("native_failures.json"));
+        require("native_failures.json".equals(diagnostics.get("path"))
+                && ((Number) diagnostics.get("bytes")).longValue() == failureBytes.length
+                && CatalogFingerprint.sha256(failureBytes).equals(diagnostics.get("sha256")),
+                "Diagnostic companion is not bound to the catalog export");
+        require("exported_snapshot".equals(CatalogValues
+                .object(CatalogJson.decode(new String(failureBytes, StandardCharsets.UTF_8))).get("evidence")),
+                "Export claims live diagnostic state");
         Map<String, Object> file = CatalogValues.object(((List<?>) manifest.get("files")).get(0));
         Path records = result.getDirectory().toPath().resolve(NativeAuthoringCatalog.RECORDS_FILE);
         require(CatalogFingerprint.sha256(records).equals(file.get("sha256")), "Authoring payload hash mismatch");
@@ -132,7 +141,8 @@ public final class NativeDebugExportTest {
         // interoperability gate.
         Path directory = Paths.get("build", "native-authoring-fixture");
         Files.createDirectories(directory);
-        for (String name : new String[]{NativeAuthoringCatalog.MANIFEST_FILE, NativeAuthoringCatalog.RECORDS_FILE}) {
+        for (String name : new String[]{NativeAuthoringCatalog.MANIFEST_FILE, NativeAuthoringCatalog.RECORDS_FILE,
+                "native_failures.json"}) {
             Files.copy(result.getDirectory().toPath().resolve(name), directory.resolve(name),
                     StandardCopyOption.REPLACE_EXISTING);
         }

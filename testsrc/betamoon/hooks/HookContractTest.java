@@ -1,5 +1,8 @@
 package betamoon.hooks;
 
+import betamoon.interop.catalog.CatalogValues;
+import betamoon.interop.discovery.NativeIndexSnapshot;
+import betamoon.interop.discovery.NativeQueryService;
 import betamoon.instrumentation.diagnostics.TransformationReport;
 import betamoon.instrumentation.mapping.TinyMappingResolver;
 import betamoon.instrumentation.transform.BetaMoonTransformer;
@@ -15,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.luaj.vm2.Globals;
@@ -174,6 +178,36 @@ public final class HookContractTest {
         Class<?> target = Class.forName(TARGET, false, loader);
         require(prepared.status().stream().filter(row -> "HOOK_SITE".equals(row.get("kind")))
                 .allMatch(row -> "applied".equals(row.get("status"))), "all method sites applied");
+        Map<String, Object> inspected = prepared.status().stream()
+                .filter(row -> "HOOK_SITE".equals(row.get("kind"))
+                        && row.get("target").toString().endsWith(".calculate(IJDLjava/lang/Object;)I"))
+                .findFirst().get();
+        require(((Number) ((Map<?, ?>) inspected.get("matchCounts")).get("methods")).intValue() == 1,
+                "hook inspection exact method count");
+        require(((List<?>) inspected.get("installedCapabilities")).contains("result_edit"),
+                "hook inspection installed editing capability");
+        require(((List<?>) inspected.get("namespaceCandidates")).contains("named"),
+                "hook inspection resolved namespace");
+        require(Boolean.FALSE.equals(((Map<?, ?>) inspected.get("provenance")).get("laterTransformersObserved")),
+                "hook inspection does not claim later transformer visibility");
+        require(prepared.status().stream().filter(row -> "HOOK_DECLARATION".equals(row.get("kind")))
+                .allMatch(row -> !((List<?>) row.get("targets")).isEmpty()), "declarations link to exact sites");
+        String inspectedTarget = (String) inspected.get("target");
+        prepared.diagnose("owner,other", inspectedTarget, "match_failed", "inspection fixture");
+        Map<String, Object> linked = prepared.status().stream()
+                .filter(row -> "HOOK_DIAGNOSTIC".equals(row.get("kind")) && inspectedTarget.equals(row.get("target")))
+                .findFirst().get();
+        require(((List<?>) linked.get("owners")).contains("owner"), "group diagnostics retain exact owner links");
+        require("inspect_hook_site".equals(((Map<?, ?>) linked.get("guidance")).get("code")),
+                "group diagnostics include actionable guidance");
+        NativeIndexSnapshot evidence = NativeIndexSnapshot.empty().withHooks(prepared.status(), prepared.revision(),
+                "available");
+        List<?> query = (List<?>) NativeQueryService
+                .query(evidence, CatalogValues.record("kind", "hooks", "owner", "owner", "name", inspectedTarget))
+                .get("items");
+        require(query.size() >= 2, "existing query finds shared sites and their linked refusals by owner");
+        require(query.stream().allMatch(row -> "captured_hook_status".equals(((Map<?, ?>) row).get("evidence"))),
+                "query labels captured evidence without a runtime activation claim");
         require(System.getProperty("betamoon.hookFixture.initialized") == null, "load does not initialize target");
         Object receiver = target.newInstance();
         Method method = target.getMethod("calculate", int.class, long.class, double.class, Object.class);

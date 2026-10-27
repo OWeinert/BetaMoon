@@ -1,6 +1,7 @@
 package betamoon.hooks;
 
 import betamoon.interop.catalog.CatalogValues;
+import betamoon.interop.diagnostics.NativeDiagnosticEvidence;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -362,7 +363,7 @@ public final class HookDispatcher {
                             failure instanceof HookFailure
                                     ? ((HookFailure) failure).reason
                                     : definition.edit ? "callback_failed" : "callback_disabled",
-                            definition.file + " [" + phase + "]: " + failure.getMessage());
+                            definition.file + " [" + phase + "]: " + NativeDiagnosticEvidence.message(failure));
                 }
                 if (definition.edit) {
                     throw new HookCallbackFailure("Hook " + definition.key() + " failed at " + phase, failure);

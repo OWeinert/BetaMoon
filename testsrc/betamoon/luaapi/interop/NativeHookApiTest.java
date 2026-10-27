@@ -11,6 +11,7 @@ import betamoon.interop.binding.NativeNames;
 import betamoon.interop.catalog.CatalogValues;
 import betamoon.interop.discovery.NativeIndexSnapshot;
 import betamoon.interop.discovery.NativeLoaderRegistry;
+import betamoon.interop.diagnostics.NativeDiagnosticEvidenceTest.HostileFailure;
 import betamoon.interop.discovery.NativeQueryService;
 import betamoon.interop.reference.NativeMemberRef;
 import betamoon.interop.reference.NativeTypeRef;
@@ -110,6 +111,26 @@ public final class NativeHookApiTest {
         require(target.getMethod("longValue", long.class).invoke(null, 1L).equals(Long.MIN_VALUE),
                 "exact long early return");
         wide.close();
+        HostileFailure.calls = 0;
+        HostileFailure originalFailure = new HostileFailure("hostile native body", new IllegalStateException("inner"));
+        target.getField("injectedFailure").set(null, originalFailure);
+        HookDispatcher.Subscription causeObserver = subscribe(preparation, target, globals, bindings, "lua_causes",
+                "calculate", "(IJDLjava/lang/Object;)I", "error",
+                "capturedNativeError=call.exception; assert(call.exception.message=='hostile native body'); "
+                        + "assert(#call.exception.nativeCauses.chain==2); "
+                        + "assert(call.exception.nativeCauses.chain[2].message=='inner'); error('observer failed')",
+                false);
+        try {
+            method.invoke(receiver, -2, 2L, 3.0, null);
+            throw new AssertionError("native exception was consumed");
+        } catch (InvocationTargetException expected) {
+            require(expected.getCause() == originalFailure, "observer failure preserves native exception identity");
+        }
+        globals.load("assert(capturedNativeError.message=='hostile native body'); "
+                + "assert(capturedNativeError.nativeCauses.chain[2].message=='inner')").call();
+        require(HostileFailure.calls == 0, "hook diagnostics invoke no foreign exception getters");
+        causeObserver.close();
+        target.getField("injectedFailure").set(null, null);
         bindings.close();
         loaders.close();
         System.out.println(
@@ -121,7 +142,8 @@ public final class NativeHookApiTest {
             boolean edits) {
         String text = "local bm=betamoon; local T=bm.native:type('" + target.getName() + "'); " + "local M=T:method('"
                 + method + "','" + descriptor + "'); local r=bm.hooks:createRegistry(); " + "r:register({id='" + id
-                + "',target=M,at='" + at + "',effects='edit'},function(call) " + body + " end)";
+                + "',target=M,at='" + at + "',effects='" + (at.equals("error") ? "observe" : "edit")
+                + "'},function(call) " + body + " end)";
         HookFileCollectionContext.Registration registered = HookDeclarations
                 .evaluate("owner", "hooks/lua.lua", text, 4, globals, new HookDeclarations.Budget()).get(0);
         int site = preparation.targets(registered.definition).get(0).id;
