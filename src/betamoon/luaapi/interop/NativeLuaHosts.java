@@ -12,6 +12,7 @@ import betamoon.interop.value.NativeConversions;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luamodloader.ScriptExecution;
 import java.lang.reflect.Method;
+import java.lang.ref.WeakReference;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.luaj.vm2.LuaTable;
@@ -119,23 +120,7 @@ final class NativeLuaHosts {
                 table.set("native", NativeAccessApi.contextAccess(context));
                 Object receiver = implementation.value.use(context);
                 table.set("receiver", host.result(receiver, context, false));
-                table.set("callSuper", NativeLuaSupport.scopedFunction(table, context, input -> {
-                    context.require(NativeContext.Effect.UNKNOWN, true);
-                    if (input.narg() != method.getParameterCount()) {
-                        throw new NativeAccessFailure("invalid_native_host_arguments",
-                                "callSuper requires the exact parameter list");
-                    }
-                    Object[] values = host.arguments(input, context);
-                    Class<?>[] types = method.getParameterTypes();
-                    for (int index = 0; index < values.length; index++) {
-                        context.bindings.validateNull(values[index], types[index], context);
-                        values[index] = NativeConversions.convert(values[index], types[index]);
-                    }
-                    Object value = shape.callSuper(slot, receiver, values);
-                    context.check();
-                    context.bindings.interfaces.requireLive(implementation, context);
-                    return method.getReturnType() == Void.TYPE ? LuaValue.NONE : host.result(value, context, false);
-                }));
+                table.set("callSuper", superCall(table, host, context, implementation, shape, slot, receiver));
                 LuaValue[] values = new LuaValue[arguments.length + 1];
                 values[0] = table;
                 for (int index = 0; index < arguments.length; index++) {
@@ -162,4 +147,31 @@ final class NativeLuaHosts {
         }, table);
         return result[0];
     }
+
+    private static LuaValue superCall(NativeCallbackTable table, NativeAccessApi host, NativeContext context,
+            NativeImplementation implementation, NativeHostShape shape, int slot, Object receiver) {
+        context.retainMetadata(shape);
+        WeakReference<NativeHostShape> shapeReference = new WeakReference<>(shape);
+        int receiverIdentity = context.retainScoped(receiver);
+        return NativeLuaSupport.scopedFunction(table, context, input -> {
+            context.require(NativeContext.Effect.UNKNOWN, true);
+            NativeHostShape activeShape = shapeReference.get();
+            Method method = activeShape.methods.get(slot);
+            if (input.narg() != method.getParameterCount()) {
+                throw new NativeAccessFailure("invalid_native_host_arguments",
+                        "callSuper requires the exact parameter list");
+            }
+            Object[] values = host.arguments(input, context);
+            Class<?>[] types = method.getParameterTypes();
+            for (int index = 0; index < values.length; index++) {
+                context.bindings.validateNull(values[index], types[index], context);
+                values[index] = NativeConversions.convert(values[index], types[index]);
+            }
+            Object value = activeShape.callSuper(slot, context.value(receiverIdentity), values);
+            context.check();
+            context.bindings.interfaces.requireLive(implementation, context);
+            return method.getReturnType() == Void.TYPE ? LuaValue.NONE : host.result(value, context, false);
+        });
+    }
+
 }

@@ -1,6 +1,8 @@
 package betamoon.luaapi.interop;
 
 import betamoon.interop.binding.NativeMemberPlan;
+import betamoon.interop.runtime.NativeContext;
+import java.lang.ref.WeakReference;
 import betamoon.interop.reference.NativeMemberRef;
 import betamoon.interop.reference.NativeTypeRef;
 import java.util.HashMap;
@@ -13,12 +15,18 @@ abstract class NativeLuaHandle extends LuaValue {
     protected final Map<String, LuaValue> properties = new HashMap<>();
     NativeTypeRef diagnosticType;
     NativeMemberRef diagnosticMember;
-    NativeMemberPlan diagnosticPlan;
+    WeakReference<NativeMemberPlan> diagnosticPlan;
     boolean diagnosticDirect;
     private final String label;
 
     NativeLuaHandle(String label) {
         this.label = label;
+    }
+
+    protected WeakReference<NativeMemberPlan> retainPlan(NativeContext context, NativeMemberPlan plan) {
+        context.retainMetadata(plan);
+        diagnosticPlan = new WeakReference<>(plan);
+        return diagnosticPlan;
     }
 
     @Override

@@ -22,6 +22,8 @@ public final class NativeMemberRef {
     public final String names;
     public final String descriptorNames;
     private final String key;
+    private final String managedBindingKey;
+    private final String directBindingKey;
 
     public NativeMemberRef(Kind kind, NativeTypeRef lookupType, NativeTypeRef declaringType, String name,
             String descriptor, String names, String descriptorNames) {
@@ -51,6 +53,8 @@ public final class NativeMemberRef {
         this.descriptorNames = NativeTypeRef.policy(descriptorNames);
         key = kind + ":" + lookupType.key() + ":" + (declaringType == null ? "" : declaringType.key()) + ":" + name
                 + ":" + descriptor + ":" + this.names + ":" + this.descriptorNames;
+        managedBindingKey = key + ":false";
+        directBindingKey = key + ":true";
     }
 
     public List<NativeTypeRef> parameters() {
@@ -77,6 +81,10 @@ public final class NativeMemberRef {
 
     public String key() {
         return key;
+    }
+
+    public String bindingKey(boolean direct) {
+        return direct ? directBindingKey : managedBindingKey;
     }
 
     public static void requireName(String name) {

@@ -276,6 +276,26 @@ public final class NativeMemberPlan {
         }
     }
 
+    /**
+     * Eligible setup only: linkage/adaptation without execution or class
+     * initialization.
+     */
+    public void prepareExecution(NativeContext context, boolean direct) {
+        context.prepare();
+        accessibility(context, direct);
+        if (System.getSecurityManager() != null) {
+            return;
+        }
+        if (member instanceof Field) {
+            getAdapter();
+            if (!Modifier.isFinal(member.getModifiers())) {
+                setAdapter();
+            }
+        } else {
+            callAdapter();
+        }
+    }
+
     private MethodHandle callAdapter() {
         if (!callPrepared) {
             callPrepared = true;

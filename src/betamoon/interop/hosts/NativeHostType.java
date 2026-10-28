@@ -14,6 +14,7 @@ import java.util.Set;
  * native instance.
  */
 public final class NativeHostType {
+    private final String key;
     public final NativeTypeRef base;
     public final NativeMemberRef constructor;
     public final List<NativeMemberRef> overrides;
@@ -35,5 +36,12 @@ public final class NativeHostType {
         this.base = base;
         this.constructor = constructor;
         this.overrides = Collections.unmodifiableList(new ArrayList<>(overrides));
+        List<String> sorted = new ArrayList<>(keys);
+        Collections.sort(sorted);
+        key = base.key() + ":" + constructor.key() + ":" + String.join(";", sorted);
+    }
+
+    public String key() {
+        return key;
     }
 }

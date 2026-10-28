@@ -59,6 +59,7 @@ public final class NativeBindingApiTest {
             verify(work);
             NativeOrdinaryLookupTest.run();
             NativeInvokerContractTest.run();
+            NativeCacheContractTest.run();
         } finally {
             Path target = work.toRealPath();
             require(target.getParent().equals(parent) && target.getFileName().toString().startsWith("native-binding-"),

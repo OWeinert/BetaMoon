@@ -2,6 +2,8 @@ package betamoon.interop.hosts;
 
 import betamoon.interop.binding.NativeAccessFailure;
 import betamoon.interop.binding.NativeBindings;
+import betamoon.interop.cache.NativeLookupCache;
+import java.lang.ref.WeakReference;
 import betamoon.interop.binding.NativeMemberPlan;
 import betamoon.interop.catalog.CatalogFingerprint;
 import betamoon.interop.runtime.NativeContext;
@@ -32,6 +34,8 @@ public final class NativeHostShapes {
         }
     };
     private final NativeBindings bindings;
+    private final Map<String, WeakReference<NativeHostShape>> validated = new NativeLookupCache<>(64);
+    private long validatedRevision = -1;
     private final Set<String> admitted = new HashSet<>();
     private final Set<String> attempted = new HashSet<>();
 
@@ -43,6 +47,16 @@ public final class NativeHostShapes {
         context.prepare();
         if (context.bindings != bindings) {
             throw invalid("host shape belongs to another native session");
+        }
+        long observed = bindings.bindingRevision();
+        if (validatedRevision != observed) {
+            validated.clear();
+            validatedRevision = observed;
+        }
+        WeakReference<NativeHostShape> previous = validated.get(type.key());
+        NativeHostShape prepared = previous == null ? null : previous.get();
+        if (prepared != null) {
+            return prepared;
         }
         Class<?> base = bindings.type(type.base, context);
         if (base.isInterface() || Modifier.isFinal(base.getModifiers()) || !publicType(base)) {
@@ -144,6 +158,11 @@ public final class NativeHostShapes {
                 cache.shapes.put(key, shape);
             }
             admitted.add(admission);
+            if (validatedRevision != bindings.bindingRevision()) {
+                validated.clear();
+            }
+            validatedRevision = bindings.bindingRevision();
+            validated.put(type.key(), new WeakReference<>(shape));
             return shape;
         }
     }
@@ -152,7 +171,13 @@ public final class NativeHostShapes {
         return admitted.size();
     }
 
+    /** Eviction/refresh never resets session generation admission. */
     public void clear() {
+        validated.clear();
+    }
+
+    public void close() {
+        clear();
         admitted.clear();
         attempted.clear();
     }

@@ -255,6 +255,9 @@ public final class NativeDataQueryTest {
         entry(false, "local value,reason=a:sample(basic,o); assert(value==nil and reason=='native_phase_denied')");
         entry(true, "assert(a:sample(basic,o))");
         entry(false, "assert(a:sample(basic,o))");
+        entry(true, "for index=1,70 do assert(a:sample(basic,o)); "
+                + "assert(a:sample(n:dataPlan{type=T,fields={v=T:field('number','I')}},o)) end");
+        entry(false, "assert(a:sample(basic,o))");
         for (int count : new int[]{1, 4, 64, 256}) {
             entry(true, "local requests={}; for i=1," + count + " do requests[i]={receiver=o} end; "
                     + "local result=assert(a:sampleMany(basic,requests)); assert(#result==" + count + "); "

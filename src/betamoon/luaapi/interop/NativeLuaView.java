@@ -9,6 +9,7 @@ import betamoon.interop.reference.NativeTypeRef;
 import betamoon.interop.runtime.NativeContext;
 import betamoon.interop.value.NativeConversions;
 import java.lang.reflect.Array;
+import java.lang.ref.WeakReference;
 import java.util.List;
 import java.util.Map;
 import org.luaj.vm2.LuaValue;
@@ -23,7 +24,9 @@ final class NativeLuaView extends NativeLuaHandle {
     private final NativeAccessApi host;
     private final boolean direct;
     private final NativeTypeRef lookup;
-    private final Class<?> type;
+    private final WeakReference<Class<?>> typeReference;
+    private final boolean array;
+    private final boolean container;
     private final Integer identity;
 
     NativeLuaView(NativeAccessApi host, NativeContext context, boolean direct, Object object) {
@@ -42,7 +45,12 @@ final class NativeLuaView extends NativeLuaHandle {
         this.context = context;
         this.direct = direct;
         this.lookup = lookup;
-        this.type = type;
+        if (identity == null) {
+            context.retainMetadata(type);
+        }
+        typeReference = new WeakReference<>(type);
+        array = type.isArray();
+        container = array || List.class.isAssignableFrom(type) || Map.class.isAssignableFrom(type);
         this.identity = identity;
         this.classView = identity == null;
         diagnosticType = lookup;
@@ -66,7 +74,11 @@ final class NativeLuaView extends NativeLuaHandle {
     }
 
     private boolean container() {
-        return type.isArray() || List.class.isAssignableFrom(type) || Map.class.isAssignableFrom(type);
+        return container;
+    }
+
+    private Class<?> nativeType() {
+        return typeReference.get();
     }
 
     @Override
@@ -78,8 +90,8 @@ final class NativeLuaView extends NativeLuaHandle {
             case "describe":
                 return NativeLuaSupport.scopedFunction(this, context, args -> {
                     NativeContext execution = executionContext();
-                    return host.metadata(CatalogValues.record("type", context.bindings.reference(type), "identity",
-                            classView ? "class" : context.identity(identity), "bound", true, "policy",
+                    return host.metadata(CatalogValues.record("type", context.bindings.reference(nativeType()),
+                            "identity", classView ? "class" : context.identity(identity), "bound", true, "policy",
                             direct ? "direct" : "managed", "context", execution.describe()), true);
                 });
             case "sameObject":
@@ -113,7 +125,7 @@ final class NativeLuaView extends NativeLuaHandle {
                 return NativeLuaSupport.scopedFunction(this, context, args -> {
                     NativeContext execution = host.operationContext(context, args);
                     Object[] input = host.arguments(args, execution);
-                    NativeMemberPlan constructor = execution.bindings.constructor(type, input, execution);
+                    NativeMemberPlan constructor = execution.bindings.constructor(nativeType(), input, execution);
                     return host.result(constructor.callConverted(execution, direct, null,
                             execution.bindings.arguments(constructor, input, execution)), execution, direct);
                 });
@@ -123,10 +135,10 @@ final class NativeLuaView extends NativeLuaHandle {
                 }
                 return NativeLuaSupport.scopedFunction(this, context, args -> {
                     context.require(NativeContext.Effect.INITIALIZE, direct);
-                    if (!type.isEnum()) {
-                        throw new NativeAccessFailure("not_an_enum", type.getName());
+                    if (!nativeType().isEnum()) {
+                        throw new NativeAccessFailure("not_an_enum", nativeType().getName());
                     }
-                    return host.result(enumValue(type, NativeAccessApi.text(args.arg1())), context, direct);
+                    return host.result(enumValue(nativeType(), NativeAccessApi.text(args.arg1())), context, direct);
                 });
             default:
                 return NIL;
@@ -154,7 +166,7 @@ final class NativeLuaView extends NativeLuaHandle {
             if (!helper.isnil()) {
                 return helper;
             }
-            if (!classView && type.isArray() && key.type() == TNUMBER) {
+            if (!classView && array && key.type() == TNUMBER) {
                 Object array = payload(context);
                 return host.result(Array.get(array, NativeAccessApi.integer(key, 0, Array.getLength(array) - 1)),
                         execution, direct);
@@ -198,13 +210,13 @@ final class NativeLuaView extends NativeLuaHandle {
     public void set(LuaValue key, LuaValue value) {
         try {
             context.check();
-            if (!classView && type.isArray() && key.type() == TNUMBER) {
+            if (!classView && array && key.type() == TNUMBER) {
                 context.require(NativeContext.Effect.WRITE, direct);
                 Object array = payload(context);
                 int index = NativeAccessApi.integer(key, 0, Array.getLength(array) - 1);
                 Object input = host.argument(value, context);
-                context.bindings.validateNull(input, type.getComponentType(), context);
-                Array.set(array, index, NativeConversions.convert(input, type.getComponentType()));
+                context.bindings.validateNull(input, nativeType().getComponentType(), context);
+                Array.set(array, index, NativeConversions.convert(input, nativeType().getComponentType()));
                 return;
             }
             String name = NativeAccessApi.text(key);

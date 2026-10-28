@@ -42,6 +42,8 @@ public final class NativeContext implements AutoCloseable {
     public final NativeEntry.Phase phase;
     private Map<String, Object> roots;
     private List<Object> values;
+    private Object firstMetadata;
+    private Map<Object, Boolean> metadataValues;
     private Map<Object, Integer> identities;
     private Map<Integer, NativeOwnedValue> ownedValues;
     private Map<NativeOwnedValue, NativeContext> ownedScopes;
@@ -463,6 +465,33 @@ public final class NativeContext implements AutoCloseable {
         ownedValues.put(identity, token);
     }
 
+    /**
+     * Scope-owned executable metadata: retained Lua handles use weak projections
+     * after close.
+     */
+    public void retainMetadata(Object value) {
+        check();
+        if (firstMetadata == value) {
+            return;
+        }
+        if (firstMetadata == null) {
+            firstMetadata = value;
+            return;
+        }
+        if (metadataValues == null) {
+            metadataValues = new IdentityHashMap<>();
+            metadataValues.put(firstMetadata, Boolean.TRUE);
+        }
+        if (metadataValues.containsKey(value)) {
+            return;
+        }
+        if (metadataValues.size() >= 16384) {
+            throw new NativeAccessFailure("native_value_limit",
+                    "scope exceeds 16384 distinct executable metadata records");
+        }
+        metadataValues.put(value, Boolean.TRUE);
+    }
+
     public String identity(int value) {
         check();
         return "scope-" + identity + ":object-" + value;
@@ -497,6 +526,8 @@ public final class NativeContext implements AutoCloseable {
         }
         ownedScopes = null;
         values = null;
+        metadataValues = null;
+        firstMetadata = null;
         identities = null;
         ownedValues = null;
         roots = Collections.emptyMap();

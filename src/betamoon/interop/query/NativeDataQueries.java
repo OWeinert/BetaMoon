@@ -34,6 +34,7 @@ public final class NativeDataQueries {
     private final NativeBindings bindings;
     private final Map<NativeDataPlan, Prepared> managed = new IdentityHashMap<>();
     private final Map<NativeDataPlan, Prepared> direct = new IdentityHashMap<>();
+    private final Map<Prepared, Boolean> accessOrder = new LinkedHashMap<Prepared, Boolean>(64, 0.75F, true);
     private int cachedNodes;
     private long revision = -1;
 
@@ -44,6 +45,7 @@ public final class NativeDataQueries {
     public void clear() {
         managed.clear();
         direct.clear();
+        accessOrder.clear();
         cachedNodes = 0;
     }
 
@@ -112,11 +114,11 @@ public final class NativeDataQueries {
         Map<NativeDataPlan, Prepared> cache = directAccess ? direct : managed;
         Prepared found = revision == observed ? cache.get(plan) : null;
         if (found != null) {
+            accessOrder.get(found);
             return found;
         }
         context.prepare();
-        if (revision != observed || managed.size() + direct.size() >= 64
-                || plan.nodes > NativeDataPlan.MAXIMUM_WORK - cachedNodes) {
+        if (revision != observed) {
             clear();
         }
         Prepared result = compile(plan, context, directAccess, new IdentityHashMap<>(), "$");
@@ -133,7 +135,15 @@ public final class NativeDataQueries {
             clear();
         }
         revision = bindings.bindingRevision();
+        while (!accessOrder.isEmpty()
+                && (accessOrder.size() >= 64 || plan.nodes > NativeDataPlan.MAXIMUM_WORK - cachedNodes)) {
+            Prepared eldest = accessOrder.keySet().iterator().next();
+            accessOrder.remove(eldest);
+            (eldest.directAccess ? direct : managed).remove(eldest.plan, eldest);
+            cachedNodes -= eldest.plan.nodes;
+        }
         cache.put(plan, result);
+        accessOrder.put(result, Boolean.TRUE);
         cachedNodes += plan.nodes;
         return result;
     }
@@ -145,7 +155,7 @@ public final class NativeDataQueries {
             return previous;
         }
         Class<?> expected = bindings.type(plan.type, context);
-        Prepared result = new Prepared(plan, expected);
+        Prepared result = new Prepared(plan, expected, directAccess);
         seen.put(plan, result);
         for (Selection selection : plan.selections) {
             try {
@@ -507,15 +517,17 @@ public final class NativeDataQueries {
     private static final class Prepared {
         private final NativeDataPlan plan;
         private final Class<?> expected;
+        private final boolean directAccess;
         private final List<BoundSelection> selections = new ArrayList<>();
         private boolean instance;
         private Preflight[] preflight;
         private int argumentSlots;
         private String[] inputNames;
 
-        private Prepared(NativeDataPlan plan, Class<?> expected) {
+        private Prepared(NativeDataPlan plan, Class<?> expected, boolean directAccess) {
             this.plan = plan;
             this.expected = expected;
+            this.directAccess = directAccess;
         }
 
         private void receiver(Object receiver) {

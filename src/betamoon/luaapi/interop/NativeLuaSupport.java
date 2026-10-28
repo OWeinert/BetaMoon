@@ -42,8 +42,8 @@ final class NativeLuaSupport {
                 if (context.bindings != null) {
                     throw context.bindings.explain(failure, handle == null ? null : handle.diagnosticType,
                             handle == null ? null : handle.diagnosticMember,
-                            handle == null ? null : handle.diagnosticPlan, context,
-                            handle != null && handle.diagnosticDirect);
+                            handle == null || handle.diagnosticPlan == null ? null : handle.diagnosticPlan.get(),
+                            context, handle != null && handle.diagnosticDirect);
                 }
                 throw failure;
             }

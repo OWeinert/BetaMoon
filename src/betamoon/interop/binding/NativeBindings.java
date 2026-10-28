@@ -1,6 +1,7 @@
 package betamoon.interop.binding;
 
 import betamoon.interop.catalog.CatalogValues;
+import betamoon.interop.cache.NativeLookupCache;
 import betamoon.interop.catalog.JvmDescriptors;
 import betamoon.interop.client.NativeClientSessions;
 import betamoon.interop.discovery.NativeIndexSnapshot;
@@ -52,26 +53,38 @@ public final class NativeBindings {
     private volatile int cachedTypeSelectors;
     private final Map<String, Long> failures = new HashMap<>();
     private final NativeFailureJournal failureJournal = new NativeFailureJournal();
-    private final Map<String, WeakReference<Class<?>>> types = new HashMap<>();
-    private final ClassValue<Map<String, NativeMemberPlan>> plans = new ClassValue<Map<String, NativeMemberPlan>>() {
+    private final Map<String, WeakReference<Class<?>>> types = new NativeLookupCache<>(1024);
+    private long typeRevision = -1;
+    private final ClassValue<RevisionCache<NativeMemberPlan>> plans = new ClassValue<RevisionCache<NativeMemberPlan>>() {
         @Override
-        protected Map<String, NativeMemberPlan> computeValue(Class<?> type) {
-            return new HashMap<>();
+        protected RevisionCache<NativeMemberPlan> computeValue(Class<?> type) {
+            return new RevisionCache<>();
         }
     };
-    private final ClassValue<Map<String, List<NativeMemberPlan>>> methodSets = new ClassValue<Map<String, List<NativeMemberPlan>>>() {
+    private final ClassValue<RevisionCache<List<NativeMemberPlan>>> methodSets = new ClassValue<RevisionCache<List<NativeMemberPlan>>>() {
         @Override
-        protected Map<String, List<NativeMemberPlan>> computeValue(Class<?> type) {
-            return new HashMap<>();
+        protected RevisionCache<List<NativeMemberPlan>> computeValue(Class<?> type) {
+            return new RevisionCache<>();
+        }
+    };
+    private final ClassValue<RevisionCache<NativeOrdinaryMember>> ordinaryMembers = new ClassValue<RevisionCache<NativeOrdinaryMember>>() {
+        @Override
+        protected RevisionCache<NativeOrdinaryMember> computeValue(Class<?> type) {
+            return new RevisionCache<>();
         }
     };
 
-    private final ClassValue<Map<String, NativeOrdinaryMember>> ordinaryMembers = new ClassValue<Map<String, NativeOrdinaryMember>>() {
-        @Override
-        protected Map<String, NativeOrdinaryMember> computeValue(Class<?> type) {
-            return new LinkedHashMap<>();
+    private static final class RevisionCache<V> {
+        private final Map<String, V> values = new NativeLookupCache<>(512);
+        private long revision = -1;
+        private Map<String, V> at(long current) {
+            if (revision != current) {
+                values.clear();
+                revision = current;
+            }
+            return values;
         }
-    };
+    }
 
     public NativeBindings(NativeNames names, NativeLoaderRegistry loaders) {
         this(names, loaders, NativeIndexSnapshot::empty);
@@ -200,7 +213,7 @@ public final class NativeBindings {
         } finally {
             closed = true;
             dataQueries.clear();
-            hostShapes.clear();
+            hostShapes.close();
             types.clear();
             cachedTypeSelectors = 0;
         }
@@ -238,7 +251,13 @@ public final class NativeBindings {
 
     private Class<?> resolveType(NativeTypeRef reference, NativeContext context) {
         context.check();
-        String key = reference.key() + ":" + loaders.bindingRevision();
+        long observedRevision = loaders.bindingRevision();
+        if (typeRevision != observedRevision) {
+            types.clear();
+            typeRevision = observedRevision;
+            cachedTypeSelectors = 0;
+        }
+        String key = reference.key();
         WeakReference<Class<?>> cached = types.get(key);
         Class<?> result = cached == null ? null : cached.get();
         if (result != null) {
@@ -289,10 +308,9 @@ public final class NativeBindings {
                     : new NativeAccessFailure("missing_dependency", reference.name(), dependency);
         }
         result = candidates.iterator().next();
-        if (types.size() >= 1024) {
-            dataQueries.clear();
-            hostShapes.clear();
+        if (typeRevision != loaders.bindingRevision()) {
             types.clear();
+            typeRevision = loaders.bindingRevision();
         }
         types.put(key, new WeakReference<>(result));
         cachedTypeSelectors = types.size();
@@ -309,8 +327,8 @@ public final class NativeBindings {
 
     private NativeMemberPlan resolveExact(NativeMemberRef reference, NativeContext context, boolean direct) {
         Class<?> lookup = type(reference.lookupType, context);
-        Map<String, NativeMemberPlan> cache = plans.get(lookup);
-        String key = reference.key() + ":" + direct;
+        Map<String, NativeMemberPlan> cache = plans.get(lookup).at(loaders.bindingRevision());
+        String key = reference.bindingKey(direct);
         NativeMemberPlan previous = cache.get(key);
         if (previous != null) {
             return previous;
@@ -370,10 +388,7 @@ public final class NativeBindings {
         if (selected.nonPublic && !direct) {
             throw new NativeAccessFailure("nonpublic_requires_direct", selected.identity());
         }
-        selected.accessibility(context, direct);
-        if (cache.size() >= 512) {
-            cache.clear();
-        }
+        selected.prepareExecution(context, direct);
         cache.put(key, selected);
         return selected;
     }
@@ -395,7 +410,7 @@ public final class NativeBindings {
             throw new IllegalArgumentException("invalid_member_name");
         }
         Class<?> lookup = type(reference, context);
-        Map<String, NativeOrdinaryMember> cache = ordinaryMembers.get(lookup);
+        Map<String, NativeOrdinaryMember> cache = ordinaryMembers.get(lookup).at(loaders.bindingRevision());
         String key = reference.names + ":" + name + ":" + isStatic;
         NativeOrdinaryMember found = cache.get(key);
         if (found != null) {
@@ -423,8 +438,8 @@ public final class NativeBindings {
         boolean method = fields <= 1 && !methods(reference, name, isStatic, context).isEmpty();
         found = new NativeOrdinaryMember(field != null && !field.nonPublic && field.isStatic == isStatic ? field : null,
                 method, fields > 1);
-        if (cache.size() >= 512) {
-            cache.remove(cache.keySet().iterator().next());
+        if (found.field != null) {
+            found.field.prepareExecution(context, false);
         }
         cache.put(key, found);
         return found.requireUnambiguousFields(name);
@@ -438,7 +453,7 @@ public final class NativeBindings {
             NativeContext context) {
         Class<?> lookup = type(reference, context);
         String cacheKey = name + ":" + reference.names + ":" + isStatic;
-        Map<String, List<NativeMemberPlan>> cache = methodSets.get(lookup);
+        Map<String, List<NativeMemberPlan>> cache = methodSets.get(lookup).at(loaders.bindingRevision());
         if (cache.containsKey(cacheKey)) {
             return cache.get(cacheKey);
         }
@@ -469,15 +484,15 @@ public final class NativeBindings {
         }
         candidates.sort(Comparator.comparing(NativeMemberPlan::identity));
         List<NativeMemberPlan> result = Collections.unmodifiableList(candidates);
-        if (cache.size() >= 512) {
-            cache.clear();
+        for (NativeMemberPlan candidate : candidates) {
+            candidate.prepareExecution(context, false);
         }
         cache.put(cacheKey, result);
         return result;
     }
 
     public NativeMemberPlan constructor(Class<?> type, Object[] arguments, NativeContext context) {
-        Map<String, List<NativeMemberPlan>> cache = methodSets.get(type);
+        Map<String, List<NativeMemberPlan>> cache = methodSets.get(type).at(loaders.bindingRevision());
         List<NativeMemberPlan> candidates = cache.get("<constructors>");
         if (candidates == null) {
             context.prepare();
@@ -492,6 +507,9 @@ public final class NativeBindings {
                 throw new NativeAccessFailure("missing_dependency", type.getName(), exception);
             } catch (SecurityException exception) {
                 throw new NativeAccessFailure("access_denied", type.getName(), exception);
+            }
+            for (NativeMemberPlan candidate : candidates) {
+                candidate.prepareExecution(context, false);
             }
             candidates = Collections.unmodifiableList(candidates);
             cache.put("<constructors>", candidates);

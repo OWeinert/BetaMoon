@@ -6,6 +6,7 @@ import betamoon.interop.catalog.CatalogValues;
 import betamoon.interop.reference.NativeMemberRef;
 import betamoon.interop.runtime.NativeContext;
 import java.util.Locale;
+import java.lang.ref.WeakReference;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
 
@@ -14,7 +15,7 @@ final class NativeLuaMethod extends NativeLuaHandle {
     private final NativeAccessApi host;
     private final NativeContext context;
     private final boolean direct;
-    private final NativeMemberPlan plan;
+    private final WeakReference<NativeMemberPlan> planReference;
 
     NativeLuaMethod(NativeAccessApi host, NativeContext context, boolean direct, NativeMemberRef reference) {
         super("Native selected " + reference.kind + "(" + reference.name + ")");
@@ -25,13 +26,13 @@ final class NativeLuaMethod extends NativeLuaHandle {
             throw new NativeAccessFailure("field_requires_receiver",
                     "select a field through a bound object/class view");
         }
-        this.plan = context.bindings.exact(reference, context, direct);
+        planReference = retainPlan(context, context.bindings.exact(reference, context, direct));
         diagnosticType = reference.lookupType;
         diagnosticMember = reference;
-        diagnosticPlan = plan;
         diagnosticDirect = direct;
         properties.put("describe", NativeLuaSupport.scopedFunction(this, context, args -> {
             context.check();
+            NativeMemberPlan plan = planReference.get();
             return host.metadata(CatalogValues.record("identity", plan.identity(), "descriptor", plan.descriptor,
                     "effect", plan.isStatic ? "initialize" : plan.effect.name().toLowerCase(Locale.ROOT),
                     "effectConfidence", plan.effect == NativeContext.Effect.UNKNOWN ? "unknown" : "curated",
@@ -47,6 +48,7 @@ final class NativeLuaMethod extends NativeLuaHandle {
 
     Varargs callSelected(Varargs arguments) {
         context.check();
+        NativeMemberPlan plan = planReference.get();
         if (arguments.narg() < 1) {
             throw new NativeAccessFailure("receiver_required", "supply an instance receiver or an explicit nil");
         }
@@ -60,6 +62,7 @@ final class NativeLuaMethod extends NativeLuaHandle {
 
     Varargs construct(Varargs arguments) {
         context.check();
+        NativeMemberPlan plan = planReference.get();
         NativeContext execution = host.operationContext(context, arguments);
         Object[] converted = execution.bindings.arguments(plan, host.arguments(arguments, execution), execution);
         return host.result(plan.callConverted(execution, direct, null, converted), execution, direct);

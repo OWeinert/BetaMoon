@@ -2,6 +2,7 @@ package betamoon.luaapi.interop;
 
 import betamoon.interop.binding.NativeAccessFailure;
 import betamoon.interop.catalog.CatalogValues;
+import betamoon.interop.cache.NativeLookupCache;
 import betamoon.interop.diagnostics.NativeDiagnosticGuidance;
 import betamoon.interop.discovery.NativeIndexSnapshot;
 import betamoon.interop.reference.NativeMemberRef;
@@ -36,13 +37,10 @@ public final class NativeAccessApi {
 
     NativeLuaReference reference(NativeTypeRef reference) {
         if (typeReferences == null) {
-            typeReferences = new LinkedHashMap<>();
+            typeReferences = new NativeLookupCache<>(256);
         }
         NativeLuaReference found = typeReferences.get(reference.key());
         if (found == null) {
-            if (typeReferences.size() >= 256) {
-                typeReferences.remove(typeReferences.keySet().iterator().next());
-            }
             found = new NativeLuaReference(this, reference);
             typeReferences.put(reference.key(), found);
         }
@@ -51,13 +49,10 @@ public final class NativeAccessApi {
 
     NativeLuaReference reference(NativeMemberRef reference) {
         if (memberReferences == null) {
-            memberReferences = new LinkedHashMap<>();
+            memberReferences = new NativeLookupCache<>(256);
         }
         NativeLuaReference found = memberReferences.get(reference.key());
         if (found == null) {
-            if (memberReferences.size() >= 256) {
-                memberReferences.remove(memberReferences.keySet().iterator().next());
-            }
             found = new NativeLuaReference(this, reference);
             memberReferences.put(reference.key(), found);
         }
