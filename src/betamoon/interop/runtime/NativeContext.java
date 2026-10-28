@@ -34,6 +34,7 @@ public final class NativeContext implements AutoCloseable {
     private final Thread thread = Thread.currentThread();
     private final String owner;
     private final long ownerGeneration;
+    private final ScriptResourceTracker.OwnerGeneration ownerState;
     private final LuaCallbackScope callback;
     private final boolean mutable;
     private final NativePermissions permissions;
@@ -65,7 +66,8 @@ public final class NativeContext implements AutoCloseable {
             }
         }
         this.owner = owner;
-        this.ownerGeneration = ScriptResourceTracker.ownerGeneration(owner);
+        this.ownerState = ScriptResourceTracker.ownerToken(owner);
+        this.ownerGeneration = ownerState.current();
         this.callback = callback;
         NativePermissions permitted = requested;
         if (requested.allows(NativePermissions.Capability.GAMEPLAY) && !callback.isMutable()) {
@@ -89,6 +91,7 @@ public final class NativeContext implements AutoCloseable {
         dataBudget = source.dataBudget;
         owner = source.owner;
         ownerGeneration = source.ownerGeneration;
+        ownerState = source.ownerState;
         callback = source.callback;
         mutable = source.mutable;
         permissions = source.permissions;
@@ -169,6 +172,14 @@ public final class NativeContext implements AutoCloseable {
 
     public String owner() {
         check();
+        return owner;
+    }
+
+    /**
+     * Same-package lifecycle bookkeeping only, after the caller has checked this
+     * context.
+     */
+    String ownerIdentity() {
         return owner;
     }
 
@@ -318,13 +329,10 @@ public final class NativeContext implements AutoCloseable {
             throw new NativeAccessFailure("native_context_unavailable", "this callback permits native metadata only");
         }
         bindings.requireThread();
-        if (Thread.currentThread() != thread) {
-            throw new NativeAccessFailure("wrong_thread", "native scope belongs to the client thread");
-        }
         if (!active) {
             throw new NativeAccessFailure("expired_scope", "native views expire when their callback returns");
         }
-        if (ScriptResourceTracker.ownerGeneration(owner) != ownerGeneration) {
+        if (!ownerState.matches(ownerGeneration)) {
             throw new NativeAccessFailure("stale_owner", owner);
         }
         String executing = LuaScriptRegistry.getCurrentScriptFile();
@@ -333,15 +341,17 @@ public final class NativeContext implements AutoCloseable {
         }
         callback.requireActive();
         NativeContext current = CURRENT.get();
-        NativeContext anchor = this;
-        while (anchor.lease != null) {
-            anchor = anchor.parent;
-        }
-        while (current != null && current != anchor) {
-            current = current.parent;
-        }
-        if (current == null) {
-            throw new NativeAccessFailure("inactive_scope", "native scope is not on the active context stack");
+        if (current != this) {
+            NativeContext anchor = this;
+            while (anchor.lease != null) {
+                anchor = anchor.parent;
+            }
+            while (current != null && current != anchor) {
+                current = current.parent;
+            }
+            if (current == null) {
+                throw new NativeAccessFailure("inactive_scope", "native scope is not on the active context stack");
+            }
         }
         if (!readable || !CURRENT.get().readable) {
             throw new NativeAccessFailure("native_phase_denied", "an enclosing callback permits native metadata only");
@@ -350,7 +360,7 @@ public final class NativeContext implements AutoCloseable {
             throw new NativeAccessFailure("stale_environment", "world, player or screen identity changed");
         }
         for (NativeContext ancestor = parent; ancestor != null; ancestor = ancestor.parent) {
-            if (!ancestor.active || ScriptResourceTracker.ownerGeneration(ancestor.owner) != ancestor.ownerGeneration) {
+            if (!ancestor.active || !ancestor.ownerState.matches(ancestor.ownerGeneration)) {
                 throw new NativeAccessFailure("stale_owner", "an enclosing callback was invalidated");
             }
             if (ancestor.environment != null && !ancestor.environment.getAsBoolean()) {
@@ -372,9 +382,8 @@ public final class NativeContext implements AutoCloseable {
                 : effect == Effect.UNKNOWN
                         ? NativePermissions.Capability.UNKNOWN_EFFECT
                         : NativePermissions.Capability.INITIALIZATION;
-        requireCapability(capability);
+        checkCapability(capability);
         callback.requireMutable();
-        LuaCallbackScope.requireGameplayWrite();
         LuaCallbackScope.requireUiStateWrite();
         if ((effect == Effect.UNKNOWN || effect == Effect.INITIALIZE) && !direct) {
             throw new NativeAccessFailure("direct_required", "unknown effects or initialization require direct()");
@@ -395,13 +404,20 @@ public final class NativeContext implements AutoCloseable {
 
     private void requireCapability(NativePermissions.Capability capability) {
         check();
-        if (!permissions.allows(capability) || CURRENT.get() == null || !CURRENT.get().permissions.allows(capability)) {
+        checkCapability(capability);
+        LuaCallbackScope.requireNoBindingMutation();
+        LuaCallbackScope.requireUiStateWrite();
+    }
+
+    /**
+     * Called only inside an already checked admission; no native/user code occurs
+     * between these steps.
+     */
+    private void checkCapability(NativePermissions.Capability capability) {
+        if (!permissions.allows(capability) || !CURRENT.get().permissions.allows(capability)) {
             throw new NativeAccessFailure("native_phase_denied",
                     "native entry does not permit " + capability.name().toLowerCase(Locale.ROOT));
         }
-        callback.requireActive();
-        LuaCallbackScope.requireNoBindingMutation();
-        LuaCallbackScope.requireUiStateWrite();
     }
 
     public Object root(String name) {

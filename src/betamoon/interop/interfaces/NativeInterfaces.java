@@ -285,7 +285,7 @@ public final class NativeInterfaces {
         token.value.use(context);
         Entry entry = requireEntry(token);
         if (entry.worldBound && (entry.world != context.root("world") || entry.player != context.root("player"))
-                || entry.hostLease != null && !entry.hostLease.describe().get("state").equals("active")) {
+                || entry.hostLease != null && !entry.hostLease.isActive()) {
             entry.handler.disable("stale_environment");
             throw new NativeAccessFailure("stale_environment", "attachment world/player/host changed");
         }
@@ -318,10 +318,8 @@ public final class NativeInterfaces {
         bindings.requireThread();
         NativeAttachmentDisposal.drain();
         for (Entry entry : new ArrayList<>(entries.values())) {
-            if (entry.generation != ScriptResourceTracker.ownerGeneration(entry.owner)
-                    || !entry.token.value.describe().get("state").equals("active")
-                    || entry.worldBound && (entry.world != world || entry.player != player)
-                    || entry.hostLease != null && !entry.hostLease.describe().get("state").equals("active")) {
+            if (!entry.token.value.isActive() || entry.worldBound && (entry.world != world || entry.player != player)
+                    || entry.hostLease != null && !entry.hostLease.isActive()) {
                 entry.handler.disable("stale_environment");
             }
         }
@@ -447,7 +445,7 @@ public final class NativeInterfaces {
                     throw new NativeAccessFailure("native_implementation_closed", method.getName());
                 }
                 service.bindings.requireThread();
-                if (!token.value.describe().get("state").equals("active")) {
+                if (!token.value.isActive()) {
                     throw new NativeAccessFailure("stale_owner", "native implementation lifetime ended");
                 }
                 MethodCallback selected = dispatch.get(NativeInterfaceContract.key(method));

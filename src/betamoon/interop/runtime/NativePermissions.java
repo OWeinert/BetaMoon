@@ -44,7 +44,14 @@ public final class NativePermissions {
     }
 
     public NativePermissions intersect(NativePermissions other) {
-        return new NativePermissions(bits & other.bits);
+        int intersection = bits & other.bits;
+        if (intersection == bits) {
+            return this;
+        }
+        if (intersection == other.bits) {
+            return other;
+        }
+        return new NativePermissions(intersection);
     }
 
     public List<String> describe() {

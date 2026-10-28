@@ -15,6 +15,7 @@ public final class NativeOwnedValue {
     final long identity;
     final String owner;
     final long generation;
+    private final ScriptResourceTracker.OwnerGeneration ownerState;
     final String lifetime;
     public final NativeTypeRef type;
     private final WeakReference<NativeOwnedValues> registry;
@@ -26,6 +27,7 @@ public final class NativeOwnedValue {
         this.identity = identity;
         this.owner = owner;
         this.generation = generation;
+        ownerState = ScriptResourceTracker.ownerToken(owner);
         this.lifetime = lifetime;
         this.type = type;
     }
@@ -52,12 +54,20 @@ public final class NativeOwnedValue {
         }
     }
 
+    public boolean isActive() {
+        return state.equals("active") && registry.get() != null && generationMatches();
+    }
+
+    boolean generationMatches() {
+        return ownerState.matches(generation);
+    }
+
     public Map<String, Object> describe() {
         String currentState = state;
         if (currentState.equals("active")) {
             if (registry.get() == null) {
                 currentState = "session_closed";
-            } else if (ScriptResourceTracker.ownerGeneration(owner) != generation) {
+            } else if (!generationMatches()) {
                 currentState = "stale_owner";
             }
         }

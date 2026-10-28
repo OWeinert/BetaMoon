@@ -55,6 +55,7 @@ public final class NativeIntegrationApiTest {
         Map<String, Object> measurements = new LinkedHashMap<>();
         try {
             NativeLazyFacadeTest.run(bindings);
+            NativeOwnerGenerationTest.run(bindings);
             cachedCalls(bindings, measurements);
             proxyCalls(bindings, measurements);
             repeatedCleanup(bindings);

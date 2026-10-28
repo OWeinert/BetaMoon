@@ -229,10 +229,10 @@ public final class NativeOwnedValues {
         if (context.bindings != bindings) {
             throw new NativeAccessFailure("wrong_native_session", "owned value belongs to another session");
         }
-        if (!token.owner.equals(context.owner())) {
+        if (!token.owner.equals(context.ownerIdentity())) {
             throw new NativeAccessFailure("wrong_owner", "owned value belongs to another script");
         }
-        if (ScriptResourceTracker.ownerGeneration(token.owner) != token.generation) {
+        if (!token.generationMatches()) {
             Entry entry = entries.get(token.identity);
             if (entry != null) {
                 invalidate(entry, "stale_owner");
