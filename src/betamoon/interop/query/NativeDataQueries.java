@@ -509,8 +509,19 @@ public final class NativeDataQueries {
         public final Map<String, Object> inputs;
 
         public Request(Object receiver, Map<String, Object> inputs) {
+            this(receiver, inputs, true);
+        }
+
+        /** Internal transfer: caller relinquishes a fresh, unaliased input map. */
+        public static Request capturePrivateInputs(Object receiver, Map<String, Object> inputs) {
+            return new Request(receiver, inputs, false);
+        }
+
+        private Request(Object receiver, Map<String, Object> inputs, boolean copy) {
             this.receiver = receiver;
-            this.inputs = Collections.unmodifiableMap(new LinkedHashMap<>(inputs));
+            this.inputs = inputs.isEmpty()
+                    ? Collections.emptyMap()
+                    : Collections.unmodifiableMap(copy ? new LinkedHashMap<>(inputs) : inputs);
         }
     }
 

@@ -1,6 +1,7 @@
 package betamoon.luaapi.interop;
 
 import betamoon.interop.binding.NativeAccessFailure;
+import betamoon.interop.binding.NativeMemberPlan;
 import betamoon.interop.catalog.CatalogValues;
 import betamoon.interop.cache.NativeLookupCache;
 import betamoon.interop.diagnostics.NativeDiagnosticGuidance;
@@ -30,6 +31,13 @@ import org.luaj.vm2.Varargs;
  * an audited current scope.
  */
 public final class NativeAccessApi {
+    private static final Object[] NO_ARGUMENTS = new Object[0];
+    private static final NativeTypeRef LONG = NativeTypeRef.named("long", null, null, null);
+    private static final NativeTypeRef CHAR = NativeTypeRef.named("char", null, null, null);
+    private static final NativeTypeRef FLOAT = NativeTypeRef.named("float", null, null, null);
+    private static final NativeTypeRef DOUBLE = NativeTypeRef.named("double", null, null, null);
+    private static final NativeTypeRef STRING = NativeTypeRef.named("java.lang.String", "runtime", null, null);
+    private Map<LuaValue, String> symbols;
     private final Supplier<NativeIndexSnapshot> snapshots;
 
     private Map<String, NativeLuaReference> typeReferences;
@@ -292,11 +300,55 @@ public final class NativeAccessApi {
         if (values.narg() > 255) {
             throw new NativeAccessFailure("argument_count", "too many native arguments");
         }
-        Object[] result = new Object[values.narg()];
+        Object[] result = values.narg() == 0 ? NO_ARGUMENTS : new Object[values.narg()];
         for (int i = 0; i < result.length; i++) {
             result[i] = argument(values.arg(i + 1), context);
         }
         return result;
+    }
+
+    Object[] arguments(NativeMemberPlan plan, Varargs values, NativeContext context) {
+        if (values.narg() > 255 || values.narg() != plan.parameters.length) {
+            throw new NativeAccessFailure("argument_count", plan.identity());
+        }
+        Object[] result = values.narg() == 0 ? NO_ARGUMENTS : new Object[values.narg()];
+        for (int index = 0; index < result.length; index++) {
+            result[index] = convertedArgument(values.arg(index + 1), plan.parameters[index], context);
+        }
+        return result;
+    }
+
+    Object convertedArgument(LuaValue value, Class<?> target, NativeContext context) {
+        if (value.type() == LuaValue.TNUMBER && target.isPrimitive() && target != Boolean.TYPE
+                && target != Character.TYPE && target != Void.TYPE) {
+            return NativeConversions.numeric(number(value), target);
+        }
+        Object input = argument(value, context);
+        context.bindings.validateNull(input, target, context);
+        return NativeConversions.convert(input, target);
+    }
+
+    String identifier(LuaValue value) {
+        if (value.type() != LuaValue.TSTRING) {
+            return text(value);
+        }
+        if (value.rawlen() > 4096) {
+            throw new IllegalArgumentException("invalid_member_name");
+        }
+        if (symbols == null) {
+            symbols = new NativeLookupCache<>(256);
+        }
+        String found = symbols.get(value);
+        if (found != null) {
+            return found;
+        }
+        String decoded = text(value);
+        NativeMemberRef.requireName(decoded);
+        LuaString string = value.checkstring();
+        // A small substring must not keep an arbitrarily large Lua backing buffer in
+        // the symbol cache.
+        symbols.put(string.m_bytes.length > 4096 ? LuaString.valueOf(decoded) : value, decoded);
+        return decoded;
     }
 
     NativeContext operationContext(NativeContext context, Varargs arguments) {
@@ -316,10 +368,10 @@ public final class NativeAccessApi {
             return NativeLuaExact.NULL;
         }
         if (value instanceof Long) {
-            return new NativeLuaExact(this, new NativeExactValue(NativeTypeRef.named("long", null, null, null), value));
+            return new NativeLuaExact(this, new NativeExactValue(LONG, value));
         }
         if (value instanceof Character) {
-            return new NativeLuaExact(this, new NativeExactValue(NativeTypeRef.named("char", null, null, null), value));
+            return new NativeLuaExact(this, new NativeExactValue(CHAR, value));
         }
         if (value instanceof Boolean) {
             return LuaValue.valueOf((Boolean) value);
@@ -331,8 +383,7 @@ public final class NativeAccessApi {
             double number = ((Number) value).doubleValue();
             return Double.isFinite(number) && !NativeConversions.negativeZero(number)
                     ? LuaValue.valueOf(number)
-                    : new NativeLuaExact(this, new NativeExactValue(
-                            NativeTypeRef.named(value instanceof Float ? "float" : "double", null, null, null), value));
+                    : new NativeLuaExact(this, new NativeExactValue(value instanceof Float ? FLOAT : DOUBLE, value));
         }
         if (value instanceof String) {
             String text = (String) value;
@@ -341,8 +392,7 @@ public final class NativeAccessApi {
             }
             return NativeConversions.validUtf16(text)
                     ? LuaValue.valueOf(text)
-                    : new NativeLuaExact(this,
-                            new NativeExactValue(NativeTypeRef.named("java.lang.String", "runtime", null, null), text));
+                    : new NativeLuaExact(this, new NativeExactValue(STRING, text));
         }
         return new NativeLuaView(this, context, direct, value);
     }
@@ -396,7 +446,7 @@ public final class NativeAccessApi {
         long value;
         if (input.type() == LuaValue.TSTRING) {
             String decimal = text(input);
-            if (!decimal.matches("[+-]?[0-9]+") || decimal.length() > 32) {
+            if (!decimalText(decimal)) {
                 throw new NativeAccessFailure("invalid_long", "expected signed decimal text");
             }
             try {
@@ -411,7 +461,24 @@ public final class NativeAccessApi {
             }
             value = (long) number;
         }
-        return new NativeLuaExact(this, new NativeExactValue(NativeTypeRef.named("long", null, null, null), value));
+        return new NativeLuaExact(this, new NativeExactValue(LONG, value));
+    }
+
+    private static boolean decimalText(String value) {
+        if (value.isEmpty() || value.length() > 32) {
+            return false;
+        }
+        int start = value.charAt(0) == '+' || value.charAt(0) == '-' ? 1 : 0;
+        if (start == value.length()) {
+            return false;
+        }
+        for (int index = start; index < value.length(); index++) {
+            char digit = value.charAt(index);
+            if (digit < '0' || digit > '9') {
+                return false;
+            }
+        }
+        return true;
     }
 
     static LuaTable options(LuaValue value, String... allowed) {
@@ -435,8 +502,7 @@ public final class NativeAccessApi {
             throw new LuaError("native: expected string");
         }
         LuaString string = value.checkstring();
-        return NativeConversions
-                .utf8(Arrays.copyOfRange(string.m_bytes, string.m_offset, string.m_offset + string.m_length));
+        return NativeConversions.utf8(string.m_bytes, string.m_offset, string.m_length);
     }
 
     static String optionalText(LuaValue value) {

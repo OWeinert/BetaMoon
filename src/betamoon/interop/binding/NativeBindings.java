@@ -55,6 +55,18 @@ public final class NativeBindings {
     private final NativeFailureJournal failureJournal = new NativeFailureJournal();
     private final Map<String, WeakReference<Class<?>>> types = new NativeLookupCache<>(1024);
     private long typeRevision = -1;
+    private final ClassValue<ReferenceCache> references = new ClassValue<ReferenceCache>() {
+        @Override
+        protected ReferenceCache computeValue(Class<?> type) {
+            return new ReferenceCache();
+        }
+    };
+
+    private static final class ReferenceCache {
+        private long revision = -1;
+        private NativeTypeRef reference;
+    }
+
     private final ClassValue<RevisionCache<NativeMemberPlan>> plans = new ClassValue<RevisionCache<NativeMemberPlan>>() {
         @Override
         protected RevisionCache<NativeMemberPlan> computeValue(Class<?> type) {
@@ -234,11 +246,18 @@ public final class NativeBindings {
 
     public NativeTypeRef reference(Class<?> type) {
         requireThread();
-        if (type.isPrimitive()) {
-            return NativeTypeRef.named(type.getName(), "runtime", null, null);
+        ReferenceCache cached = references.get(type);
+        long revision = loaders.bindingRevision();
+        if (cached.reference != null && cached.revision == revision) {
+            return cached.reference;
         }
-        return NativeTypeRef.descriptor(JvmDescriptors.remap(Type.getDescriptor(type), names::canonicalName), "auto")
-                .selected(null, loaders.id(type.getClassLoader()), loaders.originId(type));
+        NativeTypeRef reference = type.isPrimitive()
+                ? NativeTypeRef.named(type.getName(), "runtime", null, null)
+                : NativeTypeRef.descriptor(JvmDescriptors.remap(Type.getDescriptor(type), names::canonicalName), "auto")
+                        .selected(null, loaders.id(type.getClassLoader()), loaders.originId(type));
+        cached.reference = reference;
+        cached.revision = loaders.bindingRevision();
+        return reference;
     }
 
     public Class<?> type(NativeTypeRef reference, NativeContext context) {
@@ -396,8 +415,8 @@ public final class NativeBindings {
     public NativeMemberPlan method(NativeTypeRef reference, String name, Object receiver, Object[] arguments,
             NativeContext context) {
         try {
-            return overload(methods(reference, name, receiver == null, context), arguments, context,
-                    reference.name() + "." + name);
+            return overload(methods(reference, name, receiver == null, context), arguments, context, reference.name(),
+                    name);
         } catch (NativeAccessFailure failure) {
             failure.explain(CatalogValues.record("requestedMember", name));
             throw explain(failure, reference, null, null, context, false);
@@ -514,19 +533,29 @@ public final class NativeBindings {
             candidates = Collections.unmodifiableList(candidates);
             cache.put("<constructors>", candidates);
         }
-        return overload(candidates, arguments, context, type.getName() + ".new");
+        return overload(candidates, arguments, context, type.getName(), "new");
     }
 
     public Object[] arguments(NativeMemberPlan plan, Object[] arguments, NativeContext context) {
         if (plan.parameters.length != arguments.length) {
             throw new NativeAccessFailure("argument_count", plan.identity());
         }
-        Object[] converted = new Object[arguments.length];
+        return argumentsOwned(plan, arguments.clone(), context);
+    }
+
+    /**
+     * Internal transfer of a private argument buffer; never use with borrowed
+     * callback/native arrays.
+     */
+    public Object[] argumentsOwned(NativeMemberPlan plan, Object[] arguments, NativeContext context) {
+        if (plan.parameters.length != arguments.length) {
+            throw new NativeAccessFailure("argument_count", plan.identity());
+        }
         for (int i = 0; i < arguments.length; i++) {
             validateNull(arguments[i], plan.parameters[i], context);
-            converted[i] = NativeConversions.convert(arguments[i], plan.parameters[i]);
+            arguments[i] = NativeConversions.convert(arguments[i], plan.parameters[i]);
         }
-        return converted;
+        return arguments;
     }
 
     public void validateNull(Object value, Class<?> target, NativeContext context) {
@@ -540,10 +569,10 @@ public final class NativeBindings {
     }
 
     private NativeMemberPlan overload(List<NativeMemberPlan> candidates, Object[] arguments, NativeContext context,
-            String selector) {
+            String selectorType, String selectorName) {
         NativeMemberPlan best = null;
         int bestCost = Integer.MAX_VALUE;
-        List<String> ties = new ArrayList<>();
+        List<String> ties = null;
         for (NativeMemberPlan candidate : candidates) {
             if (candidate.parameters.length != arguments.length) {
                 continue;
@@ -569,19 +598,26 @@ public final class NativeBindings {
                 }
                 total += cost;
             }
-            if (total >= 0 && total <= bestCost) {
-                if (total < bestCost) {
-                    ties.clear();
-                    best = candidate;
-                    bestCost = total;
+            if (total >= 0 && total < bestCost) {
+                best = candidate;
+                bestCost = total;
+                ties = null;
+            } else if (total >= 0 && total == bestCost) {
+                if (ties == null) {
+                    ties = new ArrayList<>();
+                    ties.add(best.identity());
                 }
                 ties.add(candidate.identity());
             }
         }
-        if (best == null || ties.size() != 1) {
-            Collections.sort(ties);
+        if (best == null || ties != null) {
+            if (ties == null) {
+                ties = Collections.emptyList();
+            } else {
+                Collections.sort(ties);
+            }
             throw new NativeAccessFailure(best == null ? "no_matching_overload" : "ambiguous_overload",
-                    selector + "; candidates " + ties);
+                    selectorType + "." + selectorName + "; candidates " + ties);
         }
         return best;
     }

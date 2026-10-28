@@ -126,8 +126,10 @@ final class NativeLuaView extends NativeLuaHandle {
                     NativeContext execution = host.operationContext(context, args);
                     Object[] input = host.arguments(args, execution);
                     NativeMemberPlan constructor = execution.bindings.constructor(nativeType(), input, execution);
-                    return host.result(constructor.callConverted(execution, direct, null,
-                            execution.bindings.arguments(constructor, input, execution)), execution, direct);
+                    return host.result(
+                            constructor.callConverted(execution, direct, null,
+                                    execution.bindings.argumentsOwned(constructor, input, execution)),
+                            execution, direct);
                 });
             case "enum":
                 if (!classView) {
@@ -162,7 +164,8 @@ final class NativeLuaView extends NativeLuaHandle {
     public LuaValue get(LuaValue key) {
         try {
             NativeContext execution = executionContext();
-            LuaValue helper = super.get(key);
+            String name = key.type() == TSTRING ? host.identifier(key) : null;
+            LuaValue helper = name == null ? super.get(key) : property(name);
             if (!helper.isnil()) {
                 return helper;
             }
@@ -171,8 +174,11 @@ final class NativeLuaView extends NativeLuaHandle {
                 return host.result(Array.get(array, NativeAccessApi.integer(key, 0, Array.getLength(array) - 1)),
                         execution, direct);
             }
-            String name = NativeAccessApi.text(key);
-            NativeOrdinaryMember member = context.bindings.ordinary(lookup, name, classView, context);
+            if (name == null) {
+                name = NativeAccessApi.text(key);
+            }
+            final String selectedName = name;
+            NativeOrdinaryMember member = context.bindings.ordinary(lookup, selectedName, classView, context);
             NativeMemberPlan field = member.field;
             boolean method = member.method;
             if (field != null && method) {
@@ -188,9 +194,10 @@ final class NativeLuaView extends NativeLuaHandle {
                         NativeContext operation = host.operationContext(executionContext(), args);
                         Object receiver = classView ? null : payload(operation);
                         Object[] input = host.arguments(args, operation);
-                        NativeMemberPlan plan = operation.bindings.method(lookup, name, receiver, input, operation);
+                        NativeMemberPlan plan = operation.bindings.method(lookup, selectedName, receiver, input,
+                                operation);
                         Object result = plan.callConverted(operation, direct, receiver,
-                                operation.bindings.arguments(plan, input, operation));
+                                operation.bindings.argumentsOwned(plan, input, operation));
                         return plan.valueType == Void.TYPE ? LuaValue.NONE : host.result(result, operation, direct);
                     } catch (NativeAccessFailure failure) {
                         throw explain(failure, key);
@@ -219,7 +226,7 @@ final class NativeLuaView extends NativeLuaHandle {
                 Array.set(array, index, NativeConversions.convert(input, nativeType().getComponentType()));
                 return;
             }
-            String name = NativeAccessApi.text(key);
+            String name = host.identifier(key);
             if (reserved(name)) {
                 throw new NativeAccessFailure("reserved_member_name", "select the native field through field()");
             }

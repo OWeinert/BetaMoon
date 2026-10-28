@@ -92,7 +92,7 @@ final class NativeLuaAccess extends NativeLuaHandle {
                     Object[] input = host.arguments(args.subargs(4), execution);
                     NativeMemberPlan plan = execution.bindings.method(type, name, receiver, input, execution);
                     Object result = plan.callConverted(execution, direct, receiver,
-                            execution.bindings.arguments(plan, input, execution));
+                            execution.bindings.argumentsOwned(plan, input, execution));
                     return plan.valueType == Void.TYPE ? LuaValue.NONE : host.result(result, execution, direct);
                 });
             case "client":
@@ -119,8 +119,8 @@ final class NativeLuaAccess extends NativeLuaHandle {
                             ? sequence(input.checktable(), 16384)
                             : NativeAccessApi.integer(input, 0, 16384);
                     Object result = Array.newInstance(type, length);
-                    Object[] converted = new Object[length];
                     if (input.istable()) {
+                        Object[] converted = new Object[length];
                         for (int i = 0; i < length; i++) {
                             Object value = host.argument(input.get(i + 1), context);
                             context.bindings.validateNull(value, type, context);

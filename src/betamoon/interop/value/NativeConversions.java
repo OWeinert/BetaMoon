@@ -2,7 +2,6 @@ package betamoon.interop.value;
 
 import betamoon.interop.binding.NativeAccessFailure;
 import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
@@ -23,22 +22,44 @@ public final class NativeConversions {
     }
 
     public static String utf8(byte[] bytes) {
+        return utf8(bytes, 0, bytes.length);
+    }
+
+    public static String utf8(byte[] bytes, int offset, int length) {
+        if (offset < 0 || length < 0 || offset > bytes.length - length) {
+            throw new IndexOutOfBoundsException();
+        }
+        boolean ascii = true;
+        for (int index = offset; index < offset + length; index++) {
+            if (bytes[index] < 0) {
+                ascii = false;
+                break;
+            }
+        }
+        if (ascii) {
+            return new String(bytes, offset, length, StandardCharsets.US_ASCII);
+        }
         try {
             return StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
-                    .onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(bytes)).toString();
+                    .onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(bytes, offset, length))
+                    .toString();
         } catch (CharacterCodingException exception) {
             throw new NativeAccessFailure("invalid_utf8", "native strings require valid UTF-8", exception);
         }
     }
 
     public static boolean validUtf16(String value) {
-        try {
-            StandardCharsets.UTF_8.newEncoder().onMalformedInput(CodingErrorAction.REPORT)
-                    .onUnmappableCharacter(CodingErrorAction.REPORT).encode(CharBuffer.wrap(value));
-            return true;
-        } catch (CharacterCodingException exception) {
-            return false;
+        for (int index = 0; index < value.length(); index++) {
+            char unit = value.charAt(index);
+            if (Character.isHighSurrogate(unit)) {
+                if (++index == value.length() || !Character.isLowSurrogate(value.charAt(index))) {
+                    return false;
+                }
+            } else if (Character.isLowSurrogate(unit)) {
+                return false;
+            }
         }
+        return true;
     }
 
     public static boolean negativeZero(double value) {
@@ -46,9 +67,7 @@ public final class NativeConversions {
     }
 
     public static int cost(Object input, Class<?> target) {
-        try {
-            convert(input, target);
-        } catch (NativeAccessFailure exception) {
+        if (!compatible(input, target)) {
             return -1;
         }
         if (input instanceof NativeExactValue) {
@@ -81,6 +100,69 @@ public final class NativeConversions {
             return target == Boolean.TYPE ? 0 : target == Boolean.class ? 5 : 20;
         }
         return distance(input.getClass(), boxed(target));
+    }
+
+    /**
+     * Same acceptance as convert, without materializing converted boxes or expected
+     * refusal exceptions.
+     */
+    public static boolean compatible(Object input, Class<?> target) {
+        NativeExactValue exact = input instanceof NativeExactValue ? (NativeExactValue) input : null;
+        Object value = exact == null ? input : exact.value;
+        if (value == null) {
+            return exact != null && !target.isPrimitive();
+        }
+        if (!target.isPrimitive() && target.isInstance(value)) {
+            return true;
+        }
+        Class<?> primitive = unboxed(target);
+        if (primitive == Boolean.TYPE && value instanceof Boolean) {
+            return true;
+        }
+        if (primitive == Character.TYPE && exact != null && value instanceof Character) {
+            return true;
+        }
+        if (primitive == Character.TYPE && value instanceof String && ((String) value).length() == 1) {
+            return true;
+        }
+        if (value instanceof Character && primitive != null && widening(Character.TYPE, primitive) >= 0) {
+            return true;
+        }
+        if (!(value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long
+                || value instanceof Float || value instanceof Double) || primitive == null || primitive == Boolean.TYPE
+                || primitive == Character.TYPE) {
+            return false;
+        }
+        if (exact != null && exact.type != null) {
+            Class<?> source = primitive(exact.type.name());
+            if (source == null || source != primitive && widening(source, primitive) < 0) {
+                return false;
+            }
+            if (source == Long.TYPE && primitive == Long.TYPE) {
+                return true;
+            }
+        }
+        double number = ((Number) value).doubleValue();
+        if (!Double.isFinite(number)) {
+            return exact != null && (primitive == Float.TYPE || primitive == Double.TYPE);
+        }
+        if (primitive == Double.TYPE) {
+            return true;
+        }
+        if (primitive == Float.TYPE) {
+            return Float.isFinite((float) number);
+        }
+        double minimum = primitive == Byte.TYPE
+                ? Byte.MIN_VALUE
+                : primitive == Short.TYPE
+                        ? Short.MIN_VALUE
+                        : primitive == Integer.TYPE ? Integer.MIN_VALUE : -SAFE_INTEGER;
+        double maximum = primitive == Byte.TYPE
+                ? Byte.MAX_VALUE
+                : primitive == Short.TYPE
+                        ? Short.MAX_VALUE
+                        : primitive == Integer.TYPE ? Integer.MAX_VALUE : SAFE_INTEGER;
+        return integral(number) && number >= minimum && number <= maximum;
     }
 
     public static Object convert(Object input, Class<?> target) {
@@ -226,11 +308,32 @@ public final class NativeConversions {
     }
 
     private static Class<?> unboxed(Class<?> type) {
-        for (String name : new String[]{"boolean", "byte", "short", "int", "long", "char", "float", "double"}) {
-            Class<?> primitive = primitive(name);
-            if (type == primitive || type == boxed(primitive)) {
-                return primitive;
-            }
+        if (type.isPrimitive()) {
+            return type == Void.TYPE ? null : type;
+        }
+        if (type == Boolean.class) {
+            return Boolean.TYPE;
+        }
+        if (type == Byte.class) {
+            return Byte.TYPE;
+        }
+        if (type == Short.class) {
+            return Short.TYPE;
+        }
+        if (type == Integer.class) {
+            return Integer.TYPE;
+        }
+        if (type == Long.class) {
+            return Long.TYPE;
+        }
+        if (type == Character.class) {
+            return Character.TYPE;
+        }
+        if (type == Float.class) {
+            return Float.TYPE;
+        }
+        if (type == Double.class) {
+            return Double.TYPE;
         }
         return null;
     }

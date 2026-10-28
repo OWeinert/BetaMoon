@@ -3,7 +3,6 @@ package betamoon.luaapi.interop;
 import betamoon.interop.binding.NativeMemberPlan;
 import betamoon.interop.reference.NativeMemberRef;
 import betamoon.interop.runtime.NativeContext;
-import betamoon.interop.value.NativeConversions;
 import org.luaj.vm2.LuaValue;
 import java.lang.ref.WeakReference;
 
@@ -24,10 +23,8 @@ final class NativeLuaField extends NativeLuaHandle {
         properties.put("set", NativeLuaSupport.scopedFunction(this, context, args -> {
             NativeMemberPlan plan = referencePlan.get();
             NativeContext execution = receiver == null ? context : context.ownershipContext(receiver);
-            Object value = host.argument(args.arg1(), execution);
-            execution.bindings.validateNull(value, plan.valueType, execution);
-            plan.setConverted(execution, direct, receiver == null ? null : context.value(receiver),
-                    NativeConversions.convert(value, plan.valueType));
+            Object value = host.convertedArgument(args.arg1(), plan.valueType, execution);
+            plan.setConverted(execution, direct, receiver == null ? null : context.value(receiver), value);
             return LuaValue.NONE;
         }));
     }

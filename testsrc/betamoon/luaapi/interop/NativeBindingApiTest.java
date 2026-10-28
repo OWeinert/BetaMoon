@@ -60,6 +60,7 @@ public final class NativeBindingApiTest {
             NativeOrdinaryLookupTest.run();
             NativeInvokerContractTest.run();
             NativeCacheContractTest.run();
+            NativeConversionContractTest.run();
         } finally {
             Path target = work.toRealPath();
             require(target.getParent().equals(parent) && target.getFileName().toString().startsWith("native-binding-"),
@@ -203,6 +204,8 @@ public final class NativeBindingApiTest {
                         + "arr:setAll(0,{5,6}); assert(arr:snapshot().items[2]==6); "
                         + "local refs=a:array('java.lang.String',{'a',n.NULL}); assert(refs[1]==n.NULL); "
                         + "local list=o.list; assert(list:length()==3 and list:getAt(1)==n.NULL); "
+                        + "local linked=o.linked:snapshot(); assert(linked.detached and #linked.items==3 "
+                        + "and linked.items[2]==n.NULL and linked.items[3]:decimal()=='9223372036854775807'); "
                         + "assert(list:snapshot().detached==false); list:setAt(0,'changed'); "
                         + "list:add(n:long('9007199254740993')); assert(list:length()==4); "
                         + "local map=o.map; map:setAt('key',n:long('9223372036854775807')); "
@@ -224,7 +227,9 @@ public final class NativeBindingApiTest {
                             + "assert(not pcall(function() bound:call(o,3) end)); "
                             + "assert(not pcall(function() a:call(T,'staticEcho',nil,1) end)); "
                             + "assert(not pcall(function() n:withContext(function(x) x:direct():bind('java.util.Date') end) end)); "
-                            + "assert(len:call(n:value('java.lang.String','a'))==1);");
+                            + "assert(len:call(n:value('java.lang.String','a'))==1); "
+                            + "assert(o.linked:snapshot().items[3]:decimal()=='9223372036854775807'); "
+                            + "assert(not pcall(function() o.linked:add(4) end));");
                 }
                 try {
                     run(lua, "o:fail()");

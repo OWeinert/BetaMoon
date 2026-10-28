@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.LinkedList;
 import java.util.Map;
 
 /**
@@ -25,6 +26,7 @@ public class NativeFixtureMod extends NativeFixtureParent {
     public Node optionalNode;
     public static int counter;
     public final List<Object> list = new ArrayList<>();
+    public final List<Object> linked = new LinkedList<>();
     public final Map<Object, Object> map = new HashMap<>();
     public final Number customNumber = new Number() {
         public int intValue() {
@@ -59,6 +61,9 @@ public class NativeFixtureMod extends NativeFixtureParent {
         list.add("first");
         list.add(null);
         list.add(node);
+        linked.add("first");
+        linked.add(null);
+        linked.add(Long.MAX_VALUE);
     }
 
     private NativeFixtureMod(int number) {

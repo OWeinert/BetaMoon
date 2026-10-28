@@ -23,6 +23,7 @@ public final class NativeMemberPlan {
     public final boolean isStatic;
     public final boolean nonPublic;
     public final NativeContext.Effect effect;
+    private final String identity;
     private ClassValue<NativeContext.Effect> virtualEffects;
     private MethodHandle callInvoker;
     private MethodHandle getInvoker;
@@ -72,6 +73,7 @@ public final class NativeMemberPlan {
             descriptor = Type.getDescriptor(valueType);
             effect = NativeContext.Effect.READ;
         }
+        identity = member.getDeclaringClass().getName() + "." + member.getName() + descriptor;
     }
 
     public Object call(NativeContext context, boolean direct, Object receiver, Object[] arguments) {
@@ -330,7 +332,7 @@ public final class NativeMemberPlan {
     }
 
     public String identity() {
-        return member.getDeclaringClass().getName() + "." + member.getName() + descriptor;
+        return identity;
     }
 
     public void prepareInvocation(NativeContext context, boolean direct) {

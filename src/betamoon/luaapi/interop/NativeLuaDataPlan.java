@@ -123,7 +123,7 @@ final class NativeLuaDataPlan extends NativeLuaHandle {
         return ((NativeLuaDataPlan) value).plan;
     }
 
-    static LuaTable plain(LuaValue value, String... allowed) {
+    static LuaTable plain(LuaValue value) {
         LuaValue metatable = value.getmetatable();
         if (!value.istable() || metatable != null && !metatable.isnil()) {
             throw invalid("data query definitions and inputs require plain tables");
@@ -132,6 +132,11 @@ final class NativeLuaDataPlan extends NativeLuaHandle {
         if (table.keyCount() > NativeDataPlan.MAXIMUM_WORK) {
             throw invalid("table exceeds 4096 entries");
         }
+        return table;
+    }
+
+    static LuaTable plain(LuaValue value, String... allowed) {
+        LuaTable table = plain(value);
         if (allowed.length > 0) {
             List<String> keys = Arrays.asList(allowed);
             for (LuaValue key : table.keys()) {

@@ -8,6 +8,7 @@ import betamoon.interop.query.NativeDataQueries.Request;
 import betamoon.interop.runtime.NativeContext;
 import betamoon.interop.value.NativeExactValue;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,14 +38,15 @@ final class NativeLuaDataQueries {
             if (arguments.narg() > (many ? 2 : 3)) {
                 throw new NativeAccessFailure("invalid_data_requests", "unexpected sample arguments");
             }
-            List<Request> requests = new ArrayList<>();
+            List<Request> requests;
             NativeContext execution = context;
             if (many) {
                 LuaTable table = NativeLuaDataPlan.plain(arguments.arg(2));
                 int length = NativeLuaAccess.sequence(table, NativeDataPlan.MAXIMUM_REQUESTS);
+                requests = new ArrayList<>(length);
                 for (int index = 1; index <= length; index++) {
                     try {
-                        LuaTable request = NativeLuaDataPlan.plain(table.rawget(index), "receiver", "inputs");
+                        LuaTable request = requestTable(table.rawget(index));
                         execution = ownership(host, execution, request.rawget("receiver"), request.rawget("inputs"));
                         requests.add(request(host, execution, request.rawget("receiver"), request.rawget("inputs")));
                     } catch (NativeAccessFailure failure) {
@@ -53,7 +55,7 @@ final class NativeLuaDataQueries {
                 }
             } else {
                 execution = ownership(host, execution, arguments.arg(2), arguments.arg(3));
-                requests.add(request(host, execution, arguments.arg(2), arguments.arg(3)));
+                requests = Collections.singletonList(request(host, execution, arguments.arg(2), arguments.arg(3)));
             }
             LuaValue result = (LuaValue) execution.bindings.dataQueries.execute(plan, requests, execution, direct, many,
                     new NativeLuaDataOutput(host, execution));
@@ -77,6 +79,15 @@ final class NativeLuaDataQueries {
         }
     }
 
+    private static LuaTable requestTable(LuaValue value) {
+        LuaTable table = NativeLuaDataPlan.plain(value);
+        int known = (table.rawget("receiver").isnil() ? 0 : 1) + (table.rawget("inputs").isnil() ? 0 : 1);
+        if (table.keyCount() != known) {
+            throw new NativeAccessFailure("invalid_data_plan", "unknown data query option");
+        }
+        return table;
+    }
+
     private static NativeContext ownership(NativeAccessApi host, NativeContext context, LuaValue receiver,
             LuaValue inputs) {
         NativeContext result = host.operationContext(context, receiver);
@@ -91,7 +102,7 @@ final class NativeLuaDataQueries {
     }
 
     private static Request request(NativeAccessApi host, NativeContext context, LuaValue receiver, LuaValue inputs) {
-        Map<String, Object> values = new LinkedHashMap<>();
+        Map<String, Object> values = inputs.isnil() ? Collections.emptyMap() : new LinkedHashMap<>();
         if (!inputs.isnil()) {
             LuaTable table = NativeLuaDataPlan.plain(inputs);
             for (LuaValue key : table.keys()) {
@@ -107,7 +118,7 @@ final class NativeLuaDataQueries {
                 values.put(NativeLuaDataPlan.name(key), host.argument(value, context));
             }
         }
-        return new Request(host.receiver(receiver, context), values);
+        return Request.capturePrivateInputs(host.receiver(receiver, context), values);
     }
 
 }
