@@ -65,14 +65,18 @@ public final class HookEngineCompositionTest {
     }
 
     static int verify() throws Exception {
-        scenario(false, false, false);
-        scenario(true, false, false);
-        scenario(false, true, false);
-        scenario(false, false, true);
+        scenario(false, false, false, false);
+        scenario(false, false, false, true);
+        scenario(true, false, false, true);
+        scenario(true, false, false, false);
+        scenario(false, true, false, false);
+        scenario(false, true, false, true);
+        scenario(false, false, true, false);
         return checks;
     }
 
-    private static void scenario(boolean client, boolean invalidGroup, boolean external) throws Exception {
+    private static void scenario(boolean client, boolean invalidGroup, boolean external, boolean around)
+            throws Exception {
         engineEntries = 0;
         engineReturns = 0;
         engineCleanups = 0;
@@ -91,6 +95,10 @@ public final class HookEngineCompositionTest {
                 + declaration("return", "compute", "(I)I", "after", "edit")
                 + declaration("cleanup_return", "cleanup", "(Z)V", "after", "observe")
                 + declaration("cleanup_error", "cleanup", "(Z)V", "error", "observe");
+        if (around) {
+            source += declaration("around_compute", "compute", "(I)I", "around", "edit")
+                    + declaration("around_cleanup", "cleanup", "(Z)V", "around", "edit");
+        }
         if (invalidGroup) {
             source += declaration("blocked", "blocked", "()I", "before", "observe");
         }
@@ -178,6 +186,16 @@ public final class HookEngineCompositionTest {
             return;
         }
         HookDispatcher.clientThread();
+        List<HookDispatcher.Subscription> wrappers = new ArrayList<>();
+        if (around) {
+            for (int index = 4; index < definitions.size(); index++) {
+                HookDefinition definition = definitions.get(index).definition;
+                wrappers.add(
+                        HookDispatcher.subscribe(preparation.targets(definition, client ? "client" : "named").get(0).id,
+                                target, definition, call -> call.result(call.proceed(call.argumentValues()))));
+            }
+            HookDispatcher.activate(wrappers);
+        }
         String namespace = client ? "client" : "named";
         AtomicInteger observations = new AtomicInteger();
         AtomicInteger returns = new AtomicInteger();
@@ -252,6 +270,10 @@ public final class HookEngineCompositionTest {
         HookDispatcher.activate(removing.get());
         require(compute.invoke(null, 1).equals(external ? 131 : 111) && expiredCalls.get() == 0,
                 "unload during dispatch entered an expired callback or published its staged edits");
+        for (HookDispatcher.Subscription wrapper : wrappers) {
+            require(wrapper.calls > 0, "around wrapper actually continued the engine terminal");
+            wrapper.close();
+        }
     }
 
     private static byte[] replaceConstant(byte[] input, int from, int to) {

@@ -10,9 +10,14 @@ public class HookTargetFixture {
 
     public static int bodyCalls;
     public static RuntimeException injectedFailure;
+    public static Error injectedFatal;
+    public static Exception checkedFailure;
 
     public int calculate(int value, long wide, double fraction, Object object) {
         bodyCalls++;
+        if (value == -3 && injectedFatal != null) {
+            throw injectedFatal;
+        }
         if (value == -2 && injectedFailure != null) {
             throw injectedFailure;
         }
@@ -67,6 +72,15 @@ public class HookTargetFixture {
 
     public static int onlyThrows() {
         throw new IllegalStateException("only-throws");
+    }
+
+    public int checked() throws Exception {
+        throw checkedFailure;
+    }
+
+    public int recursive(int value) {
+        bodyCalls++;
+        return value == 0 ? 1 : recursive(value - 1) + 1;
     }
 
     public synchronized int synchronizedMethod() {

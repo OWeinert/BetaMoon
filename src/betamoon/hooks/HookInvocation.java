@@ -1,6 +1,7 @@
 package betamoon.hooks;
 
 import java.util.Arrays;
+import java.util.function.Function;
 import org.objectweb.asm.Type;
 
 /**
@@ -16,6 +17,11 @@ public final class HookInvocation implements AutoCloseable {
     private final Object[] arguments;
     private Object result;
     private boolean shortCircuit;
+    private Function<Object[], Object> continuation;
+    private boolean proceeded;
+    private boolean observationInvalidated;
+    private Object continuedResult;
+    private Throwable continuedFailure;
     private boolean active = true;
     private final Thread thread = Thread.currentThread();
 
@@ -62,7 +68,14 @@ public final class HookInvocation implements AutoCloseable {
     }
 
     public void argument(int index, Object value) {
-        checkEdit("before");
+        if (definition.at.equals("around")) {
+            checkEdit("around");
+            if (proceeded) {
+                throw new HookFailure("hook_continuation_used", "arguments cannot be edited after continuation");
+            }
+        } else {
+            checkEdit("before");
+        }
         checkIndex(index);
         arguments[index] = value;
     }
@@ -75,7 +88,7 @@ public final class HookInvocation implements AutoCloseable {
     public void result(Object value) {
         check();
         if (!definition.edit || definition.at.equals("error")) {
-            throw new HookFailure("hook_edit_denied", "declare effects=edit for before/after");
+            throw new HookFailure("hook_edit_denied", "declare effects=edit for before/after/around");
         }
         result = value;
         shortCircuit = definition.at.equals("before");
@@ -111,13 +124,13 @@ public final class HookInvocation implements AutoCloseable {
             throw new HookFailure("hook_edit_denied", "invalid transported callback outcome");
         }
         for (int index = 0; index < values.length; index++) {
-            if (definition.edit && definition.at.equals("before")) {
+            if (definition.edit && (definition.at.equals("before") || definition.at.equals("around"))) {
                 arguments[index] = values[index];
             } else if (arguments[index] != values[index]) {
                 throw new HookFailure("hook_edit_denied", "transport edited arguments outside an editing before hook");
             }
         }
-        if (definition.edit && (early || definition.at.equals("after"))) {
+        if (definition.edit && (early || definition.at.equals("after") || definition.at.equals("around"))) {
             result(value);
         } else if (result != value) {
             throw new HookFailure("hook_edit_denied", "transport edited a read-only result");
@@ -134,9 +147,78 @@ public final class HookInvocation implements AutoCloseable {
         for (int index = 0; index < parameters.length; index++) {
             validateValue(parameters[index], arguments[index]);
         }
-        if (shortCircuit || definition.at.equals("after")) {
+        if (shortCircuit || definition.at.equals("after") || definition.at.equals("around")) {
             validateValue(Type.getReturnType(descriptor), result);
         }
+    }
+
+    void continuation(Function<Object[], Object> continuation) {
+        this.continuation = continuation;
+    }
+
+    public Object proceed(Object[] replacement) {
+        checkEdit("around");
+        if (proceeded || continuation == null) {
+            throw new HookFailure("hook_continuation_used", "continue once, during the active around callback");
+        }
+        Type[] parameters = Type.getArgumentTypes(site.substring(site.indexOf('(')));
+        if (replacement.length != parameters.length) {
+            throw new HookFailure("hook_invalid_value", "continuation requires the exact parameter list");
+        }
+        for (int index = 0; index < replacement.length; index++) {
+            validateValue(parameters[index], replacement[index]);
+        }
+        System.arraycopy(replacement, 0, arguments, 0, arguments.length);
+        proceeded = true;
+        try {
+            continuedResult = continuation.apply(arguments.clone());
+            return continuedResult;
+        } catch (Throwable failure) {
+            continuedFailure = failure;
+            throw HookDispatcher.rethrow(failure);
+        }
+    }
+
+    public Object[] argumentValues() {
+        return committedArguments();
+    }
+
+    boolean proceeded() {
+        return proceeded;
+    }
+
+    public boolean hasContinued() {
+        check();
+        return proceeded;
+    }
+
+    Object continuedResult() {
+        return continuedResult;
+    }
+
+    Throwable continuedFailure() {
+        return continuedFailure;
+    }
+
+    public void invalidateObservation() {
+        checkEdit("around");
+        if (!proceeded) {
+            throw new HookFailure("hook_call_expired", "observation can expire at a completed continuation boundary");
+        }
+        observationInvalidated = true;
+    }
+
+    public boolean observationInvalidated() {
+        check();
+        return observationInvalidated;
+    }
+
+    public Throwable nativeFailure() {
+        check();
+        return continuedFailure != null
+                && continuedFailure.getClass().getName().equals(HookCallbackFailure.class.getName())
+                        ? null
+                        : continuedFailure;
     }
 
     private void validateValue(Type type, Object value) {
@@ -193,6 +275,9 @@ public final class HookInvocation implements AutoCloseable {
         active = false;
         Arrays.fill(arguments, null);
         result = null;
+        continuedResult = null;
+        continuedFailure = null;
+        continuation = null;
         receiver = null;
         exception = null;
         declaringClass = null;

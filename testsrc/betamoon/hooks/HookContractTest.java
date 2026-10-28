@@ -44,6 +44,7 @@ public final class HookContractTest {
         declarations();
         transformations();
         checks += HookEngineCompositionTest.verify();
+        checks += HookAroundContractTest.verify();
         System.out.println(
                 "Hook contracts passed: " + checks + " assertions; isolated declarations and verified JVM dispatch.");
     }
@@ -449,6 +450,18 @@ public final class HookContractTest {
         HookPackages.Snapshot extra = HookPackages.discover(instance.resolve("betamoon/scripts").toFile(), errors)
                 .get(0);
         require(prepared.preflight(extra).size() == initial + 1, "new hook on owner's prepared target compatible");
+        Files.write(source,
+                (original + registration("new_around", "calculate", "(IJDLjava/lang/Object;)I", "around", "edit", 0))
+                        .getBytes(StandardCharsets.UTF_8));
+        HookPackages.Snapshot newShape = HookPackages.discover(instance.resolve("betamoon/scripts").toFile(), errors)
+                .get(0);
+        try {
+            prepared.preflight(newShape);
+            throw new AssertionError("new around shape accepted without restart");
+        } catch (HookFailure expected) {
+            require(expected.reason.equals("restart_required"),
+                    "old envelope needs restart to acquire around capability");
+        }
         Files.write(source, (original + registration("new_target", "synchronizedMethod", "()I", "before", "observe", 0))
                 .getBytes(StandardCharsets.UTF_8));
         HookPackages.Snapshot changed = HookPackages.discover(instance.resolve("betamoon/scripts").toFile(), errors)

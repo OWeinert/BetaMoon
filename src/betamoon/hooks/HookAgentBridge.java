@@ -13,13 +13,14 @@ import java.util.function.Function;
  * and boxing. No game or Lua class crosses this ABI.
  */
 final class HookAgentBridge {
-    static final String PROTOCOL = "betamoon-hooks-jdk-abi-2";
+    static final String PROTOCOL = "betamoon-hooks-jdk-abi-3";
     private static String unavailableReason;
     private static String unavailableMessage;
     private static final HookAgentBridge REMOTE = discover();
     final MethodHandle active;
     final MethodHandle before;
     final MethodHandle after;
+    final MethodHandle around;
     final MethodHandle error;
     final MethodHandle clientThread;
     final MethodHandle subscribe;
@@ -39,6 +40,8 @@ final class HookAgentBridge {
                 MethodType.methodType(Object[].class, int.class, Class.class, Object.class, Object[].class));
         after = lookup.findStatic(dispatcher, "after", MethodType.methodType(Object.class, int.class, Class.class,
                 Object.class, Object[].class, Object.class));
+        around = lookup.findStatic(dispatcher, "around", MethodType.methodType(Object.class, int.class, Class.class,
+                Object.class, Object[].class, String.class));
         error = lookup.findStatic(dispatcher, "error", MethodType.methodType(void.class, int.class, Class.class,
                 Object.class, Object[].class, Throwable.class));
         clientThread = lookup.findStatic(dispatcher, "clientThread", MethodType.methodType(void.class));

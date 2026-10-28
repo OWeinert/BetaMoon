@@ -47,6 +47,33 @@ final class HookMappingTest {
         } catch (HookFailure expected) {
             check(expected.reason.equals("match_failed"), "unrelated declaring owner rejected");
         }
+        String inherited = "tiny\t2\t0\tnamed\tclient\tserver\n"
+                + "c\texample/Parent\tfixture/hooks/MappingParent\tfixture/hooks/MappingParent\n"
+                + "\tm\t()I\tdamage\ta\ta\n\tm\t()I\tprotectedValue\tq\tq\n"
+                + "\tm\t()I\tprivateValue\tp\tp\n\tm\t()I\tstaticValue\ts\ts\n"
+                + "c\texample/Child\tfixture/hooks/MappingChild\tfixture/hooks/MappingChild\n";
+        TinyMappingResolver inheritance = TinyMappingResolver
+                .readStrict(new ByteArrayInputStream(inherited.getBytes(StandardCharsets.UTF_8)));
+        NativeTypeRef child = NativeTypeRef.named("example.Child", "mapped", null, null);
+        for (String[] method : new String[][]{{"damage", "a"}, {"protectedValue", "q"}}) {
+            NativeMemberRef ref = new NativeMemberRef(NativeMemberRef.Kind.METHOD, child, null, method[0], "()I",
+                    "mapped", "mapped");
+            List<HookTarget> resolved = HookTarget.resolve(ref, inheritance, inheritance.snapshot(),
+                    RuntimeNamespace.CLIENT);
+            check(resolved.size() == 1
+                    && resolved.get(0).key().equals("fixture/hooks/MappingChild." + method[1] + "()I"),
+                    "virtual ancestor mapping names the declared override");
+            check(resolved.get(0).mappingOwner.equals("fixture/hooks/MappingParent"),
+                    "ancestor mapping proof retained");
+        }
+        for (String method : new String[]{"privateValue", "staticValue"}) {
+            NativeMemberRef ref = new NativeMemberRef(NativeMemberRef.Kind.METHOD, child, null, method, "()I", "mapped",
+                    "mapped");
+            check(HookTarget.resolve(ref, inheritance, inheritance.snapshot(), RuntimeNamespace.CLIENT).isEmpty(),
+                    "private/static methods do not inherit mapping names");
+        }
+        check(System.getProperty("betamoon.mappingParent.initialized") == null,
+                "ancestor bytes do not initialize classes");
         return checks;
     }
 

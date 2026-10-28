@@ -7,10 +7,7 @@ import betamoon.hooks.HookFileCollectionContext;
 import betamoon.hooks.HookPreparation;
 import betamoon.interop.discovery.NativeDiscoveryRuntime;
 import betamoon.interop.runtime.NativeContext;
-import betamoon.interop.runtime.NativeEntry;
-import betamoon.interop.runtime.NativeEventAccess;
 import betamoon.luaapi.interop.NativeHookCall;
-import betamoon.luaapi.utils.LuaCallbackScope;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -21,6 +18,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import org.luaj.vm2.Globals;
+import org.luaj.vm2.Varargs;
 
 /**
  * Preflight before unloading, stage before entrypoint, publish only after
@@ -233,21 +231,20 @@ final class HookLifecycle {
                             if (closed) {
                                 return;
                             }
+                            String caller = LuaScriptRegistry.getCurrentScriptFile();
+                            boolean edits = NativeContext.hookEditsAllowed();
+                            NativeContext callerContext = NativeContext.hasFrame() ? NativeContext.current() : null;
                             ScriptExecution.withOwner(attempt.snapshot.resourceOwner, () -> {
-                                boolean edits = NativeContext.hookEditsAllowed();
-                                try (LuaCallbackScope callback = new LuaCallbackScope(false, false)) {
-                                    NativeEntry entry = NativeEventAccess.interfaceEntry(callback);
-                                    if (entry == null) {
-                                        throw new HookFailure("owner_not_ready",
-                                                "native client context is unavailable");
+                                try (HookCallbackObservation observation = new HookCallbackObservation(
+                                        attempt.snapshot.resourceOwner, caller, invocation, callerContext)) {
+                                    NativeHookCall call = new NativeHookCall(invocation, observation::context, edits,
+                                            values -> observation.continueWith(() -> invocation.proceed(values)));
+                                    Varargs returned = ScriptExecution.invokeNative(attempt.snapshot.resourceOwner,
+                                            "hook:" + definition.id + ":" + definition.at, registration.callback, call);
+                                    if (definition.at.equals("around")) {
+                                        call.complete(returned);
                                     }
-                                    try (NativeContext context = entry.asHook().open(attempt.snapshot.resourceOwner)) {
-                                        NativeHookCall call = new NativeHookCall(invocation, context, edits);
-                                        ScriptExecution.invokeNative(attempt.snapshot.resourceOwner,
-                                                "hook:" + definition.id + ":" + definition.at, registration.callback,
-                                                call);
-                                        context.check();
-                                    }
+                                    observation.context().check();
                                 }
                                 return null;
                             });

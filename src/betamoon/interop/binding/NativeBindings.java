@@ -323,7 +323,8 @@ public final class NativeBindings {
                 for (Class<?> owner : declaring == null ? hierarchy(lookup) : Collections.singletonList(declaring)) {
                     if (reference.kind == NativeMemberRef.Kind.METHOD) {
                         for (Method method : owner.getDeclaredMethods()) {
-                            if (Type.getMethodDescriptor(method).equals(descriptor)
+                            if (!(method.isSynthetic() && method.getName().startsWith("betamoon$hook$body$"))
+                                    && Type.getMethodDescriptor(method).equals(descriptor)
                                     && names.methodMatches(method, reference.name, reference.names)) {
                                 if (!found.isEmpty() && declaring == null && !Modifier.isPrivate(method.getModifiers())
                                         && method.getDeclaringClass()

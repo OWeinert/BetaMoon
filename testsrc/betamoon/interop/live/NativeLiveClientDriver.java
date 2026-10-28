@@ -203,7 +203,8 @@ public final class NativeLiveClientDriver {
         String result = CatalogJson.encode(CatalogValues.record("status", status, "namespace",
                 namespace.getMappingName(), "ticks", ticks, "stage", stage, "error", error, "renderedClient", true,
                 "worldCreatedNormally", true, "observerReloadAndWorldCleanup", status.equals("passed"), "x3Acceptance",
-                "true".equals(System.getProperty("betamoon.x3.passed")), "n7Acceptance",
+                "true".equals(System.getProperty("betamoon.x3.passed")), "x5Acceptance",
+                "true".equals(System.getProperty("betamoon.x5.passed")), "n7Acceptance",
                 Boolean.getBoolean("betamoon.native.n7") && "passed".equals(System.getProperty("betamoon.n7.phase"))));
         Files.write(Paths.get(System.getProperty("betamoon.live.result")), result.getBytes(StandardCharsets.UTF_8));
         System.out.println("[N6-LIVE] " + result);

@@ -3,6 +3,7 @@ package betamoon.instrumentation.transform;
 import betamoon.hooks.HookDispatcher;
 import betamoon.hooks.HookFailure;
 import betamoon.hooks.HookPreparation;
+import betamoon.hooks.HookOverrideMappings;
 import betamoon.interop.catalog.CatalogFingerprint;
 import betamoon.interop.diagnostics.NativeDiagnosticEvidence;
 import java.nio.charset.StandardCharsets;
@@ -83,7 +84,18 @@ final class ScriptHookTransformer {
                     throw new HookFailure("match_failed",
                             site.target.key() + ": expected 1 method; got " + matches.size());
                 }
-                instrument(node, matches.get(0), site);
+                MethodNode target = matches.get(0);
+                String mappingOwner = site.target.mappingOwner;
+                if (mappingOwner != null && ((target.access & (Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC)) != 0
+                        || !new HierarchyClassWriter(loader, node).isAssignable(mappingOwner, node.name)
+                        || !HookOverrideMappings.visibleVirtual(mappingOwner, target.name, target.desc, loader))) {
+                    throw new HookFailure("mapping_conflict",
+                            "observed class does not implement the mapped virtual ancestor");
+                }
+                instrument(node, target, site);
+                if (site.around) {
+                    around(node, target, site);
+                }
                 installed.add(site);
             }
             HierarchyClassWriter writer = new HierarchyClassWriter(loader, node);
@@ -93,7 +105,8 @@ final class ScriptHookTransformer {
             new ClassReader(output).accept(verified, 0);
             for (MethodNode method : verified.methods) {
                 if (installed.stream().anyMatch(
-                        site -> site.target.method.equals(method.name) && site.target.descriptor.equals(method.desc))) {
+                        site -> (site.target.method.equals(method.name) || method.name.equals(site.helperName))
+                                && site.target.descriptor.equals(method.desc))) {
                     new Analyzer<BasicValue>(new ResourceVerifier(verified, writer)).analyze(verified.name, method);
                 }
             }
@@ -139,9 +152,8 @@ final class ScriptHookTransformer {
         }
         site.normalReturns = returns.size();
         site.structureAnalyzed = true;
-        site.fingerprint = CatalogFingerprint.sha256(
-                ("envelope:2:" + site.target.key() + ":flags:" + method.access + ":normalReturns:" + returns.size())
-                        .getBytes(StandardCharsets.UTF_8));
+        site.fingerprint = CatalogFingerprint.sha256(("envelope:" + (site.around ? 3 : 2) + ":" + site.target.key()
+                + ":flags:" + method.access + ":normalReturns:" + returns.size()).getBytes(StandardCharsets.UTF_8));
         Type[] parameters = Type.getArgumentTypes(method.desc);
         Type result = Type.getReturnType(method.desc);
         boolean instance = (method.access & Opcodes.ACC_STATIC) == 0;
@@ -249,6 +261,74 @@ final class ScriptHookTransformer {
         exit.athrow();
         method.instructions.add(exitCode.instructions);
         method.tryCatchBlocks.add(new TryCatchBlockNode(bodyStart, bodyEnd, handler, "java/lang/Throwable"));
+    }
+
+    private static void around(ClassNode owner, MethodNode method, HookPreparation.Site site) {
+        if ((owner.access & Opcodes.ACC_INTERFACE) != 0) {
+            throw new HookFailure("match_failed", "around extraction does not support interface default methods");
+        }
+        String helperName = "betamoon$hook$body$" + site.id;
+        Set<String> names = new HashSet<>();
+        for (MethodNode existing : owner.methods) {
+            names.add(existing.name);
+        }
+        while (names.contains(helperName)) {
+            helperName += "$";
+        }
+        site.helperName = helperName;
+        boolean instance = (method.access & Opcodes.ACC_STATIC) == 0;
+        MethodNode helper = new MethodNode(Opcodes.ASM9,
+                Opcodes.ACC_PRIVATE | Opcodes.ACC_SYNTHETIC | (instance ? 0 : Opcodes.ACC_STATIC), helperName,
+                method.desc, null, method.exceptions.toArray(new String[0]));
+        helper.instructions = method.instructions;
+        helper.tryCatchBlocks = method.tryCatchBlocks;
+        helper.localVariables = method.localVariables;
+        helper.visibleLocalVariableAnnotations = method.visibleLocalVariableAnnotations;
+        helper.invisibleLocalVariableAnnotations = method.invisibleLocalVariableAnnotations;
+        helper.maxLocals = method.maxLocals;
+        helper.maxStack = method.maxStack;
+        owner.methods.add(helper);
+
+        method.instructions = new InsnList();
+        method.tryCatchBlocks = new ArrayList<>();
+        method.localVariables = null;
+        method.visibleLocalVariableAnnotations = null;
+        method.invisibleLocalVariableAnnotations = null;
+        Type[] parameters = Type.getArgumentTypes(method.desc);
+        Type result = Type.getReturnType(method.desc);
+        int[] locals = new int[parameters.length];
+        int local = instance ? 1 : 0;
+        for (int index = 0; index < parameters.length; index++) {
+            locals[index] = local;
+            local += parameters[index].getSize();
+        }
+        method.maxLocals = local;
+        InstructionAdapter code = new InstructionAdapter(method);
+        LabelNode dormant = label();
+        active(code, site.id, 3, owner.name);
+        code.ifeq(dormant.getLabel());
+        packed(code, site.id, owner.name, instance, parameters, locals);
+        code.aconst(helperName);
+        code.invokestatic(DISPATCHER, "around", PREFIX + "Ljava/lang/String;)Ljava/lang/Object;", false);
+        if (result.getSort() == Type.VOID) {
+            code.pop();
+        } else {
+            unbox(code, result);
+        }
+        code.areturn(result);
+        method.instructions.add(dormant);
+        if (instance) {
+            code.load(0, OBJECT);
+        }
+        for (int index = 0; index < parameters.length; index++) {
+            code.load(locals[index], parameters[index]);
+        }
+        if (instance) {
+            code.invokespecial(owner.name, helperName, method.desc, false);
+        } else {
+            code.invokestatic(owner.name, helperName, method.desc, false);
+        }
+        code.areturn(result);
     }
 
     private static void requireDispatcher(ClassLoader loader) {

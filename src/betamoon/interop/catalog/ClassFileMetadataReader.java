@@ -10,7 +10,10 @@ import org.objectweb.asm.FieldVisitor;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 
-/** Reads bytecode structure without defining a class or visiting executable method bodies. */
+/**
+ * Reads bytecode structure without defining a class or visiting executable
+ * method bodies.
+ */
 public final class ClassFileMetadataReader {
     public NativeClassInfo read(byte[] bytes) {
         MetadataVisitor visitor = new MetadataVisitor();
@@ -72,14 +75,17 @@ public final class ClassFileMetadataReader {
 
         @Override
         public FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value) {
-            members.add(new NativeMemberInfo(NativeMemberInfo.Kind.FIELD, name, descriptor, access, signature,
-                    value, Collections.emptyList(), Collections.emptyList()));
+            members.add(new NativeMemberInfo(NativeMemberInfo.Kind.FIELD, name, descriptor, access, signature, value,
+                    Collections.emptyList(), Collections.emptyList()));
             return null;
         }
 
         @Override
         public MethodVisitor visitMethod(int access, String name, String descriptor, String signature,
                 String[] exceptions) {
+            if ((access & Opcodes.ACC_SYNTHETIC) != 0 && name.startsWith("betamoon$hook$body$")) {
+                return null;
+            }
             NativeMemberInfo.Kind kind = NativeMemberInfo.Kind.METHOD;
             if ("<init>".equals(name)) {
                 kind = NativeMemberInfo.Kind.CONSTRUCTOR;
@@ -104,8 +110,8 @@ public final class ClassFileMetadataReader {
         }
 
         private NativeClassInfo result() {
-            return new NativeClassInfo(name, version, access, superName, interfaces, signature, sourceFile,
-                    outerName, enclosingMethod, enclosingDescriptor, members);
+            return new NativeClassInfo(name, version, access, superName, interfaces, signature, sourceFile, outerName,
+                    enclosingMethod, enclosingDescriptor, members);
         }
     }
 }

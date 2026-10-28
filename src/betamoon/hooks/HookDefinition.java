@@ -22,25 +22,30 @@ public final class HookDefinition {
     public final NativeMemberRef target;
     public final String at;
     public final boolean edit;
+    public final String nativeErrors;
+    public final String reentry;
     public final int priority;
     public final boolean required;
     public final String sourceSha256;
 
     private HookDefinition(String owner, String file, String id, NativeMemberRef target, String at, boolean edit,
-            int priority, boolean required, String sourceSha256) {
+            int priority, boolean required, String sourceSha256, String nativeErrors, String reentry) {
         this.owner = owner;
         this.file = file;
         this.id = id;
         this.target = target;
         this.at = at;
         this.edit = edit;
+        this.nativeErrors = nativeErrors;
+        this.reentry = reentry;
         this.priority = priority;
         this.required = required;
         this.sourceSha256 = sourceSha256;
     }
 
     static HookDefinition read(String owner, String file, LuaValue value) {
-        LuaTable table = fields(value, "id", "target", "at", "effects", "priority", "required", "thread", "side");
+        LuaTable table = fields(value, "id", "target", "at", "effects", "priority", "required", "thread", "side",
+                "nativeErrors", "reentry");
         String id = text(table.rawget("id"));
         if (id.length() > 128 || !id.matches("[A-Za-z0-9_.:/-]+")) {
             throw new HookFailure("hook_file_invalid", "id must contain 1..128 identifier characters");
@@ -66,13 +71,24 @@ public final class HookDefinition {
                     "target must name its declaring owner without session identities");
         }
         String at = text(table.rawget("at"));
-        if (!Arrays.asList("before", "after", "error").contains(at)) {
-            throw new HookFailure("hook_file_invalid", "at must be before, after or error");
+        if (!Arrays.asList("before", "after", "error", "around").contains(at)) {
+            throw new HookFailure("hook_file_invalid", "at must be before, after, error or around");
         }
         String effects = optional(table.rawget("effects"));
         boolean edit = "edit".equals(effects);
         if (effects != null && !effects.equals("observe") && !edit || edit && at.equals("error")) {
             throw new HookFailure("hook_file_invalid", "effects must be observe, or edit for before/after");
+        }
+        String nativeErrors = optional(table.rawget("nativeErrors"));
+        String reentry = optional(table.rawget("reentry"));
+        if (at.equals("around")) {
+            if (!edit || nativeErrors != null && !Arrays.asList("propagate", "recover").contains(nativeErrors)
+                    || reentry != null && !Arrays.asList("native", "error").contains(reentry)) {
+                throw new HookFailure("hook_file_invalid",
+                        "around requires effects=edit, nativeErrors=propagate/recover and reentry=native/error");
+            }
+        } else if (nativeErrors != null || reentry != null) {
+            throw new HookFailure("hook_file_invalid", "nativeErrors and reentry require an around hook");
         }
         for (String restriction : new String[]{"thread", "side"}) {
             LuaValue option = table.rawget(restriction);
@@ -92,11 +108,12 @@ public final class HookDefinition {
         if (!required.isnil() && !required.isboolean()) {
             throw new HookFailure("hook_file_invalid", "required must be boolean");
         }
-        return new HookDefinition(owner, file, id, target, at, edit, (int) number, required.toboolean(), "");
+        return new HookDefinition(owner, file, id, target, at, edit, (int) number, required.toboolean(), "",
+                nativeErrors == null ? "propagate" : nativeErrors, reentry == null ? "native" : reentry);
     }
 
     HookDefinition withSourceHash(String hash) {
-        return new HookDefinition(owner, file, id, target, at, edit, priority, required, hash);
+        return new HookDefinition(owner, file, id, target, at, edit, priority, required, hash, nativeErrors, reentry);
     }
 
     public String key() {
@@ -108,14 +125,16 @@ public final class HookDefinition {
     }
 
     public String metadataKey() {
-        return key() + ":" + target.key() + ":" + at + ":" + edit + ":" + priority + ":" + required;
+        return key() + ":" + target.key() + ":" + at + ":" + edit + ":" + priority + ":" + required + ":" + nativeErrors
+                + ":" + reentry;
     }
 
     Map<String, Object> transport() {
         return CatalogValues.record("owner", owner, "file", file, "id", id, "at", at, "edit", edit, "priority",
                 priority, "required", required, "class", target.lookupType.name(), "classNames",
                 target.lookupType.names, "method", target.name, "descriptor", target.descriptor, "names", target.names,
-                "descriptorNames", target.descriptorNames, "sourceSha256", sourceSha256, "declaringClass",
+                "nativeErrors", nativeErrors, "reentry", reentry, "descriptorNames", target.descriptorNames,
+                "sourceSha256", sourceSha256, "declaringClass",
                 target.declaringType == null ? null : target.declaringType.name(), "declaringNames",
                 target.declaringType == null ? null : target.declaringType.names);
     }
@@ -133,7 +152,8 @@ public final class HookDefinition {
         return new HookDefinition(CatalogValues.text(value, "owner"), CatalogValues.text(value, "file"),
                 CatalogValues.text(value, "id"), method, CatalogValues.text(value, "at"),
                 Boolean.TRUE.equals(value.get("edit")), CatalogValues.integer(value, "priority"),
-                Boolean.TRUE.equals(value.get("required")), CatalogValues.text(value, "sourceSha256"));
+                Boolean.TRUE.equals(value.get("required")), CatalogValues.text(value, "sourceSha256"),
+                CatalogValues.text(value, "nativeErrors"), CatalogValues.text(value, "reentry"));
     }
 
     public static LuaTable fields(LuaValue value, String... allowed) {

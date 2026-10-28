@@ -63,6 +63,39 @@ public final class HookChildRuntime {
         if ((int) call.invokeExact(1) != 2) {
             throw new AssertionError("child subscription cleanup left an active callback");
         }
+        HookFileCollectionContext.Registration around = HookDeclarations.evaluate("bootstrap", "child.lua",
+                "local r=betamoon.hooks:createRegistry(); r:register({id='child_wrapper',"
+                        + "target={class='fixture.hooks.ChildHookFixture',method='call',descriptor='(I)I'},"
+                        + "at='around',effects='edit'},function(call) local value=call:proceed(); call:returnValue(value+5) end)",
+                2, globals, new HookDeclarations.Budget()).get(0);
+        HookDispatcher.Subscription wrapped = HookDispatcher.subscribe(site, target, around.definition,
+                invocation -> around.callback.call(new Call(invocation)));
+        HookDispatcher.activate(Collections.singletonList(wrapped));
+        if ((int) call.invokeExact(1) != 7) {
+            throw new AssertionError("around continuation failed across independent LuaJ/dispatcher loaders");
+        }
+        Object originalFailure = target.getField("FAILURE").get(null);
+        try {
+            int ignored = (int) call.invokeExact(-1);
+            throw new AssertionError("child around lost the native exception");
+        } catch (IllegalStateException expected) {
+            if (expected != originalFailure) {
+                throw new AssertionError("child around changed original Throwable identity", expected);
+            }
+        }
+        long[] aroundCosts = new long[1000];
+        for (int index = 0; index < 200; index++) {
+            int ignored = (int) call.invokeExact(index);
+        }
+        for (int index = 0; index < aroundCosts.length; index++) {
+            long began = System.nanoTime();
+            int ignored = (int) call.invokeExact(index);
+            aroundCosts[index] = System.nanoTime() - began;
+        }
+        Arrays.sort(aroundCosts);
+        System.out.println("Child-first around Lua continuation ns p50=" + aroundCosts[500] + ", p95="
+                + aroundCosts[950] + ", p99=" + aroundCosts[990] + "; informational Java 8 fixture.");
+        wrapped.close();
         long checksum = 0;
         for (int index = 0; index < 30000; index++) {
             checksum += (int) call.invokeExact(index);
@@ -105,6 +138,8 @@ public final class HookChildRuntime {
 
     private static final class Call extends HookLuaValue {
         Call(HookInvocation invocation) {
+            properties.put("proceed",
+                    method(args -> LuaValue.valueOf((Integer) invocation.proceed(invocation.argumentValues()))));
             properties.put("returnValue", method(args -> {
                 invocation.result(args.checkint(1));
                 return LuaValue.NONE;

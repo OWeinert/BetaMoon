@@ -22,6 +22,26 @@ public final class NativeDiagnosticGuidance {
         String code;
         String message;
         switch (reason == null ? "" : reason) {
+            case "hook_continuation_used":
+                code = "continue_once";
+                message = "Continue at most once during the active around callback; reacquire native views after continuing.";
+                break;
+            case "hook_recursion":
+                code = "check_hook_reentry";
+                message = "Check reentry policy and nested wrapper count; methods and active chains support at most 16 around callbacks.";
+                break;
+            case "hook_invalid_value":
+                code = "check_hook_signature";
+                message = "Use the exact argument/return descriptor; around callbacks return one typed result, or no value for void.";
+                break;
+            case "native_error_recovered":
+                code = "review_declared_recovery";
+                message = "A declared nativeErrors=recover policy replaced this native failure with a validated fallback.";
+                break;
+            case "around_secondary_failure":
+                code = "inspect_secondary_failure";
+                message = "The original native error remains primary; inspect this copied secondary wrapper failure.";
+                break;
             case "native_client_action_denied":
                 code = "use_authorized_input";
                 message = "Submit the owning host's prepared command during its current authorized input callback.";

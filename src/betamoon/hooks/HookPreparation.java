@@ -126,6 +126,9 @@ public final class HookPreparation {
                             Collections.unmodifiableList(targetNames));
                     for (HookTarget choice : choices) {
                         result.sites.get(choice.key()).alternatives.add(frozen);
+                        if (registration.definition.at.equals("around")) {
+                            result.sites.get(choice.key()).around = true;
+                        }
                     }
                     for (RuntimeNamespace namespace : new RuntimeNamespace[]{RuntimeNamespace.NAMED,
                             RuntimeNamespace.CLIENT}) {
@@ -207,6 +210,7 @@ public final class HookPreparation {
                     CatalogValues.text(row, "descriptor"));
             Site site = new Site(CatalogValues.integer(row, "id"), target);
             site.owners.addAll(CatalogValues.strings(row.get("owners")));
+            site.around = Boolean.TRUE.equals(row.get("around"));
             if (row.get("namespaces") instanceof List) {
                 site.namespaces.addAll(CatalogValues.strings(row.get("namespaces")));
             }
@@ -241,6 +245,8 @@ public final class HookPreparation {
                             ? CatalogValues.integer(row, "methodMatches")
                             : -1;
                     site.structureAnalyzed = Boolean.TRUE.equals(row.get("structureAnalyzed"));
+                    site.around = Boolean.TRUE.equals(row.get("around"));
+                    site.helperName = (String) row.get("helperName");
                 }
             }
             siteRevision = observed;
@@ -262,7 +268,7 @@ public final class HookPreparation {
         for (Site site : preparation.sites.values()) {
             sites.add(CatalogValues.record("id", site.id, "owner", site.target.owner, "method", site.target.method,
                     "descriptor", site.target.descriptor, "owners", new ArrayList<>(site.owners), "namespaces",
-                    new ArrayList<>(site.namespaces)));
+                    new ArrayList<>(site.namespaces), "around", site.around));
         }
         return CatalogValues.object(
                 CatalogValues.freeze(CatalogValues.record("available", true, "instance", preparation.instance.getPath(),
@@ -276,7 +282,7 @@ public final class HookPreparation {
                 result.add(CatalogValues.record("target", site.target.key(), "status", site.status, "normalReturns",
                         site.normalReturns, "fingerprint", site.fingerprint, "inputHash", site.inputHash, "outputHash",
                         site.outputHash, "methodMatches", site.methodMatches, "structureAnalyzed",
-                        site.structureAnalyzed));
+                        site.structureAnalyzed, "around", site.around, "helperName", site.helperName));
             }
         }
         return result;
@@ -318,7 +324,9 @@ public final class HookPreparation {
         }
         for (HookFileCollectionContext.Registration registration : result) {
             for (HookTarget target : resolve(registration.definition)) {
-                if (!prepared.contains(target.key())) {
+                Site site = sites.get(target.key());
+                if (!prepared.contains(target.key())
+                        || registration.definition.at.equals("around") && (site == null || !site.around)) {
                     throw new HookFailure("restart_required",
                             "unprepared target for " + snapshot.owner + ": " + target.key());
                 }
@@ -377,8 +385,10 @@ public final class HookPreparation {
             for (HookTarget target : resolve(definition)) {
                 targets.add(target.key());
             }
-            result.put(definition.key(), definition.file + ":" + targets + ":" + definition.at + ":" + definition.edit
-                    + ":" + definition.priority + ":" + definition.required);
+            result.put(definition.key(),
+                    definition.file + ":" + targets + ":" + definition.at + ":" + definition.edit + ":"
+                            + definition.priority + ":" + definition.required + ":" + definition.nativeErrors + ":"
+                            + definition.reentry);
         }
         return result;
     }
@@ -444,19 +454,20 @@ public final class HookPreparation {
             Map<String, Object> record = CatalogValues.record("id", "script-site-" + site.id, "name", site.target.key(),
                     "kind", "HOOK_SITE", "declaringType", site.target.owner.replace('/', '.'), "descriptor",
                     site.target.descriptor, "target", site.target.key(), "status", site.status, "owners",
-                    new ArrayList<>(site.owners), "envelopeVersion", 2, "normalReturns", site.normalReturns,
-                    "structuralFingerprint", site.fingerprint, "observedInputSha256", site.inputHash, "outputSha256",
-                    site.outputHash, "runtimeOwner", site.target.owner.replace('/', '.'), "runtimeMember",
-                    site.target.method, "runtimeDescriptor", site.target.descriptor, "namespaceCandidates",
-                    new ArrayList<>(site.namespaces), "installedEnvelopeVersion",
-                    site.status.equals("applied") ? 2 : null, "matchCounts",
+                    new ArrayList<>(site.owners), "envelopeVersion", site.around ? 3 : 2, "normalReturns",
+                    site.normalReturns, "structuralFingerprint", site.fingerprint, "observedInputSha256",
+                    site.inputHash, "outputSha256", site.outputHash, "runtimeOwner",
+                    site.target.owner.replace('/', '.'), "runtimeMember", site.target.method, "runtimeDescriptor",
+                    site.target.descriptor, "namespaceCandidates", new ArrayList<>(site.namespaces),
+                    "installedEnvelopeVersion", site.status.equals("applied") ? (site.around ? 3 : 2) : null,
+                    "matchCounts",
                     CatalogValues.record("methods", site.methodMatches < 0 ? null : site.methodMatches, "normalReturns",
                             site.structureAnalyzed ? site.normalReturns : null),
                     "provenance",
                     CatalogValues.record("boundary", "engine_output_before_user_hooks", "observed",
                             site.inputHash != null, "structureAnalyzed", site.structureAnalyzed,
                             "laterTransformersObserved", false),
-                    "installedCapabilities", site.capabilities(), "guidance",
+                    "generatedBody", site.helperName, "installedCapabilities", site.capabilities(), "guidance",
                     NativeDiagnosticGuidance.forStatus(site.status));
             result.add(record);
         }
@@ -464,9 +475,10 @@ public final class HookPreparation {
             for (HookDefinition definition : owner) {
                 result.add(CatalogValues.record("id", "prepared-" + definition.identity(), "name", definition.id,
                         "kind", "HOOK_DECLARATION", "owner", definition.owner, "source", definition.file, "at",
-                        definition.at, "effects", definition.edit ? "edit" : "observe", "priority", definition.priority,
-                        "required", definition.required, "status", "prepared", "sourceSha256", definition.sourceSha256,
-                        "targets", new ArrayList<>(allowedTargets(definition))));
+                        definition.at, "nativeErrors", definition.nativeErrors, "reentry", definition.reentry,
+                        "effects", definition.edit ? "edit" : "observe", "priority", definition.priority, "required",
+                        definition.required, "status", "prepared", "sourceSha256", definition.sourceSha256, "targets",
+                        new ArrayList<>(allowedTargets(definition))));
             }
         }
         for (Map<String, Object> subscription : HookDispatcher.status()) {
@@ -510,6 +522,8 @@ public final class HookPreparation {
         public volatile int normalReturns;
         public volatile int methodMatches = -1;
         public volatile boolean structureAnalyzed;
+        public volatile boolean around;
+        public volatile String helperName;
         public volatile String fingerprint;
         public volatile String inputHash;
         public volatile String outputHash;
@@ -525,6 +539,9 @@ public final class HookPreparation {
                 return Collections.emptyList();
             }
             List<String> result = new ArrayList<>();
+            if (around) {
+                Collections.addAll(result, "around", "continuation", "native_error_recovery");
+            }
             Collections.addAll(result, "before", "error", "argument_edit", "early_return");
             if (normalReturns > 0) {
                 result.add("after");

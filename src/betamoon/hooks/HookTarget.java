@@ -1,7 +1,6 @@
 package betamoon.hooks;
 
 import betamoon.instrumentation.api.ClassRef;
-import betamoon.instrumentation.api.MethodRef;
 import betamoon.instrumentation.mapping.RuntimeNamespace;
 import betamoon.instrumentation.mapping.TinyMappingResolver;
 import betamoon.instrumentation.mapping.TinyMappingSnapshot;
@@ -19,9 +18,15 @@ public final class HookTarget {
     public final String owner;
     public final String method;
     public final String descriptor;
+    public final String mappingOwner;
 
     public HookTarget(String owner, String method, String descriptor) {
+        this(owner, method, descriptor, null);
+    }
+
+    private HookTarget(String owner, String method, String descriptor, String mappingOwner) {
         this.owner = owner;
+        this.mappingOwner = mappingOwner;
         this.method = method;
         this.descriptor = descriptor;
         if (owner.startsWith("java/") || owner.startsWith("javax/") || owner.startsWith("sun/")
@@ -82,18 +87,24 @@ public final class HookTarget {
                     }
                 }
             }
-            String mappedName = matched == null ? null : matched.getNames().get(namespace.getMappingName());
-            if (ref.names.equals("mapped") && (mappedName == null || mappedName.isEmpty())) {
-                continue;
-            }
-            String name = mappedName == null || mappedName.isEmpty()
-                    ? ref.name
-                    : mappings.resolveMethod(new MethodRef(new ClassRef(mappingOwner), ref.name, namedDescriptor),
-                            namespace).getName();
             String descriptor = ref.descriptorNames.equals("runtime")
                     ? ref.descriptor
                     : mappings.resolveDescriptor(ref.descriptor, namespace);
-            HookTarget target = new HookTarget(runtimeOwner, name, descriptor);
+            String mappedName = matched == null ? null : matched.getNames().get(namespace.getMappingName());
+            HookOverrideMappings.Selection override = null;
+            if (matched == null && !ref.names.equals("runtime")) {
+                override = HookOverrideMappings.resolve(runtimeOwner, ref.name, namedDescriptor, descriptor, mappings,
+                        snapshot, namespace);
+                if (override != null) {
+                    mappedName = override.name;
+                }
+            }
+            if (ref.names.equals("mapped") && (mappedName == null || mappedName.isEmpty())) {
+                continue;
+            }
+            String name = mappedName == null || mappedName.isEmpty() ? ref.name : mappedName;
+            HookTarget target = new HookTarget(runtimeOwner, name, descriptor,
+                    override == null ? null : override.owner);
             if (result.stream().noneMatch(value -> value.key().equals(target.key()))) {
                 result.add(target);
             }

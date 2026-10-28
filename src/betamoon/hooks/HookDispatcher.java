@@ -2,6 +2,11 @@ package betamoon.hooks;
 
 import betamoon.interop.catalog.CatalogValues;
 import betamoon.interop.diagnostics.NativeDiagnosticEvidence;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -24,6 +29,8 @@ public final class HookDispatcher {
 
     private static volatile State[] states = new State[0];
     private static volatile Thread clientThread;
+    private static final ThreadLocal<Integer> AROUND_DEPTH = ThreadLocal.withInitial(() -> 0);
+    private static final ThreadLocal<Set<String>> AROUND_ENTERED = ThreadLocal.withInitial(HashSet::new);
     private static final ThreadLocal<Set<String>> ENTERED = ThreadLocal.withInitial(HashSet::new);
 
     private HookDispatcher() {
@@ -112,10 +119,24 @@ public final class HookDispatcher {
             Function<Object[], Object[]> transport = payload -> {
                 try (HookInvocation invocation = new HookInvocation(definition, (String) payload[0],
                         (Class<?>) payload[1], payload[2], (Object[]) payload[3], payload[4], (Throwable) payload[5])) {
-                    callback.invoke(invocation);
-                    invocation.validate();
-                    return new Object[]{invocation.committedArguments(), invocation.result(),
-                            invocation.shortCircuit()};
+                    if (payload.length > 6 && payload[6] instanceof Function) {
+                        @SuppressWarnings("unchecked")
+                        Function<Object[], Object> continuation = (Function<Object[], Object>) payload[6];
+                        invocation.continuation(continuation);
+                    }
+                    try {
+                        callback.invoke(invocation);
+                        invocation.validate();
+                        return new Object[]{invocation.committedArguments(), invocation.result(),
+                                invocation.shortCircuit(), invocation.observationInvalidated()};
+                    } catch (VirtualMachineError | ThreadDeath fatal) {
+                        throw fatal;
+                    } catch (Throwable failure) {
+                        if (invocation.observationInvalidated()) {
+                            return new Object[]{invocation.committedArguments(), null, false, true};
+                        }
+                        throw rethrow(failure);
+                    }
                 }
             };
             try {
@@ -128,8 +149,13 @@ public final class HookDispatcher {
         }
         State state = state(site);
         if (state == null || !state.site.owners.contains(definition.owner)
+                || definition.at.equals("around") && !state.site.around
                 || !state.site.status.equals("applied") && !state.site.status.equals("target_pending_load")) {
             throw new HookFailure("owner_not_ready", "target is not applied for " + definition.key());
+        }
+        if (definition.at.equals("around") && state.subscriptions.stream()
+                .filter(entry -> entry.definition.at.equals("around") && !entry.closed).count() >= 16) {
+            throw new HookFailure("hook_recursion", "a method supports at most 16 around subscriptions");
         }
         int total = 0;
         for (State prepared : states) {
@@ -216,7 +242,8 @@ public final class HookDispatcher {
                         "order",
                         state.phase(definition.at).contains(entry) ? state.phase(definition.at).indexOf(entry) : null,
                         "calls", entry.calls, "failures", entry.failures, "skippedReentry", entry.skipped,
-                        "callbackNanos", entry.nanos, "shortCircuits", entry.shortCircuits));
+                        "callbackNanos", entry.nanos, "shortCircuits", entry.shortCircuits, "nativeErrors",
+                        definition.nativeErrors, "reentry", definition.reentry, "recoveredErrors", entry.recovered));
             }
         }
         return rows;
@@ -274,12 +301,18 @@ public final class HookDispatcher {
             throw new HookFailure("restart_required", "transport target is not in the frozen plan");
         }
         return subscribe(site, anchor, definition, invocation -> {
-            Object[] outcome = callback
-                    .apply(new Object[]{invocation.site, invocation.declaringClass(), invocation.receiver(),
-                            invocation.committedArguments(), invocation.result(), invocation.exception()});
-            if (outcome == null || outcome.length != 3 || !(outcome[0] instanceof Object[])
+            Object[] outcome = callback.apply(new Object[]{invocation.site, invocation.declaringClass(),
+                    invocation.receiver(), invocation.committedArguments(), invocation.result(), invocation.exception(),
+                    invocation.definition.at.equals("around")
+                            ? (Function<Object[], Object>) invocation::proceed
+                            : null});
+            if (outcome == null || outcome.length < 3 || outcome.length > 4 || !(outcome[0] instanceof Object[])
                     || !(outcome[2] instanceof Boolean)) {
                 throw new HookFailure("hook_invalid_value", "invalid callback transport outcome");
+            }
+            if (outcome.length == 4 && Boolean.TRUE.equals(outcome[3])) {
+                invocation.invalidateObservation();
+                return;
             }
             invocation.acceptTransport((Object[]) outcome[0], outcome[1], (Boolean) outcome[2]);
         });
@@ -294,6 +327,167 @@ public final class HookDispatcher {
             subscriptions.add((Subscription) handle);
         }
         activate(subscriptions);
+    }
+
+    /**
+     * The extracted terminal is invoked exactly, never by virtual dispatch to a
+     * subclass override.
+     */
+    public static Object around(int site, Class<?> anchor, Object receiver, Object[] arguments, String helper)
+            throws Throwable {
+        if (AGENT != null) {
+            return (Object) AGENT.around.invokeExact(site, anchor, receiver, arguments, helper);
+        }
+        State state = state(site);
+        if (state == null || state.anchor != anchor || !state.site.around || !helper.equals(state.site.helperName)) {
+            throw new HookFailure("dispatcher_not_visible", "around helper differs from the installed exact site");
+        }
+        MethodHandle body = state.body;
+        if (body == null) {
+            MethodType signature = MethodType.fromMethodDescriptorString(state.site.target.descriptor,
+                    anchor.getClassLoader());
+            Method selected = anchor.getDeclaredMethod(helper, signature.parameterArray());
+            if (!selected.isSynthetic() || !Modifier.isPrivate(selected.getModifiers())) {
+                throw new HookFailure("dispatcher_not_visible", "around body must be a private generated helper");
+            }
+            selected.setAccessible(true);
+            body = MethodHandles.lookup().unreflect(selected);
+            state.body = body;
+        }
+        MethodHandle terminal = body;
+        Set<String> inherited = new HashSet<>(AROUND_ENTERED.get());
+        return aroundAt(state, state.around, 0, anchor, receiver, arguments, values -> {
+            List<Object> actual = new ArrayList<>();
+            if (receiver != null) {
+                actual.add(receiver);
+            }
+            Collections.addAll(actual, values);
+            try {
+                return terminal.invokeWithArguments(actual);
+            } catch (Throwable failure) {
+                throw rethrow(failure);
+            }
+        }, inherited);
+    }
+
+    private static Object aroundAt(State state, List<Subscription> wrappers, int index, Class<?> anchor,
+            Object receiver, Object[] arguments, Function<Object[], Object> terminal, Set<String> inherited) {
+        if (index == wrappers.size()) {
+            return terminal.apply(arguments);
+        }
+        Subscription subscription = wrappers.get(index);
+        if (!subscription.alive || subscription.closed || subscription.callback == null) {
+            return aroundAt(state, wrappers, index + 1, anchor, receiver, arguments, terminal, inherited);
+        }
+        HookDefinition definition = subscription.definition;
+        String recursion = state.site.id + ":" + definition.owner;
+        Set<String> nested = AROUND_ENTERED.get();
+        if (inherited.contains(recursion)) {
+            subscription.skipped++;
+            if (definition.reentry.equals("error")) {
+                throw new HookCallbackFailure("around reentry refused: " + definition.key(),
+                        new HookFailure("hook_recursion", "around callback reentered its owner/site"));
+            }
+            return aroundAt(state, wrappers, index + 1, anchor, receiver, arguments, terminal, inherited);
+        }
+        if (Thread.currentThread() != clientThread || AROUND_DEPTH.get() >= 16) {
+            throw new HookCallbackFailure("around entry refused: " + definition.key(),
+                    new HookFailure(Thread.currentThread() != clientThread ? "unsupported_thread" : "hook_recursion",
+                            "around requires the client thread and at most 16 nested callbacks"));
+        }
+        boolean ownsGuard = nested.add(recursion);
+        int depth = AROUND_DEPTH.get();
+        AROUND_DEPTH.set(depth + 1);
+        long started = System.nanoTime();
+        try (HookInvocation invocation = new HookInvocation(definition, state.site.target.key(), anchor, receiver,
+                arguments, null, null)) {
+            invocation.continuation(
+                    values -> aroundAt(state, wrappers, index + 1, anchor, receiver, values, terminal, inherited));
+            try {
+                subscription.callback.invoke(invocation);
+                if (!subscription.alive || subscription.closed || invocation.observationInvalidated()) {
+                    return terminalOutcome(invocation);
+                }
+                invocation.validate();
+                Throwable nativeFailure = invocation.nativeFailure();
+                if (nativeFailure instanceof VirtualMachineError || nativeFailure instanceof ThreadDeath) {
+                    throw rethrow(nativeFailure);
+                }
+                if (nativeFailure != null) {
+                    if (!definition.nativeErrors.equals("recover")) {
+                        throw rethrow(nativeFailure);
+                    }
+                    subscription.recovered++;
+                    diagnose(subscription, "native_error_recovered", nativeFailure);
+                } else if (invocation.continuedFailure() != null) {
+                    // Recovery never swallows an inner wrapper/contract failure.
+                    throw rethrow(invocation.continuedFailure());
+                }
+                subscription.calls++;
+                if (!invocation.proceeded()) {
+                    subscription.shortCircuits++;
+                }
+                return invocation.result();
+            } catch (VirtualMachineError | ThreadDeath fatal) {
+                throw fatal;
+            } catch (Throwable failure) {
+                if (!subscription.alive || subscription.closed || invocation.observationInvalidated()) {
+                    return terminalOutcome(invocation);
+                }
+                Throwable nativeFailure = invocation.nativeFailure();
+                if (nativeFailure != null) {
+                    if (failure != nativeFailure && !failure.getClass().getName()
+                            .equals("betamoon.luaapi.interop.NativeHookCall$ContinuationError")) {
+                        diagnose(subscription, "around_secondary_failure", failure);
+                    }
+                    throw rethrow(nativeFailure);
+                }
+                subscription.failures++;
+                diagnose(subscription,
+                        failure instanceof HookFailure ? ((HookFailure) failure).reason : "callback_failed", failure);
+                if (failure instanceof HookCallbackFailure) {
+                    throw (HookCallbackFailure) failure;
+                }
+                throw new HookCallbackFailure("Hook " + definition.key() + " failed at around", failure);
+            }
+        } finally {
+            subscription.nanos += System.nanoTime() - started;
+            if (depth == 0) {
+                AROUND_DEPTH.remove();
+            } else {
+                AROUND_DEPTH.set(depth);
+            }
+            if (ownsGuard) {
+                nested.remove(recursion);
+            }
+            if (nested.isEmpty()) {
+                AROUND_ENTERED.remove();
+            }
+        }
+    }
+
+    private static Object terminalOutcome(HookInvocation invocation) {
+        if (!invocation.proceeded()) {
+            throw new HookCallbackFailure("around owner invalidated before continuation",
+                    new HookFailure("stale_owner", "an invalidated callback cannot publish a replacement"));
+        }
+        if (invocation.continuedFailure() != null) {
+            throw rethrow(invocation.continuedFailure());
+        }
+        return invocation.continuedResult();
+    }
+
+    private static void diagnose(Subscription subscription, String reason, Throwable error) {
+        HookPreparation preparation = HookPreparation.current();
+        if (preparation != null) {
+            preparation.diagnose(subscription.definition.owner, subscription.definition.id, reason,
+                    error.getClass().getName() + ": " + NativeDiagnosticEvidence.message(error));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <T extends Throwable> RuntimeException rethrow(Throwable failure) throws T {
+        throw (T) failure;
     }
 
     private static Entry dispatch(int site, Class<?> anchor, Object receiver, Object[] arguments, Object result,
@@ -409,6 +603,7 @@ public final class HookDispatcher {
         public long skipped;
         public long nanos;
         public long shortCircuits;
+        public long recovered;
 
         Subscription(State state, HookDefinition definition, Callback callback) {
             this.state = state;
@@ -459,6 +654,8 @@ public final class HookDispatcher {
         private volatile List<Subscription> before = Collections.emptyList();
         private volatile List<Subscription> after = Collections.emptyList();
         private volatile List<Subscription> error = Collections.emptyList();
+        private volatile List<Subscription> around = Collections.emptyList();
+        private volatile MethodHandle body;
 
         State(HookPreparation.Site site) {
             this.site = site;
@@ -468,21 +665,29 @@ public final class HookDispatcher {
             List<Subscription> entry = new ArrayList<>();
             List<Subscription> returned = new ArrayList<>();
             List<Subscription> exceptional = new ArrayList<>();
+            List<Subscription> wrappers = new ArrayList<>();
             for (Subscription subscription : subscriptions) {
                 if (subscription.alive && !subscription.closed) {
                     String at = subscription.definition.at;
-                    (at.equals("before") ? entry : at.equals("after") ? returned : exceptional).add(subscription);
+                    (at.equals("before")
+                            ? entry
+                            : at.equals("after") ? returned : at.equals("around") ? wrappers : exceptional)
+                            .add(subscription);
                 }
             }
             Collections.reverse(returned);
             before = Collections.unmodifiableList(entry);
             after = Collections.unmodifiableList(returned);
             error = Collections.unmodifiableList(exceptional);
-            active = (entry.isEmpty() ? 0 : 1) | (returned.isEmpty() ? 0 : 2) | (exceptional.isEmpty() ? 0 : 4);
+            around = Collections.unmodifiableList(wrappers);
+            active = (entry.isEmpty() ? 0 : 1) | (returned.isEmpty() ? 0 : 2) | (exceptional.isEmpty() ? 0 : 4)
+                    | (wrappers.isEmpty() ? 0 : 8);
         }
 
         List<Subscription> phase(String phase) {
-            return phase.equals("before") ? before : phase.equals("after") ? after : error;
+            return phase.equals("before")
+                    ? before
+                    : phase.equals("after") ? after : phase.equals("around") ? around : error;
         }
     }
 }
