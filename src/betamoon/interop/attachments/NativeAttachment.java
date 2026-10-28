@@ -39,7 +39,7 @@ public final class NativeAttachment {
     public NativeAttachment(Object receiver, Object implementation, NativeMemberPlan add, NativeMemberPlan remove) {
         if (!(add.member instanceof Method) || !(remove.member instanceof Method) || add.parameters.length != 1
                 || remove.parameters.length != 1 || add.valueType != Void.TYPE || remove.valueType != Void.TYPE
-                || add.parameters[0] != remove.parameters[0] || !add.parameters[0].isInterface()
+                || add.parameters[0] != remove.parameters[0] || add.parameters[0].isPrimitive()
                 || !add.parameters[0].isInstance(implementation) || add.isStatic != remove.isStatic
                 || add.member.equals(remove.member)
                 || (add.isStatic
@@ -47,7 +47,7 @@ public final class NativeAttachment {
                         : receiver == null || !add.member.getDeclaringClass().isInstance(receiver)
                                 || !remove.member.getDeclaringClass().isInstance(receiver))) {
             throw new NativeAccessFailure("invalid_native_attachment",
-                    "use a matching exact add/remove (Interface)V pair");
+                    "use a matching exact add/remove (ReferenceType)V pair");
         }
         this.receiver = receiver;
         this.implementation = implementation;

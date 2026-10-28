@@ -6,6 +6,7 @@ import betamoon.interop.client.NativeClientSessions;
 import betamoon.interop.discovery.NativeIndexSnapshot;
 import betamoon.interop.discovery.NativeLoaderRegistry;
 import betamoon.interop.interfaces.NativeInterfaces;
+import betamoon.interop.hosts.NativeHostShapes;
 import betamoon.interop.query.NativeDataQueries;
 import betamoon.interop.reference.NativeMemberRef;
 import betamoon.interop.reference.NativeTypeRef;
@@ -42,6 +43,7 @@ public final class NativeBindings {
     public final NativeDataQueries dataQueries = new NativeDataQueries(this);
     public final NativeOwnedValues owned = new NativeOwnedValues(this);
     public final NativeInterfaces interfaces = new NativeInterfaces(this);
+    public final NativeHostShapes hostShapes = new NativeHostShapes(this);
     private final NativeLoaderRegistry loaders;
     private final Thread client = Thread.currentThread();
     private final Supplier<NativeIndexSnapshot> snapshots;
@@ -163,7 +165,7 @@ public final class NativeBindings {
             return CatalogValues.record("session", closed ? "closed" : "active", "cachedTypeSelectors",
                     cachedTypeSelectors, "failures", new HashMap<>(failures), "failureDetails",
                     failureJournal.snapshot(), "ownership", owned.diagnostics(), "interfaces", interfaces.diagnostics(),
-                    "client", clients.diagnostics());
+                    "client", clients.diagnostics(), "hostShapes", hostShapes.preparedCount());
         }
     }
 
@@ -190,6 +192,7 @@ public final class NativeBindings {
         } finally {
             closed = true;
             dataQueries.clear();
+            hostShapes.clear();
             types.clear();
             cachedTypeSelectors = 0;
         }
@@ -280,6 +283,7 @@ public final class NativeBindings {
         result = candidates.iterator().next();
         if (types.size() >= 1024) {
             dataQueries.clear();
+            hostShapes.clear();
             types.clear();
         }
         types.put(key, new WeakReference<>(result));
@@ -323,7 +327,8 @@ public final class NativeBindings {
                 for (Class<?> owner : declaring == null ? hierarchy(lookup) : Collections.singletonList(declaring)) {
                     if (reference.kind == NativeMemberRef.Kind.METHOD) {
                         for (Method method : owner.getDeclaredMethods()) {
-                            if (!(method.isSynthetic() && method.getName().startsWith("betamoon$hook$body$"))
+                            if (!(method.isSynthetic() && (method.getName().startsWith("betamoon$hook$body$")
+                                    || method.getName().startsWith("betamoon$host$")))
                                     && Type.getMethodDescriptor(method).equals(descriptor)
                                     && names.methodMatches(method, reference.name, reference.names)) {
                                 if (!found.isEmpty() && declaring == null && !Modifier.isPrivate(method.getModifiers())

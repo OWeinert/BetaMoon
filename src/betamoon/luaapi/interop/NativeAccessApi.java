@@ -38,6 +38,7 @@ public final class NativeAccessApi {
     void attach(LuaTable api) {
         api.set("NULL", NativeLuaExact.NULL);
         api.set("dataPlan", NativeLuaSupport.function(api, args -> NativeLuaDataPlan.create(args.arg1())));
+        api.set("hostType", NativeLuaSupport.function(api, args -> NativeLuaHostType.create(this, args.arg1())));
         api.set("type",
                 NativeLuaSupport.function(api, args -> new NativeLuaReference(this, type(args.arg1(), args.arg(2)))));
         api.set("typeOf", NativeLuaSupport.function(api, args -> {

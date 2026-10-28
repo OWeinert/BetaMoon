@@ -155,6 +155,15 @@ public final class LuaScriptRegistry {
         return entry;
     }
 
+    /**
+     * Java-owned consumers may have no ScriptMod; registered owners activate only
+     * after successful initialization.
+     */
+    public static synchronized boolean callbackOwnerReady(String fileName) {
+        ScriptMod owner = byFile.get(fileName);
+        return owner == null || owner.isLoaded();
+    }
+
     static synchronized ScriptMod findByFile(String fileName) {
         return byFile.get(fileName);
     }

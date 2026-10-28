@@ -26,3 +26,4 @@
 - Around hooks with scoped one-use continuation, typed results, explicit native-error recovery and precise reentry behavior.
 - Exact call-site and field-operation hooks with mandatory match counts, scoped operands and transactional typed edits.
 - Exact constructor-return observations with saved arguments, scoped receivers and explicit declaring-constructor lifecycle semantics.
+- Owned native subclass/abstract-class hosts with exact overrides, scoped setup/super calls, closed-instance policies and reusable class attachments.

@@ -4,6 +4,7 @@ import betamoon.interop.binding.NativeAccessFailure;
 import betamoon.interop.binding.NativeBindings;
 import betamoon.interop.binding.NativeMemberPlan;
 import betamoon.interop.catalog.CatalogValues;
+import betamoon.interop.hosts.NativeHostShape;
 import betamoon.luamodloader.ScriptResourceTracker;
 import betamoon.luamodloader.ScriptExecution;
 import betamoon.luamodloader.LuaScriptErrors;
@@ -41,7 +42,22 @@ public final class NativeOwnedValues {
     }
 
     public NativeOwnedValue retain(NativeContext context, Object value, String lifetime, NativeMemberPlan disposer) {
-        context.require(NativeContext.Effect.WRITE, true);
+        return retain(context, value, lifetime, disposer, false, false);
+    }
+
+    public NativeOwnedValue retainGeneratedHost(NativeContext context, Object value, String lifetime,
+            NativeMemberPlan disposer, NativeHostShape shape) {
+        shape.requireInstance(value);
+        return retain(context, value, lifetime, disposer, true, shape.clientScreen(bindings));
+    }
+
+    private NativeOwnedValue retain(NativeContext context, Object value, String lifetime, NativeMemberPlan disposer,
+            boolean generatedHost, boolean clientResource) {
+        if (clientResource) {
+            context.requireClientResource();
+        } else {
+            context.require(NativeContext.Effect.WRITE, true);
+        }
         if (closed || context.bindings != bindings) {
             throw new NativeAccessFailure("wrong_native_session", "owned values belong to one native session");
         }
@@ -53,7 +69,7 @@ public final class NativeOwnedValues {
         if (!lifetime.equals("owner") && !lifetime.equals("world")) {
             throw new NativeAccessFailure("invalid_native_lifetime", "choose owner or world explicitly");
         }
-        if (context.isRoot(value) || bindings.borrowedRootType(value.getClass())) {
+        if (context.isRoot(value) || !generatedHost && bindings.borrowedRootType(value.getClass())) {
             throw new NativeAccessFailure("borrowed_root",
                     "live client/world/entity/tile/screen roots cannot be owned");
         }
@@ -74,7 +90,7 @@ public final class NativeOwnedValues {
         NativeOwnedValue token = new NativeOwnedValue(this, ++nextIdentity, owner, generation, lifetime,
                 bindings.reference(value.getClass()));
         context.trackOwnership(value, token);
-        entries.put(token.identity, new Entry(token, value, method, world, player));
+        entries.put(token.identity, new Entry(token, value, method, world, player, clientResource));
         identities.put(value, token);
         String tracking = owner + ":" + generation;
         if (!trackedOwners.containsKey(tracking)) {
@@ -141,9 +157,25 @@ public final class NativeOwnedValues {
     }
 
     void release(NativeOwnedValue token, NativeContext context, boolean direct) {
-        context.require(NativeContext.Effect.UNKNOWN, direct);
+        context.check();
         owner(token, context);
         Entry entry = entries.get(token.identity);
+        if (entry != null && entry.clientResource) {
+            if (!direct) {
+                throw new NativeAccessFailure("direct_required",
+                        "release generated client hosts through direct access");
+            }
+            try {
+                context.requireClientResource();
+            } catch (NativeAccessFailure denied) {
+                if (!denied.reason.equals("native_phase_denied")) {
+                    throw denied;
+                }
+                context.requireClientAction();
+            }
+        } else {
+            context.require(NativeContext.Effect.UNKNOWN, direct);
+        }
         if (entry != null) {
             invalidate(entry, "released");
         }
@@ -334,13 +366,16 @@ public final class NativeOwnedValues {
         private final Object world;
         private final Object player;
         private Consumer<String> invalidation;
+        private final boolean clientResource;
 
-        private Entry(NativeOwnedValue token, Object value, Method disposer, Object world, Object player) {
+        private Entry(NativeOwnedValue token, Object value, Method disposer, Object world, Object player,
+                boolean clientResource) {
             this.token = token;
             this.value = value;
             this.disposer = disposer;
             this.world = world;
             this.player = player;
+            this.clientResource = clientResource;
         }
     }
 }

@@ -198,6 +198,7 @@ public final class NativeDiscoveryRuntime {
         result.put("net/minecraft/src/World", World.class);
         result.put("net/minecraft/src/ItemStack", ItemStack.class);
         result.put("net/minecraft/src/IWorldAccess", IWorldAccess.class);
+        result.put("net/minecraft/src/GuiScreen", GuiScreen.class);
         return result;
     }
 }

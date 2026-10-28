@@ -15,8 +15,8 @@ final class NativeLuaAttachment extends NativeLuaHandle {
         NativeAttachment.Status status = attachment.status;
         properties.put("implementation", implementation);
         properties.put("describe", NativeLuaSupport.function(this, args -> {
-            return host.metadata(CatalogValues.record("state", status.state(), "implementation",
-                    implementation.implementation.describe()), true);
+            return host.metadata(
+                    CatalogValues.record("state", status.state(), "implementation", implementation.describe()), true);
         }));
         properties.put("close", NativeLuaSupport.function(this, args -> {
             NativeContext context = NativeContext.current();

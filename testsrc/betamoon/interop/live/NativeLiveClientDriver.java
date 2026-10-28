@@ -1,5 +1,6 @@
 package betamoon.interop.live;
 
+import betamoon.luaapi.interop.NativeHostLiveFixture;
 import betamoon.BetaMoonClient;
 import betamoon.instrumentation.api.ClassRef;
 import betamoon.instrumentation.api.FieldRef;
@@ -80,6 +81,9 @@ public final class NativeLiveClientDriver {
                 if (Boolean.getBoolean("betamoon.native.x3") && !NativeX3LiveClientChecks.beforeWorld(client)) {
                     return;
                 }
+                if (Boolean.getBoolean("betamoon.native.x10") && !NativeHostLiveFixture.beforeWorld(client)) {
+                    return;
+                }
                 if (Boolean.getBoolean("betamoon.native.n7") && !NativeN7LiveClientChecks.beforeWorld(client)) {
                     return;
                 }
@@ -120,6 +124,12 @@ public final class NativeLiveClientDriver {
                     return;
                 }
                 call(client, CLIENT, "changeWorld1", "(Lnet/minecraft/src/World;)V", new Object[]{null});
+                // Vanilla quit-to-menu also releases gameplay focus before the next render.
+                Class<?> menuType = Class.forName(mappings
+                        .resolveClass(new ClassRef("net/minecraft/src/GuiMainMenu"), namespace).replace('/', '.'),
+                        false, client.getClass().getClassLoader());
+                call(client, CLIENT, "displayGuiScreen", "(Lnet/minecraft/src/GuiScreen;)V",
+                        menuType.getConstructor().newInstance());
                 stage = 5;
             } else if (stage == 5 && world == null && detached()
                     && Boolean.TRUE.equals(NativeDiscoveryRuntime.snapshot().coverage.get("ready"))) {
@@ -131,6 +141,9 @@ public final class NativeLiveClientDriver {
                 }
                 Files.write(directory.resolve("native_catalog.json"),
                         CatalogJson.encode(payload.manifest()).getBytes(StandardCharsets.UTF_8));
+                if (Boolean.getBoolean("betamoon.native.x10") && !NativeHostLiveFixture.afterWorld()) {
+                    throw new AssertionError("X10 native renderer did not complete its world lifecycle");
+                }
                 write("passed", null);
                 stage = 99;
                 call(client, CLIENT, "shutdownMinecraftApplet", "()V");
@@ -208,7 +221,9 @@ public final class NativeLiveClientDriver {
                 "true".equals(System.getProperty("betamoon.x8.passed")), "x9Acceptance",
                 "true".equals(System.getProperty("betamoon.x9.passed"))
                         && "true".equals(System.getProperty("betamoon.x9.partner")),
-                "n7Acceptance",
+                "x10Menu", "true".equals(System.getProperty("betamoon.x10.menu")), "x10Renderer",
+                "true".equals(System.getProperty("betamoon.x10.renderer")), "x10Cleanup",
+                "true".equals(System.getProperty("betamoon.x10.cleanup")), "n7Acceptance",
                 Boolean.getBoolean("betamoon.native.n7") && "passed".equals(System.getProperty("betamoon.n7.phase"))));
         Files.write(Paths.get(System.getProperty("betamoon.live.result")), result.getBytes(StandardCharsets.UTF_8));
         System.out.println("[N6-LIVE] " + result);
