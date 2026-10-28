@@ -41,6 +41,18 @@ public final class NativeDiagnosticEvidence {
         if (maximumBytes < 0) {
             throw new IllegalArgumentException("Negative diagnostic text limit");
         }
+        if (value.length() <= maximumBytes) {
+            boolean ascii = true;
+            for (int index = 0; index < value.length(); index++) {
+                if (value.charAt(index) >= 128) {
+                    ascii = false;
+                    break;
+                }
+            }
+            if (ascii) {
+                return value;
+            }
+        }
         StringBuilder result = new StringBuilder(Math.min(value.length(), maximumBytes));
         int bytes = 0;
         for (int index = 0; index < value.length();) {

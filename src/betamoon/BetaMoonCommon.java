@@ -8,6 +8,7 @@ import betamoon.instrumentation.agent.AgentStatus;
 import betamoon.instrumentation.agent.BetaMoonAgent;
 import betamoon.luamodloader.LuaModLoader;
 import betamoon.luamodloader.SlowScriptCallbackMonitor;
+import betamoon.hooks.HookDispatcher;
 import betamoon.logging.RuntimeLogs;
 import betamoon.network.transport.PacketRegistration;
 import betamoon.recipes.RecipeModificationHandler;
@@ -63,6 +64,8 @@ public final class BetaMoonCommon {
                 config.getConsoleMinLogLevel().getValue());
         luaModLoader.configure(config);
         SlowScriptCallbackMonitor.configure(config.getSlowCallbackWarningMs().getValue());
+        HookDispatcher.configureTiming(config.getHookTimingMode().getValue(),
+                config.getHookTimingSampleEvery().getValue());
     }
 
     public void pollScripts() {

@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 /**
  * Bounded detached failure evidence; never retains exceptions, receivers,
@@ -19,10 +21,21 @@ final class NativeFailureJournal {
     private static final int MAXIMUM_RECORD_BYTES = 65536;
     private static final int MAXIMUM_BYTES = 256 * 1024;
     private final Map<String, Entry> entries = new LinkedHashMap<>();
+    private final Set<String> omittedKeys = new LinkedHashSet<>();
     private long omitted;
     private int encodedBytes;
 
     synchronized void record(NativeAccessFailure failure) {
+        String key = failure.journalKey();
+        Entry entry = entries.get(key);
+        if (entry != null) {
+            entry.count++;
+            return;
+        }
+        if (omittedKeys.contains(key) || entries.size() >= MAXIMUM_RECORDS || encodedBytes >= MAXIMUM_BYTES - 256) {
+            omit(key);
+            return;
+        }
         Map<String, Object> record = new LinkedHashMap<>(failure.diagnostic());
         record.put("reason", text(failure.reason, 128));
         record.put("message", NativeDiagnosticEvidence.bounded(failure.getMessage(), 2048));
@@ -32,23 +45,21 @@ final class NativeFailureJournal {
             record.put("nativeCauseType", cause.getClass().getName());
             record.put("nativeCauses", NativeDiagnosticEvidence.capture(cause));
         }
-        String key = CatalogJson.encode(record);
-        int bytes = key.getBytes(StandardCharsets.UTF_8).length + 64;
-        if (bytes > MAXIMUM_RECORD_BYTES) {
-            omitted++;
-            return;
-        }
-        Entry entry = entries.get(key);
-        if (entry != null) {
-            entry.count++;
-            return;
-        }
-        if (entries.size() >= MAXIMUM_RECORDS || encodedBytes + bytes > MAXIMUM_BYTES - 256) {
-            omitted++;
+        int bytes = CatalogJson.encode(record).getBytes(StandardCharsets.UTF_8).length + 64;
+        if (bytes > MAXIMUM_RECORD_BYTES || encodedBytes + bytes > MAXIMUM_BYTES - 256) {
+            omit(key);
             return;
         }
         entries.put(key, new Entry(CatalogValues.object(CatalogValues.freeze(record))));
         encodedBytes += bytes;
+    }
+
+    private void omit(String key) {
+        omitted++;
+        if (!omittedKeys.contains(key) && omittedKeys.size() >= 128) {
+            omittedKeys.remove(omittedKeys.iterator().next());
+        }
+        omittedKeys.add(key);
     }
 
     synchronized Map<String, Object> snapshot() {

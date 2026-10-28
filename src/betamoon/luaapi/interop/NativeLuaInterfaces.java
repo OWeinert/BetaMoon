@@ -62,11 +62,13 @@ final class NativeLuaInterfaces {
             NativeMemberPlan plan = context.bindings.exact(reference, context, false);
             String key = contract.select((Method) plan.member);
             LuaValue callback = selected.get("callback").checkfunction();
+            String callbackLabel = "native.interface." + reference.name;
             String methodPolicy = selected.get("policy").isnil()
                     ? policy
                     : NativeAccessApi.text(selected.get("policy"));
-            NativeInterfaces.MethodCallback definition = new NativeInterfaces.MethodCallback((actual, arguments,
-                    scope) -> dispatch(host, owner, reference, callback, implementation[0], actual, arguments, scope),
+            NativeInterfaces.MethodCallback definition = new NativeInterfaces.MethodCallback(
+                    (actual, arguments, scope) -> dispatch(host, owner, callbackLabel, reference, callback,
+                            implementation[0], actual, arguments, scope),
                     methodPolicy);
             if (callbacks.put(key, definition) != null) {
                 throw new NativeAccessFailure("duplicate_interface_method", key);
@@ -130,12 +132,13 @@ final class NativeLuaInterfaces {
         }
     }
 
-    private static Object dispatch(NativeAccessApi host, String owner, NativeMemberRef reference, LuaValue callback,
-            NativeImplementation implementation, Method method, Object[] arguments, LuaCallbackScope scope) {
+    private static Object dispatch(NativeAccessApi host, String owner, String callbackLabel, NativeMemberRef reference,
+            LuaValue callback, NativeImplementation implementation, Method method, Object[] arguments,
+            LuaCallbackScope scope) {
         NativeCallbackTable table = new NativeCallbackTable(scope);
         table.set("method", host.reference(reference));
         Object[] result = new Object[1];
-        ScriptExecution.invokeNative(owner, "native.interface." + reference.name, new VarArgFunction() {
+        ScriptExecution.invokeNative(owner, callbackLabel, new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs ignored) {
                 NativeContext context = NativeContext.current();

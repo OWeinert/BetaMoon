@@ -13,7 +13,7 @@ import java.util.function.Function;
  * and boxing. No game or Lua class crosses this ABI.
  */
 final class HookAgentBridge {
-    static final String PROTOCOL = "betamoon-hooks-jdk-abi-6";
+    static final String PROTOCOL = "betamoon-hooks-jdk-abi-7";
     private static String unavailableReason;
     private static String unavailableMessage;
     private static final HookAgentBridge REMOTE = discover();
@@ -26,12 +26,14 @@ final class HookAgentBridge {
     final MethodHandle finishOperation;
     final MethodHandle error;
     final MethodHandle clientThread;
+    final MethodHandle configureTiming;
     final MethodHandle subscribe;
     final MethodHandle activate;
     final MethodHandle status;
     final MethodHandle plan;
     final MethodHandle revision;
     final MethodHandle diagnostics;
+    final MethodHandle diagnosticFailure;
     final MethodHandle states;
     final MethodHandle targetLoader;
 
@@ -55,6 +57,8 @@ final class HookAgentBridge {
         error = lookup.findStatic(dispatcher, "error", MethodType.methodType(void.class, int.class, Class.class,
                 Object.class, Object[].class, Throwable.class));
         clientThread = lookup.findStatic(dispatcher, "clientThread", MethodType.methodType(void.class));
+        configureTiming = lookup.findStatic(dispatcher, "configureTiming",
+                MethodType.methodType(void.class, String.class, int.class));
         subscribe = lookup.findStatic(dispatcher, "subscribeTransport",
                 MethodType.methodType(AutoCloseable.class, int.class, Class.class, Map.class, Function.class));
         activate = lookup.findStatic(dispatcher, "activateTransport", MethodType.methodType(void.class, List.class));
@@ -63,6 +67,8 @@ final class HookAgentBridge {
         revision = lookup.findStatic(preparation, "revisionTransport", MethodType.methodType(long.class));
         diagnostics = lookup.findStatic(preparation, "diagnoseTransport",
                 MethodType.methodType(void.class, String.class, String.class, String.class, String.class));
+        diagnosticFailure = lookup.findStatic(preparation, "diagnoseFailureTransport",
+                MethodType.methodType(void.class, String.class, String.class, String.class, Throwable.class));
         states = lookup.findStatic(preparation, "statesTransport", MethodType.methodType(List.class));
         targetLoader = lookup.findStatic(dispatcher, "targetLoader",
                 MethodType.methodType(ClassLoader.class, int.class));

@@ -28,6 +28,7 @@ public final class HookDefinition {
     public final int priority;
     public final boolean required;
     public final String sourceSha256;
+    public final String callbackLabel;
 
     private HookDefinition(String owner, String file, String id, NativeMemberRef target, String at, boolean edit,
             int priority, boolean required, String sourceSha256, String nativeErrors, String reentry, HookPoint point) {
@@ -43,6 +44,7 @@ public final class HookDefinition {
         this.priority = priority;
         this.required = required;
         this.sourceSha256 = sourceSha256;
+        callbackLabel = "hook:" + id + ":" + at;
     }
 
     static HookDefinition read(String owner, String file, LuaValue value) {

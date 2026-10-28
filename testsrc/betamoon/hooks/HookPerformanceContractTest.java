@@ -48,7 +48,30 @@ final class HookPerformanceContractTest {
                     .get() == site) {
                 throw new AssertionError("status revision did not invalidate cached structure");
             }
+            long diagnosticRevision = fixture.preparation.revision();
+            Object stableSite = fixture.preparation.status().stream().filter(row -> "HOOK_SITE".equals(row.get("kind")))
+                    .findFirst().get();
+            java.io.ByteArrayOutputStream logs = new java.io.ByteArrayOutputStream();
+            java.io.PrintStream previous = System.err;
+            try {
+                System.setErr(new java.io.PrintStream(logs));
+                for (int index = 0; index < 10000; index++) {
+                    fixture.preparation.diagnose("operations", "status", "fixture_change", "changed evidence " + index);
+                }
+            } finally {
+                System.setErr(previous);
+            }
+            Map<String, Object> diagnostic = fixture.preparation.status().stream()
+                    .filter(row -> "HOOK_DIAGNOSTIC".equals(row.get("kind"))).findFirst().get();
+            if (((Number) diagnostic.get("count")).longValue() != 10001 || logs.size() != 0
+                    || fixture.preparation.revision() != diagnosticRevision
+                    || fixture.preparation.status().stream().filter(row -> "HOOK_SITE".equals(row.get("kind")))
+                            .findFirst().get() != stableSite
+                    || !diagnostic.get("message").equals("structural invalidation")) {
+                throw new AssertionError(
+                        "repeat diagnostics must count without formatting, logging or rebuilding structure");
+            }
         }
-        return 4;
+        return 5;
     }
 }

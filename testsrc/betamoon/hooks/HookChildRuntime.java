@@ -48,6 +48,25 @@ public final class HookChildRuntime {
             throw new AssertionError("independent LuaJ callback did not cross the JDK bridge atomically");
         }
         globals.load("assert(not pcall(function() saved:returnValue(3) end))").call();
+        HookDispatcher.configureTiming("full", 64);
+        int timedValue = (int) call.invokeExact(1);
+        java.util.Map<String, Object> fullTiming = preparation.status().stream()
+                .filter(row -> "HOOK_SUBSCRIPTION".equals(row.get("kind"))).findFirst().get();
+        if (timedValue != 42 || !"full".equals(fullTiming.get("timingMode"))
+                || ((Number) fullTiming.get("timedCalls")).longValue() != 1) {
+            throw new AssertionError("timing configuration did not cross the JDK-only agent bridge");
+        }
+        HookDispatcher.configureTiming("sampled", 4);
+        for (int index = 0; index < 8; index++) {
+            int ignored = (int) call.invokeExact(1);
+        }
+        java.util.Map<String, Object> sampledTiming = preparation.status().stream()
+                .filter(row -> "HOOK_SUBSCRIPTION".equals(row.get("kind"))).findFirst().get();
+        if (((Number) sampledTiming.get("timedCalls")).longValue() != 2
+                || ((Number) sampledTiming.get("timingAttempts")).longValue() != 8) {
+            throw new AssertionError("sample interval/reset did not cross agent bridge");
+        }
+        HookDispatcher.configureTiming("counts", 64);
         long[] costs = new long[1000];
         for (int index = 0; index < 200; index++) {
             int ignored = (int) call.invokeExact(index);

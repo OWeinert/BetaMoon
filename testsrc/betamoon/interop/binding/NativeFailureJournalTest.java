@@ -34,6 +34,32 @@ public final class NativeFailureJournalTest {
         require(HostileFailure.calls == 0, "journal invokes no foreign exception getters");
         detached(snapshot);
 
+        java.lang.management.ThreadMXBean bean = java.lang.management.ManagementFactory.getThreadMXBean();
+        if (bean instanceof com.sun.management.ThreadMXBean) {
+            com.sun.management.ThreadMXBean allocation = (com.sun.management.ThreadMXBean) bean;
+            if (allocation.isThreadAllocatedMemorySupported()) {
+                allocation.setThreadAllocatedMemoryEnabled(true);
+                for (int index = 0; index < 10000; index++) {
+                    journal.record(failure);
+                }
+                long before = allocation.getThreadAllocatedBytes(Thread.currentThread().getId());
+                for (int index = 0; index < 10000; index++) {
+                    journal.record(failure);
+                }
+                long bytes = allocation.getThreadAllocatedBytes(Thread.currentThread().getId()) - before;
+                require(bytes <= 256, "repeat evidence must avoid per-occurrence allocation: " + bytes);
+            }
+        }
+        NativeFailureJournal grouped = new NativeFailureJournal();
+        for (int index = 0; index < 1000; index++) {
+            grouped.record(
+                    new NativeAccessFailure("native_exception", "same call", new HostileFailure("cause " + index, null))
+                            .explain(CatalogValues.record("requestedType", "fixture.Type", "requestedMember", "call")));
+        }
+        Map<?, ?> groupedRecord = (Map<?, ?>) ((List<?>) grouped.snapshot().get("records")).get(0);
+        require(((Number) groupedRecord.get("count")).longValue() == 1000,
+                "fresh failures grouped before cause capture");
+        require(HostileFailure.calls == 0, "failure storms invoke no foreign formatters");
         NativeFailureJournal bounded = new NativeFailureJournal();
         StringBuilder text = new StringBuilder();
         for (int index = 0; index < 2000; index++) {

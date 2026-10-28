@@ -44,7 +44,8 @@ public final class HookPreparation {
     private final Map<String, Site> sites = new LinkedHashMap<>();
     private final Map<String, List<HookDefinition>> definitions = new TreeMap<>();
     private final Map<String, List<String>> definitionTargets = new HashMap<>();
-    private final List<Map<String, Object>> diagnostics = new ArrayList<>();
+    private static final long DIAGNOSTIC_LOG_INTERVAL = 60L * 1000000000L;
+    private final Map<DiagnosticKey, Diagnostic> diagnostics = new LinkedHashMap<>();
     private final AtomicLong revision = new AtomicLong();
     private final String mappingResourceHash;
     private boolean remote;
@@ -324,6 +325,12 @@ public final class HookPreparation {
         }
     }
 
+    public static void diagnoseFailureTransport(String owner, String hook, String reason, Throwable failure) {
+        if (current != null) {
+            current.diagnoseFailure(owner, hook, reason, failure);
+        }
+    }
+
     public List<Site> sites(String className) {
         List<Site> result = classes.get(className);
         return result == null ? Collections.emptyList() : result;
@@ -446,10 +453,41 @@ public final class HookPreparation {
                 throw HookAgentBridge.failure(error);
             }
         }
-        String bounded = message == null ? "" : NativeDiagnosticEvidence.bounded(message, 2048);
-        if (diagnostics.size() == 128) {
-            diagnostics.remove(0);
+        diagnoseLocal(owner, hook, reason, message, null);
+    }
+
+    public synchronized void diagnoseFailure(String owner, String hook, String reason, Throwable failure) {
+        if (remote) {
+            try {
+                HookAgentBridge.remote().diagnosticFailure.invokeExact(owner, hook, reason, failure);
+                return;
+            } catch (Throwable error) {
+                throw HookAgentBridge.failure(error);
+            }
         }
+        diagnoseLocal(owner, hook, reason, null, failure);
+    }
+
+    private void diagnoseLocal(String owner, String hook, String reason, String message, Throwable failure) {
+        DiagnosticKey key = new DiagnosticKey(owner, hook, reason);
+        Diagnostic existing = diagnostics.get(key);
+        long now = System.nanoTime();
+        if (existing != null) {
+            existing.count++;
+            if (now - existing.lastLog >= DIAGNOSTIC_LOG_INTERVAL) {
+                existing.lastLog = now;
+                existing.reported++;
+                logDiagnostic(key, failure == null ? message : NativeDiagnosticEvidence.message(failure),
+                        existing.count);
+            }
+            return;
+        }
+        if (diagnostics.size() == 128) {
+            diagnostics.remove(diagnostics.keySet().iterator().next());
+        }
+        String bounded = failure != null
+                ? NativeDiagnosticEvidence.message(failure)
+                : message == null ? "" : NativeDiagnosticEvidence.bounded(message, 2048);
         Site site = sites.get(hook);
         List<String> owners = site == null ? Collections.singletonList(owner) : new ArrayList<>(site.owners);
         Map<String, Object> diagnostic = CatalogValues.record("id", "diagnostic-" + revision.incrementAndGet(), "name",
@@ -458,8 +496,14 @@ public final class HookPreparation {
         if (site != null) {
             diagnostic.put("target", site.target.key());
         }
-        diagnostics.add(diagnostic);
-        System.err.println("[BetaMoon Hooks] " + owner + "/" + hook + ": " + reason + ": " + bounded);
+        diagnostics.put(key, new Diagnostic(CatalogValues.object(CatalogValues.freeze(diagnostic)), now));
+        logDiagnostic(key, bounded, 1);
+    }
+
+    private static void logDiagnostic(DiagnosticKey key, String message, long count) {
+        String bounded = message == null ? "" : NativeDiagnosticEvidence.bounded(message, 2048);
+        System.err.println("[BetaMoon Hooks] " + key.owner + "/" + key.hook + ": " + key.reason + ": " + bounded
+                + (count == 1 ? "" : " (" + count + " occurrences)"));
     }
 
     public synchronized List<Map<String, Object>> status() {
@@ -483,7 +527,14 @@ public final class HookPreparation {
             structuralStatus = Collections.unmodifiableList(frozen);
             statusRevision = observed;
         }
-        List<Map<String, Object>> result = new ArrayList<>(structuralStatus);
+        List<Map<String, Object>> result = new ArrayList<>(structuralStatus.size() + diagnostics.size());
+        for (Diagnostic diagnostic : diagnostics.values()) {
+            Map<String, Object> row = new LinkedHashMap<>(diagnostic.record);
+            row.put("count", diagnostic.count);
+            row.put("reported", diagnostic.reported);
+            result.add(row);
+        }
+        result.addAll(structuralStatus);
         for (Map<String, Object> subscription : HookDispatcher.status()) {
             Map<String, Object> row = new LinkedHashMap<>(subscription);
             row.put("guidance", NativeDiagnosticGuidance.forStatus((String) row.get("status")));
@@ -493,7 +544,7 @@ public final class HookPreparation {
     }
 
     private List<Map<String, Object>> structuralStatus() {
-        List<Map<String, Object>> result = new ArrayList<>(diagnostics);
+        List<Map<String, Object>> result = new ArrayList<>();
         for (Site site : sites.values()) {
             Map<String, Object> record = CatalogValues.record("id", "script-site-" + site.id, "name", site.target.key(),
                     "kind", "HOOK_SITE", "declaringType", site.target.owner.replace('/', '.'), "descriptor",
@@ -552,6 +603,44 @@ public final class HookPreparation {
 
     private static String reason(RuntimeException error) {
         return error instanceof HookFailure ? ((HookFailure) error).reason : "declaration_failed";
+    }
+
+    private static final class Diagnostic {
+        private final Map<String, Object> record;
+        private long count = 1;
+        private long reported = 1;
+        private long lastLog;
+
+        private Diagnostic(Map<String, Object> record, long now) {
+            this.record = record;
+            lastLog = now;
+        }
+    }
+
+    private static final class DiagnosticKey {
+        private final String owner;
+        private final String hook;
+        private final String reason;
+
+        private DiagnosticKey(String owner, String hook, String reason) {
+            this.owner = NativeDiagnosticEvidence.bounded(owner == null ? "" : owner, 256);
+            this.hook = NativeDiagnosticEvidence.bounded(hook == null ? "" : hook, 1024);
+            this.reason = NativeDiagnosticEvidence.bounded(reason == null ? "" : reason, 128);
+        }
+
+        @Override
+        public int hashCode() {
+            return (owner.hashCode() * 31 + hook.hashCode()) * 31 + reason.hashCode();
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (!(other instanceof DiagnosticKey)) {
+                return false;
+            }
+            DiagnosticKey key = (DiagnosticKey) other;
+            return owner.equals(key.owner) && hook.equals(key.hook) && reason.equals(key.reason);
+        }
     }
 
     public static final class Site {

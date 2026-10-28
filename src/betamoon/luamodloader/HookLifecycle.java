@@ -249,7 +249,7 @@ final class HookLifecycle {
                                                     : new NativeHookOperationCall(invocation, observation::context,
                                                             edits);
                                     Varargs returned = ScriptExecution.invokeNative(attempt.snapshot.resourceOwner,
-                                            "hook:" + definition.id + ":" + definition.at, registration.callback, call);
+                                            definition.callbackLabel, registration.callback, call);
                                     if (definition.at.equals("around")) {
                                         ((NativeHookCall) call).complete(returned);
                                     }

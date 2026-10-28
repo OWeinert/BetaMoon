@@ -16,6 +16,7 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Locale;
 import java.util.Set;
 import java.util.logging.Level;
 
@@ -38,6 +39,8 @@ public final class BetaMoonConfig {
     private ConfigField<Boolean> logScriptLoadTimings;
     private ConfigField<Boolean> autoExportDiagnosticsOnScriptError;
     private ConfigField<Integer> slowCallbackWarningMs;
+    private ConfigField<String> hookTimingMode;
+    private ConfigField<Integer> hookTimingSampleEvery;
     private ConfigField<Boolean> verboseAssetDiagnostics;
     private ConfigField<Integer> particleMaxActive;
     private ConfigField<Integer> particleMaxPerTick;
@@ -148,6 +151,17 @@ public final class BetaMoonConfig {
                 "Write a bounded script diagnostics report after a failed load or reload.");
         slowCallbackWarningMs = boundedInt("diagnostics.slowCallbackWarningMs", 0, 0, 60000,
                 "Warn when BetaMoon Lua callback dispatches repeatedly exceed this time in ms; 0 disables it.");
+        String timing = string("diagnostics.hookTimingMode", "counts",
+                "Hook timing: counts (default, no clocks), sampled, or full. Editing behavior is unchanged.").trim()
+                .toLowerCase(Locale.ROOT);
+        if (!timing.equals("counts") && !timing.equals("sampled") && !timing.equals("full")) {
+            BetaMoonCommon.LOGGER.warning("Invalid diagnostics.hookTimingMode; using counts.");
+            timing = "counts";
+        }
+        ((Property) config.generalProperties.get("diagnostics.hookTimingMode")).value = timing;
+        hookTimingMode = new ConfigField<>("diagnostics.hookTimingMode", timing);
+        hookTimingSampleEvery = boundedInt("diagnostics.hookTimingSampleEvery", 64, 1, 65536,
+                "In sampled mode, time every Nth admitted callback per subscription (1-65536). Counts remain exact.");
         verboseAssetDiagnostics = bool("diagnostics.verboseAssetDiagnostics", false,
                 "Log selected asset sources and texture-pack fallbacks during asset resolution.");
 
@@ -215,6 +229,14 @@ public final class BetaMoonConfig {
         return slowCallbackWarningMs;
     }
 
+    public ConfigField<String> getHookTimingMode() {
+        return hookTimingMode;
+    }
+
+    public ConfigField<Integer> getHookTimingSampleEvery() {
+        return hookTimingSampleEvery;
+    }
+
     public ConfigField<Boolean> getVerboseAssetDiagnostics() {
         return verboseAssetDiagnostics;
     }
@@ -251,7 +273,10 @@ public final class BetaMoonConfig {
         return particleViewDistance;
     }
 
-    /** Effective diagnostic settings; excludes arbitrary configuration files and local paths. */
+    /**
+     * Effective diagnostic settings; excludes arbitrary configuration files and
+     * local paths.
+     */
     public Map<String, String> diagnosticSettings() {
         Map<String, String> values = new LinkedHashMap<>();
         diagnostic(values, fileMinLogLevel);
@@ -264,6 +289,8 @@ public final class BetaMoonConfig {
         diagnostic(values, logScriptLoadTimings);
         diagnostic(values, autoExportDiagnosticsOnScriptError);
         diagnostic(values, slowCallbackWarningMs);
+        diagnostic(values, hookTimingMode);
+        diagnostic(values, hookTimingSampleEvery);
         diagnostic(values, verboseAssetDiagnostics);
         diagnostic(values, particleMaxActive);
         diagnostic(values, particleMaxPerTick);

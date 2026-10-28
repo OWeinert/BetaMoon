@@ -54,7 +54,7 @@ public final class ScriptExecution {
             LuaCallbackScope scope, boolean api) {
         Objects.requireNonNull(callbackName, "Callback name");
         Objects.requireNonNull(function, "Lua function");
-        long startedNanos = System.nanoTime();
+        long startedNanos = SlowScriptCallbackMonitor.start();
         try (ScriptExecutionScope ignored = ScriptExecutionScope.open(source);
                 ScriptDiagnostics.Scope diagnostic = ScriptDiagnostics.scope(null, callbackName);
                 NativeInvocation nativeInvocation = api

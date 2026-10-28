@@ -1,6 +1,5 @@
 package betamoon.hooks;
 
-import betamoon.interop.diagnostics.NativeDiagnosticEvidence;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -65,7 +64,7 @@ final class HookOperations {
             Set<String> entered = ENTERED.get();
             String key = subscription.operationRecursion;
             boolean added = false;
-            long started = System.nanoTime();
+            HookTiming.Token timing = null;
             try {
                 if (!HookDispatcher.onClientThread()) {
                     throw new HookFailure("unsupported_thread", "operation callbacks require the client thread");
@@ -82,6 +81,7 @@ final class HookOperations {
                 }
                 entered.add(key);
                 added = true;
+                timing = HookTiming.begin(subscription);
                 try (HookInvocation invocation = new HookInvocation(definition, container.target.key(), anchor,
                         receiver, outcome.arguments, outcome.result, null)) {
                     invocation.operation(
@@ -107,22 +107,21 @@ final class HookOperations {
             } catch (VirtualMachineError | ThreadDeath fatal) {
                 throw fatal;
             } catch (Throwable failure) {
-                subscription.failures++;
+                subscription.failed();
                 HookPreparation preparation = HookPreparation.current();
                 if (preparation != null) {
-                    preparation.diagnose(definition.owner, definition.id,
+                    preparation.diagnoseFailure(definition.owner, definition.id,
                             failure instanceof HookFailure
                                     ? ((HookFailure) failure).reason
                                     : definition.edit ? "callback_failed" : "callback_disabled",
-                            operation.kind + " " + operation.owner + "." + operation.name + ": "
-                                    + NativeDiagnosticEvidence.message(failure));
+                            failure);
                 }
                 if (definition.edit) {
                     throw new HookCallbackFailure("Hook " + definition.key() + " failed at " + operation.kind, failure);
                 }
                 subscription.close();
             } finally {
-                subscription.nanos += System.nanoTime() - started;
+                HookTiming.finish(subscription, timing);
                 if (added) {
                     entered.remove(key);
                 }

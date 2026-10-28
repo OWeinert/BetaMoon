@@ -1,7 +1,6 @@
 package betamoon.hooks;
 
 import betamoon.interop.catalog.CatalogValues;
-import betamoon.interop.diagnostics.NativeDiagnosticEvidence;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -39,6 +38,27 @@ public final class HookDispatcher {
 
     public static String protocol() {
         return HookAgentBridge.PROTOCOL;
+    }
+
+    public static synchronized void configureTiming(String mode, int sampleEvery) {
+        if (AGENT != null) {
+            try {
+                AGENT.configureTiming.invokeExact(mode, sampleEvery);
+                return;
+            } catch (Throwable failure) {
+                throw HookAgentBridge.failure(failure);
+            }
+        }
+        if (clientThread != null && clientThread != Thread.currentThread()) {
+            throw new HookFailure("unsupported_thread", "hook timing configuration requires the client thread");
+        }
+        if (HookTiming.configure(mode, sampleEvery)) {
+            for (State state : states) {
+                for (Subscription subscription : state.subscriptions) {
+                    subscription.resetTiming();
+                }
+            }
+        }
     }
 
     static void prepare(List<HookPreparation.Site> sites) {
@@ -256,9 +276,12 @@ public final class HookDispatcher {
                                 ? "owner_not_ready"
                                 : state.site.status.equals("applied") ? "active" : state.site.status,
                         "order", state.order(entry), "calls", entry.calls, "failures", entry.failures, "skippedReentry",
-                        entry.skipped, "callbackNanos", entry.nanos, "shortCircuits", entry.shortCircuits,
-                        "nativeErrors", definition.nativeErrors, "reentry", definition.reentry, "recoveredErrors",
-                        entry.recovered, "point", definition.point == null ? null : definition.point.transport()));
+                        entry.skipped, "attempts", entry.attempts, "callbackNanos", entry.nanos, "callbackOwnNanos",
+                        entry.ownNanos, "continuationNanos", entry.continuationNanos, "timingMode", HookTiming.name(),
+                        "timingSampleEvery", HookTiming.every(), "timingAttempts", entry.timingAttempts, "timedCalls",
+                        entry.timedCalls, "shortCircuits", entry.shortCircuits, "nativeErrors", definition.nativeErrors,
+                        "reentry", definition.reentry, "recoveredErrors", entry.recovered, "point",
+                        definition.point == null ? null : definition.point.transport()));
             }
         }
         return rows;
@@ -412,11 +435,20 @@ public final class HookDispatcher {
                             "around requires the client thread and at most 16 nested callbacks"));
         }
         nested.push(recursion);
-        long started = System.nanoTime();
+        HookTiming.Token timing = HookTiming.begin(subscription);
         try (HookInvocation invocation = new HookInvocation(definition, state.site.target.key(), anchor, receiver,
                 arguments, null, null)) {
-            invocation.continuation(
-                    values -> aroundAt(state, wrappers, index + 1, anchor, receiver, values, terminal, inherited));
+            invocation.continuation(values -> {
+                if (timing == null) {
+                    return aroundAt(state, wrappers, index + 1, anchor, receiver, values, terminal, inherited);
+                }
+                long continued = timing.startContinuation();
+                try {
+                    return aroundAt(state, wrappers, index + 1, anchor, receiver, values, terminal, inherited);
+                } finally {
+                    timing.finishContinuation(continued);
+                }
+            });
             try {
                 subscription.callback.invoke(invocation);
                 if (!subscription.alive || subscription.closed || invocation.observationInvalidated()) {
@@ -456,7 +488,7 @@ public final class HookDispatcher {
                     }
                     throw rethrow(nativeFailure);
                 }
-                subscription.failures++;
+                subscription.failed();
                 diagnose(subscription,
                         failure instanceof HookFailure ? ((HookFailure) failure).reason : "callback_failed", failure);
                 if (failure instanceof HookCallbackFailure) {
@@ -465,7 +497,7 @@ public final class HookDispatcher {
                 throw new HookCallbackFailure("Hook " + definition.key() + " failed at around", failure);
             }
         } finally {
-            subscription.nanos += System.nanoTime() - started;
+            HookTiming.finish(subscription, timing);
             nested.pop();
         }
     }
@@ -484,8 +516,7 @@ public final class HookDispatcher {
     private static void diagnose(Subscription subscription, String reason, Throwable error) {
         HookPreparation preparation = HookPreparation.current();
         if (preparation != null) {
-            preparation.diagnose(subscription.definition.owner, subscription.definition.id, reason,
-                    error.getClass().getName() + ": " + NativeDiagnosticEvidence.message(error));
+            preparation.diagnoseFailure(subscription.definition.owner, subscription.definition.id, reason, error);
         }
     }
 
@@ -597,7 +628,7 @@ public final class HookDispatcher {
                 if (callback == null || !subscription.alive) {
                     continue;
                 }
-                long started = System.nanoTime();
+                HookTiming.Token timing = HookTiming.begin(subscription);
                 try (HookInvocation invocation = new HookInvocation(definition, state.site.target.key(), anchor,
                         receiver, outcome.arguments, outcome.result, exception)) {
                     callback.invoke(invocation);
@@ -611,7 +642,7 @@ public final class HookDispatcher {
                     outcome.shortCircuit = invocation.shortCircuit();
                     subscription.calls++;
                 } finally {
-                    subscription.nanos += System.nanoTime() - started;
+                    HookTiming.finish(subscription, timing);
                 }
                 if (outcome.shortCircuit) {
                     subscription.shortCircuits++;
@@ -620,14 +651,14 @@ public final class HookDispatcher {
             } catch (VirtualMachineError | ThreadDeath fatal) {
                 throw fatal;
             } catch (Throwable failure) {
-                subscription.failures++;
+                subscription.failed();
                 HookPreparation prepared = HookPreparation.current();
                 if (prepared != null) {
-                    prepared.diagnose(definition.owner, definition.id,
+                    prepared.diagnoseFailure(definition.owner, definition.id,
                             failure instanceof HookFailure
                                     ? ((HookFailure) failure).reason
                                     : definition.edit ? "callback_failed" : "callback_disabled",
-                            definition.file + " [" + phase + "]: " + NativeDiagnosticEvidence.message(failure));
+                            failure);
                 }
                 if (definition.edit) {
                     throw new HookCallbackFailure("Hook " + definition.key() + " failed at " + phase, failure);
@@ -691,7 +722,12 @@ public final class HookDispatcher {
         volatile boolean closed;
         private final AutoCloseable remote;
         public long calls;
-        public long failures;
+        public volatile long failures;
+        public long attempts;
+        public long timingAttempts;
+        public long timedCalls;
+        public long continuationNanos;
+        public long ownNanos;
         public long skipped;
         public long nanos;
         public long shortCircuits;
@@ -710,6 +746,18 @@ public final class HookDispatcher {
             this.definition = definition;
             recursion = null;
             this.remote = remote;
+        }
+
+        synchronized void failed() {
+            failures++;
+        }
+
+        private void resetTiming() {
+            timingAttempts = 0;
+            timedCalls = 0;
+            nanos = 0;
+            continuationNanos = 0;
+            ownNanos = 0;
         }
 
         @Override

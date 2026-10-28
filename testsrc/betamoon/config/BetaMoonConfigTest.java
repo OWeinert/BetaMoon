@@ -5,7 +5,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/** Verifies grouped Forge settings, defaults, validation, and legacy migration. */
+/**
+ * Verifies grouped Forge settings, defaults, validation, and legacy migration.
+ */
 public final class BetaMoonConfigTest {
     public static void main(String[] args) throws Exception {
         File root = Files.createTempDirectory("betamoon-config-test").toFile();
@@ -24,6 +26,8 @@ public final class BetaMoonConfigTest {
             require(!defaults.getAutoExportDiagnosticsOnScriptError().getValue(), "Auto report must default off");
             require(defaults.getSlowCallbackWarningMs().getValue() == 0, "Slow callback warning must default off");
             require(!defaults.getVerboseAssetDiagnostics().getValue(), "Verbose assets must default off");
+            require(defaults.getHookTimingMode().getValue().equals("counts"), "Hook timing defaults to counts");
+            require(defaults.getHookTimingSampleEvery().getValue() == 64, "Hook sample default");
 
             File configFile = new File(root, BetaMoonConfig.FILE_NAME);
             String contents = new String(Files.readAllBytes(configFile.toPath()), StandardCharsets.UTF_8);
@@ -39,6 +43,8 @@ public final class BetaMoonConfigTest {
                     && contents.contains("\r\n\r\n   # Notifications\r\n"),
                     "BetaMoon must use the grouped configuration writer");
             String defaultContents = contents;
+            contents = contents.replace("diagnostics.hookTimingMode=counts", "diagnostics.hookTimingMode=sampled")
+                    .replace("diagnostics.hookTimingSampleEvery=64", "diagnostics.hookTimingSampleEvery=128");
             contents = contents.replace("scripts.hotReloadOnFileChange=false", "scripts.hotReloadOnFileChange=true");
             contents = contents.replace("notifications.showScriptWarningsOnLoad=false",
                     "notifications.showScriptWarningsOnLoad=true");
@@ -47,12 +53,21 @@ public final class BetaMoonConfigTest {
             Files.write(configFile.toPath(), contents.getBytes(StandardCharsets.UTF_8));
 
             BetaMoonConfig enabled = new BetaMoonConfig(root);
+            require(enabled.getHookTimingMode().getValue().equals("sampled")
+                    && enabled.getHookTimingSampleEvery().getValue() == 128, "Hook sampling opt-in persists");
             require(enabled.getHotReloadOnFileChange().getValue(), "Config must accept enabled file-change reload");
             require(enabled.getShowScriptWarningsOnLoad().getValue(), "Config must accept script warning opt-in");
             require(enabled.getReloadDebounceMs().getValue() == 500, "Out-of-range debounce must reset to default");
             require(enabled.getDisabledScripts().getValue().contains("Pack.zip"),
                     "Disabled script names must be parsed from the config");
 
+            String invalidTiming = contents
+                    .replace("diagnostics.hookTimingMode=sampled", "diagnostics.hookTimingMode=fast")
+                    .replace("diagnostics.hookTimingSampleEvery=128", "diagnostics.hookTimingSampleEvery=0");
+            Files.write(configFile.toPath(), invalidTiming.getBytes(StandardCharsets.UTF_8));
+            BetaMoonConfig invalid = new BetaMoonConfig(root);
+            require(invalid.getHookTimingMode().getValue().equals("counts")
+                    && invalid.getHookTimingSampleEvery().getValue() == 64, "Invalid timing resets safely");
             File migrationDirectory = new File(root, "migration");
             Files.createDirectories(migrationDirectory.toPath());
             File legacyFile = new File(migrationDirectory, "betamoon.config");
