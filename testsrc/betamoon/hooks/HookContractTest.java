@@ -33,7 +33,7 @@ public final class HookContractTest {
     private static final String TARGET = "fixture.hooks.HookTargetFixture";
     private static int checks;
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] args) throws Throwable {
         try {
             Class.forName("net.minecraft.src.World", false, HookContractTest.class.getClassLoader());
             throw new AssertionError("Minecraft leaked into the bootstrap test");
@@ -45,6 +45,8 @@ public final class HookContractTest {
         transformations();
         checks += HookEngineCompositionTest.verify();
         checks += HookAroundContractTest.verify();
+        checks += HookOperationContractTest.verify();
+        checks += HookOperationSafetyTest.verify();
         System.out.println(
                 "Hook contracts passed: " + checks + " assertions; isolated declarations and verified JVM dispatch.");
     }

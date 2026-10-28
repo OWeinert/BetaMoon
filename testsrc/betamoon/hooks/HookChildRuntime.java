@@ -96,6 +96,45 @@ public final class HookChildRuntime {
         System.out.println("Child-first around Lua continuation ns p50=" + aroundCosts[500] + ", p95="
                 + aroundCosts[950] + ", p99=" + aroundCosts[990] + "; informational Java 8 fixture.");
         wrapped.close();
+        HookFileCollectionContext.Registration operation = HookDeclarations.evaluate("bootstrap", "child.lua",
+                "local r=betamoon.hooks:createRegistry(); r:register({id='child_point',"
+                        + "target={class='fixture.hooks.ChildHookFixture',method='call',descriptor='(I)I'},"
+                        + "at={kind='field_read',field={class='fixture.hooks.ChildHookFixture',field='bodies',"
+                        + "descriptor='I'},ordinal=0,matches={exact=1}}},function() hits=hits+1 end)",
+                3, globals, new HookDeclarations.Budget()).get(0);
+        int previousHits = globals.get("hits").toint();
+        int previousBodies = target.getField("bodies").getInt(null);
+        HookDispatcher.Subscription selected = HookDispatcher.subscribe(site, target, operation.definition,
+                invocation -> {
+                    HookOperationInvocation record = invocation.operation();
+                    if (record == null || !invocation.descriptor().equals("()I") || invocation.receiver() != null
+                            || record.enclosingArgumentCount() != 1 || !record.enclosingArgument(0).equals(1)
+                            || !invocation.result().equals(previousBodies)) {
+                        throw new AssertionError("operation operands/enclosing data did not cross the JDK-only bridge");
+                    }
+                    operation.callback.call();
+                });
+        HookDispatcher.activate(Collections.singletonList(selected));
+        if ((int) call.invokeExact(1) != 2 || globals.get("hits").toint() != previousHits + 1) {
+            throw new AssertionError("independent child operation callback changed native outcome or failed");
+        }
+        selected.close();
+        HookDispatcher.Subscription profiled = HookDispatcher.subscribe(site, target, operation.definition,
+                invocation -> operation.callback.call());
+        HookDispatcher.activate(Collections.singletonList(profiled));
+        long[] operationCosts = new long[1000];
+        for (int index = 0; index < 2000; index++) {
+            int ignored = (int) call.invokeExact(1);
+        }
+        for (int index = 0; index < operationCosts.length; index++) {
+            long began = System.nanoTime();
+            int ignored = (int) call.invokeExact(1);
+            operationCosts[index] = System.nanoTime() - began;
+        }
+        Arrays.sort(operationCosts);
+        profiled.close();
+        System.out.println("Child-first operation Lua callback ns p50=" + operationCosts[500] + ", p95="
+                + operationCosts[950] + ", p99=" + operationCosts[990] + "; informational Java 8 fixture.");
         long checksum = 0;
         for (int index = 0; index < 30000; index++) {
             checksum += (int) call.invokeExact(index);

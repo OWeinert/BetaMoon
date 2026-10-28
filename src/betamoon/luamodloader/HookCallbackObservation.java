@@ -47,7 +47,7 @@ final class HookCallbackObservation implements AutoCloseable {
             context.check();
             return context;
         } catch (NativeAccessFailure failure) {
-            if (invocation.definition.at.equals("around") && invocation.hasContinued()
+            if (invocation.nativeOutcomeAvailable()
                     && Arrays
                             .asList("stale_environment", "stale_owner", "native_session_closed", "expired_scope",
                                     "stale_world", "stale_player", "wrong_owner", "inactive_scope")
@@ -56,8 +56,7 @@ final class HookCallbackObservation implements AutoCloseable {
             }
             throw failure;
         } catch (HookFailure failure) {
-            if (invocation.definition.at.equals("around") && invocation.hasContinued()
-                    && failure.reason.equals("stale_owner")) {
+            if (invocation.nativeOutcomeAvailable() && failure.reason.equals("stale_owner")) {
                 invocation.invalidateObservation();
             }
             throw failure;

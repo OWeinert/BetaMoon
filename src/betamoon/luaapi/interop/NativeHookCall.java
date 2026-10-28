@@ -178,7 +178,7 @@ public final class NativeHookCall extends HookLuaValue {
         }
     }
 
-    private static Object convert(LuaValue value, Type type, HookInvocation invocation, NativeContext context) {
+    static Object convert(LuaValue value, Type type, HookInvocation invocation, NativeContext context) {
         Class<?> target = NativeConversions.primitive(type.getClassName());
         if (target == null) {
             try {

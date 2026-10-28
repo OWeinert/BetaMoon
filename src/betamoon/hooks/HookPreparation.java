@@ -5,6 +5,7 @@ import betamoon.instrumentation.mapping.RuntimeNamespace;
 import betamoon.instrumentation.mapping.TinyMappingResolver;
 import betamoon.instrumentation.mapping.TinyMappingSnapshot;
 import betamoon.interop.catalog.CatalogFingerprint;
+import betamoon.interop.catalog.CatalogJson;
 import betamoon.interop.catalog.CatalogValues;
 import betamoon.interop.diagnostics.NativeDiagnosticEvidence;
 import betamoon.interop.diagnostics.NativeDiagnosticGuidance;
@@ -84,7 +85,12 @@ public final class HookPreparation {
                 }
                 Set<String> selectors = new HashSet<>();
                 Map<String, HookTarget> targets = new LinkedHashMap<>();
+                Map<String, List<HookPoint.Member>> pointAlternatives = new HashMap<>();
                 for (HookFileCollectionContext.Registration registration : registrations) {
+                    HookPoint point = registration.definition.point;
+                    if (point != null && !pointAlternatives.containsKey(point.key())) {
+                        pointAlternatives.put(point.key(), point.resolve(mappings, result.mappingSnapshot));
+                    }
                     for (HookTarget target : result.resolve(registration.definition)) {
                         selectors.add(target.key());
                         targets.put(target.key(), target);
@@ -126,6 +132,16 @@ public final class HookPreparation {
                             Collections.unmodifiableList(targetNames));
                     for (HookTarget choice : choices) {
                         result.sites.get(choice.key()).alternatives.add(frozen);
+                        HookPoint point = registration.definition.point;
+                        if (point != null) {
+                            Site site = result.sites.get(choice.key());
+                            HookPointSite selected = site.points.get(point.key());
+                            if (selected == null) {
+                                selected = new HookPointSite(point, pointAlternatives.get(point.key()));
+                                site.points.put(point.key(), selected);
+                            }
+                            selected.owners.add(snapshot.owner);
+                        }
                         if (registration.definition.at.equals("around")) {
                             result.sites.get(choice.key()).around = true;
                         }
@@ -211,6 +227,7 @@ public final class HookPreparation {
             Site site = new Site(CatalogValues.integer(row, "id"), target);
             site.owners.addAll(CatalogValues.strings(row.get("owners")));
             site.around = Boolean.TRUE.equals(row.get("around"));
+            site.importOperations(row);
             if (row.get("namespaces") instanceof List) {
                 site.namespaces.addAll(CatalogValues.strings(row.get("namespaces")));
             }
@@ -247,6 +264,7 @@ public final class HookPreparation {
                     site.structureAnalyzed = Boolean.TRUE.equals(row.get("structureAnalyzed"));
                     site.around = Boolean.TRUE.equals(row.get("around"));
                     site.helperName = (String) row.get("helperName");
+                    site.importOperations(row);
                 }
             }
             siteRevision = observed;
@@ -268,7 +286,8 @@ public final class HookPreparation {
         for (Site site : preparation.sites.values()) {
             sites.add(CatalogValues.record("id", site.id, "owner", site.target.owner, "method", site.target.method,
                     "descriptor", site.target.descriptor, "owners", new ArrayList<>(site.owners), "namespaces",
-                    new ArrayList<>(site.namespaces), "around", site.around));
+                    new ArrayList<>(site.namespaces), "around", site.around, "points", site.pointsTransport(),
+                    "operations", site.operationsTransport()));
         }
         return CatalogValues.object(
                 CatalogValues.freeze(CatalogValues.record("available", true, "instance", preparation.instance.getPath(),
@@ -282,7 +301,8 @@ public final class HookPreparation {
                 result.add(CatalogValues.record("target", site.target.key(), "status", site.status, "normalReturns",
                         site.normalReturns, "fingerprint", site.fingerprint, "inputHash", site.inputHash, "outputHash",
                         site.outputHash, "methodMatches", site.methodMatches, "structureAnalyzed",
-                        site.structureAnalyzed, "around", site.around, "helperName", site.helperName));
+                        site.structureAnalyzed, "around", site.around, "helperName", site.helperName, "points",
+                        site.pointsTransport(), "operations", site.operationsTransport()));
             }
         }
         return result;
@@ -326,7 +346,9 @@ public final class HookPreparation {
             for (HookTarget target : resolve(registration.definition)) {
                 Site site = sites.get(target.key());
                 if (!prepared.contains(target.key())
-                        || registration.definition.at.equals("around") && (site == null || !site.around)) {
+                        || registration.definition.at.equals("around") && (site == null || !site.around)
+                        || registration.definition.point != null
+                                && (site == null || !site.points.containsKey(registration.definition.point.key()))) {
                     throw new HookFailure("restart_required",
                             "unprepared target for " + snapshot.owner + ": " + target.key());
                 }
@@ -454,12 +476,12 @@ public final class HookPreparation {
             Map<String, Object> record = CatalogValues.record("id", "script-site-" + site.id, "name", site.target.key(),
                     "kind", "HOOK_SITE", "declaringType", site.target.owner.replace('/', '.'), "descriptor",
                     site.target.descriptor, "target", site.target.key(), "status", site.status, "owners",
-                    new ArrayList<>(site.owners), "envelopeVersion", site.around ? 3 : 2, "normalReturns",
+                    new ArrayList<>(site.owners), "envelopeVersion", site.envelopeVersion(), "normalReturns",
                     site.normalReturns, "structuralFingerprint", site.fingerprint, "observedInputSha256",
                     site.inputHash, "outputSha256", site.outputHash, "runtimeOwner",
                     site.target.owner.replace('/', '.'), "runtimeMember", site.target.method, "runtimeDescriptor",
                     site.target.descriptor, "namespaceCandidates", new ArrayList<>(site.namespaces),
-                    "installedEnvelopeVersion", site.status.equals("applied") ? (site.around ? 3 : 2) : null,
+                    "installedEnvelopeVersion", site.status.equals("applied") ? site.envelopeVersion() : null,
                     "matchCounts",
                     CatalogValues.record("methods", site.methodMatches < 0 ? null : site.methodMatches, "normalReturns",
                             site.structureAnalyzed ? site.normalReturns : null),
@@ -467,7 +489,8 @@ public final class HookPreparation {
                     CatalogValues.record("boundary", "engine_output_before_user_hooks", "observed",
                             site.inputHash != null, "structureAnalyzed", site.structureAnalyzed,
                             "laterTransformersObserved", false),
-                    "generatedBody", site.helperName, "installedCapabilities", site.capabilities(), "guidance",
+                    "generatedBody", site.helperName, "points", site.pointsTransport(), "operations",
+                    site.operationsTransport(), "installedCapabilities", site.capabilities(), "guidance",
                     NativeDiagnosticGuidance.forStatus(site.status));
             result.add(record);
         }
@@ -475,8 +498,9 @@ public final class HookPreparation {
             for (HookDefinition definition : owner) {
                 result.add(CatalogValues.record("id", "prepared-" + definition.identity(), "name", definition.id,
                         "kind", "HOOK_DECLARATION", "owner", definition.owner, "source", definition.file, "at",
-                        definition.at, "nativeErrors", definition.nativeErrors, "reentry", definition.reentry,
-                        "effects", definition.edit ? "edit" : "observe", "priority", definition.priority, "required",
+                        definition.at, "point", definition.point == null ? null : definition.point.transport(),
+                        "nativeErrors", definition.nativeErrors, "reentry", definition.reentry, "effects",
+                        definition.edit ? "edit" : "observe", "priority", definition.priority, "required",
                         definition.required, "status", "prepared", "sourceSha256", definition.sourceSha256, "targets",
                         new ArrayList<>(allowedTargets(definition))));
             }
@@ -524,6 +548,8 @@ public final class HookPreparation {
         public volatile boolean structureAnalyzed;
         public volatile boolean around;
         public volatile String helperName;
+        public final Map<String, HookPointSite> points = new TreeMap<>();
+        public volatile List<HookOperationSite> operations = Collections.emptyList();
         public volatile String fingerprint;
         public volatile String inputHash;
         public volatile String outputHash;
@@ -534,11 +560,56 @@ public final class HookPreparation {
             fingerprint = CatalogFingerprint.sha256(("envelope:2:" + target.key()).getBytes(StandardCharsets.UTF_8));
         }
 
+        public int envelopeVersion() {
+            return points.isEmpty() ? around ? 3 : 2 : 4;
+        }
+
+        public String operationFingerprint() {
+            return CatalogFingerprint
+                    .sha256(CatalogJson.encode(operationsTransport()).getBytes(StandardCharsets.UTF_8));
+        }
+
+        private List<Map<String, Object>> pointsTransport() {
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (HookPointSite point : points.values()) {
+                result.add(point.transport());
+            }
+            return result;
+        }
+
+        private List<Map<String, Object>> operationsTransport() {
+            List<Map<String, Object>> result = new ArrayList<>();
+            for (HookOperationSite operation : operations) {
+                result.add(operation.transport());
+            }
+            return result;
+        }
+
+        private void importOperations(Map<String, Object> row) {
+            if (row.get("points") instanceof List) {
+                points.clear();
+                for (Object item : (List<?>) row.get("points")) {
+                    HookPointSite point = HookPointSite.transport(CatalogValues.object(item));
+                    points.put(point.point.key(), point);
+                }
+            }
+            List<HookOperationSite> imported = new ArrayList<>();
+            if (row.get("operations") instanceof List) {
+                for (Object item : (List<?>) row.get("operations")) {
+                    imported.add(HookOperationSite.transport(CatalogValues.object(item)));
+                }
+            }
+            operations = Collections.unmodifiableList(imported);
+        }
+
         private List<String> capabilities() {
             if (!status.equals("applied")) {
                 return Collections.emptyList();
             }
             List<String> result = new ArrayList<>();
+            if (!operations.isEmpty()) {
+                result.add("operation_hooks");
+            }
             if (around) {
                 Collections.addAll(result, "around", "continuation", "native_error_recovery");
             }

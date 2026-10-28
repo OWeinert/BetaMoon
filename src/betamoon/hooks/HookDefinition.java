@@ -21,6 +21,7 @@ public final class HookDefinition {
     public final String id;
     public final NativeMemberRef target;
     public final String at;
+    public final HookPoint point;
     public final boolean edit;
     public final String nativeErrors;
     public final String reentry;
@@ -29,12 +30,13 @@ public final class HookDefinition {
     public final String sourceSha256;
 
     private HookDefinition(String owner, String file, String id, NativeMemberRef target, String at, boolean edit,
-            int priority, boolean required, String sourceSha256, String nativeErrors, String reentry) {
+            int priority, boolean required, String sourceSha256, String nativeErrors, String reentry, HookPoint point) {
         this.owner = owner;
         this.file = file;
         this.id = id;
         this.target = target;
         this.at = at;
+        this.point = point;
         this.edit = edit;
         this.nativeErrors = nativeErrors;
         this.reentry = reentry;
@@ -70,8 +72,9 @@ public final class HookDefinition {
             throw new HookFailure("hook_file_invalid",
                     "target must name its declaring owner without session identities");
         }
-        String at = text(table.rawget("at"));
-        if (!Arrays.asList("before", "after", "error", "around").contains(at)) {
+        HookPoint point = table.rawget("at").istable() ? HookPoint.read(table.rawget("at")) : null;
+        String at = point == null ? text(table.rawget("at")) : point.kind;
+        if (point == null && !Arrays.asList("before", "after", "error", "around").contains(at)) {
             throw new HookFailure("hook_file_invalid", "at must be before, after, error or around");
         }
         String effects = optional(table.rawget("effects"));
@@ -109,11 +112,12 @@ public final class HookDefinition {
             throw new HookFailure("hook_file_invalid", "required must be boolean");
         }
         return new HookDefinition(owner, file, id, target, at, edit, (int) number, required.toboolean(), "",
-                nativeErrors == null ? "propagate" : nativeErrors, reentry == null ? "native" : reentry);
+                nativeErrors == null ? "propagate" : nativeErrors, reentry == null ? "native" : reentry, point);
     }
 
     HookDefinition withSourceHash(String hash) {
-        return new HookDefinition(owner, file, id, target, at, edit, priority, required, hash, nativeErrors, reentry);
+        return new HookDefinition(owner, file, id, target, at, edit, priority, required, hash, nativeErrors, reentry,
+                point);
     }
 
     public String key() {
@@ -126,15 +130,15 @@ public final class HookDefinition {
 
     public String metadataKey() {
         return key() + ":" + target.key() + ":" + at + ":" + edit + ":" + priority + ":" + required + ":" + nativeErrors
-                + ":" + reentry;
+                + ":" + reentry + ":" + (point == null ? "" : point.key());
     }
 
     Map<String, Object> transport() {
         return CatalogValues.record("owner", owner, "file", file, "id", id, "at", at, "edit", edit, "priority",
                 priority, "required", required, "class", target.lookupType.name(), "classNames",
                 target.lookupType.names, "method", target.name, "descriptor", target.descriptor, "names", target.names,
-                "nativeErrors", nativeErrors, "reentry", reentry, "descriptorNames", target.descriptorNames,
-                "sourceSha256", sourceSha256, "declaringClass",
+                "point", point == null ? null : point.transport(), "nativeErrors", nativeErrors, "reentry", reentry,
+                "descriptorNames", target.descriptorNames, "sourceSha256", sourceSha256, "declaringClass",
                 target.declaringType == null ? null : target.declaringType.name(), "declaringNames",
                 target.declaringType == null ? null : target.declaringType.names);
     }
@@ -153,7 +157,8 @@ public final class HookDefinition {
                 CatalogValues.text(value, "id"), method, CatalogValues.text(value, "at"),
                 Boolean.TRUE.equals(value.get("edit")), CatalogValues.integer(value, "priority"),
                 Boolean.TRUE.equals(value.get("required")), CatalogValues.text(value, "sourceSha256"),
-                CatalogValues.text(value, "nativeErrors"), CatalogValues.text(value, "reentry"));
+                CatalogValues.text(value, "nativeErrors"), CatalogValues.text(value, "reentry"),
+                value.get("point") == null ? null : HookPoint.transport(CatalogValues.object(value.get("point"))));
     }
 
     public static LuaTable fields(LuaValue value, String... allowed) {

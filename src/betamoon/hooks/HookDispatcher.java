@@ -90,6 +90,7 @@ public final class HookDispatcher {
         State state = state(site);
         if (state != null) {
             state.loader = loader;
+            state.refresh();
             changed();
         }
     }
@@ -119,6 +120,9 @@ public final class HookDispatcher {
             Function<Object[], Object[]> transport = payload -> {
                 try (HookInvocation invocation = new HookInvocation(definition, (String) payload[0],
                         (Class<?>) payload[1], payload[2], (Object[]) payload[3], payload[4], (Throwable) payload[5])) {
+                    if (payload.length > 7 && payload[7] instanceof Object[]) {
+                        invocation.operation(HookOperationInvocation.transport((Object[]) payload[7]));
+                    }
                     if (payload.length > 6 && payload[6] instanceof Function) {
                         @SuppressWarnings("unchecked")
                         Function<Object[], Object> continuation = (Function<Object[], Object>) payload[6];
@@ -150,6 +154,7 @@ public final class HookDispatcher {
         State state = state(site);
         if (state == null || !state.site.owners.contains(definition.owner)
                 || definition.at.equals("around") && !state.site.around
+                || definition.point != null && !state.site.points.containsKey(definition.point.key())
                 || !state.site.status.equals("applied") && !state.site.status.equals("target_pending_load")) {
             throw new HookFailure("owner_not_ready", "target is not applied for " + definition.key());
         }
@@ -239,11 +244,10 @@ public final class HookDispatcher {
                         entry.closed || !entry.alive
                                 ? "owner_not_ready"
                                 : state.site.status.equals("applied") ? "active" : state.site.status,
-                        "order",
-                        state.phase(definition.at).contains(entry) ? state.phase(definition.at).indexOf(entry) : null,
-                        "calls", entry.calls, "failures", entry.failures, "skippedReentry", entry.skipped,
-                        "callbackNanos", entry.nanos, "shortCircuits", entry.shortCircuits, "nativeErrors",
-                        definition.nativeErrors, "reentry", definition.reentry, "recoveredErrors", entry.recovered));
+                        "order", state.order(entry), "calls", entry.calls, "failures", entry.failures, "skippedReentry",
+                        entry.skipped, "callbackNanos", entry.nanos, "shortCircuits", entry.shortCircuits,
+                        "nativeErrors", definition.nativeErrors, "reentry", definition.reentry, "recoveredErrors",
+                        entry.recovered, "point", definition.point == null ? null : definition.point.transport()));
             }
         }
         return rows;
@@ -303,9 +307,8 @@ public final class HookDispatcher {
         return subscribe(site, anchor, definition, invocation -> {
             Object[] outcome = callback.apply(new Object[]{invocation.site, invocation.declaringClass(),
                     invocation.receiver(), invocation.committedArguments(), invocation.result(), invocation.exception(),
-                    invocation.definition.at.equals("around")
-                            ? (Function<Object[], Object>) invocation::proceed
-                            : null});
+                    invocation.definition.at.equals("around") ? (Function<Object[], Object>) invocation::proceed : null,
+                    invocation.operation() == null ? null : invocation.operation().transport()});
             if (outcome == null || outcome.length < 3 || outcome.length > 4 || !(outcome[0] instanceof Object[])
                     || !(outcome[2] instanceof Boolean)) {
                 throw new HookFailure("hook_invalid_value", "invalid callback transport outcome");
@@ -490,6 +493,72 @@ public final class HookDispatcher {
         throw (T) failure;
     }
 
+    public static boolean activeOperation(int site, int before, int after, Class<?> anchor) {
+        if (AGENT != null) {
+            try {
+                return (boolean) AGENT.activeOperation.invokeExact(site, before, after, anchor);
+            } catch (Throwable failure) {
+                throw HookAgentBridge.failure(failure);
+            }
+        }
+        // Resolve the same defining-class anchor used by ordinary envelopes without
+        // allocating a frame.
+        active(site, 0, anchor);
+        State state = state(site);
+        if (state == null || state.anchor != anchor) {
+            return false;
+        }
+        List<Subscription>[] operations = state.operations;
+        return before >= 0 && before < operations.length && !operations[before].isEmpty()
+                || after >= 0 && after < operations.length && !operations[after].isEmpty();
+    }
+
+    public static Object[] beginOperation(int site, int before, int after, Class<?> anchor, Object enclosingReceiver,
+            Object[] enclosingArguments, Object receiver, Object[] arguments) {
+        if (AGENT != null) {
+            try {
+                return (Object[]) AGENT.beginOperation.invokeExact(site, before, after, anchor, enclosingReceiver,
+                        enclosingArguments, receiver, arguments);
+            } catch (Throwable failure) {
+                throw HookAgentBridge.failure(failure);
+            }
+        }
+        return HookOperations.begin(site, before, after, anchor, enclosingReceiver, enclosingArguments, receiver,
+                arguments);
+    }
+
+    public static Object finishOperation(Object[] frame, Object result) {
+        if (AGENT != null) {
+            try {
+                return (Object) AGENT.finishOperation.invokeExact(frame, result);
+            } catch (Throwable failure) {
+                throw HookAgentBridge.failure(failure);
+            }
+        }
+        return HookOperations.finish(frame, result);
+    }
+
+    static List<Subscription> operationSubscriptions(int site, int operation, Class<?> anchor) {
+        State state = state(site);
+        if (state == null || state.anchor != anchor) {
+            throw new HookFailure("dispatcher_not_visible", "operation belongs to another defining class");
+        }
+        List<Subscription>[] current = state.operations;
+        return operation < 0 || operation >= current.length ? Collections.emptyList() : current[operation];
+    }
+
+    static HookPreparation.Site operationContainer(int site, Class<?> anchor) {
+        State state = state(site);
+        if (state == null || state.anchor != anchor || !state.site.status.equals("applied")) {
+            throw new HookFailure("dispatcher_not_visible", "operation container is not the installed class");
+        }
+        return state.site;
+    }
+
+    static boolean onClientThread() {
+        return Thread.currentThread() == clientThread;
+    }
+
     private static Entry dispatch(int site, Class<?> anchor, Object receiver, Object[] arguments, Object result,
             Throwable exception, String phase) {
         State state = state(site);
@@ -594,9 +663,9 @@ public final class HookDispatcher {
     public static final class Subscription implements AutoCloseable {
         private final State state;
         public final HookDefinition definition;
-        private volatile Callback callback;
-        private volatile boolean alive;
-        private volatile boolean closed;
+        volatile Callback callback;
+        volatile boolean alive;
+        volatile boolean closed;
         private final AutoCloseable remote;
         public long calls;
         public long failures;
@@ -656,6 +725,8 @@ public final class HookDispatcher {
         private volatile List<Subscription> error = Collections.emptyList();
         private volatile List<Subscription> around = Collections.emptyList();
         private volatile MethodHandle body;
+        @SuppressWarnings("unchecked")
+        private volatile List<Subscription>[] operations = new List[0];
 
         State(HookPreparation.Site site) {
             this.site = site;
@@ -666,8 +737,19 @@ public final class HookDispatcher {
             List<Subscription> returned = new ArrayList<>();
             List<Subscription> exceptional = new ArrayList<>();
             List<Subscription> wrappers = new ArrayList<>();
+            List<List<Subscription>> operationLists = new ArrayList<>();
+            for (int index = 0; index < site.operations.size(); index++) {
+                operationLists.add(new ArrayList<>());
+            }
             for (Subscription subscription : subscriptions) {
                 if (subscription.alive && !subscription.closed) {
+                    if (subscription.definition.point != null) {
+                        HookPointSite point = site.points.get(subscription.definition.point.key());
+                        if (point != null && point.operationId >= 0 && point.operationId < operationLists.size()) {
+                            operationLists.get(point.operationId).add(subscription);
+                        }
+                        continue;
+                    }
                     String at = subscription.definition.at;
                     (at.equals("before")
                             ? entry
@@ -675,6 +757,16 @@ public final class HookDispatcher {
                             .add(subscription);
                 }
             }
+            @SuppressWarnings("unchecked")
+            List<Subscription>[] selectedOperations = new List[operationLists.size()];
+            for (int index = 0; index < selectedOperations.length; index++) {
+                List<Subscription> entries = operationLists.get(index);
+                if (!site.operations.get(index).before()) {
+                    Collections.reverse(entries);
+                }
+                selectedOperations[index] = Collections.unmodifiableList(entries);
+            }
+            operations = selectedOperations;
             Collections.reverse(returned);
             before = Collections.unmodifiableList(entry);
             after = Collections.unmodifiableList(returned);
@@ -682,6 +774,19 @@ public final class HookDispatcher {
             around = Collections.unmodifiableList(wrappers);
             active = (entry.isEmpty() ? 0 : 1) | (returned.isEmpty() ? 0 : 2) | (exceptional.isEmpty() ? 0 : 4)
                     | (wrappers.isEmpty() ? 0 : 8);
+        }
+
+        Integer order(Subscription subscription) {
+            if (subscription.definition.point == null) {
+                int index = phase(subscription.definition.at).indexOf(subscription);
+                return index < 0 ? null : index;
+            }
+            HookPointSite point = site.points.get(subscription.definition.point.key());
+            if (point == null || point.operationId < 0 || point.operationId >= operations.length) {
+                return null;
+            }
+            int index = operations[point.operationId].indexOf(subscription);
+            return index < 0 ? null : index;
         }
 
         List<Subscription> phase(String phase) {

@@ -20,6 +20,7 @@ public final class HookInvocation implements AutoCloseable {
     private Function<Object[], Object> continuation;
     private boolean proceeded;
     private boolean observationInvalidated;
+    private HookOperationInvocation operation;
     private Object continuedResult;
     private Throwable continuedFailure;
     private boolean active = true;
@@ -73,6 +74,8 @@ public final class HookInvocation implements AutoCloseable {
             if (proceeded) {
                 throw new HookFailure("hook_continuation_used", "arguments cannot be edited after continuation");
             }
+        } else if (definition.point != null && definition.point.before()) {
+            checkEdit(definition.at);
         } else {
             checkEdit("before");
         }
@@ -124,13 +127,15 @@ public final class HookInvocation implements AutoCloseable {
             throw new HookFailure("hook_edit_denied", "invalid transported callback outcome");
         }
         for (int index = 0; index < values.length; index++) {
-            if (definition.edit && (definition.at.equals("before") || definition.at.equals("around"))) {
+            if (definition.edit && (definition.at.equals("before") || definition.at.equals("around")
+                    || definition.point != null && definition.point.before())) {
                 arguments[index] = values[index];
             } else if (arguments[index] != values[index]) {
                 throw new HookFailure("hook_edit_denied", "transport edited arguments outside an editing before hook");
             }
         }
-        if (definition.edit && (early || definition.at.equals("after") || definition.at.equals("around"))) {
+        if (definition.edit && (early || definition.at.equals("after") || definition.at.equals("around")
+                || definition.point != null && !definition.point.before())) {
             result(value);
         } else if (result != value) {
             throw new HookFailure("hook_edit_denied", "transport edited a read-only result");
@@ -142,12 +147,13 @@ public final class HookInvocation implements AutoCloseable {
         if (!definition.edit) {
             return;
         }
-        String descriptor = site.substring(site.indexOf('('));
+        String descriptor = descriptor();
         Type[] parameters = Type.getArgumentTypes(descriptor);
         for (int index = 0; index < parameters.length; index++) {
             validateValue(parameters[index], arguments[index]);
         }
-        if (shortCircuit || definition.at.equals("after") || definition.at.equals("around")) {
+        if (shortCircuit || definition.at.equals("after") || definition.at.equals("around")
+                || definition.point != null && !definition.point.before()) {
             validateValue(Type.getReturnType(descriptor), result);
         }
     }
@@ -161,7 +167,7 @@ public final class HookInvocation implements AutoCloseable {
         if (proceeded || continuation == null) {
             throw new HookFailure("hook_continuation_used", "continue once, during the active around callback");
         }
-        Type[] parameters = Type.getArgumentTypes(site.substring(site.indexOf('(')));
+        Type[] parameters = Type.getArgumentTypes(descriptor());
         if (replacement.length != parameters.length) {
             throw new HookFailure("hook_invalid_value", "continuation requires the exact parameter list");
         }
@@ -201,11 +207,30 @@ public final class HookInvocation implements AutoCloseable {
     }
 
     public void invalidateObservation() {
-        checkEdit("around");
-        if (!proceeded) {
-            throw new HookFailure("hook_call_expired", "observation can expire at a completed continuation boundary");
+        check();
+        if (!nativeOutcomeAvailable()) {
+            throw new HookFailure("hook_call_expired", "observation can expire after a native outcome");
         }
         observationInvalidated = true;
+    }
+
+    public boolean nativeOutcomeAvailable() {
+        check();
+        return definition.at.equals("around") && proceeded || operation != null && !operation.operation.before();
+    }
+
+    public String descriptor() {
+        check();
+        return operation == null ? site.substring(site.indexOf('(')) : operation.operation.hookDescriptor();
+    }
+
+    public HookOperationInvocation operation() {
+        check();
+        return operation;
+    }
+
+    void operation(HookOperationInvocation operation) {
+        this.operation = operation;
     }
 
     public boolean observationInvalidated() {
@@ -278,6 +303,10 @@ public final class HookInvocation implements AutoCloseable {
         continuedResult = null;
         continuedFailure = null;
         continuation = null;
+        if (operation != null) {
+            operation.close();
+            operation = null;
+        }
         receiver = null;
         exception = null;
         declaringClass = null;

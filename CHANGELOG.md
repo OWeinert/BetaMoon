@@ -24,3 +24,4 @@
 - Reusable native data plans with general field/call/array/collection selections, runtime inputs and detached one/many-request snapshots.
 - Explicit client preparation/action capabilities with owned screen resources, authorized deferred commands and lifecycle cleanup.
 - Around hooks with scoped one-use continuation, typed results, explicit native-error recovery and precise reentry behavior.
+- Exact call-site and field-operation hooks with mandatory match counts, scoped operands and transactional typed edits.

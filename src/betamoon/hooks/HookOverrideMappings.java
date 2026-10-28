@@ -17,6 +17,7 @@ import java.util.Set;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.FieldVisitor;
 import org.objectweb.asm.Opcodes;
 
 /**
@@ -29,6 +30,19 @@ public final class HookOverrideMappings {
 
     static Selection resolve(String owner, String requested, String namedDescriptor, String runtimeDescriptor,
             TinyMappingResolver mappings, TinyMappingSnapshot snapshot, RuntimeNamespace namespace) {
+        return resolve(owner, requested, namedDescriptor, runtimeDescriptor, mappings, snapshot, namespace, false,
+                true);
+    }
+
+    static Selection resolveReference(String owner, String requested, String namedDescriptor, String runtimeDescriptor,
+            TinyMappingResolver mappings, TinyMappingSnapshot snapshot, RuntimeNamespace namespace, boolean field) {
+        return resolve(owner, requested, namedDescriptor, runtimeDescriptor, mappings, snapshot, namespace, field,
+                false);
+    }
+
+    private static Selection resolve(String owner, String requested, String namedDescriptor, String runtimeDescriptor,
+            TinyMappingResolver mappings, TinyMappingSnapshot snapshot, RuntimeNamespace namespace, boolean field,
+            boolean declaredOverride) {
         ClassLoader loader = HookOverrideMappings.class.getClassLoader();
         Header implementation = read(owner, loader);
         if (implementation == null) {
@@ -53,13 +67,25 @@ public final class HookOverrideMappings {
             TinyMappingSnapshot.ClassEntry entry = snapshot.getClasses().get(named);
             if (entry != null) {
                 for (TinyMappingSnapshot.MemberEntry member : entry.getMembers()) {
-                    if (!member.isMethod() || !requested.equals(member.getNames().get("named"))
+                    if (member.isMethod() == field || !requested.equals(member.getNames().get("named"))
                             || !namedDescriptor.equals(member.getDescriptor())) {
                         continue;
                     }
                     String name = member.getNames().get(namespace.getMappingName());
-                    if (name == null || name.isEmpty() || !implementation.virtual(name, runtimeDescriptor, false)
-                            || !ancestor.virtual(name, runtimeDescriptor, true)) {
+                    if (name == null || name.isEmpty()) {
+                        continue;
+                    }
+                    Integer inheritedFlags = (field ? ancestor.fields : ancestor.methods).get(name + runtimeDescriptor);
+                    Integer declaredFlags = (field ? implementation.fields : implementation.methods)
+                            .get(name + runtimeDescriptor);
+                    boolean available = declaredOverride
+                            ? implementation.virtual(name, runtimeDescriptor, false)
+                                    && ancestor.virtual(name, runtimeDescriptor, true)
+                            : inheritedFlags != null
+                                    && (inheritedFlags & (Opcodes.ACC_PUBLIC | Opcodes.ACC_PROTECTED)) != 0
+                                    && (declaredFlags == null
+                                            || !field && implementation.virtual(name, runtimeDescriptor, false));
+                    if (!available) {
                         continue;
                     }
                     if (selected != null && !selected.name.equals(name)) {
@@ -79,6 +105,43 @@ public final class HookOverrideMappings {
         return header != null && header.virtual(name, descriptor, true);
     }
 
+    public static int fieldAccessFlags(String owner, String name, String descriptor, ClassLoader loader) {
+        Integer flags = findFieldAccessFlags(owner, name, descriptor, loader);
+        if (flags == null) {
+            throw new HookFailure("match_failed", "referenced field metadata is unavailable: " + owner + "." + name);
+        }
+        return flags;
+    }
+
+    public static Integer findFieldAccessFlags(String owner, String name, String descriptor, ClassLoader loader) {
+        return fieldAccessFlags(owner, name, descriptor, loader, new HashSet<>());
+    }
+
+    private static Integer fieldAccessFlags(String owner, String name, String descriptor, ClassLoader loader,
+            Set<String> visited) {
+        if (!visited.add(owner)) {
+            return null;
+        }
+        if (visited.size() > 128) {
+            throw new HookFailure("match_failed", "field hierarchy exceeds 128 types");
+        }
+        Header header = read(owner, loader);
+        if (header == null) {
+            return null;
+        }
+        Integer flags = header.fields.get(name + descriptor);
+        if (flags != null) {
+            return flags;
+        }
+        for (String parent : header.parents) {
+            flags = fieldAccessFlags(parent, name, descriptor, loader, visited);
+            if (flags != null) {
+                return flags;
+            }
+        }
+        return null;
+    }
+
     private static Header read(String name, ClassLoader loader) {
         try (InputStream input = loader == null
                 ? ClassLoader.getSystemResourceAsStream(name + ".class")
@@ -91,13 +154,21 @@ public final class HookOverrideMappings {
                 throw new HookFailure("mapping_conflict", "hierarchy resource has a different class identity: " + name);
             }
             Header header = new Header();
-            if (reader.getSuperName() != null) {
-                header.parents.add(reader.getSuperName());
-            }
+            // JVM field resolution visits interfaces before the superclass.
             for (String contract : reader.getInterfaces()) {
                 header.parents.add(contract);
             }
+            if (reader.getSuperName() != null) {
+                header.parents.add(reader.getSuperName());
+            }
             reader.accept(new ClassVisitor(Opcodes.ASM9) {
+                @Override
+                public FieldVisitor visitField(int access, String field, String descriptor, String signature,
+                        Object value) {
+                    header.fields.put(field + descriptor, access);
+                    return null;
+                }
+
                 @Override
                 public MethodVisitor visitMethod(int access, String method, String descriptor, String signature,
                         String[] exceptions) {
@@ -124,6 +195,7 @@ public final class HookOverrideMappings {
     private static final class Header {
         final List<String> parents = new ArrayList<>();
         final Map<String, Integer> methods = new HashMap<>();
+        final Map<String, Integer> fields = new HashMap<>();
 
         boolean virtual(String name, String descriptor, boolean inherited) {
             Integer flags = methods.get(name + descriptor);

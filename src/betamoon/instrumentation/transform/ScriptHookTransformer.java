@@ -92,7 +92,10 @@ final class ScriptHookTransformer {
                     throw new HookFailure("mapping_conflict",
                             "observed class does not implement the mapped virtual ancestor");
                 }
-                instrument(node, target, site);
+                List<ScriptOperationPlanner.Selected> operations = ScriptOperationPlanner.discover(node, target, site,
+                        loader);
+                int[] savedParameters = instrument(node, target, site);
+                ScriptOperationTransformer.apply(node, target, site, operations, savedParameters);
                 if (site.around) {
                     around(node, target, site);
                 }
@@ -133,7 +136,7 @@ final class ScriptHookTransformer {
         }
     }
 
-    private void instrument(ClassNode owner, MethodNode method, HookPreparation.Site site) {
+    private int[] instrument(ClassNode owner, MethodNode method, HookPreparation.Site site) {
         if (method.name.startsWith("<")
                 || (method.access & (Opcodes.ACC_ABSTRACT | Opcodes.ACC_NATIVE | Opcodes.ACC_SYNCHRONIZED)) != 0) {
             throw new HookFailure("match_failed", "unsupported method flags: " + site.target.key());
@@ -152,8 +155,10 @@ final class ScriptHookTransformer {
         }
         site.normalReturns = returns.size();
         site.structureAnalyzed = true;
-        site.fingerprint = CatalogFingerprint.sha256(("envelope:" + (site.around ? 3 : 2) + ":" + site.target.key()
-                + ":flags:" + method.access + ":normalReturns:" + returns.size()).getBytes(StandardCharsets.UTF_8));
+        site.fingerprint = CatalogFingerprint.sha256(("envelope:" + site.envelopeVersion() + ":" + site.target.key()
+                + ":flags:" + method.access + ":normalReturns:" + returns.size()
+                + (site.points.isEmpty() ? "" : ":operations:" + site.operationFingerprint()))
+                .getBytes(StandardCharsets.UTF_8));
         Type[] parameters = Type.getArgumentTypes(method.desc);
         Type result = Type.getReturnType(method.desc);
         boolean instance = (method.access & Opcodes.ACC_STATIC) == 0;
@@ -261,6 +266,7 @@ final class ScriptHookTransformer {
         exit.athrow();
         method.instructions.add(exitCode.instructions);
         method.tryCatchBlocks.add(new TryCatchBlockNode(bodyStart, bodyEnd, handler, "java/lang/Throwable"));
+        return savedParameters;
     }
 
     private static void around(ClassNode owner, MethodNode method, HookPreparation.Site site) {
@@ -399,7 +405,7 @@ final class ScriptHookTransformer {
         }
     }
 
-    private static void box(InstructionAdapter code, Type type) {
+    static void box(InstructionAdapter code, Type type) {
         if (type.getSort() >= Type.BOOLEAN && type.getSort() <= Type.DOUBLE) {
             Type boxed = wrapper(type);
             code.invokestatic(boxed.getInternalName(), "valueOf",
@@ -407,7 +413,7 @@ final class ScriptHookTransformer {
         }
     }
 
-    private static void unbox(InstructionAdapter code, Type type) {
+    static void unbox(InstructionAdapter code, Type type) {
         Type boxed = wrapper(type);
         code.checkcast(boxed);
         if (type.getSort() >= Type.BOOLEAN && type.getSort() <= Type.DOUBLE) {

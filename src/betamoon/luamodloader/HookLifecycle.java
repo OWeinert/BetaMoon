@@ -8,6 +8,8 @@ import betamoon.hooks.HookPreparation;
 import betamoon.interop.discovery.NativeDiscoveryRuntime;
 import betamoon.interop.runtime.NativeContext;
 import betamoon.luaapi.interop.NativeHookCall;
+import betamoon.luaapi.interop.NativeHookOperationCall;
+import org.luaj.vm2.LuaValue;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -233,16 +235,19 @@ final class HookLifecycle {
                             }
                             String caller = LuaScriptRegistry.getCurrentScriptFile();
                             boolean edits = NativeContext.hookEditsAllowed();
-                            NativeContext callerContext = NativeContext.hasFrame() ? NativeContext.current() : null;
+                            NativeContext callerContext = NativeContext.captureCaller();
                             ScriptExecution.withOwner(attempt.snapshot.resourceOwner, () -> {
                                 try (HookCallbackObservation observation = new HookCallbackObservation(
                                         attempt.snapshot.resourceOwner, caller, invocation, callerContext)) {
-                                    NativeHookCall call = new NativeHookCall(invocation, observation::context, edits,
-                                            values -> observation.continueWith(() -> invocation.proceed(values)));
+                                    LuaValue call = definition.point == null
+                                            ? new NativeHookCall(invocation, observation::context, edits,
+                                                    values -> observation
+                                                            .continueWith(() -> invocation.proceed(values)))
+                                            : new NativeHookOperationCall(invocation, observation::context, edits);
                                     Varargs returned = ScriptExecution.invokeNative(attempt.snapshot.resourceOwner,
                                             "hook:" + definition.id + ":" + definition.at, registration.callback, call);
                                     if (definition.at.equals("around")) {
-                                        call.complete(returned);
+                                        ((NativeHookCall) call).complete(returned);
                                     }
                                     observation.context().check();
                                 }

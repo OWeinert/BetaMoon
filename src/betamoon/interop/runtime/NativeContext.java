@@ -130,6 +130,14 @@ public final class NativeContext implements AutoCloseable {
         return value;
     }
 
+    /**
+     * Integration capture only; validation remains mandatory before accessing roots
+     * or granting effects.
+     */
+    public static NativeContext captureCaller() {
+        return CURRENT.get();
+    }
+
     public static boolean hasFrame() {
         return CURRENT.get() != null;
     }

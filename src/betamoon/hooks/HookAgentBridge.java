@@ -13,7 +13,7 @@ import java.util.function.Function;
  * and boxing. No game or Lua class crosses this ABI.
  */
 final class HookAgentBridge {
-    static final String PROTOCOL = "betamoon-hooks-jdk-abi-3";
+    static final String PROTOCOL = "betamoon-hooks-jdk-abi-4";
     private static String unavailableReason;
     private static String unavailableMessage;
     private static final HookAgentBridge REMOTE = discover();
@@ -21,6 +21,9 @@ final class HookAgentBridge {
     final MethodHandle before;
     final MethodHandle after;
     final MethodHandle around;
+    final MethodHandle activeOperation;
+    final MethodHandle beginOperation;
+    final MethodHandle finishOperation;
     final MethodHandle error;
     final MethodHandle clientThread;
     final MethodHandle subscribe;
@@ -42,6 +45,13 @@ final class HookAgentBridge {
                 Object.class, Object[].class, Object.class));
         around = lookup.findStatic(dispatcher, "around", MethodType.methodType(Object.class, int.class, Class.class,
                 Object.class, Object[].class, String.class));
+        activeOperation = lookup.findStatic(dispatcher, "activeOperation",
+                MethodType.methodType(boolean.class, int.class, int.class, int.class, Class.class));
+        beginOperation = lookup.findStatic(dispatcher, "beginOperation",
+                MethodType.methodType(Object[].class, int.class, int.class, int.class, Class.class, Object.class,
+                        Object[].class, Object.class, Object[].class));
+        finishOperation = lookup.findStatic(dispatcher, "finishOperation",
+                MethodType.methodType(Object.class, Object[].class, Object.class));
         error = lookup.findStatic(dispatcher, "error", MethodType.methodType(void.class, int.class, Class.class,
                 Object.class, Object[].class, Throwable.class));
         clientThread = lookup.findStatic(dispatcher, "clientThread", MethodType.methodType(void.class));
