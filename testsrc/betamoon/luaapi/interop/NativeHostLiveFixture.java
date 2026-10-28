@@ -1,5 +1,14 @@
 package betamoon.luaapi.interop;
 
+import betamoon.debug.DebugExports;
+import betamoon.debug.DebugNativeExportTask;
+import betamoon.debug.DebugExportResult;
+import betamoon.interop.catalog.CatalogValues;
+import betamoon.interop.catalog.CatalogJson;
+import betamoon.interop.catalog.CatalogFingerprint;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import betamoon.instrumentation.api.ClassRef;
 import betamoon.instrumentation.api.FieldRef;
 import betamoon.instrumentation.api.MethodRef;
@@ -65,13 +74,16 @@ public final class NativeHostLiveFixture {
     private static Object nativeDelegate;
     private static NativeImplementation renderToken;
     private static int delegatedDraws;
+    private static DebugNativeExportTask exportTask;
+    private static int exportStep;
+    private static int exportPolls;
 
     private NativeHostLiveFixture() {
     }
 
     public static boolean beforeWorld(Object actualClient) throws Exception {
         if (phase == 5) {
-            return true;
+            return !Boolean.getBoolean("betamoon.performanceExports") || verifyNativeExport();
         }
         if (mappings == null) {
             mappings = TinyMappingResolver.readStrict(
@@ -154,6 +166,66 @@ public final class NativeHostLiveFixture {
         screen = null;
         oldAlias = null;
         handle = null;
+        return true;
+    }
+
+    private static boolean verifyNativeExport() throws Exception {
+        if (exportStep == 3) {
+            return true;
+        }
+        if (!Boolean.TRUE.equals(NativeDiscoveryRuntime.catalogSnapshot().coverage.get("ready"))) {
+            return false;
+        }
+        if (exportStep == 0) {
+            exportTask = DebugExports.exportNativeAsync();
+            Object progress = Class.forName("betamoon.gui.GuiPopupNativeExportProgress").getConstructors()[0]
+                    .newInstance(null, exportTask);
+            call(client, CLIENT, "displayGuiScreen", "(Lnet/minecraft/src/GuiScreen;)V", progress);
+            call(client, CLIENT, "displayGuiScreen", "(Lnet/minecraft/src/GuiScreen;)V", new Object[]{null});
+            exportStep = 1;
+            return false;
+        }
+        if (exportStep == 1) {
+            if (!exportTask.isDone()) {
+                return false;
+            }
+            require(exportTask.isCancelled() && exportTask.getResult().getDirectory() == null,
+                    "Leaving progress screen published cancelled native export");
+            System.setProperty("betamoon.perf.exportActive", "true");
+            exportTask = DebugExports.exportAllWithNativeAsync();
+            Object progress = Class.forName("betamoon.gui.GuiPopupNativeExportProgress").getConstructors()[0]
+                    .newInstance(null, exportTask);
+            call(client, CLIENT, "displayGuiScreen", "(Lnet/minecraft/src/GuiScreen;)V", progress);
+            exportStep = 2;
+            return false;
+        }
+        exportPolls++;
+        if (!exportTask.isDone()) {
+            return false;
+        }
+        System.clearProperty("betamoon.perf.exportActive");
+        require(exportTask.getResult().getStatus() != DebugExportResult.Status.FAILED,
+                "Native Export All handoff failed: " + exportTask.getResult().getFailure());
+        for (DebugExportResult.CategoryResult category : exportTask.getResult().getCategories()) {
+            require(category.isComplete()
+                    || category.getId().equals("native-access") && category.getFailure().contains("size limit"),
+                    "Unexpected live category failure: " + category.getTitle() + ": " + category.getFailure());
+        }
+        Path directory = exportTask.getResult().getDirectory().toPath();
+        Map<String, Object> manifest = CatalogValues.object(CatalogJson.decode(
+                new String(Files.readAllBytes(directory.resolve("native_catalog.json")), StandardCharsets.UTF_8)));
+        Map<String, Object> payload = CatalogValues.object(((java.util.List<?>) manifest.get("files")).get(0));
+        require(payload.get("sha256").equals(CatalogFingerprint.sha256(directory.resolve("native_catalog.jsonl"))),
+                "Live asynchronous authoring payload hash mismatch");
+        require(exportPolls > 0 && exportTask.getResult().getCategories().size() == betamoon.debug.DebugExportCatalog
+                .definitions().size(), "Export did not preserve all category results/client progress");
+        call(client, CLIENT, "displayGuiScreen", "(Lnet/minecraft/src/GuiScreen;)V", new Object[]{null});
+        System.setProperty("betamoon.perf.exports.passed", "true");
+        System.out.println(
+                "[P13-LIVE] progress close cancels; Export All client/native worker handoff, all categories and catalog hash passed; polls="
+                        + exportPolls);
+        exportTask = null;
+        exportStep = 3;
         return true;
     }
 

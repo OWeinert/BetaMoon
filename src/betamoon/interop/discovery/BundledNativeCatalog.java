@@ -14,11 +14,16 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.TreeMap;
 
-/** Verified build metadata. Name aliases are hints for the actual game origin, never classloader authority. */
+/**
+ * Verified build metadata. Name aliases are hints for the actual game origin,
+ * never classloader authority.
+ */
 public final class BundledNativeCatalog {
+    private static final Map<String, BundledNativeCatalog> SHARED = new LinkedHashMap<>();
     private static final String ROOT = "/betamoon/interop/catalog/b1.7.3/";
     public final String namespace;
     public final String mappingSha256;
@@ -30,8 +35,46 @@ public final class BundledNativeCatalog {
     private final Map<String, Object> manifest;
 
     public BundledNativeCatalog(String namespace) throws IOException {
+        this(verified(namespace));
+    }
+
+    private BundledNativeCatalog(BundledNativeCatalog shared) {
+        namespace = shared.namespace;
+        manifest = shared.manifest;
+        mappingSha256 = shared.mappingSha256;
+        inputFingerprint = shared.inputFingerprint;
+        classes = shared.classes;
+        classNames = shared.classNames;
+        memberNames = shared.memberNames;
+        sourceFiles = shared.sourceFiles;
+    }
+
+    private static synchronized BundledNativeCatalog verified(String namespace) throws IOException {
+        byte[] bytes = resource("manifest.json");
+        String key = namespace + ":" + CatalogFingerprint.sha256(bytes);
+        BundledNativeCatalog cached = SHARED.get(key);
+        if (cached != null) {
+            // Recheck actual content, never timestamps, before reusing parsed structures.
+            if (namespace.equals("named") || namespace.equals("client") || namespace.equals("server")) {
+                cached.verifiedResource("classes-" + namespace + ".jsonl");
+            }
+            cached.verifiedResource("symbols.jsonl");
+            cached.verifiedResource("source-files.jsonl");
+            return cached;
+        }
+        Map<String, Object> manifest = CatalogValues
+                .object(CatalogJson.decode(new String(bytes, StandardCharsets.UTF_8)));
+        BundledNativeCatalog parsed = new BundledNativeCatalog(namespace, manifest);
+        if (SHARED.size() >= 4) {
+            SHARED.remove(SHARED.keySet().iterator().next());
+        }
+        SHARED.put(key, parsed);
+        return parsed;
+    }
+
+    private BundledNativeCatalog(String namespace, Map<String, Object> manifest) throws IOException {
         this.namespace = namespace;
-        manifest = CatalogValues.object(CatalogJson.decode(new String(resource("manifest.json"), StandardCharsets.UTF_8)));
+        this.manifest = CatalogValues.object(CatalogValues.freeze(manifest));
         if (CatalogValues.integer(manifest, "schemaVersion") != NativeCatalogRecords.SCHEMA_VERSION) {
             throw new IOException("bundled_catalog_schema_mismatch");
         }
@@ -61,8 +104,7 @@ public final class BundledNativeCatalog {
             if ("CLASS".equals(row.get("kind"))) {
                 names.put(runtimeOwner, CatalogValues.text(row, "owner"));
             } else {
-                members.put(memberKey(runtimeOwner, (String) side.get("name"), (String) side.get("descriptor")),
-                        CatalogValues.object(CatalogValues.freeze(row)));
+                members.put(memberKey(runtimeOwner, (String) side.get("name"), (String) side.get("descriptor")), row);
             }
         }
         classNames = Collections.unmodifiableMap(names);
@@ -75,11 +117,7 @@ public final class BundledNativeCatalog {
     }
 
     private List<Map<String, Object>> records(String name) throws IOException {
-        byte[] bytes = resource(name);
-        Object expected = CatalogValues.object(manifest.get("files")).get(name);
-        if (!CatalogFingerprint.sha256(bytes).equals(expected)) {
-            throw new IOException("bundled_catalog_hash_mismatch: " + name);
-        }
+        byte[] bytes = verifiedResource(name);
         List<Map<String, Object>> records = new ArrayList<>();
         try (BufferedReader reader = CatalogValues.utf8(new ByteArrayInputStream(bytes))) {
             long[] remaining = {32L * 1024 * 1024};
@@ -94,7 +132,16 @@ public final class BundledNativeCatalog {
         return records;
     }
 
-    private byte[] resource(String name) throws IOException {
+    private byte[] verifiedResource(String name) throws IOException {
+        byte[] bytes = resource(name);
+        Object expected = CatalogValues.object(manifest.get("files")).get(name);
+        if (!CatalogFingerprint.sha256(bytes).equals(expected)) {
+            throw new IOException("bundled_catalog_hash_mismatch: " + name);
+        }
+        return bytes;
+    }
+
+    private static byte[] resource(String name) throws IOException {
         try (InputStream input = BundledNativeCatalog.class.getResourceAsStream(ROOT + name)) {
             if (input == null) {
                 throw new IOException("bundled_catalog_missing: " + name);

@@ -1,6 +1,7 @@
 package betamoon.debug;
 
 import java.io.File;
+import betamoon.interop.discovery.NativeDiscoveryRuntime;
 import java.util.Collections;
 
 /**
@@ -15,7 +16,9 @@ public final class DebugExports {
         return exportAll(false);
     }
 
-    /** Includes bulky native catalogs only when explicitly selected for this run. */
+    /**
+     * Includes bulky native catalogs only when explicitly selected for this run.
+     */
     public static DebugExportResult exportAll(boolean includeNativeCatalogs) {
         File root = DebugExportPaths.resolveDebugDir();
         if (root == null) {
@@ -34,6 +37,25 @@ public final class DebugExports {
             return DebugExportResult.failed(null, "Debug export directory could not be created.", 0L);
         }
         return DebugExportSession.run(root, definition.getId(), Collections.singletonList(definition));
+    }
+
+    /**
+     * Captures only detached native metadata/counters on the calling client thread.
+     */
+    public static DebugNativeExportTask exportNativeAsync() {
+        NativeDiscoveryRuntime.requireClientAccess();
+        return DebugNativeExportTask.start(DebugExportPaths.resolveDebugDir(), NativeDiscoveryRuntime.snapshot(),
+                NativeDiscoveryRuntime.status());
+    }
+
+    /**
+     * Live categories stay on the caller's client thread; only the captured native
+     * category is deferred.
+     */
+    public static DebugNativeExportTask exportAllWithNativeAsync() {
+        NativeDiscoveryRuntime.requireClientAccess();
+        return DebugNativeExportTask.start(DebugExportPaths.resolveDebugDir(), NativeDiscoveryRuntime.snapshot(),
+                NativeDiscoveryRuntime.status(), true);
     }
 
     /**

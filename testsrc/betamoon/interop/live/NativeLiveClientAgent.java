@@ -40,7 +40,20 @@ public final class NativeLiveClientAgent {
                     @Override
                     public MethodVisitor visitMethod(int access, String name, String descriptor, String signature,
                             String[] exceptions) {
-                        MethodVisitor method = super.visitMethod(access, name, descriptor, signature, exceptions);
+                        MethodVisitor method = new MethodVisitor(Opcodes.ASM9,
+                                super.visitMethod(access, name, descriptor, signature, exceptions)) {
+                            @Override
+                            public void visitMethodInsn(int opcode, String owner, String name, String descriptor,
+                                    boolean itf) {
+                                super.visitMethodInsn(opcode, owner, name, descriptor, itf);
+                                if (owner.equals("org/lwjgl/opengl/Display") && name.equals("update")
+                                        && descriptor.equals("()V")) {
+                                    super.visitMethodInsn(Opcodes.INVOKESTATIC,
+                                            "betamoon/interop/live/NativeLiveClientDriver", "framePresented", "()V",
+                                            false);
+                                }
+                            }
+                        };
                         if (!name.equals(target.getName()) || !descriptor.equals(target.getDescriptor())) {
                             return method;
                         }

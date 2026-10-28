@@ -23,6 +23,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.objectweb.asm.Type;
 
 /**
@@ -39,6 +40,35 @@ public final class NativeLiveClientDriver {
     private static boolean busy;
     private static Object observedWorld;
     private static List<?> baselineListeners;
+    private static final long[] WORLD_FRAMES = new long[20000];
+    private static final long[] EXPORT_FRAMES = new long[20000];
+    private static int worldFrames;
+    private static int exportFrames;
+    private static long lastFrame;
+    private static long worldWindow;
+
+    public static void framePresented() {
+        long now = System.nanoTime();
+        long elapsed = now - lastFrame;
+        if (lastFrame != 0) {
+            if (Boolean.getBoolean("betamoon.perf.exportActive") && exportFrames < EXPORT_FRAMES.length) {
+                EXPORT_FRAMES[exportFrames++] = elapsed;
+            } else if (stage == 4 && worldFrames < WORLD_FRAMES.length) {
+                WORLD_FRAMES[worldFrames++] = elapsed;
+            }
+        }
+        lastFrame = now;
+    }
+
+    private static Map<String, Object> frames(long[] values, int count) {
+        long[] sorted = java.util.Arrays.copyOf(values, count);
+        java.util.Arrays.sort(sorted);
+        return count == 0
+                ? CatalogValues.record("samples", 0)
+                : CatalogValues.record("samples", count, "p50Nanos", sorted[count / 2], "p95Nanos",
+                        sorted[count * 95 / 100], "p99Nanos", sorted[count * 99 / 100], "maximumNanos",
+                        sorted[count - 1]);
+    }
 
     private NativeLiveClientDriver() {
     }
@@ -120,6 +150,14 @@ public final class NativeLiveClientDriver {
                 BetaMoonClient.getInstance().reloadLuaScripts();
                 stage = 4;
             } else if (stage == 4 && "attached".equals(System.getProperty("betamoon.live.lua"))) {
+                if (Boolean.getBoolean("betamoon.native.x10")) {
+                    if (worldWindow == 0) {
+                        worldWindow = System.nanoTime();
+                    }
+                    if (System.nanoTime() - worldWindow < java.util.concurrent.TimeUnit.SECONDS.toNanos(10)) {
+                        return;
+                    }
+                }
                 if (Boolean.getBoolean("betamoon.native.n7") && !NativeN7LiveClientChecks.inWorld(client, world)) {
                     return;
                 }
@@ -215,7 +253,11 @@ public final class NativeLiveClientDriver {
     private static void write(String status, String error) throws Exception {
         String result = CatalogJson.encode(CatalogValues.record("status", status, "namespace",
                 namespace.getMappingName(), "ticks", ticks, "stage", stage, "error", error, "renderedClient", true,
-                "worldCreatedNormally", true, "observerReloadAndWorldCleanup", status.equals("passed"), "x3Acceptance",
+                "worldFrameIntervals", frames(WORLD_FRAMES, worldFrames), "exportFrameIntervals",
+                frames(EXPORT_FRAMES, exportFrames), "frameMeasurement",
+                "Consecutive Display.update presentations in the actual rendered client; includes scheduler, native body and GC costs",
+                "nativeExportAcceptance", Boolean.getBoolean("betamoon.perf.exports.passed"), "worldCreatedNormally",
+                true, "observerReloadAndWorldCleanup", status.equals("passed"), "x3Acceptance",
                 "true".equals(System.getProperty("betamoon.x3.passed")), "x5Acceptance",
                 "true".equals(System.getProperty("betamoon.x5.passed")), "x8Acceptance",
                 "true".equals(System.getProperty("betamoon.x8.passed")), "x9Acceptance",

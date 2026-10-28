@@ -48,7 +48,7 @@ public final class NativeReflection {
             return structural;
         }
         Map<String, Object> found = null;
-        for (Map<String, Object> row : snapshot.rows("classes")) {
+        for (Map<String, Object> row : snapshot.candidates("classes", CatalogValues.record("name", reference.name()))) {
             if (!reference.name().equals(row.get("runtimeName"))
                     && (reference.names.equals("runtime") || !reference.name().equals(row.get("name")))) {
                 continue;
@@ -88,7 +88,7 @@ public final class NativeReflection {
                 found.get("originId")));
         List<Map<String, Object>> constants = new ArrayList<>();
         for (Map<String, Object> member : (((Number) found.get("modifiers")).intValue() & 16384) != 0
-                ? snapshot.rows("members")
+                ? snapshot.candidates("members", CatalogValues.record("declaringType", found.get("name")))
                 : Collections.<Map<String, Object>>emptyList()) {
             if (found.get("originId").equals(member.get("originId"))
                     && found.get("name").equals(member.get("declaringType")) && "FIELD".equals(member.get("kind"))
@@ -110,16 +110,13 @@ public final class NativeReflection {
         }
         List<Map<String, Object>> owners = hierarchy(type, snapshot,
                 reference.declaringType != null || reference.kind == NativeMemberRef.Kind.CONSTRUCTOR);
-        Map<String, List<Map<String, Object>>> members = new LinkedHashMap<>();
-        for (Map<String, Object> row : snapshot.rows("members")) {
-            members.computeIfAbsent(row.get("originId") + ":" + row.get("declaringType"), key -> new ArrayList<>())
-                    .add(row);
-        }
         Map<String, Set<String>> aliases = new LinkedHashMap<>();
         for (Map<String, Object> owner : owners) {
-            for (Map<String, Object> row : members.getOrDefault(owner.get("originId") + ":" + owner.get("name"),
-                    Collections.emptyList())) {
-                if ("METHOD".equals(row.get("kind")) && (((Number) row.get("modifiers")).intValue() & 10) == 0) {
+            for (Map<String, Object> row : snapshot.candidates("members",
+                    CatalogValues.record("declaringType", owner.get("name"), "originId", owner.get("originId")))) {
+                if (owner.get("originId").equals(row.get("originId"))
+                        && owner.get("name").equals(row.get("declaringType")) && "METHOD".equals(row.get("kind"))
+                        && (((Number) row.get("modifiers")).intValue() & 10) == 0) {
                     aliases.computeIfAbsent(row.get("runtimeName") + ":" + row.get("runtimeDescriptor"),
                             key -> new HashSet<>()).add((String) row.get("name"));
                 }
@@ -127,8 +124,8 @@ public final class NativeReflection {
         }
         Map<String, Object> found = null;
         for (Map<String, Object> owner : owners) {
-            for (Map<String, Object> row : members.getOrDefault(owner.get("originId") + ":" + owner.get("name"),
-                    Collections.emptyList())) {
+            for (Map<String, Object> row : snapshot.candidates("members",
+                    CatalogValues.record("declaringType", owner.get("name"), "originId", owner.get("originId")))) {
                 if (!reference.kind.name().equals(row.get("kind")) || !owner.get("originId").equals(row.get("originId"))
                         || !owner.get("name").equals(row.get("declaringType"))) {
                     continue;
@@ -181,7 +178,8 @@ public final class NativeReflection {
 
     private static String runtimeDescriptor(String descriptor, NativeIndexSnapshot snapshot) {
         return JvmDescriptors.remap(descriptor, name -> {
-            for (Map<String, Object> type : snapshot.rows("classes")) {
+            for (Map<String, Object> type : snapshot.candidates("classes",
+                    CatalogValues.record("name", name.replace('/', '.')))) {
                 if ("mapped".equals(type.get("nameDomain")) && name.replace('/', '.').equals(type.get("name"))) {
                     return ((String) type.get("runtimeName")).replace('.', '/');
                 }
@@ -219,7 +217,8 @@ public final class NativeReflection {
             }
             for (String parent : parents) {
                 List<Map<String, Object>> candidates = new ArrayList<>();
-                for (Map<String, Object> row : snapshot.rows("classes")) {
+                for (Map<String, Object> row : snapshot.candidates("classes",
+                        CatalogValues.record("name", parent.replace('/', '.')))) {
                     if (parent.replace('/', '.').equals(row.get("runtimeName"))) {
                         candidates.add(row);
                     }

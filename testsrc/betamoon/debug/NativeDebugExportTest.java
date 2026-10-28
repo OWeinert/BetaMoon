@@ -97,6 +97,7 @@ public final class NativeDebugExportTest {
                         .resolve(NativeAuthoringCatalog.MANIFEST_FILE).toFile().exists(),
                         "A pending index published a usable-looking authoring manifest");
                 verifyStructuredFailure(work, compact);
+                verifyAsync(work, snapshot);
             }
         } finally {
             Path resolved = work.toRealPath();
@@ -108,6 +109,71 @@ public final class NativeDebugExportTest {
                     Files.delete(path);
                 }
             }
+        }
+    }
+
+    private static void verifyAsync(Path work, NativeIndexSnapshot snapshot) throws Exception {
+        Path exports = Files.createDirectories(work.resolve("async-exports"));
+        Map<String, Object> status = CatalogValues.record("lastFailure", "captured failure");
+        DebugNativeExportTask task = DebugNativeExportTask.start(exports.toFile(), snapshot, status);
+        status.put("lastFailure", "later failure");
+        await(task);
+        require(task.getResult().getStatus() == DebugExportResult.Status.COMPLETE, "Async native export failed");
+        require(read(task.getResult(), "native_failures.json").contains("captured failure")
+                && !read(task.getResult(), "native_failures.json").contains("later failure"),
+                "Worker read mutable caller status");
+        verifyAuthoring(task.getResult(), snapshot);
+        require(!task.cancel(), "Published export was retroactively cancelled");
+        java.lang.reflect.Field definition = DebugNativeExportTask.class.getDeclaredField("definition");
+        definition.setAccessible(true);
+        require(definition.get(task) == null, "Completed task retained its catalog capture");
+
+        java.util.concurrent.CountDownLatch writing = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        DebugExportDefinition held = new DebugExportDefinition("held", "Held", "Fixture", false, session -> {
+            session.writeStructuredFile("held.json", writer -> {
+                writer.write("{\"incomplete\":");
+                writing.countDown();
+                release.await();
+                writer.write("true}");
+                return 1;
+            });
+        }, "held.json");
+        Path cancelledRoot = Files.createDirectories(work.resolve("cancelled-exports"));
+        DebugNativeExportTask cancelled = DebugNativeExportTask.submit(cancelledRoot.toFile(), held);
+        try {
+            require(writing.await(5, java.util.concurrent.TimeUnit.SECONDS), "Worker did not start");
+            for (int index = 0; index < 100; index++) {
+                require(DebugNativeExportTask.submit(cancelledRoot.toFile(), held) == cancelled, "Worker queue grew");
+                require(!((List<?>) betamoon.interop.discovery.NativeQueryService
+                        .query(snapshot, CatalogValues.record("kind", "classes", "limit", 1)).get("items")).isEmpty(),
+                        "Client metadata queries stalled behind export");
+            }
+            require(cancelled.getProgress().contains("held.json") && cancelled.cancel(),
+                    "Progress/cancellation unavailable");
+            await(cancelled);
+            require(cancelled.isCancelled() && cancelled.getResult().getDirectory() == null,
+                    "Cancellation published a directory");
+            try (Stream<Path> paths = Files.list(cancelledRoot)) {
+                require(paths.count() == 0, "Cancelled export left temporary or usable-looking output");
+            }
+        } finally {
+            release.countDown();
+            cancelled.cancel();
+            await(cancelled);
+        }
+        DebugNativeExportTask recovery = DebugNativeExportTask.start(exports.toFile(), snapshot,
+                Collections.emptyMap());
+        await(recovery);
+        require(recovery.getResult().getStatus() == DebugExportResult.Status.COMPLETE,
+                "Cancellation poisoned the next worker run");
+    }
+
+    private static void await(DebugNativeExportTask task) throws Exception {
+        long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(15);
+        while (!task.isDone()) {
+            require(System.nanoTime() < deadline, "Native export timed out: " + task.getProgress());
+            Thread.sleep(1);
         }
     }
 

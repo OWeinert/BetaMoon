@@ -1,5 +1,6 @@
 package betamoon.interop.discovery;
 
+import java.util.concurrent.CancellationException;
 import betamoon.interop.catalog.CatalogJson;
 import betamoon.interop.catalog.CatalogValues;
 import betamoon.interop.catalog.NativeCatalogRecords;
@@ -33,6 +34,7 @@ public final class NativeIndexSnapshot {
     public final NativeSourceIndex sources;
     public final long hookRevision;
     private final Map<String, List<Map<String, Object>>> tables;
+    private final NativeMetadataIndex index;
 
     private NativeIndexSnapshot(long generation, String namespace, String mappingSha256,
             Map<String, List<Map<String, Object>>> tables, Map<String, Object> coverage, List<String> warnings,
@@ -46,14 +48,10 @@ public final class NativeIndexSnapshot {
         this.warnings = Collections.unmodifiableList(new ArrayList<>(warnings));
         Map<String, List<Map<String, Object>>> frozen = new LinkedHashMap<>();
         for (String kind : KINDS) {
-            List<Map<String, Object>> rows = new ArrayList<>();
-            for (Map<String, Object> row : tables.getOrDefault(kind, Collections.emptyList())) {
-                rows.add(CatalogValues.object(CatalogValues.freeze(row)));
-            }
-            rows.sort(Comparator.comparing(NativeIndexSnapshot::sortKey));
-            frozen.put(kind, Collections.unmodifiableList(rows));
+            frozen.put(kind, freezeRows(tables.getOrDefault(kind, Collections.emptyList())));
         }
         this.tables = Collections.unmodifiableMap(frozen);
+        index = new NativeMetadataIndex(this.tables);
     }
 
     public List<Map<String, Object>> rows(String kind) {
@@ -62,6 +60,18 @@ public final class NativeIndexSnapshot {
             throw new IllegalArgumentException("Unknown native query kind: " + kind);
         }
         return rows;
+    }
+
+    /**
+     * Smallest indexed superset, in the same stable order; callers still apply
+     * every filter.
+     */
+    public List<Map<String, Object>> candidates(String kind, Map<String, Object> filter) {
+        if (kind.equals("hooks")) {
+            return rows(kind);
+        }
+        rows(kind);
+        return index.candidates(kind, filter);
     }
 
     /**
@@ -74,6 +84,7 @@ public final class NativeIndexSnapshot {
 
     private NativeIndexSnapshot(NativeIndexSnapshot base, List<Map<String, Object>> hooks, long revision,
             String status) {
+        index = base.index;
         generation = base.generation;
         namespace = base.namespace;
         mappingSha256 = base.mappingSha256;
@@ -108,6 +119,7 @@ public final class NativeIndexSnapshot {
     }
 
     private NativeIndexSnapshot(NativeIndexSnapshot base, String status, long revision) {
+        index = base.index;
         generation = base.generation;
         namespace = base.namespace;
         mappingSha256 = base.mappingSha256;
@@ -122,6 +134,33 @@ public final class NativeIndexSnapshot {
 
     public static NativeIndexSnapshot empty() {
         return EMPTY;
+    }
+
+    private static List<Map<String, Object>> freezeRows(List<Map<String, Object>> source) {
+        List<OrderedRow> ordered = new ArrayList<>(source.size());
+        int position = 0;
+        for (Map<String, Object> row : source) {
+            if ((position++ & 255) == 0 && Thread.currentThread().isInterrupted()) {
+                throw new CancellationException("native_index_cancelled");
+            }
+            ordered.add(new OrderedRow(CatalogValues.object(CatalogValues.freeze(row))));
+        }
+        ordered.sort(Comparator.comparing(row -> row.key));
+        List<Map<String, Object>> rows = new ArrayList<>(source.size());
+        for (OrderedRow row : ordered) {
+            rows.add(row.record);
+        }
+        return Collections.unmodifiableList(rows);
+    }
+
+    private static final class OrderedRow {
+        private final Map<String, Object> record;
+        private final String key;
+
+        private OrderedRow(Map<String, Object> record) {
+            this.record = record;
+            key = sortKey(record);
+        }
     }
 
     private static String sortKey(Map<String, Object> row) {

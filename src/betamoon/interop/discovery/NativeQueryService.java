@@ -1,5 +1,6 @@
 package betamoon.interop.discovery;
 
+import java.util.Collections;
 import betamoon.interop.catalog.CatalogFingerprint;
 import betamoon.interop.catalog.CatalogJson;
 import betamoon.interop.catalog.CatalogValues;
@@ -38,7 +39,7 @@ public final class NativeQueryService {
             identity.put("hookRevision", snapshot.hookRevision);
         }
         String digest = CatalogFingerprint.sha256(CatalogJson.encode(identity).getBytes(StandardCharsets.UTF_8));
-        List<Map<String, Object>> rows = snapshot.rows(kind);
+        List<Map<String, Object>> rows = snapshot.candidates(kind, filter);
         int start = cursor(snapshot.generation, digest, filter.get("cursor"));
         if (start < 0 || start > rows.size()) {
             throw new IllegalArgumentException("invalid_cursor");
@@ -59,8 +60,9 @@ public final class NativeQueryService {
                 ? Base64.getUrlEncoder().withoutPadding().encodeToString(
                         (snapshot.generation + ":" + digest + ":" + position).getBytes(StandardCharsets.UTF_8))
                 : null;
-        return CatalogValues.object(CatalogValues.freeze(CatalogValues.record("items", items, "nextCursor", next,
-                "generation", snapshot.generation, "coverage", snapshot.coverage, "warnings", snapshot.warnings)));
+        return Collections.unmodifiableMap(
+                CatalogValues.record("items", Collections.unmodifiableList(items), "nextCursor", next, "generation",
+                        snapshot.generation, "coverage", snapshot.coverage, "warnings", snapshot.warnings));
     }
 
     public static Map<String, Object> describe(NativeIndexSnapshot snapshot, String name, String originId) {

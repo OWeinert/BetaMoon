@@ -25,7 +25,10 @@ public final class NativeDiscoveryLifecycleTest {
 
     public static void main(String[] args) throws Exception {
         Path work = Files.createTempDirectory(Paths.get("build").toAbsolutePath(), "native-n7-discovery-");
-        cancellation(work.resolve("cancel-cache"));
+        if (args.length == 0) {
+            NativeMetadataIndexTest.verify();
+            cancellation(work.resolve("cancel-cache"));
+        }
         profile(work.resolve("profile-cache"));
         System.out.println(
                 "Native discovery lifecycle passed: bounded cancellation, recovery, cached scans and release.");
@@ -77,8 +80,15 @@ public final class NativeDiscoveryLifecycleTest {
         Path game = Paths.get("tools/rmcp/minecraft/jars/deobfuscated.jar").toAbsolutePath();
         NativeOriginInput input = new NativeOriginInput("n7-game", game, Collections.emptyList(),
                 Collections.emptyList(), true, "verified test binary");
-        NativeLoaderRegistry.Capture capture = new NativeLoaderRegistry.Capture(Collections.singletonList(input),
-                Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), false);
+        List<NativeOriginInput> origins = new ArrayList<>();
+        origins.add(input);
+        String mod = System.getProperty("betamoon.performanceModJar");
+        if (mod != null) {
+            origins.add(new NativeOriginInput("n7-installed-mod", Paths.get(mod), Collections.emptyList(),
+                    Collections.emptyList(), false, "installed live-instance mod binary"));
+        }
+        NativeLoaderRegistry.Capture capture = new NativeLoaderRegistry.Capture(origins, Collections.emptyList(),
+                Collections.emptyList(), Collections.emptyList(), false);
         System.gc();
         long heapBefore = usedHeap();
         Map<String, Object> result;
@@ -93,7 +103,8 @@ public final class NativeDiscoveryLifecycleTest {
                     require(!snapshot.rows("classes").isEmpty() && !snapshot.rows("members").isEmpty(),
                             "real binary index empty");
                     int hits = ((Number) snapshot.coverage.get("cacheHits")).intValue();
-                    require(hits == (index == 0 ? 0 : 1), "content cache did not distinguish cold/cached scan");
+                    require(hits == (index == 0 ? 0 : origins.size()),
+                            "content cache did not distinguish cold/cached scan");
                     scans.add(((Number) CatalogValues.object(service.status().get("work")).get("lastScanNanos"))
                             .longValue());
                 }
@@ -115,7 +126,7 @@ public final class NativeDiscoveryLifecycleTest {
                     "cachedScanNanos", scans.subList(1, scans.size()), "queryNanos", percentiles(query), "classes",
                     snapshot.rows("classes").size(), "members", snapshot.rows("members").size(),
                     "estimatedMetadataBytes", snapshot.coverage.get("estimatedMetadataBytes"), "retainedHeapDeltaBytes",
-                    Math.max(0, usedHeap() - heapBefore), "heapMeasurement",
+                    Math.max(0, usedHeap() - heapBefore), "peakHeapPoolBytes", peakHeap(), "heapMeasurement",
                     "GC-assisted whole-process delta, informational", "coverage", snapshot.coverage);
         }
         Files.write(Paths.get("build/native-n7-discovery-profile.json"),
@@ -127,6 +138,16 @@ public final class NativeDiscoveryLifecycleTest {
         Arrays.sort(values);
         return CatalogValues.record("p50", values[values.length / 2], "p95", values[values.length * 95 / 100], "p99",
                 values[values.length * 99 / 100]);
+    }
+
+    private static long peakHeap() {
+        long bytes = 0;
+        for (java.lang.management.MemoryPoolMXBean pool : ManagementFactory.getMemoryPoolMXBeans()) {
+            if (pool.getType() == java.lang.management.MemoryType.HEAP) {
+                bytes += pool.getPeakUsage().getUsed();
+            }
+        }
+        return bytes;
     }
 
     private static long usedHeap() {

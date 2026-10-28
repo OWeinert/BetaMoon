@@ -23,7 +23,10 @@ import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.src.GuiScreen;
 
-/** Pinned script-report action above a catalog-driven list of individual debug exports. */
+/**
+ * Pinned script-report action above a catalog-driven list of individual debug
+ * exports.
+ */
 public final class GuiPopupDebugMenu extends GuiDialogScreen {
     private final GuiScriptIssueActions reportActions;
     private boolean includeNativeCatalogs;
@@ -41,7 +44,13 @@ public final class GuiPopupDebugMenu extends GuiDialogScreen {
         dialog.setBodyInsets(14, 32, 8);
         dialog.setFooterLayout(FooterAlignment.FILL, 12, 6, 0);
         dialog.setBody(new ExportMenuBody());
-        dialog.addFooterButton(new GuiButton("Export All", () -> showResult(DebugExports.exportAll(includeNativeCatalogs))));
+        dialog.addFooterButton(new GuiButton("Export All", () -> {
+            if (includeNativeCatalogs) {
+                showScreen(new GuiPopupNativeExportProgress(this, DebugExports.exportAllWithNativeAsync()));
+            } else {
+                showResult(DebugExports.exportAll());
+            }
+        }));
         dialog.addFooterButton(new GuiButton("Close", () -> showScreen(parent)));
     }
 
@@ -70,8 +79,8 @@ public final class GuiPopupDebugMenu extends GuiDialogScreen {
                 false, selected -> includeNativeCatalogs = selected));
 
         private ExportMenuBody() {
-            nativeCatalogs.setTooltip(
-                    "Applies to Export All. Native access > Export always includes detailed catalogs.");
+            nativeCatalogs
+                    .setTooltip("Applies to Export All. Native access > Export always includes detailed catalogs.");
         }
 
         @Override
@@ -217,7 +226,14 @@ public final class GuiPopupDebugMenu extends GuiDialogScreen {
 
             private CategoryRow(DebugExportDefinition definition) {
                 this.definition = definition;
-                export = add(new GuiButton("Export", BUTTON_WIDTH, () -> showResult(DebugExports.export(definition))));
+                export = add(new GuiButton("Export", BUTTON_WIDTH, () -> {
+                    if (DebugExportCatalog.NATIVE_ACCESS_ID.equals(definition.getId())) {
+                        showScreen(new GuiPopupNativeExportProgress(GuiPopupDebugMenu.this,
+                                DebugExports.exportNativeAsync()));
+                    } else {
+                        showResult(DebugExports.export(definition));
+                    }
+                }));
             }
 
             private int textWidth(int width) {
@@ -228,8 +244,8 @@ public final class GuiPopupDebugMenu extends GuiDialogScreen {
                 int textWidth = textWidth(width);
                 int titleHeight = context.getRenderer().wrappedTextHeight(definition.getTitle(), textWidth);
                 int descriptionHeight = context.getRenderer().wrappedTextHeight(definition.getDescription(), textWidth);
-                return Math.max(58, 2 + titleHeight + 4 + descriptionHeight + 4
-                        + context.getRenderer().lineHeight() + 6);
+                return Math.max(58,
+                        2 + titleHeight + 4 + descriptionHeight + 4 + context.getRenderer().lineHeight() + 6);
             }
 
             @Override

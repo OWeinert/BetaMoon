@@ -27,3 +27,6 @@
 - Exact call-site and field-operation hooks with mandatory match counts, scoped operands and transactional typed edits.
 - Exact constructor-return observations with saved arguments, scoped receivers and explicit declaring-constructor lifecycle semantics.
 - Owned native subclass/abstract-class hosts with exact overrides, scoped setup/super calls, closed-instance policies and reusable class attachments.
+- Lower-overhead native calls, hook dispatch, scoped handles and bulk queries with prepared metadata and incremental cache eviction.
+- Counts-only hook diagnostics by default, optional sampled/full timing and bounded repeated-failure aggregation.
+- Indexed native metadata and cancellable detailed exports with progress, captured counters and atomic completion.
