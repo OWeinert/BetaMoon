@@ -21,13 +21,11 @@ public final class NativeMemberRef {
     public final String descriptor;
     public final String names;
     public final String descriptorNames;
+    private final String key;
 
     public NativeMemberRef(Kind kind, NativeTypeRef lookupType, NativeTypeRef declaringType, String name,
             String descriptor, String names, String descriptorNames) {
-        if (name == null || name.isEmpty() || name.length() > 1024 || name.indexOf('\0') >= 0
-                || name.matches(".*[.;\\[/<>].*")) {
-            throw new IllegalArgumentException("invalid_member_name");
-        }
+        requireName(name);
         if (descriptor != null && descriptor.length() > 8192) {
             throw new IllegalArgumentException("invalid_member_descriptor");
         }
@@ -51,6 +49,8 @@ public final class NativeMemberRef {
         this.descriptor = descriptor;
         this.names = NativeTypeRef.policy(names == null ? lookupType.names : names);
         this.descriptorNames = NativeTypeRef.policy(descriptorNames);
+        key = kind + ":" + lookupType.key() + ":" + (declaringType == null ? "" : declaringType.key()) + ":" + name
+                + ":" + descriptor + ":" + this.names + ":" + this.descriptorNames;
     }
 
     public List<NativeTypeRef> parameters() {
@@ -76,8 +76,22 @@ public final class NativeMemberRef {
     }
 
     public String key() {
-        return kind + ":" + lookupType.key() + ":" + (declaringType == null ? "" : declaringType.key()) + ":" + name
-                + ":" + descriptor + ":" + names + ":" + descriptorNames;
+        return key;
+    }
+
+    public static void requireName(String name) {
+        if (name == null || name.isEmpty() || name.length() > 1024 || name.indexOf('\0') >= 0 || invalidName(name)) {
+            throw new IllegalArgumentException("invalid_member_name");
+        }
+    }
+
+    private static boolean invalidName(String name) {
+        for (int index = 0; index < name.length(); index++) {
+            if (".;[/<>".indexOf(name.charAt(index)) >= 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static int typeEnd(String descriptor, int start) {

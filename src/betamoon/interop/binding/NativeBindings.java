@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -62,6 +63,13 @@ public final class NativeBindings {
         @Override
         protected Map<String, List<NativeMemberPlan>> computeValue(Class<?> type) {
             return new HashMap<>();
+        }
+    };
+
+    private final ClassValue<Map<String, NativeOrdinaryMember>> ordinaryMembers = new ClassValue<Map<String, NativeOrdinaryMember>>() {
+        @Override
+        protected Map<String, NativeOrdinaryMember> computeValue(Class<?> type) {
+            return new LinkedHashMap<>();
         }
     };
 
@@ -379,6 +387,47 @@ public final class NativeBindings {
             failure.explain(CatalogValues.record("requestedMember", name));
             throw explain(failure, reference, null, null, context, false);
         }
+    }
+
+    public NativeOrdinaryMember ordinary(NativeTypeRef reference, String name, boolean isStatic,
+            NativeContext context) {
+        if (name == null || name.isEmpty() || name.length() > 1024) {
+            throw new IllegalArgumentException("invalid_member_name");
+        }
+        Class<?> lookup = type(reference, context);
+        Map<String, NativeOrdinaryMember> cache = ordinaryMembers.get(lookup);
+        String key = reference.names + ":" + name + ":" + isStatic;
+        NativeOrdinaryMember found = cache.get(key);
+        if (found != null) {
+            return found.requireUnambiguousFields(name);
+        }
+        context.prepare();
+        NativeMemberRef.requireName(name);
+        NativeMemberPlan field = null;
+        int fields = 0;
+        try {
+            for (Class<?> owner : hierarchy(lookup)) {
+                for (Field candidate : owner.getDeclaredFields()) {
+                    if (names.fieldMatches(owner, candidate.getName(), Type.getDescriptor(candidate.getType()), name,
+                            reference.names)) {
+                        fields++;
+                        field = new NativeMemberPlan(candidate, names);
+                    }
+                }
+            }
+        } catch (LinkageError failure) {
+            throw new NativeAccessFailure("missing_dependency", reference.name(), failure);
+        } catch (SecurityException failure) {
+            throw new NativeAccessFailure("access_denied", reference.name(), failure);
+        }
+        boolean method = fields <= 1 && !methods(reference, name, isStatic, context).isEmpty();
+        found = new NativeOrdinaryMember(field != null && !field.nonPublic && field.isStatic == isStatic ? field : null,
+                method, fields > 1);
+        if (cache.size() >= 512) {
+            cache.remove(cache.keySet().iterator().next());
+        }
+        cache.put(key, found);
+        return found.requireUnambiguousFields(name);
     }
 
     public boolean hasMethod(NativeTypeRef reference, String name, boolean isStatic, NativeContext context) {

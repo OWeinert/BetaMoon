@@ -23,6 +23,7 @@ public final class NativeTypeRef {
     public final String names;
     public final String loaderId;
     public final String originId;
+    private final String key;
 
     private NativeTypeRef(String descriptor, String names, String loaderId, String originId) {
         if (!"V".equals(descriptor)) {
@@ -32,6 +33,7 @@ public final class NativeTypeRef {
         this.names = policy(names);
         this.loaderId = loaderId;
         this.originId = originId;
+        key = descriptor + ":" + this.names + ":" + loaderId + ":" + originId;
     }
 
     public static NativeTypeRef named(String name, String names, String loaderId, String originId) {
@@ -110,7 +112,7 @@ public final class NativeTypeRef {
     }
 
     public String key() {
-        return descriptor + ":" + names + ":" + loaderId + ":" + originId;
+        return key;
     }
 
     public static String policy(String value) {

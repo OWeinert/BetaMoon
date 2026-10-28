@@ -2,6 +2,7 @@ package betamoon.luaapi.interop;
 
 import betamoon.interop.binding.NativeAccessFailure;
 import betamoon.interop.binding.NativeMemberPlan;
+import betamoon.interop.binding.NativeOrdinaryMember;
 import betamoon.interop.catalog.CatalogValues;
 import betamoon.interop.reference.NativeMemberRef;
 import betamoon.interop.reference.NativeTypeRef;
@@ -118,8 +119,9 @@ final class NativeLuaView extends NativeLuaHandle {
                         execution, direct);
             }
             String name = NativeAccessApi.text(key);
-            NativeMemberPlan field = ordinaryField(name);
-            boolean method = context.bindings.hasMethod(lookup, name, classView, context);
+            NativeOrdinaryMember member = context.bindings.ordinary(lookup, name, classView, context);
+            NativeMemberPlan field = member.field;
+            boolean method = member.method;
             if (field != null && method) {
                 throw new NativeAccessFailure("ambiguous_member", name + "; use field() or method()");
             }
@@ -168,8 +170,9 @@ final class NativeLuaView extends NativeLuaHandle {
             if (properties.containsKey(name)) {
                 throw new NativeAccessFailure("reserved_member_name", "select the native field through field()");
             }
-            NativeMemberPlan field = ordinaryField(name);
-            if (field == null || context.bindings.hasMethod(lookup, name, classView, context)) {
+            NativeOrdinaryMember member = context.bindings.ordinary(lookup, name, classView, context);
+            NativeMemberPlan field = member.field;
+            if (field == null || member.method) {
                 throw new NativeAccessFailure("ambiguous_or_missing_field", name + "; use field()");
             }
             Object input = host.argument(value, context);
@@ -190,20 +193,6 @@ final class NativeLuaView extends NativeLuaHandle {
             failure.explain(CatalogValues.record("requestedMember", key.tojstring()));
         }
         return failure;
-    }
-
-    private NativeMemberPlan ordinaryField(String name) {
-        try {
-            NativeMemberPlan field = context.bindings.exact(
-                    new NativeMemberRef(NativeMemberRef.Kind.FIELD, lookup, null, name, null, null, null), context,
-                    false);
-            return field.isStatic == classView ? field : null;
-        } catch (NativeAccessFailure exception) {
-            if (exception.reason.equals("member_not_found") || exception.reason.equals("nonpublic_requires_direct")) {
-                return null;
-            }
-            throw exception;
-        }
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

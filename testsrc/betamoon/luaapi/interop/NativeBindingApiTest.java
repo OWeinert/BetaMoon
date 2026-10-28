@@ -56,6 +56,7 @@ public final class NativeBindingApiTest {
         Path work = Files.createTempDirectory(parent, "native-binding-");
         try {
             verify(work);
+            NativeOrdinaryLookupTest.run();
         } finally {
             Path target = work.toRealPath();
             require(target.getParent().equals(parent) && target.getFileName().toString().startsWith("native-binding-"),
