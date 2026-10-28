@@ -43,13 +43,19 @@ public final class NativeDiscoveryTest {
             throw new AssertionError("Discovery fixtures must run without Minecraft");
         } catch (ClassNotFoundException expected) {
         }
+        NativeIndexSnapshot empty = NativeIndexSnapshot.empty();
+        NativeIndexSnapshot execution = empty.withHookAvailability("available", 17);
+        require(execution.rows("classes") == empty.rows("classes") && execution.rows("hooks").isEmpty()
+                && execution.hookRevision == 17 && "available".equals(execution.coverage.get("hooks")),
+                "execution metadata must share catalog tables and report hook availability without diagnostic rows");
         Path parent = Paths.get("build").toAbsolutePath().normalize().toRealPath();
         Path work = Files.createTempDirectory(parent, "native-discovery-");
         try {
             verify(work);
         } finally {
             Path resolved = work.toRealPath();
-            require(resolved.getParent().equals(parent) && resolved.getFileName().toString().startsWith("native-discovery-"),
+            require(resolved.getParent().equals(parent)
+                    && resolved.getFileName().toString().startsWith("native-discovery-"),
                     "Unsafe fixture cleanup target");
             try (Stream<Path> paths = Files.walk(resolved)) {
                 for (Path path : (Iterable<Path>) paths.sorted(Collections.reverseOrder())::iterator) {
@@ -57,7 +63,8 @@ public final class NativeDiscoveryTest {
                 }
             }
         }
-        System.out.println("Native discovery passed: origins, cache recovery, sources, leases, pagination and Lua metadata.");
+        System.out.println(
+                "Native discovery passed: origins, cache recovery, sources, leases, pagination and Lua metadata.");
     }
 
     private static void verify(Path work) throws Exception {
@@ -66,17 +73,19 @@ public final class NativeDiscoveryTest {
         entries.put("fixture/Known.class", type("fixture/Known", "value"));
         entries.put("mod_Test.class", type("mod_Test", "data"));
         entries.put("fixture/Other.class", type("fixture/Other", "data"));
-        entries.put("nested/library.jar", new byte[] {1, 2, 3});
+        entries.put("nested/library.jar", new byte[]{1, 2, 3});
         zip(jar, entries);
         fails(() -> CatalogFingerprint.sha256(jar, 10), IOException.class);
         verifySourceArchiveBudget(work);
         Path duplicate = work.resolve("duplicate.jar");
         zip(duplicate, Collections.singletonMap("fixture/Known.class", type("fixture/Known", "alternative")));
         Path broken = work.resolve("broken.jar");
-        Files.write(broken, new byte[] {0, 1, 2});
+        Files.write(broken, new byte[]{0, 1, 2});
         Path sources = work.resolve("sources.jar");
-        zip(sources, Collections.singletonMap("fixture/Known.java", ("package fixture;\r\nclass Known {\r\n"
-                + "    String text = \"SECRET_BODY_Grüße\";\n}\n").getBytes(StandardCharsets.UTF_8)));
+        zip(sources,
+                Collections.singletonMap("fixture/Known.java",
+                        ("package fixture;\r\nclass Known {\r\n" + "    String text = \"SECRET_BODY_Grüße\";\n}\n")
+                                .getBytes(StandardCharsets.UTF_8)));
 
         NativeOriginCache cache = new NativeOriginCache(work.resolve("cache"));
         List<String> warnings = new ArrayList<>();
@@ -86,8 +95,9 @@ public final class NativeDiscoveryTest {
         Path moved = work.resolve("same-content.jar");
         Files.copy(jar, moved);
         require(cache.load(moved, null, null, warnings).cacheHit, "Moved identical content did not reuse metadata");
-        Path cacheFile = work.resolve("cache/origins").resolve(cold.metadata.fingerprint).resolve("metadata-v1.json.gz");
-        Files.write(cacheFile, new byte[] {0, 1, 2});
+        Path cacheFile = work.resolve("cache/origins").resolve(cold.metadata.fingerprint)
+                .resolve("metadata-v1.json.gz");
+        Files.write(cacheFile, new byte[]{0, 1, 2});
         require(!cache.load(jar, null, null, warnings).cacheHit, "Corrupt cache was not rebuilt");
         require(warnings.stream().anyMatch(message -> message.startsWith("cache_rebuilt:")), "Cache fault was hidden");
         require(System.getProperty("betamoon.native.fixture.initialized") == null, "Scanning initialized a class");
@@ -118,10 +128,11 @@ public final class NativeDiscoveryTest {
                         "mods_candidate"));
         NativeLoaderRegistry.Capture capture = new NativeLoaderRegistry.Capture(origins,
                 Collections.singletonList(CatalogValues.record("id", "loader-game", "name", "fixture.Loader")),
-                Collections.singletonList(CatalogValues.record("name", "fixture.Known", "originId", "game",
-                        "loaderId", "loader-game")), Collections.emptyList(), false);
-        List<NativeSourceAttachment> attachments = Collections.singletonList(new NativeSourceAttachment("fixture-src",
-                sources, CatalogFingerprint.sha256(jar)));
+                Collections.singletonList(
+                        CatalogValues.record("name", "fixture.Known", "originId", "game", "loaderId", "loader-game")),
+                Collections.emptyList(), false);
+        List<NativeSourceAttachment> attachments = Collections
+                .singletonList(new NativeSourceAttachment("fixture-src", sources, CatalogFingerprint.sha256(jar)));
         try (NativeDiscoveryService service = new NativeDiscoveryService(work.resolve("service-cache"))) {
             NativeDiscoveryService.Ticket cancelled = service.request(capture, "named", attachments);
             NativeDiscoveryService.Ticket retained = service.request(capture, "named", attachments);
@@ -130,7 +141,8 @@ public final class NativeDiscoveryTest {
             await(service, retained);
             NativeIndexSnapshot snapshot = service.snapshot();
             require(snapshot.rows("classes").size() == 4, "An origin failure discarded successful metadata");
-            require(Boolean.FALSE.equals(snapshot.coverage.get("knownOriginsComplete")), "Partial index claimed complete");
+            require(Boolean.FALSE.equals(snapshot.coverage.get("knownOriginsComplete")),
+                    "Partial index claimed complete");
             require("cancelled".equals(cancelled.status().get("status")), "Cancelled lease was reactivated");
             require("complete".equals(retained.status().get("status")), "One cancellation stopped another lease");
             verifyQueries(snapshot);
@@ -174,8 +186,8 @@ public final class NativeDiscoveryTest {
     private static void verifyLoaders(Path work, Path first, Path second) throws Exception {
         Path mods = Files.createDirectory(work.resolve("mods"));
         Files.copy(second, mods.resolve("disabled.jar.disabled"));
-        try (URLClassLoader one = new URLClassLoader(new URL[] {first.toUri().toURL()}, null);
-                URLClassLoader two = new URLClassLoader(new URL[] {second.toUri().toURL()}, null);
+        try (URLClassLoader one = new URLClassLoader(new URL[]{first.toUri().toURL()}, null);
+                URLClassLoader two = new URLClassLoader(new URL[]{second.toUri().toURL()}, null);
                 NativeLoaderRegistry registry = new NativeLoaderRegistry()) {
             Class<?> a = Class.forName("fixture.Known", false, one);
             Class<?> b = Class.forName("fixture.Known", false, two);
@@ -186,10 +198,12 @@ public final class NativeDiscoveryTest {
             Path realSecond = second.toRealPath();
             require(capture.origins.stream().anyMatch(origin -> origin.path.equals(realFirst) && origin.gameOrigin),
                     "Game code-source identity was not captured");
-            require(capture.origins.stream().anyMatch(origin -> origin.path.equals(realSecond)
-                    && origin.modEntries.contains("fixture.Known")), "Mod entry provenance was lost");
-            require(capture.origins.stream().anyMatch(origin -> origin.path.getFileName().toString()
-                    .equals("disabled.jar.disabled") && origin.loaderIds.isEmpty()),
+            require(capture.origins.stream()
+                    .anyMatch(origin -> origin.path.equals(realSecond) && origin.modEntries.contains("fixture.Known")),
+                    "Mod entry provenance was lost");
+            require(capture.origins.stream()
+                    .anyMatch(origin -> origin.path.getFileName().toString().equals("disabled.jar.disabled")
+                            && origin.loaderIds.isEmpty()),
                     "Disabled archive candidate was falsely attributed to a loader");
         }
     }
@@ -216,12 +230,16 @@ public final class NativeDiscoveryTest {
         Map<String, Object> first = NativeQueryService.query(snapshot, CatalogValues.record("glob", "fixture.?nown"));
         require(((List<?>) first.get("items")).size() == 2, "Glob query lost duplicate origins");
         fails(() -> NativeQueryService.describe(snapshot, "fixture.Known", null), IllegalArgumentException.class);
-        require(((List<?>) NativeQueryService.query(snapshot, CatalogValues.record("kind", "members", "access", "private"))
-                .get("items")).size() == 4, "Private metadata was filtered from discovery");
-        require(((List<?>) NativeQueryService.query(snapshot, CatalogValues.record("kind", "files", "name", "nested/library.jar"))
-                .get("items")).size() == 1, "Nested archive entry missing from file inventory");
-        fails(() -> NativeQueryService.query(snapshot, CatalogValues.record("unknown", true)), IllegalArgumentException.class);
-        fails(() -> NativeQueryService.query(snapshot, CatalogValues.record("limit", 0)), IllegalArgumentException.class);
+        require(((List<?>) NativeQueryService
+                .query(snapshot, CatalogValues.record("kind", "members", "access", "private")).get("items"))
+                .size() == 4, "Private metadata was filtered from discovery");
+        require(((List<?>) NativeQueryService
+                .query(snapshot, CatalogValues.record("kind", "files", "name", "nested/library.jar")).get("items"))
+                .size() == 1, "Nested archive entry missing from file inventory");
+        fails(() -> NativeQueryService.query(snapshot, CatalogValues.record("unknown", true)),
+                IllegalArgumentException.class);
+        fails(() -> NativeQueryService.query(snapshot, CatalogValues.record("limit", 0)),
+                IllegalArgumentException.class);
         Map<String, Object> filter = CatalogValues.record("limit", 1);
         Map<String, Object> page = NativeQueryService.query(snapshot, filter);
         filter.put("cursor", page.get("nextCursor"));

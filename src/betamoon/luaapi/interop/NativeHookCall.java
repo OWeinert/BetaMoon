@@ -10,6 +10,7 @@ import betamoon.interop.discovery.NativeIndexSnapshot;
 import betamoon.interop.runtime.NativeContext;
 import betamoon.interop.value.NativeConversions;
 import java.util.function.Function;
+import java.util.List;
 import java.util.function.Supplier;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.LuaError;
@@ -35,9 +36,8 @@ public final class NativeHookCall extends HookLuaValue {
         this.invocation = invocation;
         this.context = context;
         this.editsAllowed = editsAllowed;
-        String descriptor = invocation.site.substring(invocation.site.indexOf('('));
-        Type[] arguments = Type.getArgumentTypes(descriptor);
-        Type result = Type.getReturnType(descriptor);
+        List<Type> arguments = invocation.parameterTypes();
+        Type result = invocation.returnType();
         returnType = result;
         // Accessors check the invocation as well as the native scope, including
         // retained method closures.
@@ -110,15 +110,15 @@ public final class NativeHookCall extends HookLuaValue {
         return super.get(key);
     }
 
-    private Varargs proceed(Varargs args, boolean replace, Type[] types, Function<Object[], Object> continuation) {
+    private Varargs proceed(Varargs args, boolean replace, List<Type> types, Function<Object[], Object> continuation) {
         edit(invocation, editsAllowed);
-        if (continuation == null || args.narg() != (replace ? types.length : 0)) {
+        if (continuation == null || args.narg() != (replace ? types.size() : 0)) {
             throw new HookFailure("hook_invalid_value", "use proceed() or proceedWith(the exact Java argument list)");
         }
         Object[] actual = invocation.argumentValues();
         if (replace) {
-            for (int index = 0; index < types.length; index++) {
-                actual[index] = convert(args.arg(index + 1), types[index], invocation, context.get());
+            for (int index = 0; index < types.size(); index++) {
+                actual[index] = convert(args.arg(index + 1), types.get(index), invocation, context.get());
             }
         }
         Object value;
@@ -179,16 +179,7 @@ public final class NativeHookCall extends HookLuaValue {
     }
 
     static Object convert(LuaValue value, Type type, HookInvocation invocation, NativeContext context) {
-        Class<?> target = NativeConversions.primitive(type.getClassName());
-        if (target == null) {
-            try {
-                target = Class.forName(
-                        type.getSort() == Type.ARRAY ? type.getDescriptor().replace('/', '.') : type.getClassName(),
-                        false, invocation.declaringClass().getClassLoader());
-            } catch (ClassNotFoundException error) {
-                throw new HookFailure("missing_dependency", "hook parameter/return type " + type, error);
-            }
-        }
+        Class<?> target = invocation.valueClass(type);
         try {
             return NativeAccessApi.hookConvert(value, target, context);
         } catch (NativeAccessFailure failure) {
@@ -199,15 +190,15 @@ public final class NativeHookCall extends HookLuaValue {
     private static final class Arguments extends HookLuaValue {
         private final HookInvocation invocation;
 
-        Arguments(HookInvocation invocation, Supplier<NativeContext> context, Type[] types, boolean editsAllowed) {
+        Arguments(HookInvocation invocation, Supplier<NativeContext> context, List<Type> types, boolean editsAllowed) {
             this.invocation = invocation;
-            properties.put("count", valueOf(types.length));
+            properties.put("count", valueOf(types.size()));
             properties.put("get", method(args -> {
                 invocation.check();
                 if (args.narg() != 1) {
                     throw new HookFailure("hook_argument_index", "get(index) requires one index");
                 }
-                int index = NativeAccessApi.integer(args.arg1(), 0, Math.max(0, types.length - 1));
+                int index = NativeAccessApi.integer(args.arg1(), 0, Math.max(0, types.size() - 1));
                 return NativeAccessApi.hookValue(invocation.argument(index), context.get());
             }));
             properties.put("set", method(args -> {
@@ -215,9 +206,9 @@ public final class NativeHookCall extends HookLuaValue {
                 if (args.narg() != 2) {
                     throw new HookFailure("hook_argument_index", "set(index, value) requires two arguments");
                 }
-                int index = NativeAccessApi.integer(args.arg1(), 0, Math.max(0, types.length - 1));
+                int index = NativeAccessApi.integer(args.arg1(), 0, Math.max(0, types.size() - 1));
                 invocation.argument(index);
-                invocation.argument(index, convert(args.arg(2), types[index], invocation, context.get()));
+                invocation.argument(index, convert(args.arg(2), types.get(index), invocation, context.get()));
                 return NONE;
             }));
         }

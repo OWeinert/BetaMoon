@@ -99,6 +99,27 @@ public final class NativeIndexSnapshot {
         this.tables = Collections.unmodifiableMap(tables);
     }
 
+    /**
+     * Execution metadata reports hook availability without building diagnostic
+     * rows.
+     */
+    public NativeIndexSnapshot withHookAvailability(String status, long revision) {
+        return new NativeIndexSnapshot(this, status, revision);
+    }
+
+    private NativeIndexSnapshot(NativeIndexSnapshot base, String status, long revision) {
+        generation = base.generation;
+        namespace = base.namespace;
+        mappingSha256 = base.mappingSha256;
+        sources = base.sources;
+        warnings = base.warnings;
+        tables = base.tables;
+        hookRevision = revision;
+        Map<String, Object> capturedCoverage = new LinkedHashMap<>(base.coverage);
+        capturedCoverage.put("hooks", status);
+        coverage = CatalogValues.object(CatalogValues.freeze(capturedCoverage));
+    }
+
     public static NativeIndexSnapshot empty() {
         return EMPTY;
     }

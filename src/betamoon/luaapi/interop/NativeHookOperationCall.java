@@ -9,6 +9,8 @@ import betamoon.interop.runtime.NativeContext;
 import java.util.function.Supplier;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.List;
+import java.util.Collections;
 import org.luaj.vm2.LuaValue;
 import org.objectweb.asm.Type;
 
@@ -28,7 +30,7 @@ public final class NativeHookOperationCall extends HookLuaValue {
         this.invocation = invocation;
         this.context = context;
         this.operation = invocation.operation().operation;
-        this.resultType = Type.getReturnType(operation.hookDescriptor());
+        this.resultType = invocation.returnType();
         this.editsAllowed = editsAllowed;
         properties.put("id", valueOf(invocation.definition.id));
         properties.put("owner", valueOf(invocation.definition.owner));
@@ -122,16 +124,16 @@ public final class NativeHookOperationCall extends HookLuaValue {
         Arguments(HookInvocation invocation, Supplier<NativeContext> context, boolean editsAllowed, boolean enclosing) {
             this.invocation = invocation;
             HookOperationInvocation data = invocation.operation();
-            Type[] types = Type.getArgumentTypes(enclosing
-                    ? invocation.site.substring(invocation.site.indexOf('('))
-                    : data.operation.kind.startsWith("invoke_") ? data.operation.descriptor : "()V");
-            properties.put("count", valueOf(types.length));
+            List<Type> types = enclosing
+                    ? invocation.enclosingParameterTypes()
+                    : data.operation.kind.startsWith("invoke_") ? invocation.parameterTypes() : Collections.emptyList();
+            properties.put("count", valueOf(types.size()));
             properties.put("get", method(args -> {
                 invocation.check();
-                if (args.narg() != 1 || types.length == 0) {
+                if (args.narg() != 1 || types.size() == 0) {
                     throw new HookFailure("hook_argument_index", "get(index) selects a zero-based Java argument");
                 }
-                int index = NativeAccessApi.integer(args.arg1(), 0, types.length - 1);
+                int index = NativeAccessApi.integer(args.arg1(), 0, types.size() - 1);
                 Object value = enclosing ? data.enclosingArgument(index) : invocation.argument(index);
                 return NativeAccessApi.hookValue(value, context.get());
             }));
@@ -142,12 +144,12 @@ public final class NativeHookOperationCall extends HookLuaValue {
                     throw new HookFailure("hook_edit_denied",
                             "only an editing invoke_before point may change call arguments");
                 }
-                if (args.narg() != 2 || types.length == 0) {
+                if (args.narg() != 2 || types.size() == 0) {
                     throw new HookFailure("hook_argument_index", "set(index,value) selects a zero-based Java argument");
                 }
-                int index = NativeAccessApi.integer(args.arg1(), 0, types.length - 1);
+                int index = NativeAccessApi.integer(args.arg1(), 0, types.size() - 1);
                 invocation.argument(index,
-                        NativeHookCall.convert(args.arg(2), types[index], invocation, context.get()));
+                        NativeHookCall.convert(args.arg(2), types.get(index), invocation, context.get()));
                 return NONE;
             }));
         }

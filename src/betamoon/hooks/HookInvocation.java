@@ -1,6 +1,8 @@
 package betamoon.hooks;
 
 import java.util.Arrays;
+import java.util.List;
+import java.util.Collections;
 import java.util.function.Function;
 import org.objectweb.asm.Type;
 
@@ -14,7 +16,11 @@ public final class HookInvocation implements AutoCloseable {
     private Class<?> declaringClass;
     private Object receiver;
     private Throwable exception;
-    private final Object[] arguments;
+    private List<?> arguments;
+    private Object[] nativeArguments;
+    private Object[] edits;
+    private boolean ownsEdits;
+    private HookSignature signature;
     private Object result;
     private boolean shortCircuit;
     private Function<Object[], Object> continuation;
@@ -32,9 +38,40 @@ public final class HookInvocation implements AutoCloseable {
         this.site = site;
         this.declaringClass = declaringClass;
         this.receiver = receiver;
-        this.arguments = arguments.clone();
+        this.arguments = Collections.unmodifiableList(Arrays.asList(arguments));
+        nativeArguments = arguments;
+        signature = HookSignature.forSite(declaringClass, site);
         this.result = result;
         this.exception = exception;
+    }
+
+    HookInvocation(HookDefinition definition, String site, Class<?> declaringClass, Object receiver, List<?> arguments,
+            Object result, Throwable exception) {
+        this.definition = definition;
+        this.site = site;
+        this.declaringClass = declaringClass;
+        this.receiver = receiver;
+        this.arguments = arguments;
+        this.result = result;
+        this.exception = exception;
+        signature = HookSignature.forSite(declaringClass, site);
+    }
+
+    private Object[] editBuffer() {
+        if (!ownsEdits) {
+            edits = argumentValues();
+            ownsEdits = true;
+        }
+        return edits;
+    }
+
+    List<?> transportArguments() {
+        check();
+        if (edits == null) {
+            return arguments;
+        }
+        ownsEdits = false;
+        return Collections.unmodifiableList(Arrays.asList(edits));
     }
 
     public void check() {
@@ -60,12 +97,12 @@ public final class HookInvocation implements AutoCloseable {
 
     public int argumentCount() {
         check();
-        return arguments.length;
+        return arguments.size();
     }
 
     public Object argument(int index) {
         checkIndex(index);
-        return arguments[index];
+        return edits == null ? arguments.get(index) : edits[index];
     }
 
     public void argument(int index, Object value) {
@@ -80,7 +117,7 @@ public final class HookInvocation implements AutoCloseable {
             checkEdit("before");
         }
         checkIndex(index);
-        arguments[index] = value;
+        editBuffer()[index] = value;
     }
 
     public Object result() {
@@ -106,14 +143,18 @@ public final class HookInvocation implements AutoCloseable {
 
     private void checkIndex(int index) {
         check();
-        if (index < 0 || index >= arguments.length) {
+        if (index < 0 || index >= arguments.size()) {
             throw new HookFailure("hook_argument_index", "use zero-based Java parameter positions");
         }
     }
 
     Object[] committedArguments() {
         check();
-        return arguments.clone();
+        if (edits != null) {
+            ownsEdits = false;
+            return edits;
+        }
+        return nativeArguments == null ? arguments.toArray() : nativeArguments;
     }
 
     boolean shortCircuit() {
@@ -121,17 +162,20 @@ public final class HookInvocation implements AutoCloseable {
         return shortCircuit;
     }
 
-    void acceptTransport(Object[] values, Object value, boolean early) {
+    void acceptTransport(List<?> values, Object value, boolean early) {
         check();
-        if (values.length != arguments.length || early && (!definition.edit || !definition.at.equals("before"))) {
+        if (values.size() != arguments.size() || early && (!definition.edit || !definition.at.equals("before"))) {
             throw new HookFailure("hook_edit_denied", "invalid transported callback outcome");
         }
-        for (int index = 0; index < values.length; index++) {
-            if (definition.edit && (definition.at.equals("before") || definition.at.equals("around")
-                    || definition.point != null && definition.point.before())) {
-                arguments[index] = values[index];
-            } else if (arguments[index] != values[index]) {
-                throw new HookFailure("hook_edit_denied", "transport edited arguments outside an editing before hook");
+        if (definition.edit && (definition.at.equals("before") || definition.at.equals("around")
+                || definition.point != null && definition.point.before())) {
+            edits = values.toArray();
+            ownsEdits = true;
+        } else {
+            for (int index = 0; index < values.size(); index++) {
+                if (argument(index) != values.get(index)) {
+                    throw new HookFailure("hook_edit_denied", "transport edited read-only arguments");
+                }
             }
         }
         if (definition.edit && (early || definition.at.equals("after") || definition.at.equals("around")
@@ -147,14 +191,12 @@ public final class HookInvocation implements AutoCloseable {
         if (!definition.edit) {
             return;
         }
-        String descriptor = descriptor();
-        Type[] parameters = Type.getArgumentTypes(descriptor);
-        for (int index = 0; index < parameters.length; index++) {
-            validateValue(parameters[index], arguments[index]);
+        for (int index = 0; index < signature.parameters.size(); index++) {
+            signature.validate(signature.parameters.get(index), argument(index));
         }
         if (shortCircuit || definition.at.equals("after") || definition.at.equals("around")
                 || definition.point != null && !definition.point.before()) {
-            validateValue(Type.getReturnType(descriptor), result);
+            signature.validate(signature.result, result);
         }
     }
 
@@ -167,17 +209,18 @@ public final class HookInvocation implements AutoCloseable {
         if (proceeded || continuation == null) {
             throw new HookFailure("hook_continuation_used", "continue once, during the active around callback");
         }
-        Type[] parameters = Type.getArgumentTypes(descriptor());
-        if (replacement.length != parameters.length) {
+        List<Type> parameters = signature.parameters;
+        if (replacement.length != parameters.size()) {
             throw new HookFailure("hook_invalid_value", "continuation requires the exact parameter list");
         }
         for (int index = 0; index < replacement.length; index++) {
-            validateValue(parameters[index], replacement[index]);
+            signature.validate(parameters.get(index), replacement[index]);
         }
-        System.arraycopy(replacement, 0, arguments, 0, arguments.length);
+        edits = replacement.clone();
+        ownsEdits = true;
         proceeded = true;
         try {
-            continuedResult = continuation.apply(arguments.clone());
+            continuedResult = continuation.apply(edits.clone());
             return continuedResult;
         } catch (Throwable failure) {
             continuedFailure = failure;
@@ -186,7 +229,8 @@ public final class HookInvocation implements AutoCloseable {
     }
 
     public Object[] argumentValues() {
-        return committedArguments();
+        check();
+        return edits == null ? arguments.toArray() : edits.clone();
     }
 
     boolean proceeded() {
@@ -221,7 +265,7 @@ public final class HookInvocation implements AutoCloseable {
 
     public String descriptor() {
         check();
-        return operation == null ? site.substring(site.indexOf('(')) : operation.operation.hookDescriptor();
+        return signature.descriptor;
     }
 
     public HookOperationInvocation operation() {
@@ -231,6 +275,7 @@ public final class HookInvocation implements AutoCloseable {
 
     void operation(HookOperationInvocation operation) {
         this.operation = operation;
+        signature = HookSignature.get(declaringClass, operation.operation.hookDescriptor());
     }
 
     public boolean observationInvalidated() {
@@ -246,59 +291,39 @@ public final class HookInvocation implements AutoCloseable {
                         : continuedFailure;
     }
 
-    private void validateValue(Type type, Object value) {
-        Class<?> expected;
-        switch (type.getSort()) {
-            case Type.VOID:
-                if (value != null) {
-                    throw new HookFailure("hook_invalid_value", "void results must have no value");
-                }
-                return;
-            case Type.BOOLEAN:
-                expected = Boolean.class;
-                break;
-            case Type.BYTE:
-                expected = Byte.class;
-                break;
-            case Type.SHORT:
-                expected = Short.class;
-                break;
-            case Type.CHAR:
-                expected = Character.class;
-                break;
-            case Type.INT:
-                expected = Integer.class;
-                break;
-            case Type.LONG:
-                expected = Long.class;
-                break;
-            case Type.FLOAT:
-                expected = Float.class;
-                break;
-            case Type.DOUBLE:
-                expected = Double.class;
-                break;
-            default:
-                if (value == null) {
-                    return;
-                }
-                try {
-                    expected = Class.forName(
-                            type.getSort() == Type.ARRAY ? type.getDescriptor().replace('/', '.') : type.getClassName(),
-                            false, declaringClass.getClassLoader());
-                } catch (ClassNotFoundException error) {
-                    throw new HookFailure("missing_dependency", "hook value type " + type, error);
-                }
-        }
-        if (!expected.isInstance(value)) {
-            throw new HookFailure("hook_invalid_value", "expected exact bridge value for " + type.getClassName());
-        }
+    public List<Type> enclosingParameterTypes() {
+        check();
+        return HookSignature.forSite(declaringClass, site).parameters;
+    }
+
+    public List<Type> parameterTypes() {
+        check();
+        return signature.parameters;
+    }
+
+    public Type returnType() {
+        check();
+        return signature.result;
+    }
+
+    public Class<?> valueClass(Type type) {
+        check();
+        return signature.valueClass(type);
     }
 
     @Override
     public void close() {
+        if (!active) {
+            return;
+        }
         active = false;
-        Arrays.fill(arguments, null);
+        if (ownsEdits) {
+            Arrays.fill(edits, null);
+        }
+        edits = null;
+        arguments = null;
+        nativeArguments = null;
+        signature = null;
         result = null;
         continuedResult = null;
         continuedFailure = null;

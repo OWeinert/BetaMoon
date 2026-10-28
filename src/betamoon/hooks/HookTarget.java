@@ -19,6 +19,7 @@ public final class HookTarget {
     public final String method;
     public final String descriptor;
     public final String mappingOwner;
+    private final String key;
 
     public HookTarget(String owner, String method, String descriptor) {
         this(owner, method, descriptor, null);
@@ -29,6 +30,7 @@ public final class HookTarget {
         this.mappingOwner = mappingOwner;
         this.method = method;
         this.descriptor = descriptor;
+        key = owner + "." + method + descriptor;
         if (owner.startsWith("java/") || owner.startsWith("javax/") || owner.startsWith("sun/")
                 || owner.startsWith("jdk/") || owner.startsWith("com/sun/") || internal(owner)
                 || owner.startsWith("org/luaj/") || owner.startsWith("org/objectweb/asm/")) {
@@ -41,7 +43,7 @@ public final class HookTarget {
     }
 
     public String key() {
-        return owner + "." + method + descriptor;
+        return key;
     }
 
     private static boolean internal(String owner) {

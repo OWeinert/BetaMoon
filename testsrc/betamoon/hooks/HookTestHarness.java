@@ -38,6 +38,11 @@ final class HookTestHarness implements AutoCloseable {
 
     HookTestHarness(String targetName, String source, UnaryOperator<byte[]> transformInput, String... related)
             throws Exception {
+        this(targetName, source, transformInput, 1, related);
+    }
+
+    HookTestHarness(String targetName, String source, UnaryOperator<byte[]> transformInput, int owners,
+            String... related) throws Exception {
         this.targetName = targetName;
         this.source = source;
         instance = Files.createTempDirectory(Paths.get("build").toAbsolutePath(), "hook-fixture-");
@@ -48,6 +53,14 @@ final class HookTestHarness implements AutoCloseable {
         Files.write(root.resolve("betamoon.hooks.json"), "[\"hooks.lua\"]".getBytes(StandardCharsets.UTF_8));
         hookFile = root.resolve("hooks.lua");
         Files.write(hookFile, source.getBytes(StandardCharsets.UTF_8));
+        for (int index = 1; index < owners; index++) {
+            Path extra = Files.createDirectories(instance.resolve("betamoon/scripts/operations" + index));
+            Files.write(extra.resolve("betamoon.mod.json"),
+                    "{\"name\":\"Scale fixture\",\"entrypoint\":\"main.lua\"}".getBytes(StandardCharsets.UTF_8));
+            Files.write(extra.resolve("main.lua"), new byte[0]);
+            Files.write(extra.resolve("betamoon.hooks.json"), "[\"hooks.lua\"]".getBytes(StandardCharsets.UTF_8));
+            Files.write(extra.resolve("hooks.lua"), source.getBytes(StandardCharsets.UTF_8));
+        }
         System.setProperty("betamoon.instanceDir", instance.toString());
         mappings = TinyMappingResolver.readStrict(
                 new ByteArrayInputStream("tiny\t2\t0\tnamed\tclient\tserver\n".getBytes(StandardCharsets.UTF_8)));
@@ -107,13 +120,21 @@ final class HookTestHarness implements AutoCloseable {
     }
 
     HookDefinition definition(String id) {
-        return HookDeclarations.evaluate("operations", "hooks.lua", source, 1, null, new HookDeclarations.Budget())
-                .stream().map(registration -> registration.definition).filter(value -> value.id.equals(id)).findFirst()
-                .get();
+        return definition("operations", id);
+    }
+
+    HookDefinition definition(String owner, String id) {
+        return HookDeclarations.evaluate(owner, "hooks.lua", source, 1, null, new HookDeclarations.Budget()).stream()
+                .map(registration -> registration.definition).filter(value -> value.id.equals(id)).findFirst().get();
     }
 
     HookDispatcher.Subscription subscribe(String id, HookDispatcher.Callback callback) throws ClassNotFoundException {
-        HookDefinition definition = definition(id);
+        return subscribe("operations", id, callback);
+    }
+
+    HookDispatcher.Subscription subscribe(String owner, String id, HookDispatcher.Callback callback)
+            throws ClassNotFoundException {
+        HookDefinition definition = definition(owner, id);
         load();
         HookPreparation.Site site = preparation.targets(definition).get(0);
         Class<?> anchor = Class.forName(site.target.owner.replace('/', '.'), false, loader);

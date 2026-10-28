@@ -31,8 +31,7 @@ public final class HookDispatcher {
 
     private static volatile State[] states = new State[0];
     private static volatile Thread clientThread;
-    private static final ThreadLocal<Integer> AROUND_DEPTH = ThreadLocal.withInitial(() -> 0);
-    private static final ThreadLocal<Set<String>> AROUND_ENTERED = ThreadLocal.withInitial(HashSet::new);
+    private static final ThreadLocal<AroundStack> AROUND_ENTERED = ThreadLocal.withInitial(AroundStack::new);
     private static final ThreadLocal<Set<String>> ENTERED = ThreadLocal.withInitial(HashSet::new);
 
     private HookDispatcher() {
@@ -119,11 +118,21 @@ public final class HookDispatcher {
     public static synchronized Subscription subscribe(int site, Class<?> anchor, HookDefinition definition,
             Callback callback) {
         if (AGENT != null) {
+            Map<Object, HookOperationSite> operationShapes = new IdentityHashMap<>();
             Function<Object[], Object[]> transport = payload -> {
                 try (HookInvocation invocation = new HookInvocation(definition, (String) payload[0],
-                        (Class<?>) payload[1], payload[2], (Object[]) payload[3], payload[4], (Throwable) payload[5])) {
+                        (Class<?>) payload[1], payload[2], (List<?>) payload[3], payload[4], (Throwable) payload[5])) {
                     if (payload.length > 7 && payload[7] instanceof Object[]) {
-                        invocation.operation(HookOperationInvocation.transport((Object[]) payload[7]));
+                        Object[] operation = (Object[]) payload[7];
+                        HookOperationSite shape = operationShapes.get(operation[0]);
+                        if (shape == null) {
+                            if (operationShapes.size() >= 512) {
+                                operationShapes.clear();
+                            }
+                            shape = HookOperationSite.transport(CatalogValues.object(operation[0]));
+                            operationShapes.put(operation[0], shape);
+                        }
+                        invocation.operation(HookOperationInvocation.transport(operation, shape));
                     }
                     if (payload.length > 6 && payload[6] instanceof Function) {
                         @SuppressWarnings("unchecked")
@@ -133,13 +142,13 @@ public final class HookDispatcher {
                     try {
                         callback.invoke(invocation);
                         invocation.validate();
-                        return new Object[]{invocation.committedArguments(), invocation.result(),
+                        return new Object[]{invocation.transportArguments(), invocation.result(),
                                 invocation.shortCircuit(), invocation.observationInvalidated()};
                     } catch (VirtualMachineError | ThreadDeath fatal) {
                         throw fatal;
                     } catch (Throwable failure) {
                         if (invocation.observationInvalidated()) {
-                            return new Object[]{invocation.committedArguments(), null, false, true};
+                            return new Object[]{invocation.transportArguments(), null, false, true};
                         }
                         throw rethrow(failure);
                     }
@@ -310,10 +319,10 @@ public final class HookDispatcher {
         }
         return subscribe(site, anchor, definition, invocation -> {
             Object[] outcome = callback.apply(new Object[]{invocation.site, invocation.declaringClass(),
-                    invocation.receiver(), invocation.committedArguments(), invocation.result(), invocation.exception(),
+                    invocation.receiver(), invocation.transportArguments(), invocation.result(), invocation.exception(),
                     invocation.definition.at.equals("around") ? (Function<Object[], Object>) invocation::proceed : null,
                     invocation.operation() == null ? null : invocation.operation().transport()});
-            if (outcome == null || outcome.length < 3 || outcome.length > 4 || !(outcome[0] instanceof Object[])
+            if (outcome == null || outcome.length < 3 || outcome.length > 4 || !(outcome[0] instanceof List)
                     || !(outcome[2] instanceof Boolean)) {
                 throw new HookFailure("hook_invalid_value", "invalid callback transport outcome");
             }
@@ -321,7 +330,7 @@ public final class HookDispatcher {
                 invocation.invalidateObservation();
                 return;
             }
-            invocation.acceptTransport((Object[]) outcome[0], outcome[1], (Boolean) outcome[2]);
+            invocation.acceptTransport((List<?>) outcome[0], outcome[1], (Boolean) outcome[2]);
         });
     }
 
@@ -362,7 +371,7 @@ public final class HookDispatcher {
             state.body = body;
         }
         MethodHandle terminal = body;
-        Set<String> inherited = new HashSet<>(AROUND_ENTERED.get());
+        int inherited = AROUND_ENTERED.get().size;
         return aroundAt(state, state.around, 0, anchor, receiver, arguments, values -> {
             List<Object> actual = new ArrayList<>();
             if (receiver != null) {
@@ -378,7 +387,7 @@ public final class HookDispatcher {
     }
 
     private static Object aroundAt(State state, List<Subscription> wrappers, int index, Class<?> anchor,
-            Object receiver, Object[] arguments, Function<Object[], Object> terminal, Set<String> inherited) {
+            Object receiver, Object[] arguments, Function<Object[], Object> terminal, int inherited) {
         if (index == wrappers.size()) {
             return terminal.apply(arguments);
         }
@@ -387,9 +396,9 @@ public final class HookDispatcher {
             return aroundAt(state, wrappers, index + 1, anchor, receiver, arguments, terminal, inherited);
         }
         HookDefinition definition = subscription.definition;
-        String recursion = state.site.id + ":" + definition.owner;
-        Set<String> nested = AROUND_ENTERED.get();
-        if (inherited.contains(recursion)) {
+        String recursion = subscription.recursion;
+        AroundStack nested = AROUND_ENTERED.get();
+        if (nested.containsBefore(recursion, inherited)) {
             subscription.skipped++;
             if (definition.reentry.equals("error")) {
                 throw new HookCallbackFailure("around reentry refused: " + definition.key(),
@@ -397,14 +406,12 @@ public final class HookDispatcher {
             }
             return aroundAt(state, wrappers, index + 1, anchor, receiver, arguments, terminal, inherited);
         }
-        if (Thread.currentThread() != clientThread || AROUND_DEPTH.get() >= 16) {
+        if (Thread.currentThread() != clientThread || nested.size >= 16) {
             throw new HookCallbackFailure("around entry refused: " + definition.key(),
                     new HookFailure(Thread.currentThread() != clientThread ? "unsupported_thread" : "hook_recursion",
                             "around requires the client thread and at most 16 nested callbacks"));
         }
-        boolean ownsGuard = nested.add(recursion);
-        int depth = AROUND_DEPTH.get();
-        AROUND_DEPTH.set(depth + 1);
+        nested.push(recursion);
         long started = System.nanoTime();
         try (HookInvocation invocation = new HookInvocation(definition, state.site.target.key(), anchor, receiver,
                 arguments, null, null)) {
@@ -459,17 +466,7 @@ public final class HookDispatcher {
             }
         } finally {
             subscription.nanos += System.nanoTime() - started;
-            if (depth == 0) {
-                AROUND_DEPTH.remove();
-            } else {
-                AROUND_DEPTH.set(depth);
-            }
-            if (ownsGuard) {
-                nested.remove(recursion);
-            }
-            if (nested.isEmpty()) {
-                AROUND_ENTERED.remove();
-            }
+            nested.pop();
         }
     }
 
@@ -578,7 +575,7 @@ public final class HookDispatcher {
             }
             boolean entered = false;
             Set<String> nested = null;
-            String recursion = site + ":" + definition.owner;
+            String recursion = subscription.recursion;
             try {
                 if (Thread.currentThread() != clientThread) {
                     throw new HookFailure("unsupported_thread", "synchronous hook requires the client thread");
@@ -639,13 +636,33 @@ public final class HookDispatcher {
             } finally {
                 if (entered) {
                     nested.remove(recursion);
-                    if (nested.isEmpty()) {
-                        ENTERED.remove();
-                    }
+
                 }
             }
         }
         return outcome;
+    }
+
+    private static final class AroundStack {
+        private final String[] keys = new String[16];
+        private int size;
+
+        private boolean containsBefore(String key, int boundary) {
+            for (int index = 0; index < boundary; index++) {
+                if (key.equals(keys[index])) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private void push(String key) {
+            keys[size++] = key;
+        }
+
+        private void pop() {
+            keys[--size] = null;
+        }
     }
 
     private static State state(int site) {
@@ -667,6 +684,8 @@ public final class HookDispatcher {
     public static final class Subscription implements AutoCloseable {
         private final State state;
         public final HookDefinition definition;
+        final String recursion;
+        String operationRecursion;
         volatile Callback callback;
         volatile boolean alive;
         volatile boolean closed;
@@ -681,6 +700,7 @@ public final class HookDispatcher {
         Subscription(State state, HookDefinition definition, Callback callback) {
             this.state = state;
             this.definition = definition;
+            recursion = state.site.id + ":" + definition.owner;
             this.callback = callback;
             this.remote = null;
         }
@@ -688,6 +708,7 @@ public final class HookDispatcher {
         Subscription(HookDefinition definition, AutoCloseable remote) {
             this.state = null;
             this.definition = definition;
+            recursion = null;
             this.remote = remote;
         }
 
@@ -751,6 +772,8 @@ public final class HookDispatcher {
                     if (subscription.definition.point != null) {
                         HookPointSite point = site.points.get(subscription.definition.point.key());
                         if (point != null && point.operationId >= 0 && point.operationId < operationLists.size()) {
+                            subscription.operationRecursion = site.id + ":" + point.operationId + ":"
+                                    + subscription.definition.owner;
                             operationLists.get(point.operationId).add(subscription);
                         }
                         continue;

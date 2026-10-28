@@ -15,6 +15,8 @@ public final class HookOperationSite {
     public final String owner;
     public final String name;
     public final String descriptor;
+    private final String hookDescriptor;
+    private final Map<String, Object> transport;
 
     public HookOperationSite(int id, String kind, int opcodeIndex, int opcode, String owner, String name,
             String descriptor) {
@@ -25,6 +27,12 @@ public final class HookOperationSite {
         this.owner = owner;
         this.name = name;
         this.descriptor = descriptor;
+        hookDescriptor = kind.equals("field_read")
+                ? "()" + descriptor
+                : kind.equals("field_write") ? "(" + descriptor + ")V" : descriptor;
+        transport = CatalogValues.object(
+                CatalogValues.freeze(CatalogValues.record("id", id, "kind", kind, "opcodeIndex", opcodeIndex, "opcode",
+                        opcode, "owner", owner, "name", name, "descriptor", descriptor, "opcodeName", opcodeName())));
     }
 
     public boolean before() {
@@ -36,14 +44,11 @@ public final class HookOperationSite {
     }
 
     public String hookDescriptor() {
-        return kind.equals("field_read")
-                ? "()" + descriptor
-                : kind.equals("field_write") ? "(" + descriptor + ")V" : descriptor;
+        return hookDescriptor;
     }
 
     public Map<String, Object> transport() {
-        return CatalogValues.record("id", id, "kind", kind, "opcodeIndex", opcodeIndex, "opcode", opcode, "owner",
-                owner, "name", name, "descriptor", descriptor, "opcodeName", opcodeName());
+        return transport;
     }
 
     public String opcodeName() {

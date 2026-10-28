@@ -63,7 +63,7 @@ final class HookOperations {
                 continue;
             }
             Set<String> entered = ENTERED.get();
-            String key = container.id + ":" + operation.id + ":" + definition.owner;
+            String key = subscription.operationRecursion;
             boolean added = false;
             long started = System.nanoTime();
             try {
@@ -84,7 +84,8 @@ final class HookOperations {
                 added = true;
                 try (HookInvocation invocation = new HookInvocation(definition, container.target.key(), anchor,
                         receiver, outcome.arguments, outcome.result, null)) {
-                    invocation.operation(new HookOperationInvocation(operation, enclosingReceiver, enclosingArguments));
+                    invocation.operation(
+                            HookOperationInvocation.borrow(operation, enclosingReceiver, enclosingArguments));
                     try {
                         callback.invoke(invocation);
                     } catch (VirtualMachineError | ThreadDeath fatal) {
@@ -125,9 +126,7 @@ final class HookOperations {
                 if (added) {
                     entered.remove(key);
                 }
-                if (entered.isEmpty()) {
-                    ENTERED.remove();
-                }
+
             }
         }
         return outcome;

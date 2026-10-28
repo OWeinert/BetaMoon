@@ -35,6 +35,7 @@ public final class NativeDiscoveryRuntime {
     private static final NativeLoaderRegistry LOADERS = new NativeLoaderRegistry();
     private static Path instance;
     private static volatile NativeBindings bindings;
+    private static volatile CatalogCapture catalogCapture;
 
     private NativeDiscoveryRuntime() {
     }
@@ -70,7 +71,17 @@ public final class NativeDiscoveryRuntime {
      */
     public static NativeIndexSnapshot catalogSnapshot() {
         NativeDiscoveryService current = service;
-        return current == null ? NativeIndexSnapshot.empty() : current.snapshot();
+        NativeIndexSnapshot base = current == null ? NativeIndexSnapshot.empty() : current.snapshot();
+        HookPreparation hooks = HookPreparation.current();
+        long revision = hooks == null ? 0 : hooks.revision();
+        String status = hooks == null ? "agent_unavailable" : "available";
+        CatalogCapture captured = catalogCapture;
+        if (captured == null || captured.base != base || captured.revision != revision
+                || !captured.status.equals(status)) {
+            captured = new CatalogCapture(base, status, revision);
+            catalogCapture = captured;
+        }
+        return captured.snapshot;
     }
 
     public static NativeIndexSnapshot snapshot() {
@@ -175,6 +186,7 @@ public final class NativeDiscoveryRuntime {
         NativeDiscoveryService current = service;
         bindings = null;
         service = null;
+        catalogCapture = null;
         try {
             if (execution != null) {
                 execution.close();
@@ -197,6 +209,20 @@ public final class NativeDiscoveryRuntime {
             bindings.clients.observe();
             bindings.owned.observe(client.theWorld, client.thePlayer);
             bindings.interfaces.observe(client.theWorld, client.thePlayer);
+        }
+    }
+
+    private static final class CatalogCapture {
+        private final NativeIndexSnapshot base;
+        private final String status;
+        private final long revision;
+        private final NativeIndexSnapshot snapshot;
+
+        private CatalogCapture(NativeIndexSnapshot base, String status, long revision) {
+            this.base = base;
+            this.status = status;
+            this.revision = revision;
+            snapshot = base.withHookAvailability(status, revision);
         }
     }
 
