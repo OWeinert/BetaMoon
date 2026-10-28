@@ -62,6 +62,20 @@ public final class NativeOwnedValue {
         return ownerState.matches(generation);
     }
 
+    /**
+     * Detached liveness reason for internal retirement without allocating a
+     * description map.
+     */
+    public String state() {
+        if (!state.equals("active")) {
+            return state;
+        }
+        if (registry.get() == null) {
+            return "session_closed";
+        }
+        return generationMatches() ? state : "stale_owner";
+    }
+
     public Map<String, Object> describe() {
         String currentState = state;
         if (currentState.equals("active")) {

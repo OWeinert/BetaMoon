@@ -27,6 +27,7 @@ public final class NativeClientSession implements AutoCloseable {
     private final NativeClientSessions manager;
     private final String owner;
     private final long generation;
+    private final ScriptResourceTracker.OwnerGeneration ownerState;
     private final Snapshot environment;
     private final ScriptResourceTracker.Cleanup cleanup = this::close;
     private final Map<Long, Resource<?>> resources = new HashMap<>();
@@ -41,7 +42,8 @@ public final class NativeClientSession implements AutoCloseable {
         this.manager = manager;
         this.owner = owner;
         this.roots = roots;
-        generation = ScriptResourceTracker.ownerGeneration(owner);
+        ownerState = ScriptResourceTracker.ownerToken(owner);
+        generation = ownerState.current();
         Map<String, Object> current = roots.get();
         if (current == null || current.get("client") == null) {
             throw new NativeAccessFailure("native_client_unavailable", "a client host requires an actual client root");
@@ -55,7 +57,7 @@ public final class NativeClientSession implements AutoCloseable {
             return null;
         });
         tracked = true;
-        if (ScriptResourceTracker.ownerGeneration(owner) != generation) {
+        if (!ownerState.matches(generation)) {
             close();
             throw new NativeAccessFailure("stale_owner", "client host owner changed during creation");
         }
@@ -233,6 +235,11 @@ public final class NativeClientSession implements AutoCloseable {
     }
 
     void flush() {
+        synchronized (manager) {
+            if (pending.isEmpty()) {
+                return;
+            }
+        }
         if (!NativeClientSessions.safeBoundary() || !active()) {
             return;
         }
@@ -253,6 +260,7 @@ public final class NativeClientSession implements AutoCloseable {
                     // boundary.
                     // New-screen preparation cannot inherit an invalidated old-screen native frame.
                     check();
+                    manager.urgentCleanup();
                     try (LuaCallbackScope scope = new LuaCallbackScope(false, true)) {
                         action.operation.run();
                     }
@@ -314,7 +322,7 @@ public final class NativeClientSession implements AutoCloseable {
         if (closed) {
             throw new NativeAccessFailure("native_client_resource_closed", "client host is closed");
         }
-        if (ScriptResourceTracker.ownerGeneration(owner) != generation) {
+        if (!ownerState.matches(generation)) {
             close();
             throw new NativeAccessFailure("stale_owner", "client host owner was unloaded or reloaded");
         }
@@ -355,7 +363,7 @@ public final class NativeClientSession implements AutoCloseable {
             }
             closed = true;
             roots = null;
-            manager.sessions.remove(this);
+            manager.retire(this);
             manager.removedActions(pending.size(), true);
             pending.clear();
             actions.clear();

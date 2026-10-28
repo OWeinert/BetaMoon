@@ -63,6 +63,15 @@ public final class NativeInterfaces {
     private final ConcurrentLinkedQueue<NativeImplementation> disabled = new ConcurrentLinkedQueue<>();
     private final List<Removal> removals = new ArrayList<>();
     private final AtomicLong failures = new AtomicLong();
+    private final Map<String, Integer> ownerCounts = new LinkedHashMap<>();
+    private Entry[] observationEntries = new Entry[0];
+    private boolean observationDirty;
+    private long classHosts;
+    private long attachments;
+    private int publishedEntries = -1;
+    private long publishedHosts = -1;
+    private long publishedAttachments = -1;
+    private int publishedRemovals = -1;
     private Function<LuaCallbackScope, NativeEntry> entryFactory = scope -> null;
     private volatile Map<String, Object> status = CatalogValues.record("implementations", 0, "attachments", 0,
             "pendingRemovals", 0);
@@ -79,8 +88,7 @@ public final class NativeInterfaces {
     public NativeImplementation create(NativeContext context, NativeInterfaceContract contract,
             Map<String, MethodCallback> supplied, String policy, String lifetime, boolean observerDefaults) {
         context.prepare();
-        if (entries.size() >= 2048 || removals.size() >= 2048
-                || entries.values().stream().filter(entry -> entry.owner.equals(context.owner())).count() >= 256) {
+        if (entries.size() >= 2048 || removals.size() >= 2048 || ownerCounts.getOrDefault(context.owner(), 0) >= 256) {
             throw new NativeAccessFailure("native_interface_limit",
                     "implementation/attachment lifecycle registry is full");
         }
@@ -160,8 +168,7 @@ public final class NativeInterfaces {
             context.require(NativeContext.Effect.INITIALIZE, true);
         }
         context.prepare();
-        if (entries.size() >= 2048 || removals.size() >= 2048
-                || entries.values().stream().filter(entry -> entry.owner.equals(context.owner())).count() >= 256) {
+        if (entries.size() >= 2048 || removals.size() >= 2048 || ownerCounts.getOrDefault(context.owner(), 0) >= 256) {
             throw new NativeAccessFailure("native_interface_limit",
                     "implementation/attachment lifecycle registry is full");
         }
@@ -236,6 +243,11 @@ public final class NativeInterfaces {
         ScriptResourceTracker.Cleanup cleanup = () -> handler.disable("stale_owner");
         Entry entry = new Entry(token, handler, owner, generation, cleanup);
         entries.put(owned, entry);
+        ownerCounts.put(owner, ownerCounts.getOrDefault(owner, 0) + 1);
+        if (token.interfaces.isEmpty()) {
+            classHosts++;
+        }
+        observationDirty = true;
         bindings.owned.onInvalidation(owned, handler::disable);
         ScriptResourceTracker.track(cleanup);
         publish();
@@ -264,6 +276,7 @@ public final class NativeInterfaces {
         NativeAttachment attachment = new NativeAttachment(receiver, proxy, add, remove);
         attachment.prepare(context);
         entry.attachment = attachment;
+        attachments++;
         entry.handler.attachmentStatus = attachment.status;
         entry.worldBound = lifetime.equals("world");
         entry.world = world;
@@ -317,7 +330,7 @@ public final class NativeInterfaces {
     public void observe(Object world, Object player) {
         bindings.requireThread();
         NativeAttachmentDisposal.drain();
-        for (Entry entry : new ArrayList<>(entries.values())) {
+        for (Entry entry : observationEntries()) {
             if (!entry.token.value.isActive() || entry.worldBound && (entry.world != world || entry.player != player)
                     || entry.hostLease != null && !entry.hostLease.isActive()) {
                 entry.handler.disable("stale_environment");
@@ -329,7 +342,7 @@ public final class NativeInterfaces {
 
     public void close() {
         bindings.requireThread();
-        for (Entry entry : new ArrayList<>(entries.values())) {
+        for (Entry entry : observationEntries()) {
             entry.handler.disable("session_closed");
         }
         flushDisabled();
@@ -339,6 +352,8 @@ public final class NativeInterfaces {
         }
         removals.clear();
         entryFactory = scope -> null;
+        observationEntries = new Entry[0];
+        observationDirty = false;
         publish();
     }
 
@@ -353,18 +368,37 @@ public final class NativeInterfaces {
         while ((token = disabled.poll()) != null) {
             Entry entry = entries.remove(token.value);
             if (entry != null) {
+                observationDirty = true;
+                int remaining = ownerCounts.get(entry.owner) - 1;
+                if (remaining == 0) {
+                    ownerCounts.remove(entry.owner);
+                } else {
+                    ownerCounts.put(entry.owner, remaining);
+                }
+                if (token.interfaces.isEmpty()) {
+                    classHosts--;
+                }
+                if (entry.attachment != null) {
+                    attachments--;
+                }
                 ScriptResourceTracker.untrack(entry.owner, entry.cleanup);
-                bindings.owned.invalidate(token.value, (String) token.value.describe().get("state"));
+                bindings.owned.invalidate(token.value, token.value.state());
                 if (entry.attachment != null) {
                     entry.attachment.pending();
                     removals.add(new Removal(entry.owner, entry.attachment));
                 }
+                entry.world = null;
+                entry.player = null;
+                entry.hostLease = null;
             }
         }
         publish();
     }
 
     private void drainRemovals() {
+        if (removals.isEmpty()) {
+            return;
+        }
         if (NativeContext.hasFrame() || !NativeContext.cleanupAllowed()) {
             return;
         }
@@ -376,11 +410,25 @@ public final class NativeInterfaces {
         publish();
     }
 
+    private Entry[] observationEntries() {
+        if (observationDirty) {
+            observationEntries = entries.values().toArray(new Entry[0]);
+            observationDirty = false;
+        }
+        return observationEntries;
+    }
+
     private void publish() {
-        status = CatalogValues.record("implementations", entries.size(), "classHosts",
-                entries.values().stream().filter(entry -> entry.token.interfaces.isEmpty()).count(), "attachments",
-                entries.values().stream().filter(entry -> entry.attachment != null).count(), "pendingRemovals",
-                removals.size());
+        if (publishedEntries == entries.size() && publishedHosts == classHosts && publishedAttachments == attachments
+                && publishedRemovals == removals.size()) {
+            return;
+        }
+        publishedEntries = entries.size();
+        publishedHosts = classHosts;
+        publishedAttachments = attachments;
+        publishedRemovals = removals.size();
+        status = CatalogValues.record("implementations", entries.size(), "classHosts", classHosts, "attachments",
+                attachments, "pendingRemovals", removals.size());
     }
 
     private static final class Handler implements InvocationHandler {

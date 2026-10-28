@@ -21,6 +21,9 @@ public final class NativeAttachmentDisposal {
     }
 
     public static void drain() {
+        if (DEFERRED.isEmpty()) {
+            return;
+        }
         if (NativeContext.hasFrame() || !NativeContext.cleanupAllowed()) {
             return;
         }

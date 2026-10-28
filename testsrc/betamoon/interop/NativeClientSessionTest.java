@@ -226,7 +226,13 @@ public final class NativeClientSessionTest {
         first.close();
         second.close();
         bindings.clients.observe();
-        require(number("resourceSlots") == 0 && number("sessions") == 0, "bounded slots clean up completely");
+        require(number("sessions") == 0 && number("resourceSlots") >= 448,
+                "mass close invalidates sessions immediately and limits each ordinary cleanup slice");
+        for (int boundary = 0; boundary < 512 && number("resourceSlots") > 0; boundary++) {
+            bindings.clients.observe();
+        }
+        require(number("resourceSlots") == 0 && number("sessions") == 0,
+                "bounded slots eventually clean up completely");
     }
 
     private NativeClientSession create(String owner) {

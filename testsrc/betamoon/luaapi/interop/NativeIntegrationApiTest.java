@@ -59,6 +59,7 @@ public final class NativeIntegrationApiTest {
             cachedCalls(bindings, measurements);
             proxyCalls(bindings, measurements);
             repeatedCleanup(bindings);
+            NativeLifecycleContractTest.run(bindings);
         } finally {
             ScriptResourceTracker.unload(OWNER);
             bindings.close();

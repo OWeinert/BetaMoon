@@ -11,6 +11,8 @@ import betamoon.luamodloader.LuaScriptErrors;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
@@ -29,7 +31,17 @@ public final class NativeOwnedValues {
     private final Map<Object, NativeOwnedValue> identities = new IdentityHashMap<>();
     private final Map<String, OwnerCleanup> trackedOwners = new LinkedHashMap<>();
     private final ConcurrentLinkedQueue<String> expiredOwners = new ConcurrentLinkedQueue<>();
-    private final List<Entry> pending = new ArrayList<>();
+    private final Deque<Entry> pending = new ArrayDeque<>();
+    private Object observedWorld;
+    private Object observedPlayer;
+    private boolean worldDirty;
+    private int publishedActive = -1;
+    private int publishedPending = -1;
+    private long publishedDisposed = -1;
+    private long publishedFailures = -1;
+    private int urgentPending;
+    private int publishingSuspended;
+    private volatile long oldestQueuedNanos;
     private long nextIdentity;
     private long disposed;
     private long failures;
@@ -76,7 +88,10 @@ public final class NativeOwnedValues {
         if (identities.containsKey(value)) {
             throw new NativeAccessFailure("already_owned", "reuse the existing owned handle");
         }
-        long count = entries.values().stream().filter(entry -> owner.equals(entry.token.owner)).count();
+        long generation = ScriptResourceTracker.ownerGeneration(owner);
+        String tracking = owner + ":" + generation;
+        OwnerCleanup ownerCleanup = trackedOwners.get(tracking);
+        int count = ownerCleanup == null ? 0 : ownerCleanup.entries.size();
         if (entries.size() >= 2048 || count >= 256 || pending.size() >= 2048) {
             throw new NativeAccessFailure("native_owned_limit", "native ownership registry is full");
         }
@@ -86,23 +101,25 @@ public final class NativeOwnedValues {
             throw new NativeAccessFailure("world_unavailable", "world lifetime requires a current world root");
         }
         Method method = disposer == null ? null : disposerMethod(disposer, value);
-        long generation = ScriptResourceTracker.ownerGeneration(owner);
         NativeOwnedValue token = new NativeOwnedValue(this, ++nextIdentity, owner, generation, lifetime,
                 bindings.reference(value.getClass()));
         context.trackOwnership(value, token);
-        entries.put(token.identity, new Entry(token, value, method, world, player, clientResource));
-        identities.put(value, token);
-        String tracking = owner + ":" + generation;
-        if (!trackedOwners.containsKey(tracking)) {
+        if (ownerCleanup == null) {
             ScriptResourceTracker.Cleanup cleanup = () -> {
                 expiredOwners.add(tracking);
                 if (bindings.onClientThread()) {
-                    drain();
+                    expireOwners();
                 }
             };
-            trackedOwners.put(tracking, new OwnerCleanup(owner, generation, cleanup));
+            ownerCleanup = new OwnerCleanup(owner, generation, cleanup);
+            trackedOwners.put(tracking, ownerCleanup);
             ScriptResourceTracker.track(cleanup);
         }
+        Entry entry = new Entry(token, value, method, world, player, clientResource, ownerCleanup);
+        entries.put(token.identity, entry);
+        ownerCleanup.entries.put(token.identity, entry);
+        identities.put(value, token);
+        worldDirty |= lifetime.equals("world");
         publish();
         return token;
     }
@@ -189,21 +206,31 @@ public final class NativeOwnedValues {
     public void observe(Object world, Object player) {
         bindings.requireThread();
         expireOwners();
-        for (Entry entry : reverseEntries()) {
-            if (entry.token.lifetime.equals("world") && (entry.world != world || entry.player != player)) {
-                invalidate(entry, "stale_world");
+        if (worldDirty || observedWorld != world || observedPlayer != player) {
+            observedWorld = world;
+            observedPlayer = player;
+            worldDirty = false;
+            for (Entry entry : reverseEntries()) {
+                if (entry.token.lifetime.equals("world") && (entry.world != world || entry.player != player)) {
+                    invalidate(entry, "stale_world");
+                }
             }
         }
         drain();
     }
 
     public Map<String, Object> diagnostics() {
-        return new LinkedHashMap<>(status);
+        Map<String, Object> result = new LinkedHashMap<>(status);
+        long oldest = oldestQueuedNanos;
+        result.put("oldestPendingMillis", oldest == 0 ? 0L : (System.nanoTime() - oldest) / 1000000L);
+        return result;
     }
 
     public void close() {
         bindings.requireThread();
         closed = true;
+        observedWorld = null;
+        observedPlayer = null;
         for (Entry entry : reverseEntries()) {
             invalidate(entry, "session_closed");
         }
@@ -251,6 +278,7 @@ public final class NativeOwnedValues {
             return;
         }
         identities.remove(entry.value);
+        entry.ownerCleanup.entries.remove(entry.token.identity);
         entry.token.state = reason;
         if (entry.invalidation != null) {
             Consumer<String> action = entry.invalidation;
@@ -258,7 +286,11 @@ public final class NativeOwnedValues {
             action.accept(reason);
         }
         if (entry.disposer != null) {
-            pending.add(entry);
+            entry.queuedNanos = System.nanoTime();
+            pending.addLast(entry);
+            if (entry.clientResource) {
+                urgentPending++;
+            }
         } else {
             entry.value = null;
         }
@@ -270,12 +302,15 @@ public final class NativeOwnedValues {
             return;
         }
         expireOwners();
-        if (!NativeContext.cleanupAllowed()) {
+        if (pending.isEmpty() || !NativeContext.cleanupAllowed()) {
             return;
         }
-        List<Entry> work = new ArrayList<>(pending);
-        pending.clear();
-        for (Entry entry : work) {
+        NativeCleanupSlice slice = new NativeCleanupSlice(closed || urgentPending > 0);
+        while (!pending.isEmpty() && slice.next()) {
+            Entry entry = pending.removeFirst();
+            if (entry.clientResource) {
+                urgentPending--;
+            }
             try (NativeContext ignored = NativeContext.denied(entry.token.owner)) {
                 ScriptExecution.withOwner(entry.token.owner, () -> {
                     try {
@@ -303,16 +338,25 @@ public final class NativeOwnedValues {
     }
 
     private void expireOwners() {
-        String tracking;
-        while ((tracking = expiredOwners.poll()) != null) {
-            OwnerCleanup cleanup = trackedOwners.remove(tracking);
-            if (cleanup != null) {
-                for (Entry entry : reverseEntries()) {
-                    if (cleanup.owner.equals(entry.token.owner) && entry.token.generation == cleanup.generation) {
+        if (expiredOwners.isEmpty()) {
+            return;
+        }
+        publishingSuspended++;
+        try {
+            String tracking;
+            while ((tracking = expiredOwners.poll()) != null) {
+                OwnerCleanup cleanup = trackedOwners.remove(tracking);
+                if (cleanup != null) {
+                    List<Entry> owned = new ArrayList<>(cleanup.entries.values());
+                    Collections.reverse(owned);
+                    for (Entry entry : owned) {
                         invalidate(entry, "stale_owner");
                     }
                 }
             }
+        } finally {
+            publishingSuspended--;
+            publish();
         }
     }
 
@@ -323,6 +367,18 @@ public final class NativeOwnedValues {
     }
 
     private void publish() {
+        if (publishingSuspended > 0) {
+            return;
+        }
+        oldestQueuedNanos = pending.isEmpty() ? 0L : pending.peekFirst().queuedNanos;
+        if (publishedActive == entries.size() && publishedPending == pending.size() && publishedDisposed == disposed
+                && publishedFailures == failures) {
+            return;
+        }
+        publishedActive = entries.size();
+        publishedPending = pending.size();
+        publishedDisposed = disposed;
+        publishedFailures = failures;
         status = CatalogValues.record("active", entries.size(), "pendingDisposals", pending.size(), "disposed",
                 disposed, "disposalFailures", failures);
     }
@@ -331,6 +387,7 @@ public final class NativeOwnedValues {
         private final String owner;
         private final long generation;
         private final ScriptResourceTracker.Cleanup action;
+        private final Map<Long, Entry> entries = new LinkedHashMap<>();
 
         private OwnerCleanup(String owner, long generation, ScriptResourceTracker.Cleanup action) {
             this.owner = owner;
@@ -362,14 +419,17 @@ public final class NativeOwnedValues {
     private static final class Entry {
         private final NativeOwnedValue token;
         private Object value;
+        private long queuedNanos;
         private final Method disposer;
         private final Object world;
         private final Object player;
         private Consumer<String> invalidation;
         private final boolean clientResource;
+        private final OwnerCleanup ownerCleanup;
 
         private Entry(NativeOwnedValue token, Object value, Method disposer, Object world, Object player,
-                boolean clientResource) {
+                boolean clientResource, OwnerCleanup ownerCleanup) {
+            this.ownerCleanup = ownerCleanup;
             this.token = token;
             this.value = value;
             this.disposer = disposer;

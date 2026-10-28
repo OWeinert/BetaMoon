@@ -107,6 +107,11 @@ final class NativeOwnershipTest {
                 + "good=a:retain(assert(a:bind(R)):new(),{lifetime='owner',dispose=R:method('close','()V')}); "
                 + "bad=a:retain(assert(a:bind(R)):new(),{lifetime='owner',dispose=R:method('failClose','()V')})");
         ScriptResourceTracker.unload(OWNER);
+        require(((Number) bindings.owned.diagnostics().get("active")).intValue() == 0,
+                "Owner invalidation must precede deferred physical disposal");
+        for (int boundary = 0; boundary < 4; boundary++) {
+            bindings.owned.observe(null, null);
+        }
         require(NativeFixtureOwned.closed == 3 && NativeFixtureOwned.failed == 1,
                 "Owner cleanup did not continue after failed disposal");
         require(((Number) bindings.owned.diagnostics().get("active")).intValue() == 0,

@@ -4,14 +4,13 @@ import betamoon.interop.binding.NativeAccessFailure;
 import betamoon.interop.binding.NativeBindings;
 import betamoon.interop.catalog.CatalogValues;
 import betamoon.interop.runtime.NativeContext;
+import betamoon.interop.runtime.NativeCleanupSlice;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptExecution;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Deque;
 import java.util.IdentityHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -31,6 +30,8 @@ public final class NativeClientSessions {
     private long failures;
     private long cancelledActions;
     private boolean closed;
+    private boolean urgentCleanup;
+    private volatile NativeClientSession[] observationSessions = new NativeClientSession[0];
 
     public NativeClientSessions(NativeBindings bindings) {
         this.bindings = bindings;
@@ -54,6 +55,7 @@ public final class NativeClientSessions {
                 throw new NativeAccessFailure("native_client_limit", "client session limit exceeded or session ended");
             }
             sessions.put(result, Boolean.TRUE);
+            updateSessions();
         }
         result.track();
         return result;
@@ -61,10 +63,7 @@ public final class NativeClientSessions {
 
     public void observe() {
         bindings.requireThread();
-        List<NativeClientSession> copy;
-        synchronized (this) {
-            copy = new ArrayList<>(sessions.keySet());
-        }
+        NativeClientSession[] copy = observationSessions;
         for (NativeClientSession session : copy) {
             session.observe();
         }
@@ -88,10 +87,10 @@ public final class NativeClientSessions {
     public void close() {
         bindings.requireThread();
         requireCloseBoundary();
-        List<NativeClientSession> copy;
+        NativeClientSession[] copy;
         synchronized (this) {
             closed = true;
-            copy = new ArrayList<>(sessions.keySet());
+            copy = observationSessions;
         }
         for (NativeClientSession session : copy) {
             session.close();
@@ -101,8 +100,23 @@ public final class NativeClientSessions {
 
     public synchronized Map<String, Object> diagnostics() {
         return CatalogValues.record("sessions", sessions.size(), "resources", activeResources, "resourceSlots",
-                resourceSlots, "pendingDisposals", pending.size(), "pendingActions", pendingActions, "disposed",
-                disposed, "failures", failures, "cancelledActions", cancelledActions);
+                resourceSlots, "pendingDisposals", pending.size(), "oldestPendingMillis",
+                pending.isEmpty() ? 0L : (System.nanoTime() - pending.peekFirst().queuedNanos) / 1000000L,
+                "pendingActions", pendingActions, "disposed", disposed, "failures", failures, "cancelledActions",
+                cancelledActions);
+    }
+
+    synchronized void urgentCleanup() {
+        urgentCleanup = true;
+    }
+
+    synchronized void retire(NativeClientSession session) {
+        sessions.remove(session);
+        updateSessions();
+    }
+
+    private void updateSessions() {
+        observationSessions = sessions.keySet().toArray(new NativeClientSession[0]);
     }
 
     static boolean safeBoundary() {
@@ -171,7 +185,16 @@ public final class NativeClientSessions {
         if (!bindings.onClientThread() || !NativeContext.clientCleanupAllowed()) {
             return;
         }
-        for (int count = 0; count < 512; count++) {
+        boolean complete;
+        synchronized (this) {
+            if (pending.isEmpty()) {
+                return;
+            }
+            complete = closed || urgentCleanup;
+            urgentCleanup = false;
+        }
+        NativeCleanupSlice slice = new NativeCleanupSlice(complete);
+        while (slice.next()) {
             Disposal disposal = nextDisposal();
             if (disposal == null) {
                 return;
@@ -206,6 +229,7 @@ public final class NativeClientSessions {
     private static final class Disposal {
         private final String owner;
         private final Runnable action;
+        private final long queuedNanos = System.nanoTime();
 
         private Disposal(String owner, Runnable action) {
             this.owner = owner;
