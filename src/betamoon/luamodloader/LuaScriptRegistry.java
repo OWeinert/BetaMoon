@@ -2,6 +2,8 @@ package betamoon.luamodloader;
 
 import betamoon.worldgen.terrain.GenerationSignature;
 import java.io.IOException;
+import java.lang.ref.WeakReference;
+import java.util.function.BooleanSupplier;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -15,6 +17,7 @@ public final class LuaScriptRegistry {
     private static final List<ScriptMod> entries = new ArrayList<>();
     private static final Map<String, ScriptMod> byFile = new HashMap<>();
     private static final Map<String, ScriptMod> byName = new HashMap<>();
+    private static volatile long registryRevision;
     private static final ThreadLocal<String> currentScriptFile = new ThreadLocal<>();
 
     private LuaScriptRegistry() {
@@ -70,6 +73,7 @@ public final class LuaScriptRegistry {
         entries.clear();
         byFile.clear();
         byName.clear();
+        registryRevision++;
     }
 
     /**
@@ -88,6 +92,7 @@ public final class LuaScriptRegistry {
         entry = new ScriptMod(fileName);
         entries.add(entry);
         byFile.put(fileName, entry);
+        registryRevision++;
         return entry;
     }
 
@@ -162,6 +167,53 @@ public final class LuaScriptRegistry {
     public static synchronized boolean callbackOwnerReady(String fileName) {
         ScriptMod owner = byFile.get(fileName);
         return owner == null || owner.isLoaded();
+    }
+
+    /**
+     * Weak readiness projection: steady callbacks read volatile flags, never the
+     * registry monitor.
+     */
+    public static BooleanSupplier callbackOwnerReadiness(String fileName) {
+        return new CallbackReadiness(fileName);
+    }
+
+    private static final class CallbackReadiness implements BooleanSupplier {
+        private final String fileName;
+        private volatile ReadinessState state;
+
+        private CallbackReadiness(String fileName) {
+            this.fileName = fileName;
+            refresh();
+        }
+
+        private ReadinessState refresh() {
+            synchronized (LuaScriptRegistry.class) {
+                state = new ReadinessState(registryRevision, byFile.get(fileName));
+                return state;
+            }
+        }
+
+        @Override
+        public boolean getAsBoolean() {
+            ReadinessState current = state;
+            if (current.revision != registryRevision) {
+                current = refresh();
+            }
+            ScriptMod script = current.owner.get();
+            return !current.registered || script != null && script.isLoaded();
+        }
+    }
+
+    private static final class ReadinessState {
+        private final long revision;
+        private final WeakReference<ScriptMod> owner;
+        private final boolean registered;
+
+        private ReadinessState(long revision, ScriptMod owner) {
+            this.revision = revision;
+            this.owner = new WeakReference<>(owner);
+            registered = owner != null;
+        }
     }
 
     static synchronized ScriptMod findByFile(String fileName) {

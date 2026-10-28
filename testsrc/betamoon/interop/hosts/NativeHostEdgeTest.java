@@ -13,6 +13,8 @@ import betamoon.interop.reference.NativeTypeRef;
 import betamoon.interop.runtime.NativeContext;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luamodloader.ScriptExecution;
+import betamoon.luamodloader.LuaScriptRegistry;
+import java.util.function.BooleanSupplier;
 import java.io.ByteArrayInputStream;
 import java.lang.ref.WeakReference;
 import java.nio.charset.StandardCharsets;
@@ -37,6 +39,14 @@ public final class NativeHostEdgeTest {
     private static int checks;
 
     static void run(NativeBindings bindings, NativeContext context) {
+        BooleanSupplier readiness = LuaScriptRegistry.callbackOwnerReadiness("readiness-edge.lua");
+        require(readiness.getAsBoolean(), "unregistered Java owner is ready");
+        LuaScriptRegistry.registerFile("readiness-edge.lua");
+        require(!readiness.getAsBoolean(), "registration invalidates cached unregistered readiness");
+        LuaScriptRegistry.markLoadedByFile("readiness-edge.lua");
+        require(readiness.getAsBoolean(), "loaded owner activates its existing readiness cell");
+        LuaScriptRegistry.markFailedByFile("readiness-edge.lua", "fixture");
+        require(!readiness.getAsBoolean(), "failure invalidates readiness immediately");
         NativeHostShape shape = bindings.hostShapes.resolve(type(bindings, ConsumerBase.class, "value", "()I"),
                 context);
         AtomicInteger calls = new AtomicInteger();

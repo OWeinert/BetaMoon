@@ -24,7 +24,8 @@ public final class NativeHookOperationCall extends HookLuaValue {
     private final HookOperationSite operation;
     private final Type resultType;
     private final boolean editsAllowed;
-    private final LuaValue enclosing;
+    private NativeContext accessContext;
+    private LuaValue access;
 
     public NativeHookOperationCall(HookInvocation invocation, Supplier<NativeContext> context, boolean editsAllowed) {
         this.invocation = invocation;
@@ -32,35 +33,56 @@ public final class NativeHookOperationCall extends HookLuaValue {
         this.operation = invocation.operation().operation;
         this.resultType = invocation.returnType();
         this.editsAllowed = editsAllowed;
-        properties.put("id", valueOf(invocation.definition.id));
-        properties.put("owner", valueOf(invocation.definition.owner));
-        properties.put("site", valueOf(invocation.site));
-        properties.put("mode", valueOf(operation.kind));
-        properties.put("arguments", new Arguments(invocation, context, editsAllowed, false));
+    }
+
+    @Override
+    protected LuaValue createProperty(String name) {
+        switch (name) {
+            case "enclosing":
+                return new Enclosing(invocation, context);
+            case "id":
+                return valueOf(invocation.definition.id);
+            case "owner":
+                return valueOf(invocation.definition.owner);
+            case "site":
+                return valueOf(invocation.site);
+            case "mode":
+                return valueOf(operation.kind);
+            case "arguments":
+                return new Arguments(invocation, context, editsAllowed, false);
+            case "point":
+                return point();
+            case "setResult":
+                return method(args -> {
+                    edit();
+                    if (operation.before() || resultType.getSort() == Type.VOID || args.narg() != 1) {
+                        throw new HookFailure("hook_edit_denied",
+                                "setResult(value) requires a non-void invoke_after or field_read point");
+                    }
+                    invocation.result(NativeHookCall.convert(args.arg1(), resultType, invocation, context.get()));
+                    return NONE;
+                });
+            case "setValue":
+                return method(args -> {
+                    edit();
+                    if (!operation.kind.equals("field_write") || args.narg() != 1) {
+                        throw new HookFailure("hook_edit_denied", "setValue(value) requires a field_write point");
+                    }
+                    invocation.argument(0, NativeHookCall.convert(args.arg1(), Type.getType(operation.descriptor),
+                            invocation, context.get()));
+                    return NONE;
+                });
+            default:
+                return NIL;
+        }
+    }
+
+    private LuaValue point() {
         NativeAccessApi metadata = new NativeAccessApi(context.get().bindings::snapshot);
         Map<String, Object> description = new LinkedHashMap<>(operation.transport());
         description.put("ordinal", invocation.definition.point.ordinal);
         description.put("matches", invocation.definition.point.exact);
-        properties.put("point", metadata.metadata(description, true));
-        enclosing = new Enclosing(invocation, context);
-        properties.put("setResult", method(args -> {
-            edit();
-            if (operation.before() || resultType.getSort() == Type.VOID || args.narg() != 1) {
-                throw new HookFailure("hook_edit_denied",
-                        "setResult(value) requires a non-void invoke_after or field_read point");
-            }
-            invocation.result(NativeHookCall.convert(args.arg1(), resultType, invocation, context.get()));
-            return NONE;
-        }));
-        properties.put("setValue", method(args -> {
-            edit();
-            if (!operation.kind.equals("field_write") || args.narg() != 1) {
-                throw new HookFailure("hook_edit_denied", "setValue(value) requires a field_write point");
-            }
-            invocation.argument(0,
-                    NativeHookCall.convert(args.arg1(), Type.getType(operation.descriptor), invocation, context.get()));
-            return NONE;
-        }));
+        return metadata.metadata(description, true);
     }
 
     private void edit() {
@@ -78,9 +100,12 @@ public final class NativeHookOperationCall extends HookLuaValue {
                 case "receiver":
                     return operation.instance() ? NativeAccessApi.hookValue(invocation.receiver(), context.get()) : NIL;
                 case "native":
-                    return NativeAccessApi.contextAccess(context.get());
-                case "enclosing":
-                    return enclosing;
+                    NativeContext current = context.get();
+                    if (accessContext != current) {
+                        accessContext = current;
+                        access = NativeAccessApi.contextAccess(current);
+                    }
+                    return access;
                 case "result":
                     return !operation.before() && resultType.getSort() != Type.VOID
                             ? NativeAccessApi.hookValue(invocation.result(), context.get())

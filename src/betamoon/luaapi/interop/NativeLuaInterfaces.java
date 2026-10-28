@@ -135,11 +135,12 @@ final class NativeLuaInterfaces {
         NativeCallbackTable table = new NativeCallbackTable(scope);
         table.set("method", host.reference(reference));
         Object[] result = new Object[1];
-        ScriptExecution.invoke(owner, "native.interface." + reference.name, new VarArgFunction() {
+        ScriptExecution.invokeNative(owner, "native.interface." + reference.name, new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs ignored) {
                 NativeContext context = NativeContext.current();
                 context.bindings.interfaces.requireLive(implementation, context);
+                table.set("native", NativeAccessApi.contextAccess(context));
                 LuaValue[] values = new LuaValue[arguments.length + 1];
                 values[0] = table;
                 for (int i = 0; i < arguments.length; i++) {

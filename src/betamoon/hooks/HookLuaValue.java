@@ -44,9 +44,25 @@ public class HookLuaValue extends LuaValue {
         return get(valueOf(key));
     }
 
+    protected LuaValue createProperty(String name) {
+        return NIL;
+    }
+
     @Override
     public LuaValue get(LuaValue key) {
-        return key.type() == TSTRING ? properties.getOrDefault(key.tojstring(), NIL) : NIL;
+        if (key.type() != TSTRING) {
+            return NIL;
+        }
+        String name = key.tojstring();
+        LuaValue cached = properties.get(name);
+        if (cached != null) {
+            return cached;
+        }
+        LuaValue created = createProperty(name);
+        if (!created.isnil()) {
+            properties.put(name, created);
+        }
+        return created;
     }
 
     @Override

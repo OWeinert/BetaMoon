@@ -26,6 +26,10 @@ public final class NativeHookCall extends HookLuaValue {
     private final Supplier<NativeContext> context;
     private final boolean editsAllowed;
     private final Type returnType;
+    private final List<Type> arguments;
+    private final Function<Object[], Object> continuation;
+    private NativeContext accessContext;
+    private LuaValue access;
 
     public NativeHookCall(HookInvocation invocation, NativeContext context, boolean editsAllowed) {
         this(invocation, () -> context, editsAllowed, null);
@@ -36,65 +40,90 @@ public final class NativeHookCall extends HookLuaValue {
         this.invocation = invocation;
         this.context = context;
         this.editsAllowed = editsAllowed;
-        List<Type> arguments = invocation.parameterTypes();
-        Type result = invocation.returnType();
-        returnType = result;
-        // Accessors check the invocation as well as the native scope, including
-        // retained method closures.
-        properties.put("arguments", new Arguments(invocation, context, arguments, editsAllowed));
-        properties.put("id", valueOf(invocation.definition.id));
-        properties.put("owner", valueOf(invocation.definition.owner));
-        properties.put("site", valueOf(invocation.site));
-        properties.put("mode", valueOf(invocation.definition.at));
-        properties.put("cancel", method(args -> {
-            edit(invocation, editsAllowed);
-            if (args.narg() != 0 || !invocation.definition.at.equals("before") || result.getSort() != Type.VOID) {
-                throw new HookFailure("hook_edit_denied", "cancel() requires a void before hook");
-            }
-            invocation.result(null);
-            return NONE;
-        }));
-        properties.put("returnValue", method(args -> {
-            edit(invocation, editsAllowed);
-            if (args.narg() != 1 || !invocation.definition.at.equals("before") || result.getSort() == Type.VOID) {
-                throw new HookFailure("hook_edit_denied", "returnValue(value) requires a non-void before hook");
-            }
-            invocation.result(convert(args.arg1(), result, invocation, context.get()));
-            return NONE;
-        }));
-        properties.put("setResult", method(args -> {
-            edit(invocation, editsAllowed);
-            if (args.narg() != 1 || !invocation.definition.at.equals("after") || result.getSort() == Type.VOID) {
-                throw new HookFailure("hook_edit_denied", "setResult(value) requires a non-void after hook");
-            }
-            invocation.result(convert(args.arg1(), result, invocation, context.get()));
-            return NONE;
-        }));
-        if (invocation.definition.at.equals("around")) {
-            properties.put("proceed", method(args -> proceed(args, false, arguments, continuation)));
-            properties.put("proceedWith", method(args -> proceed(args, true, arguments, continuation)));
+        arguments = invocation.parameterTypes();
+        returnType = invocation.returnType();
+        this.continuation = continuation;
+    }
+
+    @Override
+    protected LuaValue createProperty(String name) {
+        switch (name) {
+            case "exception":
+                return exceptionEvidence();
+            case "arguments":
+                return new Arguments(invocation, context, arguments, editsAllowed);
+            case "id":
+                return valueOf(invocation.definition.id);
+            case "owner":
+                return valueOf(invocation.definition.owner);
+            case "site":
+                return valueOf(invocation.site);
+            case "mode":
+                return valueOf(invocation.definition.at);
+            case "cancel":
+                return method(args -> {
+                    edit(invocation, editsAllowed);
+                    if (args.narg() != 0 || !invocation.definition.at.equals("before")
+                            || returnType.getSort() != Type.VOID) {
+                        throw new HookFailure("hook_edit_denied", "cancel() requires a void before hook");
+                    }
+                    invocation.result(null);
+                    return NONE;
+                });
+            case "returnValue":
+                return method(args -> {
+                    edit(invocation, editsAllowed);
+                    if (args.narg() != 1 || !invocation.definition.at.equals("before")
+                            || returnType.getSort() == Type.VOID) {
+                        throw new HookFailure("hook_edit_denied", "returnValue(value) requires a non-void before hook");
+                    }
+                    invocation.result(convert(args.arg1(), returnType, invocation, context.get()));
+                    return NONE;
+                });
+            case "setResult":
+                return method(args -> {
+                    edit(invocation, editsAllowed);
+                    if (args.narg() != 1 || !invocation.definition.at.equals("after")
+                            || returnType.getSort() == Type.VOID) {
+                        throw new HookFailure("hook_edit_denied", "setResult(value) requires a non-void after hook");
+                    }
+                    invocation.result(convert(args.arg1(), returnType, invocation, context.get()));
+                    return NONE;
+                });
+            case "proceed":
+                return invocation.definition.at.equals("around")
+                        ? method(args -> proceed(args, false, arguments, continuation))
+                        : NIL;
+            case "proceedWith":
+                return invocation.definition.at.equals("around")
+                        ? method(args -> proceed(args, true, arguments, continuation))
+                        : NIL;
+            default:
+                return NIL;
         }
-        if (invocation.receiver() != null) {
-            properties.put("receiver", NativeAccessApi.hookValue(invocation.receiver(), context.get()));
+    }
+
+    private LuaValue exceptionEvidence() {
+        Throwable error = invocation.exception();
+        if (error == null) {
+            return NIL;
         }
-        if (invocation.definition.at.equals("after") && result.getSort() != Type.VOID) {
-            properties.put("result", NativeAccessApi.hookValue(invocation.result(), context.get()));
-        }
-        if (invocation.exception() != null) {
-            Throwable error = invocation.exception();
-            NativeAccessApi host = new NativeAccessApi(context.get().bindings::snapshot);
-            properties.put("exception",
-                    host.metadata(CatalogValues.record("type", error.getClass().getName(), "message",
-                            NativeDiagnosticEvidence.message(error), "nativeCauses",
-                            NativeDiagnosticEvidence.capture(error)), true));
-        }
+        NativeAccessApi host = new NativeAccessApi(context.get().bindings::snapshot);
+        return host.metadata(CatalogValues.record("type", error.getClass().getName(), "message",
+                NativeDiagnosticEvidence.message(error), "nativeCauses", NativeDiagnosticEvidence.capture(error)),
+                true);
     }
 
     @Override
     public LuaValue get(LuaValue key) {
         invocation.check();
         if (key.type() == TSTRING && key.tojstring().equals("native")) {
-            return NativeAccessApi.contextAccess(context.get());
+            NativeContext current = context.get();
+            if (accessContext != current) {
+                accessContext = current;
+                access = NativeAccessApi.contextAccess(current);
+            }
+            return access;
         }
         if (key.type() == TSTRING && key.tojstring().equals("receiver")) {
             return NativeAccessApi.hookValue(invocation.receiver(), context.get());

@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.IntUnaryOperator;
 
 /**
  * Actual defining identities and generated Java shape; never stores Lua
@@ -31,9 +32,10 @@ public final class NativeHostShape {
         this.generated = generated;
         this.methods = Collections.unmodifiableList(new ArrayList<>(methods));
         this.fingerprint = fingerprint;
-        Class<?>[] parameters = new Class<?>[constructor.getParameterCount() + 1];
+        Class<?>[] parameters = new Class<?>[constructor.getParameterCount() + 2];
         parameters[0] = Function.class;
-        System.arraycopy(constructor.getParameterTypes(), 0, parameters, 1, parameters.length - 1);
+        parameters[1] = IntUnaryOperator.class;
+        System.arraycopy(constructor.getParameterTypes(), 0, parameters, 2, parameters.length - 2);
         factory = generated.getConstructor(parameters);
         List<Method> helpers = new ArrayList<>();
         for (int index = 0; index < methods.size(); index++) {
@@ -50,9 +52,10 @@ public final class NativeHostShape {
             throw new NativeAccessFailure("invalid_native_host_arguments",
                     "supply the exact constructor parameter list");
         }
-        Object[] input = new Object[arguments.length + 1];
+        Object[] input = new Object[arguments.length + 2];
         input[0] = dispatch;
-        System.arraycopy(arguments, 0, input, 1, arguments.length);
+        input[1] = dispatch instanceof IntUnaryOperator ? dispatch : (IntUnaryOperator) slot -> 0;
+        System.arraycopy(arguments, 0, input, 2, arguments.length);
         try {
             return factory.newInstance(input);
         } catch (InvocationTargetException failure) {

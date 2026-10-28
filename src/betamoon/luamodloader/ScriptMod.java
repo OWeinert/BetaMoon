@@ -19,8 +19,8 @@ public class ScriptMod {
     String description;
     String version;
     String imagePath;
-    boolean loaded;
-    boolean failed;
+    volatile boolean loaded;
+    volatile boolean failed;
     String failureReason;
     List<String> missingDependencies;
     LuaModSource source;

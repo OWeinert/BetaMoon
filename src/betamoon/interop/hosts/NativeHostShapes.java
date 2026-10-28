@@ -54,7 +54,7 @@ public final class NativeHostShapes {
         if (constructor.getDeclaringClass() != base || !Modifier.isPublic(access) && !Modifier.isProtected(access)) {
             throw invalid("constructor must be public/protected and declared by the actual base");
         }
-        int slots = 2; // Generated constructor adds its JDK dispatch argument plus this.
+        int slots = 3; // Generated constructor adds its JDK dispatch/gate arguments plus this.
         for (Class<?> parameter : constructor.getParameterTypes()) {
             visible(base, parameter);
             slots += parameter == Long.TYPE || parameter == Double.TYPE ? 2 : 1;
@@ -112,7 +112,7 @@ public final class NativeHostShapes {
             visible(base, method.getReturnType());
             bridges.put(key(method), implementation);
         }
-        String key = "class-host-1:" + Type.getConstructorDescriptor(constructor) + ":"
+        String key = "class-host-2:" + Type.getConstructorDescriptor(constructor) + ":"
                 + String.join(";", selected.keySet());
         String admission = bindings.reference(base).key() + ":" + key;
         if (!admitted.contains(admission) && admitted.size() >= 256) {

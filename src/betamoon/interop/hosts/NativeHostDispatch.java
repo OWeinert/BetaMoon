@@ -4,24 +4,33 @@ import betamoon.interop.binding.NativeAccessFailure;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.util.Arrays;
-import java.util.ArrayDeque;
-import java.util.Deque;
 import java.util.function.Function;
 import java.util.function.BooleanSupplier;
+import java.util.function.IntUnaryOperator;
 
 /**
  * Per-instance activation record. Generated foreign aliases never look up a new
  * owner's callbacks.
  */
-public final class NativeHostDispatch implements Function<Object[], Object> {
-    private static final ThreadLocal<Deque<Invocation>> ENTERED = ThreadLocal.withInitial(ArrayDeque::new);
+public final class NativeHostDispatch implements Function<Object[], Object>, IntUnaryOperator {
+    @FunctionalInterface
+    public interface Callback {
+        Object invoke(Object receiver, int slot, Method method, Object[] arguments) throws Throwable;
+    }
+    private static final ThreadLocal<InvocationStack> ENTERED = ThreadLocal.withInitial(InvocationStack::new);
     private final NativeHostShape shape;
     private final String[] closedPolicies;
-    private final InvocationHandler handler;
+    private final Callback handler;
     private volatile int state;
     private final BooleanSupplier ownerReady;
 
     public NativeHostDispatch(NativeHostShape shape, String[] closedPolicies, InvocationHandler handler,
+            BooleanSupplier ownerReady) {
+        this(shape, closedPolicies, (receiver, slot, method, arguments) -> handler.invoke(receiver, method, arguments),
+                ownerReady);
+    }
+
+    public NativeHostDispatch(NativeHostShape shape, String[] closedPolicies, Callback handler,
             BooleanSupplier ownerReady) {
         if (closedPolicies.length != shape.methods.size()) {
             throw new NativeAccessFailure("invalid_native_host_policy", "supply one closed policy per override");
@@ -52,6 +61,23 @@ public final class NativeHostDispatch implements Function<Object[], Object> {
         state = 2;
     }
 
+    /**
+     * JDK-only generated gate, before boxing/packing arguments. Close is permanent.
+     */
+    @Override
+    public int applyAsInt(int index) {
+        if (state != 2) {
+            return 0;
+        }
+        if (closedPolicies[index].equals("super")) {
+            return 1;
+        }
+        if (closedPolicies[index].equals("noop")) {
+            return 2;
+        }
+        throw new NativeAccessFailure("native_implementation_closed", shape.methods.get(index).getName());
+    }
+
     @Override
     public Object apply(Object[] request) {
         if (request == null || request.length != 3 || !(request[0] instanceof Integer)
@@ -80,14 +106,10 @@ public final class NativeHostDispatch implements Function<Object[], Object> {
             throw new NativeAccessFailure("owner_not_ready", "class callback owner has not completed initialization");
         }
         Method method = shape.methods.get(index);
-        Deque<Invocation> entered = ENTERED.get();
-        if (entered.size() >= 16 || entered.stream().anyMatch(call -> call.host == this && call.index == index)) {
-            throw new NativeAccessFailure("native_host_reentry",
-                    "host callbacks cannot reenter their active override; maximum nesting is 16");
-        }
-        entered.addLast(new Invocation(this, index));
+        InvocationStack entered = ENTERED.get();
+        entered.enter(this, index);
         try {
-            Object result = handler.invoke(request[1], method, (Object[]) request[2]);
+            Object result = handler.invoke(request[1], index, method, (Object[]) request[2]);
             return state == 1 ? new Object[]{false, result} : closed(index);
         } catch (VirtualMachineError | ThreadDeath fatal) {
             throw fatal;
@@ -104,20 +126,33 @@ public final class NativeHostDispatch implements Function<Object[], Object> {
         } catch (Throwable failure) {
             throw new NativeAccessFailure("native_callback_failed", method.getName(), failure);
         } finally {
-            entered.removeLast();
-            if (entered.isEmpty()) {
-                ENTERED.remove();
-            }
+            entered.exit();
         }
     }
 
-    private static final class Invocation {
-        private final NativeHostDispatch host;
-        private final int index;
+    private static final class InvocationStack {
+        private final NativeHostDispatch[] hosts = new NativeHostDispatch[16];
+        private final int[] slots = new int[16];
+        private int depth;
 
-        private Invocation(NativeHostDispatch host, int index) {
-            this.host = host;
-            this.index = index;
+        private void enter(NativeHostDispatch host, int slot) {
+            boolean repeated = false;
+            for (int index = 0; index < depth; index++) {
+                if (hosts[index] == host && slots[index] == slot) {
+                    repeated = true;
+                    break;
+                }
+            }
+            if (depth == hosts.length || repeated) {
+                throw new NativeAccessFailure("native_host_reentry",
+                        "host callbacks cannot reenter their active override; maximum nesting is 16");
+            }
+            hosts[depth] = host;
+            slots[depth++] = slot;
+        }
+
+        private void exit() {
+            hosts[--depth] = null;
         }
     }
 

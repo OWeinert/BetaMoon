@@ -111,11 +111,12 @@ final class NativeLuaHosts {
         NativeCallbackTable table = new NativeCallbackTable(scope);
         table.set("method", host.reference(reference));
         Object[] result = new Object[1];
-        ScriptExecution.invoke(owner, "native.host." + reference.name, new VarArgFunction() {
+        ScriptExecution.invokeNative(owner, "native.host." + reference.name, new VarArgFunction() {
             @Override
             public Varargs invoke(Varargs ignored) {
                 NativeContext context = NativeContext.current();
                 context.bindings.interfaces.requireLive(implementation, context);
+                table.set("native", NativeAccessApi.contextAccess(context));
                 Object receiver = implementation.value.use(context);
                 table.set("receiver", host.result(receiver, context, false));
                 table.set("callSuper", NativeLuaSupport.scopedFunction(table, context, input -> {

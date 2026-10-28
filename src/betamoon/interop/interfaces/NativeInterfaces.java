@@ -105,7 +105,7 @@ public final class NativeInterfaces {
             throw new NativeAccessFailure("invalid_observer_contract",
                     "observer defaults require read-only void methods");
         }
-        Handler handler = new Handler(this, callbacks, observerDefaults);
+        Handler handler = new Handler(this, callbacks, new ArrayList<>(contract.methods.values()), observerDefaults);
         Object proxy;
         try {
             proxy = Proxy.newProxyInstance(contract.loader, contract.interfaces.toArray(new Class<?>[0]), handler);
@@ -202,10 +202,10 @@ public final class NativeInterfaces {
                         "live constructor roots require world lifetime");
             }
         }
-        Handler handler = new Handler(this, callbacks, false);
+        Handler handler = new Handler(this, callbacks, shape.methods, false);
         String callbackOwner = context.owner();
-        NativeHostDispatch dispatch = new NativeHostDispatch(shape, policies, handler,
-                () -> LuaScriptRegistry.callbackOwnerReady(callbackOwner));
+        NativeHostDispatch dispatch = new NativeHostDispatch(shape, policies, handler::invokeSlot,
+                LuaScriptRegistry.callbackOwnerReadiness(callbackOwner));
         handler.invalidation = dispatch::close;
         try {
             Object instance = shape.construct(dispatch, converted);
@@ -385,17 +385,33 @@ public final class NativeInterfaces {
 
     private static final class Handler implements InvocationHandler {
         private final WeakReference<NativeInterfaces> registry;
-        private volatile Map<String, MethodCallback> callbacks;
+        private volatile Dispatch callbacks;
         private final boolean observer;
         private NativeImplementation token;
         private volatile NativeAttachment.Status attachmentStatus;
         private Runnable invalidation = () -> {
         };
 
-        private Handler(NativeInterfaces registry, Map<String, MethodCallback> callbacks, boolean observer) {
+        private Handler(NativeInterfaces registry, Map<String, MethodCallback> callbacks, List<Method> methods,
+                boolean observer) {
             this.registry = new WeakReference<>(registry);
-            this.callbacks = Collections.unmodifiableMap(new LinkedHashMap<>(callbacks));
+            this.callbacks = new Dispatch(callbacks, methods);
             this.observer = observer;
+        }
+
+        private static final class Dispatch {
+            private final Map<Method, MethodCallback> methods = new LinkedHashMap<>();
+            private final MethodCallback[] slots;
+
+            private Dispatch(Map<String, MethodCallback> callbacks, List<Method> selected) {
+                slots = new MethodCallback[selected.size()];
+                for (int index = 0; index < selected.size(); index++) {
+                    Method method = selected.get(index);
+                    MethodCallback callback = callbacks.get(NativeInterfaceContract.key(method));
+                    slots[index] = callback;
+                    methods.put(method, callback);
+                }
+            }
         }
 
         private boolean active() {
@@ -428,6 +444,10 @@ public final class NativeInterfaces {
 
         @Override
         public Object invoke(Object proxy, Method method, Object[] arguments) {
+            return invokeSlot(proxy, -1, method, arguments);
+        }
+
+        private Object invokeSlot(Object proxy, int slot, Method method, Object[] arguments) {
             if (!token.interfaces.isEmpty() && NativeInterfaceContract.objectMethod(method)) {
                 switch (method.getName()) {
                     case "equals":
@@ -440,7 +460,7 @@ public final class NativeInterfaces {
             }
             NativeInterfaces service = registry.get();
             try {
-                Map<String, MethodCallback> dispatch = callbacks;
+                Dispatch dispatch = callbacks;
                 if (service == null || dispatch == null) {
                     throw new NativeAccessFailure("native_implementation_closed", method.getName());
                 }
@@ -448,7 +468,10 @@ public final class NativeInterfaces {
                 if (!token.value.isActive()) {
                     throw new NativeAccessFailure("stale_owner", "native implementation lifetime ended");
                 }
-                MethodCallback selected = dispatch.get(NativeInterfaceContract.key(method));
+                MethodCallback selected = slot < 0 ? dispatch.methods.get(method) : dispatch.slots[slot];
+                if (selected == null) {
+                    throw new NativeAccessFailure("invalid_interface_method", method.getName());
+                }
                 boolean gameplay = selected.policy.equals("gameplay");
                 if (gameplay && !NativeContext.hasFrame()) {
                     throw new NativeAccessFailure("native_context_unavailable",

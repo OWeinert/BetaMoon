@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.IntUnaryOperator;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.Opcodes;
@@ -22,6 +23,8 @@ final class NativeHostBytecode {
     private static final Type OBJECT = Type.getType(Object.class);
     private static final Type OBJECTS = Type.getType(Object[].class);
     private static final Type FUNCTION = Type.getType(Function.class);
+    private static final Type GATE_TYPE = Type.getType(IntUnaryOperator.class);
+    private static final String GATE = "betamoon$host$gate";
     private static final String DISPATCH = "betamoon$host$dispatch";
 
     private NativeHostBytecode() {
@@ -39,18 +42,24 @@ final class NativeHostBytecode {
                 parent.getInternalName(), null);
         writer.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL, DISPATCH, FUNCTION.getDescriptor(), null, null)
                 .visitEnd();
+        writer.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL, GATE, GATE_TYPE.getDescriptor(), null, null)
+                .visitEnd();
         Type[] original = Type.getArgumentTypes(Type.getConstructorDescriptor(constructor));
-        Type[] parameters = new Type[original.length + 1];
+        Type[] parameters = new Type[original.length + 2];
         parameters[0] = FUNCTION;
-        System.arraycopy(original, 0, parameters, 1, original.length);
+        parameters[1] = GATE_TYPE;
+        System.arraycopy(original, 0, parameters, 2, original.length);
         GeneratorAdapter create = method(writer, Opcodes.ACC_PUBLIC, "<init>",
                 Type.getMethodDescriptor(Type.VOID_TYPE, parameters));
         create.loadThis();
-        for (int index = 1; index < parameters.length; index++) {
+        for (int index = 2; index < parameters.length; index++) {
             create.loadArg(index);
         }
         create.invokeConstructor(parent,
                 new org.objectweb.asm.commons.Method("<init>", Type.getConstructorDescriptor(constructor)));
+        create.loadThis();
+        create.loadArg(1);
+        create.putField(self, GATE, GATE_TYPE);
         create.loadThis();
         create.loadArg(0);
         create.putField(self, DISPATCH, FUNCTION);
@@ -66,6 +75,25 @@ final class NativeHostBytecode {
             code.ifNonNull(active);
             nativeSuper(code, parent, target, "unsupported_native_host_construction");
             code.mark(active);
+            code.loadThis();
+            code.getField(self, GATE, GATE_TYPE);
+            code.push(index);
+            code.invokeInterface(GATE_TYPE, new org.objectweb.asm.commons.Method("applyAsInt", "(I)I"));
+            int admission = code.newLocal(Type.INT_TYPE);
+            code.storeLocal(admission);
+            Label dispatch = code.newLabel();
+            code.loadLocal(admission);
+            code.ifZCmp(GeneratorAdapter.EQ, dispatch);
+            if (Type.getReturnType(descriptor).getSort() == Type.VOID) {
+                Label useSuper = code.newLabel();
+                code.loadLocal(admission);
+                code.push(2);
+                code.ifICmp(GeneratorAdapter.NE, useSuper);
+                code.returnValue();
+                code.mark(useSuper);
+            }
+            nativeSuper(code, parent, target, "native_host_super_unavailable");
+            code.mark(dispatch);
             code.loadThis();
             code.getField(self, DISPATCH, FUNCTION);
             code.push(3);

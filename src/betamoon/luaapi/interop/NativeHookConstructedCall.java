@@ -14,6 +14,8 @@ import org.luaj.vm2.LuaValue;
 public final class NativeHookConstructedCall extends HookLuaValue {
     private final HookInvocation invocation;
     private final Supplier<NativeContext> context;
+    private NativeContext accessContext;
+    private LuaValue access;
 
     public NativeHookConstructedCall(HookInvocation invocation, Supplier<NativeContext> context) {
         this.invocation = invocation;
@@ -30,7 +32,12 @@ public final class NativeHookConstructedCall extends HookLuaValue {
         invocation.check();
         if (key.type() == TSTRING) {
             if (key.tojstring().equals("native")) {
-                return NativeAccessApi.contextAccess(context.get());
+                NativeContext current = context.get();
+                if (accessContext != current) {
+                    accessContext = current;
+                    access = NativeAccessApi.contextAccess(current);
+                }
+                return access;
             }
             if (key.tojstring().equals("receiver")) {
                 return NativeAccessApi.hookValue(invocation.receiver(), context.get());

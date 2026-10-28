@@ -2,6 +2,8 @@ package betamoon.interop.hosts;
 
 import betamoon.instrumentation.mapping.TinyMappingResolver;
 import betamoon.interop.binding.NativeAccessFailure;
+import com.sun.management.ThreadMXBean;
+import java.lang.management.ManagementFactory;
 import betamoon.interop.binding.NativeBindings;
 import betamoon.interop.binding.NativeNames;
 import betamoon.interop.discovery.NativeLoaderRegistry;
@@ -140,6 +142,19 @@ public final class NativeHostTest {
         bindings.owned.invalidate(token.value, "released");
         require(alias.answer() == 4 && calls.get() == 1,
                 "closed retained alias uses declared native super without new Lua callbacks");
+        ThreadMXBean memory = (ThreadMXBean) ManagementFactory.getThreadMXBean();
+        memory.setThreadAllocatedMemoryEnabled(true);
+        int checksum = 0;
+        for (int repeat = 0; repeat < 10000; repeat++) {
+            checksum += alias.answer();
+        }
+        long thread = Thread.currentThread().getId();
+        long bytes = memory.getThreadAllocatedBytes(thread);
+        for (int repeat = 0; repeat < 100000; repeat++) {
+            checksum += alias.answer();
+        }
+        bytes = memory.getThreadAllocatedBytes(thread) - bytes;
+        require(checksum == 440000 && bytes == 0, "closed super fallback allocated transport buffers: " + bytes);
         bindings.interfaces.observe(null, null);
         require(((Number) bindings.interfaces.diagnostics().get("implementations")).intValue() == 0,
                 "class host registry retires disabled implementation");
