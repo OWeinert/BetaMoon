@@ -23,7 +23,7 @@ final class NativeLuaField extends NativeLuaHandle {
             NativeContext execution = receiver == null ? context : context.ownershipContext(receiver);
             Object value = host.argument(args.arg1(), execution);
             execution.bindings.validateNull(value, plan.valueType, execution);
-            plan.set(execution, direct, receiver == null ? null : context.value(receiver),
+            plan.setConverted(execution, direct, receiver == null ? null : context.value(receiver),
                     NativeConversions.convert(value, plan.valueType));
             return LuaValue.NONE;
         }));

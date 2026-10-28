@@ -91,7 +91,7 @@ final class NativeLuaAccess extends NativeLuaHandle {
                     Object receiver = host.receiver(args.arg(3), execution);
                     Object[] input = host.arguments(args.subargs(4), execution);
                     NativeMemberPlan plan = execution.bindings.method(type, name, receiver, input, execution);
-                    Object result = plan.call(execution, direct, receiver,
+                    Object result = plan.callConverted(execution, direct, receiver,
                             execution.bindings.arguments(plan, input, execution));
                     return plan.valueType == Void.TYPE ? LuaValue.NONE : host.result(result, execution, direct);
                 });
@@ -186,7 +186,7 @@ final class NativeLuaAccess extends NativeLuaHandle {
                         NativeMemberRef method = new NativeMemberRef(NativeMemberRef.Kind.METHOD, reference, reference,
                                 "copy", "()Lnet/minecraft/src/ItemStack;", "mapped", "mapped");
                         NativeMemberPlan plan = context.bindings.exact(method, context, false);
-                        copy = plan.call(context, false, value, new Object[0]);
+                        copy = plan.callConverted(context, false, value, new Object[0]);
                         if (copy == null || copy == value || copy.getClass() != type) {
                             throw new NativeAccessFailure("native_copy_failed",
                                     "stack copy did not return an independent stack");

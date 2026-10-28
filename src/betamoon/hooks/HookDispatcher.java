@@ -367,19 +367,19 @@ public final class HookDispatcher {
                 throw new HookFailure("dispatcher_not_visible", "around body must be a private generated helper");
             }
             selected.setAccessible(true);
-            body = MethodHandles.lookup().unreflect(selected);
+            body = MethodHandles.lookup().unreflect(selected).asFixedArity().asSpreader(Object[].class,
+                    signature.parameterCount());
+            if (Modifier.isStatic(selected.getModifiers())) {
+                body = MethodHandles.dropArguments(body, 0, Object.class);
+            }
+            body = body.asType(MethodType.methodType(Object.class, Object.class, Object[].class));
             state.body = body;
         }
         MethodHandle terminal = body;
         int inherited = AROUND_ENTERED.get().size;
         return aroundAt(state, state.around, 0, anchor, receiver, arguments, values -> {
-            List<Object> actual = new ArrayList<>();
-            if (receiver != null) {
-                actual.add(receiver);
-            }
-            Collections.addAll(actual, values);
             try {
-                return terminal.invokeWithArguments(actual);
+                return (Object) terminal.invokeExact(receiver, values);
             } catch (Throwable failure) {
                 throw rethrow(failure);
             }

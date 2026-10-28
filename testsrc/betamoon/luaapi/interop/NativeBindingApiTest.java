@@ -5,6 +5,7 @@ import betamoon.interop.NativeDiscoveryTest;
 import betamoon.interop.binding.NativeAccessFailure;
 import betamoon.interop.binding.NativeBindings;
 import betamoon.interop.binding.NativeNames;
+import betamoon.interop.binding.NativeInvokerContractTest;
 import betamoon.interop.catalog.CatalogJson;
 import betamoon.interop.discovery.NativeDiscoveryService;
 import betamoon.interop.discovery.NativeIndexSnapshot;
@@ -57,6 +58,7 @@ public final class NativeBindingApiTest {
         try {
             verify(work);
             NativeOrdinaryLookupTest.run();
+            NativeInvokerContractTest.run();
         } finally {
             Path target = work.toRealPath();
             require(target.getParent().equals(parent) && target.getFileName().toString().startsWith("native-binding-"),

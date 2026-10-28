@@ -247,7 +247,7 @@ public final class NativeDataQueries {
                     NativeMemberPlan member = selection.member;
                     Object value = selection.definition.member.kind == NativeMemberRef.Kind.FIELD
                             ? member.get(state.context, state.directAccess, member.isStatic ? null : receiver)
-                            : member.call(state.context, state.directAccess, member.isStatic ? null : receiver,
+                            : member.callConverted(state.context, state.directAccess, member.isStatic ? null : receiver,
                                     invocation.arguments.get(selection));
                     result.put(selection.definition.key,
                             project(value, selection, invocation, state, selectedPath, depth + 1));

@@ -54,7 +54,7 @@ final class NativeLuaMethod extends NativeLuaHandle {
         Object receiver = host.receiver(arguments.arg1(), execution);
         Object[] input = host.arguments(arguments.subargs(2), execution);
         Object[] converted = execution.bindings.arguments(plan, input, execution);
-        Object result = plan.call(execution, direct, receiver, converted);
+        Object result = plan.callConverted(execution, direct, receiver, converted);
         return plan.valueType == Void.TYPE ? LuaValue.NONE : host.result(result, execution, direct);
     }
 
@@ -62,7 +62,7 @@ final class NativeLuaMethod extends NativeLuaHandle {
         context.check();
         NativeContext execution = host.operationContext(context, arguments);
         Object[] converted = execution.bindings.arguments(plan, host.arguments(arguments, execution), execution);
-        return host.result(plan.call(execution, direct, null, converted), execution, direct);
+        return host.result(plan.callConverted(execution, direct, null, converted), execution, direct);
     }
 
     @Override

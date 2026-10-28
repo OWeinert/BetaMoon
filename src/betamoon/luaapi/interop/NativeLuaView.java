@@ -114,7 +114,7 @@ final class NativeLuaView extends NativeLuaHandle {
                     NativeContext execution = host.operationContext(context, args);
                     Object[] input = host.arguments(args, execution);
                     NativeMemberPlan constructor = execution.bindings.constructor(type, input, execution);
-                    return host.result(constructor.call(execution, direct, null,
+                    return host.result(constructor.callConverted(execution, direct, null,
                             execution.bindings.arguments(constructor, input, execution)), execution, direct);
                 });
             case "enum":
@@ -177,7 +177,7 @@ final class NativeLuaView extends NativeLuaHandle {
                         Object receiver = classView ? null : payload(operation);
                         Object[] input = host.arguments(args, operation);
                         NativeMemberPlan plan = operation.bindings.method(lookup, name, receiver, input, operation);
-                        Object result = plan.call(operation, direct, receiver,
+                        Object result = plan.callConverted(operation, direct, receiver,
                                 operation.bindings.arguments(plan, input, operation));
                         return plan.valueType == Void.TYPE ? LuaValue.NONE : host.result(result, operation, direct);
                     } catch (NativeAccessFailure failure) {
@@ -218,7 +218,7 @@ final class NativeLuaView extends NativeLuaHandle {
             }
             Object input = host.argument(value, context);
             context.bindings.validateNull(input, field.valueType, context);
-            field.set(context, direct, classView ? null : payload(context),
+            field.setConverted(context, direct, classView ? null : payload(context),
                     NativeConversions.convert(input, field.valueType));
         } catch (NativeAccessFailure | IllegalArgumentException exception) {
             if (exception instanceof NativeAccessFailure) {
