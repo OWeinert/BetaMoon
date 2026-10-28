@@ -14,7 +14,7 @@ final class NativeLuaExact extends NativeLuaHandle {
         super(exact.value == null ? "native.NULL" : "Native value(" + exact.type.name() + ")");
         this.exact = exact;
         properties.put("isNull", valueOf(exact.value == null));
-        properties.put("type", exact.type == null ? NIL : new NativeLuaReference(host, exact.type));
+        properties.put("type", exact.type == null ? NIL : host.reference(exact.type));
         properties.put("decimal", NativeLuaSupport.function(this, args -> {
             if (!(exact.value instanceof Long)) {
                 throw new NativeAccessFailure("not_an_exact_long", "decimal() requires a native long");

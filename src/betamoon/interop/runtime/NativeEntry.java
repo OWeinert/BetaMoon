@@ -2,7 +2,6 @@ package betamoon.interop.runtime;
 
 import betamoon.interop.binding.NativeBindings;
 import betamoon.luaapi.utils.LuaCallbackScope;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BooleanSupplier;
 
@@ -30,7 +29,7 @@ public final class NativeEntry {
         this.callback = callback;
         this.phase = phase;
         this.permissions = permissions;
-        this.roots = new HashMap<>(roots);
+        this.roots = NativeRoots.copyOf(roots);
         this.environment = environment;
     }
 

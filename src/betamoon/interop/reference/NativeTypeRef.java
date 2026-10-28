@@ -24,6 +24,7 @@ public final class NativeTypeRef {
     public final String loaderId;
     public final String originId;
     private final String key;
+    private final String name;
 
     private NativeTypeRef(String descriptor, String names, String loaderId, String originId) {
         if (!"V".equals(descriptor)) {
@@ -34,6 +35,7 @@ public final class NativeTypeRef {
         this.loaderId = loaderId;
         this.originId = originId;
         key = descriptor + ":" + this.names + ":" + loaderId + ":" + originId;
+        name = computeName();
     }
 
     public static NativeTypeRef named(String name, String names, String loaderId, String originId) {
@@ -93,6 +95,10 @@ public final class NativeTypeRef {
     }
 
     public String name() {
+        return name;
+    }
+
+    private String computeName() {
         int dimensions = dimensions();
         String leaf = descriptor.substring(dimensions);
         String name = null;

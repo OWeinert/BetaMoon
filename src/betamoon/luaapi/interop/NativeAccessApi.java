@@ -31,6 +31,39 @@ import org.luaj.vm2.Varargs;
 public final class NativeAccessApi {
     private final Supplier<NativeIndexSnapshot> snapshots;
 
+    private Map<String, NativeLuaReference> typeReferences;
+    private Map<String, NativeLuaReference> memberReferences;
+
+    NativeLuaReference reference(NativeTypeRef reference) {
+        if (typeReferences == null) {
+            typeReferences = new LinkedHashMap<>();
+        }
+        NativeLuaReference found = typeReferences.get(reference.key());
+        if (found == null) {
+            if (typeReferences.size() >= 256) {
+                typeReferences.remove(typeReferences.keySet().iterator().next());
+            }
+            found = new NativeLuaReference(this, reference);
+            typeReferences.put(reference.key(), found);
+        }
+        return found;
+    }
+
+    NativeLuaReference reference(NativeMemberRef reference) {
+        if (memberReferences == null) {
+            memberReferences = new LinkedHashMap<>();
+        }
+        NativeLuaReference found = memberReferences.get(reference.key());
+        if (found == null) {
+            if (memberReferences.size() >= 256) {
+                memberReferences.remove(memberReferences.keySet().iterator().next());
+            }
+            found = new NativeLuaReference(this, reference);
+            memberReferences.put(reference.key(), found);
+        }
+        return found;
+    }
+
     NativeAccessApi(Supplier<NativeIndexSnapshot> snapshots) {
         this.snapshots = snapshots;
     }
@@ -39,8 +72,7 @@ public final class NativeAccessApi {
         api.set("NULL", NativeLuaExact.NULL);
         api.set("dataPlan", NativeLuaSupport.function(api, args -> NativeLuaDataPlan.create(args.arg1())));
         api.set("hostType", NativeLuaSupport.function(api, args -> NativeLuaHostType.create(this, args.arg1())));
-        api.set("type",
-                NativeLuaSupport.function(api, args -> new NativeLuaReference(this, type(args.arg1(), args.arg(2)))));
+        api.set("type", NativeLuaSupport.function(api, args -> reference(type(args.arg1(), args.arg(2)))));
         api.set("typeOf", NativeLuaSupport.function(api, args -> {
             LuaValue value = args.arg1();
             if (value instanceof NativeLuaExact) {
@@ -49,12 +81,12 @@ public final class NativeAccessApi {
                     throw new NativeAccessFailure("null_has_no_runtime_type",
                             "typed-null declarations remain in .type");
                 }
-                return new NativeLuaReference(this, exact.type);
+                return reference(exact.type);
             }
             if (value instanceof NativeLuaView && !((NativeLuaView) value).classView) {
                 NativeLuaView view = (NativeLuaView) value;
                 Object actual = view.payload(NativeContext.current());
-                return new NativeLuaReference(this, NativeContext.current().bindings.reference(actual.getClass()));
+                return reference(NativeContext.current().bindings.reference(actual.getClass()));
             }
             throw new NativeAccessFailure("native_type_required", "use a native view or exact value");
         }));
@@ -105,8 +137,8 @@ public final class NativeAccessApi {
         NativeIndexSnapshot snapshot = snapshots.get();
         NativeLuaReference reference = value instanceof NativeMemberReference
                 && ((NativeMemberReference) value).nativeMemberReference() != null
-                        ? new NativeLuaReference(this, ((NativeMemberReference) value).nativeMemberReference())
-                        : new NativeLuaReference(this, type(value, suppliedOptions));
+                        ? reference(((NativeMemberReference) value).nativeMemberReference())
+                        : reference(type(value, suppliedOptions));
         Map<String, Object> description;
         NativeTypeRef requestedType = reference.typeRef == null ? null : type(reference, suppliedOptions);
         try {
@@ -162,10 +194,10 @@ public final class NativeAccessApi {
             return LuaValue.NIL;
         }
         if (value instanceof NativeTypeRef) {
-            return new NativeLuaReference(this, (NativeTypeRef) value);
+            return reference((NativeTypeRef) value);
         }
         if (value instanceof NativeMemberRef) {
-            return new NativeLuaReference(this, (NativeMemberRef) value);
+            return reference((NativeMemberRef) value);
         }
         if (value instanceof String) {
             return LuaValue.valueOf((String) value);

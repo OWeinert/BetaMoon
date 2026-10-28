@@ -47,48 +47,89 @@ final class NativeLuaView extends NativeLuaHandle {
         this.classView = identity == null;
         diagnosticType = lookup;
         diagnosticDirect = direct;
-        properties.put("describe", NativeLuaSupport.scopedFunction(this, context, args -> {
-            NativeContext execution = executionContext();
-            return host.metadata(CatalogValues.record("type", context.bindings.reference(type), "identity",
-                    classView ? "class" : context.identity(identity), "bound", true, "policy",
-                    direct ? "direct" : "managed", "context", execution.describe()), true);
-        }));
-        properties.put("sameObject",
-                NativeLuaSupport.scopedFunction(this, context,
+    }
+
+    private boolean reserved(String name) {
+        switch (name) {
+            case "describe":
+            case "sameObject":
+            case "method":
+            case "field":
+                return true;
+            case "constructor":
+            case "new":
+            case "enum":
+                return classView;
+            default:
+                return !classView && container() && NativeLuaContainers.supports(name);
+        }
+    }
+
+    private boolean container() {
+        return type.isArray() || List.class.isAssignableFrom(type) || Map.class.isAssignableFrom(type);
+    }
+
+    @Override
+    protected LuaValue createProperty(String name) {
+        if (!classView && container() && NativeLuaContainers.supports(name)) {
+            return NativeLuaContainers.create(this, host, direct, () -> payload(context), name);
+        }
+        switch (name) {
+            case "describe":
+                return NativeLuaSupport.scopedFunction(this, context, args -> {
+                    NativeContext execution = executionContext();
+                    return host.metadata(CatalogValues.record("type", context.bindings.reference(type), "identity",
+                            classView ? "class" : context.identity(identity), "bound", true, "policy",
+                            direct ? "direct" : "managed", "context", execution.describe()), true);
+                });
+            case "sameObject":
+                return NativeLuaSupport.scopedFunction(this, context,
                         args -> LuaValue.valueOf(!classView && args.arg1() instanceof NativeLuaView
                                 && !((NativeLuaView) args.arg1()).classView
-                                && payload(context) == ((NativeLuaView) args.arg1()).payload(context))));
-        properties.put("method", NativeLuaSupport.scopedFunction(this, context, args -> new NativeLuaMethod(host,
-                executionContext(), direct, host.selector(lookup, NativeMemberRef.Kind.METHOD, args))));
-        properties.put("field", NativeLuaSupport.scopedFunction(this, context, args -> {
-            NativeContext execution = executionContext();
-            NativeMemberRef reference = host.selector(lookup, NativeMemberRef.Kind.FIELD, args);
-            Integer receiver = classView ? null : execution.retainScoped(payload(execution));
-            return new NativeLuaField(host, execution, direct, execution.bindings.exact(reference, execution, direct),
-                    receiver, reference);
-        }));
-        if (classView) {
-            properties.put("constructor",
-                    NativeLuaSupport.scopedFunction(this, context,
-                            args -> new NativeLuaMethod(host, context, direct,
-                                    new NativeMemberRef(NativeMemberRef.Kind.CONSTRUCTOR, lookup, null, "new",
-                                            NativeAccessApi.text(args.arg1()), null, null))));
-            properties.put("new", NativeLuaSupport.scopedFunction(this, context, args -> {
-                NativeContext execution = host.operationContext(context, args);
-                Object[] input = host.arguments(args, execution);
-                NativeMemberPlan constructor = execution.bindings.constructor(type, input, execution);
-                return host.result(constructor.call(execution, direct, null,
-                        execution.bindings.arguments(constructor, input, execution)), execution, direct);
-            }));
-            properties.put("enum", NativeLuaSupport.scopedFunction(this, context, args -> {
-                context.require(NativeContext.Effect.INITIALIZE, direct);
-                if (!type.isEnum()) {
-                    throw new NativeAccessFailure("not_an_enum", type.getName());
+                                && payload(context) == ((NativeLuaView) args.arg1()).payload(context)));
+            case "method":
+                return NativeLuaSupport.scopedFunction(this, context, args -> new NativeLuaMethod(host,
+                        executionContext(), direct, host.selector(lookup, NativeMemberRef.Kind.METHOD, args)));
+            case "field":
+                return NativeLuaSupport.scopedFunction(this, context, args -> {
+                    NativeContext execution = executionContext();
+                    NativeMemberRef reference = host.selector(lookup, NativeMemberRef.Kind.FIELD, args);
+                    Integer receiver = classView ? null : execution.retainScoped(payload(execution));
+                    return new NativeLuaField(host, execution, direct,
+                            execution.bindings.exact(reference, execution, direct), receiver, reference);
+                });
+            case "constructor":
+                if (!classView) {
+                    return NIL;
                 }
-                return host.result(enumValue(type, NativeAccessApi.text(args.arg1())), context, direct);
-            }));
-        } else if (type.isArray() || List.class.isAssignableFrom(type) || Map.class.isAssignableFrom(type)) {
-            NativeLuaContainers.attach(this, host, direct, () -> payload(context));
+                return NativeLuaSupport.scopedFunction(this, context,
+                        args -> new NativeLuaMethod(host, context, direct,
+                                new NativeMemberRef(NativeMemberRef.Kind.CONSTRUCTOR, lookup, null, "new",
+                                        NativeAccessApi.text(args.arg1()), null, null)));
+            case "new":
+                if (!classView) {
+                    return NIL;
+                }
+                return NativeLuaSupport.scopedFunction(this, context, args -> {
+                    NativeContext execution = host.operationContext(context, args);
+                    Object[] input = host.arguments(args, execution);
+                    NativeMemberPlan constructor = execution.bindings.constructor(type, input, execution);
+                    return host.result(constructor.call(execution, direct, null,
+                            execution.bindings.arguments(constructor, input, execution)), execution, direct);
+                });
+            case "enum":
+                if (!classView) {
+                    return NIL;
+                }
+                return NativeLuaSupport.scopedFunction(this, context, args -> {
+                    context.require(NativeContext.Effect.INITIALIZE, direct);
+                    if (!type.isEnum()) {
+                        throw new NativeAccessFailure("not_an_enum", type.getName());
+                    }
+                    return host.result(enumValue(type, NativeAccessApi.text(args.arg1())), context, direct);
+                });
+            default:
+                return NIL;
         }
     }
 
@@ -167,7 +208,7 @@ final class NativeLuaView extends NativeLuaHandle {
                 return;
             }
             String name = NativeAccessApi.text(key);
-            if (properties.containsKey(name)) {
+            if (reserved(name)) {
                 throw new NativeAccessFailure("reserved_member_name", "select the native field through field()");
             }
             NativeOrdinaryMember member = context.bindings.ordinary(lookup, name, classView, context);

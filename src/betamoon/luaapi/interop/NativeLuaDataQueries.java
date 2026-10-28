@@ -23,11 +23,9 @@ final class NativeLuaDataQueries {
     private NativeLuaDataQueries() {
     }
 
-    static void attach(NativeLuaAccess access, NativeAccessApi host, NativeContext context, boolean direct) {
-        access.properties.put("sample",
-                NativeLuaSupport.function(access, arguments -> sample(host, context, direct, arguments, false)));
-        access.properties.put("sampleMany",
-                NativeLuaSupport.function(access, arguments -> sample(host, context, direct, arguments, true)));
+    static LuaValue function(NativeLuaAccess access, NativeAccessApi host, NativeContext context, boolean direct,
+            boolean many) {
+        return NativeLuaSupport.function(access, arguments -> sample(host, context, direct, arguments, many));
     }
 
     private static Varargs sample(NativeAccessApi host, NativeContext context, boolean direct, Varargs arguments,

@@ -133,7 +133,7 @@ final class NativeLuaInterfaces {
     private static Object dispatch(NativeAccessApi host, String owner, NativeMemberRef reference, LuaValue callback,
             NativeImplementation implementation, Method method, Object[] arguments, LuaCallbackScope scope) {
         NativeCallbackTable table = new NativeCallbackTable(scope);
-        table.set("method", new NativeLuaReference(host, reference));
+        table.set("method", host.reference(reference));
         Object[] result = new Object[1];
         ScriptExecution.invoke(owner, "native.interface." + reference.name, new VarArgFunction() {
             @Override

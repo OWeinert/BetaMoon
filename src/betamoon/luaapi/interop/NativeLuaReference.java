@@ -22,53 +22,97 @@ final class NativeLuaReference extends NativeLuaHandle implements NativeMemberRe
         return typeRef;
     }
 
+    private final NativeAccessApi host;
+
     NativeLuaReference(NativeAccessApi host, NativeTypeRef type) {
         super("Native TypeRef(" + type.name() + ")");
+        this.host = host;
         typeRef = type;
         memberRef = null;
-        properties.put("kind", valueOf("type"));
-        properties.put("name", valueOf(type.name()));
-        properties.put("descriptor", valueOf(type.descriptor));
-        properties.put("names", valueOf(type.names));
-        properties.put("loaderId", type.loaderId == null ? NIL : valueOf(type.loaderId));
-        properties.put("originId", type.originId == null ? NIL : valueOf(type.originId));
-        properties.put("dimensions", valueOf(type.dimensions()));
-        if (type.dimensions() > 0) {
-            properties.put("componentType", new NativeLuaReference(host, type.component()));
-        }
-        properties.put("method", NativeLuaSupport.function(this,
-                args -> new NativeLuaReference(host, host.selector(type, NativeMemberRef.Kind.METHOD, args))));
-        properties.put("field", NativeLuaSupport.function(this,
-                args -> new NativeLuaReference(host, host.selector(type, NativeMemberRef.Kind.FIELD, args))));
-        properties.put("constructor",
-                NativeLuaSupport.function(this,
-                        args -> new NativeLuaReference(host, new NativeMemberRef(NativeMemberRef.Kind.CONSTRUCTOR, type,
-                                null, "new", args.checkjstring(1), null, null))));
-        properties.put("describe", NativeLuaSupport.function(this, args -> host.describe(this, args.arg1())));
     }
 
     NativeLuaReference(NativeAccessApi host, NativeMemberRef member) {
         super("Native " + member.kind + "Ref(" + member.name + member.descriptor + ")");
+        this.host = host;
         typeRef = null;
         memberRef = member;
-        properties.put("kind", valueOf(member.kind.name()));
-        properties.put("name", valueOf(member.name));
-        properties.put("descriptor", member.descriptor == null ? NIL : valueOf(member.descriptor));
-        properties.put("lookupType", new NativeLuaReference(host, member.lookupType));
-        properties.put("names", valueOf(member.names));
-        properties.put("descriptorNames", valueOf(member.descriptorNames));
-        properties.put("declaringType",
-                member.declaringType == null ? NIL : new NativeLuaReference(host, member.declaringType));
-        properties.put("parameterTypes", host.metadata(member.parameters(), true));
-        properties.put(member.kind == NativeMemberRef.Kind.FIELD ? "valueType" : "returnType",
-                member.valueType() == null ? NIL : new NativeLuaReference(host, member.valueType()));
-        properties.put("describe", NativeLuaSupport.function(this, args -> host.describe(this, args.arg1())));
-        if (member.kind == NativeMemberRef.Kind.METHOD) {
-            properties.put("call", NativeLuaSupport.function(this,
-                    args -> new NativeLuaMethod(host, NativeContext.current(), false, member).callSelected(args)));
-        } else if (member.kind == NativeMemberRef.Kind.CONSTRUCTOR) {
-            properties.put("new", NativeLuaSupport.function(this,
-                    args -> new NativeLuaMethod(host, NativeContext.current(), false, member).construct(args)));
+    }
+
+    @Override
+    protected LuaValue createProperty(String name) {
+        NativeTypeRef type = typeRef;
+        NativeMemberRef member = memberRef;
+        if (type != null) {
+            switch (name) {
+                case "componentType":
+                    return type.dimensions() > 0 ? host.reference(type.component()) : NIL;
+                case "kind":
+                    return valueOf("type");
+                case "name":
+                    return valueOf(type.name());
+                case "descriptor":
+                    return valueOf(type.descriptor);
+                case "names":
+                    return valueOf(type.names);
+                case "loaderId":
+                    return type.loaderId == null ? NIL : valueOf(type.loaderId);
+                case "originId":
+                    return type.originId == null ? NIL : valueOf(type.originId);
+                case "dimensions":
+                    return valueOf(type.dimensions());
+                case "method":
+                    return NativeLuaSupport.function(this,
+                            args -> host.reference(host.selector(type, NativeMemberRef.Kind.METHOD, args)));
+                case "field":
+                    return NativeLuaSupport.function(this,
+                            args -> host.reference(host.selector(type, NativeMemberRef.Kind.FIELD, args)));
+                case "constructor":
+                    return NativeLuaSupport.function(this,
+                            args -> host.reference(new NativeMemberRef(NativeMemberRef.Kind.CONSTRUCTOR, type, null,
+                                    "new", args.checkjstring(1), null, null)));
+                case "describe":
+                    return NativeLuaSupport.function(this, args -> host.describe(this, args.arg1()));
+                default:
+                    return NIL;
+            }
+        }
+        if (name.equals("call") && member.kind != NativeMemberRef.Kind.METHOD
+                || name.equals("new") && member.kind != NativeMemberRef.Kind.CONSTRUCTOR
+                || name.equals("valueType") && member.kind != NativeMemberRef.Kind.FIELD
+                || name.equals("returnType") && member.kind == NativeMemberRef.Kind.FIELD) {
+            return NIL;
+        }
+        switch (name) {
+            case "kind":
+                return valueOf(member.kind.name());
+            case "name":
+                return valueOf(member.name);
+            case "descriptor":
+                return member.descriptor == null ? NIL : valueOf(member.descriptor);
+            case "lookupType":
+                return host.reference(member.lookupType);
+            case "names":
+                return valueOf(member.names);
+            case "descriptorNames":
+                return valueOf(member.descriptorNames);
+            case "declaringType":
+                return member.declaringType == null ? NIL : host.reference(member.declaringType);
+            case "parameterTypes":
+                return host.metadata(member.parameters(), true);
+            case "valueType":
+                return member.valueType() == null ? NIL : host.reference(member.valueType());
+            case "returnType":
+                return member.valueType() == null ? NIL : host.reference(member.valueType());
+            case "describe":
+                return NativeLuaSupport.function(this, args -> host.describe(this, args.arg1()));
+            case "call":
+                return NativeLuaSupport.function(this,
+                        args -> new NativeLuaMethod(host, NativeContext.current(), false, member).callSelected(args));
+            case "new":
+                return NativeLuaSupport.function(this,
+                        args -> new NativeLuaMethod(host, NativeContext.current(), false, member).construct(args));
+            default:
+                return NIL;
         }
     }
 

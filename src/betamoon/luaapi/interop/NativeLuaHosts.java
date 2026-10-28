@@ -109,7 +109,7 @@ final class NativeLuaHosts {
             NativeImplementation implementation, NativeHostShape shape, int slot, Method method, Object[] arguments,
             LuaCallbackScope scope) {
         NativeCallbackTable table = new NativeCallbackTable(scope);
-        table.set("method", new NativeLuaReference(host, reference));
+        table.set("method", host.reference(reference));
         Object[] result = new Object[1];
         ScriptExecution.invoke(owner, "native.host." + reference.name, new VarArgFunction() {
             @Override

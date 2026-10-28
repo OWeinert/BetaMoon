@@ -18,7 +18,7 @@ final class NativeLuaHost extends NativeLuaImplementation {
         this.base = base;
         this.fingerprint = fingerprint;
         properties.remove("interfaces");
-        properties.put("base", new NativeLuaReference(host, base));
+        properties.put("base", host.reference(base));
 
     }
 

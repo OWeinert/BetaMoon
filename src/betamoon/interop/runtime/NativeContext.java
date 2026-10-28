@@ -8,6 +8,9 @@ import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptResourceTracker;
 import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -36,11 +39,11 @@ public final class NativeContext implements AutoCloseable {
     private final NativePermissions permissions;
     private final boolean readable;
     public final NativeEntry.Phase phase;
-    private final Map<String, Object> roots;
-    private final Map<Integer, Object> values = new HashMap<>();
-    private final Map<Object, Integer> identities = new IdentityHashMap<>();
-    private final Map<Integer, NativeOwnedValue> ownedValues = new HashMap<>();
-    private final Map<NativeOwnedValue, NativeContext> ownedScopes = new IdentityHashMap<>();
+    private Map<String, Object> roots;
+    private List<Object> values;
+    private Map<Object, Integer> identities;
+    private Map<Integer, NativeOwnedValue> ownedValues;
+    private Map<NativeOwnedValue, NativeContext> ownedScopes;
     private final NativeOwnedValue lease;
     private final long identity = IDENTITIES.incrementAndGet();
     private BooleanSupplier environment;
@@ -74,7 +77,7 @@ public final class NativeContext implements AutoCloseable {
                 && (parent == null || parent.readable);
         this.phase = phase;
         this.lease = null;
-        this.roots = new HashMap<>(roots);
+        this.roots = NativeRoots.copyOf(roots);
         this.environment = environment;
         CURRENT.set(this);
     }
@@ -91,7 +94,7 @@ public final class NativeContext implements AutoCloseable {
         permissions = source.permissions;
         readable = source.readable;
         phase = source.phase;
-        roots = new HashMap<>(source.roots);
+        roots = source.roots;
         environment = source.environment;
         this.lease = lease;
     }
@@ -118,7 +121,7 @@ public final class NativeContext implements AutoCloseable {
      * scope.
      */
     public static NativeContext denied(String owner) {
-        return new NativeContext(null, owner, null, NativePermissions.NONE, new HashMap<>(), null, null);
+        return new NativeContext(null, owner, null, NativePermissions.NONE, Collections.emptyMap(), null, null);
     }
 
     public static NativeContext current() {
@@ -192,6 +195,9 @@ public final class NativeContext implements AutoCloseable {
                 throw new NativeAccessFailure("native_lease_limit", "operation depends on more than 16 owned values");
             }
         }
+        if (ownedScopes == null) {
+            ownedScopes = new IdentityHashMap<>();
+        }
         NativeContext result = ownedScopes.get(value);
         if (result == null) {
             result = new NativeContext(this, value);
@@ -210,11 +216,11 @@ public final class NativeContext implements AutoCloseable {
 
     public NativeContext ownershipContext(int identity) {
         Object object = value(identity);
-        NativeOwnedValue token = ownedValues.get(identity);
+        NativeOwnedValue token = ownedValue(identity);
         if (token == null) {
             token = bindings.owned.find(object);
             if (token != null) {
-                ownedValues.put(identity, token);
+                trackOwned(identity, token);
             }
         }
         return token == null ? this : ownedScope(token);
@@ -223,9 +229,9 @@ public final class NativeContext implements AutoCloseable {
     public void trackOwnership(Object value, NativeOwnedValue token) {
         check();
         for (NativeContext scope = this; scope != null; scope = scope.parent) {
-            Integer identity = scope.identities.get(value);
+            Integer identity = scope.identities == null ? null : scope.identities.get(value);
             if (identity != null) {
-                scope.ownedValues.put(identity, token);
+                scope.trackOwned(identity, token);
             }
         }
     }
@@ -405,6 +411,10 @@ public final class NativeContext implements AutoCloseable {
 
     public int retainScoped(Object value) {
         check();
+        if (identities == null) {
+            identities = new IdentityHashMap<>();
+            values = new ArrayList<>();
+        }
         Integer previous = identities.get(value);
         if (previous != null) {
             return previous;
@@ -413,17 +423,28 @@ public final class NativeContext implements AutoCloseable {
             throw new NativeAccessFailure("native_view_limit", "too many objects in one scope");
         }
         int identity = ++nextValue;
-        values.put(identity, value);
+        values.add(value);
         identities.put(value, identity);
         NativeOwnedValue token = bindings.owned.find(value);
         for (NativeContext ancestor = parent; token == null && ancestor != null; ancestor = ancestor.parent) {
-            Integer previousIdentity = ancestor.identities.get(value);
-            token = previousIdentity == null ? null : ancestor.ownedValues.get(previousIdentity);
+            Integer previousIdentity = ancestor.identities == null ? null : ancestor.identities.get(value);
+            token = previousIdentity == null ? null : ancestor.ownedValue(previousIdentity);
         }
         if (token != null) {
-            ownedValues.put(identity, token);
+            trackOwned(identity, token);
         }
         return identity;
+    }
+
+    private NativeOwnedValue ownedValue(int identity) {
+        return ownedValues == null ? null : ownedValues.get(identity);
+    }
+
+    private void trackOwned(int identity, NativeOwnedValue token) {
+        if (ownedValues == null) {
+            ownedValues = new HashMap<>();
+        }
+        ownedValues.put(identity, token);
     }
 
     public String identity(int value) {
@@ -433,11 +454,11 @@ public final class NativeContext implements AutoCloseable {
 
     public Object value(int identity) {
         check();
-        Object value = values.get(identity);
+        Object value = values == null || identity <= 0 || identity > values.size() ? null : values.get(identity - 1);
         if (value == null) {
             throw new NativeAccessFailure("expired_scope", "native payload is unavailable");
         }
-        NativeOwnedValue token = ownedValues.get(identity);
+        NativeOwnedValue token = ownedValue(identity);
         if (token != null) {
             token.use(this);
         }
@@ -453,14 +474,16 @@ public final class NativeContext implements AutoCloseable {
             throw new NativeAccessFailure("native_scope_order", "close native scopes in stack order");
         }
         active = false;
-        for (NativeContext scope : ownedScopes.values()) {
-            scope.close();
+        if (ownedScopes != null) {
+            for (NativeContext scope : ownedScopes.values()) {
+                scope.close();
+            }
         }
-        ownedScopes.clear();
-        values.clear();
-        identities.clear();
-        ownedValues.clear();
-        roots.clear();
+        ownedScopes = null;
+        values = null;
+        identities = null;
+        ownedValues = null;
+        roots = Collections.emptyMap();
         environment = null;
         if (lease == null) {
             CURRENT.set(parent);

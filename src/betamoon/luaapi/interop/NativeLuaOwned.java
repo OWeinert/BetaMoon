@@ -11,7 +11,7 @@ class NativeLuaOwned extends NativeLuaHandle {
     NativeLuaOwned(NativeAccessApi host, NativeOwnedValue value) {
         super("Native owned value");
         this.value = value;
-        properties.put("type", new NativeLuaReference(host, value.type));
+        properties.put("type", host.reference(value.type));
         properties.put("describe", NativeLuaSupport.function(this, args -> host.metadata(value.describe(), true)));
     }
 }

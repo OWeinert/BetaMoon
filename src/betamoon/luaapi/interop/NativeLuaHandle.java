@@ -58,7 +58,23 @@ abstract class NativeLuaHandle extends LuaValue {
 
     @Override
     public LuaValue get(LuaValue key) {
-        return key.type() == TSTRING ? properties.getOrDefault(key.tojstring(), NIL) : NIL;
+        if (key.type() != TSTRING) {
+            return NIL;
+        }
+        String name = key.tojstring();
+        LuaValue found = properties.get(name);
+        if (found != null) {
+            return found;
+        }
+        LuaValue created = createProperty(name);
+        if (!created.isnil()) {
+            properties.put(name, created);
+        }
+        return created;
+    }
+
+    protected LuaValue createProperty(String name) {
+        return NIL;
     }
 
     @Override
