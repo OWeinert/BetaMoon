@@ -205,7 +205,10 @@ public final class NativeLiveClientDriver {
                 "worldCreatedNormally", true, "observerReloadAndWorldCleanup", status.equals("passed"), "x3Acceptance",
                 "true".equals(System.getProperty("betamoon.x3.passed")), "x5Acceptance",
                 "true".equals(System.getProperty("betamoon.x5.passed")), "x8Acceptance",
-                "true".equals(System.getProperty("betamoon.x8.passed")), "n7Acceptance",
+                "true".equals(System.getProperty("betamoon.x8.passed")), "x9Acceptance",
+                "true".equals(System.getProperty("betamoon.x9.passed"))
+                        && "true".equals(System.getProperty("betamoon.x9.partner")),
+                "n7Acceptance",
                 Boolean.getBoolean("betamoon.native.n7") && "passed".equals(System.getProperty("betamoon.n7.phase"))));
         Files.write(Paths.get(System.getProperty("betamoon.live.result")), result.getBytes(StandardCharsets.UTF_8));
         System.out.println("[N6-LIVE] " + result);

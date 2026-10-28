@@ -92,6 +92,11 @@ final class ScriptHookTransformer {
                     throw new HookFailure("mapping_conflict",
                             "observed class does not implement the mapped virtual ancestor");
                 }
+                if (site.target.constructor()) {
+                    ScriptConstructorTransformer.apply(node, target, site);
+                    installed.add(site);
+                    continue;
+                }
                 List<ScriptOperationPlanner.Selected> operations = ScriptOperationPlanner.discover(node, target, site,
                         loader);
                 int[] savedParameters = instrument(node, target, site);

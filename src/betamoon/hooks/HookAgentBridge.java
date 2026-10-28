@@ -13,7 +13,7 @@ import java.util.function.Function;
  * and boxing. No game or Lua class crosses this ABI.
  */
 final class HookAgentBridge {
-    static final String PROTOCOL = "betamoon-hooks-jdk-abi-4";
+    static final String PROTOCOL = "betamoon-hooks-jdk-abi-5";
     private static String unavailableReason;
     private static String unavailableMessage;
     private static final HookAgentBridge REMOTE = discover();

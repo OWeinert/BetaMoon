@@ -11,6 +11,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.UnaryOperator;
@@ -33,7 +36,8 @@ final class HookTestHarness implements AutoCloseable {
     private final BetaMoonTransformer transformer;
     private final List<HookDispatcher.Subscription> subscriptions = new ArrayList<>();
 
-    HookTestHarness(String targetName, String source, UnaryOperator<byte[]> transformInput) throws Exception {
+    HookTestHarness(String targetName, String source, UnaryOperator<byte[]> transformInput, String... related)
+            throws Exception {
         this.targetName = targetName;
         this.source = source;
         instance = Files.createTempDirectory(Paths.get("build").toAbsolutePath(), "hook-fixture-");
@@ -52,10 +56,12 @@ final class HookTestHarness implements AutoCloseable {
                 false);
         input = transformInput.apply(
                 Files.readAllBytes(Paths.get("build/classes/java/test/" + targetName.replace('.', '/') + ".class")));
+        Set<String> defined = new HashSet<>(Arrays.asList(related));
+        defined.add(targetName);
         loader = new ClassLoader(HookTestHarness.class.getClassLoader()) {
             @Override
             protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-                if (!name.equals(targetName)) {
+                if (!defined.contains(name)) {
                     return super.loadClass(name, resolve);
                 }
                 synchronized (getClassLoadingLock(name)) {
@@ -64,9 +70,19 @@ final class HookTestHarness implements AutoCloseable {
                         return existing;
                     }
                     try {
-                        byte[] bytes = transformOnly();
+                        byte[] bytes;
+                        if (name.equals(targetName)) {
+                            bytes = transformOnly();
+                        } else {
+                            bytes = Files.readAllBytes(
+                                    Paths.get("build/classes/java/test/" + name.replace('.', '/') + ".class"));
+                            byte[] transformed = transformer.transform(this, name.replace('.', '/'), null, null, bytes);
+                            if (transformed != null) {
+                                bytes = transformed;
+                            }
+                        }
                         return defineClass(name, bytes, 0, bytes.length);
-                    } catch (IllegalClassFormatException failure) {
+                    } catch (IllegalClassFormatException | IOException failure) {
                         throw new ClassNotFoundException(name, failure);
                     }
                 }
@@ -98,8 +114,10 @@ final class HookTestHarness implements AutoCloseable {
 
     HookDispatcher.Subscription subscribe(String id, HookDispatcher.Callback callback) throws ClassNotFoundException {
         HookDefinition definition = definition(id);
-        HookDispatcher.Subscription subscription = HookDispatcher.subscribe(preparation.targets(definition).get(0).id,
-                load(), definition, callback);
+        load();
+        HookPreparation.Site site = preparation.targets(definition).get(0);
+        Class<?> anchor = Class.forName(site.target.owner.replace('/', '.'), false, loader);
+        HookDispatcher.Subscription subscription = HookDispatcher.subscribe(site.id, anchor, definition, callback);
         HookDispatcher.activate(Collections.singletonList(subscription));
         subscriptions.add(subscription);
         return subscription;

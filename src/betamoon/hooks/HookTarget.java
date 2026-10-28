@@ -36,6 +36,10 @@ public final class HookTarget {
         }
     }
 
+    public boolean constructor() {
+        return method.equals("<init>");
+    }
+
     public String key() {
         return owner + "." + method + descriptor;
     }
@@ -77,6 +81,16 @@ public final class HookTarget {
                     name -> snapshot.getClasses().containsKey(name)
                             ? name
                             : mappings.resolveNamedClass(name, namespace));
+            if (ref.kind == NativeMemberRef.Kind.CONSTRUCTOR) {
+                HookTarget target = new HookTarget(runtimeOwner, "<init>",
+                        ref.descriptorNames.equals("runtime")
+                                ? ref.descriptor
+                                : mappings.resolveDescriptor(ref.descriptor, namespace));
+                if (result.stream().noneMatch(value -> value.key().equals(target.key()))) {
+                    result.add(target);
+                }
+                continue;
+            }
             TinyMappingSnapshot.MemberEntry matched = null;
             if (!ref.names.equals("runtime") && known != null) {
                 for (TinyMappingSnapshot.MemberEntry member : known.getMembers()) {

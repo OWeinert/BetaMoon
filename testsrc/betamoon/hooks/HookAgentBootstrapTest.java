@@ -145,7 +145,7 @@ public final class HookAgentBootstrapTest {
                                     super.visitMethod(access, method, descriptor, signature, exceptions)) {
                                 @Override
                                 public void visitLdcInsn(Object value) {
-                                    super.visitLdcInsn("betamoon-hooks-jdk-abi-4".equals(value)
+                                    super.visitLdcInsn("betamoon-hooks-jdk-abi-5".equals(value)
                                             ? "fixture-incompatible-hook-abi"
                                             : value);
                                 }

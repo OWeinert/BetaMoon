@@ -57,14 +57,19 @@ public final class HookDefinition {
         if (requested instanceof NativeMemberReference) {
             target = ((NativeMemberReference) requested).nativeMemberReference();
         } else {
-            LuaTable selector = fields(requested, "class", "method", "descriptor", "names", "descriptorNames");
-            target = new NativeMemberRef(NativeMemberRef.Kind.METHOD,
+            boolean constructor = requested.istable() && !requested.rawget("constructor").isnil();
+            LuaTable selector = constructor
+                    ? fields(requested, "class", "constructor", "names", "descriptorNames")
+                    : fields(requested, "class", "method", "descriptor", "names", "descriptorNames");
+            target = new NativeMemberRef(constructor ? NativeMemberRef.Kind.CONSTRUCTOR : NativeMemberRef.Kind.METHOD,
                     NativeTypeRef.named(text(selector.rawget("class")), optional(selector.rawget("names")), null, null),
-                    null, text(selector.rawget("method")), text(selector.rawget("descriptor")),
+                    null, constructor ? "new" : text(selector.rawget("method")),
+                    text(selector.rawget(constructor ? "constructor" : "descriptor")),
                     optional(selector.rawget("names")), optional(selector.rawget("descriptorNames")));
         }
-        if (target == null || target.kind != NativeMemberRef.Kind.METHOD) {
-            throw new HookFailure("hook_file_invalid", "target must be an exact MethodRef");
+        if (target == null
+                || target.kind != NativeMemberRef.Kind.METHOD && target.kind != NativeMemberRef.Kind.CONSTRUCTOR) {
+            throw new HookFailure("hook_file_invalid", "target must be an exact MethodRef or ConstructorRef");
         }
         if (target.lookupType.loaderId != null || target.lookupType.originId != null
                 || target.declaringType != null && (target.declaringType.loaderId != null
@@ -74,12 +79,17 @@ public final class HookDefinition {
         }
         HookPoint point = table.rawget("at").istable() ? HookPoint.read(table.rawget("at")) : null;
         String at = point == null ? text(table.rawget("at")) : point.kind;
-        if (point == null && !Arrays.asList("before", "after", "error", "around").contains(at)) {
-            throw new HookFailure("hook_file_invalid", "at must be before, after, error or around");
+        if (point == null && !Arrays.asList("before", "after", "error", "around", "constructed").contains(at)) {
+            throw new HookFailure("hook_file_invalid", "at must be before, after, error, around or constructed");
+        }
+        if (at.equals("constructed") != (target.kind == NativeMemberRef.Kind.CONSTRUCTOR)) {
+            throw new HookFailure("hook_file_invalid",
+                    "constructed requires an exact ConstructorRef; method phases require MethodRef");
         }
         String effects = optional(table.rawget("effects"));
         boolean edit = "edit".equals(effects);
-        if (effects != null && !effects.equals("observe") && !edit || edit && at.equals("error")) {
+        if (effects != null && !effects.equals("observe") && !edit
+                || edit && (at.equals("error") || at.equals("constructed"))) {
             throw new HookFailure("hook_file_invalid", "effects must be observe, or edit for before/after");
         }
         String nativeErrors = optional(table.rawget("nativeErrors"));
@@ -135,11 +145,11 @@ public final class HookDefinition {
 
     Map<String, Object> transport() {
         return CatalogValues.record("owner", owner, "file", file, "id", id, "at", at, "edit", edit, "priority",
-                priority, "required", required, "class", target.lookupType.name(), "classNames",
-                target.lookupType.names, "method", target.name, "descriptor", target.descriptor, "names", target.names,
-                "point", point == null ? null : point.transport(), "nativeErrors", nativeErrors, "reentry", reentry,
-                "descriptorNames", target.descriptorNames, "sourceSha256", sourceSha256, "declaringClass",
-                target.declaringType == null ? null : target.declaringType.name(), "declaringNames",
+                priority, "required", required, "targetKind", target.kind.name(), "class", target.lookupType.name(),
+                "classNames", target.lookupType.names, "method", target.name, "descriptor", target.descriptor, "names",
+                target.names, "point", point == null ? null : point.transport(), "nativeErrors", nativeErrors,
+                "reentry", reentry, "descriptorNames", target.descriptorNames, "sourceSha256", sourceSha256,
+                "declaringClass", target.declaringType == null ? null : target.declaringType.name(), "declaringNames",
                 target.declaringType == null ? null : target.declaringType.names);
     }
 
@@ -150,7 +160,8 @@ public final class HookDefinition {
                 ? null
                 : NativeTypeRef.named(CatalogValues.text(value, "declaringClass"),
                         CatalogValues.text(value, "declaringNames"), null, null);
-        NativeMemberRef method = new NativeMemberRef(NativeMemberRef.Kind.METHOD, type, declaring,
+        NativeMemberRef method = new NativeMemberRef(
+                NativeMemberRef.Kind.valueOf(CatalogValues.text(value, "targetKind")), type, declaring,
                 CatalogValues.text(value, "method"), CatalogValues.text(value, "descriptor"),
                 CatalogValues.text(value, "names"), CatalogValues.text(value, "descriptorNames"));
         return new HookDefinition(CatalogValues.text(value, "owner"), CatalogValues.text(value, "file"),

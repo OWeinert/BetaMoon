@@ -135,6 +135,27 @@ public final class HookChildRuntime {
         profiled.close();
         System.out.println("Child-first operation Lua callback ns p50=" + operationCosts[500] + ", p95="
                 + operationCosts[950] + ", p99=" + operationCosts[990] + "; informational Java 8 fixture.");
+        HookFileCollectionContext.Registration constructed = HookDeclarations.evaluate("bootstrap", "child.lua",
+                "local r=betamoon.hooks:createRegistry(); r:register({id='constructed_child',"
+                        + "target={class='fixture.hooks.ChildHookFixture',constructor='()V'},at='constructed'},"
+                        + "function() hits=hits+1 end)",
+                4, globals, new HookDeclarations.Budget()).get(0);
+        Object[] observed = new Object[1];
+        HookDispatcher.Subscription constructor = HookDispatcher.subscribe(
+                preparation.targets(constructed.definition).get(0).id, target, constructed.definition, invocation -> {
+                    if (!invocation.definition.at.equals("constructed") || invocation.argumentCount() != 0
+                            || invocation.result() != null || invocation.exception() != null) {
+                        throw new AssertionError("constructor observation identity was lost across loaders");
+                    }
+                    observed[0] = invocation.receiver();
+                    constructed.callback.call();
+                });
+        HookDispatcher.activate(Collections.singletonList(constructor));
+        Object created = target.newInstance();
+        if (observed[0] != created) {
+            throw new AssertionError("child constructor callback did not receive the native instance");
+        }
+        constructor.close();
         long checksum = 0;
         for (int index = 0; index < 30000; index++) {
             checksum += (int) call.invokeExact(index);

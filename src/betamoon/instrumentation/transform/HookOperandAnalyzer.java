@@ -20,7 +20,11 @@ import org.objectweb.asm.tree.analysis.Interpreter;
  */
 final class HookOperandAnalyzer extends Analyzer<BasicValue> {
     HookOperandAnalyzer() {
-        super(new Values());
+        this(false);
+    }
+
+    HookOperandAnalyzer(boolean constructor) {
+        super(new Values(constructor));
     }
 
     static boolean uninitialized(BasicValue value) {
@@ -61,12 +65,12 @@ final class HookOperandAnalyzer extends Analyzer<BasicValue> {
             if (initialized != null) {
                 BasicValue value = new BasicValue(initialized.getType());
                 for (int index = 0; index < getLocals(); index++) {
-                    if (getLocal(index).equals(initialized)) {
+                    if (initialized.equals(getLocal(index))) {
                         setLocal(index, value);
                     }
                 }
                 for (int index = 0; index < getStackSize(); index++) {
-                    if (getStack(index).equals(initialized)) {
+                    if (initialized.equals(getStack(index))) {
                         setStack(index, value);
                     }
                 }
@@ -77,8 +81,18 @@ final class HookOperandAnalyzer extends Analyzer<BasicValue> {
     private static final class Values extends BasicInterpreter {
         private final Map<AbstractInsnNode, BasicValue> allocations = new HashMap<>();
 
-        Values() {
+        private final boolean constructor;
+
+        Values(boolean constructor) {
             super(Opcodes.ASM9);
+            this.constructor = constructor;
+        }
+
+        @Override
+        public BasicValue newParameterValue(boolean instance, int local, Type type) {
+            return constructor && instance && local == 0
+                    ? new Uninitialized(type, null)
+                    : super.newParameterValue(instance, local, type);
         }
 
         @Override

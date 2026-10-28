@@ -475,14 +475,15 @@ public final class HookPreparation {
         for (Site site : sites.values()) {
             Map<String, Object> record = CatalogValues.record("id", "script-site-" + site.id, "name", site.target.key(),
                     "kind", "HOOK_SITE", "declaringType", site.target.owner.replace('/', '.'), "descriptor",
-                    site.target.descriptor, "target", site.target.key(), "status", site.status, "owners",
-                    new ArrayList<>(site.owners), "envelopeVersion", site.envelopeVersion(), "normalReturns",
-                    site.normalReturns, "structuralFingerprint", site.fingerprint, "observedInputSha256",
-                    site.inputHash, "outputSha256", site.outputHash, "runtimeOwner",
-                    site.target.owner.replace('/', '.'), "runtimeMember", site.target.method, "runtimeDescriptor",
-                    site.target.descriptor, "namespaceCandidates", new ArrayList<>(site.namespaces),
-                    "installedEnvelopeVersion", site.status.equals("applied") ? site.envelopeVersion() : null,
-                    "matchCounts",
+                    site.target.descriptor, "executableKind", site.target.constructor() ? "constructor" : "method",
+                    "completion", site.target.constructor() ? "declaring_constructor_return" : null, "target",
+                    site.target.key(), "status", site.status, "owners", new ArrayList<>(site.owners), "envelopeVersion",
+                    site.envelopeVersion(), "normalReturns", site.normalReturns, "structuralFingerprint",
+                    site.fingerprint, "observedInputSha256", site.inputHash, "outputSha256", site.outputHash,
+                    "runtimeOwner", site.target.owner.replace('/', '.'), "runtimeMember", site.target.method,
+                    "runtimeDescriptor", site.target.descriptor, "namespaceCandidates",
+                    new ArrayList<>(site.namespaces), "installedEnvelopeVersion",
+                    site.status.equals("applied") ? site.envelopeVersion() : null, "matchCounts",
                     CatalogValues.record("methods", site.methodMatches < 0 ? null : site.methodMatches, "normalReturns",
                             site.structureAnalyzed ? site.normalReturns : null),
                     "provenance",
@@ -561,7 +562,7 @@ public final class HookPreparation {
         }
 
         public int envelopeVersion() {
-            return points.isEmpty() ? around ? 3 : 2 : 4;
+            return target.constructor() ? 5 : points.isEmpty() ? around ? 3 : 2 : 4;
         }
 
         public String operationFingerprint() {
@@ -607,6 +608,10 @@ public final class HookPreparation {
                 return Collections.emptyList();
             }
             List<String> result = new ArrayList<>();
+            if (target.constructor()) {
+                result.add("constructed");
+                return result;
+            }
             if (!operations.isEmpty()) {
                 result.add("operation_hooks");
             }

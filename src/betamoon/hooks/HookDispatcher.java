@@ -275,7 +275,9 @@ public final class HookDispatcher {
                 throw HookAgentBridge.failure(error);
             }
         }
-        return dispatch(site, anchor, receiver, arguments, result, null, "after").result;
+        State state = state(site);
+        String phase = state != null && state.site.target.constructor() ? "constructed" : "after";
+        return dispatch(site, anchor, receiver, arguments, result, null, phase).result;
     }
 
     public static void error(int site, Class<?> anchor, Object receiver, Object[] arguments, Throwable exception) {
@@ -753,7 +755,9 @@ public final class HookDispatcher {
                     String at = subscription.definition.at;
                     (at.equals("before")
                             ? entry
-                            : at.equals("after") ? returned : at.equals("around") ? wrappers : exceptional)
+                            : (at.equals("after") || at.equals("constructed"))
+                                    ? returned
+                                    : at.equals("around") ? wrappers : exceptional)
                             .add(subscription);
                 }
             }
@@ -792,7 +796,9 @@ public final class HookDispatcher {
         List<Subscription> phase(String phase) {
             return phase.equals("before")
                     ? before
-                    : phase.equals("after") ? after : phase.equals("around") ? around : error;
+                    : (phase.equals("after") || phase.equals("constructed"))
+                            ? after
+                            : phase.equals("around") ? around : error;
         }
     }
 }

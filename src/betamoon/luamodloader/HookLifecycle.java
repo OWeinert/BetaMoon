@@ -9,6 +9,7 @@ import betamoon.interop.discovery.NativeDiscoveryRuntime;
 import betamoon.interop.runtime.NativeContext;
 import betamoon.luaapi.interop.NativeHookCall;
 import betamoon.luaapi.interop.NativeHookOperationCall;
+import betamoon.luaapi.interop.NativeHookConstructedCall;
 import org.luaj.vm2.LuaValue;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -239,11 +240,14 @@ final class HookLifecycle {
                             ScriptExecution.withOwner(attempt.snapshot.resourceOwner, () -> {
                                 try (HookCallbackObservation observation = new HookCallbackObservation(
                                         attempt.snapshot.resourceOwner, caller, invocation, callerContext)) {
-                                    LuaValue call = definition.point == null
-                                            ? new NativeHookCall(invocation, observation::context, edits,
-                                                    values -> observation
-                                                            .continueWith(() -> invocation.proceed(values)))
-                                            : new NativeHookOperationCall(invocation, observation::context, edits);
+                                    LuaValue call = definition.at.equals("constructed")
+                                            ? new NativeHookConstructedCall(invocation, observation::context)
+                                            : definition.point == null
+                                                    ? new NativeHookCall(invocation, observation::context, edits,
+                                                            values -> observation
+                                                                    .continueWith(() -> invocation.proceed(values)))
+                                                    : new NativeHookOperationCall(invocation, observation::context,
+                                                            edits);
                                     Varargs returned = ScriptExecution.invokeNative(attempt.snapshot.resourceOwner,
                                             "hook:" + definition.id + ":" + definition.at, registration.callback, call);
                                     if (definition.at.equals("around")) {
