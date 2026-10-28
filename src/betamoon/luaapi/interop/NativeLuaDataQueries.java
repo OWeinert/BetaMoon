@@ -55,11 +55,10 @@ final class NativeLuaDataQueries {
                 execution = ownership(host, execution, arguments.arg(2), arguments.arg(3));
                 requests.add(request(host, execution, arguments.arg(2), arguments.arg(3)));
             }
-            Object result = execution.bindings.dataQueries.execute(plan, requests, execution, direct, many);
+            LuaValue result = (LuaValue) execution.bindings.dataQueries.execute(plan, requests, execution, direct, many,
+                    new NativeLuaDataOutput(host, execution));
             execution.check();
-            LuaValue detached = detached(host, execution, result);
-            execution.check();
-            return detached;
+            return result;
         } catch (NativeAccessFailure failure) {
             if (context.bindings != null) {
                 context.bindings.explain(failure,
@@ -111,31 +110,4 @@ final class NativeLuaDataQueries {
         return new Request(host.receiver(receiver, context), values);
     }
 
-    private static LuaValue detached(NativeAccessApi host, NativeContext context, Object value) {
-        if (value instanceof NativeExactValue) {
-            return ((NativeExactValue) value).value == null
-                    ? NativeLuaExact.NULL
-                    : new NativeLuaExact(host, (NativeExactValue) value);
-        }
-        if (value instanceof Map) {
-            LuaTable result = new LuaTable();
-            for (Map.Entry<String, Object> entry : CatalogValues.object(value).entrySet()) {
-                result.rawset(entry.getKey(), detached(host, context, entry.getValue()));
-            }
-            return result;
-        }
-        if (value instanceof List) {
-            LuaTable result = new LuaTable();
-            int index = 1;
-            for (Object element : (List<?>) value) {
-                result.rawset(index++, detached(host, context, element));
-            }
-            return result;
-        }
-        LuaValue result = host.result(value, context, false);
-        if (result instanceof NativeLuaView) {
-            throw new NativeAccessFailure("native_data_projection_required", "result was not detached");
-        }
-        return result;
-    }
 }

@@ -255,6 +255,12 @@ public final class NativeDataQueryTest {
         entry(false, "local value,reason=a:sample(basic,o); assert(value==nil and reason=='native_phase_denied')");
         entry(true, "assert(a:sample(basic,o))");
         entry(false, "assert(a:sample(basic,o))");
+        for (int count : new int[]{1, 4, 64, 256}) {
+            entry(true, "local requests={}; for i=1," + count + " do requests[i]={receiver=o} end; "
+                    + "local result=assert(a:sampleMany(basic,requests)); assert(#result==" + count + "); "
+                    + "assert(result[1].number==o.number and result[" + count
+                    + "].exact:decimal()=='9223372036854775807'); " + "result[1].number=-10; assert(o.number~=-10)");
+        }
     }
 
     private void definingLoaders() throws Exception {
