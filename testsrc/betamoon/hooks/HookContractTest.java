@@ -48,6 +48,7 @@ public final class HookContractTest {
         checks += HookOperationContractTest.verify();
         checks += HookOperationSafetyTest.verify();
         checks += HookConstructorContractTest.verify();
+        checks += HookPerformanceContractTest.verify();
         System.out.println(
                 "Hook contracts passed: " + checks + " assertions; isolated declarations and verified JVM dispatch.");
     }

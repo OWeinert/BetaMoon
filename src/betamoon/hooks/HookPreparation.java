@@ -49,6 +49,8 @@ public final class HookPreparation {
     private final String mappingResourceHash;
     private boolean remote;
     private long siteRevision = Long.MIN_VALUE;
+    private long statusRevision = Long.MIN_VALUE;
+    private List<Map<String, Object>> structuralStatus = Collections.emptyList();
 
     private HookPreparation(File instance, TinyMappingResolver mappings) {
         this.instance = instance;
@@ -471,6 +473,26 @@ public final class HookPreparation {
                 throw HookAgentBridge.failure(error);
             }
         }
+        long observed = revision.get();
+        if (statusRevision != observed) {
+            List<Map<String, Object>> records = structuralStatus();
+            List<Map<String, Object>> frozen = new ArrayList<>(records.size());
+            for (Map<String, Object> record : records) {
+                frozen.add(CatalogValues.object(CatalogValues.freeze(record)));
+            }
+            structuralStatus = Collections.unmodifiableList(frozen);
+            statusRevision = observed;
+        }
+        List<Map<String, Object>> result = new ArrayList<>(structuralStatus);
+        for (Map<String, Object> subscription : HookDispatcher.status()) {
+            Map<String, Object> row = new LinkedHashMap<>(subscription);
+            row.put("guidance", NativeDiagnosticGuidance.forStatus((String) row.get("status")));
+            result.add(row);
+        }
+        return result;
+    }
+
+    private List<Map<String, Object>> structuralStatus() {
         List<Map<String, Object>> result = new ArrayList<>(diagnostics);
         for (Site site : sites.values()) {
             Map<String, Object> record = CatalogValues.record("id", "script-site-" + site.id, "name", site.target.key(),
@@ -505,11 +527,6 @@ public final class HookPreparation {
                         definition.required, "status", "prepared", "sourceSha256", definition.sourceSha256, "targets",
                         new ArrayList<>(allowedTargets(definition))));
             }
-        }
-        for (Map<String, Object> subscription : HookDispatcher.status()) {
-            Map<String, Object> row = new LinkedHashMap<>(subscription);
-            row.put("guidance", NativeDiagnosticGuidance.forStatus((String) row.get("status")));
-            result.add(row);
         }
         return result;
     }

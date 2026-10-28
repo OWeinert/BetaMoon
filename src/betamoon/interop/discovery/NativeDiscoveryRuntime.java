@@ -65,9 +65,16 @@ public final class NativeDiscoveryRuntime {
         }
     }
 
-    public static NativeIndexSnapshot snapshot() {
+    /**
+     * Execution metadata never captures the unrelated live hook diagnostic graph.
+     */
+    public static NativeIndexSnapshot catalogSnapshot() {
         NativeDiscoveryService current = service;
-        NativeIndexSnapshot snapshot = current == null ? NativeIndexSnapshot.empty() : current.snapshot();
+        return current == null ? NativeIndexSnapshot.empty() : current.snapshot();
+    }
+
+    public static NativeIndexSnapshot snapshot() {
+        NativeIndexSnapshot snapshot = catalogSnapshot();
         HookPreparation hooks = HookPreparation.current();
         return snapshot.withHooks(hooks == null ? HookPreparation.unavailableRecords() : hooks.status(),
                 hooks == null ? 0 : hooks.revision(), hooks == null ? "agent_unavailable" : "available");
@@ -124,7 +131,7 @@ public final class NativeDiscoveryRuntime {
                     .getResourceAsStream("/betamoon/instrumentation/mapping/b1.7.3.tiny")) {
                 bindings = new NativeBindings(
                         new NativeNames(TinyMappingResolver.readStrict(input).snapshot(), namespace, curatedTypes()),
-                        LOADERS, NativeDiscoveryRuntime::snapshot);
+                        LOADERS, NativeDiscoveryRuntime::catalogSnapshot);
                 bindings.interfaces.entryFactory(NativeEventAccess::interfaceEntry);
             } catch (Exception exception) {
                 NativeOriginCache.warn(warnings, "native_binding_unavailable: " + exception.getMessage());

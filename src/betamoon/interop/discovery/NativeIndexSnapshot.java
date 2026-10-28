@@ -22,6 +22,9 @@ import java.util.Map;
  */
 public final class NativeIndexSnapshot {
     public static final String[] KINDS = {"classes", "members", "origins", "loaders", "files", "sources", "hooks"};
+    private static final NativeIndexSnapshot EMPTY = new NativeIndexSnapshot(0, "unknown", "unknown",
+            Collections.emptyMap(), CatalogValues.record("ready", false, "runtimeUniverseComplete", false),
+            Collections.singletonList("index_pending"), null);
     public final long generation;
     public final String namespace;
     public final String mappingSha256;
@@ -97,9 +100,7 @@ public final class NativeIndexSnapshot {
     }
 
     public static NativeIndexSnapshot empty() {
-        return new NativeIndexSnapshot(0, "unknown", "unknown", Collections.emptyMap(),
-                CatalogValues.record("ready", false, "runtimeUniverseComplete", false),
-                Collections.singletonList("index_pending"), null);
+        return EMPTY;
     }
 
     private static String sortKey(Map<String, Object> row) {

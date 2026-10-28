@@ -8,9 +8,11 @@ import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -727,6 +729,7 @@ public final class HookDispatcher {
         private volatile List<Subscription> error = Collections.emptyList();
         private volatile List<Subscription> around = Collections.emptyList();
         private volatile MethodHandle body;
+        private volatile Map<Subscription, Integer> orders = Collections.emptyMap();
         @SuppressWarnings("unchecked")
         private volatile List<Subscription>[] operations = new List[0];
 
@@ -776,21 +779,24 @@ public final class HookDispatcher {
             after = Collections.unmodifiableList(returned);
             error = Collections.unmodifiableList(exceptional);
             around = Collections.unmodifiableList(wrappers);
+            Map<Subscription, Integer> positions = new IdentityHashMap<>();
+            for (List<Subscription> phase : Arrays.asList(before, after, error, around)) {
+                for (int index = 0; index < phase.size(); index++) {
+                    positions.put(phase.get(index), index);
+                }
+            }
+            for (List<Subscription> operation : operations) {
+                for (int index = 0; index < operation.size(); index++) {
+                    positions.put(operation.get(index), index);
+                }
+            }
+            orders = Collections.unmodifiableMap(positions);
             active = (entry.isEmpty() ? 0 : 1) | (returned.isEmpty() ? 0 : 2) | (exceptional.isEmpty() ? 0 : 4)
                     | (wrappers.isEmpty() ? 0 : 8);
         }
 
         Integer order(Subscription subscription) {
-            if (subscription.definition.point == null) {
-                int index = phase(subscription.definition.at).indexOf(subscription);
-                return index < 0 ? null : index;
-            }
-            HookPointSite point = site.points.get(subscription.definition.point.key());
-            if (point == null || point.operationId < 0 || point.operationId >= operations.length) {
-                return null;
-            }
-            int index = operations[point.operationId].indexOf(subscription);
-            return index < 0 ? null : index;
+            return orders.get(subscription);
         }
 
         List<Subscription> phase(String phase) {
