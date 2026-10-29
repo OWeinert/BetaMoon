@@ -3,11 +3,7 @@ package betamoon.gui.framework;
 /** Immutable input event translated from Minecraft and LWJGL callbacks. */
 public final class GuiInputEvent {
     public enum Type {
-        POINTER_DOWN,
-        POINTER_UP,
-        POINTER_DRAG,
-        SCROLL,
-        KEY_TYPED
+        POINTER_DOWN, POINTER_UP, POINTER_DRAG, POINTER_CANCEL, SCROLL, KEY_TYPED, KEY_UP
     }
 
     private final Type type;
@@ -42,7 +38,11 @@ public final class GuiInputEvent {
     }
 
     public static GuiInputEvent pointerDrag(int mouseX, int mouseY, boolean mouseDown) {
-        return new GuiInputEvent(Type.POINTER_DRAG, mouseX, mouseY, 0, 0, false, mouseDown, '\0', 0);
+        return pointerDrag(mouseX, mouseY, 0, mouseDown);
+    }
+
+    public static GuiInputEvent pointerDrag(int mouseX, int mouseY, int button, boolean mouseDown) {
+        return new GuiInputEvent(Type.POINTER_DRAG, mouseX, mouseY, button, 0, false, mouseDown, '\0', 0);
     }
 
     public static GuiInputEvent scroll(int mouseX, int mouseY, int wheelDelta, boolean shiftDown) {
@@ -51,6 +51,18 @@ public final class GuiInputEvent {
 
     public static GuiInputEvent keyTyped(char typedChar, int keyCode, boolean shiftDown) {
         return new GuiInputEvent(Type.KEY_TYPED, 0, 0, -1, 0, shiftDown, false, typedChar, keyCode);
+    }
+
+    public static GuiInputEvent keyUp(int keyCode, boolean shiftDown) {
+        return new GuiInputEvent(Type.KEY_UP, 0, 0, -1, 0, shiftDown, false, '\0', keyCode);
+    }
+
+    public static GuiInputEvent pointerCancel(int button) {
+        return new GuiInputEvent(Type.POINTER_CANCEL, -1, -1, button, 0, false, false, '\0', 0);
+    }
+
+    GuiInputEvent at(int x, int y) {
+        return new GuiInputEvent(type, x, y, button, wheelDelta, shiftDown, mouseDown, typedChar, keyCode);
     }
 
     public Type getType() {
@@ -90,6 +102,6 @@ public final class GuiInputEvent {
     }
 
     public boolean isPointerEvent() {
-        return type != Type.KEY_TYPED;
+        return type != Type.KEY_TYPED && type != Type.KEY_UP;
     }
 }

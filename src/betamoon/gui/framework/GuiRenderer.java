@@ -1,12 +1,17 @@
 package betamoon.gui.framework;
 
 import betamoon.gui.framework.GuiGeometry.Rect;
+import betamoon.gui.graphics.GraphicsClip;
+import betamoon.gui.graphics.GraphicsStateGuard;
+import betamoon.gui.graphics.GraphicsTransform;
+import java.nio.IntBuffer;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.FontRenderer;
 import net.minecraft.src.Tessellator;
+import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 
 /** State-safe rendering facade used by every framework element. */
@@ -15,13 +20,17 @@ public final class GuiRenderer {
             | GL11.GL_DEPTH_BUFFER_BIT | GL11.GL_TEXTURE_BIT;
 
     private final GuiTheme theme;
-    private final Deque<Rect> clips = new ArrayDeque<Rect>();
+    private final Deque<GraphicsClip> clips = new ArrayDeque<>();
+    private final Deque<GraphicsTransform> transforms = new ArrayDeque<>();
+    private final IntBuffer parentScissor = BufferUtils.createIntBuffer(16);
     private Minecraft minecraft;
     private FontRenderer font;
     private int screenWidth;
     private int screenHeight;
     private int displayWidth;
     private int displayHeight;
+    private GraphicsStateGuard frameState;
+    private boolean parentClipped;
 
     public GuiRenderer(GuiTheme theme) {
         if (theme == null) {
@@ -40,6 +49,16 @@ public final class GuiRenderer {
 
     void beginFrame(Minecraft minecraft, FontRenderer font, int screenWidth, int screenHeight, int displayWidth,
             int displayHeight) {
+        if (frameState != null) {
+            throw new IllegalStateException("GUI renderer frame is already active");
+        }
+        frameState = GraphicsStateGuard.save();
+        parentClipped = GL11.glIsEnabled(GL11.GL_SCISSOR_TEST);
+        if (parentClipped) {
+            parentScissor.clear();
+            GL11.glGetInteger(GL11.GL_SCISSOR_BOX, parentScissor);
+        }
+        GL11.glMatrixMode(GL11.GL_MODELVIEW);
         this.minecraft = minecraft;
         this.font = font;
         this.screenWidth = Math.max(0, screenWidth);
@@ -47,11 +66,19 @@ public final class GuiRenderer {
         this.displayWidth = Math.max(0, displayWidth);
         this.displayHeight = Math.max(0, displayHeight);
         clips.clear();
+        transforms.clear();
     }
 
     void endFrame() {
-        while (!clips.isEmpty()) {
-            popClip();
+        try {
+            while (!clips.isEmpty()) {
+                popClip();
+            }
+        } finally {
+            if (frameState != null) {
+                frameState.close();
+                frameState = null;
+            }
         }
     }
 
@@ -69,7 +96,28 @@ public final class GuiRenderer {
 
     /** Returns whether a point is inside the active nested clip region. */
     public boolean isPointVisible(int x, int y) {
-        return clips.isEmpty() || clips.peek().contains(x, y);
+        GraphicsTransform transform = transforms.isEmpty() ? GraphicsTransform.IDENTITY : transforms.peek();
+        return clips.isEmpty() || clips.peek().contains(transform.mapX(x), transform.mapY(y));
+    }
+
+    void pushTransform(GraphicsTransform transform) {
+        GraphicsTransform inherited = transforms.isEmpty() ? GraphicsTransform.IDENTITY : transforms.peek();
+        transforms.push(inherited.compose(transform));
+        if (transform != GraphicsTransform.IDENTITY) {
+            GL11.glMatrixMode(GL11.GL_MODELVIEW);
+            GL11.glPushMatrix();
+            GL11.glTranslated(transform.x, transform.y, 0);
+            GL11.glScaled(transform.scaleX, transform.scaleY, 1);
+        }
+    }
+
+    void popTransform() {
+        GraphicsTransform transform = transforms.pop();
+        GraphicsTransform parent = transforms.isEmpty() ? GraphicsTransform.IDENTITY : transforms.peek();
+        if (transform != parent) {
+            GL11.glMatrixMode(GL11.GL_MODELVIEW);
+            GL11.glPopMatrix();
+        }
     }
 
     public String trimToWidth(String text, int maximumWidth) {
@@ -269,7 +317,10 @@ public final class GuiRenderer {
     }
 
     public void pushClip(Rect requestedClip) {
-        Rect clip = clips.isEmpty() ? requestedClip : clips.peek().intersect(requestedClip);
+        GraphicsTransform transform = transforms.isEmpty() ? GraphicsTransform.IDENTITY : transforms.peek();
+        GraphicsClip clip = new GraphicsClip(requestedClip.getLeft(), requestedClip.getTop(), requestedClip.getRight(),
+                requestedClip.getBottom()).transform(transform);
+        clip = clips.isEmpty() ? clip : clips.peek().intersect(clip);
         clips.push(clip);
         GL11.glPushAttrib(GL11.GL_SCISSOR_BIT);
         GL11.glEnable(GL11.GL_SCISSOR_TEST);
@@ -284,16 +335,23 @@ public final class GuiRenderer {
         GL11.glPopAttrib();
     }
 
-    private void applyClip(Rect clip) {
+    private void applyClip(GraphicsClip clip) {
         if (clip == null || screenWidth <= 0 || screenHeight <= 0 || displayWidth <= 0 || displayHeight <= 0) {
             GL11.glScissor(0, 0, 0, 0);
             return;
         }
-        int x = clip.getLeft() * displayWidth / screenWidth;
-        int y = (screenHeight - clip.getBottom()) * displayHeight / screenHeight;
-        int width = clip.getWidth() * displayWidth / screenWidth;
-        int height = clip.getHeight() * displayHeight / screenHeight;
-        GL11.glScissor(x, y, Math.max(0, width), Math.max(0, height));
+        GraphicsClip.Pixels pixels = clip.pixels(screenWidth, screenHeight, displayWidth, displayHeight);
+        int x = pixels.x;
+        int y = pixels.y;
+        int right = x + pixels.width;
+        int top = y + pixels.height;
+        if (parentClipped) {
+            x = Math.max(x, parentScissor.get(0));
+            y = Math.max(y, parentScissor.get(1));
+            right = Math.min(right, parentScissor.get(0) + parentScissor.get(2));
+            top = Math.min(top, parentScissor.get(1) + parentScissor.get(3));
+        }
+        GL11.glScissor(x, y, Math.max(0, right - x), Math.max(0, top - y));
     }
 
     public void drawTooltip(List<String> lines, int mouseX, int mouseY) {

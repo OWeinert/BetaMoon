@@ -35,3 +35,6 @@
 
 - Extract shared visual definitions, source observation, bindings, transitions, element handles and geometry
   from container GUIs while preserving their Lua declarations and behavior.
+- Separate shared UI updates from painting, publish reusable displayed geometry for input, and cancel pointer
+  gestures without triggering release actions.
+- Establish shared graphics scopes, transform/clip conversion, GL state restoration and detached model publication.

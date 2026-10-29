@@ -19,6 +19,7 @@ public final class GuiContext {
     private int mouseY;
     private float partialTicks;
     private long currentTimeMillis;
+    private GuiFrameSnapshot.Node currentNode;
 
     GuiContext(GuiScene scene, GuiRenderer renderer) {
         this.scene = scene;
@@ -54,11 +55,11 @@ public final class GuiContext {
     }
 
     public int getMouseX() {
-        return mouseX;
+        return currentNode == null ? mouseX : (int) Math.floor(currentNode.transform.localX(mouseX));
     }
 
     public int getMouseY() {
-        return mouseY;
+        return currentNode == null ? mouseY : (int) Math.floor(currentNode.transform.localY(mouseY));
     }
 
     public float getPartialTicks() {
@@ -104,8 +105,8 @@ public final class GuiContext {
         scene.requestLayout();
     }
 
-    void updateEnvironment(Minecraft minecraft, FontRenderer font, int screenWidth, int screenHeight,
-            int displayWidth, int displayHeight) {
+    void updateEnvironment(Minecraft minecraft, FontRenderer font, int screenWidth, int screenHeight, int displayWidth,
+            int displayHeight) {
         this.minecraft = minecraft;
         this.font = font;
         this.screenWidth = Math.max(0, screenWidth);
@@ -119,5 +120,20 @@ public final class GuiContext {
         this.mouseY = mouseY;
         this.partialTicks = partialTicks;
         this.currentTimeMillis = currentTimeMillis;
+    }
+
+    GuiFrameSnapshot.Node enterElement(GuiElement element) {
+        GuiFrameSnapshot.Node previous = currentNode;
+        GuiFrameSnapshot.Node next = frameNode(element);
+        currentNode = next == null ? previous : next;
+        return previous;
+    }
+
+    GuiFrameSnapshot.Node frameNode(GuiElement element) {
+        return scene.renderingFrame() == null ? null : scene.renderingFrame().node(element);
+    }
+
+    void leaveElement(GuiFrameSnapshot.Node previous) {
+        currentNode = previous;
     }
 }

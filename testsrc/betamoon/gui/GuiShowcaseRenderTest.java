@@ -208,6 +208,7 @@ public final class GuiShowcaseRenderTest {
             minecraft.gameSettings = settings;
             minecraft.renderEngine = engine;
             minecraft.fontRenderer = font;
+            GuiGraphicsRenderChecks.run(minecraft, font, output);
             verifyIssueLayout(font);
             ScriptIssueRenderChecks.run(minecraft, font, output);
             verifyDialogContentSizing(minecraft, font);
@@ -326,6 +327,7 @@ public final class GuiShowcaseRenderTest {
         gui.height = 240;
         Method draw = GuiLuaContainer.class.getDeclaredMethod("drawElement", ContainerGuiDefinition.Element.class);
         draw.setAccessible(true);
+        updatePresentation(gui);
         setupFrame();
         for (ContainerGuiDefinition.Element element : definition.elements) {
             draw.invoke(gui, element);
@@ -791,6 +793,7 @@ public final class GuiShowcaseRenderTest {
         scene.setContent(dialog);
         scene.updateEnvironment(minecraft, font, 320, 240, 320, 240);
         setupFrame();
+        scene.update();
         scene.render(0, 0, 0);
         int shortHeight = dialog.getPanelBounds().getHeight();
         require(shortHeight < 190, "Short dialog uses content height");
@@ -799,7 +802,9 @@ public final class GuiShowcaseRenderTest {
             longText.append("A wrapped diagnostic line with details.\n");
         }
         text[0] = longText.toString();
+        scene.update();
         scene.render(0, 0, 0);
+        scene.update();
         scene.render(0, 0, 0);
         require(dialog.getPanelBounds().getHeight() == 190 && message.getBottom() < action.getTop(),
                 "Changed message expands to the cap without covering actions");
@@ -807,7 +812,9 @@ public final class GuiShowcaseRenderTest {
         require(scene.mouseScrolled(message.getLeft() + 5, message.getTop() + 5, -120, false)
                 && scroll.getScrollY() > 0, "Overflow message remains reachable by scrolling");
         text[0] = "Short again.";
+        scene.update();
         scene.render(0, 0, 0);
+        scene.update();
         scene.render(0, 0, 0);
         require(dialog.getPanelBounds().getHeight() == shortHeight && scroll.getScrollY() == 0,
                 "A shorter status message shrinks the panel and clamps old scroll state");
@@ -833,14 +840,17 @@ public final class GuiShowcaseRenderTest {
         scene.setContent(layout);
         scene.updateEnvironment(minecraft, font, 320, 240, 320, 240);
         setupFrame();
+        scene.update();
         scene.render(0, 0, 0);
         scene.mousePressed(110, 80, 0);
+        scene.update();
         scene.render(0, 0, 0);
         require(menu.isVisible(), "Dropdown button opens a separate popup menu");
         scene.mousePressed(110, 120, 0);
         require("two".equals(selected[0]) && "two".equals(button.getSelected()) && !menu.isVisible(),
                 "Dropdown selection updates its typed value and closes the menu");
         scene.mousePressed(110, 80, 0);
+        scene.update();
         scene.render(0, 0, 0);
         scene.mousePressed(20, 20, 0);
         require(!menu.isVisible() && "two".equals(selected[0]),
@@ -861,6 +871,7 @@ public final class GuiShowcaseRenderTest {
         scene.setContent(layout);
         scene.updateEnvironment(minecraft, font, 320, 240, 320, 240);
         setupFrame();
+        scene.update();
         scene.render(0, 0, 0);
         scene.mouseDragged(171, 80, true);
         require(selected[0] == 0.5D, "Slider ignores drags that did not start on it");
@@ -907,6 +918,7 @@ public final class GuiShowcaseRenderTest {
             GuiScene scene = new GuiScene();
             scene.setContent(new IssuePanelLayout(selected));
             scene.updateEnvironment(null, font, 320, 240, 320, 240);
+            scene.update();
             scene.render(0, 0, 0.0F);
             require(GL11.glGetError() == GL11.GL_NO_ERROR, "Prepared script issue panels produced an OpenGL error");
         } finally {
@@ -923,6 +935,7 @@ public final class GuiShowcaseRenderTest {
         GuiScene scene = new GuiScene();
         scene.setContent(new GuiIcon("/betamoon/gui/symbol_success.png"));
         scene.updateEnvironment(minecraft, font, 320, 240, 320, 240);
+        scene.update();
         scene.render(0, 0, 0.0F);
         require(GL11.glIsEnabled(GL11.GL_LIGHTING) && GL11.glIsEnabled(GL11.GL_DEPTH_TEST)
                 && GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK) && GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D) == 0,
@@ -946,6 +959,7 @@ public final class GuiShowcaseRenderTest {
         scene.setContent(panel);
         scene.updateEnvironment(minecraft, font, 320, 240, 320, 240);
         setupFrame();
+        scene.update();
         scene.render(0, 0, 0);
         require(GL11.glGetError() == GL11.GL_NO_ERROR, "Update notice render state");
         ImageIO.write(capture(), "png", new File(output, "update-notice.png"));
@@ -1041,28 +1055,34 @@ public final class GuiShowcaseRenderTest {
             advancedToggle = (GuiElement) configRowMember(configuration, "advanced", null, "toggle");
             require(configScene.mousePressed(advancedToggle.getRight() - 9, advancedToggle.getTop() + 14, 0),
                     "Section chevron expands the section");
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             require(configRowExists(configuration, "rate", null) && configRowExists(configuration, "contrast", null),
                     "Expanding a section restores its descendants");
             GuiElement visualToggle = (GuiElement) configRowMember(configuration, "visual", null, "toggle");
             require(configScene.mousePressed(visualToggle.getRight() - 9, visualToggle.getTop() + 14, 0),
                     "Deeper section chevron collapses its own children");
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             require(configRowExists(configuration, "rate", null) && !configRowExists(configuration, "contrast", null),
                     "A nested collapse leaves sibling fields visible");
             advancedToggle = (GuiElement) configRowMember(configuration, "advanced", null, "toggle");
             configScene.mousePressed(advancedToggle.getRight() - 9, advancedToggle.getTop() + 14, 0);
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             advancedToggle = (GuiElement) configRowMember(configuration, "advanced", null, "toggle");
             configScene.mousePressed(advancedToggle.getRight() - 9, advancedToggle.getTop() + 14, 0);
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             require(configRowExists(configuration, "visual", null) && !configRowExists(configuration, "contrast", null),
                     "A deeper section retains its collapsed state when its parent reopens");
             visualToggle = (GuiElement) configRowMember(configuration, "visual", null, "toggle");
             configScene.mousePressed(visualToggle.getRight() - 9, visualToggle.getTop() + 14, 0);
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             advancedToggle = (GuiElement) configRowMember(configuration, "advanced", null, "toggle");
             configScene.mousePressed(advancedToggle.getRight() - 9, advancedToggle.getTop() + 14, 0);
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             Field configSectionsField = GuiScreenScriptConfig.class.getDeclaredField("sections");
             configSectionsField.setAccessible(true);
@@ -1077,8 +1097,10 @@ public final class GuiShowcaseRenderTest {
             Method invalidSave = GuiScreenScriptConfig.class.getDeclaredMethod("save");
             invalidSave.setAccessible(true);
             invalidSave.invoke(configuration);
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             configScene.update();
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             require(configRowExists(configuration, "rate", null)
                     && configScene.getFocusedElement() == configRowMember(configuration, "rate", null, "action"),
@@ -1086,6 +1108,7 @@ public final class GuiShowcaseRenderTest {
             Method resetInvalidDraft = GuiScreenScriptConfig.class.getDeclaredMethod("reset");
             resetInvalidDraft.setAccessible(true);
             resetInvalidDraft.invoke(configuration);
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             GuiDropdownButton<?> choice = findDropdownButton(configScene.getContent());
             require(choice != null, "Config choice field uses the reusable dropdown button");
@@ -1095,6 +1118,7 @@ public final class GuiShowcaseRenderTest {
             GuiDropdownMenu openMenu = (GuiDropdownMenu) menuField.get(configuration);
             require(openMenu.isVisible(), "Config choice opens its anchored dropdown menu");
             setupFrame();
+            configuration.updateScreen();
             configuration.drawScreen(choice.getLeft() + 5, choice.getTop() + 10, 0.0F);
             ImageIO.write(capture(), "png", new File(output, "script-config-dropdown.png"));
             Field menuScrollField = GuiDropdownMenu.class.getDeclaredField("scroll");
@@ -1107,6 +1131,7 @@ public final class GuiShowcaseRenderTest {
                     "Scrollable dropdown options sit one pixel beside the scrollbar");
             menuScroll.setScrollPosition(0, Integer.MAX_VALUE);
             setupFrame();
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             ImageIO.write(capture(), "png", new File(output, "script-config-dropdown-scrolled.png"));
             require(menuScroll.getScrollY() > 0, "Dropdown remains scrollable after reserving scrollbar space");
@@ -1129,6 +1154,7 @@ public final class GuiShowcaseRenderTest {
             GuiElement dictionaryToggle = (GuiElement) configRowMember(configuration, "channelLevels", null, "toggle");
             require(configScene.mousePressed(dictionaryToggle.getRight() - 9, dictionaryToggle.getTop() + 14, 0),
                     "Dictionary heading expands its entries");
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             require(configRowExists(configuration, "value", "music"), "Dictionary expansion reveals its entries");
             dictionaryToggle = (GuiElement) configRowMember(configuration, "channelLevels", null, "toggle");
@@ -1139,15 +1165,18 @@ public final class GuiShowcaseRenderTest {
                     "Collapsed dictionaries hide entries and their add button");
             dictionaryToggle = (GuiElement) configRowMember(configuration, "channelLevels", null, "toggle");
             configScene.mousePressed(dictionaryToggle.getRight() - 9, dictionaryToggle.getTop() + 14, 0);
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             Field collectionScrollField = GuiScreenScriptConfig.class.getDeclaredField("scroll");
             collectionScrollField.setAccessible(true);
             GuiScrollView collectionScroll = (GuiScrollView) collectionScrollField.get(configuration);
             collectionScroll.setScrollPosition(0, Integer.MAX_VALUE);
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             GuiElement listToggle = (GuiElement) configRowMember(configuration, "entries", null, "toggle");
             require(configScene.mousePressed(listToggle.getRight() - 9, listToggle.getTop() + 14, 0),
                     "Closed list heading reveals its add button");
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             collectionScroll.setScrollPosition(0, Integer.MAX_VALUE);
             renderScreen(configuration, minecraft, output, "script-config-list-expanded.png");
@@ -1157,8 +1186,10 @@ public final class GuiShowcaseRenderTest {
                     "An expanded list places its add button beneath its entries");
             require(configScene.mousePressed(addListItem.getLeft() + 5, addListItem.getTop() + 10, 0),
                     "List add button receives clicks");
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             collectionScroll.setScrollPosition(0, Integer.MAX_VALUE);
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             require(configRowExists(configuration, "item", null), "Adding to a list keeps its entries visible");
             GuiConfigInput originalListItem = (GuiConfigInput) configRowMember(configuration, "item", null, "input");
@@ -1166,12 +1197,15 @@ public final class GuiShowcaseRenderTest {
             listToggle = (GuiElement) configRowMember(configuration, "entries", null, "toggle");
             require(configScene.mousePressed(listToggle.getRight() - 9, listToggle.getTop() + 14, 0),
                     "List heading collapses its entries");
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             require(!configRowExists(configuration, "item", null), "Collapsed lists hide their entries");
             listToggle = (GuiElement) configRowMember(configuration, "entries", null, "toggle");
             configScene.mousePressed(listToggle.getRight() - 9, listToggle.getTop() + 14, 0);
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             collectionScroll.setScrollPosition(0, Integer.MAX_VALUE);
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             require("edited first"
                     .equals(((GuiConfigInput) configRowMember(configuration, "item", null, "input")).value()),
@@ -1183,8 +1217,10 @@ public final class GuiShowcaseRenderTest {
                     "List add button aligns with entries and follows them");
             require(configScene.mousePressed(addListItem.getLeft() + 5, addListItem.getTop() + 10, 0),
                     "List add button receives clicks");
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             collectionScroll.setScrollPosition(0, 0);
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             GuiButton addDictionaryEntry = (GuiButton) configRowMember(configuration, "channelLevels", null, "action");
             GuiConfigSlider firstDictionaryValue = (GuiConfigSlider) configRowMember(configuration, "value", "music",
@@ -1200,6 +1236,7 @@ public final class GuiShowcaseRenderTest {
                     "Dictionary add button receives clicks");
             require(configRowMember(configuration, "value", "new_key", "keyInput") != null,
                     "Dictionary add button creates an editable key");
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             GuiConfigInput editedKey = (GuiConfigInput) configRowMember(configuration, "value", "effects", "keyInput");
             GuiTextBox keyText = (GuiTextBox) textField.get(editedKey);
@@ -1240,6 +1277,7 @@ public final class GuiShowcaseRenderTest {
             GuiElement volumesToggle = (GuiElement) configRowMember(configuration, "volumes", null, "toggle");
             require(configScene.mousePressed(volumesToggle.getRight() - 9, volumesToggle.getTop() + 14, 0),
                     "Fixed nested heading expands its fields");
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             require(configRowMember(configuration, "volumes", null, "action") == null
                     && configRowMember(configuration, "music", null, "remove") == null,
@@ -1255,9 +1293,11 @@ public final class GuiShowcaseRenderTest {
             GuiScrollView configScroll = (GuiScrollView) scrollField.get(configuration);
             configScroll.setScrollPosition(0, Integer.MAX_VALUE);
             setupFrame();
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             ImageIO.write(capture(), "png", new File(output, "script-config-fixed-nested.png"));
             configScroll.setScrollPosition(0, 0);
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             GuiConfigInput tagsInput = (GuiConfigInput) configRowMember(configuration, "tags", null, "input");
             GuiConfigInput ratesInput = (GuiConfigInput) configRowMember(configuration, "rates", null, "input");
@@ -1287,6 +1327,7 @@ public final class GuiShowcaseRenderTest {
             GuiElement effectsToggle = (GuiElement) configRowMember(configuration, "effects", null, "toggle");
             require(configScene.mousePressed(effectsToggle.getRight() - 9, effectsToggle.getTop() + 14, 0),
                     "Multi-select summary expands its choices");
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             @SuppressWarnings("unchecked")
             List<GuiButton> effectChoices = (List<GuiButton>) configRowMember(configuration, "effects", null,
@@ -1295,11 +1336,14 @@ public final class GuiShowcaseRenderTest {
                     "Expanded multi-select displays checkable choices");
             GuiScrollView organizedScroll = (GuiScrollView) scrollField.get(configuration);
             organizedScroll.reveal(effectChoices.get(0).getBounds());
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
-            require(configScene.mousePressed(effectChoices.get(0).getLeft() + 5, effectChoices.get(0).getTop() + 10,
-                    0), "A multi-select choice receives clicks");
+            require(configScene.mousePressed(effectChoices.get(0).getLeft() + 5, effectChoices.get(0).getTop() + 10, 0),
+                    "A multi-select choice receives clicks");
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             configScene.update();
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             @SuppressWarnings("unchecked")
             List<GuiButton> focusedChoices = (List<GuiButton>) configRowMember(configuration, "effects", null,
@@ -1307,10 +1351,13 @@ public final class GuiShowcaseRenderTest {
             require(configScene.getFocusedElement() == focusedChoices.get(0),
                     "Toggling a choice restores keyboard focus to that choice");
             configScene.keyTyped(' ', Keyboard.KEY_SPACE, false);
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             configScene.update();
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             configScene.keyTyped(' ', Keyboard.KEY_SPACE, false);
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             Object organizedSection = ((List<?>) configSectionsField.get(configuration)).get(4);
             @SuppressWarnings("unchecked")
@@ -1319,27 +1366,27 @@ public final class GuiShowcaseRenderTest {
                     "Selecting a choice changes the draft without saving");
             effectsReset = (GuiButton) configRowMember(configuration, "effects", null, "resetField");
             require(effectsReset.isEnabled(), "A nondefault multi-select can be reset per field");
-            GuiConfigInput intensityInput = (GuiConfigInput) configRowMember(configuration, "intensity", null,
-                    "input");
+            GuiConfigInput intensityInput = (GuiConfigInput) configRowMember(configuration, "intensity", null, "input");
             GuiTextBox intensityText = (GuiTextBox) textField.get(intensityInput);
             intensityText.setText("bad");
             organizedScroll.reveal(effectsReset.getBounds());
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             require(configScene.mousePressed(effectsReset.getLeft() + 5, effectsReset.getTop() + 10, 0),
                     "Per-field Reset receives clicks");
-            require(((List<?>) organizedDraft.get("effects")).size() == 1
-                    && "bad".equals(intensityInput.value()) && configScene.getFocusedElement() == intensityInput,
+            require(((List<?>) organizedDraft.get("effects")).size() == 1 && "bad".equals(intensityInput.value())
+                    && configScene.getFocusedElement() == intensityInput,
                     "Invalid unrelated text stays in place and blocks per-field Reset");
             intensityText.setText("1.0");
             organizedScroll.reveal(effectsReset.getBounds());
+            configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);
             require(configScene.mousePressed(effectsReset.getLeft() + 5, effectsReset.getTop() + 10, 0),
                     "Per-field Reset applies after unrelated text is valid");
             require(((List<?>) organizedDraft.get("effects")).isEmpty(),
                     "Per-field Reset restores the declared choice array in the draft");
             require(!new String(Files.readAllBytes(new File(configRoot, "showcase/organized.json").toPath()),
-                    StandardCharsets.UTF_8).contains("fog"),
-                    "Reset does not write before Save");
+                    StandardCharsets.UTF_8).contains("fog"), "Reset does not write before Save");
             renderScreen(scripts, minecraft, output, "scripts-name-tooltip.png", 45, 57);
             renderNativeDebugMenu(minecraft, output);
             renderScreen(new GuiPopupDebugExport(scripts, (Exception) null), minecraft, output, "debug-export.png");
@@ -1367,7 +1414,7 @@ public final class GuiShowcaseRenderTest {
         sceneField.setAccessible(true);
         int previousWidth = minecraft.displayWidth;
         int previousHeight = minecraft.displayHeight;
-        for (int[] size : new int[][] {{320, 240}, {427, 240}, {640, 360}}) {
+        for (int[] size : new int[][]{{320, 240}, {427, 240}, {640, 360}}) {
             minecraft.displayWidth = size[0];
             minecraft.displayHeight = size[1];
             screen.setWorldAndResolution(minecraft, size[0], size[1]);
@@ -1799,7 +1846,7 @@ public final class GuiShowcaseRenderTest {
         }
     }
 
-    private static void setupFrame() {
+    static void setupFrame() {
         setupFrame(320, 240);
     }
 

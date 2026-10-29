@@ -3,6 +3,10 @@ package betamoon.gui.interop;
 import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.framework.GuiRenderer;
 import betamoon.gui.framework.GuiTheme;
+import betamoon.gui.graphics.GraphicsClip;
+import betamoon.gui.graphics.GraphicsRenderScope;
+import betamoon.gui.graphics.GraphicsStateGuard;
+import betamoon.gui.graphics.GraphicsTransform;
 import betamoon.interop.binding.NativeAccessFailure;
 import betamoon.interop.binding.NativeBindings;
 import betamoon.interop.client.NativeClientAction;
@@ -79,7 +83,14 @@ public final class NativeClientScreenHost implements AutoCloseable {
     }
 
     public void paint(Runnable painter) {
-        session.paint(painter);
+        session.paint(() -> {
+            GraphicsClip.Pixels clip = new GraphicsClip(0, 0, screen.width, screen.height).pixels(screen.width,
+                    screen.height, client.displayWidth, client.displayHeight);
+            try (GraphicsRenderScope scope = GraphicsRenderScope.open(this::requirePaint, GraphicsStateGuard::enter,
+                    GraphicsTransform.IDENTITY, clip)) {
+                painter.run();
+            }
+        });
     }
 
     public NativeClientResource<PreparedClientImage> prepareImage(byte[] png, boolean nearest) {
@@ -132,10 +143,12 @@ public final class NativeClientScreenHost implements AutoCloseable {
     }
 
     private void requirePaint() {
-        if (NativeContext.current().phase != NativeEntry.Phase.QUERY) {
+        NativeContext context = NativeContext.current();
+        if (context.phase != NativeEntry.Phase.QUERY) {
             throw new NativeAccessFailure("native_client_paint_required",
                     "draw through the owning host's paint boundary");
         }
+        context.check();
     }
 
     private Map<String, Object> roots() {

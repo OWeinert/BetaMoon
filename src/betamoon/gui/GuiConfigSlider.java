@@ -79,7 +79,7 @@ final class GuiConfigSlider extends GuiElement {
             setFromMouse(event.getMouseX());
             return true;
         }
-        if (event.getType() == GuiInputEvent.Type.POINTER_UP) {
+        if (event.getType() == GuiInputEvent.Type.POINTER_UP || event.getType() == GuiInputEvent.Type.POINTER_CANCEL) {
             boolean wasDragging = dragging;
             dragging = false;
             releasePointer(context);

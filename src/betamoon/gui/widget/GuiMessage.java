@@ -14,8 +14,7 @@ import java.util.function.Supplier;
 public final class GuiMessage extends GuiContainer {
     private final Supplier<String> text;
     private final GuiScrollView scrollView;
-    private String measuredText;
-    private int measuredWidth = -1;
+    private String publishedText = "";
 
     public GuiMessage(Supplier<String> text) {
         if (text == null) {
@@ -32,8 +31,17 @@ public final class GuiMessage extends GuiContainer {
     }
 
     private String value() {
-        String value = text.get();
-        return value == null ? "" : value;
+        return publishedText;
+    }
+
+    @Override
+    protected void updateElement(GuiContext context) {
+        String candidate = text.get();
+        candidate = candidate == null ? "" : candidate;
+        if (!candidate.equals(publishedText)) {
+            publishedText = candidate;
+            requestLayout();
+        }
     }
 
     @Override
@@ -45,18 +53,9 @@ public final class GuiMessage extends GuiContainer {
 
     @Override
     protected void arrangeChildren(GuiContext context) {
-        measuredText = value();
-        measuredWidth = getWidth();
-        int height = context.getRenderer().wrappedTextHeight(measuredText, Math.max(1, getWidth() - 8));
+        int height = context.getRenderer().wrappedTextHeight(publishedText, Math.max(1, getWidth() - 8));
         scrollView.setContentSize(getWidth(), height);
         scrollView.arrange(context, getBounds());
     }
 
-    @Override
-    protected void renderBeforeChildren(GuiContext context) {
-        if (measuredWidth != getWidth() || !value().equals(measuredText)) {
-            arrangeChildren(context);
-            requestLayout();
-        }
-    }
 }

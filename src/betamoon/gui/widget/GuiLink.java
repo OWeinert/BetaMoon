@@ -18,6 +18,21 @@ public class GuiLink extends GuiElement {
     private GuiAction action;
     private boolean wrap;
 
+    @Override
+    protected void updateElement(GuiContext context) {
+        if (textSupplier != null) {
+            String candidate = textSupplier.get();
+            candidate = candidate == null ? "" : candidate;
+            if (!candidate.equals(text)) {
+                text = candidate;
+                requestLayout();
+            }
+        }
+        if (tooltipSupplier != null) {
+            tooltip = tooltipSupplier.get();
+        }
+    }
+
     public GuiLink(GuiAction action) {
         this.action = action;
         setFocusable(action != null);
@@ -115,11 +130,10 @@ public class GuiLink extends GuiElement {
     }
 
     private String resolveText() {
-        String value = textSupplier == null ? text : textSupplier.get();
-        return value == null ? "" : value;
+        return text;
     }
 
     private String resolveTooltip() {
-        return tooltipSupplier == null ? tooltip : tooltipSupplier.get();
+        return tooltip;
     }
 }

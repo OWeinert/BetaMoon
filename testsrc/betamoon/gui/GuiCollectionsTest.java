@@ -10,6 +10,7 @@ import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.framework.GuiInputEvent;
 import betamoon.gui.framework.GuiLayouts;
 import betamoon.gui.framework.GuiScene;
+import betamoon.gui.framework.HeadlessGuiFrames;
 import betamoon.gui.widget.GuiButton;
 import betamoon.gui.widget.GuiCheckboxControl;
 import betamoon.gui.widget.GuiDialog;
@@ -61,14 +62,15 @@ public final class GuiCollectionsTest {
         List<Boolean> changes = new ArrayList<>();
         GuiCheckboxControl checkbox = new GuiCheckboxControl("Include detailed native catalogs", false, changes::add);
         GuiScene scene = createScene(checkbox, 300, 24);
-        scene.render(-1, -1, 0);
+        HeadlessGuiFrames.renderRecordingElements(scene, -1, -1, 0);
         require(!checkbox.isSelected(), "Native catalogs must start unchecked");
         require(scene.mousePressed(150, 10, 0) && checkbox.isSelected(), "Checkbox label is not clickable");
         scene.keyTyped(' ', Keyboard.KEY_SPACE, false);
-        require(!checkbox.isSelected() && changes.equals(Arrays.asList(true, false)), "Keyboard checkbox toggle failed");
+        require(!checkbox.isSelected() && changes.equals(Arrays.asList(true, false)),
+                "Keyboard checkbox toggle failed");
         scene.mousePressed(10, 10, 0);
         scene.updateEnvironment(null, null, 320, 28, 320, 28);
-        scene.render(-1, -1, 0);
+        HeadlessGuiFrames.renderRecordingElements(scene, -1, -1, 0);
         require(checkbox.isSelected(), "Checkbox state was lost during layout");
         checkbox.setEnabled(false);
         scene.mousePressed(10, 10, 0);
@@ -85,13 +87,13 @@ public final class GuiCollectionsTest {
         RecordingElement last = overlay.add(new RecordingElement("last", calls, false));
         GuiScene scene = createScene(overlay, 100, 40);
 
-        scene.render(0, 0, 0.0F);
+        HeadlessGuiFrames.renderRecordingElements(scene, 0, 0, 0.0F);
         expectCalls(calls, "first", "middle", "last");
         require(scene.mousePressed(10, 10, 0), "An unhandled top child must bubble to its parent");
         expectCalls(calls, "last", "parent");
 
         last.setVisible(false);
-        scene.render(0, 0, 0.0F);
+        HeadlessGuiFrames.renderRecordingElements(scene, 0, 0, 0.0F);
         expectCalls(calls, "first", "middle");
         require(scene.mousePressed(10, 10, 0), "The next visible top child should receive the click");
         expectCalls(calls, "middle");
@@ -114,17 +116,17 @@ public final class GuiCollectionsTest {
         panel.addItem(fill, GuiLayouts.Length.fill(), GuiLayouts.Length.fill());
         GuiScene scene = createScene(panel, 100, 100);
 
-        scene.render(0, 0, 0.0F);
+        HeadlessGuiFrames.renderRecordingElements(scene, 0, 0, 0.0F);
         expectBounds(fixed, 5, 5, 25, 35);
         expectBounds(fill, 5, 39, 95, 95);
 
         panel.setAxis(GuiLayouts.Axis.HORIZONTAL);
-        scene.render(0, 0, 0.0F);
+        HeadlessGuiFrames.renderRecordingElements(scene, 0, 0, 0.0F);
         expectBounds(fixed, 5, 5, 25, 35);
         expectBounds(fill, 29, 5, 95, 95);
 
         panel.remove(fixed);
-        scene.render(0, 0, 0.0F);
+        HeadlessGuiFrames.renderRecordingElements(scene, 0, 0, 0.0F);
         expectBounds(fill, 5, 5, 95, 95);
     }
 
@@ -136,7 +138,7 @@ public final class GuiCollectionsTest {
         row.addItem(fixed, GuiLayouts.Length.fixed(20), GuiLayouts.Length.fill());
         row.addItem(fill, GuiLayouts.Length.fill(), GuiLayouts.Length.fill());
         GuiScene scene = createScene(row, 100, 30);
-        scene.render(0, 0, 0.0F);
+        HeadlessGuiFrames.renderRecordingElements(scene, 0, 0, 0.0F);
 
         expectBounds(fixed, 0, 0, 20, 30);
         expectBounds(fill, 20, 0, 100, 30);
@@ -237,9 +239,7 @@ public final class GuiCollectionsTest {
     }
 
     private static void layoutScene(GuiScene scene) throws Exception {
-        Method layout = GuiScene.class.getDeclaredMethod("ensureLayout");
-        layout.setAccessible(true);
-        layout.invoke(scene);
+        HeadlessGuiFrames.layout(scene);
     }
 
     private static void expectBounds(GuiElement element, int left, int top, int right, int bottom) {

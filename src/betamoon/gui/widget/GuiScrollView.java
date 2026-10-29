@@ -86,13 +86,17 @@ public final class GuiScrollView extends GuiContainer {
         draggingHorizontal = false;
     }
 
-    /** Reveals an element using its current arranged screen bounds, preserving horizontal scroll. */
+    /**
+     * Reveals an element using its current arranged screen bounds, preserving
+     * horizontal scroll.
+     */
     public void reveal(Rect bounds) {
         if (bounds.getTop() < getTop()) {
             setScrollPosition(scrollX, scrollY + bounds.getTop() - getTop());
         } else if (bounds.getBottom() > getBottom()) {
             int delta = bounds.getHeight() > getHeight()
-                    ? bounds.getTop() - getTop() : bounds.getBottom() - getBottom();
+                    ? bounds.getTop() - getTop()
+                    : bounds.getBottom() - getBottom();
             setScrollPosition(scrollX, scrollY + delta);
         }
     }
@@ -292,7 +296,8 @@ public final class GuiScrollView extends GuiContainer {
                     return true;
                 }
             }
-            if (event.getType() == GuiInputEvent.Type.POINTER_UP) {
+            if (event.getType() == GuiInputEvent.Type.POINTER_UP
+                    || event.getType() == GuiInputEvent.Type.POINTER_CANCEL) {
                 return endDrag(context);
             }
             return false;

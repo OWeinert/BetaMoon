@@ -2,6 +2,8 @@ package betamoon.gui.presentation;
 
 import betamoon.gui.animation.GuiTransitionPolicy;
 import betamoon.luaapi.utils.LuaCallbackScope;
+import betamoon.luaapi.interop.NativeCallbackContext;
+import betamoon.luaapi.interop.NativeCallbackTable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -27,12 +29,29 @@ public final class GuiPresentationHostTest {
     }
 
     public static void main(String[] args) {
+        bindingContexts();
         independentInstances();
         callbackAuthority();
         revisionLifecycle();
         snapshotOwnership();
         System.out.println("Worldless presentation passed: isolated instances, observed state, pure sampling, "
                 + "callback authority, atomic reload, stale handles and subscription cleanup.");
+    }
+
+    private static void bindingContexts() {
+        Globals lua = JsePlatform.standardGlobals();
+        GuiDocumentDefinition definition = definition(lua, "test:binding_context",
+                "assert(v.hostMarker == 'host'); savedBindView=v; return {width=v.state:get('amount')}");
+        try (GuiPresentationRuntime runtime = runtime(definition, new Model())) {
+            runtime.update();
+            LuaValue view = lua.get("savedBindView");
+            require(view instanceof NativeCallbackContext, "Shared engine dropped the host native callback context");
+            LuaCallbackScope scope = ((NativeCallbackContext) view).nativeCallbackScope();
+            expectLua(scope::requireActive);
+            int evaluations = runtime.evaluationCount("panel");
+            runtime.sample();
+            require(runtime.evaluationCount("panel") == evaluations, "Sampling reopened a native binding context");
+        }
     }
 
     private static void independentInstances() {
@@ -246,6 +265,13 @@ public final class GuiPresentationHostTest {
         public List<AutoCloseable> observe(Observer observer) {
             model.observers.add(observer);
             return Collections.singletonList(() -> model.observers.remove(observer));
+        }
+
+        @Override
+        public LuaTable bindingContext(LuaCallbackScope scope) {
+            LuaTable view = new NativeCallbackTable(scope);
+            view.set("hostMarker", "host");
+            return view;
         }
 
         @Override

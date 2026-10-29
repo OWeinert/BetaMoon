@@ -30,7 +30,10 @@ import org.luaj.vm2.LuaValue;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.opengl.GL11;
 
-/** Actual scene interaction and raster checks in the showcase's off-screen GL context. */
+/**
+ * Actual scene interaction and raster checks in the showcase's off-screen GL
+ * context.
+ */
 final class ScriptIssueRenderChecks {
     private ScriptIssueRenderChecks() {
     }
@@ -43,13 +46,13 @@ final class ScriptIssueRenderChecks {
         Path root = Files.createTempDirectory("betamoon-issue-ui-");
         String[] copied = {null};
         Path[] opened = {null};
-        GuiScriptIssueActions actions = new GuiScriptIssueActions(text -> copied[0] = text,
-                path -> opened[0] = path, () -> root, System::currentTimeMillis);
+        GuiScriptIssueActions actions = new GuiScriptIssueActions(text -> copied[0] = text, path -> opened[0] = path,
+                () -> root, System::currentTimeMillis);
         LuaScriptErrors.clear();
         LuaScriptRegistry.clear();
         try {
-            ScriptMod script = LuaScriptRegistry.updateParsed("bm010_worlds/main.lua",
-                    "BM010 World Generation Probes", Collections.emptyList(), LuaValue.NIL, LuaValue.NIL, LuaValue.NIL,
+            ScriptMod script = LuaScriptRegistry.updateParsed("bm010_worlds/main.lua", "BM010 World Generation Probes",
+                    Collections.emptyList(), LuaValue.NIL, LuaValue.NIL, LuaValue.NIL,
                     "World generation probes for testing saved profiles.", "1.0", null);
             LuaScriptRegistry.markFailedByFile(script.getSourceFileName(), "load failed");
             LuaScriptErrors.add(script.getDisplayName(), "@bm010_worlds/main.lua:8 BM010 fluid ID occupied: 125");
@@ -121,7 +124,8 @@ final class ScriptIssueRenderChecks {
             GuiElement link = footer.getChildren().get(2);
             scene.mousePressed(link.getRight() - 5, link.getTop() + link.getHeight() / 2, 0);
             require(actions.report().equals(opened[0]), "The report link must open the actual exported file");
-            ImageIO.write(GuiShowcaseRenderTest.capture(640, 360), "png", new File(output, "script-issues-exported.png"));
+            ImageIO.write(GuiShowcaseRenderTest.capture(640, 360), "png",
+                    new File(output, "script-issues-exported.png"));
             exportPopupFailures(minecraft, popup, root, output);
 
             minecraft.displayWidth = 320;
@@ -132,10 +136,12 @@ final class ScriptIssueRenderChecks {
                     "Utility buttons overlap at small GUI sizes");
             require(copy.getLeft() >= 0 && close.getRight() <= 320 && dismiss.getBottom() <= 240,
                     "Small-screen actions must remain on screen");
-            ImageIO.write(GuiShowcaseRenderTest.capture(320, 240), "png", new File(output, "script-issues-popup-small.png"));
+            ImageIO.write(GuiShowcaseRenderTest.capture(320, 240), "png",
+                    new File(output, "script-issues-popup-small.png"));
 
             for (int index = 0; index < 25; index++) {
-                LuaScriptErrors.addWarning(script.getSourceFileName(), "Warning " + index + ": wrapped diagnostic details");
+                LuaScriptErrors.addWarning(script.getSourceFileName(),
+                        "Warning " + index + ": wrapped diagnostic details");
             }
             draw(popup, 320, 240);
             GuiScrollView scroll = find(scene.getContent(), GuiScrollView.class);
@@ -191,13 +197,14 @@ final class ScriptIssueRenderChecks {
         Path root = Files.createTempDirectory("betamoon-debug-report-ui-");
         List<Path> reports = new ArrayList<>();
         Path[] opened = {null};
-        GuiScriptIssueActions actions = new GuiScriptIssueActions(text -> { }, path -> opened[0] = path,
-                () -> root, System::currentTimeMillis);
+        GuiScriptIssueActions actions = new GuiScriptIssueActions(text -> {
+        }, path -> opened[0] = path, () -> root, System::currentTimeMillis);
         try {
             LuaScriptErrors.clear();
             for (int index = 0; index < 30; index++) {
                 LuaScriptRegistry.updateParsed("report-test-" + index + "/main.lua", "Report Test " + index,
-                        Collections.emptyList(), LuaValue.NIL, LuaValue.NIL, LuaValue.NIL, "Test description", "1", null);
+                        Collections.emptyList(), LuaValue.NIL, LuaValue.NIL, LuaValue.NIL, "Test description", "1",
+                        null);
             }
             minecraft.displayWidth = 640;
             minecraft.displayHeight = 360;
@@ -298,8 +305,9 @@ final class ScriptIssueRenderChecks {
                     new File(output, "script-report-debug-tools-small.png"));
 
             Path blocker = reports.get(0);
-            GuiScriptIssueActions unavailable = new GuiScriptIssueActions(text -> { }, path -> { },
-                    () -> blocker, System::currentTimeMillis);
+            GuiScriptIssueActions unavailable = new GuiScriptIssueActions(text -> {
+            }, path -> {
+            }, () -> blocker, System::currentTimeMillis);
             GuiPopupDebugMenu failedMenu = new GuiPopupDebugMenu(scripts, unavailable);
             minecraft.displayGuiScreen(failedMenu);
             draw(failedMenu, 320, 240);
@@ -321,11 +329,12 @@ final class ScriptIssueRenderChecks {
         }
     }
 
-    private static void exportPopupFailures(NavigationMinecraft minecraft, GuiPopupScriptErrors parent,
-            Path root, File output) throws Exception {
+    private static void exportPopupFailures(NavigationMinecraft minecraft, GuiPopupScriptErrors parent, Path root,
+            File output) throws Exception {
         boolean[] desktopAvailable = {false};
         Path[] opened = {null};
-        GuiScriptIssueActions unavailable = new GuiScriptIssueActions(text -> { }, path -> {
+        GuiScriptIssueActions unavailable = new GuiScriptIssueActions(text -> {
+        }, path -> {
             if (!desktopAvailable[0]) {
                 throw new IOException("No desktop application is available for text reports");
             }
@@ -364,8 +373,9 @@ final class ScriptIssueRenderChecks {
                 "The export result's Close button must return without acknowledging script issues");
         Path blocker = Files.createTempFile(root, "blocked-export-", ".txt");
         try {
-            GuiScriptIssueActions failedExport = new GuiScriptIssueActions(text -> { }, pathToOpen -> { },
-                    () -> blocker, System::currentTimeMillis);
+            GuiScriptIssueActions failedExport = new GuiScriptIssueActions(text -> {
+            }, pathToOpen -> {
+            }, () -> blocker, System::currentTimeMillis);
             GuiPopupScriptErrors errors = new GuiPopupScriptErrors(new GuiScreen(), true, failedExport);
             minecraft.displayGuiScreen(errors);
             draw(errors, 320, 240);
@@ -382,8 +392,8 @@ final class ScriptIssueRenderChecks {
         parent.setWorldAndResolution(minecraft, 640, 360);
     }
 
-    private static void details(Minecraft minecraft, FontRenderer font, ScriptMod script,
-            GuiScriptIssueActions actions, File output) throws Exception {
+    private static void details(Minecraft minecraft, FontRenderer font, ScriptMod script, GuiScriptIssueActions actions,
+            File output) throws Exception {
         LuaScriptRegistry.markLoadedByFile(script.getSourceFileName());
         GuiPanelScriptInfo info = new GuiPanelScriptInfo(actions);
         GuiContainer root = new GuiContainer() {
@@ -422,6 +432,7 @@ final class ScriptIssueRenderChecks {
 
     private static void draw(GuiScreen screen, int width, int height) {
         GuiShowcaseRenderTest.setupFrame(width, height);
+        screen.updateScreen();
         screen.drawScreen(-1, -1, 0);
         screen.drawScreen(-1, -1, 0);
         require(GL11.glGetError() == GL11.GL_NO_ERROR, "Script issue popup leaked GL state");
@@ -429,7 +440,9 @@ final class ScriptIssueRenderChecks {
 
     private static void draw(GuiScene scene) {
         GuiShowcaseRenderTest.setupFrame(320, 240);
+        scene.update();
         scene.render(-1, -1, 0);
+        scene.update();
         scene.render(-1, -1, 0);
     }
 

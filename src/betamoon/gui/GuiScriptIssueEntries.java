@@ -15,7 +15,10 @@ import java.util.Collections;
 import java.util.List;
 import org.lwjgl.input.Keyboard;
 
-/** Retained entries share clipboard behavior, focus and hit testing in both issue views. */
+/**
+ * Retained entries share clipboard behavior, focus and hit testing in both
+ * issue views.
+ */
 final class GuiScriptIssueEntries extends GuiContainer {
     static final int ENTRY_GAP = 6;
     private final GuiScriptIssueActions actions;
@@ -39,9 +42,8 @@ final class GuiScriptIssueEntries extends GuiContainer {
 
     @Override
     protected Size measureElement(GuiContext context, Constraints constraints) {
-        return new Size(constraints.getMaxWidth(),
-                GuiIssueLayout.prepare(context.getFont(), issues, Math.max(1, constraints.getMaxWidth() - 4),
-                        ENTRY_GAP).getHeight());
+        return new Size(constraints.getMaxWidth(), GuiIssueLayout
+                .prepare(context.getFont(), issues, Math.max(1, constraints.getMaxWidth() - 4), ENTRY_GAP).getHeight());
     }
 
     @Override
@@ -98,8 +100,10 @@ final class GuiScriptIssueEntries extends GuiContainer {
                 context.getRenderer().drawVerticalLine(getTop(), getBottom(), getRight() - 1, 0xFFFFFFA0);
             }
             if (layout != null) {
-                layout.draw(context, getLeft(), getTop(), getWidth(), issue.isWarning()
-                        ? context.getRenderer().getTheme().textWarning : context.getRenderer().getTheme().textError);
+                layout.draw(context, getLeft(), getTop(), getWidth(),
+                        issue.isWarning()
+                                ? context.getRenderer().getTheme().textWarning
+                                : context.getRenderer().getTheme().textError);
             }
             if (isHovered(context) || isFocused() && !actions.feedback().isEmpty()) {
                 String feedback = actions.feedback();
@@ -127,6 +131,10 @@ final class GuiScriptIssueEntries extends GuiContainer {
                     requestFocus(context);
                     capturePointer(context);
                     return true;
+                case POINTER_CANCEL:
+                    pressed = false;
+                    releasePointer(context);
+                    return true;
                 case SCROLL:
                     pressed = false;
                     return false;
@@ -148,7 +156,8 @@ final class GuiScriptIssueEntries extends GuiContainer {
                     return true;
                 case KEY_TYPED:
                     if (isFocused() && (event.getKeyCode() == Keyboard.KEY_RETURN
-                            || event.getKeyCode() == Keyboard.KEY_NUMPADENTER || event.getKeyCode() == Keyboard.KEY_SPACE)) {
+                            || event.getKeyCode() == Keyboard.KEY_NUMPADENTER
+                            || event.getKeyCode() == Keyboard.KEY_SPACE)) {
                         actions.copy(issue);
                         return true;
                     }

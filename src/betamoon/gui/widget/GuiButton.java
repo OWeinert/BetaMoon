@@ -86,7 +86,7 @@ public class GuiButton extends GuiElement {
             activate(minecraft);
             return true;
         }
-        if (event.getType() == GuiInputEvent.Type.POINTER_UP) {
+        if (event.getType() == GuiInputEvent.Type.POINTER_UP || event.getType() == GuiInputEvent.Type.POINTER_CANCEL) {
             nativeButton.mouseReleased(event.getMouseX(), event.getMouseY());
             return false;
         }

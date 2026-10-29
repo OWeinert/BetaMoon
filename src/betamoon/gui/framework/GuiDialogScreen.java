@@ -23,7 +23,6 @@ public abstract class GuiDialogScreen extends GuiComponentScreen {
 
     @Override
     protected final void drawSceneBackground(int mouseX, int mouseY, float partialTicks) {
-        synchronizeParentSize();
         if (parent != null) {
             if (parent instanceof GuiDialogScreen) {
                 ((GuiDialogScreen) parent).drawUndimmed(-1, -1, partialTicks);
@@ -36,6 +35,23 @@ public abstract class GuiDialogScreen extends GuiComponentScreen {
         drawRect(0, 0, width, height, 0x88000000);
     }
 
+    @Override
+    public void initGui() {
+        synchronizeParentSize();
+        super.initGui();
+    }
+
+    @Override
+    protected void onSceneUpdate() {
+        synchronizeParentSize();
+        if (parent instanceof GuiComponentScreen) {
+            ((GuiComponentScreen) parent).prepareSceneState();
+        }
+        if (parent instanceof GuiDialogScreen) {
+            ((GuiDialogScreen) parent).onSceneUpdate();
+        }
+    }
+
     private void synchronizeParentSize() {
         if (parent != null && mc != null && (parent.width != width || parent.height != height)) {
             parent.setWorldAndResolution(mc, width, height);
@@ -43,7 +59,6 @@ public abstract class GuiDialogScreen extends GuiComponentScreen {
     }
 
     private void drawUndimmed(int mouseX, int mouseY, float partialTicks) {
-        synchronizeParentSize();
         if (parent instanceof GuiDialogScreen) {
             ((GuiDialogScreen) parent).drawUndimmed(mouseX, mouseY, partialTicks);
         } else if (parent != null) {

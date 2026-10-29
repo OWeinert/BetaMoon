@@ -22,6 +22,10 @@ public class GuiContainer extends GuiElement {
         if (child.getParent() != null) {
             throw new IllegalStateException("GUI child already belongs to a container");
         }
+        GuiScene scene = scene();
+        if (scene != null && scene.deferMutation(() -> add(child))) {
+            return child;
+        }
         children.add(child);
         child.attach(this, scene());
         requestLayout();
@@ -29,6 +33,10 @@ public class GuiContainer extends GuiElement {
     }
 
     public void remove(GuiElement child) {
+        GuiScene scene = scene();
+        if (scene != null && scene.deferMutation(() -> remove(child))) {
+            return;
+        }
         if (children.remove(child)) {
             child.detach();
             requestLayout();
@@ -36,6 +44,10 @@ public class GuiContainer extends GuiElement {
     }
 
     public void clear() {
+        GuiScene scene = scene();
+        if (scene != null && scene.deferMutation(this::clear)) {
+            return;
+        }
         for (int i = children.size() - 1; i >= 0; i--) {
             children.get(i).detach();
         }
@@ -45,6 +57,14 @@ public class GuiContainer extends GuiElement {
 
     public final List<GuiElement> getChildren() {
         return readOnlyChildren;
+    }
+
+    @Override
+    void update(GuiContext context) {
+        super.update(context);
+        for (GuiElement child : children) {
+            child.update(context);
+        }
     }
 
     @Override
@@ -86,21 +106,6 @@ public class GuiContainer extends GuiElement {
     }
 
     protected void renderAfterChildren(GuiContext context) {
-    }
-
-    @Override
-    boolean collectHitPath(int x, int y, List<GuiElement> path) {
-        if (!contains(x, y)) {
-            return false;
-        }
-        for (int i = children.size() - 1; i >= 0; i--) {
-            if (children.get(i).collectHitPath(x, y, path)) {
-                path.add(this);
-                return true;
-            }
-        }
-        path.add(this);
-        return true;
     }
 
     @Override

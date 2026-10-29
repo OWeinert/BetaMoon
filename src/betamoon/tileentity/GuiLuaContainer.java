@@ -299,7 +299,10 @@ public final class GuiLuaContainer extends GuiContainer {
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         currentMouseX = mouseX;
         currentMouseY = mouseY;
-        preparePresentation();
+        if (presentation == null) {
+            throw new IllegalStateException("Container presentation must initialize before drawing");
+        }
+        presentation.sample();
         super.drawScreen(mouseX, mouseY, partialTicks);
         drawElementTooltip(mouseX, mouseY);
     }
@@ -411,7 +414,7 @@ public final class GuiLuaContainer extends GuiContainer {
 
     private void drawElement(ContainerGuiDefinition.Element element) {
         if (presentation == null) {
-            preparePresentation();
+            throw new IllegalStateException("Container presentation must initialize before drawing");
         }
         GuiGeometry geometry = presentation.geometry(element);
         if (!geometry.available()) {
