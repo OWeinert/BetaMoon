@@ -209,6 +209,7 @@ public final class GuiShowcaseRenderTest {
             minecraft.renderEngine = engine;
             minecraft.fontRenderer = font;
             GuiGraphicsRenderChecks.run(minecraft, font, output);
+            GuiSharedControlRenderChecks.run(minecraft, font, output);
             verifyIssueLayout(font);
             ScriptIssueRenderChecks.run(minecraft, font, output);
             verifyDialogContentSizing(minecraft, font);

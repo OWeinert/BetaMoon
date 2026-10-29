@@ -1,8 +1,9 @@
 package betamoon.gui.widget;
 
+import betamoon.gui.framework.GuiGeometry.Rect;
+import betamoon.gui.style.GuiNativeButtonSkin;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.GuiButton;
-import org.lwjgl.opengl.GL11;
 
 /**
  * Native button appearance with tiled middle pixels for widths beyond the
@@ -24,20 +25,11 @@ public class GuiMinecraftButton extends GuiButton {
         if (!enabled2) {
             return;
         }
-        GL11.glBindTexture(GL11.GL_TEXTURE_2D,
-                preparedTexture >= 0 ? preparedTexture : minecraft.renderEngine.getTexture("/gui/gui.png"));
-        GL11.glColor4f(1, 1, 1, 1);
         boolean hovered = mouseX >= xPosition && mouseY >= yPosition && mouseX < xPosition + width
                 && mouseY < yPosition + height;
-        int textureY = 46 + getHoverState(hovered) * 20;
-        int edge = Math.min(2, width / 2);
-        drawTexturedModalRect(xPosition, yPosition, 0, textureY, edge, height);
-        for (int offset = edge; offset < width - edge;) {
-            int span = Math.min(196, width - edge - offset);
-            drawTexturedModalRect(xPosition + offset, yPosition, 2, textureY, span, height);
-            offset += span;
-        }
-        drawTexturedModalRect(xPosition + width - edge, yPosition, 200 - edge, textureY, edge, height);
+        GuiNativeButtonSkin.drawLegacy(
+                preparedTexture >= 0 ? preparedTexture : minecraft.renderEngine.getTexture(GuiNativeButtonSkin.TEXTURE),
+                Rect.fromPositionAndSize(xPosition, yPosition, width, height), enabled, hovered);
         mouseDragged(minecraft, mouseX, mouseY);
         int color = !enabled ? 0xa0a0a0 : hovered ? 0xffffa0 : 0xe0e0e0;
         drawCenteredString(minecraft.fontRenderer, displayString, xPosition + width / 2, yPosition + (height - 8) / 2,

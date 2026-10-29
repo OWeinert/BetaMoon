@@ -5,16 +5,20 @@ import betamoon.gui.framework.GuiElement;
 import betamoon.gui.framework.GuiGeometry.Constraints;
 import betamoon.gui.framework.GuiGeometry.Size;
 import betamoon.gui.framework.GuiInputEvent;
+import betamoon.gui.control.GuiActivation;
 import java.util.function.Consumer;
-import org.lwjgl.input.Keyboard;
 import org.lwjgl.opengl.GL11;
 
-/** Retained, labeled checkbox using the existing native checkbox appearance and framework focus routing. */
+/**
+ * Retained, labeled checkbox using the existing native checkbox appearance and
+ * framework focus routing.
+ */
 public final class GuiCheckboxControl extends GuiElement {
     private final String label;
     private final Consumer<Boolean> changed;
     private boolean selected;
     private String tooltip;
+    private final GuiActivation activation = new GuiActivation(GuiActivation.Timing.LEGACY_PRESS);
 
     public GuiCheckboxControl(String label, boolean selected, Consumer<Boolean> changed) {
         this.label = label;
@@ -50,8 +54,9 @@ public final class GuiCheckboxControl extends GuiElement {
                 GL11.glPopAttrib();
             }
         }
-        context.getRenderer().drawWrappedText(label, getLeft() + 26, getTop() + (getHeight()
-                - context.getRenderer().wrappedTextHeight(label, Math.max(8, getWidth() - 26))) / 2,
+        context.getRenderer().drawWrappedText(label, getLeft() + 26,
+                getTop() + (getHeight() - context.getRenderer().wrappedTextHeight(label, Math.max(8, getWidth() - 26)))
+                        / 2,
                 Math.max(8, getWidth() - 26), isFocused() ? 0xffffffaa : context.getRenderer().getTheme().textPrimary);
         if (isHovered(context) && tooltip != null) {
             context.showTooltip(tooltip);
@@ -60,16 +65,12 @@ public final class GuiCheckboxControl extends GuiElement {
 
     @Override
     protected boolean onInput(GuiContext context, GuiInputEvent event) {
-        if ((event.getType() == GuiInputEvent.Type.POINTER_DOWN && event.getButton() == 0
-                && contains(event.getMouseX(), event.getMouseY()))
-                || (event.getType() == GuiInputEvent.Type.KEY_TYPED && isFocused()
-                && (event.getKeyCode() == Keyboard.KEY_SPACE || event.getKeyCode() == Keyboard.KEY_RETURN
-                || event.getKeyCode() == Keyboard.KEY_NUMPADENTER))) {
+        int result = activation.input(event, contains(event.getMouseX(), event.getMouseY()), isFocused());
+        if ((result & GuiActivation.ACTIVATE) != 0) {
             requestFocus(context);
             selected = !selected;
             changed.accept(selected);
-            return true;
         }
-        return false;
+        return (result & GuiActivation.CONSUMED) != 0;
     }
 }

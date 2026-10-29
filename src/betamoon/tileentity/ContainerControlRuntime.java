@@ -2,6 +2,7 @@ package betamoon.tileentity;
 
 import betamoon.gui.presentation.GuiConditionEvaluator;
 import betamoon.gui.presentation.GuiControlType;
+import betamoon.gui.control.GuiNumericRange;
 import betamoon.interop.runtime.NativeEventAccess;
 import betamoon.luaapi.interop.NativeCallbackTable;
 
@@ -204,9 +205,7 @@ public final class ContainerControlRuntime {
     }
 
     private Object normalizeNumber(ContainerControlDefinition control, double proposed) {
-        double clamped = Math.max(control.minimum, Math.min(control.maximum, proposed));
-        double snapped = control.minimum + Math.round((clamped - control.minimum) / control.step) * control.step;
-        snapped = Math.max(control.minimum, Math.min(control.maximum, snapped));
+        double snapped = GuiNumericRange.snap(control.minimum, control.maximum, control.step, proposed);
         if (value(control) instanceof Integer) {
             return Integer.valueOf((int) Math.round(snapped));
         }

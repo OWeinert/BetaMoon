@@ -2,6 +2,8 @@ package betamoon.luaapi.client.ui;
 
 import betamoon.gui.presentation.GuiProperties;
 import betamoon.gui.presentation.GuiPropertyDescriptor;
+import java.util.ArrayList;
+import java.util.List;
 import org.luaj.vm2.LuaValue;
 
 /**
@@ -15,6 +17,24 @@ public final class GuiPropertyValues {
     public static Object read(GuiPropertyDescriptor descriptor, LuaValue value) {
         Object candidate = null;
         switch (descriptor.kind) {
+            case STRING_LIST:
+                if (value.istable() && value.length() <= 4096) {
+                    List<String> entries = new ArrayList<>();
+                    int length = value.length();
+                    for (LuaValue key : value.checktable().keys()) {
+                        if (!key.isinttype() || key.toint() < 1 || key.toint() > length) {
+                            throw new GuiProperties.ValueError(descriptor.name + " requires a dense string list");
+                        }
+                    }
+                    for (int i = 1; i <= length; i++) {
+                        if (value.get(i).type() != LuaValue.TSTRING) {
+                            throw new GuiProperties.ValueError(descriptor.name + " requires a dense string list");
+                        }
+                        entries.add(value.get(i).tojstring());
+                    }
+                    candidate = entries;
+                }
+                break;
             case NUMBER:
             case INTEGER:
                 if (value.type() == LuaValue.TNUMBER) {

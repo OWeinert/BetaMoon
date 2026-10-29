@@ -8,6 +8,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.Collections;
 
 /**
  * Mutable presentation of one node in one open screen, never shared through the
@@ -20,6 +21,7 @@ public final class GuiPresentationNode {
     final Map<String, Object> derived = new LinkedHashMap<>();
     final Map<String, Object> targets = new LinkedHashMap<>();
     final Map<String, Object> displayed = new LinkedHashMap<>();
+    private final Map<String, Object> readableValues = Collections.unmodifiableMap(displayed);
     final Map<String, Override> overrides = new LinkedHashMap<>();
     final Map<String, Track> tracks = new LinkedHashMap<>();
     final Map<String, String> interactionKeys = new LinkedHashMap<>();
@@ -62,8 +64,16 @@ public final class GuiPresentationNode {
         return displayed.get(definition.properties.canonical(property));
     }
 
+    public Map<String, Object> values() {
+        return readableValues;
+    }
+
     public Object target(String property) {
         return targets.get(definition.properties.canonical(property));
+    }
+
+    public boolean controlled(String property) {
+        return bindingValues.containsKey(property) || overrides.containsKey(property);
     }
 
     public double number(String property, double fallback) {

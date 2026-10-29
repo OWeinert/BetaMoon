@@ -110,7 +110,7 @@ public class GuiContainer extends GuiElement {
 
     @Override
     void collectFocusableElements(List<GuiElement> elements) {
-        if (!isVisible() || !isEnabled()) {
+        if (!isVisible() || !isEnabled() || getOpacity() == 0) {
             return;
         }
         if (isFocusable()) {
@@ -158,6 +158,16 @@ public class GuiContainer extends GuiElement {
 
         GuiScene getScene() {
             return scene;
+        }
+
+        @Override
+        protected void arrangeChildren(GuiContext context) {
+            for (GuiElement child : getChildren()) {
+                Rect bounds = child instanceof GuiViewportLayout
+                        ? ((GuiViewportLayout) child).viewportBounds(context, getBounds())
+                        : getBounds();
+                child.arrange(context, bounds);
+            }
         }
     }
 }

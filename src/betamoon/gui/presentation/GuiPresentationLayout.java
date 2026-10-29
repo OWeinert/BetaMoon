@@ -86,6 +86,15 @@ public final class GuiPresentationLayout {
         return result;
     }
 
+    private static double envelope(GuiPresentationNode node, Map<String, Object> values, String property,
+            double fallback, boolean minimum) {
+        double current = number(node.displayed, property, fallback);
+        double target = number(values, property, fallback);
+        GuiPresentationNode.Track track = node.tracks.get(property);
+        double from = track != null && track.from instanceof Number ? ((Number) track.from).doubleValue() : current;
+        return minimum ? Math.min(from, Math.min(current, target)) : Math.max(from, Math.max(current, target));
+    }
+
     private double dimension(GuiPresentationNode node, Map<String, Object> values, String property) {
         double value = number(values, property, "item".equals(node.definition.type) ? 16 : 0);
         if ("text".equals(node.definition.type)) {
@@ -105,7 +114,16 @@ public final class GuiPresentationLayout {
         if (definition.retained) {
             // Retained views own layout; legacy panel/slot geometry is not a second
             // authoritative tree.
-            for (GuiPresentationNode node : nodes) {
+            double[] scaleX = new double[nodes.size()];
+            double[] scaleY = new double[nodes.size()];
+            double[] offsetX = new double[nodes.size()];
+            double[] offsetY = new double[nodes.size()];
+            // New retained layouts bound dimensions to 16384 and node count to 4096.
+            // Include sibling overflow and nested offsets without calculating a second
+            // layout tree.
+            double coordinateBudget = (16384D + 65536D) * (nodes.size() + 1);
+            for (int index = 0; index < nodes.size(); index++) {
+                GuiPresentationNode node = nodes.get(index);
                 Map<String, Object> values = candidates.getOrDefault(node, node.targets);
                 for (GuiPropertyDescriptor descriptor : node.definition.properties.descriptors().values()) {
                     try {
@@ -113,6 +131,25 @@ public final class GuiPresentationLayout {
                     } catch (IllegalArgumentException invalid) {
                         throw new GuiProperties.ValueError(node.definition.path + "." + invalid.getMessage());
                     }
+                }
+                int parent = node.definition.parent;
+                double parentX = parent < 0 ? 1 : scaleX[parent];
+                double parentY = parent < 0 ? 1 : scaleY[parent];
+                double sx = envelope(node, values, "scaleX", 1, false);
+                double sy = envelope(node, values, "scaleY", 1, false);
+                double dx = Math.max(Math.abs(1 - sx), Math.abs(1 - envelope(node, values, "scaleX", 1, true)));
+                double dy = Math.max(Math.abs(1 - sy), Math.abs(1 - envelope(node, values, "scaleY", 1, true)));
+                double tx = Math.max(Math.abs(envelope(node, values, "translateX", 0, true)),
+                        Math.abs(envelope(node, values, "translateX", 0, false)));
+                double ty = Math.max(Math.abs(envelope(node, values, "translateY", 0, true)),
+                        Math.abs(envelope(node, values, "translateY", 0, false)));
+                scaleX[index] = parentX * sx;
+                scaleY[index] = parentY * sy;
+                offsetX[index] = (parent < 0 ? 0 : offsetX[parent]) + parentX * (tx + coordinateBudget * dx);
+                offsetY[index] = (parent < 0 ? 0 : offsetY[parent]) + parentY * (ty + coordinateBudget * dy);
+                if (scaleX[index] > 1e9 || scaleY[index] > 1e9 || offsetX[index] > 1e9 || offsetY[index] > 1e9) {
+                    throw new GuiProperties.ValueError(
+                            node.definition.path + ": nested transforms exceed the retained geometry budget");
                 }
             }
             return;

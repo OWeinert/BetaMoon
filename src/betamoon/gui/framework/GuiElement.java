@@ -15,6 +15,38 @@ public abstract class GuiElement {
     private boolean visible = true;
     private boolean enabled = true;
     private boolean focusable;
+    private boolean collapsed;
+    private double opacity = 1;
+
+    public final double getOpacity() {
+        return opacity;
+    }
+
+    public final void setOpacity(double value) {
+        if (!Double.isFinite(value) || value < 0 || value > 1) {
+            throw new IllegalArgumentException("GUI opacity must be in 0..1");
+        }
+        if (opacity != value) {
+            opacity = value;
+            if (scene != null) {
+                scene.requestFrame();
+                if (value == 0) {
+                    scene.releaseOwnership(this);
+                }
+            }
+        }
+    }
+
+    public final boolean isCollapsed() {
+        return collapsed;
+    }
+
+    /**
+     * Hidden views retain layout space; legacy setVisible(false) still collapses.
+     */
+    public final void setHidden(boolean hidden) {
+        setAvailability(!hidden, false);
+    }
     private GraphicsTransform visualTransform = GraphicsTransform.IDENTITY;
     private long attachmentRevision;
 
@@ -46,6 +78,14 @@ public abstract class GuiElement {
     }
 
     public final Rect getBounds() {
+        return bounds;
+    }
+
+    /**
+     * Legacy containers restrict child input to their bounds; unclipped retained
+     * views may opt out.
+     */
+    protected Rect childInputClip() {
         return bounds;
     }
 
@@ -86,10 +126,15 @@ public abstract class GuiElement {
     }
 
     public final void setVisible(boolean visible) {
-        if (this.visible == visible) {
+        setAvailability(visible, !visible);
+    }
+
+    private void setAvailability(boolean visible, boolean collapsed) {
+        if (this.visible == visible && this.collapsed == collapsed) {
             return;
         }
         this.visible = visible;
+        this.collapsed = collapsed;
         if (!visible && scene != null) {
             scene.releaseOwnership(this);
         }
@@ -137,7 +182,7 @@ public abstract class GuiElement {
     }
 
     public final Size measure(GuiContext context, Constraints constraints) {
-        if (!visible) {
+        if (collapsed) {
             measuredSize = Size.ZERO;
             return measuredSize;
         }
@@ -160,7 +205,7 @@ public abstract class GuiElement {
             scene.requestFrame();
         }
         this.bounds = bounds;
-        if (visible) {
+        if (!collapsed) {
             arrangeElement(context);
         }
     }
@@ -177,7 +222,7 @@ public abstract class GuiElement {
     }
 
     public final void render(GuiContext context) {
-        if (!visible || bounds.isEmpty()) {
+        if (!visible || opacity == 0 || bounds.isEmpty()) {
             return;
         }
         GuiFrameSnapshot.Node previous = context.enterElement(this);
@@ -249,11 +294,11 @@ public abstract class GuiElement {
     }
 
     final boolean isAvailable() {
-        return visible && enabled && (parent == null || parent.isAvailable());
+        return visible && enabled && opacity > 0 && (parent == null || parent.isAvailable());
     }
 
     void collectFocusableElements(List<GuiElement> elements) {
-        if (visible && enabled && focusable) {
+        if (visible && enabled && opacity > 0 && focusable) {
             elements.add(this);
         }
     }

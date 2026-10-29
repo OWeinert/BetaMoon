@@ -10,15 +10,12 @@ import java.util.List;
 /** Reusable retained layout containers and typed sizing rules. */
 public final class GuiLayouts {
     public enum Axis {
-        HORIZONTAL,
-        VERTICAL
+        HORIZONTAL, VERTICAL
     }
 
     public static final class Length {
         private enum Kind {
-            CONTENT,
-            FIXED,
-            FILL
+            CONTENT, FIXED, FILL
         }
 
         private static final Length CONTENT = new Length(Kind.CONTENT, 0, 0);
@@ -113,16 +110,21 @@ public final class GuiLayouts {
             int childWidth = Math.max(0, constraints.getMaxWidth() - padding.getHorizontal());
             int childHeight = Math.max(0, constraints.getMaxHeight() - padding.getVertical());
             Constraints childConstraints = Constraints.upTo(childWidth, childHeight);
+            int count = 0;
             for (int i = 0; i < entries.size(); i++) {
                 Entry entry = entries.get(i);
+                if (entry.element.isCollapsed()) {
+                    continue;
+                }
                 Size size = entry.element.measure(context, childConstraints);
                 primary += primarySize(entry, size);
                 cross = Math.max(cross, crossSize(entry, size));
+                count++;
             }
-            primary += gap * Math.max(0, entries.size() - 1);
+            primary += gap * Math.max(0, count - 1);
             if (axis == Axis.VERTICAL) {
-                return constraints.constrain(
-                        new Size(cross + padding.getHorizontal(), primary + padding.getVertical()));
+                return constraints
+                        .constrain(new Size(cross + padding.getHorizontal(), primary + padding.getVertical()));
             }
             return constraints.constrain(new Size(primary + padding.getHorizontal(), cross + padding.getVertical()));
         }
@@ -131,25 +133,35 @@ public final class GuiLayouts {
         protected void arrangeChildren(GuiContext context) {
             Rect content = getBounds().inset(padding);
             int availablePrimary = axis == Axis.VERTICAL ? content.getHeight() : content.getWidth();
-            int fixedPrimary = gap * Math.max(0, entries.size() - 1);
+            int fixedPrimary = 0;
             int totalWeight = 0;
+            int count = 0;
             for (int i = 0; i < entries.size(); i++) {
                 Entry entry = entries.get(i);
+                if (entry.element.isCollapsed()) {
+                    continue;
+                }
+                count++;
                 Length primaryLength = axis == Axis.VERTICAL ? entry.height : entry.width;
                 if (primaryLength.kind == Length.Kind.FILL) {
                     totalWeight += primaryLength.weight;
                 } else {
                     fixedPrimary += resolve(primaryLength,
-                            axis == Axis.VERTICAL ? entry.element.getMeasuredSize().getHeight()
+                            axis == Axis.VERTICAL
+                                    ? entry.element.getMeasuredSize().getHeight()
                                     : entry.element.getMeasuredSize().getWidth(),
                             availablePrimary);
                 }
             }
+            fixedPrimary += gap * Math.max(0, count - 1);
             int remaining = Math.max(0, availablePrimary - fixedPrimary);
             int cursor = axis == Axis.VERTICAL ? content.getTop() : content.getLeft();
             int remainingWeight = totalWeight;
             for (int i = 0; i < entries.size(); i++) {
                 Entry entry = entries.get(i);
+                if (entry.element.isCollapsed()) {
+                    continue;
+                }
                 Length primaryLength = axis == Axis.VERTICAL ? entry.height : entry.width;
                 int primarySize;
                 if (primaryLength.kind == Length.Kind.FILL) {
@@ -158,13 +170,15 @@ public final class GuiLayouts {
                     remainingWeight -= primaryLength.weight;
                 } else {
                     primarySize = resolve(primaryLength,
-                            axis == Axis.VERTICAL ? entry.element.getMeasuredSize().getHeight()
+                            axis == Axis.VERTICAL
+                                    ? entry.element.getMeasuredSize().getHeight()
                                     : entry.element.getMeasuredSize().getWidth(),
                             availablePrimary);
                 }
                 int crossAvailable = axis == Axis.VERTICAL ? content.getWidth() : content.getHeight();
                 Length crossLength = axis == Axis.VERTICAL ? entry.width : entry.height;
-                int measuredCross = axis == Axis.VERTICAL ? entry.element.getMeasuredSize().getWidth()
+                int measuredCross = axis == Axis.VERTICAL
+                        ? entry.element.getMeasuredSize().getWidth()
                         : entry.element.getMeasuredSize().getHeight();
                 int crossSize = resolve(crossLength, measuredCross, crossAvailable);
                 Rect bounds = axis == Axis.VERTICAL
@@ -238,19 +252,18 @@ public final class GuiLayouts {
         protected void arrangeChildren(GuiContext context) {
             Rect bounds = getBounds();
             int available = axis == Axis.HORIZONTAL ? bounds.getWidth() : bounds.getHeight();
-            int firstSize = Math.max(minimumFirstSize,
-                    Math.min(maximumFirstSize, (int) (available * firstFraction)));
+            int firstSize = Math.max(minimumFirstSize, Math.min(maximumFirstSize, (int) (available * firstFraction)));
             firstSize = Math.min(firstSize, Math.max(0, available - gap));
             if (axis == Axis.HORIZONTAL) {
-                first.arrange(context, new Rect(bounds.getLeft(), bounds.getTop(), bounds.getLeft() + firstSize,
+                first.arrange(context,
+                        new Rect(bounds.getLeft(), bounds.getTop(), bounds.getLeft() + firstSize, bounds.getBottom()));
+                second.arrange(context, new Rect(bounds.getLeft() + firstSize + gap, bounds.getTop(), bounds.getRight(),
                         bounds.getBottom()));
-                second.arrange(context, new Rect(bounds.getLeft() + firstSize + gap, bounds.getTop(),
-                        bounds.getRight(), bounds.getBottom()));
             } else {
-                first.arrange(context, new Rect(bounds.getLeft(), bounds.getTop(), bounds.getRight(),
-                        bounds.getTop() + firstSize));
-                second.arrange(context, new Rect(bounds.getLeft(), bounds.getTop() + firstSize + gap,
-                        bounds.getRight(), bounds.getBottom()));
+                first.arrange(context,
+                        new Rect(bounds.getLeft(), bounds.getTop(), bounds.getRight(), bounds.getTop() + firstSize));
+                second.arrange(context, new Rect(bounds.getLeft(), bounds.getTop() + firstSize + gap, bounds.getRight(),
+                        bounds.getBottom()));
             }
         }
     }

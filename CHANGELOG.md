@@ -41,3 +41,5 @@
 - Connect typed reactive documents to the retained view tree, with validated visual refresh, modal focus scopes,
   and input consumption preserved across screen replacement.
 - Prepare shared Java UI textures and observations outside painting and retain usable images after invalid refreshes.
+- Add shared control behavior, typed screen primitives, replaceable templates and immutable style presets.
+- Share native button skins across adapters and support prepared bitmap fonts and nine-slice visuals.

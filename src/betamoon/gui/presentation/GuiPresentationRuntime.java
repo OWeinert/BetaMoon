@@ -509,6 +509,10 @@ public class GuiPresentationRuntime implements AutoCloseable {
 
     private void commit(GuiPresentationNode node, boolean initial, double timestamp) {
         GuiPresentationNode.Candidate candidate = node.pending;
+        if (!node.bindingValues.keySet().equals(candidate.bindingValues.keySet())
+                || !node.overrides.keySet().equals(candidate.overrides.keySet())) {
+            node.invalidateValues();
+        }
         node.bindingValues.clear();
         node.bindingValues.putAll(candidate.bindingValues);
         node.derived.clear();
@@ -855,6 +859,7 @@ public class GuiPresentationRuntime implements AutoCloseable {
             node.dirty = true;
             return;
         }
+        node.invalidateValues();
         Map<String, Object> values = new LinkedHashMap<>();
         if (command.owner != null && "cancel".equals(command.method)) {
             command.owner.cancel("explicit_cancel");
@@ -932,6 +937,9 @@ public class GuiPresentationRuntime implements AutoCloseable {
     }
 
     private static void requireInteraction(GuiPresentationNode node, String name) {
+        if (!node.definition.properties.descriptors().isEmpty() && node.interactionKeys.containsKey(name)) {
+            return;
+        }
         if ("hovered".equals(name)) {
             return;
         }

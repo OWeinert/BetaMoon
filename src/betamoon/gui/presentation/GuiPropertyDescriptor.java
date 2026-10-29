@@ -2,6 +2,8 @@ package betamoon.gui.presentation;
 
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -10,7 +12,7 @@ import java.util.Set;
  */
 public final class GuiPropertyDescriptor {
     public enum Kind {
-        NUMBER, INTEGER, BOOLEAN, STRING, COLOR
+        NUMBER, INTEGER, BOOLEAN, STRING, COLOR, STRING_LIST
     }
 
     public enum Stage {
@@ -72,6 +74,22 @@ public final class GuiPropertyDescriptor {
             }
             return value;
         }
+        if (kind == Kind.STRING_LIST && value instanceof List) {
+            List<?> source = (List<?>) value;
+            if (source.size() > 4096) {
+                throw invalid("list exceeds 4096 entries");
+            }
+            List<String> result = new ArrayList<>();
+            int units = 0;
+            for (Object entry : source) {
+                if (!(entry instanceof String) || ((String) entry).length() > 65536 - units) {
+                    throw invalid("requires strings totaling at most 65536 UTF-16 units");
+                }
+                units += ((String) entry).length();
+                result.add((String) entry);
+            }
+            return Collections.unmodifiableList(result);
+        }
         if (kind == Kind.BOOLEAN && value instanceof Boolean) {
             return value;
         }
@@ -105,7 +123,16 @@ public final class GuiPropertyDescriptor {
         }
         double first = ((Number) from).doubleValue();
         double last = ((Number) to).doubleValue();
+        if (stages.contains(Stage.HIT) || stages.contains(Stage.MEASURE) || stages.contains(Stage.ARRANGE)) {
+            // Geometry envelopes are validated at publication, including all simultaneous
+            // tracks.
+            // Non-monotone curves may reverse inside that envelope, but cannot escape it.
+            progress = Math.max(0, Math.min(1, progress));
+        }
         double value = first * (1 - progress) + last * progress;
+        if (!Double.isFinite(value)) {
+            value = first * (1 - Math.max(0, Math.min(1, progress))) + last * Math.max(0, Math.min(1, progress));
+        }
         value = Math.max(minimum, Math.min(maximum, value));
         return kind == Kind.INTEGER ? Math.rint(value) : value;
     }

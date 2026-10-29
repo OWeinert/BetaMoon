@@ -30,7 +30,7 @@ public final class GuiFrameSnapshot {
         framebufferWidth = context.getDisplayWidth();
         framebufferHeight = context.getDisplayHeight();
         GraphicsClip viewport = new GraphicsClip(0, 0, width, height);
-        collect(root, null, GraphicsTransform.IDENTITY, viewport);
+        collect(root, null, GraphicsTransform.IDENTITY, viewport, 1);
     }
 
     public Node node(GuiElement element) {
@@ -92,7 +92,8 @@ public final class GuiFrameSnapshot {
         return node != null && node.eligible();
     }
 
-    private void collect(GuiElement element, Node parent, GraphicsTransform inherited, GraphicsClip hitClip) {
+    private void collect(GuiElement element, Node parent, GraphicsTransform inherited, GraphicsClip hitClip,
+            double opacity) {
         if (!element.isVisible()) {
             return;
         }
@@ -101,12 +102,18 @@ public final class GuiFrameSnapshot {
         Rect rect = element.getBounds();
         GraphicsClip bounds = new GraphicsClip(rect.getLeft(), rect.getTop(), rect.getRight(), rect.getBottom())
                 .transform(transform);
-        Node node = new Node(element, parent, transform, local, bounds, hitClip.intersect(bounds));
+        Node node = new Node(element, parent, transform, local, bounds, hitClip.intersect(bounds),
+                opacity * element.getOpacity());
         nodes.put(element, node);
         order.add(node);
         if (element instanceof GuiContainer) {
+            Rect requested = element.childInputClip();
+            GraphicsClip childClip = requested == null
+                    ? hitClip
+                    : hitClip.intersect(new GraphicsClip(requested.getLeft(), requested.getTop(), requested.getRight(),
+                            requested.getBottom()).transform(transform));
             for (GuiElement child : ((GuiContainer) element).getChildren()) {
-                collect(child, node, transform, node.hitClip);
+                collect(child, node, transform, childClip, node.opacity);
             }
         }
     }
@@ -116,25 +123,27 @@ public final class GuiFrameSnapshot {
         public final GraphicsTransform localTransform;
         public final GraphicsClip bounds;
         public final GraphicsClip hitClip;
+        public final double opacity;
 
         private final GuiElement element;
         private final Node parent;
         private final long attachment;
 
         private Node(GuiElement element, Node parent, GraphicsTransform transform, GraphicsTransform localTransform,
-                GraphicsClip bounds, GraphicsClip hitClip) {
+                GraphicsClip bounds, GraphicsClip hitClip, double opacity) {
             this.element = element;
             this.parent = parent;
             this.transform = transform;
             this.localTransform = localTransform;
             this.bounds = bounds;
             this.hitClip = hitClip;
+            this.opacity = opacity;
             attachment = element.attachmentRevision();
         }
 
         boolean eligible() {
             return element.attachmentRevision() == attachment && element.isVisible() && element.isEnabled()
-                    && (parent == null || parent.eligible());
+                    && element.getOpacity() > 0 && opacity > 0 && (parent == null || parent.eligible());
         }
     }
 }

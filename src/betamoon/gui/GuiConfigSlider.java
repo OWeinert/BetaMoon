@@ -3,6 +3,7 @@ package betamoon.gui;
 import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiElement;
 import betamoon.gui.framework.GuiInputEvent;
+import betamoon.gui.control.GuiNumericRange;
 import java.math.BigDecimal;
 import java.util.function.DoubleConsumer;
 import org.lwjgl.input.Keyboard;
@@ -13,8 +14,7 @@ final class GuiConfigSlider extends GuiElement {
 
     private final double minimum;
     private final double maximum;
-    private final BigDecimal decimalMinimum;
-    private final BigDecimal decimalStep;
+    private final GuiNumericRange range;
     private final int steps;
     private final DoubleConsumer onChange;
     private double value;
@@ -23,8 +23,7 @@ final class GuiConfigSlider extends GuiElement {
     GuiConfigSlider(double minimum, double maximum, double step, double value, DoubleConsumer onChange) {
         this.minimum = minimum;
         this.maximum = maximum;
-        this.decimalMinimum = BigDecimal.valueOf(minimum);
-        this.decimalStep = BigDecimal.valueOf(step);
+        this.range = new GuiNumericRange(minimum, maximum, step);
         this.steps = (int) Math.round((maximum - minimum) / step);
         this.value = value;
         this.onChange = onChange;
@@ -128,7 +127,7 @@ final class GuiConfigSlider extends GuiElement {
 
     private void setStep(int index) {
         int selected = Math.max(0, Math.min(steps, index));
-        double next = decimalMinimum.add(decimalStep.multiply(BigDecimal.valueOf(selected))).doubleValue();
+        double next = range.valueAt(selected);
         if (Double.compare(value, next) == 0) {
             return;
         }

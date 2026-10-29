@@ -2,6 +2,7 @@ package betamoon.tileentity;
 
 import betamoon.BetaMoonCommon;
 import betamoon.gui.framework.GuiRenderer;
+import betamoon.gui.control.GuiTextEditOperations;
 import betamoon.gui.presentation.GuiAnchor;
 import betamoon.gui.presentation.GuiConditionEvaluator;
 import betamoon.gui.presentation.GuiControlType;
@@ -1094,11 +1095,11 @@ public final class GuiLuaContainer extends GuiContainer {
             return true;
         } else if (isControlDown() && keyCode == Keyboard.KEY_X && hasSelection()) {
             copyToClipboard(value.substring(selectionStart(), selectionEnd()));
-            changed = replaceSelection(value, "");
+            changed = replaceSelection(value, "", control.maximumLength);
         } else if (keyCode == Keyboard.KEY_BACK && hasSelection()) {
-            changed = replaceSelection(value, "");
+            changed = replaceSelection(value, "", control.maximumLength);
         } else if (keyCode == Keyboard.KEY_DELETE && hasSelection()) {
-            changed = replaceSelection(value, "");
+            changed = replaceSelection(value, "", control.maximumLength);
         } else if (keyCode == Keyboard.KEY_BACK && caret > 0) {
             changed = value.substring(0, caret - 1) + value.substring(caret);
             caret--;
@@ -1107,11 +1108,11 @@ public final class GuiLuaContainer extends GuiContainer {
         } else if (isControlDown() && keyCode == Keyboard.KEY_V) {
             String clipboard = getClipboardString();
             if (clipboard != null) {
-                changed = replaceSelection(value, printable(clipboard));
+                changed = replaceSelection(value, printable(clipboard), control.maximumLength);
             }
         } else if (typedChar >= 32 && typedChar != 127
                 && value.length() - (hasSelection() ? selectionEnd() - selectionStart() : 0) < control.maximumLength) {
-            changed = replaceSelection(value, String.valueOf(typedChar));
+            changed = replaceSelection(value, String.valueOf(typedChar), control.maximumLength);
         }
         if (changed == null) {
             return false;
@@ -1159,13 +1160,14 @@ public final class GuiLuaContainer extends GuiContainer {
         return Math.max(selectionAnchor, caret);
     }
 
-    private String replaceSelection(String value, String insertion) {
+    private String replaceSelection(String value, String insertion, int maximumLength) {
         int start = hasSelection() ? selectionStart() : caret;
         int end = hasSelection() ? selectionEnd() : caret;
-        String result = value.substring(0, start) + insertion + value.substring(end);
-        caret = start + insertion.length();
+        GuiTextEditOperations.Result result = GuiTextEditOperations.replace(value, start, end, insertion,
+                maximumLength);
+        caret = result.caret;
         selectionAnchor = -1;
-        return result;
+        return result.text;
     }
 
     private String draft(ContainerControlDefinition control) {

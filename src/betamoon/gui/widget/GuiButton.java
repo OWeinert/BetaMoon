@@ -6,8 +6,8 @@ import betamoon.gui.framework.GuiElement;
 import betamoon.gui.framework.GuiGeometry.Constraints;
 import betamoon.gui.framework.GuiGeometry.Size;
 import betamoon.gui.framework.GuiInputEvent;
+import betamoon.gui.control.GuiActivation;
 import net.minecraft.client.Minecraft;
-import org.lwjgl.input.Keyboard;
 
 /**
  * Retained wrapper around Minecraft's native button renderer and hit behavior.
@@ -18,6 +18,7 @@ public class GuiButton extends GuiElement {
     private final NativeButton nativeButton;
     private GuiAction action;
     private int preferredWidth;
+    private final GuiActivation activation = new GuiActivation(GuiActivation.Timing.LEGACY_PRESS);
 
     public GuiButton(String label, int preferredWidth, GuiAction action) {
         nativeButton = new NativeButton(label == null ? "" : label);
@@ -82,25 +83,31 @@ public class GuiButton extends GuiElement {
     @Override
     protected boolean onInput(GuiContext context, GuiInputEvent event) {
         Minecraft minecraft = context.getMinecraft();
-        if (event.getType() == GuiInputEvent.Type.POINTER_DOWN && event.getButton() == 0 && minecraft != null) {
+        if (event.getType() == GuiInputEvent.Type.POINTER_DOWN) {
+            if (minecraft == null || event.getButton() != 0) {
+                return false;
+            }
             updateNativeBounds();
             if (!nativeButton.mousePressed(minecraft, event.getMouseX(), event.getMouseY())) {
                 return false;
             }
             requestFocus(context);
-            activate(minecraft);
-            return true;
         }
-        if (event.getType() == GuiInputEvent.Type.POINTER_UP || event.getType() == GuiInputEvent.Type.POINTER_CANCEL) {
+        int result = activation.input(event, contains(event.getMouseX(), event.getMouseY()), isFocused());
+        if ((result & GuiActivation.RELEASE) != 0) {
             nativeButton.mouseReleased(event.getMouseX(), event.getMouseY());
-            return false;
         }
-        if (event.getType() == GuiInputEvent.Type.KEY_TYPED && isFocused() && (event.getKeyCode() == Keyboard.KEY_RETURN
-                || event.getKeyCode() == Keyboard.KEY_NUMPADENTER || event.getKeyCode() == Keyboard.KEY_SPACE)) {
+        if ((result & GuiActivation.ACTIVATE) != 0) {
             activate(minecraft);
-            return true;
         }
-        return false;
+        return (result & GuiActivation.CONSUMED) != 0;
+    }
+
+    @Override
+    protected void onFocusChanged(GuiContext context, boolean focused) {
+        if (!focused) {
+            activation.cancelKeyboard();
+        }
     }
 
     private void activate(Minecraft minecraft) {

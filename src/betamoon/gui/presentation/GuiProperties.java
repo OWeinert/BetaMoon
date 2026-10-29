@@ -59,6 +59,24 @@ public final class GuiProperties {
         return Collections.unmodifiableMap(descriptors);
     }
 
+    /**
+     * Static Java declarations use exactly the same normalization as parsed values.
+     */
+    public GuiProperties withDefaults(Map<String, Object> values) {
+        if (descriptors.isEmpty()) {
+            throw new IllegalStateException("Static defaults require retained descriptors");
+        }
+        GuiProperties result = new GuiProperties(type, descriptors.values());
+        for (Map.Entry<String, Object> entry : values.entrySet()) {
+            GuiPropertyDescriptor property = descriptors.get(entry.getKey());
+            if (property == null) {
+                throw new IllegalArgumentException("Unsupported " + type + " property: " + entry.getKey());
+            }
+            result.baseline.put(entry.getKey(), property.normalize(entry.getValue()));
+        }
+        return result;
+    }
+
     public GuiProperties(String type, GuiDocumentDefinition.Element element, LuaValue declaration) {
         this.type = type;
         numeric("x", declaration.get("x").optint(0), -Double.MAX_VALUE, Double.MAX_VALUE);

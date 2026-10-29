@@ -20,6 +20,7 @@ import java.util.function.ToIntFunction;
  * revision cleanup.
  */
 public final class GuiPresentationTree implements AutoCloseable {
+    private static final String[] INTERACTIONS = {"hovered", "pressed", "focused", "selected", "disabled", "invalid"};
     @FunctionalInterface
     public interface Factory {
         GuiViewAdapter create(GuiNodeDefinition definition);
@@ -106,6 +107,12 @@ public final class GuiPresentationTree implements AutoCloseable {
 
     public void update() {
         requireActive();
+        for (GuiNodeDefinition node : definition.presentation.nodes) {
+            GuiViewAdapter view = ids.get(node.id);
+            for (String interaction : INTERACTIONS) {
+                runtime.interaction(node.id, interaction, view.interaction(interaction));
+            }
+        }
         runtime.update();
         publish();
     }
@@ -148,7 +155,12 @@ public final class GuiPresentationTree implements AutoCloseable {
             GuiPresentationNode node = runtime.element(definition.presentation.nodes.get(i).id);
             if (published[i] != node.valueRevision()) {
                 views.get(i).publish(node);
-                views.get(i).element().setVisible(node.visible());
+                GuiElement element = views.get(i).element();
+                if (node.visible() && "hidden".equals(node.get("visibility"))) {
+                    element.setHidden(true);
+                } else {
+                    element.setVisible(node.visible() && !"collapsed".equals(node.get("visibility")));
+                }
                 published[i] = node.valueRevision();
             }
         }

@@ -26,6 +26,10 @@ public interface GuiViewAdapter extends AutoCloseable {
     default void retainFrom(GuiViewAdapter previous) {
     }
 
+    default boolean interaction(String name) {
+        return false;
+    }
+
     @Override
     default void close() {
     }

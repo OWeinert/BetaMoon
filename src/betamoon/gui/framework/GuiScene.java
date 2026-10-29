@@ -43,6 +43,8 @@ public final class GuiScene {
     private boolean frameDirty = true;
     private final List<GuiLayer> layers = new ArrayList<>();
     private GuiPresentationTree document;
+    private boolean painting;
+    private final List<Runnable> deferredEffects = new ArrayList<>();
 
     public void setDocument(GuiPresentationTree replacement) {
         if (deferMutation(() -> setDocument(replacement))) {
@@ -190,6 +192,7 @@ public final class GuiScene {
         tooltipLines = Collections.emptyList();
         renderer.beginFrame(context.getMinecraft(), context.getFont(), context.getScreenWidth(),
                 context.getScreenHeight(), context.getDisplayWidth(), context.getDisplayHeight());
+        painting = true;
         try {
             if (document != null) {
                 document.sample();
@@ -209,7 +212,11 @@ public final class GuiScene {
             throw failure;
         } finally {
             renderingFrame = null;
-            renderer.endFrame();
+            try {
+                renderer.endFrame();
+            } finally {
+                painting = false;
+            }
         }
         if (!waitingForRender.isEmpty()) {
             readyActions.addAll(waitingForRender);
@@ -231,7 +238,12 @@ public final class GuiScene {
             cancelledGestures.add(button);
             dispatchDepth++;
             try {
-                captured.cancelPointer(context, button);
+                Runnable cancel = () -> captured.cancelPointer(context, button);
+                if (painting) {
+                    deferredEffects.add(cancel);
+                } else {
+                    cancel.run();
+                }
             } finally {
                 finishDispatch();
             }
@@ -256,6 +268,13 @@ public final class GuiScene {
      * actions.
      */
     public void prepare() {
+        if (!deferredEffects.isEmpty()) {
+            List<Runnable> effects = new ArrayList<>(deferredEffects);
+            deferredEffects.clear();
+            for (Runnable effect : effects) {
+                effect.run();
+            }
+        }
         if (document != null) {
             document.update();
         }
@@ -568,10 +587,18 @@ public final class GuiScene {
         GuiElement previous = focusedElement;
         focusedElement = element;
         if (previous != null) {
-            previous.onFocusChanged(context, false);
+            notifyFocus(previous, false);
         }
         if (element != null) {
-            element.onFocusChanged(context, true);
+            notifyFocus(element, true);
+        }
+    }
+
+    private void notifyFocus(GuiElement element, boolean focused) {
+        if (painting) {
+            deferredEffects.add(() -> element.onFocusChanged(context, focused));
+        } else {
+            element.onFocusChanged(context, focused);
         }
     }
 

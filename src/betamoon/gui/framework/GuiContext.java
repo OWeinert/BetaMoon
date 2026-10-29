@@ -70,6 +70,10 @@ public final class GuiContext {
         return currentTimeMillis;
     }
 
+    public double getOpacity() {
+        return currentNode == null ? 1 : currentNode.opacity;
+    }
+
     public boolean isFocused(GuiElement element) {
         return scene.getFocusedElement() == element;
     }
