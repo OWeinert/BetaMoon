@@ -10,6 +10,23 @@ final class GuiScriptRestartIndicator extends GuiElement {
     private static final String TEXTURE = "/resources/betamoon/gui/symbol_reload_blocked.png";
 
     private String sourceFileName;
+    private boolean publishedVisible;
+    private String publishedTooltip = "";
+
+    void prepare(GuiContext context) {
+        publishedVisible = sourceFileName != null && NonReloadableScriptRegistry.contains(sourceFileName);
+        if (publishedVisible) {
+            context.getRenderer().preparePackagedTexture(TEXTURE);
+            String reason = NonReloadableScriptRegistry.reason(sourceFileName);
+            String detail = reason == null || reason.isEmpty() ? "startup-only content" : reason;
+            publishedTooltip = "Not hot-reloadable: " + detail + ". Restart Minecraft to apply changes.";
+        }
+    }
+
+    @Override
+    protected void updateElement(GuiContext context) {
+        prepare(context);
+    }
 
     GuiScriptRestartIndicator(String sourceFileName) {
         this.sourceFileName = sourceFileName;
@@ -20,7 +37,7 @@ final class GuiScriptRestartIndicator extends GuiElement {
     }
 
     boolean shouldRender() {
-        return sourceFileName != null && NonReloadableScriptRegistry.contains(sourceFileName);
+        return publishedVisible;
     }
 
     @Override
@@ -30,9 +47,7 @@ final class GuiScriptRestartIndicator extends GuiElement {
         }
         context.getRenderer().drawPackagedTexture(TEXTURE, getBounds());
         if (isHovered(context)) {
-            String reason = NonReloadableScriptRegistry.reason(sourceFileName);
-            String detail = reason == null || reason.isEmpty() ? "startup-only content" : reason;
-            context.showTooltip("Not hot-reloadable: " + detail + ". Restart Minecraft to apply changes.");
+            context.showTooltip(publishedTooltip);
         }
     }
 }

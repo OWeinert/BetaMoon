@@ -38,3 +38,6 @@
 - Separate shared UI updates from painting, publish reusable displayed geometry for input, and cancel pointer
   gestures without triggering release actions.
 - Establish shared graphics scopes, transform/clip conversion, GL state restoration and detached model publication.
+- Connect typed reactive documents to the retained view tree, with validated visual refresh, modal focus scopes,
+  and input consumption preserved across screen replacement.
+- Prepare shared Java UI textures and observations outside painting and retain usable images after invalid refreshes.

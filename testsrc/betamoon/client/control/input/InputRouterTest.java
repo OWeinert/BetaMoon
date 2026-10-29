@@ -21,6 +21,7 @@ public final class InputRouterTest {
 
     public static void main(String[] args) throws Exception {
         verifyBindings();
+        verifyGuiHandoff();
         verifyTransitionsAndConsumption();
         verifyPriorityFailureAndCapture();
         verifyRebindingAndLifecycle();
@@ -53,6 +54,35 @@ public final class InputRouterTest {
                         new InputActionDefinition("second",
                                 Collections.singletonList(InputBinding.parse("mouse.button1"))))),
                 "Overlapping defaults are rejected before runtime ordering can hide them");
+    }
+
+    private static void verifyGuiHandoff() {
+        InputRouter router = new InputRouter(null);
+        Object first = new Object();
+        Object second = new Object();
+        router.beginCycle(null, null, first, true);
+        router.accept(InputDeviceEvent.mouseButton(1, true));
+        router.claimGuiGesture(1, first);
+        router.observeScreen(second);
+        require(router.isPhysicalConsumed(InputDeviceEvent.Device.MOUSE_BUTTON, 1),
+                "Screen replacement released GUI consumption before the physical button");
+        require(router.accept(InputDeviceEvent.mouseButton(1, false)) && !router.hasGuiGesture(1),
+                "Old GUI release reached a successor or kept a stale claim");
+        router.claimGuiGesture(0, second);
+        require(!router.accept(InputDeviceEvent.mouseButton(0, false)), "Owning GUI lost its release event");
+        router.claimGuiKey(Keyboard.KEY_SPACE, second);
+        router.observeScreen(null);
+        require(router.accept(InputDeviceEvent.key(Keyboard.KEY_SPACE, true), true),
+                "Held GUI activation key repeated into gameplay");
+        require(router.accept(InputDeviceEvent.key(Keyboard.KEY_SPACE, false)), "GUI key-up reached gameplay");
+        router.claimGuiKey(Keyboard.KEY_RETURN, second);
+        router.beginCycle(null, null, null, false);
+        router.beginCycle(null, null, null, true);
+        require(router.accept(InputDeviceEvent.key(Keyboard.KEY_RETURN, true), true),
+                "Focus return lost held-key suppression");
+        require(!router.accept(InputDeviceEvent.key(Keyboard.KEY_RETURN, true), false),
+                "A fresh key press after a lost outside release remained stuck");
+        router.clear();
     }
 
     private static void verifyTransitionsAndConsumption() {

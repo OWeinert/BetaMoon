@@ -38,9 +38,14 @@ public final class GuiFrameSnapshot {
     }
 
     List<GuiElement> hitPath(double x, double y) {
+        return hitPath(x, y, null);
+    }
+
+    List<GuiElement> hitPath(double x, double y, GuiElement scope) {
         for (int i = order.size() - 1; i >= 0; i--) {
             Node node = order.get(i);
-            if (node.hitClip.contains(x, y) && node.bounds.contains(x, y) && node.eligible()) {
+            if (node.hitClip.contains(x, y) && node.bounds.contains(x, y) && node.eligible()
+                    && inside(node.element, scope)) {
                 List<GuiElement> path = new ArrayList<>();
                 for (Node current = node; current != null; current = current.parent) {
                     path.add(current.element);
@@ -51,14 +56,26 @@ public final class GuiFrameSnapshot {
         return Collections.emptyList();
     }
 
-    List<GuiElement> focusable() {
+    List<GuiElement> focusable(GuiElement scope) {
         List<GuiElement> result = new ArrayList<>();
         for (Node node : order) {
-            if (node.eligible() && node.element.isFocusable()) {
+            if (node.eligible() && node.element.isFocusable() && inside(node.element, scope)) {
                 result.add(node.element);
             }
         }
         return result;
+    }
+
+    static boolean inside(GuiElement element, GuiElement scope) {
+        if (scope == null) {
+            return true;
+        }
+        for (GuiElement current = element; current != null; current = current.getParent()) {
+            if (current == scope) {
+                return true;
+            }
+        }
+        return false;
     }
 
     GuiInputEvent event(GuiElement element, GuiInputEvent event) {

@@ -4,6 +4,7 @@ import betamoon.gui.animation.GuiAnimationRequest;
 import betamoon.gui.animation.GuiTransitionPolicy;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -31,6 +32,19 @@ public final class GuiPresentationNode {
     boolean dirty = true;
     int evaluations;
     int suppressedDiagnostics;
+    private long valueRevision;
+
+    public long valueRevision() {
+        return valueRevision;
+    }
+
+    void invalidateValues() {
+        valueRevision++;
+    }
+
+    public boolean visible() {
+        return !Boolean.FALSE.equals(get("visible")) && !Boolean.FALSE.equals(displayed.get("__conditionVisible"));
+    }
 
     GuiPresentationNode(GuiNodeDefinition definition) {
         this.definition = definition;
@@ -58,16 +72,23 @@ public final class GuiPresentationNode {
     }
 
     void sample(double now) {
-        for (String property : new LinkedHashSet<>(tracks.keySet())) {
-            Track track = tracks.get(property);
+        Iterator<Map.Entry<String, Track>> iterator = tracks.entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry<String, Track> entry = iterator.next();
+            String property = entry.getKey();
+            Track track = entry.getValue();
+            Object before = displayed.get(property);
             if (now >= track.start + track.options.delay + track.options.duration) {
                 displayed.put(property, track.to);
-                tracks.remove(property);
+                iterator.remove();
                 track.request.property(property, true, null);
             } else if (now > track.start + track.options.delay) {
                 double p = (now - track.start - track.options.delay) / track.options.duration;
                 displayed.put(property, definition.properties.interpolate(property, track.from, track.to,
                         track.options.easing.sample(p)));
+            }
+            if (!Objects.equals(before, displayed.get(property))) {
+                valueRevision++;
             }
         }
     }
@@ -91,6 +112,7 @@ public final class GuiPresentationNode {
                 tracks.remove(property);
             }
             targets.put(property, to);
+            valueRevision++;
             if (unchanged && old != null && explicit && !immediate) {
                 tracks.put(property, new Track(old.from, old.to, old.start, old.options, request));
                 continue;
@@ -104,6 +126,7 @@ public final class GuiPresentationNode {
                 tracks.put(property, new Track(from, to, now, options, request));
             } else {
                 displayed.put(property, to);
+                valueRevision++;
                 if (request != null) {
                     request.property(property, true, null);
                 }

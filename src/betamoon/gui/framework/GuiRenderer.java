@@ -8,8 +8,11 @@ import java.nio.IntBuffer;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.FontRenderer;
+import net.minecraft.src.RenderEngine;
 import net.minecraft.src.Tessellator;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
@@ -31,6 +34,41 @@ public final class GuiRenderer {
     private int displayHeight;
     private GraphicsStateGuard frameState;
     private boolean parentClipped;
+    private final Map<String, Integer> preparedTextures = new HashMap<>();
+    private RenderEngine preparedEngine;
+
+    void updateEnvironment(Minecraft minecraft, FontRenderer font, int screenWidth, int screenHeight, int displayWidth,
+            int displayHeight) {
+        RenderEngine engine = minecraft == null ? null : minecraft.renderEngine;
+        if (this.minecraft != minecraft || preparedEngine != engine) {
+            preparedTextures.clear();
+        }
+        preparedEngine = engine;
+        this.minecraft = minecraft;
+        this.font = font;
+        this.screenWidth = Math.max(0, screenWidth);
+        this.screenHeight = Math.max(0, screenHeight);
+        this.displayWidth = Math.max(0, displayWidth);
+        this.displayHeight = Math.max(0, displayHeight);
+    }
+
+    /**
+     * Acquires a borrowed native texture at an update/preparation boundary.
+     * Minecraft owns disposal.
+     */
+    public int preparePackagedTexture(String path) {
+        if (minecraft == null || minecraft.renderEngine == null || path == null) {
+            return -1;
+        }
+        Integer prepared = preparedTextures.get(path);
+        if (prepared == null) {
+            try (GraphicsStateGuard guard = GraphicsStateGuard.save()) {
+                prepared = minecraft.renderEngine.getTexture(path);
+            }
+            preparedTextures.put(path, prepared);
+        }
+        return prepared;
+    }
 
     public GuiRenderer(GuiTheme theme) {
         if (theme == null) {
@@ -59,12 +97,7 @@ public final class GuiRenderer {
             GL11.glGetInteger(GL11.GL_SCISSOR_BOX, parentScissor);
         }
         GL11.glMatrixMode(GL11.GL_MODELVIEW);
-        this.minecraft = minecraft;
-        this.font = font;
-        this.screenWidth = Math.max(0, screenWidth);
-        this.screenHeight = Math.max(0, screenHeight);
-        this.displayWidth = Math.max(0, displayWidth);
-        this.displayHeight = Math.max(0, displayHeight);
+        updateEnvironment(minecraft, font, screenWidth, screenHeight, displayWidth, displayHeight);
         clips.clear();
         transforms.clear();
     }
@@ -264,12 +297,13 @@ public final class GuiRenderer {
 
     public void drawPackagedTexture(String path, Rect bounds, float minU, float minV, float maxU, float maxV,
             int alpha) {
-        if (minecraft == null || path == null || bounds == null || bounds.isEmpty()) {
+        Integer texture = preparedTextures.get(path);
+        if (minecraft == null || texture == null || bounds == null || bounds.isEmpty()) {
             return;
         }
         GL11.glPushAttrib(DRAW_STATE_BITS);
         try {
-            minecraft.renderEngine.bindTexture(minecraft.renderEngine.getTexture(path));
+            minecraft.renderEngine.bindTexture(texture);
             drawBoundTextureContents(bounds, minU, minV, maxU, maxV, alpha);
         } finally {
             GL11.glPopAttrib();

@@ -9,6 +9,12 @@ import org.lwjgl.opengl.GL11;
  * vanilla atlas strip.
  */
 public class GuiMinecraftButton extends GuiButton {
+    private int preparedTexture = -1;
+
+    public void setPreparedTexture(int texture) {
+        preparedTexture = texture;
+    }
+
     public GuiMinecraftButton(int id, int x, int y, int width, int height, String label) {
         super(id, x, y, width, height, label);
     }
@@ -18,7 +24,8 @@ public class GuiMinecraftButton extends GuiButton {
         if (!enabled2) {
             return;
         }
-        GL11.glBindTexture(GL11.GL_TEXTURE_2D, minecraft.renderEngine.getTexture("/gui/gui.png"));
+        GL11.glBindTexture(GL11.GL_TEXTURE_2D,
+                preparedTexture >= 0 ? preparedTexture : minecraft.renderEngine.getTexture("/gui/gui.png"));
         GL11.glColor4f(1, 1, 1, 1);
         boolean hovered = mouseX >= xPosition && mouseY >= yPosition && mouseX < xPosition + width
                 && mouseY < yPosition + height;

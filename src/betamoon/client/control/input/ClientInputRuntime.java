@@ -64,8 +64,13 @@ public final class ClientInputRuntime {
             if (isProtectedScreen()) {
                 return true;
             }
-            keyboardConsumed = ROUTER.accept(InputDeviceEvent.key(keyCode, Keyboard.getEventKeyState()));
-            keyboardConsumed |= capturesGuiInput();
+            ROUTER.observeScreen(currentMinecraft == null ? null : currentMinecraft.currentScreen);
+            boolean guiOwned = ROUTER.hasGuiKey(keyCode);
+            keyboardConsumed = ROUTER.accept(InputDeviceEvent.key(keyCode, Keyboard.getEventKeyState()),
+                    Keyboard.isRepeatEvent());
+            if (!guiOwned) {
+                keyboardConsumed |= capturesGuiInput();
+            }
             keyboardConsumed |= ROUTER.captures(InputFamily.INVENTORY) && isInventoryKey(keyCode);
             MotionInputObservation.accept(keyCode, Keyboard.getEventKeyState(),
                     !keyboardConsumed && !ROUTER.captures(InputFamily.MOVEMENT)
@@ -90,6 +95,7 @@ public final class ClientInputRuntime {
             if (isProtectedScreen()) {
                 return true;
             }
+            ROUTER.observeScreen(currentMinecraft == null ? null : currentMinecraft.currentScreen);
             int wheel = Mouse.getEventDWheel();
             if (wheel != 0) {
                 mouseConsumed |= ROUTER.accept(InputDeviceEvent.mouseWheel(wheel));
@@ -99,10 +105,13 @@ public final class ClientInputRuntime {
                 }
             }
             int button = Mouse.getEventButton();
+            boolean guiOwned = button >= 0 && ROUTER.hasGuiGesture(button);
             if (button >= 0) {
                 mouseConsumed |= ROUTER.accept(InputDeviceEvent.mouseButton(button, Mouse.getEventButtonState()));
             }
-            mouseConsumed |= capturesGuiInput();
+            if (!guiOwned) {
+                mouseConsumed |= capturesGuiInput();
+            }
         }
         return available;
     }

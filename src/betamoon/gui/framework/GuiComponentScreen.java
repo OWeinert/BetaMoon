@@ -1,5 +1,6 @@
 package betamoon.gui.framework;
 
+import betamoon.client.control.input.ClientInputRuntime;
 import net.minecraft.src.GuiScreen;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
@@ -105,6 +106,9 @@ public abstract class GuiComponentScreen extends GuiScreen {
 
     @Override
     public void handleMouseInput() {
+        if (ClientInputRuntime.consumesCurrentMouseEvent()) {
+            return;
+        }
         inputBatchDepth++;
         try {
             super.handleMouseInput();
@@ -130,7 +134,9 @@ public abstract class GuiComponentScreen extends GuiScreen {
     protected void mouseClicked(int mouseX, int mouseY, int button) {
         pointerX = mouseX;
         pointerY = mouseY;
-        if (!scene.mousePressed(mouseX, mouseY, button)) {
+        if (scene.mousePressed(mouseX, mouseY, button)) {
+            ClientInputRuntime.router().claimGuiGesture(button, this);
+        } else {
             super.mouseClicked(mouseX, mouseY, button);
         }
         prepareAfterInput();
@@ -148,7 +154,11 @@ public abstract class GuiComponentScreen extends GuiScreen {
 
     @Override
     protected void keyTyped(char typedChar, int keyCode) {
-        if (!scene.keyTyped(typedChar, keyCode, isShiftDown())) {
+        if (scene.keyTyped(typedChar, keyCode, isShiftDown())) {
+            if (keyCode > 0) {
+                ClientInputRuntime.router().claimGuiKey(keyCode, this);
+            }
+        } else {
             super.keyTyped(typedChar, keyCode);
         }
         prepareAfterInput();
@@ -156,6 +166,9 @@ public abstract class GuiComponentScreen extends GuiScreen {
 
     @Override
     public void handleKeyboardInput() {
+        if (ClientInputRuntime.consumesCurrentKeyboardEvent()) {
+            return;
+        }
         inputBatchDepth++;
         try {
             if (Keyboard.getEventKeyState()) {

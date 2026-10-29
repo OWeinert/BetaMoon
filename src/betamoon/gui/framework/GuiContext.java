@@ -113,6 +113,7 @@ public final class GuiContext {
         this.screenHeight = Math.max(0, screenHeight);
         this.displayWidth = Math.max(0, displayWidth);
         this.displayHeight = Math.max(0, displayHeight);
+        renderer.updateEnvironment(minecraft, font, screenWidth, screenHeight, displayWidth, displayHeight);
     }
 
     void updateFrame(int mouseX, int mouseY, float partialTicks, long currentTimeMillis) {

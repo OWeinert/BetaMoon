@@ -18,6 +18,23 @@ final class GuiScriptReloadIndicator extends GuiElement {
     private static final long SUCCESS_FADE_MS = 2000L;
 
     private final GuiAction errorAction;
+    private ScriptReloadStatus.State publishedState = ScriptReloadStatus.State.IDLE;
+    private String publishedTooltip = "";
+
+    @Override
+    protected void updateElement(GuiContext context) {
+        if (ScriptReloadStatus.getState() == ScriptReloadStatus.State.SUCCESS
+                && successAlpha(System.currentTimeMillis()) <= 0) {
+            ScriptReloadStatus.expireSuccess();
+        }
+        publishedState = ScriptReloadStatus.getState();
+        publishedTooltip = tooltip(publishedState);
+        if (publishedState != ScriptReloadStatus.State.IDLE) {
+            context.getRenderer().preparePackagedTexture(SUCCESS_TEXTURE);
+            context.getRenderer().preparePackagedTexture(ERROR_TEXTURE);
+            context.getRenderer().preparePackagedTexture(SPINNER_TEXTURE);
+        }
+    }
 
     GuiScriptReloadIndicator(GuiAction errorAction) {
         this.errorAction = errorAction;
@@ -26,13 +43,12 @@ final class GuiScriptReloadIndicator extends GuiElement {
 
     @Override
     protected void renderElement(GuiContext context) {
-        ScriptReloadStatus.State state = ScriptReloadStatus.getState();
+        ScriptReloadStatus.State state = publishedState;
         if (state == ScriptReloadStatus.State.IDLE) {
             return;
         }
         int alpha = state == ScriptReloadStatus.State.SUCCESS ? successAlpha(context.getCurrentTimeMillis()) : 255;
         if (alpha <= 0) {
-            ScriptReloadStatus.expireSuccess();
             return;
         }
         if (state == ScriptReloadStatus.State.RELOADING) {
@@ -45,7 +61,7 @@ final class GuiScriptReloadIndicator extends GuiElement {
             context.getRenderer().drawPackagedTexture(ERROR_TEXTURE, getBounds(), 0.0F, 0.0F, 1.0F, 1.0F, alpha);
         }
         if (isHovered(context)) {
-            context.showTooltip(tooltip(state));
+            context.showTooltip(publishedTooltip);
         }
     }
 
@@ -90,7 +106,6 @@ final class GuiScriptReloadIndicator extends GuiElement {
             return "Scripts reloaded successfully";
         }
         int errors = ScriptReloadStatus.getErrorCount();
-        return "Reload completed with " + errors + (errors == 1 ? " error" : " errors")
-                + ". Click to view details.";
+        return "Reload completed with " + errors + (errors == 1 ? " error" : " errors") + ". Click to view details.";
     }
 }

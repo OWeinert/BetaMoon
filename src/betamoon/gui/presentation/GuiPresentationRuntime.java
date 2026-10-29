@@ -23,6 +23,8 @@ import java.util.Set;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
+import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -59,6 +61,15 @@ public class GuiPresentationRuntime implements AutoCloseable {
     private boolean initialized;
     private boolean preparing;
     private boolean layoutDirty;
+    private BiConsumer<GuiNodeDefinition, Map<String, Object>> viewValidator;
+
+    public void setViewValidator(BiConsumer<GuiNodeDefinition, Map<String, Object>> validator) {
+        requireActive();
+        if (initialized) {
+            throw new IllegalStateException("View validation must be installed before initial publication");
+        }
+        viewValidator = validator;
+    }
     private int nextRequest = 1;
     private Bounds viewport = new Bounds(-1e9, -1e9, 2e9, 2e9);
 
@@ -118,6 +129,31 @@ public class GuiPresentationRuntime implements AutoCloseable {
             throw new LuaError("Unknown GUI element ID: " + id);
         }
         return node;
+    }
+
+    public void requireUsablePublication() {
+        requireActive();
+        if (!initialized || nodes.stream().anyMatch(node -> node.bindingFailed || node.pending != null)) {
+            throw new LuaError("Presentation has invalid bindings or final geometry");
+        }
+    }
+
+    public void prepareInitial() {
+        requireActive();
+        if (initialized) {
+            throw new IllegalStateException("Initial presentation was already prepared");
+        }
+        preparing = true;
+        update();
+        requireUsablePublication();
+    }
+
+    public void activatePrepared() {
+        requireUsablePublication();
+        if (preparing) {
+            preparing = false;
+            queue("open", LuaTable::new);
+        }
     }
 
     /**
@@ -284,6 +320,9 @@ public class GuiPresentationRuntime implements AutoCloseable {
     }
 
     public GuiGeometry geometry(GuiPresentationNode node) {
+        if (definition.retained) {
+            throw new IllegalStateException("Retained input and painting use the scene's displayed frame");
+        }
         if (displayedGeometry == null) {
             displayedGeometry = geometries(Collections.emptyMap(), false);
         }
@@ -303,6 +342,14 @@ public class GuiPresentationRuntime implements AutoCloseable {
 
     public void interaction(GuiDocumentDefinition.Element element, String name, boolean value) {
         interaction(node(element), name, value);
+    }
+
+    public void interaction(String id, String name, boolean value) {
+        GuiPresentationNode node = element(id);
+        if (!node.interactionKeys.containsKey(name)) {
+            throw new IllegalArgumentException("Unknown interaction state: " + name);
+        }
+        interaction(node, name, value);
     }
 
     private void interaction(GuiPresentationNode node, String name, boolean value) {
@@ -360,6 +407,7 @@ public class GuiPresentationRuntime implements AutoCloseable {
                 }
             }
             node.pending = candidate(node, output, policy, reads);
+            validateView(node, node.pending.effective);
             node.bindingFailed = false;
         } catch (Throwable error) {
             node.pending = null;
@@ -479,6 +527,7 @@ public class GuiPresentationRuntime implements AutoCloseable {
             Object condition = changed.remove("__conditionVisible");
             node.targets.put("__conditionVisible", condition);
             node.displayed.put("__conditionVisible", condition);
+            node.invalidateValues();
         }
         if (!changed.isEmpty()) {
             GuiAnimationRequest request = initial ? null : request(node, changed.keySet());
@@ -516,6 +565,19 @@ public class GuiPresentationRuntime implements AutoCloseable {
 
     private void validateLayout(Map<GuiPresentationNode, Map<String, Object>> candidates) {
         layout().validate(candidates);
+        for (GuiPresentationNode node : nodes) {
+            validateView(node, candidates.getOrDefault(node, node.targets));
+        }
+    }
+
+    private void validateView(GuiPresentationNode node, Map<String, Object> values) {
+        if (viewValidator != null) {
+            try {
+                viewValidator.accept(node.definition, Collections.unmodifiableMap(values));
+            } catch (IllegalArgumentException invalid) {
+                throw new GuiProperties.ValueError(node.definition.path + ": " + invalid.getMessage());
+            }
+        }
     }
 
     private GuiAnimationRequest request(GuiPresentationNode node, Set<String> properties) {
@@ -754,7 +816,7 @@ public class GuiPresentationRuntime implements AutoCloseable {
         Set<GuiPresentationNode> geometry = Collections.newSetFromMap(new IdentityHashMap<>());
         Map<GuiPresentationNode, Map<String, Object>> geometryCandidates = new IdentityHashMap<>();
         for (Map.Entry<GuiPresentationNode, Map<String, Object>> entry : candidates.entrySet()) {
-            if (plans.get(entry.getKey()).geometryChanged) {
+            if (definition.retained || plans.get(entry.getKey()).geometryChanged) {
                 geometry.add(entry.getKey());
                 geometryCandidates.put(entry.getKey(), entry.getValue());
             }
@@ -942,7 +1004,34 @@ public class GuiPresentationRuntime implements AutoCloseable {
         if (value instanceof Number) {
             return LuaValue.valueOf(((Number) value).doubleValue());
         }
+        if (value instanceof Map || value instanceof List) {
+            return luaComposite(value, 0, new int[]{16384});
+        }
         return LuaValue.valueOf(String.valueOf(value));
+    }
+
+    private static LuaValue luaComposite(Object value, int depth, int[] remaining) {
+        if (depth > 16 || --remaining[0] < 0) {
+            throw new LuaError("GUI data exceeds detached depth/value limits");
+        }
+        if (!(value instanceof Map || value instanceof List)) {
+            return lua(value);
+        }
+        LuaTable result = new LuaTable();
+        if (value instanceof Map) {
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+                if (!(entry.getKey() instanceof String)) {
+                    throw new LuaError("GUI data record keys must be strings");
+                }
+                result.set((String) entry.getKey(), luaComposite(entry.getValue(), depth + 1, remaining));
+            }
+        } else {
+            int index = 1;
+            for (Object child : (List<?>) value) {
+                result.set(index++, luaComposite(child, depth + 1, remaining));
+            }
+        }
+        return result;
     }
 
     protected GuiPresentationRuntime createReplacement(GuiDocumentDefinition replacement,
@@ -955,12 +1044,29 @@ public class GuiPresentationRuntime implements AutoCloseable {
      * presentation.
      */
     public GuiPresentationRuntime reload(GuiDocumentDefinition replacement) {
+        return reload(replacement, candidate -> {
+        });
+    }
+
+    /** Prepares detached candidate views before the active revision is retired. */
+    public GuiPresentationRuntime reload(GuiDocumentDefinition replacement,
+            Consumer<GuiPresentationRuntime> prepareViews) {
+        return reload(replacement, candidate -> {
+        }, prepareViews);
+    }
+
+    public GuiPresentationRuntime reload(GuiDocumentDefinition replacement, Consumer<GuiPresentationRuntime> configure,
+            Consumer<GuiPresentationRuntime> prepareViews) {
         requireActive();
+        if (replacement.retained != definition.retained) {
+            throw new LuaError("Presentation refresh cannot change its layout/host contract");
+        }
         GuiPresentationHost replacementHost = host.forDefinition(replacement);
         GuiPresentationRuntime candidate = createReplacement(replacement, replacementHost);
         candidate.preparing = true;
         candidate.viewport = viewport;
         try {
+            configure.accept(candidate);
             candidate.update();
             if (candidate.nodes.stream().anyMatch(node -> node.bindingFailed || node.pending != null)) {
                 throw new LuaError("Presentation refresh has invalid bindings or final geometry.");
@@ -1015,6 +1121,7 @@ public class GuiPresentationRuntime implements AutoCloseable {
             }
             candidate.validateLayout(Collections.emptyMap());
             candidate.displayedGeometry = null;
+            prepareViews.accept(candidate);
             dispose(false);
             candidate.preparing = false;
             candidate.queue("reload", LuaTable::new);
@@ -1036,7 +1143,7 @@ public class GuiPresentationRuntime implements AutoCloseable {
         }
         closing = true;
         events.clear();
-        if (notifyClose && !eventFailed && definition.presentation.listens("close") && callbacksValid()) {
+        if (notifyClose && !preparing && !eventFailed && definition.presentation.listens("close") && callbacksValid()) {
             invokeEvent(new QueuedEvent("close", LuaTable::new));
         }
         active = false;

@@ -17,6 +17,11 @@ public final class GuiTextureCache {
     private static final GuiTextureCache SHARED = new GuiTextureCache();
 
     private final Map<String, Entry> entries = new HashMap<String, Entry>();
+    private long generation;
+
+    public synchronized long generation() {
+        return generation;
+    }
 
     public static GuiTextureCache shared() {
         return SHARED;
@@ -34,10 +39,14 @@ public final class GuiTextureCache {
         if (cached != null && cached.modified == modified && cached.length == length) {
             return cached.texture;
         }
-        if (cached != null) {
-            delete(cached.texture);
-        }
         Texture texture = load(absolute);
+        if (cached != null) {
+            if (texture == null) {
+                texture = cached.texture;
+            } else {
+                delete(cached.texture);
+            }
+        }
         entries.put(key, new Entry(modified, length, texture));
         return texture;
     }
@@ -51,10 +60,14 @@ public final class GuiTextureCache {
         if (cached != null && cached.modified == contentRevision && cached.length == pngBytes.length) {
             return cached.texture;
         }
-        if (cached != null) {
-            delete(cached.texture);
-        }
         Texture texture = load(pngBytes);
+        if (cached != null) {
+            if (texture == null) {
+                texture = cached.texture;
+            } else {
+                delete(cached.texture);
+            }
+        }
         entries.put(key, new Entry(contentRevision, pngBytes.length, texture));
         return texture;
     }
@@ -64,12 +77,14 @@ public final class GuiTextureCache {
             return;
         }
         Entry removed = entries.remove(file.getAbsoluteFile().getPath());
+        generation++;
         if (removed != null) {
             delete(removed.texture);
         }
     }
 
     public synchronized void clear() {
+        generation++;
         for (Entry entry : entries.values()) {
             delete(entry.texture);
         }

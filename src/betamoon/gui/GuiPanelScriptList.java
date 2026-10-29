@@ -109,6 +109,13 @@ final class GuiPanelScriptList extends GuiContainer {
     }
 
     @Override
+    protected void updateElement(GuiContext context) {
+        for (GuiScriptRestartIndicator indicator : warningIndicators) {
+            indicator.prepare(context);
+        }
+    }
+
+    @Override
     protected void renderBeforeChildren(GuiContext context) {
         int headerLineY = getTop() + 20;
         context.getRenderer().drawScaledText("Scripts", getLeft(), headerTextY,
@@ -165,7 +172,8 @@ final class GuiPanelScriptList extends GuiContainer {
             return theme.textError;
         }
         return LuaScriptErrors.hasWarningFor(entry.getDisplayName(), entry.getSourceFileName())
-                ? theme.textWarning : theme.textPrimary;
+                ? theme.textWarning
+                : theme.textPrimary;
     }
 
     private static boolean sameEntries(List<ScriptMod> first, List<ScriptMod> second) {

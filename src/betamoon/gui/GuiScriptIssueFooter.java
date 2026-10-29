@@ -15,7 +15,10 @@ import java.util.List;
 import java.util.function.Supplier;
 import org.lwjgl.input.Keyboard;
 
-/** The utility-button pair exactly spans Dismiss; feedback aligns above Close Game. */
+/**
+ * The utility-button pair exactly spans Dismiss; feedback aligns above Close
+ * Game.
+ */
 final class GuiScriptIssueFooter extends GuiContainer {
     private static final int GAP = 6;
     private final GuiScriptIssueActions actions;
@@ -26,8 +29,8 @@ final class GuiScriptIssueFooter extends GuiContainer {
     private final GuiButton close;
     private final Supplier<List<ScriptIssue>> issues;
 
-    GuiScriptIssueFooter(GuiScriptIssueActions actions, Supplier<List<ScriptIssue>> issues,
-            GuiAction exportAction, GuiAction dismissAction, GuiAction closeAction) {
+    GuiScriptIssueFooter(GuiScriptIssueActions actions, Supplier<List<ScriptIssue>> issues, GuiAction exportAction,
+            GuiAction dismissAction, GuiAction closeAction) {
         this.actions = actions;
         this.issues = issues;
         copy = add(new GuiButton("Copy all", () -> actions.copyAll(issues.get())));
@@ -72,25 +75,28 @@ final class GuiScriptIssueFooter extends GuiContainer {
             export.arrange(context, new Rect(right, getTop(), getRight(), getTop() + 18));
             feedback.arrange(context, new Rect(getLeft(), getTop() + 22, getRight(), mainY - 4));
         }
-        feedback.setFocusableForReport();
     }
 
     private final class Feedback extends GuiElement {
-        private void setFocusableForReport() {
-            setFocusable(actions.reportLinkVisible());
+        private String text = "";
+        private String detail = "";
+        private boolean link;
+        private boolean failed;
+
+        @Override
+        protected void updateElement(GuiContext context) {
+            String feedback = actions.feedback();
+            link = actions.reportLinkVisible();
+            text = link ? "Open report" : feedback.isEmpty() ? "Click an entry to copy" : feedback;
+            detail = link ? actions.report().toString() : feedback.isEmpty() ? "" : actions.detail();
+            failed = actions.failed();
+            setFocusable(link);
         }
 
         @Override
         protected void renderElement(GuiContext context) {
-            setFocusableForReport();
-            String text = actions.feedback();
-            boolean link = actions.reportLinkVisible();
-            if (link) {
-                text = "Open report";
-            } else if (text.isEmpty()) {
-                text = "Click an entry to copy";
-            }
-            int color = actions.failed() ? context.getRenderer().getTheme().textError
+            int color = failed
+                    ? context.getRenderer().getTheme().textError
                     : link ? context.getRenderer().getTheme().link : context.getRenderer().getTheme().textMuted;
             String visible = context.getRenderer().trimToWidth(text, getWidth());
             int x = getRight() - context.getRenderer().textWidth(visible);
@@ -100,7 +106,6 @@ final class GuiScriptIssueFooter extends GuiContainer {
                 context.getRenderer().drawHorizontalLine(x, getRight(), y + context.getRenderer().lineHeight(), color);
             }
             if (isHovered(context)) {
-                String detail = link ? actions.report().toString() : actions.feedback().isEmpty() ? "" : actions.detail();
                 if (!detail.isEmpty() || !visible.equals(text)) {
                     context.showTooltip(Arrays.asList((detail.isEmpty() ? text : detail).split("\\n")));
                 }
@@ -112,8 +117,8 @@ final class GuiScriptIssueFooter extends GuiContainer {
             int width = Math.min(getWidth(), context.getRenderer().textWidth("Open report"));
             int y = getTop() + (getHeight() - context.getRenderer().lineHeight()) / 2;
             boolean click = event.getType() == GuiInputEvent.Type.POINTER_DOWN && event.getButton() == 0
-                    && Rect.fromPositionAndSize(getRight() - width, y, width,
-                            context.getRenderer().lineHeight()).contains(event.getMouseX(), event.getMouseY());
+                    && Rect.fromPositionAndSize(getRight() - width, y, width, context.getRenderer().lineHeight())
+                            .contains(event.getMouseX(), event.getMouseY());
             boolean key = event.getType() == GuiInputEvent.Type.KEY_TYPED && isFocused()
                     && (event.getKeyCode() == Keyboard.KEY_RETURN || event.getKeyCode() == Keyboard.KEY_NUMPADENTER
                             || event.getKeyCode() == Keyboard.KEY_SPACE);

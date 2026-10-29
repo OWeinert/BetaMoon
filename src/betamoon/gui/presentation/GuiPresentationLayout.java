@@ -102,6 +102,21 @@ public final class GuiPresentationLayout {
     }
 
     public void validate(Map<GuiPresentationNode, Map<String, Object>> candidates) {
+        if (definition.retained) {
+            // Retained views own layout; legacy panel/slot geometry is not a second
+            // authoritative tree.
+            for (GuiPresentationNode node : nodes) {
+                Map<String, Object> values = candidates.getOrDefault(node, node.targets);
+                for (GuiPropertyDescriptor descriptor : node.definition.properties.descriptors().values()) {
+                    try {
+                        descriptor.normalize(values.get(descriptor.name));
+                    } catch (IllegalArgumentException invalid) {
+                        throw new GuiProperties.ValueError(node.definition.path + "." + invalid.getMessage());
+                    }
+                }
+            }
+            return;
+        }
         // Final-layout validity must not depend on whether today's window clips a bad
         // target.
         Bounds logicalSpace = new Bounds(-Float.MAX_VALUE, -Float.MAX_VALUE, Float.MAX_VALUE * 2.0,

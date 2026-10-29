@@ -18,6 +18,8 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
+import java.io.ByteArrayOutputStream;
+import betamoon.gui.framework.GuiTextureCache;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.imageio.ImageIO;
 import net.minecraft.client.Minecraft;
@@ -33,6 +35,20 @@ final class GuiGraphicsRenderChecks {
         restoreAfterFailure();
         transformedFrame(minecraft, font, output);
         noLuaInPreparedPaint(minecraft);
+        preparedAssetFailure();
+    }
+
+    private static void preparedAssetFailure() throws Exception {
+        GuiTextureCache cache = new GuiTextureCache();
+        BufferedImage bitmap = new BufferedImage(2, 2, BufferedImage.TYPE_INT_ARGB);
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        ImageIO.write(bitmap, "png", bytes);
+        GuiTextureCache.Texture usable = cache.get("ui-asset-candidate", bytes.toByteArray(), 1);
+        require(usable != null && GL11.glIsTexture(usable.getTextureId()), "Prepared image did not allocate");
+        require(cache.get("ui-asset-candidate", new byte[]{0}, 2) == usable && GL11.glIsTexture(usable.getTextureId()),
+                "Invalid image refresh deleted the last usable resource");
+        cache.clear();
+        require(!GL11.glIsTexture(usable.getTextureId()), "Prepared cache disposal retained a GPU resource");
     }
 
     private static void restoreAfterFailure() {
@@ -158,6 +174,8 @@ final class GuiGraphicsRenderChecks {
 
             @Override
             protected void updateSceneState(int mouseX, int mouseY, float partialTicks) {
+                require(getGuiContext().getRenderer().textWidth("Ready") > 0,
+                        "Initial publication cannot measure prepared font metrics");
                 lua.get("sample").call();
             }
         };

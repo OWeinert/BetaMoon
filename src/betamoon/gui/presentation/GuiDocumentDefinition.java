@@ -20,9 +20,15 @@ public class GuiDocumentDefinition {
     public final Background background;
     public final List<Element> elements;
     public final GuiPresentationDefinition presentation;
+    public final boolean retained;
 
     public GuiDocumentDefinition(String name, String owner, int width, int height, Label title, Background background,
             List<Element> elements, GuiPresentationDefinition presentation) {
+        this(name, owner, width, height, title, background, elements, presentation, false);
+    }
+
+    public GuiDocumentDefinition(String name, String owner, int width, int height, Label title, Background background,
+            List<Element> elements, GuiPresentationDefinition presentation, boolean retained) {
         this.name = name;
         this.owner = owner;
         this.width = width;
@@ -31,6 +37,7 @@ public class GuiDocumentDefinition {
         this.background = background;
         this.elements = Collections.unmodifiableList(new ArrayList<>(elements));
         this.presentation = presentation;
+        this.retained = retained;
     }
 
     /** Text drawn in the foreground layer. */

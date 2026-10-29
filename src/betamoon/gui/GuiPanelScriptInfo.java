@@ -20,7 +20,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
-/** Script details with measured, consecutive sections and the same interactive entries as the popup. */
+/**
+ * Script details with measured, consecutive sections and the same interactive
+ * entries as the popup.
+ */
 final class GuiPanelScriptInfo extends GuiContainer {
     private static final int CONTENT_PADDING = 6;
     private static final int SECTION_GAP = 16;
@@ -43,6 +46,31 @@ final class GuiPanelScriptInfo extends GuiContainer {
     private long issueRevision = -1;
     private int headerY;
     private float headerScale = 1.0F;
+    private GuiTextureCache.Texture preparedImage;
+    private ScriptMod preparedMod;
+    private long preparedStorageRevision = Long.MIN_VALUE;
+    private long preparedImageGeneration = -1;
+
+    @Override
+    protected void updateElement(GuiContext context) {
+        warningIndicator.prepare(context);
+        context.getRenderer().preparePackagedTexture(CONFIG_ICON);
+        long revision = selected == null ? 0 : selected.getStorageRevision();
+        boolean archive = selected != null && "zip".equals(selected.getPackageLayout());
+        long generation = GuiTextureCache.shared().generation();
+        if (archive && selected == preparedMod && revision == preparedStorageRevision
+                && generation == preparedImageGeneration) {
+            return;
+        }
+        GuiTextureCache.Texture next = selected == null ? null : resolveImageTexture(selected);
+        preparedMod = selected;
+        preparedStorageRevision = revision;
+        preparedImageGeneration = generation;
+        if (next != preparedImage) {
+            preparedImage = next;
+            requestLayout();
+        }
+    }
 
     GuiPanelScriptInfo() {
         this(new GuiScriptIssueActions(), null);
@@ -132,19 +160,19 @@ final class GuiPanelScriptInfo extends GuiContainer {
             boolean configurable = selected.isLoaded()
                     && !ScriptConfigRegistry.forScript(selected.getSourceFileName()).isEmpty();
             configureButton.setVisible(configurable);
-            int buttonX = Math.max(getLeft(), Math.min(getLeft() + IMAGE_SIZE + IMAGE_GAP,
-                    getRight() - CONFIG_BUTTON_SIZE));
+            int buttonX = Math.max(getLeft(),
+                    Math.min(getLeft() + IMAGE_SIZE + IMAGE_GAP, getRight() - CONFIG_BUTTON_SIZE));
             configureButton.arrange(context, Rect.fromPositionAndSize(buttonX,
                     getTop() + IMAGE_SIZE - CONFIG_BUTTON_SIZE, CONFIG_BUTTON_SIZE, CONFIG_BUTTON_SIZE));
             errors.setVisible(layout.errorY >= 0);
             warnings.setVisible(layout.warningY >= 0);
             if (layout.errorY >= 0) {
-                errors.arrange(context, Rect.fromPositionAndSize(getLeft(), getTop() + layout.errorY,
-                        getWidth(), layout.errorHeight));
+                errors.arrange(context,
+                        Rect.fromPositionAndSize(getLeft(), getTop() + layout.errorY, getWidth(), layout.errorHeight));
             }
             if (layout.warningY >= 0) {
-                warnings.arrange(context, Rect.fromPositionAndSize(getLeft(), getTop() + layout.warningY,
-                        getWidth(), layout.warningHeight));
+                warnings.arrange(context, Rect.fromPositionAndSize(getLeft(), getTop() + layout.warningY, getWidth(),
+                        layout.warningHeight));
             }
         }
 
@@ -185,8 +213,7 @@ final class GuiPanelScriptInfo extends GuiContainer {
                 return;
             }
             Rect icon = Rect.fromPositionAndSize(configureButton.getLeft() + CONFIG_ICON_INSET,
-                    configureButton.getTop() + CONFIG_ICON_INSET,
-                    CONFIG_ICON_SIZE, CONFIG_ICON_SIZE);
+                    configureButton.getTop() + CONFIG_ICON_INSET, CONFIG_ICON_SIZE, CONFIG_ICON_SIZE);
             context.getRenderer().drawPackagedTexture(CONFIG_ICON, icon);
             if (configureButton.contains(context.getMouseX(), context.getMouseY())
                     && context.getRenderer().isPointVisible(context.getMouseX(), context.getMouseY())) {
@@ -215,7 +242,8 @@ final class GuiPanelScriptInfo extends GuiContainer {
         private ScriptInfoLayout(GuiContext context, int width) {
             description = selected.getDescription();
             dependencies = selected.getDependencies() == null ? Collections.emptyList() : selected.getDependencies();
-            List<ScriptIssue> issues = LuaScriptErrors.getIssuesFor(selected.getDisplayName(), selected.getSourceFileName());
+            List<ScriptIssue> issues = LuaScriptErrors.getIssuesFor(selected.getDisplayName(),
+                    selected.getSourceFileName());
             List<ScriptIssue> errors = filterIssues(issues, false);
             List<ScriptIssue> warnings = filterIssues(issues, true);
             if (errors.isEmpty() && selected.isFailed() && hasText(selected.getFailureReason())) {
@@ -227,7 +255,7 @@ final class GuiPanelScriptInfo extends GuiContainer {
             content.warnings.setVisible(!warnings.isEmpty());
             errorHeight = content.errors.measure(context, Constraints.upTo(width, Integer.MAX_VALUE)).getHeight();
             warningHeight = content.warnings.measure(context, Constraints.upTo(width, Integer.MAX_VALUE)).getHeight();
-            image = resolveImageTexture(selected);
+            image = preparedImage;
             int y = descriptionY + HEADER_HEIGHT;
             if (hasText(description)) {
                 y += context.getRenderer().wrappedTextHeight(description, width) + CONTENT_PADDING;
@@ -271,7 +299,8 @@ final class GuiPanelScriptInfo extends GuiContainer {
             return;
         }
         context.getRenderer().drawPopupPanel(bounds);
-        context.getRenderer().drawScaledCenteredText("?", bounds, context.getRenderer().getTheme().textMuted, 1.0F, true);
+        context.getRenderer().drawScaledCenteredText("?", bounds, context.getRenderer().getTheme().textMuted, 1.0F,
+                true);
     }
 
     private static GuiTextureCache.Texture resolveImageTexture(ScriptMod mod) {
@@ -300,15 +329,17 @@ final class GuiPanelScriptInfo extends GuiContainer {
         return value != null && !value.trim().isEmpty();
     }
 
-    private static void drawDependencies(GuiContext context, List<String> dependencies, List<String> missing,
-            int x, int y, int width) {
+    private static void drawDependencies(GuiContext context, List<String> dependencies, List<String> missing, int x,
+            int y, int width) {
         for (String dependency : dependencies) {
             if (dependency == null) {
                 continue;
             }
-            boolean unavailable = missing != null ? missing.contains(dependency)
+            boolean unavailable = missing != null
+                    ? missing.contains(dependency)
                     : !LuaScriptRegistry.hasScriptName(dependency);
-            int color = unavailable ? context.getRenderer().getTheme().textError
+            int color = unavailable
+                    ? context.getRenderer().getTheme().textError
                     : context.getRenderer().getTheme().textPrimary;
             String label = "- " + dependency + (unavailable ? " (Missing)" : "");
             context.getRenderer().drawText(context.getRenderer().trimToWidth(label, width), x, y, color);

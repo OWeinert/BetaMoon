@@ -3,6 +3,7 @@ package betamoon.gui.presentation;
 import betamoon.gui.animation.GuiAnimationValueError;
 import betamoon.gui.animation.GuiEasing;
 import betamoon.gui.animation.GuiTransitionPolicy;
+import betamoon.luaapi.client.ui.GuiPropertyValues;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -27,6 +28,36 @@ public final class GuiProperties {
     private final Set<String> animatable = new LinkedHashSet<>();
     private final Map<String, Double> minimums = new LinkedHashMap<>();
     private final Map<String, Double> maximums = new LinkedHashMap<>();
+    private final Map<String, GuiPropertyDescriptor> descriptors = new LinkedHashMap<>();
+
+    /**
+     * New retained documents use Java descriptors, without constructing Lua
+     * declarations.
+     */
+    public GuiProperties(String type, Iterable<GuiPropertyDescriptor> properties) {
+        this.type = type;
+        for (GuiPropertyDescriptor descriptor : properties) {
+            if (descriptors.put(descriptor.name, descriptor) != null) {
+                throw new IllegalArgumentException("Duplicate GUI property: " + descriptor.name);
+            }
+            baseline.put(descriptor.name, descriptor.defaultValue);
+            if (descriptor.animated) {
+                animatable.add(descriptor.name);
+            }
+            if (descriptor.kind == GuiPropertyDescriptor.Kind.NUMBER
+                    || descriptor.kind == GuiPropertyDescriptor.Kind.INTEGER) {
+                minimums.put(descriptor.name, descriptor.minimum);
+                maximums.put(descriptor.name, descriptor.maximum);
+            }
+        }
+        if (descriptors.isEmpty()) {
+            throw new IllegalArgumentException("A retained property catalog cannot be empty");
+        }
+    }
+
+    public Map<String, GuiPropertyDescriptor> descriptors() {
+        return Collections.unmodifiableMap(descriptors);
+    }
 
     public GuiProperties(String type, GuiDocumentDefinition.Element element, LuaValue declaration) {
         this.type = type;
@@ -158,11 +189,11 @@ public final class GuiProperties {
     }
 
     public String canonical(String name) {
-        return "panel".equals(type) && "color".equals(name) ? "tint" : name;
+        return descriptors.isEmpty() && "panel".equals(type) && "color".equals(name) ? "tint" : name;
     }
 
     public GuiTransitionPolicy transition(LuaValue value) {
-        if (!"panel".equals(type) || !value.istable() || value.get("color").isnil()) {
+        if (!descriptors.isEmpty() || !"panel".equals(type) || !value.istable() || value.get("color").isnil()) {
             return GuiTransitionPolicy.parse(value, animatable());
         }
         LuaTable copy = new LuaTable();
@@ -194,7 +225,7 @@ public final class GuiProperties {
         // Catalog order is stable and determines request property ordering.
         for (String name : baseline.keySet()) {
             LuaValue value = values.get(name);
-            if ("panel".equals(type) && "tint".equals(name) && value.isnil()) {
+            if (descriptors.isEmpty() && "panel".equals(type) && "tint".equals(name) && value.isnil()) {
                 value = values.get("color");
             }
             if (!value.isnil()) {
@@ -209,6 +240,9 @@ public final class GuiProperties {
         name = canonical(name);
         if (!supports(name)) {
             throw new LuaError("Unsupported GUI property: " + name);
+        }
+        if (!descriptors.isEmpty()) {
+            return GuiPropertyValues.read(descriptors.get(name), value);
         }
         if ("color".equals(name) && value.type() == LuaValue.TNUMBER) {
             double number = value.todouble();
@@ -248,7 +282,7 @@ public final class GuiProperties {
     }
 
     public void validateOrigins(Map<String, Object> values) {
-        if ("group".equals(type) && !baseline.containsKey("width")) {
+        if (descriptors.isEmpty() && "group".equals(type) && !baseline.containsKey("width")) {
             for (String name : Arrays.asList("originX", "originY")) {
                 if (values.containsKey(name) && ((Number) values.get(name)).doubleValue() != 0) {
                     throw new ValueError("Dimensionless groups require originX/originY = 0.");
@@ -258,10 +292,19 @@ public final class GuiProperties {
     }
 
     public boolean affectsGeometry(String property) {
+        if (!descriptors.isEmpty()) {
+            Set<GuiPropertyDescriptor.Stage> stages = descriptors.get(property).stages;
+            return stages.contains(GuiPropertyDescriptor.Stage.MEASURE)
+                    || stages.contains(GuiPropertyDescriptor.Stage.ARRANGE)
+                    || stages.contains(GuiPropertyDescriptor.Stage.HIT);
+        }
         return !(COLORS.contains(property) || "shadow".equals(property));
     }
 
     public Object interpolate(String property, Object from, Object to, double p) {
+        if (!descriptors.isEmpty()) {
+            return descriptors.get(property).interpolate(from, to, p);
+        }
         if (COLORS.contains(property)) {
             int a = ((Number) from).intValue();
             int b = ((Number) to).intValue();

@@ -71,6 +71,9 @@ public final class GuiPublishedData {
                 try {
                     List<Object> result = new ArrayList<>();
                     for (Object item : (List<?>) value) {
+                        if (item == null) {
+                            throw invalid(path + "[" + (result.size() + 1) + "]", "list entries cannot be nil");
+                        }
                         result.add(copy(item, path + "[" + (result.size() + 1) + "]", depth + 1));
                     }
                     return Collections.unmodifiableList(result);

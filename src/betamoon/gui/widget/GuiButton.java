@@ -49,6 +49,11 @@ public class GuiButton extends GuiElement {
     }
 
     @Override
+    protected void updateElement(GuiContext context) {
+        nativeButton.setPreparedTexture(context.getRenderer().preparePackagedTexture("/gui/gui.png"));
+    }
+
+    @Override
     protected Size measureElement(GuiContext context, Constraints constraints) {
         int labelWidth = context == null || context.getRenderer() == null
                 ? 0

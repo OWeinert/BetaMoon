@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.luaj.vm2.LuaError;
+import org.lwjgl.input.Keyboard;
 
 /**
  * Headless P1/P2 contracts; GPU behavior is verified separately by the
@@ -32,6 +33,7 @@ public final class GuiFoundationTest {
         displayedGeometryAndCancellation();
         captureTransfer();
         routedMutation();
+        modalLayers();
         System.out.println("UI foundations passed: detached atomic models, graphics scopes, transforms/clips, "
                 + "published suppliers, displayed input, cancellation and deferred routing.");
     }
@@ -67,6 +69,8 @@ public final class GuiFoundationTest {
         expect(IllegalArgumentException.class, () -> data.publish(deep));
         expect(IllegalArgumentException.class,
                 () -> data.publish(Collections.singletonMap("many", Collections.nCopies(16385, true))));
+        expect(IllegalArgumentException.class,
+                () -> data.publish(Collections.singletonMap("sparse", Arrays.asList("first", null))));
         char[] large = new char[1024 * 1024];
         Arrays.fill(large, '\u20ac');
         expect(IllegalArgumentException.class,
@@ -261,6 +265,42 @@ public final class GuiFoundationTest {
         require(cancellations.get() == 1, "Capture transfer did not cancel the original owner");
         require(scene.mouseReleased(10, 10, 1) && releases.get() == 1 && scene.capturedPointerButton() == -1,
                 "Transferred capture remained cancelled/stuck after release");
+    }
+
+    private static void modalLayers() {
+        Probe opener = new Probe();
+        opener.setFocusable(true);
+        GuiScene scene = scene(opener);
+        scene.getContext().requestFocus(opener);
+        Probe first = new Probe();
+        Probe second = new Probe();
+        first.setFocusable(true);
+        second.setFocusable(true);
+        GuiContainer dialog = new GuiContainer();
+        dialog.add(first);
+        dialog.add(second);
+        GuiLayer layer = scene.openLayer(dialog, true);
+        require(scene.getFocusedElement() == first, "Modal did not focus its first eligible control");
+        require(scene.mousePressed(150, 150, 0), "An undisplayed modal leaked its opening input batch");
+        HeadlessGuiFrames.layout(scene);
+        scene.getContext().requestFocus(opener);
+        require(scene.getFocusedElement() == first, "Focus escaped the modal scope");
+        scene.keyTyped('\t', Keyboard.KEY_TAB, false);
+        require(scene.getFocusedElement() == second, "Modal Tab skipped a control");
+        scene.keyTyped('\t', Keyboard.KEY_TAB, false);
+        require(scene.getFocusedElement() == first, "Modal Tab escaped to the background");
+        require(scene.mousePressed(150, 150, 1) && scene.getFocusedElement() == first,
+                "Outside modal input leaked or cleared editor focus");
+        require(scene.mouseReleased(150, 150, 1) && opener.releases == 0, "Modal release reached the background");
+        Probe nested = new Probe();
+        nested.setFocusable(true);
+        GuiLayer top = scene.openLayer(nested, true);
+        top.close();
+        require(scene.getFocusedElement() == first, "Nested modal did not restore its opener");
+        layer.close();
+        layer.close();
+        require(scene.getFocusedElement() == opener && !layer.isActive(), "Modal close did not restore focus once");
+        require(scene.mouseReleased(150, 150, 0), "Opening-batch gesture lost consumption after modal close");
     }
 
     private static GuiScene scene(GuiElement content) {

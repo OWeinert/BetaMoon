@@ -42,6 +42,11 @@ public class GuiIcon extends GuiElement {
     }
 
     @Override
+    protected void updateElement(GuiContext context) {
+        context.getRenderer().preparePackagedTexture(texturePath);
+    }
+
+    @Override
     protected void renderElement(GuiContext context) {
         context.getRenderer().drawPackagedTexture(texturePath, getBounds(), minU, 0.0F, maxU, 1.0F, alpha);
         if (isHovered(context) && tooltip != null && !tooltip.isEmpty()) {

@@ -9,6 +9,9 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.lang.ref.WeakReference;
+import java.util.Set;
+import java.util.HashSet;
 
 /**
  * Game-thread router for physical state, exact action transitions, and ordered
@@ -32,11 +35,14 @@ public final class InputRouter {
         }
     };
 
-    private final Map<ContentKey, InputMapRegistration> registrations =
-            new LinkedHashMap<ContentKey, InputMapRegistration>();
+    private final Map<ContentKey, InputMapRegistration> registrations = new LinkedHashMap<ContentKey, InputMapRegistration>();
     private final List<InputContext> contexts = new ArrayList<InputContext>();
     private final Map<ActionIdentity, MutableActionState> states = new HashMap<ActionIdentity, MutableActionState>();
     private final InputPhysicalState physical = new InputPhysicalState();
+    private final Map<Integer, WeakReference<Object>> guiGestures = new HashMap<>();
+    private final Map<Integer, WeakReference<Object>> guiKeys = new HashMap<>();
+    private final Set<Integer> rearmGuiButtons = new HashSet<>();
+    private final Set<Integer> rearmGuiKeys = new HashSet<>();
     private final FailureHandler failures;
     private final InputPreferenceStore preferences;
     private long cycle;
@@ -94,6 +100,10 @@ public final class InputRouter {
     }
 
     public void beginCycle(Object currentWorld, Object currentPlayer, Object currentScreen, boolean hasFocus) {
+        if (focused && !hasFocus) {
+            rearmGuiButtons.addAll(guiGestures.keySet());
+            rearmGuiKeys.addAll(guiKeys.keySet());
+        }
         cycle++;
         transitions = 0;
         for (MutableActionState state : states.values()) {
@@ -111,10 +121,22 @@ public final class InputRouter {
     }
 
     public boolean accept(InputDeviceEvent event) {
+        return accept(event, false);
+    }
+
+    public boolean accept(InputDeviceEvent event, boolean repeated) {
         if (event == null) {
             return false;
         }
         physical.apply(event);
+        Boolean guiDecision = event.device() == InputDeviceEvent.Device.MOUSE_BUTTON
+                ? guiDecision(guiGestures, rearmGuiButtons, event, repeated)
+                : event.device() == InputDeviceEvent.Device.KEYBOARD
+                        ? guiDecision(guiKeys, rearmGuiKeys, event, repeated)
+                        : null;
+        if (guiDecision != null && (event.pressed() || guiDecision)) {
+            return guiDecision;
+        }
         EventUpdate update = new EventUpdate();
         for (InputMapRegistration registration : new ArrayList<InputMapRegistration>(registrations.values())) {
             for (InputActionDefinition action : registration.definition().actions()) {
@@ -125,7 +147,26 @@ public final class InputRouter {
         for (InputMapRegistration registration : update.matchedRegistrations) {
             consumed |= captures(registration, InputFamily.NAMED_ACTIONS);
         }
-        return consumed || update.retainedConsumption;
+        return guiDecision != null ? guiDecision : consumed || update.retainedConsumption;
+    }
+
+    private Boolean guiDecision(Map<Integer, WeakReference<Object>> gestures, Set<Integer> rearm,
+            InputDeviceEvent event, boolean repeated) {
+        WeakReference<Object> reference = gestures.get(event.code());
+        if (reference == null) {
+            return null;
+        }
+        if (event.pressed() && !repeated && rearm.remove(event.code())) {
+            gestures.remove(event.code());
+            return null;
+        }
+        Object owner = reference.get();
+        boolean suppress = owner == null || owner != screen;
+        if (!event.pressed()) {
+            gestures.remove(event.code());
+            rearm.remove(event.code());
+        }
+        return suppress;
     }
 
     private void collectUpdate(InputMapRegistration registration, InputActionDefinition action, InputDeviceEvent source,
@@ -243,8 +284,8 @@ public final class InputRouter {
     private void releaseAll(InputDeviceEvent source) {
         physical.clear();
         List<PendingTransition> pending = new ArrayList<PendingTransition>();
-        List<Map.Entry<ActionIdentity, MutableActionState>> entries =
-                new ArrayList<Map.Entry<ActionIdentity, MutableActionState>>(states.entrySet());
+        List<Map.Entry<ActionIdentity, MutableActionState>> entries = new ArrayList<Map.Entry<ActionIdentity, MutableActionState>>(
+                states.entrySet());
         for (Map.Entry<ActionIdentity, MutableActionState> entry : entries) {
             MutableActionState state = entry.getValue();
             if (!state.held && !state.active) {
@@ -270,6 +311,12 @@ public final class InputRouter {
     }
 
     public boolean isPhysicalConsumed(InputDeviceEvent.Device device, int code) {
+        if (device == InputDeviceEvent.Device.MOUSE_BUTTON && guiGestures.containsKey(code)) {
+            return true;
+        }
+        if (device == InputDeviceEvent.Device.KEYBOARD && guiKeys.containsKey(code)) {
+            return true;
+        }
         for (Map.Entry<ActionIdentity, MutableActionState> entry : states.entrySet()) {
             if (!entry.getValue().consumed) {
                 continue;
@@ -369,10 +416,48 @@ public final class InputRouter {
             unregister(registration);
         }
         physical.clear();
+        guiGestures.clear();
+        guiKeys.clear();
+        rearmGuiButtons.clear();
+        rearmGuiKeys.clear();
         world = null;
         player = null;
         screen = null;
         focused = true;
+    }
+
+    /**
+     * Keeps GUI-owned presses consumed through release, including after host
+     * replacement/unload.
+     */
+    public void claimGuiGesture(int button, Object owner) {
+        if (button < 0 || button >= 32 || owner == null) {
+            throw new IllegalArgumentException("GUI gestures require a host and a mouse button in 0..31");
+        }
+        guiGestures.put(button, new WeakReference<>(owner));
+    }
+
+    public boolean hasGuiGesture(int button) {
+        return guiGestures.containsKey(button);
+    }
+
+    public void claimGuiKey(int key, Object owner) {
+        if (key <= 0 || key >= 512 || owner == null) {
+            throw new IllegalArgumentException("GUI key gestures require a host and key in 1..511");
+        }
+        guiKeys.put(key, new WeakReference<>(owner));
+    }
+
+    public boolean hasGuiKey(int key) {
+        return guiKeys.containsKey(key);
+    }
+
+    /** Screen replacement can occur in the middle of one native input queue. */
+    public void observeScreen(Object currentScreen) {
+        if (screen != currentScreen) {
+            screen = currentScreen;
+            releaseAll(null);
+        }
     }
 
     public long cycle() {

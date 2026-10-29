@@ -2,6 +2,7 @@ package betamoon.gui.framework;
 
 import betamoon.gui.framework.GuiContainer.SceneRoot;
 import betamoon.gui.framework.GuiGeometry.Rect;
+import betamoon.gui.presentation.GuiPresentationTree;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -40,6 +41,89 @@ public final class GuiScene {
     private GuiFrameSnapshot renderingFrame;
     private long frameRevision;
     private boolean frameDirty = true;
+    private final List<GuiLayer> layers = new ArrayList<>();
+    private GuiPresentationTree document;
+
+    public void setDocument(GuiPresentationTree replacement) {
+        if (deferMutation(() -> setDocument(replacement))) {
+            return;
+        }
+        GuiPresentationTree previous = document;
+        GuiElement restore = replacement == null || previous == null
+                ? null
+                : replacement.compatibleElement(previous, focusedElement);
+        setContent(replacement == null ? null : replacement.root());
+        document = replacement;
+        if (replacement != null) {
+            replacement.activate();
+        }
+        if (restore != null) {
+            requestFocus(restore);
+        }
+    }
+
+    public GuiLayer openLayer(GuiElement content, boolean modal) {
+        if (content == null || content.getParent() != null) {
+            throw new IllegalArgumentException("A layer requires unattached content");
+        }
+        GuiLayer layer = new GuiLayer(this, content, modal, focusedElement);
+        Runnable attach = () -> {
+            if (!layer.isActive()) {
+                return;
+            }
+            if (layers.size() >= 32) {
+                throw new IllegalStateException("GUI layer limit reached: 32");
+            }
+            cancelPointerCapture();
+            root.add(content);
+            layers.add(layer);
+            changeFocus(null);
+            List<GuiElement> focusable = new ArrayList<>();
+            content.collectFocusableElements(focusable);
+            if (!focusable.isEmpty()) {
+                requestFocus(focusable.get(0));
+            }
+        };
+        if (!deferMutation(attach)) {
+            attach.run();
+        }
+        return layer;
+    }
+
+    void closeLayer(GuiLayer layer) {
+        layer.content.setVisible(false);
+        Runnable detach = () -> {
+            boolean top = !layers.isEmpty() && layers.get(layers.size() - 1) == layer;
+            layers.remove(layer);
+            root.remove(layer.content);
+            if (top) {
+                requestFocus(layer.opener);
+                if (focusedElement == null) {
+                    GuiElement scope = modalScope() == null ? getContent() : modalScope();
+                    if (scope != null) {
+                        List<GuiElement> focusable = new ArrayList<>();
+                        scope.collectFocusableElements(focusable);
+                        if (!focusable.isEmpty()) {
+                            requestFocus(focusable.get(0));
+                        }
+                    }
+                }
+            }
+        };
+        if (!deferMutation(detach)) {
+            detach.run();
+        }
+    }
+
+    private GuiElement modalScope() {
+        for (int i = layers.size() - 1; i >= 0; i--) {
+            GuiLayer layer = layers.get(i);
+            if (layer.isActive() && layer.modal) {
+                return layer.content;
+            }
+        }
+        return null;
+    }
 
     public GuiScene() {
         this(GuiTheme.DEFAULT);
@@ -69,12 +153,20 @@ public final class GuiScene {
         if (deferMutation(() -> setContent(content))) {
             return;
         }
+        GuiPresentationTree previous = document;
+        document = null;
+        for (GuiLayer layer : new ArrayList<>(layers)) {
+            layer.close();
+        }
         root.clear();
         if (content != null) {
             root.add(content);
         }
         requestLayout();
         displayedFrame = null;
+        if (previous != null) {
+            previous.close();
+        }
     }
 
     public void updateEnvironment(Minecraft minecraft, FontRenderer font, int screenWidth, int screenHeight,
@@ -99,6 +191,9 @@ public final class GuiScene {
         renderer.beginFrame(context.getMinecraft(), context.getFont(), context.getScreenWidth(),
                 context.getScreenHeight(), context.getDisplayWidth(), context.getDisplayHeight());
         try {
+            if (document != null) {
+                document.sample();
+            }
             ensureLayout();
             renderingFrame = displayedFrame == null || frameDirty
                     ? new GuiFrameSnapshot(root, ++frameRevision, context)
@@ -161,6 +256,9 @@ public final class GuiScene {
      * actions.
      */
     public void prepare() {
+        if (document != null) {
+            document.update();
+        }
         dispatchDepth++;
         try {
             root.update(context);
@@ -171,16 +269,24 @@ public final class GuiScene {
 
     public boolean mousePressed(int mouseX, int mouseY, int button) {
         if (displayedFrame == null) {
+            if (modalScope() != null) {
+                ownedGestures.add(button);
+                return true;
+            }
             return false;
         }
         GuiInputEvent event = GuiInputEvent.pointerDown(mouseX, mouseY, button);
         cancelledGestures.remove(button);
+        GuiElement scope = modalScope();
         List<GuiElement> path = hitPath(mouseX, mouseY);
-        focusFirstFocusable(path);
-        boolean handled = dispatchPath(path, event);
+        if (!path.isEmpty() || scope == null) {
+            focusFirstFocusable(path);
+        }
+        handledTarget = null;
+        boolean handled = dispatchPath(path, event) || scope != null;
         if (handled) {
             ownedGestures.add(button);
-            if (!cancelledGestures.contains(button)) {
+            if (!cancelledGestures.contains(button) && handledTarget != null) {
                 gestureTargets.put(button, handledTarget);
             }
         }
@@ -235,17 +341,23 @@ public final class GuiScene {
         if (wheelDelta == 0) {
             return false;
         }
-        return dispatchPath(hitPath(mouseX, mouseY), GuiInputEvent.scroll(mouseX, mouseY, wheelDelta, shiftDown));
+        GuiElement scope = modalScope();
+        return dispatchPath(hitPath(mouseX, mouseY), GuiInputEvent.scroll(mouseX, mouseY, wheelDelta, shiftDown))
+                || scope != null;
     }
 
     public boolean keyTyped(char typedChar, int keyCode, boolean shiftDown) {
+        GuiElement scope = modalScope();
         if (keyCode == Keyboard.KEY_TAB && moveFocus(shiftDown)) {
             return true;
         }
-        if (focusedElement == null) {
-            return false;
+        boolean handled = focusedElement != null
+                && dispatchFromElement(focusedElement, GuiInputEvent.keyTyped(typedChar, keyCode, shiftDown));
+        if (!handled && keyCode == Keyboard.KEY_ESCAPE && !layers.isEmpty()) {
+            layers.get(layers.size() - 1).close();
+            return true;
         }
-        return dispatchFromElement(focusedElement, GuiInputEvent.keyTyped(typedChar, keyCode, shiftDown));
+        return handled || scope != null;
     }
 
     public boolean keyReleased(int keyCode, boolean shiftDown) {
@@ -269,7 +381,8 @@ public final class GuiScene {
             mutations.add(() -> requestFocus(element));
             return;
         }
-        if (element != null && element.belongsTo(this) && element.isAvailable() && element.isFocusable()) {
+        if (element != null && element.belongsTo(this) && element.isAvailable() && element.isFocusable()
+                && GuiFrameSnapshot.inside(element, modalScope())) {
             changeFocus(element);
         }
     }
@@ -359,7 +472,7 @@ public final class GuiScene {
     }
 
     private List<GuiElement> hitPath(int mouseX, int mouseY) {
-        return displayedFrame == null ? Collections.emptyList() : displayedFrame.hitPath(mouseX, mouseY);
+        return displayedFrame == null ? Collections.emptyList() : displayedFrame.hitPath(mouseX, mouseY, modalScope());
     }
 
     private boolean dispatchPath(List<GuiElement> path, GuiInputEvent event) {
@@ -428,8 +541,10 @@ public final class GuiScene {
         if (displayedFrame == null) {
             focusable = new ArrayList<>();
             root.collectFocusableElements(focusable);
+            GuiElement scope = modalScope();
+            focusable.removeIf(element -> !GuiFrameSnapshot.inside(element, scope));
         } else {
-            focusable = displayedFrame.focusable();
+            focusable = displayedFrame.focusable(modalScope());
         }
         if (focusable.isEmpty()) {
             changeFocus(null);
