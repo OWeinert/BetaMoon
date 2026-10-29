@@ -21,6 +21,8 @@ import betamoon.luaapi.utils.LuaDataReference;
 import betamoon.luaapi.utils.LuaOverrideDefinition;
 import betamoon.luaapi.utils.LuaOverrideLayers;
 import betamoon.luamodloader.LuaContentRegistry;
+import betamoon.luamodloader.LuaScriptRegistry;
+import betamoon.luamodloader.ScriptExecution;
 import betamoon.query.QueryEntries;
 import betamoon.query.QueryEntry;
 import betamoon.resources.EnumTexAtlas;
@@ -198,7 +200,9 @@ public final class ResourceApi {
         }
     }
 
-    /** Names point to IDs so cached searches never retain native or Lua references. */
+    /**
+     * Names point to IDs so cached searches never retain native or Lua references.
+     */
     private static final class NameIndex {
         private final boolean blocks;
         private final Map<String, Integer> exactIds = new HashMap<String, Integer>();
@@ -859,7 +863,8 @@ public final class ResourceApi {
             return false;
         }
         LuaValue predicate = criteria.get("where");
-        return predicate.isnil() || predicate.call(ref).toboolean();
+        return predicate.isnil() || ScriptExecution
+                .invoke(LuaScriptRegistry.getCurrentScriptFile(), "resources.where", predicate, ref).arg1().toboolean();
     }
 
     private static <T> String checkConditions(ResourceReference<T> ref, LuaValue when) {

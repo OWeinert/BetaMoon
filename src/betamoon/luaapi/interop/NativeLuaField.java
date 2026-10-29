@@ -1,0 +1,31 @@
+package betamoon.luaapi.interop;
+
+import betamoon.interop.binding.NativeMemberPlan;
+import betamoon.interop.reference.NativeMemberRef;
+import betamoon.interop.runtime.NativeContext;
+import org.luaj.vm2.LuaValue;
+import java.lang.ref.WeakReference;
+
+final class NativeLuaField extends NativeLuaHandle {
+    NativeLuaField(NativeAccessApi host, NativeContext context, boolean direct, NativeMemberPlan selected,
+            Integer receiver, NativeMemberRef reference) {
+        super("Native field(" + selected.identity() + ")");
+        diagnosticType = reference.lookupType;
+        diagnosticMember = reference;
+        WeakReference<NativeMemberPlan> referencePlan = retainPlan(context, selected);
+        diagnosticDirect = direct;
+        properties.put("get", NativeLuaSupport.scopedFunction(this, context, args -> {
+            NativeMemberPlan plan = referencePlan.get();
+            NativeContext execution = receiver == null ? context : context.ownershipContext(receiver);
+            Object value = plan.get(execution, direct, receiver == null ? null : context.value(receiver));
+            return host.result(value, execution, direct);
+        }));
+        properties.put("set", NativeLuaSupport.scopedFunction(this, context, args -> {
+            NativeMemberPlan plan = referencePlan.get();
+            NativeContext execution = receiver == null ? context : context.ownershipContext(receiver);
+            Object value = host.convertedArgument(args.arg1(), plan.valueType, execution);
+            plan.setConverted(execution, direct, receiver == null ? null : context.value(receiver), value);
+            return LuaValue.NONE;
+        }));
+    }
+}

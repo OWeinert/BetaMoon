@@ -20,6 +20,11 @@ public interface GuiPresentationHost {
 
     LuaTable context(LuaCallbackScope scope);
 
+    /** Creates a read-only binding context using the host's existing native scope. */
+    default LuaTable bindingContext(LuaCallbackScope scope) {
+        return new LuaTable();
+    }
+
     /**
      * Validates host compatibility and returns an adapter without acquiring
      * subscriptions.

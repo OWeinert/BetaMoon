@@ -1,5 +1,8 @@
 package betamoon.luaapi.input;
 
+import betamoon.interop.runtime.NativeEventAccess;
+import betamoon.luaapi.interop.NativeCallbackTable;
+
 import betamoon.client.control.input.ClientInputRuntime;
 import betamoon.client.control.input.PlayerControllerRuntime;
 import betamoon.client.control.input.PlayerControllerRuntime.Activation;
@@ -231,7 +234,8 @@ final class LuaControllerApi {
     private static Decision invokeCallback(String owner, LuaValue callback, Snapshot snapshot,
             PlayerControllerRuntime.Mode mode) {
         try (LuaCallbackScope scope = LuaCallbackScope.withQueuedTeleport(false, true)) {
-            LuaTable event = new LuaTable();
+            NativeEventAccess.configure(scope, snapshot.player.worldObj, snapshot.player);
+            LuaTable event = new NativeCallbackTable(scope);
             event.set("stage", LuaValue.valueOf(snapshot.stage.luaName()));
             event.set("tick", LuaValue.valueOf(snapshot.tick));
             event.set("player", LuaEntityActionAccess.create(scope, snapshot.player, snapshot.player));

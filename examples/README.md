@@ -144,6 +144,8 @@ and, where useful, organize private modules with `require`.
 | 21 | `03_adv_21_flat_dimension.lua` | Superflat custom dimension, reusable item/block activation and persistent return travel |
 | 22 | `03_adv_22_wireless_trigger.lua` | Editable wireless channels, transmitter/receiver roles, retained state, and pulses |
 | 23 | `03_adv_23_world_service_and_data.lua` | Persistent per-world services and detached world, chunk, and player views |
+| 24 | `03_adv_24_native_reflection.lua` | Native metadata, loader selection, exact method references and scoped world receivers |
+| 25 | `03_adv_25_native_world_observer.lua` | Owned native listener with read-only notifications and automatic reload/world cleanup |
 
 ## Trying the interactive examples
 

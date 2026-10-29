@@ -1,0 +1,206 @@
+package betamoon.hooks;
+
+import betamoon.interop.catalog.CatalogValues;
+import betamoon.interop.reference.NativeMemberRef;
+import betamoon.interop.reference.NativeMemberReference;
+import betamoon.interop.reference.NativeTypeRef;
+import betamoon.interop.value.NativeConversions;
+import java.util.Arrays;
+import java.util.Map;
+import org.luaj.vm2.LuaString;
+import org.luaj.vm2.LuaTable;
+import org.luaj.vm2.LuaValue;
+
+/**
+ * Immutable declaration metadata. Lua closures are owned separately by a
+ * generation.
+ */
+public final class HookDefinition {
+    public final String owner;
+    public final String file;
+    public final String id;
+    public final NativeMemberRef target;
+    public final String at;
+    public final HookPoint point;
+    public final boolean edit;
+    public final String nativeErrors;
+    public final String reentry;
+    public final int priority;
+    public final boolean required;
+    public final String sourceSha256;
+    public final String callbackLabel;
+
+    private HookDefinition(String owner, String file, String id, NativeMemberRef target, String at, boolean edit,
+            int priority, boolean required, String sourceSha256, String nativeErrors, String reentry, HookPoint point) {
+        this.owner = owner;
+        this.file = file;
+        this.id = id;
+        this.target = target;
+        this.at = at;
+        this.point = point;
+        this.edit = edit;
+        this.nativeErrors = nativeErrors;
+        this.reentry = reentry;
+        this.priority = priority;
+        this.required = required;
+        this.sourceSha256 = sourceSha256;
+        callbackLabel = "hook:" + id + ":" + at;
+    }
+
+    static HookDefinition read(String owner, String file, LuaValue value) {
+        LuaTable table = fields(value, "id", "target", "at", "effects", "priority", "required", "thread", "side",
+                "nativeErrors", "reentry");
+        String id = text(table.rawget("id"));
+        if (id.length() > 128 || !id.matches("[A-Za-z0-9_.:/-]+")) {
+            throw new HookFailure("hook_file_invalid", "id must contain 1..128 identifier characters");
+        }
+        LuaValue requested = table.rawget("target");
+        NativeMemberRef target;
+        if (requested instanceof NativeMemberReference) {
+            target = ((NativeMemberReference) requested).nativeMemberReference();
+        } else {
+            boolean constructor = requested.istable() && !requested.rawget("constructor").isnil();
+            LuaTable selector = constructor
+                    ? fields(requested, "class", "constructor", "names", "descriptorNames")
+                    : fields(requested, "class", "method", "descriptor", "names", "descriptorNames");
+            target = new NativeMemberRef(constructor ? NativeMemberRef.Kind.CONSTRUCTOR : NativeMemberRef.Kind.METHOD,
+                    NativeTypeRef.named(text(selector.rawget("class")), optional(selector.rawget("names")), null, null),
+                    null, constructor ? "new" : text(selector.rawget("method")),
+                    text(selector.rawget(constructor ? "constructor" : "descriptor")),
+                    optional(selector.rawget("names")), optional(selector.rawget("descriptorNames")));
+        }
+        if (target == null
+                || target.kind != NativeMemberRef.Kind.METHOD && target.kind != NativeMemberRef.Kind.CONSTRUCTOR) {
+            throw new HookFailure("hook_file_invalid", "target must be an exact MethodRef or ConstructorRef");
+        }
+        if (target.lookupType.loaderId != null || target.lookupType.originId != null
+                || target.declaringType != null && (target.declaringType.loaderId != null
+                        || target.declaringType.originId != null || !target.declaringType.descriptor.startsWith("L"))) {
+            throw new HookFailure("hook_file_invalid",
+                    "target must name its declaring owner without session identities");
+        }
+        HookPoint point = table.rawget("at").istable() ? HookPoint.read(table.rawget("at")) : null;
+        String at = point == null ? text(table.rawget("at")) : point.kind;
+        if (point == null && !Arrays.asList("before", "after", "error", "around", "constructed").contains(at)) {
+            throw new HookFailure("hook_file_invalid", "at must be before, after, error, around or constructed");
+        }
+        if (at.equals("constructed") != (target.kind == NativeMemberRef.Kind.CONSTRUCTOR)) {
+            throw new HookFailure("hook_file_invalid",
+                    "constructed requires an exact ConstructorRef; method phases require MethodRef");
+        }
+        String effects = optional(table.rawget("effects"));
+        boolean edit = "edit".equals(effects);
+        if (effects != null && !effects.equals("observe") && !edit
+                || edit && (at.equals("error") || at.equals("constructed"))) {
+            throw new HookFailure("hook_file_invalid", "effects must be observe, or edit for before/after");
+        }
+        String nativeErrors = optional(table.rawget("nativeErrors"));
+        String reentry = optional(table.rawget("reentry"));
+        if (at.equals("around")) {
+            if (!edit || nativeErrors != null && !Arrays.asList("propagate", "recover").contains(nativeErrors)
+                    || reentry != null && !Arrays.asList("native", "error").contains(reentry)) {
+                throw new HookFailure("hook_file_invalid",
+                        "around requires effects=edit, nativeErrors=propagate/recover and reentry=native/error");
+            }
+        } else if (nativeErrors != null || reentry != null) {
+            throw new HookFailure("hook_file_invalid", "nativeErrors and reentry require an around hook");
+        }
+        for (String restriction : new String[]{"thread", "side"}) {
+            LuaValue option = table.rawget(restriction);
+            if (!option.isnil() && !text(option).equals("client")) {
+                throw new HookFailure("hook_file_invalid", restriction + " currently supports client only");
+            }
+        }
+        LuaValue priority = table.rawget("priority");
+        if (!priority.isnil() && priority.type() != LuaValue.TNUMBER) {
+            throw new HookFailure("hook_file_invalid", "priority must be a signed 32-bit integer");
+        }
+        double number = priority.isnil() ? 0 : priority.todouble();
+        if (number != Math.rint(number) || number < Integer.MIN_VALUE || number > Integer.MAX_VALUE) {
+            throw new HookFailure("hook_file_invalid", "priority must be a signed 32-bit integer");
+        }
+        LuaValue required = table.rawget("required");
+        if (!required.isnil() && !required.isboolean()) {
+            throw new HookFailure("hook_file_invalid", "required must be boolean");
+        }
+        return new HookDefinition(owner, file, id, target, at, edit, (int) number, required.toboolean(), "",
+                nativeErrors == null ? "propagate" : nativeErrors, reentry == null ? "native" : reentry, point);
+    }
+
+    HookDefinition withSourceHash(String hash) {
+        return new HookDefinition(owner, file, id, target, at, edit, priority, required, hash, nativeErrors, reentry,
+                point);
+    }
+
+    public String key() {
+        return owner + ":" + id;
+    }
+
+    public String identity() {
+        return owner.length() + ":" + owner + ":" + id.length() + ":" + id;
+    }
+
+    public String metadataKey() {
+        return key() + ":" + target.key() + ":" + at + ":" + edit + ":" + priority + ":" + required + ":" + nativeErrors
+                + ":" + reentry + ":" + (point == null ? "" : point.key());
+    }
+
+    Map<String, Object> transport() {
+        return CatalogValues.record("owner", owner, "file", file, "id", id, "at", at, "edit", edit, "priority",
+                priority, "required", required, "targetKind", target.kind.name(), "class", target.lookupType.name(),
+                "classNames", target.lookupType.names, "method", target.name, "descriptor", target.descriptor, "names",
+                target.names, "point", point == null ? null : point.transport(), "nativeErrors", nativeErrors,
+                "reentry", reentry, "descriptorNames", target.descriptorNames, "sourceSha256", sourceSha256,
+                "declaringClass", target.declaringType == null ? null : target.declaringType.name(), "declaringNames",
+                target.declaringType == null ? null : target.declaringType.names);
+    }
+
+    static HookDefinition transport(Map<String, Object> value) {
+        NativeTypeRef type = NativeTypeRef.named(CatalogValues.text(value, "class"),
+                CatalogValues.text(value, "classNames"), null, null);
+        NativeTypeRef declaring = value.get("declaringClass") == null
+                ? null
+                : NativeTypeRef.named(CatalogValues.text(value, "declaringClass"),
+                        CatalogValues.text(value, "declaringNames"), null, null);
+        NativeMemberRef method = new NativeMemberRef(
+                NativeMemberRef.Kind.valueOf(CatalogValues.text(value, "targetKind")), type, declaring,
+                CatalogValues.text(value, "method"), CatalogValues.text(value, "descriptor"),
+                CatalogValues.text(value, "names"), CatalogValues.text(value, "descriptorNames"));
+        return new HookDefinition(CatalogValues.text(value, "owner"), CatalogValues.text(value, "file"),
+                CatalogValues.text(value, "id"), method, CatalogValues.text(value, "at"),
+                Boolean.TRUE.equals(value.get("edit")), CatalogValues.integer(value, "priority"),
+                Boolean.TRUE.equals(value.get("required")), CatalogValues.text(value, "sourceSha256"),
+                CatalogValues.text(value, "nativeErrors"), CatalogValues.text(value, "reentry"),
+                value.get("point") == null ? null : HookPoint.transport(CatalogValues.object(value.get("point"))));
+    }
+
+    public static LuaTable fields(LuaValue value, String... allowed) {
+        LuaValue metatable = value.getmetatable();
+        if (!value.istable() || metatable != null && !metatable.isnil()) {
+            throw new HookFailure("hook_file_invalid", "definition data must be a plain table without a metatable");
+        }
+        LuaTable table = value.checktable();
+        if (table.keyCount() > allowed.length) {
+            throw new HookFailure("hook_file_invalid", "too many definition fields");
+        }
+        for (LuaValue key : table.keys()) {
+            if (key.type() != LuaValue.TSTRING || !Arrays.asList(allowed).contains(key.tojstring())) {
+                throw new HookFailure("hook_file_invalid", "unknown field " + key.tojstring());
+            }
+        }
+        return table;
+    }
+
+    public static String text(LuaValue value) {
+        if (value.type() != LuaValue.TSTRING || value.rawlen() == 0 || value.rawlen() > 8192) {
+            throw new HookFailure("hook_file_invalid", "expected a nonempty bounded string");
+        }
+        LuaString bytes = value.checkstring();
+        return NativeConversions
+                .utf8(Arrays.copyOfRange(bytes.m_bytes, bytes.m_offset, bytes.m_offset + bytes.m_length));
+    }
+
+    public static String optional(LuaValue value) {
+        return value.isnil() ? null : text(value);
+    }
+}

@@ -1,9 +1,11 @@
 package betamoon.luamodloader;
 
 import betamoon.io.FileIo;
+import betamoon.io.PackagePaths;
 import betamoon.io.ZipArchiveIndex;
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -16,7 +18,9 @@ import java.util.Map;
 import java.util.Set;
 import org.luaj.vm2.lib.jse.JsePlatform;
 
-/** Discovers complete Lua mod sources and performs source-only loader checks. */
+/**
+ * Discovers complete Lua mod sources and performs source-only loader checks.
+ */
 final class LuaScriptFiles {
     private static final long EMPTY_FINGERPRINT = 1125899906842597L;
 
@@ -59,9 +63,8 @@ final class LuaScriptFiles {
                 LuaModSource previous = owners.put(collisionKey, source);
                 if (previous != null) {
                     sources.remove(previous);
-                    failures.add(new PreflightFailure(source.entrypointRelative(),
-                            "Mod source conflicts with '" + previous.entrypointRelative() + "' because both use owner '"
-                                    + source.ownerId() + "'."));
+                    failures.add(new PreflightFailure(source.entrypointRelative(), "Mod source conflicts with '"
+                            + previous.entrypointRelative() + "' because both use owner '" + source.ownerId() + "'."));
                     continue;
                 }
                 sources.add(source);
@@ -92,16 +95,23 @@ final class LuaScriptFiles {
             String path = source.sourcePaths().get(fileIndex);
             try {
                 String text = source.readLuaSource(path);
-                totalBytes += text.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+                totalBytes += text.getBytes(StandardCharsets.UTF_8).length;
                 if (totalBytes > LuaModSource.MAX_TOTAL_LUA_SOURCE_BYTES) {
-                    failures.add(new PreflightFailure(source.entrypointRelative(), "Lua mod sources exceed "
-                            + LuaModSource.MAX_TOTAL_LUA_SOURCE_BYTES + " bytes in total"));
+                    failures.add(new PreflightFailure(source.entrypointRelative(),
+                            "Lua mod sources exceed " + LuaModSource.MAX_TOTAL_LUA_SOURCE_BYTES + " bytes in total"));
                     break;
                 }
                 String displayPath = source.sourceDisplayPath(path);
                 JsePlatform.standardGlobals().load(text, "@" + displayPath);
             } catch (Throwable error) {
                 failures.add(new PreflightFailure(source.sourceDisplayPath(path), message(error)));
+            }
+        }
+        if (failures.isEmpty()) {
+            try {
+                HookLifecycle.preflight(source);
+            } catch (IOException | RuntimeException error) {
+                failures.add(new PreflightFailure(source.entrypointRelative(), message(error)));
             }
         }
         return failures;
@@ -228,8 +238,7 @@ final class LuaScriptFiles {
                 continue;
             }
             if (sourcePaths.size() >= LuaModSource.MAX_LUA_SOURCE_FILES) {
-                throw new IOException("ZIP package exceeds " + LuaModSource.MAX_LUA_SOURCE_FILES
-                        + " Lua source files");
+                throw new IOException("ZIP package exceeds " + LuaModSource.MAX_LUA_SOURCE_FILES + " Lua source files");
             }
             long size = archive.sizeOf(path);
             if (size > LuaModSource.MAX_LUA_SOURCE_BYTES) {
@@ -238,8 +247,8 @@ final class LuaScriptFiles {
             if (size > 0L) {
                 totalBytes += size;
                 if (totalBytes > LuaModSource.MAX_TOTAL_LUA_SOURCE_BYTES) {
-                    throw new IOException("ZIP package Lua sources exceed "
-                            + LuaModSource.MAX_TOTAL_LUA_SOURCE_BYTES + " bytes in total");
+                    throw new IOException("ZIP package Lua sources exceed " + LuaModSource.MAX_TOTAL_LUA_SOURCE_BYTES
+                            + " bytes in total");
                 }
             }
             sourcePaths.add(path);
@@ -252,7 +261,7 @@ final class LuaScriptFiles {
     private void collectPackageFiles(File root, File directory, List<File> result, Set<String> visited)
             throws IOException {
         File canonicalDirectory = contained(root, directory, "Lua module directory");
-        if (!visited.add(canonicalDirectory.getPath())) {
+        if (!visited.add(canonicalDirectory.toPath().toRealPath().toString())) {
             throw new IOException("Lua mod directory contains a filesystem cycle: " + relative(root, directory));
         }
         File[] children = canonicalDirectory.listFiles();
@@ -266,8 +275,8 @@ final class LuaScriptFiles {
                 collectPackageFiles(root, child, result, visited);
             } else if (child.isFile()) {
                 if (result.size() >= ZipArchiveIndex.MAX_ENTRIES) {
-                    throw new IOException("Lua mod directory exceeds " + ZipArchiveIndex.MAX_ENTRIES
-                            + " resource files");
+                    throw new IOException(
+                            "Lua mod directory exceeds " + ZipArchiveIndex.MAX_ENTRIES + " resource files");
                 }
                 result.add(contained(root, child, "Lua mod resource"));
             }
@@ -287,33 +296,26 @@ final class LuaScriptFiles {
 
     private void validateLuaSources(List<File> files, String description) throws IOException {
         if (files.size() > LuaModSource.MAX_LUA_SOURCE_FILES) {
-            throw new IOException(description + " exceeds " + LuaModSource.MAX_LUA_SOURCE_FILES
-                    + " Lua source files");
+            throw new IOException(description + " exceeds " + LuaModSource.MAX_LUA_SOURCE_FILES + " Lua source files");
         }
         long totalBytes = 0L;
         for (int i = 0; i < files.size(); i++) {
             File file = files.get(i);
             long size = file.length();
             if (size > LuaModSource.MAX_LUA_SOURCE_BYTES) {
-                throw new IOException("Lua source exceeds " + LuaModSource.MAX_LUA_SOURCE_BYTES + " bytes: "
-                        + file.getName());
+                throw new IOException(
+                        "Lua source exceeds " + LuaModSource.MAX_LUA_SOURCE_BYTES + " bytes: " + file.getName());
             }
             totalBytes += size;
             if (totalBytes > LuaModSource.MAX_TOTAL_LUA_SOURCE_BYTES) {
-                throw new IOException(description + " Lua sources exceed "
-                        + LuaModSource.MAX_TOTAL_LUA_SOURCE_BYTES + " bytes in total");
+                throw new IOException(description + " Lua sources exceed " + LuaModSource.MAX_TOTAL_LUA_SOURCE_BYTES
+                        + " bytes in total");
             }
         }
     }
 
     private File contained(File root, File file, String description) throws IOException {
-        File canonical = file.getCanonicalFile();
-        String rootPath = root.getCanonicalPath();
-        String candidatePath = canonical.getPath();
-        if (!candidatePath.equals(rootPath) && !candidatePath.startsWith(rootPath + File.separator)) {
-            throw new IOException(description + " escapes its mod directory: " + file.getPath());
-        }
-        return canonical;
+        return PackagePaths.contained(root, file, true, description);
     }
 
     private long addFile(long value, String relative, File file) {

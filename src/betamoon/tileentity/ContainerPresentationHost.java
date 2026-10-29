@@ -1,6 +1,8 @@
 package betamoon.tileentity;
 
 import betamoon.data.DataField;
+import betamoon.interop.runtime.NativeEventAccess;
+import betamoon.luaapi.interop.NativeCallbackTable;
 import betamoon.gui.presentation.GuiDocumentDefinition;
 import betamoon.gui.presentation.GuiNodeDefinition;
 import betamoon.gui.presentation.GuiPresentationHost;
@@ -100,6 +102,15 @@ final class ContainerPresentationHost implements GuiPresentationHost {
             throw new IllegalStateException("Declaration validation cannot dispatch GUI callbacks.");
         }
         return controls.guiContext(scope);
+    }
+
+    @Override
+    public LuaTable bindingContext(LuaCallbackScope scope) {
+        if (tile == null) {
+            return new LuaTable();
+        }
+        NativeEventAccess.configure(scope, tile.worldObj, tile);
+        return new NativeCallbackTable(scope);
     }
 
     @Override

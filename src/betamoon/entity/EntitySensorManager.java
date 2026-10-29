@@ -1,5 +1,7 @@
 package betamoon.entity;
 
+import betamoon.interop.runtime.NativeEventAccess;
+import betamoon.luaapi.interop.NativeCallbackTable;
 
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
@@ -24,8 +26,8 @@ import org.luaj.vm2.LuaValue;
 /** Server-side overlap transitions for named, non-colliding entity sensors. */
 final class EntitySensorManager {
     private static final int MAX_TARGETS = 64;
-    private static final Map<EntitySensorDefinition, Set<String>> DISABLED =
-            Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<EntitySensorDefinition, Set<String>> DISABLED = Collections
+            .synchronizedMap(new WeakHashMap<>());
 
     private final Entity parent;
     private final Map<String, Set<Entity>> occupants = new LinkedHashMap<>();
@@ -100,7 +102,8 @@ final class EntitySensorManager {
         for (Entity other : new ArrayList<>(previous)) {
             if (!current.contains(other)) {
                 previous.remove(other);
-                String reason = !other.isEntityAlive() ? "removed"
+                String reason = !other.isEntityAlive()
+                        ? "removed"
                         : parent.worldObj.loadedEntityList.contains(other) ? "left" : "unloaded";
                 dispatch(sensor, "onLeave", other, reason);
                 if (parent.isDead) {
@@ -131,8 +134,8 @@ final class EntitySensorManager {
         double centerY = parent.posY + offsetY;
         double centerZ = parent.posZ + Math.sin(radians) * offsetX + Math.cos(radians) * offsetZ;
         return AxisAlignedBB.getBoundingBox(centerX - shape.sizeX / 2, centerY - shape.sizeY / 2,
-                centerZ - shape.sizeZ / 2, centerX + shape.sizeX / 2,
-                centerY + shape.sizeY / 2, centerZ + shape.sizeZ / 2);
+                centerZ - shape.sizeZ / 2, centerX + shape.sizeX / 2, centerY + shape.sizeY / 2,
+                centerZ + shape.sizeZ / 2);
     }
 
     private static boolean matches(EntitySensorDefinition.Filter filter, Entity other) {
@@ -174,20 +177,21 @@ final class EntitySensorManager {
         if (definition == null) {
             return;
         }
-        LuaValue callback = "onEnter".equals(event) ? sensor.onEnter
+        LuaValue callback = "onEnter".equals(event)
+                ? sensor.onEnter
                 : "onStay".equals(event) ? sensor.onStay : sensor.onLeave;
         Set<String> disabled = DISABLED.get(sensor);
         if (callback.isnil() || disabled != null && disabled.contains(event)) {
             return;
         }
         try (LuaCallbackScope scope = new LuaCallbackScope(true)) {
-            LuaTable context = new LuaTable();
+            NativeEventAccess.configure(scope, parent.worldObj, parent);
+            LuaTable context = new NativeCallbackTable(scope);
             context.set("entity", LuaEntityActionAccess.create(scope, null, parent));
             context.set("other", LuaEntityActionAccess.create(scope, null, other));
             context.set("sensor", sensor.name);
-            context.set("world", LuaWorldActionAccess.create(scope, parent.worldObj,
-                    (int) Math.floor(parent.posX), (int) Math.floor(parent.posY), (int) Math.floor(parent.posZ),
-                    parent));
+            context.set("world", LuaWorldActionAccess.create(scope, parent.worldObj, (int) Math.floor(parent.posX),
+                    (int) Math.floor(parent.posY), (int) Math.floor(parent.posZ), parent));
             if (reason != null) {
                 context.set("reason", reason);
             }
@@ -195,8 +199,8 @@ final class EntitySensorManager {
                     "entity.sensor." + sensor.name + "." + event, callback, context);
         } catch (RuntimeException error) {
             if (DISABLED.computeIfAbsent(sensor, ignored -> new HashSet<>()).add(event)) {
-                String message = definition.key + ".sensors." + sensor.name + "." + event
-                        + " disabled after error: " + error.getMessage();
+                String message = definition.key + ".sensors." + sensor.name + "." + event + " disabled after error: "
+                        + error.getMessage();
                 String owner = EntityTypeRegistry.owner(definition.key);
                 LuaScriptErrors.add(owner == null ? definition.key.toString() : owner, message,
                         LuaScriptErrors.Outcome.CALLBACK_DISABLED, error);

@@ -16,7 +16,36 @@ public final class ScriptResourceTracker {
     }
 
     private static final Map<String, List<Cleanup>> CLEANUPS = new HashMap<>();
-    private static final Map<String, Long> OWNER_GENERATIONS = new HashMap<>();
+    private static final Map<String, OwnerGeneration> OWNER_GENERATIONS = new HashMap<>();
+    private static final OwnerGeneration UNOWNED = new OwnerGeneration();
+
+    /**
+     * Stable liveness cell; no callback, owner object, native root or cleanup list
+     * is retained.
+     */
+    public static final class OwnerGeneration {
+        private volatile long value;
+
+        public long current() {
+            return value;
+        }
+
+        public boolean matches(long expected) {
+            return value == expected;
+        }
+    }
+
+    public static synchronized OwnerGeneration ownerToken(String owner) {
+        if (owner == null) {
+            return UNOWNED;
+        }
+        OwnerGeneration found = OWNER_GENERATIONS.get(owner);
+        if (found == null) {
+            found = new OwnerGeneration();
+            OWNER_GENERATIONS.put(owner, found);
+        }
+        return found;
+    }
     private static final Map<Object, String> OWNERS = new IdentityHashMap<>();
 
     private ScriptResourceTracker() {
@@ -33,6 +62,20 @@ public final class ScriptResourceTracker {
             CLEANUPS.put(owner, entries);
         }
         entries.add(cleanup);
+    }
+
+    /**
+     * Removes one installed cleanup by identity when its owning session has already
+     * closed it.
+     */
+    public static synchronized void untrack(String owner, Cleanup cleanup) {
+        List<Cleanup> entries = CLEANUPS.get(owner);
+        if (entries != null) {
+            entries.removeIf(entry -> entry == cleanup);
+            if (entries.isEmpty()) {
+                CLEANUPS.remove(owner);
+            }
+        }
     }
 
     /** Associates a short-lived runtime object with the declaring script. */
@@ -76,16 +119,19 @@ public final class ScriptResourceTracker {
         }
     }
 
-    /** A declaration can compare this token without retaining its owner's cleanup list. */
+    /**
+     * A declaration can compare this token without retaining its owner's cleanup
+     * list.
+     */
     public static synchronized long ownerGeneration(String owner) {
-        Long generation = OWNER_GENERATIONS.get(owner);
-        return generation == null ? 0 : generation.longValue();
+        OwnerGeneration generation = OWNER_GENERATIONS.get(owner);
+        return generation == null ? 0 : generation.current();
     }
 
     public static synchronized void unload(String owner) {
         LuaCallbackScope.requireNoBindingMutation();
         if (owner != null) {
-            OWNER_GENERATIONS.put(owner, ownerGeneration(owner) + 1);
+            ownerToken(owner).value++;
         }
         List<Cleanup> entries = CLEANUPS.remove(owner);
         if (entries == null) {

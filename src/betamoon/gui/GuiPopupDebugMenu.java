@@ -11,6 +11,7 @@ import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.framework.GuiGeometry.Constraints;
 import betamoon.gui.framework.GuiGeometry.Size;
 import betamoon.gui.widget.GuiButton;
+import betamoon.gui.widget.GuiCheckboxControl;
 import betamoon.gui.widget.GuiDialog.FooterAlignment;
 import betamoon.gui.widget.GuiLink;
 import betamoon.gui.widget.GuiScrollView;
@@ -22,9 +23,13 @@ import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.src.GuiScreen;
 
-/** Pinned script-report action above a catalog-driven list of individual debug exports. */
+/**
+ * Pinned script-report action above a catalog-driven list of individual debug
+ * exports.
+ */
 public final class GuiPopupDebugMenu extends GuiDialogScreen {
     private final GuiScriptIssueActions reportActions;
+    private boolean includeNativeCatalogs;
 
     public GuiPopupDebugMenu(GuiScreen parent) {
         this(parent, new GuiScriptIssueActions());
@@ -35,11 +40,17 @@ public final class GuiPopupDebugMenu extends GuiDialogScreen {
         this.reportActions = reportActions;
 
         dialog.setPanelSize(500, 340, 240);
-        dialog.setScreenMargins(24, 36);
+        dialog.setScreenMargins(24, 12);
         dialog.setBodyInsets(14, 32, 8);
         dialog.setFooterLayout(FooterAlignment.FILL, 12, 6, 0);
         dialog.setBody(new ExportMenuBody());
-        dialog.addFooterButton(new GuiButton("Export All", () -> showResult(DebugExports.exportAll())));
+        dialog.addFooterButton(new GuiButton("Export All", () -> {
+            if (includeNativeCatalogs) {
+                showScreen(new GuiPopupNativeExportProgress(this, DebugExports.exportAllWithNativeAsync()));
+            } else {
+                showResult(DebugExports.exportAll());
+            }
+        }));
         dialog.addFooterButton(new GuiButton("Close", () -> showScreen(parent)));
     }
 
@@ -64,6 +75,13 @@ public final class GuiPopupDebugMenu extends GuiDialogScreen {
         private final ExportHeading heading = add(new ExportHeading());
         private final CategoryList categories = new CategoryList();
         private final GuiScrollView scroll = add(new GuiScrollView(categories, GuiScrollView.Policy.VERTICAL));
+        private final GuiCheckboxControl nativeCatalogs = add(new GuiCheckboxControl("Include detailed native catalogs",
+                false, selected -> includeNativeCatalogs = selected));
+
+        private ExportMenuBody() {
+            nativeCatalogs
+                    .setTooltip("Applies to Export All. Native access > Export always includes detailed catalogs.");
+        }
 
         @Override
         protected Size measureElement(GuiContext context, Constraints constraints) {
@@ -71,7 +89,8 @@ public final class GuiPopupDebugMenu extends GuiDialogScreen {
             Constraints childConstraints = Constraints.upTo(width, Integer.MAX_VALUE);
             int height = report.measure(context, childConstraints).getHeight() + 8
                     + heading.measure(context, childConstraints).getHeight() + 4
-                    + categories.contentHeight(context, width);
+                    + categories.contentHeight(context, width)
+                    + nativeCatalogs.measure(context, childConstraints).getHeight() + 4;
             return new Size(width, height);
         }
 
@@ -85,7 +104,11 @@ public final class GuiPopupDebugMenu extends GuiDialogScreen {
                     Rect.fromPositionAndSize(getLeft(), report.getBottom() + 8, getWidth(), headingHeight));
             int listTop = Math.min(getBottom(), heading.getBottom() + 4);
             scroll.setContentSize(getWidth(), categories.contentHeight(context, getWidth()));
-            scroll.arrange(context, new Rect(getLeft(), listTop, getRight(), getBottom()));
+            int checkboxHeight = nativeCatalogs.measure(context, constraints).getHeight();
+            int checkboxTop = Math.max(listTop, getBottom() - checkboxHeight);
+            nativeCatalogs.arrange(context,
+                    Rect.fromPositionAndSize(getLeft(), checkboxTop, getWidth(), checkboxHeight));
+            scroll.arrange(context, new Rect(getLeft(), listTop, getRight(), Math.max(listTop, checkboxTop - 4)));
         }
     }
 
@@ -203,7 +226,14 @@ public final class GuiPopupDebugMenu extends GuiDialogScreen {
 
             private CategoryRow(DebugExportDefinition definition) {
                 this.definition = definition;
-                export = add(new GuiButton("Export", BUTTON_WIDTH, () -> showResult(DebugExports.export(definition))));
+                export = add(new GuiButton("Export", BUTTON_WIDTH, () -> {
+                    if (DebugExportCatalog.NATIVE_ACCESS_ID.equals(definition.getId())) {
+                        showScreen(new GuiPopupNativeExportProgress(GuiPopupDebugMenu.this,
+                                DebugExports.exportNativeAsync()));
+                    } else {
+                        showResult(DebugExports.export(definition));
+                    }
+                }));
             }
 
             private int textWidth(int width) {
@@ -214,8 +244,8 @@ public final class GuiPopupDebugMenu extends GuiDialogScreen {
                 int textWidth = textWidth(width);
                 int titleHeight = context.getRenderer().wrappedTextHeight(definition.getTitle(), textWidth);
                 int descriptionHeight = context.getRenderer().wrappedTextHeight(definition.getDescription(), textWidth);
-                return Math.max(58, 2 + titleHeight + 4 + descriptionHeight + 4
-                        + context.getRenderer().lineHeight() + 6);
+                return Math.max(58,
+                        2 + titleHeight + 4 + descriptionHeight + 4 + context.getRenderer().lineHeight() + 6);
             }
 
             @Override

@@ -1,7 +1,7 @@
 package betamoon.recipes.custom;
 
-
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.luamodloader.ScriptExecution;
 import betamoon.luamodloader.ScriptResourceTracker;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -60,9 +60,10 @@ public final class RecipeMatcherRegistry {
             LuaValue recipeView = recipe.getValue();
             recipeView.set("type", recipe.type.name);
             recipeView.set("key", recipeKey);
-            LuaValue result = matcher.callback
-                    .invoke(LuaValue
-                            .varargsOf(new LuaValue[]{recipeView, snapshot(inventory, bindings), copy(context), plan}))
+            LuaValue result = ScriptExecution
+                    .invoke(matcher.owner, "recipe.match." + matcher.name, matcher.callback,
+                            LuaValue.varargsOf(
+                                    new LuaValue[]{recipeView, snapshot(inventory, bindings), copy(context), plan}))
                     .arg1();
             if (!result.toboolean() || !matcher.enabled) {
                 return null;

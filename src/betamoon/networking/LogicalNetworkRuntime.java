@@ -1,5 +1,8 @@
 package betamoon.networking;
 
+import betamoon.interop.runtime.NativeEventAccess;
+import betamoon.luaapi.interop.NativeCallbackTable;
+
 import betamoon.assets.AssetKey;
 import betamoon.capability.CapabilityInstance;
 import betamoon.capability.CapabilityTopologyEvents;
@@ -485,10 +488,12 @@ public final class LogicalNetworkRuntime {
                 return true;
             }
             try (LuaCallbackScope scope = new LuaCallbackScope(false)) {
-                LuaTable context = new LuaTable();
+                NativeEventAccess.configure(scope, world, null);
+                LuaTable context = new NativeCallbackTable(scope);
                 context.set("first", connectionView(scope, first, firstPort));
                 context.set("second", connectionView(scope, second, secondPort));
-                LuaValue result = definition.canConnect.call(context);
+                LuaValue result = ScriptExecution
+                        .invoke(definition.owner, "logicalNetworks.canConnect", definition.canConnect, context).arg1();
                 if (!result.isboolean()) {
                     throw new LuaError("canConnect must return a boolean.");
                 }
@@ -586,7 +591,8 @@ public final class LogicalNetworkRuntime {
                 return;
             }
             try (LuaCallbackScope scope = new LuaCallbackScope(true)) {
-                LuaTable context = new LuaTable();
+                NativeEventAccess.configure(scope, world, null);
+                LuaTable context = new NativeCallbackTable(scope);
                 LuaTable network = new LuaTable();
                 network.set("key", definition.key.toString());
                 network.set("topology", definition.topology.name().toLowerCase());

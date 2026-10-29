@@ -2,6 +2,9 @@ package betamoon.tileentity;
 
 import betamoon.gui.presentation.GuiConditionEvaluator;
 import betamoon.gui.presentation.GuiControlType;
+import betamoon.interop.runtime.NativeEventAccess;
+import betamoon.luaapi.interop.NativeCallbackTable;
+
 import betamoon.gui.presentation.GuiInputSnapshot;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.tileentity.LuaTileDataAccess;
@@ -257,7 +260,8 @@ public final class ContainerControlRuntime {
 
     public LuaTable guiContext(final LuaCallbackScope scope) {
         requireActive();
-        LuaTable context = new LuaTable();
+        NativeEventAccess.configure(scope, tile.worldObj, tile);
+        LuaTable context = new NativeCallbackTable(scope);
         context.set("player", player(player));
         LuaTable tileValue = new LuaTable();
         tileValue.set("x", tile.xCoord);

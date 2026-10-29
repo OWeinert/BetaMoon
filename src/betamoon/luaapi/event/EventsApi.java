@@ -10,6 +10,8 @@ import betamoon.event.context.GameEventCtx;
 import betamoon.event.context.PlayerEventCtx;
 import betamoon.event.context.WorldEventCtx;
 import betamoon.luaapi.LuaApiUtils;
+import betamoon.interop.runtime.NativeEventAccess;
+import betamoon.luaapi.interop.NativeCallbackTable;
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.utils.LuaDetachedData;
@@ -55,9 +57,9 @@ public final class EventsApi {
         register(bindings, new EventBinding<>("item_used", Events.ITEM_USE, LuaItemUseEventCtx::new));
         register(bindings, new EventBinding<>("dimension_changed", Events.DIMENSION_CHANGE, LuaDimensionEventCtx::new));
         register(bindings, new EventBinding<>("teleport_completed", Events.TELEPORT_COMPLETED,
-                ctx -> LuaDetachedData.copy(ctx.result())));
+                ctx -> LuaDetachedData.copy(ctx.result()), false));
         register(bindings, new EventBinding<>("teleport_failed", Events.TELEPORT_FAILED,
-                ctx -> LuaDetachedData.copy(ctx.result())));
+                ctx -> LuaDetachedData.copy(ctx.result()), false));
         events.set("on", new On(events, bindings));
         module.set("events", events);
     }
@@ -92,11 +94,18 @@ public final class EventsApi {
         private final String name;
         private final EventChannel<TContext> channel;
         private final Function<TContext, LuaValue> contextFactory;
+        private final boolean nativeContext;
 
         private EventBinding(String name, EventChannel<TContext> channel, Function<TContext, LuaValue> contextFactory) {
+            this(name, channel, contextFactory, true);
+        }
+
+        private EventBinding(String name, EventChannel<TContext> channel, Function<TContext, LuaValue> contextFactory,
+                boolean nativeContext) {
             this.name = name;
             this.channel = channel;
             this.contextFactory = contextFactory;
+            this.nativeContext = nativeContext;
         }
 
         private LuaValue subscribe(LuaValue functionValue) {
@@ -123,11 +132,15 @@ public final class EventsApi {
                         : minecraft == null ? null : minecraft.thePlayer;
                 boolean current = world != null && !world.multiplayerWorld && minecraft != null
                         && minecraft.theWorld == world;
-                try (ScriptDiagnostics.Scope diagnostic = ScriptDiagnostics.gameContext(
-                        () -> ClientScriptDiagnostics.occurrence(minecraft, world));
-                        LuaCallbackScope scope = LuaCallbackScope.withQueuedTeleport(
-                                current && !TeleportRuntime.frozen(), current)) {
+                try (ScriptDiagnostics.Scope diagnostic = ScriptDiagnostics
+                        .gameContext(() -> ClientScriptDiagnostics.occurrence(minecraft, world));
+                        LuaCallbackScope scope = LuaCallbackScope
+                                .withQueuedTeleport(current && !TeleportRuntime.frozen(), current)) {
                     LuaValue view = contextFactory.apply(ctx);
+                    if (nativeContext) {
+                        scope.nativeEntry(NativeEventAccess.entry(scope, minecraft, world, player));
+                        view = NativeCallbackTable.wrap(scope, view);
+                    }
                     if (view.istable() && world != null) {
                         view.set("world", LuaWorldActionAccess.create(scope, world, 0, 0, 0));
                         if (player != null && player.worldObj == world) {

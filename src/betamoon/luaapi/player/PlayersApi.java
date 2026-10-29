@@ -1,6 +1,7 @@
 package betamoon.luaapi.player;
 
 import betamoon.luaapi.entity.EntityModifiersApi;
+import betamoon.interop.runtime.NativeEventAccess;
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.utils.LuaDeclarationValues;
@@ -50,8 +51,9 @@ public final class PlayersApi {
                 EntityPlayer player = resolution.player;
                 String owner = LuaScriptRegistry.getCurrentScriptFile();
                 try (LuaCallbackScope scope = new LuaCallbackScope(true)) {
-                    ScriptExecution.invoke(owner, "players.withLocal", callback,
-                            LuaEntityActionAccess.create(scope, player, player));
+                    NativeEventAccess.configure(scope, player.worldObj, player);
+                    ScriptExecution.invokeScoped(owner, "players.withLocal", callback,
+                            LuaEntityActionAccess.create(scope, player, player), scope);
                 }
                 return LuaValue.TRUE;
             }

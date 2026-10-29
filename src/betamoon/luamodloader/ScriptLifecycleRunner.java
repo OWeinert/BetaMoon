@@ -47,6 +47,12 @@ final class ScriptLifecycleRunner {
             if (hotReload && NonReloadableScriptRegistry.contains(mod.sourceFileName)) {
                 continue;
             }
+            String unavailableDependency = unavailableDependency(mod);
+            if (unavailableDependency != null) {
+                recordLoadFailure(mod, failedMods, "Dependency did not initialize: " + unavailableDependency,
+                        new IllegalStateException("Dependency did not initialize: " + unavailableDependency));
+                continue;
+            }
 
             long startedNanos = System.nanoTime();
             mod.generationCodeSignature = null;
@@ -90,6 +96,9 @@ final class ScriptLifecycleRunner {
                 terrain.publish();
                 dimensions.publish();
                 atmospheres.publish();
+                if (mod.hooks != null) {
+                    mod.hooks.publish();
+                }
                 LuaScriptRegistry.markLoadedByFile(mod.sourceFileName);
                 retainedScripts.rememberIfStructural(mod);
             } catch (LuaError error) {
@@ -125,6 +134,17 @@ final class ScriptLifecycleRunner {
                 }
             }
         }
+    }
+
+    private String unavailableDependency(ScriptMod mod) {
+        for (String dependency : mod.dependencies) {
+            for (ScriptMod candidate : LuaScriptRegistry.getEntries()) {
+                if (dependency.equals(candidate.name) && !candidate.isLoaded()) {
+                    return dependency;
+                }
+            }
+        }
+        return null;
     }
 
     private void recordLoadFailure(ScriptMod mod, List<String> failedMods, String message, Throwable error) {

@@ -1,5 +1,7 @@
 package betamoon.entity;
 
+import betamoon.interop.runtime.NativeEventAccess;
+import betamoon.luaapi.interop.NativeCallbackTable;
 
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
@@ -17,10 +19,12 @@ import net.minecraft.src.Entity;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
-/** One-shot lifecycle reactions; failed callbacks are disabled independently. */
+/**
+ * One-shot lifecycle reactions; failed callbacks are disabled independently.
+ */
 public final class EntityLifecycleEvents {
-    private static final Map<EntityTypeDefinition, Set<String>> DISABLED =
-            Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<EntityTypeDefinition, Set<String>> DISABLED = Collections
+            .synchronizedMap(new WeakHashMap<>());
 
     private EntityLifecycleEvents() {
     }
@@ -70,8 +74,7 @@ public final class EntityLifecycleEvents {
             EntityTypeDefinition definition = state.definition();
             if (definition != null) {
                 EntityLoot.dropLoot(entity);
-                EntityPresentationEvents.sound(entity,
-                        definition.sounds.get(EntitySoundsDefinition.Event.DEATH));
+                EntityPresentationEvents.sound(entity, definition.sounds.get(EntitySoundsDefinition.Event.DEATH));
             }
             dispatch(entity, "onDeath", null, attacker);
         }
@@ -125,11 +128,11 @@ public final class EntityLifecycleEvents {
             return;
         }
         try (LuaCallbackScope scope = new LuaCallbackScope(true)) {
-            LuaTable context = new LuaTable();
+            NativeEventAccess.configure(scope, entity.worldObj, entity);
+            LuaTable context = new NativeCallbackTable(scope);
             context.set("entity", LuaEntityActionAccess.create(scope, null, entity));
-            context.set("world", LuaWorldActionAccess.create(scope, entity.worldObj,
-                    (int) Math.floor(entity.posX), (int) Math.floor(entity.posY), (int) Math.floor(entity.posZ),
-                    entity));
+            context.set("world", LuaWorldActionAccess.create(scope, entity.worldObj, (int) Math.floor(entity.posX),
+                    (int) Math.floor(entity.posY), (int) Math.floor(entity.posZ), entity));
             context.set("age", entity.ticksExisted);
             if (reason != null) {
                 context.set("reason", reason);

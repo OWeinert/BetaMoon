@@ -1,5 +1,7 @@
 package betamoon.entity;
 
+import betamoon.interop.runtime.NativeEventAccess;
+import betamoon.luaapi.interop.NativeCallbackTable;
 
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
@@ -16,11 +18,7 @@ import org.luaj.vm2.LuaValue;
 /** Scoped impact callback. A failed callback stops the projectile safely. */
 public final class ProjectileImpact {
     public enum Action {
-        DEFAULT,
-        REMOVE,
-        BOUNCE,
-        STICK,
-        CONTINUE
+        DEFAULT, REMOVE, BOUNCE, STICK, CONTINUE
     }
 
     private static final Set<EntityTypeDefinition> DISABLED = Collections.newSetFromMap(new WeakHashMap<>());
@@ -31,14 +29,14 @@ public final class ProjectileImpact {
 
     static Action evaluate(LuaProjectileEntity projectile, ProjectileCollision.Hit hit,
             EntityTypeDefinition definition) {
-        EntityPresentationEvents.sound(projectile,
-                definition.sounds.get(EntitySoundsDefinition.Event.IMPACT),
+        EntityPresentationEvents.sound(projectile, definition.sounds.get(EntitySoundsDefinition.Event.IMPACT),
                 hit.position.xCoord, hit.position.yCoord, hit.position.zCoord);
         if (definition.onImpact.isnil() || DISABLED.contains(definition)) {
             return Action.DEFAULT;
         }
         try (LuaCallbackScope scope = new LuaCallbackScope(true)) {
-            LuaTable context = new LuaTable();
+            NativeEventAccess.configure(scope, projectile.worldObj, projectile);
+            LuaTable context = new NativeCallbackTable(scope);
             context.set("entity", LuaEntityActionAccess.create(scope, null, projectile));
             Entity owner = projectile.getOwner();
             if (owner != null) {
@@ -62,11 +60,12 @@ public final class ProjectileImpact {
             position.set("y", hit.position.yCoord);
             position.set("z", hit.position.zCoord);
             context.set("position", position);
-            context.set("world", LuaWorldActionAccess.create(scope, projectile.worldObj,
-                    (int) Math.floor(hit.position.xCoord), (int) Math.floor(hit.position.yCoord),
-                    (int) Math.floor(hit.position.zCoord), projectile));
-            LuaValue result = ScriptExecution.invoke(EntityTypeRegistry.owner(definition.key),
-                    "entity.onImpact", definition.onImpact, context).arg1();
+            context.set("world",
+                    LuaWorldActionAccess.create(scope, projectile.worldObj, (int) Math.floor(hit.position.xCoord),
+                            (int) Math.floor(hit.position.yCoord), (int) Math.floor(hit.position.zCoord), projectile));
+            LuaValue result = ScriptExecution
+                    .invoke(EntityTypeRegistry.owner(definition.key), "entity.onImpact", definition.onImpact, context)
+                    .arg1();
             if (result.isnil() || result.eq_b(LuaValue.valueOf("default"))) {
                 return Action.DEFAULT;
             }

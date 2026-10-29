@@ -1,5 +1,8 @@
 package betamoon.tileentity;
 
+import betamoon.interop.runtime.NativeEventAccess;
+import betamoon.luaapi.interop.NativeCallbackContext;
+
 import betamoon.luaapi.multiblock.MultiblocksApi;
 import betamoon.multiblock.MultiblockRuntime;
 
@@ -17,6 +20,7 @@ import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.gui.presentation.GuiValueObserver;
 import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.luamodloader.ScriptExecution;
 import betamoon.networking.LogicalNetworkRuntime;
 import java.util.Arrays;
 import net.minecraft.src.EntityPlayer;
@@ -125,14 +129,14 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
         try (Context context = createScopedContext()) {
             int blockId = worldObj.getBlockId(xCoord, yCoord, zCoord);
             if (BlockCallbackRegistry.get(blockId) == null) {
-                definition.tickAction.call(context);
+                ScriptExecution.invoke(definition.owner, "tile.onTick", definition.tickAction, context);
                 return;
             }
 
             try (LuaBlockActionContext blockContext = new LuaBlockActionContext(worldObj, xCoord, yCoord, zCoord, null,
                     null, -1, true)) {
                 context.set("state", blockContext.get("state"));
-                definition.tickAction.call(context);
+                ScriptExecution.invoke(definition.owner, "tile.onTick", definition.tickAction, context);
             }
         }
     }
@@ -230,7 +234,8 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
         }
         notifyingInventory = true;
         try (Context context = createScopedContext()) {
-            definition.inventoryChangedAction.call(context);
+            ScriptExecution.invoke(definition.owner, "tile.onInventoryChanged", definition.inventoryChangedAction,
+                    context);
         } catch (Throwable error) {
             inventoryActionEnabled = false;
             reportCallbackError(definition, "onInventoryChanged", error);
@@ -397,11 +402,17 @@ public final class LuaTileEntity extends TileEntity implements IInventory {
         LuaScriptErrors.add(definition.owner, message, LuaScriptErrors.Outcome.CALLBACK_DISABLED, error);
     }
 
-    public static final class Context extends LuaTable implements AutoCloseable {
+    public static final class Context extends LuaTable implements AutoCloseable, NativeCallbackContext {
+        @Override
+        public LuaCallbackScope nativeCallbackScope() {
+            return scope;
+        }
+
         private final LuaCallbackScope scope;
 
         private Context(LuaTileEntity entity) {
             scope = new LuaCallbackScope(entity.worldObj != null && !entity.worldObj.multiplayerWorld);
+            NativeEventAccess.configure(scope, entity.worldObj, entity);
             LuaTable entityValue = new LuaTable();
             entityValue.set("data", LuaTileDataAccess.create(scope, entity));
             entityValue.set("inventory", new InventoryAccess(scope, entity));

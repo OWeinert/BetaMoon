@@ -1,5 +1,7 @@
 package betamoon.entity;
 
+import betamoon.interop.runtime.NativeEventAccess;
+import betamoon.luaapi.interop.NativeCallbackTable;
 
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
@@ -25,12 +27,14 @@ final class EntityAiTick {
             return;
         }
         try (LuaCallbackScope scope = new LuaCallbackScope(true)) {
-            LuaTable context = new LuaTable();
+            NativeEventAccess.configure(scope, entity.worldObj, entity);
+            LuaTable context = new NativeCallbackTable(scope);
             context.set("entity", LuaEntityActionAccess.create(scope, null, entity));
             context.set("world", LuaWorldActionAccess.create(scope, entity.worldObj, (int) Math.floor(entity.posX),
                     (int) Math.floor(entity.posY), (int) Math.floor(entity.posZ), entity));
             context.set("age", entity.ticksExisted);
-            ScriptExecution.invoke(EntityTypeRegistry.owner(definition.key), "entity.ai.routine", policy.routine, context);
+            ScriptExecution.invoke(EntityTypeRegistry.owner(definition.key), "entity.ai.routine", policy.routine,
+                    context);
         } catch (RuntimeException error) {
             if (DISABLED.add(definition)) {
                 String message = definition.key + ".living.ai.routine disabled after error: " + error.getMessage();

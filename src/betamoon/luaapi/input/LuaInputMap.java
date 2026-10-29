@@ -1,5 +1,8 @@
 package betamoon.luaapi.input;
 
+import betamoon.interop.runtime.NativeEventAccess;
+import betamoon.luaapi.interop.NativeCallbackTable;
+
 import betamoon.client.control.input.ClientInputRuntime;
 import betamoon.client.control.input.InputActionEvent;
 import betamoon.client.control.input.InputActionState;
@@ -283,7 +286,9 @@ final class LuaInputMap extends LuaTable {
         Minecraft minecraft = ClientInputRuntime.client();
         boolean current = minecraft != null && minecraft.theWorld != null && !minecraft.theWorld.multiplayerWorld;
         try (LuaCallbackScope scope = LuaCallbackScope.withQueuedTeleport(false, current)) {
-            LuaTable event = event(input);
+            scope.nativeEntry(NativeEventAccess.entry(scope, minecraft, minecraft == null ? null : minecraft.theWorld,
+                    minecraft == null ? null : minecraft.thePlayer));
+            LuaTable event = (LuaTable) NativeCallbackTable.wrap(scope, event(input));
             if (current) {
                 event.set("world", LuaWorldActionAccess.create(scope, minecraft.theWorld, 0, 0, 0));
                 if (minecraft.thePlayer != null && minecraft.thePlayer.worldObj == minecraft.theWorld) {

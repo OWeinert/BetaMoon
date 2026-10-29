@@ -1,5 +1,7 @@
 package betamoon.luaapi.entity;
 
+import betamoon.interop.runtime.NativeEventAccess;
+import betamoon.luaapi.interop.NativeCallbackTable;
 
 import betamoon.entity.EntityInstanceState;
 import betamoon.entity.EntityTypeDefinition;
@@ -35,8 +37,8 @@ public final class EntityInteraction {
         if (!definition.onInteract.isnil() && !DISABLED.contains(definition)) {
             outcome = callback(entity, player, state, definition);
         }
-        if (outcome == InteractionOutcome.PASS && definition.inventory != null
-                && definition.inventory.openOnInteract && player != null) {
+        if (outcome == InteractionOutcome.PASS && definition.inventory != null && definition.inventory.openOnInteract
+                && player != null) {
             player.displayGUIChest(state.inventory(entity, definition));
             return InteractionOutcome.HANDLED;
         }
@@ -47,9 +49,10 @@ public final class EntityInteraction {
             EntityTypeDefinition definition) {
         String owner = EntityTypeRegistry.owner(definition.key);
         String reportOwner = owner == null ? definition.key.toString() : owner;
-        try (LuaCallbackScope scope = new LuaCallbackScope(entity.worldObj == null
-                || !entity.worldObj.multiplayerWorld)) {
-            LuaTable context = new LuaTable();
+        try (LuaCallbackScope scope = new LuaCallbackScope(
+                entity.worldObj == null || !entity.worldObj.multiplayerWorld)) {
+            NativeEventAccess.configure(scope, entity.worldObj, entity);
+            LuaTable context = new NativeCallbackTable(scope);
             context.set("entity", LuaEntityActionAccess.create(scope, player, entity));
             if (player != null) {
                 context.set("player", LuaEntityActionAccess.create(scope, player, player));

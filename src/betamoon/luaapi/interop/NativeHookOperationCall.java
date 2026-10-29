@@ -1,0 +1,188 @@
+package betamoon.luaapi.interop;
+
+import betamoon.hooks.HookFailure;
+import betamoon.hooks.HookInvocation;
+import betamoon.hooks.HookLuaValue;
+import betamoon.hooks.HookOperationInvocation;
+import betamoon.hooks.HookOperationSite;
+import betamoon.interop.runtime.NativeContext;
+import java.util.function.Supplier;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.List;
+import java.util.Collections;
+import org.luaj.vm2.LuaValue;
+import org.objectweb.asm.Type;
+
+/**
+ * Typed operation facade; operands are explicitly separate from the containing
+ * method's saved arguments.
+ */
+public final class NativeHookOperationCall extends HookLuaValue {
+    private final HookInvocation invocation;
+    private final Supplier<NativeContext> context;
+    private final HookOperationSite operation;
+    private final Type resultType;
+    private final boolean editsAllowed;
+    private NativeContext accessContext;
+    private LuaValue access;
+
+    public NativeHookOperationCall(HookInvocation invocation, Supplier<NativeContext> context, boolean editsAllowed) {
+        this.invocation = invocation;
+        this.context = context;
+        this.operation = invocation.operation().operation;
+        this.resultType = invocation.returnType();
+        this.editsAllowed = editsAllowed;
+    }
+
+    @Override
+    protected LuaValue createProperty(String name) {
+        switch (name) {
+            case "enclosing":
+                return new Enclosing(invocation, context);
+            case "id":
+                return valueOf(invocation.definition.id);
+            case "owner":
+                return valueOf(invocation.definition.owner);
+            case "site":
+                return valueOf(invocation.site);
+            case "mode":
+                return valueOf(operation.kind);
+            case "arguments":
+                return new Arguments(invocation, context, editsAllowed, false);
+            case "point":
+                return point();
+            case "setResult":
+                return method(args -> {
+                    edit();
+                    if (operation.before() || resultType.getSort() == Type.VOID || args.narg() != 1) {
+                        throw new HookFailure("hook_edit_denied",
+                                "setResult(value) requires a non-void invoke_after or field_read point");
+                    }
+                    invocation.result(NativeHookCall.convert(args.arg1(), resultType, invocation, context.get()));
+                    return NONE;
+                });
+            case "setValue":
+                return method(args -> {
+                    edit();
+                    if (!operation.kind.equals("field_write") || args.narg() != 1) {
+                        throw new HookFailure("hook_edit_denied", "setValue(value) requires a field_write point");
+                    }
+                    invocation.argument(0, NativeHookCall.convert(args.arg1(), Type.getType(operation.descriptor),
+                            invocation, context.get()));
+                    return NONE;
+                });
+            default:
+                return NIL;
+        }
+    }
+
+    private LuaValue point() {
+        NativeAccessApi metadata = new NativeAccessApi(context.get().bindings::snapshot);
+        Map<String, Object> description = new LinkedHashMap<>(operation.transport());
+        description.put("ordinal", invocation.definition.point.ordinal);
+        description.put("matches", invocation.definition.point.exact);
+        return metadata.metadata(description, true);
+    }
+
+    private void edit() {
+        invocation.check();
+        if (!editsAllowed || !invocation.definition.edit) {
+            throw new HookFailure("hook_edit_denied", "declare effects=edit in an eligible enclosing entry");
+        }
+    }
+
+    @Override
+    public LuaValue get(LuaValue key) {
+        invocation.check();
+        if (key.type() == TSTRING) {
+            switch (key.tojstring()) {
+                case "receiver":
+                    return operation.instance() ? NativeAccessApi.hookValue(invocation.receiver(), context.get()) : NIL;
+                case "native":
+                    NativeContext current = context.get();
+                    if (accessContext != current) {
+                        accessContext = current;
+                        access = NativeAccessApi.contextAccess(current);
+                    }
+                    return access;
+                case "result":
+                    return !operation.before() && resultType.getSort() != Type.VOID
+                            ? NativeAccessApi.hookValue(invocation.result(), context.get())
+                            : NIL;
+                case "value":
+                    return operation.kind.equals("field_write")
+                            ? NativeAccessApi.hookValue(invocation.argument(0), context.get())
+                            : NIL;
+                default:
+                    break;
+            }
+        }
+        return super.get(key);
+    }
+
+    private static final class Enclosing extends HookLuaValue {
+        private final HookInvocation invocation;
+        private final Supplier<NativeContext> context;
+
+        Enclosing(HookInvocation invocation, Supplier<NativeContext> context) {
+            this.invocation = invocation;
+            this.context = context;
+            properties.put("site", valueOf(invocation.site));
+            properties.put("arguments", new Arguments(invocation, context, false, true));
+        }
+
+        @Override
+        public LuaValue get(LuaValue key) {
+            invocation.check();
+            if (key.type() == TSTRING && key.tojstring().equals("receiver")) {
+                Object receiver = invocation.operation().enclosingReceiver();
+                return receiver == null ? NIL : NativeAccessApi.hookValue(receiver, context.get());
+            }
+            return super.get(key);
+        }
+    }
+
+    private static final class Arguments extends HookLuaValue {
+        private final HookInvocation invocation;
+
+        Arguments(HookInvocation invocation, Supplier<NativeContext> context, boolean editsAllowed, boolean enclosing) {
+            this.invocation = invocation;
+            HookOperationInvocation data = invocation.operation();
+            List<Type> types = enclosing
+                    ? invocation.enclosingParameterTypes()
+                    : data.operation.kind.startsWith("invoke_") ? invocation.parameterTypes() : Collections.emptyList();
+            properties.put("count", valueOf(types.size()));
+            properties.put("get", method(args -> {
+                invocation.check();
+                if (args.narg() != 1 || types.size() == 0) {
+                    throw new HookFailure("hook_argument_index", "get(index) selects a zero-based Java argument");
+                }
+                int index = NativeAccessApi.integer(args.arg1(), 0, types.size() - 1);
+                Object value = enclosing ? data.enclosingArgument(index) : invocation.argument(index);
+                return NativeAccessApi.hookValue(value, context.get());
+            }));
+            properties.put("set", method(args -> {
+                invocation.check();
+                if (enclosing || !editsAllowed || !invocation.definition.edit
+                        || !data.operation.kind.equals("invoke_before")) {
+                    throw new HookFailure("hook_edit_denied",
+                            "only an editing invoke_before point may change call arguments");
+                }
+                if (args.narg() != 2 || types.size() == 0) {
+                    throw new HookFailure("hook_argument_index", "set(index,value) selects a zero-based Java argument");
+                }
+                int index = NativeAccessApi.integer(args.arg1(), 0, types.size() - 1);
+                invocation.argument(index,
+                        NativeHookCall.convert(args.arg(2), types.get(index), invocation, context.get()));
+                return NONE;
+            }));
+        }
+
+        @Override
+        public LuaValue get(LuaValue key) {
+            invocation.check();
+            return super.get(key);
+        }
+    }
+}

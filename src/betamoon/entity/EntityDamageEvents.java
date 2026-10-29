@@ -1,5 +1,7 @@
 package betamoon.entity;
 
+import betamoon.interop.runtime.NativeEventAccess;
+import betamoon.luaapi.interop.NativeCallbackTable;
 
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
@@ -20,15 +22,18 @@ import net.minecraft.src.EntityLiving;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
-/** Damage decisions for BetaMoon bridge entities, before and after native handling. */
+/**
+ * Damage decisions for BetaMoon bridge entities, before and after native
+ * handling.
+ */
 public final class EntityDamageEvents {
     @FunctionalInterface
     public interface NativeDamage {
         boolean apply(int amount);
     }
 
-    private static final Map<EntityTypeDefinition, Set<String>> DISABLED =
-            Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<EntityTypeDefinition, Set<String>> DISABLED = Collections
+            .synchronizedMap(new WeakHashMap<>());
     private static final ThreadLocal<Origin> ORIGIN = new ThreadLocal<>();
 
     private EntityDamageEvents() {
@@ -94,10 +99,8 @@ public final class EntityDamageEvents {
 
             int after = health(target, state, definition);
             after(target, definition, attacker, directSource, cause, requested, amount, before, after, accepted);
-            if (accepted && !target.isDead && !state.deathNotified()
-                    && (before < 0 || after < before)) {
-                EntityPresentationEvents.sound(target,
-                        definition.sounds.get(EntitySoundsDefinition.Event.HURT));
+            if (accepted && !target.isDead && !state.deathNotified() && (before < 0 || after < before)) {
+                EntityPresentationEvents.sound(target, definition.sounds.get(EntitySoundsDefinition.Event.HURT));
             }
             if (definition.health != null && state.health() == 0 && !target.isDead) {
                 target.setEntityDead();
@@ -122,8 +125,8 @@ public final class EntityDamageEvents {
             if (health >= 0) {
                 context.set("health", health);
             }
-            LuaValue result = ScriptExecution.invoke(EntityTypeRegistry.owner(definition.key),
-                    "entity.onBeforeDamage", definition.onBeforeDamage, context).arg1();
+            LuaValue result = ScriptExecution.invoke(EntityTypeRegistry.owner(definition.key), "entity.onBeforeDamage",
+                    definition.onBeforeDamage, context).arg1();
             if (result.isnil()) {
                 return requested;
             }
@@ -153,8 +156,8 @@ public final class EntityDamageEvents {
                 context.set("healthAfter", after);
                 context.set("healthLost", Math.max(0, before - after));
             }
-            ScriptExecution.invoke(EntityTypeRegistry.owner(definition.key),
-                    "entity.onAfterDamage", definition.onAfterDamage, context);
+            ScriptExecution.invoke(EntityTypeRegistry.owner(definition.key), "entity.onAfterDamage",
+                    definition.onAfterDamage, context);
         } catch (RuntimeException error) {
             disable(definition, "onAfterDamage", error);
         }
@@ -162,10 +165,11 @@ public final class EntityDamageEvents {
 
     private static LuaTable context(LuaCallbackScope scope, Entity target, Entity attacker, Entity directSource,
             String cause) {
-        LuaTable context = new LuaTable();
+        NativeEventAccess.configure(scope, target.worldObj, target);
+        LuaTable context = new NativeCallbackTable(scope);
         context.set("entity", LuaEntityActionAccess.create(scope, null, target));
-        context.set("world", LuaWorldActionAccess.create(scope, target.worldObj,
-                (int) Math.floor(target.posX), (int) Math.floor(target.posY), (int) Math.floor(target.posZ), target));
+        context.set("world", LuaWorldActionAccess.create(scope, target.worldObj, (int) Math.floor(target.posX),
+                (int) Math.floor(target.posY), (int) Math.floor(target.posZ), target));
         context.set("cause", cause);
         ExplosionRequest explosion = ExplosionExecution.current();
         if (explosion != null) {

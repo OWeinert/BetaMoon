@@ -1,5 +1,6 @@
 package betamoon.luaapi;
 
+import betamoon.hooks.HookLuaValue;
 import betamoon.luaapi.asset.AssetsApi;
 import betamoon.luaapi.audio.AudioApi;
 import betamoon.luaapi.audio.StepSoundApi;
@@ -11,6 +12,7 @@ import betamoon.luaapi.event.EventsApi;
 import betamoon.luaapi.fluid.FluidApi;
 import betamoon.luaapi.fuel.FuelsApi;
 import betamoon.luaapi.input.InputApi;
+import betamoon.luaapi.interop.NativeDiscoveryApi;
 import betamoon.luaapi.logging.LoggingApi;
 import betamoon.luaapi.material.ArmorMaterialApi;
 import betamoon.luaapi.material.BlockMaterialApi;
@@ -79,6 +81,8 @@ public final class BetaMoonModule extends TwoArgFunction {
         CallbackResultsApi.attach(module);
         ConfigApi.attach(module, configRoot, source);
         EventsApi.attach(module);
+        NativeDiscoveryApi.attach(module, source);
+        module.set("hooks", HookLuaValue.facade(null));
         AssetsApi.attach(module);
         ParticlesApi.attach(module);
         MultiblocksApi.attach(module);
@@ -164,7 +168,7 @@ public final class BetaMoonModule extends TwoArgFunction {
 
         @Override
         public Varargs invoke(Varargs arguments) {
-            return ScriptExecution.invoke(source, delegate, arguments);
+            return ScriptExecution.invokeApi(source, delegate, arguments);
         }
     }
 }

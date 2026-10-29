@@ -386,7 +386,7 @@ public class GuiPresentationRuntime implements AutoCloseable {
     }
 
     private LuaTable view(GuiPresentationNode node, LuaCallbackScope scope, Set<String> reads) {
-        LuaTable view = new LuaTable();
+        LuaTable view = host.bindingContext(scope);
         view.set("state", observed(scope, reads, "state", state));
         view.set("data", observed(scope, reads, "data", data));
         view.set("interaction", new VarArgFunction() {

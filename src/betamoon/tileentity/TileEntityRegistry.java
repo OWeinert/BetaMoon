@@ -4,6 +4,7 @@ import betamoon.BetaMoonCommon;
 
 import betamoon.luamodloader.NonReloadableScriptRegistry;
 import betamoon.luamodloader.LuaScriptErrors;
+import betamoon.luamodloader.ScriptExecution;
 import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -328,7 +329,8 @@ public final class TileEntityRegistry {
         try (LuaTileEntity.Context context = ((LuaTileEntity) entity).createScopedContext()) {
             context.set("neighborId", neighborId);
             context.set("powered", org.luaj.vm2.LuaValue.valueOf(world.isBlockIndirectlyGettingPowered(x, y, z)));
-            binding.redstone.neighborAction.call(context);
+            ScriptExecution.invoke(binding.tile.owner, "tile.onNeighborChanged", binding.redstone.neighborAction,
+                    context);
         } catch (Throwable error) {
             binding.redstone.neighborActionEnabled = false;
             String message = "redstone onNeighborChanged was disabled after an error: " + error.getMessage();

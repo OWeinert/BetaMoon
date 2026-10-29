@@ -1,5 +1,7 @@
 package betamoon.entity;
 
+import betamoon.interop.runtime.NativeEventAccess;
+import betamoon.luaapi.interop.NativeCallbackTable;
 
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
@@ -17,8 +19,8 @@ import org.luaj.vm2.LuaValue;
 
 /** Isolated dispatch for reusable timer and state-transition callbacks. */
 final class EntityBehaviorEvents {
-    private static final Map<EntityTypeDefinition, Set<String>> DISABLED =
-            Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<EntityTypeDefinition, Set<String>> DISABLED = Collections
+            .synchronizedMap(new WeakHashMap<>());
 
     private EntityBehaviorEvents() {
     }
@@ -53,10 +55,11 @@ final class EntityBehaviorEvents {
             return;
         }
         try (LuaCallbackScope scope = new LuaCallbackScope(true)) {
+            NativeEventAccess.configure(scope, entity.worldObj, entity);
+            extra = (LuaTable) NativeCallbackTable.wrap(scope, extra);
             extra.set("entity", LuaEntityActionAccess.create(scope, null, entity));
-            extra.set("world", LuaWorldActionAccess.create(scope, entity.worldObj,
-                    (int) Math.floor(entity.posX), (int) Math.floor(entity.posY), (int) Math.floor(entity.posZ),
-                    entity));
+            extra.set("world", LuaWorldActionAccess.create(scope, entity.worldObj, (int) Math.floor(entity.posX),
+                    (int) Math.floor(entity.posY), (int) Math.floor(entity.posZ), entity));
             extra.set("age", entity.ticksExisted);
             ScriptExecution.invoke(EntityTypeRegistry.owner(type.key), "entity.behavior." + event, callback, extra);
         } catch (RuntimeException error) {

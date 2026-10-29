@@ -1,5 +1,7 @@
 package betamoon.luaapi.utils;
 
+import betamoon.interop.runtime.NativeEntry;
+
 /**
  * Guards live access against mutation from queries and use after callback
  * return.
@@ -15,6 +17,17 @@ public final class LuaCallbackScope implements AutoCloseable {
     private boolean binding;
     private boolean active = true;
     private int multiblockWork = 65536;
+    private NativeEntry nativeEntry;
+
+    public void nativeEntry(NativeEntry entry) {
+        requireActive();
+        this.nativeEntry = entry;
+    }
+
+    public NativeEntry nativeEntry() {
+        requireActive();
+        return nativeEntry;
+    }
 
     public LuaCallbackScope(boolean mutable) {
         this(mutable, mutable);
@@ -39,7 +52,10 @@ public final class LuaCallbackScope implements AutoCloseable {
         }
     }
 
-    /** Allows deferred teleport requests without granting immediate gameplay or UI writes. */
+    /**
+     * Allows deferred teleport requests without granting immediate gameplay or UI
+     * writes.
+     */
     public static LuaCallbackScope withQueuedTeleport(boolean mutable, boolean queuedTeleportAllowed) {
         return new LuaCallbackScope(mutable, mutable, queuedTeleportAllowed);
     }
@@ -120,6 +136,11 @@ public final class LuaCallbackScope implements AutoCloseable {
         return mutable && GAMEPLAY_READ_ONLY.get() == 0;
     }
 
+    public boolean isBinding() {
+        requireActive();
+        return binding;
+    }
+
     @Override
     public void close() {
         if (active && !mutable) {
@@ -135,5 +156,6 @@ public final class LuaCallbackScope implements AutoCloseable {
             TELEPORT_READ_ONLY.set(TELEPORT_READ_ONLY.get() - 1);
         }
         active = false;
+        nativeEntry = null;
     }
 }

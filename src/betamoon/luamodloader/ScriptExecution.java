@@ -1,5 +1,7 @@
 package betamoon.luamodloader;
 
+import betamoon.luaapi.interop.NativeInvocation;
+import betamoon.luaapi.utils.LuaCallbackScope;
 import java.util.Objects;
 import java.util.function.Supplier;
 import org.luaj.vm2.LuaValue;
@@ -20,11 +22,46 @@ public final class ScriptExecution {
      * subscriptions.
      */
     public static Varargs invoke(String source, String callbackName, LuaValue function, Varargs arguments) {
+        return invoke(source, callbackName, function, arguments, null, false);
+    }
+
+    /**
+     * Explicit scope for callbacks whose first argument is a value rather than a
+     * context table.
+     */
+    public static Varargs invokeScoped(String source, String callbackName, LuaValue function, Varargs arguments,
+            LuaCallbackScope scope) {
+        return invoke(source, callbackName, function, arguments, scope, false);
+    }
+
+    /**
+     * Java API attribution preserves the invoking callback's authority instead of
+     * opening another callback.
+     */
+    public static Varargs invokeApi(String source, LuaValue function, Varargs arguments) {
+        return invoke(source, "callback", function, arguments, null, true);
+    }
+
+    /**
+     * A dispatcher that already owns an audited native scope preserves it while
+     * attributing the callback.
+     */
+    public static Varargs invokeNative(String source, String phase, LuaValue function, Varargs arguments) {
+        return invoke(source, phase, function, arguments, null, true);
+    }
+
+    private static Varargs invoke(String source, String callbackName, LuaValue function, Varargs arguments,
+            LuaCallbackScope scope, boolean api) {
         Objects.requireNonNull(callbackName, "Callback name");
         Objects.requireNonNull(function, "Lua function");
-        long startedNanos = System.nanoTime();
+        long startedNanos = SlowScriptCallbackMonitor.start();
         try (ScriptExecutionScope ignored = ScriptExecutionScope.open(source);
-                ScriptDiagnostics.Scope diagnostic = ScriptDiagnostics.scope(null, callbackName)) {
+                ScriptDiagnostics.Scope diagnostic = ScriptDiagnostics.scope(null, callbackName);
+                NativeInvocation nativeInvocation = api
+                        ? null
+                        : scope == null
+                                ? NativeInvocation.open(source, arguments)
+                                : NativeInvocation.open(source, arguments, scope)) {
             try {
                 return function.invoke(arguments);
             } catch (RuntimeException | Error error) {
@@ -36,7 +73,10 @@ public final class ScriptExecution {
         }
     }
 
-    /** Restores a captured owner around a native/base continuation without double-counting it. */
+    /**
+     * Restores a captured owner around a native/base continuation without
+     * double-counting it.
+     */
     public static <T> T withOwner(String source, Supplier<T> action) {
         Objects.requireNonNull(action, "Owner-scoped action");
         try (ScriptExecutionScope ignored = ScriptExecutionScope.open(source)) {
