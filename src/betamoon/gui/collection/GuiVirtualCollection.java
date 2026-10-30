@@ -41,6 +41,7 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
     private boolean explicitScroll;
     private boolean dirty = true;
     private boolean closed;
+    private boolean staging;
     private List<Object> rejected;
     private GuiElement restoreFocus;
 
@@ -119,7 +120,7 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
 
     @Override
     protected void prepareStructureElement(GuiContext context) {
-        if (closed || !GuiPreparationPhase.active()) {
+        if (closed || staging || !GuiPreparationPhase.active()) {
             return;
         }
         int height = visibleThroughParents() ? getHeight() : 0;
@@ -152,6 +153,7 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
             return;
         }
         List<Staged> staged = new ArrayList<>();
+        staging = true;
         try {
             if (height > 0) {
                 requireBoundedNesting();
@@ -174,10 +176,12 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
                 if (entry == null || refreshRevision != appliedRefreshRevision || !entry.record.equals(record.record)
                         || entry.depth != record.depth || entry.row.needsRefresh()) {
                     GuiRowFactory.Prepared prepared;
+                    Object stateIdentity = new Object();
                     try (GuiRowBudget.Preparation preparation = budget.prepareFactory()) {
                         prepared = factory.prepare(new GuiRowFactory.Context(context, budget, record.record,
                                 record.depth, getWidth(), rowHeight, next.rowState(record.record.key),
-                                previous == null ? null : previous.row));
+                                previous == null ? null : previous.row,
+                                values -> publishRowState(record.record.key, stateIdentity, values)));
                     }
                     if (prepared == null) {
                         throw new IllegalArgumentException("Row factory returned no prepared row");
@@ -189,7 +193,7 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
                     if (row.element() == null || row.element().getParent() != null) {
                         throw new IllegalArgumentException("Row factory must prepare an unattached root");
                     }
-                    entry = new Entry(record.record, record.depth, row, prepared.reservation());
+                    entry = new Entry(record.record, record.depth, row, prepared.reservation(), stateIdentity);
                     candidate.entry = entry;
                     next.publishRowState(record.record.key, row.state());
                 }
@@ -217,16 +221,24 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
             rejected = attempt;
             failures.accept(failure);
         } finally {
-            Throwable cleanup = null;
-            for (Staged candidate : staged) {
-                try {
-                    candidate.close();
-                } catch (RuntimeException | Error failure) {
-                    cleanup = collectCleanup(cleanup, failure);
-                }
+            try {
+                closeCandidates(staged);
+            } finally {
+                staging = false;
             }
-            reportCleanup(cleanup);
         }
+    }
+
+    private void closeCandidates(List<Staged> staged) {
+        Throwable cleanup = null;
+        for (Staged candidate : staged) {
+            try {
+                candidate.close();
+            } catch (RuntimeException | Error failure) {
+                cleanup = collectCleanup(cleanup, failure);
+            }
+        }
+        reportCleanup(cleanup);
     }
 
     private void commit(GuiContext context, GuiCollectionModel next, GuiCollectionWindow nextWindow,
@@ -392,6 +404,18 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
         }
     }
 
+    private void publishRowState(String key, Object identity, Map<String, ?> values) {
+        requireOpen();
+        if (staging) {
+            throw new IllegalStateException("Row state publication cannot reenter collection candidate staging");
+        }
+        Entry entry = rows.get(key);
+        if (entry == null || entry.closed || entry.stateIdentity != identity) {
+            throw new IllegalStateException("Row state publication expired with its realized view");
+        }
+        model.publishRowState(key, values);
+    }
+
     @Override
     public void close() {
         if (closed) {
@@ -452,13 +476,15 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
         final GuiRowBudget.Reservation reservation;
         final GuiInputLifetime input = new GuiInputLifetime();
         final RowMount mount;
+        final Object stateIdentity;
         boolean closed;
-        Entry(GuiCollectionModel.Record record, int depth, GuiRowFactory.Row row,
-                GuiRowBudget.Reservation reservation) {
+        Entry(GuiCollectionModel.Record record, int depth, GuiRowFactory.Row row, GuiRowBudget.Reservation reservation,
+                Object stateIdentity) {
             this.record = record;
             this.depth = depth;
             this.row = row;
             this.reservation = reservation;
+            this.stateIdentity = stateIdentity;
             mount = new RowMount(row.element());
             mount.inputLifetime(input);
         }

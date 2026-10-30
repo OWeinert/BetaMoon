@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * One compiled instance's keyed local state. Values are detached; matching
@@ -22,9 +23,26 @@ public final class GuiComponentStateStore implements AutoCloseable {
     private boolean sealed;
     private Map<String, Object> restoration = Collections.emptyMap();
     private Map<String, Map<String, Object>> transaction;
+    private Consumer<Map<String, Object>> admission;
+    private boolean publishing;
+
+    /**
+     * Install one engine guard after initial candidate validation. It must
+     * atomically admit or reject the detached proposed snapshot without reentering
+     * this store or invoking Lua.
+     */
+    public void admitWith(Consumer<Map<String, Object>> guard) {
+        requireActive();
+        requirePublicationIdle();
+        if (!sealed || transaction != null || admission != null) {
+            throw new IllegalStateException("Install row state admission once after sealing and outside events");
+        }
+        admission = Objects.requireNonNull(guard, "component state admission");
+    }
 
     public void create(String key, GuiComponentSchema schema, GuiComponentStateStore previous) {
         requireActive();
+        requirePublicationIdle();
         if (sealed) {
             throw new IllegalStateException("Keyed state creation finishes before activation");
         }
@@ -53,6 +71,7 @@ public final class GuiComponentStateStore implements AutoCloseable {
     /** Seeds detached options/history before the instance becomes observable. */
     public void seed(String key, Map<String, Object> changes) {
         requireActive();
+        requirePublicationIdle();
         if (sealed) {
             throw new IllegalStateException("Initial UI state is already sealed");
         }
@@ -66,6 +85,7 @@ public final class GuiComponentStateStore implements AutoCloseable {
      */
     public void restore(Map<String, Object> flatValues) {
         requireActive();
+        requirePublicationIdle();
         if (sealed) {
             throw new IllegalStateException("UI state restoration must precede activation");
         }
@@ -96,6 +116,7 @@ public final class GuiComponentStateStore implements AutoCloseable {
 
     public void seal() {
         requireActive();
+        requirePublicationIdle();
         publish();
         sealed = true;
         restoration = Collections.emptyMap();
@@ -116,6 +137,7 @@ public final class GuiComponentStateStore implements AutoCloseable {
 
     public void set(String key, Map<String, Object> changes) {
         LuaCallbackScope.requireUiStateWrite();
+        requirePublicationIdle();
         Entry entry = entry(key);
         if (!sealed) {
             throw new IllegalStateException("Component state must be sealed before mutation");
@@ -149,6 +171,7 @@ public final class GuiComponentStateStore implements AutoCloseable {
 
     public void beginEvent() {
         requireActive();
+        requirePublicationIdle();
         LuaCallbackScope.requireUiStateWrite();
         if (!sealed || transaction != null) {
             throw new IllegalStateException("Component events cannot open nested transactions");
@@ -157,6 +180,7 @@ public final class GuiComponentStateStore implements AutoCloseable {
     }
 
     public void finishEvent(boolean commit) {
+        requirePublicationIdle();
         if (closed) {
             transaction = null;
             return;
@@ -218,7 +242,12 @@ public final class GuiComponentStateStore implements AutoCloseable {
                 flat.put(source(entry.getKey(), value.getKey()), value.getValue());
             }
         }
-        publication.publish(flat);
+        publishing = true;
+        try {
+            publication.publish(flat, admission);
+        } finally {
+            publishing = false;
+        }
     }
 
     private Entry entry(String key) {
@@ -236,14 +265,22 @@ public final class GuiComponentStateStore implements AutoCloseable {
         }
     }
 
+    private void requirePublicationIdle() {
+        if (publishing) {
+            throw new IllegalStateException("Component state admission cannot mutate or close its own source");
+        }
+    }
+
     @Override
     public void close() {
+        requirePublicationIdle();
         closed = true;
         entries.clear();
         restoration = Collections.emptyMap();
         observers.clear();
         transaction = null;
         publication.publish(Collections.emptyMap());
+        admission = null;
     }
 
     private static final class Entry {

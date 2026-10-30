@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Atomic, deeply detached model publication for new UI hosts. Not a legacy
@@ -16,6 +17,7 @@ import java.util.Set;
 public final class GuiPublishedData {
     private Map<String, Object> values = Collections.emptyMap();
     private long revision;
+    private boolean publishing;
 
     public Map<String, Object> snapshot() {
         return values;
@@ -26,13 +28,32 @@ public final class GuiPublishedData {
     }
 
     public boolean publish(Map<String, ?> candidate) {
-        Map<String, Object> copied = new Copier().record(candidate, "data", 0);
-        if (values.equals(copied)) {
-            return false;
+        return publish(candidate, null);
+    }
+
+    /**
+     * An engine admission callback checks the detached candidate before this source
+     * changes.
+     */
+    public boolean publish(Map<String, ?> candidate, Consumer<Map<String, Object>> admission) {
+        if (publishing) {
+            throw new IllegalStateException("Detached publication cannot reenter its own admission");
         }
-        values = copied;
-        revision++;
-        return true;
+        publishing = true;
+        try {
+            Map<String, Object> copied = new Copier().record(candidate, "data", 0);
+            if (values.equals(copied)) {
+                return false;
+            }
+            if (admission != null) {
+                admission.accept(copied);
+            }
+            values = copied;
+            revision++;
+            return true;
+        } finally {
+            publishing = false;
+        }
     }
 
     private static final class Copier {

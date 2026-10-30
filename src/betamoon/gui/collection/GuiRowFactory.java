@@ -2,7 +2,10 @@ package betamoon.gui.collection;
 
 import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiElement;
+import betamoon.luaapi.utils.LuaCallbackScope;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * Java adapter boundary; Lua factories are invoked by the scoped component
@@ -68,9 +71,17 @@ public interface GuiRowFactory {
         public final int height;
         public final Map<String, Object> state;
         public final Row previous;
+        private final Consumer<Map<String, ?>> statePublication;
 
         public Context(GuiContext gui, GuiRowBudget budget, GuiCollectionModel.Record record, int depth, int width,
                 int height, Map<String, Object> state, Row previous) {
+            this(gui, budget, record, depth, width, height, state, previous, values -> {
+                throw new IllegalStateException("This row context has no live state publication owner");
+            });
+        }
+
+        public Context(GuiContext gui, GuiRowBudget budget, GuiCollectionModel.Record record, int depth, int width,
+                int height, Map<String, Object> state, Row previous, Consumer<Map<String, ?>> statePublication) {
             this.gui = gui;
             this.budget = budget;
             this.record = record;
@@ -79,6 +90,16 @@ public interface GuiRowFactory {
             this.height = height;
             this.state = state;
             this.previous = previous;
+            this.statePublication = Objects.requireNonNull(statePublication, "row state publication");
+        }
+
+        /**
+         * Publish combined typed/view state only while this exact realized row is the
+         * accepted owner.
+         */
+        public void publishState(Map<String, ?> values) {
+            LuaCallbackScope.requireUiStateWrite();
+            statePublication.accept(values);
         }
     }
 }
