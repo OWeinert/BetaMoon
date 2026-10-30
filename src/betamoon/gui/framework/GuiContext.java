@@ -4,6 +4,8 @@ import java.util.Arrays;
 import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.FontRenderer;
+import betamoon.gui.graphics.GraphicsClip;
+import betamoon.gui.graphics.GraphicsTransform;
 
 /** Complete per-scene environment supplied to GUI elements. */
 public final class GuiContext {
@@ -74,6 +76,18 @@ public final class GuiContext {
         return currentNode == null ? 1 : currentNode.opacity;
     }
 
+    public GuiFrameContent getFrameContent() {
+        return currentNode == null ? null : currentNode.content;
+    }
+
+    public GraphicsTransform getElementTransform() {
+        return currentNode == null ? GraphicsTransform.IDENTITY : currentNode.transform;
+    }
+
+    public GraphicsClip getElementClip() {
+        return currentNode == null ? new GraphicsClip(0, 0, screenWidth, screenHeight) : currentNode.hitClip;
+    }
+
     public boolean isFocused(GuiElement element) {
         return scene.getFocusedElement() == element;
     }
@@ -132,6 +146,17 @@ public final class GuiContext {
         GuiFrameSnapshot.Node next = frameNode(element);
         currentNode = next == null ? previous : next;
         return previous;
+    }
+
+    GuiFrameSnapshot.Node enterInputElement(GuiElement element) {
+        GuiFrameSnapshot.Node previous = currentNode;
+        GuiFrameSnapshot frame = scene.getDisplayedFrame();
+        currentNode = frame == null ? null : frame.node(element);
+        return previous;
+    }
+
+    GuiFrameSnapshot.Node currentFrameNode() {
+        return currentNode;
     }
 
     GuiFrameSnapshot.Node frameNode(GuiElement element) {

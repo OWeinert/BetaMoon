@@ -68,6 +68,14 @@ public class GuiContainer extends GuiElement {
     }
 
     @Override
+    void prepareVisuals(GuiContext context) {
+        super.prepareVisuals(context);
+        for (GuiElement child : children) {
+            child.prepareVisuals(context);
+        }
+    }
+
+    @Override
     protected Size measureElement(GuiContext context, Constraints constraints) {
         int width = 0;
         int height = 0;

@@ -9,6 +9,7 @@ import java.util.List;
 /** Base class for every retained GUI element. */
 public abstract class GuiElement {
     private Rect bounds = Rect.EMPTY;
+    private Rect inputBounds;
     private Size measuredSize = Size.ZERO;
     private GuiContainer parent;
     private GuiScene scene;
@@ -78,7 +79,7 @@ public abstract class GuiElement {
     }
 
     public final Rect getBounds() {
-        return bounds;
+        return inputBounds == null ? bounds : inputBounds;
     }
 
     /**
@@ -90,27 +91,27 @@ public abstract class GuiElement {
     }
 
     public final int getLeft() {
-        return bounds.getLeft();
+        return getBounds().getLeft();
     }
 
     public final int getTop() {
-        return bounds.getTop();
+        return getBounds().getTop();
     }
 
     public final int getRight() {
-        return bounds.getRight();
+        return getBounds().getRight();
     }
 
     public final int getBottom() {
-        return bounds.getBottom();
+        return getBounds().getBottom();
     }
 
     public final int getWidth() {
-        return bounds.getWidth();
+        return getBounds().getWidth();
     }
 
     public final int getHeight() {
-        return bounds.getHeight();
+        return getBounds().getHeight();
     }
 
     public final Size getMeasuredSize() {
@@ -178,7 +179,7 @@ public abstract class GuiElement {
     }
 
     public final boolean contains(int x, int y) {
-        return visible && bounds.contains(x, y);
+        return visible && getBounds().contains(x, y);
     }
 
     public final Size measure(GuiContext context, Constraints constraints) {
@@ -221,6 +222,19 @@ public abstract class GuiElement {
         updateElement(context);
     }
 
+    /** Runs after update/layout, never from frame sampling or paint. */
+    protected void prepareVisualsElement(GuiContext context) {
+    }
+
+    void prepareVisuals(GuiContext context) {
+        prepareVisualsElement(context);
+    }
+
+    /** Java-only frozen data. Returned geometry belongs to one displayed frame. */
+    protected GuiFrameContent sampleFrameContent() {
+        return null;
+    }
+
     public final void render(GuiContext context) {
         if (!visible || opacity == 0 || bounds.isEmpty()) {
             return;
@@ -253,7 +267,7 @@ public abstract class GuiElement {
     }
 
     final boolean dispatchCapture(GuiContext context, GuiInputEvent event) {
-        return isAvailable() && onInputCapture(context, event);
+        return dispatch(context, event, true);
     }
 
     protected final boolean isHovered(GuiContext context) {
@@ -285,8 +299,30 @@ public abstract class GuiElement {
         }
     }
 
+    protected final void requestFrame() {
+        if (scene != null) {
+            scene.requestFrame();
+        }
+    }
+
     final boolean dispatchInput(GuiContext context, GuiInputEvent event) {
-        return isAvailable() && onInput(context, event);
+        return dispatch(context, event, false);
+    }
+
+    private boolean dispatch(GuiContext context, GuiInputEvent event, boolean capture) {
+        if (!isAvailable()) {
+            return false;
+        }
+        Rect previousBounds = inputBounds;
+        GuiFrameSnapshot.Node previous = context.enterInputElement(this);
+        GuiFrameSnapshot.Node node = context.currentFrameNode();
+        inputBounds = node == null ? null : node.layoutBounds;
+        try {
+            return capture ? onInputCapture(context, event) : onInput(context, event);
+        } finally {
+            inputBounds = previousBounds;
+            context.leaveElement(previous);
+        }
     }
 
     final void cancelPointer(GuiContext context, int button) {

@@ -50,9 +50,12 @@ final class GuiPanelScriptInfo extends GuiContainer {
     private ScriptMod preparedMod;
     private long preparedStorageRevision = Long.MIN_VALUE;
     private long preparedImageGeneration = -1;
+    private List<ScriptIssue> preparedErrors = Collections.emptyList();
+    private List<ScriptIssue> preparedWarnings = Collections.emptyList();
 
     @Override
     protected void updateElement(GuiContext context) {
+        prepareIssues();
         warningIndicator.prepare(context);
         context.getRenderer().preparePackagedTexture(CONFIG_ICON);
         long revision = selected == null ? 0 : selected.getStorageRevision();
@@ -70,6 +73,22 @@ final class GuiPanelScriptInfo extends GuiContainer {
             preparedImage = next;
             requestLayout();
         }
+    }
+
+    private void prepareIssues() {
+        List<ScriptIssue> issues = selected == null
+                ? Collections.emptyList()
+                : LuaScriptErrors.getIssuesFor(selected.getDisplayName(), selected.getSourceFileName());
+        preparedErrors = filterIssues(issues, false);
+        preparedWarnings = filterIssues(issues, true);
+        if (selected != null && preparedErrors.isEmpty() && selected.isFailed()
+                && hasText(selected.getFailureReason())) {
+            preparedErrors.add(ScriptIssue.describe(selected.getSourceFileName(), selected.getFailureReason(), false));
+        }
+        content.errors.setIssues(preparedErrors);
+        content.warnings.setIssues(preparedWarnings);
+        content.errors.setVisible(!preparedErrors.isEmpty());
+        content.warnings.setVisible(!preparedWarnings.isEmpty());
     }
 
     GuiPanelScriptInfo() {
@@ -242,17 +261,8 @@ final class GuiPanelScriptInfo extends GuiContainer {
         private ScriptInfoLayout(GuiContext context, int width) {
             description = selected.getDescription();
             dependencies = selected.getDependencies() == null ? Collections.emptyList() : selected.getDependencies();
-            List<ScriptIssue> issues = LuaScriptErrors.getIssuesFor(selected.getDisplayName(),
-                    selected.getSourceFileName());
-            List<ScriptIssue> errors = filterIssues(issues, false);
-            List<ScriptIssue> warnings = filterIssues(issues, true);
-            if (errors.isEmpty() && selected.isFailed() && hasText(selected.getFailureReason())) {
-                errors.add(ScriptIssue.describe(selected.getSourceFileName(), selected.getFailureReason(), false));
-            }
-            content.errors.setIssues(errors);
-            content.warnings.setIssues(warnings);
-            content.errors.setVisible(!errors.isEmpty());
-            content.warnings.setVisible(!warnings.isEmpty());
+            List<ScriptIssue> errors = preparedErrors;
+            List<ScriptIssue> warnings = preparedWarnings;
             errorHeight = content.errors.measure(context, Constraints.upTo(width, Integer.MAX_VALUE)).getHeight();
             warningHeight = content.warnings.measure(context, Constraints.upTo(width, Integer.MAX_VALUE)).getHeight();
             image = preparedImage;

@@ -205,6 +205,15 @@ public final class NativeClientSession implements AutoCloseable {
         }
     }
 
+    void requireResourceActive(NativeClientResource<?> handle) {
+        check();
+        synchronized (manager) {
+            if (!resources.containsKey(handle.identity)) {
+                throw new NativeAccessFailure("native_client_resource_closed", "prepared resource is no longer active");
+            }
+        }
+    }
+
     void release(NativeClientResource<?> handle) {
         synchronized (manager) {
             if (closed || !resources.containsKey(handle.identity)) {

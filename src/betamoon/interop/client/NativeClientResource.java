@@ -24,6 +24,18 @@ public final class NativeClientResource<T> implements AutoCloseable {
         return owner.use(this);
     }
 
+    /**
+     * Trusted Java painters can validate cached render metadata without acquiring
+     * the native payload.
+     */
+    public void requireActive() {
+        NativeClientSession owner = session.get();
+        if (owner == null) {
+            throw new NativeAccessFailure("native_client_resource_closed", "resource owner is unavailable");
+        }
+        owner.requireResourceActive(this);
+    }
+
     @Override
     public void close() {
         NativeClientSession owner = session.get();

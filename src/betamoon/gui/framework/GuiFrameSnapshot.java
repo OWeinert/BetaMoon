@@ -45,7 +45,10 @@ public final class GuiFrameSnapshot {
         for (int i = order.size() - 1; i >= 0; i--) {
             Node node = order.get(i);
             if (node.hitClip.contains(x, y) && node.bounds.contains(x, y) && node.eligible()
-                    && inside(node.element, scope)) {
+                    && inside(node.element, scope)
+                    && (node.content == null
+                            || node.content.contains(node.transform.localX(x) - node.layoutBounds.getLeft(),
+                                    node.transform.localY(y) - node.layoutBounds.getTop()))) {
                 List<GuiElement> path = new ArrayList<>();
                 for (Node current = node; current != null; current = current.parent) {
                     path.add(current.element);
@@ -124,6 +127,8 @@ public final class GuiFrameSnapshot {
         public final GraphicsClip bounds;
         public final GraphicsClip hitClip;
         public final double opacity;
+        public final GuiFrameContent content;
+        public final Rect layoutBounds;
 
         private final GuiElement element;
         private final Node parent;
@@ -139,6 +144,8 @@ public final class GuiFrameSnapshot {
             this.hitClip = hitClip;
             this.opacity = opacity;
             attachment = element.attachmentRevision();
+            layoutBounds = element.getBounds();
+            content = element.sampleFrameContent();
         }
 
         boolean eligible() {

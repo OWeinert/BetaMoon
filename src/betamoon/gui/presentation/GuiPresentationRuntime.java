@@ -650,16 +650,63 @@ public class GuiPresentationRuntime implements AutoCloseable {
                 : "change".equals(event) ? 1 : event.startsWith("animation") ? 3 : 2;
     }
 
-    private void invokeEvent(QueuedEvent event) {
+    /**
+     * Routed semantic input shares the existing scoped event/command transaction.
+     */
+    public LuaValue dispatchUiEvent(String id, String name, Object value) {
+        requireActive();
+        LuaCallbackScope.requireNoBindingMutation();
+        element(id);
+        if (commands != null || delivering || preparing || closing) {
+            throw new IllegalStateException("Semantic UI input requires its own active event boundary");
+        }
+        if (eventFailed || !callbacksValid()) {
+            return LuaValue.FALSE;
+        }
+        if (!definition.presentation.listens("control")) {
+            return LuaValue.NIL;
+        }
+        GuiPublishedData detached = new GuiPublishedData();
+        detached.publish(Collections.singletonMap("value", value));
+        return invokeEvent(new QueuedEvent("control", () -> {
+            LuaTable event = new LuaTable();
+            event.set("elementId", id);
+            event.set("event", name);
+            event.set("value", lua(detached.snapshot().get("value")));
+            return event;
+        }));
+    }
+
+    /**
+     * Component-level callback isolation can abort its staged visual commands
+     * without disabling other scopes.
+     */
+    public void discardUiCommands() {
+        LuaCallbackScope.requireUiStateWrite();
+        if (commands == null) {
+            throw new IllegalStateException("No UI event command transaction is active");
+        }
+        for (Command command : commands) {
+            if (command.request != null) {
+                command.request.cancel("callback_error");
+            }
+        }
+        commands.clear();
+    }
+
+    private LuaValue invokeEvent(QueuedEvent event) {
         commands = new ArrayList<>();
         try (LuaCallbackScope scope = new LuaCallbackScope(false, !closing)) {
             LuaTable context = host.context(scope);
             context.set("gui", guiAccess(scope));
             LuaTable payload = event.payload.get();
             payload.set("type", event.type);
-            ScriptExecution.invoke(definition.presentation.callbackOwner, "gui.onEvent." + event.type,
-                    definition.presentation.onEvent, LuaValue.varargsOf(new LuaValue[]{context, payload}));
+            LuaValue result = ScriptExecution
+                    .invoke(definition.presentation.callbackOwner, "gui.onEvent." + event.type,
+                            definition.presentation.onEvent, LuaValue.varargsOf(new LuaValue[]{context, payload}))
+                    .arg1();
             commitCommands();
+            return result;
         } catch (Throwable error) {
             if (commands != null) {
                 for (Command command : commands) {
@@ -670,6 +717,7 @@ public class GuiPresentationRuntime implements AutoCloseable {
             }
             eventFailed = true;
             report("onEvent", error, LuaScriptErrors.Outcome.CALLBACK_DISABLED);
+            return LuaValue.FALSE;
         } finally {
             commands = null;
         }

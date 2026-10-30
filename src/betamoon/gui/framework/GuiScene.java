@@ -44,6 +44,8 @@ public final class GuiScene {
     private final List<GuiLayer> layers = new ArrayList<>();
     private GuiPresentationTree document;
     private boolean painting;
+    private boolean layingOut;
+    private boolean preparingVisuals;
     private final List<Runnable> deferredEffects = new ArrayList<>();
 
     public void setDocument(GuiPresentationTree replacement) {
@@ -61,6 +63,22 @@ public final class GuiScene {
         }
         if (restore != null) {
             requestFocus(restore);
+        }
+    }
+
+    /**
+     * Prepares an unattached revision using this host's actual dimensions without
+     * activating it.
+     */
+    public void prepareDetached(GuiPresentationTree candidate) {
+        GuiScene preparation = new GuiScene(renderer.getTheme());
+        preparation.updateEnvironment(context.getMinecraft(), context.getFont(), context.getScreenWidth(),
+                context.getScreenHeight(), context.getDisplayWidth(), context.getDisplayHeight());
+        preparation.setContent(candidate.root());
+        try {
+            preparation.prepare();
+        } finally {
+            preparation.setContent(null);
         }
     }
 
@@ -239,7 +257,7 @@ public final class GuiScene {
             dispatchDepth++;
             try {
                 Runnable cancel = () -> captured.cancelPointer(context, button);
-                if (painting) {
+                if (painting || layingOut || preparingVisuals) {
                     deferredEffects.add(cancel);
                 } else {
                     cancel.run();
@@ -283,6 +301,13 @@ public final class GuiScene {
             root.update(context);
         } finally {
             finishDispatch();
+        }
+        ensureLayout();
+        preparingVisuals = true;
+        try {
+            root.prepareVisuals(context);
+        } finally {
+            preparingVisuals = false;
         }
     }
 
@@ -466,8 +491,9 @@ public final class GuiScene {
     }
 
     boolean deferMutation(Runnable mutation) {
-        if (renderingFrame != null) {
-            throw new IllegalStateException("GUI tree mutations must run at an update/input boundary");
+        if (painting || layingOut || preparingVisuals) {
+            throw new IllegalStateException(
+                    "GUI tree mutations are unavailable during layout, visual preparation or paint");
         }
         if (dispatchDepth == 0) {
             return false;
@@ -483,8 +509,13 @@ public final class GuiScene {
         int width = context.getScreenWidth();
         int height = context.getScreenHeight();
         Rect screenBounds = Rect.fromPositionAndSize(0, 0, width, height);
-        root.measure(context, GuiGeometry.Constraints.tight(width, height));
-        root.arrange(context, screenBounds);
+        layingOut = true;
+        try {
+            root.measure(context, GuiGeometry.Constraints.tight(width, height));
+            root.arrange(context, screenBounds);
+        } finally {
+            layingOut = false;
+        }
         laidOutWidth = width;
         laidOutHeight = height;
         layoutRequested = false;
@@ -595,7 +626,7 @@ public final class GuiScene {
     }
 
     private void notifyFocus(GuiElement element, boolean focused) {
-        if (painting) {
+        if (painting || layingOut || preparingVisuals) {
             deferredEffects.add(() -> element.onFocusChanged(context, focused));
         } else {
             element.onFocusChanged(context, focused);

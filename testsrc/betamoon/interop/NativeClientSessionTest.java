@@ -44,6 +44,7 @@ public final class NativeClientSessionTest {
     public static void main(String[] args) throws Exception {
         NativeClientSessionTest test = new NativeClientSessionTest();
         test.basic();
+        test.renderLeaseLiveness();
         test.failures();
         test.limits();
         test.bindings.close();
@@ -106,6 +107,31 @@ public final class NativeClientSessionTest {
         require(!session.active(), "navigation retires the old host");
         require(disposed.get() == 2, "old/new screen resources dispose after the navigation boundary");
         require(number("resourceSlots") == 0 && number("pendingActions") == 0, "navigation leaves no queued payload");
+    }
+
+    private void renderLeaseLiveness() {
+        NativeClientSession owner = create("render-lease-owner");
+        AtomicReference<NativeClientResource<String>> resource = new AtomicReference<>();
+        owner.prepare(() -> resource.set(owner.resource(() -> "render metadata", this::dispose)));
+        resource.get().requireActive();
+        expect("native_context_unavailable", resource.get()::use);
+        NativeClientSession other = create("render-lease-other");
+        other.paint(() -> {
+            resource.get().requireActive();
+            expect("wrong_owner", resource.get()::use);
+        });
+        owner.input(ignored -> resource.get().close());
+        expect("native_client_resource_closed", resource.get()::requireActive);
+        owner.close();
+        other.close();
+        bindings.clients.observe();
+
+        NativeClientSession environment = create("render-lease-environment");
+        environment.prepare(() -> resource.set(environment.resource(() -> "environment", this::dispose)));
+        roots.put("screen", new Object());
+        expect("stale_environment", resource.get()::requireActive);
+        bindings.clients.observe();
+        require(number("resourceSlots") == 0, "render metadata liveness retained a stale native resource");
     }
 
     private void failures() {

@@ -1,8 +1,15 @@
 package betamoon.gui.graphics;
 
+import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL13;
+import org.lwjgl.opengl.ARBMultitexture;
+import org.lwjgl.opengl.ContextCapabilities;
+import org.lwjgl.opengl.GLContext;
 
 /**
  * Fixed-function GL state boundary; cannot undo resource deletion or
@@ -12,17 +19,28 @@ public final class GraphicsStateGuard implements AutoCloseable {
     private static final ThreadLocal<IntBuffer> SCISSOR = ThreadLocal
             .withInitial(() -> BufferUtils.createIntBuffer(16));
 
+    private static final ThreadLocal<Deque<FloatBuffer>> MATRICES = ThreadLocal.withInitial(ArrayDeque::new);
     private final int matrixMode;
+    private final ContextCapabilities capabilities;
+    private final int activeTexture;
+    private FloatBuffer matrices;
     private boolean active = true;
 
     private GraphicsStateGuard() {
+        capabilities = GLContext.getCapabilities();
         matrixMode = GL11.glGetInteger(GL11.GL_MATRIX_MODE);
+        activeTexture = capabilities.OpenGL13 || capabilities.GL_ARB_multitexture
+                ? GL11.glGetInteger(GL13.GL_ACTIVE_TEXTURE)
+                : GL13.GL_TEXTURE0;
+        FloatBuffer pooled = MATRICES.get().pollFirst();
+        matrices = pooled == null ? BufferUtils.createFloatBuffer(48) : pooled;
         GL11.glPushAttrib(GL11.GL_ALL_ATTRIB_BITS);
         GL11.glPushClientAttrib(GL11.GL_CLIENT_PIXEL_STORE_BIT | GL11.GL_CLIENT_VERTEX_ARRAY_BIT);
-        pushMatrix(GL11.GL_PROJECTION);
-        pushMatrix(GL11.GL_TEXTURE);
-        pushMatrix(GL11.GL_MODELVIEW);
-        GL11.glMatrixMode(matrixMode);
+        activate(GL13.GL_TEXTURE0);
+        capture(GL11.GL_MODELVIEW_MATRIX, 0);
+        capture(GL11.GL_PROJECTION_MATRIX, 16);
+        capture(GL11.GL_TEXTURE_MATRIX, 32);
+        activate(activeTexture);
     }
 
     public static GraphicsStateGuard save() {
@@ -69,21 +87,38 @@ public final class GraphicsStateGuard implements AutoCloseable {
             return;
         }
         active = false;
-        popMatrix(GL11.GL_MODELVIEW);
-        popMatrix(GL11.GL_TEXTURE);
-        popMatrix(GL11.GL_PROJECTION);
-        GL11.glPopClientAttrib();
-        GL11.glPopAttrib();
-        GL11.glMatrixMode(matrixMode);
+        try {
+            activate(GL13.GL_TEXTURE0);
+            restore(GL11.GL_MODELVIEW, 0);
+            restore(GL11.GL_PROJECTION, 16);
+            restore(GL11.GL_TEXTURE, 32);
+            GL11.glPopClientAttrib();
+            GL11.glPopAttrib();
+            activate(activeTexture);
+            GL11.glMatrixMode(matrixMode);
+        } finally {
+            matrices.clear();
+            MATRICES.get().addFirst(matrices);
+            matrices = null;
+        }
     }
 
-    private static void pushMatrix(int mode) {
-        GL11.glMatrixMode(mode);
-        GL11.glPushMatrix();
+    private void capture(int matrix, int offset) {
+        matrices.position(offset);
+        GL11.glGetFloat(matrix, matrices);
     }
 
-    private static void popMatrix(int mode) {
+    private void restore(int mode, int offset) {
         GL11.glMatrixMode(mode);
-        GL11.glPopMatrix();
+        matrices.position(offset);
+        GL11.glLoadMatrix(matrices);
+    }
+
+    private void activate(int texture) {
+        if (capabilities.OpenGL13) {
+            GL13.glActiveTexture(texture);
+        } else if (capabilities.GL_ARB_multitexture) {
+            ARBMultitexture.glActiveTextureARB(texture);
+        }
     }
 }

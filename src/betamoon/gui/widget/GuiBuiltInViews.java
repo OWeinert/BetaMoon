@@ -48,7 +48,7 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
     public static GuiProperties properties(String type) {
         requireType(type);
         List<GuiPropertyDescriptor> properties = new ArrayList<>();
-        for (String name : Arrays.asList("width", "height")) {
+        for (String name : Arrays.asList("width", "height", "minWidth", "minHeight")) {
             properties.add(GuiPropertyDescriptor.number(name, 0, 0, 16384, Stage.MEASURE, Stage.ARRANGE));
         }
         for (String name : Arrays.asList("x", "y", "translateX", "translateY")) {

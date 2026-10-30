@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.DoubleSupplier;
 import java.util.function.ToIntFunction;
+import java.util.function.Consumer;
 
 /**
  * Relates reactive nodes to the one retained parent graph; owns adapters and
@@ -133,14 +134,29 @@ public final class GuiPresentationTree implements AutoCloseable {
     }
 
     public GuiPresentationTree reload(GuiDocumentDefinition replacement) {
+        return reload(replacement, candidate -> {
+        });
+    }
+
+    /**
+     * Hosts can preflight resolved layout/resources/paint before the previous
+     * revision retires.
+     */
+    public GuiPresentationTree reload(GuiDocumentDefinition replacement, Consumer<GuiPresentationTree> prepare) {
+        return reload(replacement, factory, prepare);
+    }
+
+    public GuiPresentationTree reload(GuiDocumentDefinition replacement, Factory replacementFactory,
+            Consumer<GuiPresentationTree> prepare) {
         requireActive();
-        GuiPresentationTree candidate = new GuiPresentationTree(replacement, factory, capabilities);
+        GuiPresentationTree candidate = new GuiPresentationTree(replacement, replacementFactory, capabilities);
         try {
             candidate.runtime = runtime.reload(replacement,
                     prepared -> prepared.setViewValidator(candidate::validateValues), prepared -> {
                         candidate.runtime = prepared;
                         candidate.publish();
                         candidate.retainFrom(this);
+                        prepare.accept(candidate);
                     });
         } catch (RuntimeException | Error failure) {
             candidate.closeAfterFailure(failure);

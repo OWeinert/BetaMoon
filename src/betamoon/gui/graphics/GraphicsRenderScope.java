@@ -35,10 +35,18 @@ public final class GraphicsRenderScope implements AutoCloseable {
     }
 
     public void requireActive() {
+        requireCleanup();
+        validateOwner.run();
+    }
+
+    /**
+     * Java cleanup may unwind a pass after its owner expires; this grants no
+     * drawing authority.
+     */
+    public void requireCleanup() {
         if (!active || thread != Thread.currentThread() || CURRENT.get() != this) {
             throw new IllegalStateException("Graphics access requires its active owning render pass");
         }
-        validateOwner.run();
     }
 
     @Override

@@ -5,6 +5,7 @@ import betamoon.gui.graphics.GraphicsClip;
 import betamoon.gui.graphics.GraphicsStateGuard;
 import betamoon.gui.graphics.GraphicsTransform;
 import java.nio.IntBuffer;
+import java.nio.FloatBuffer;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
@@ -25,6 +26,7 @@ public final class GuiRenderer {
     private final GuiTheme theme;
     private final Deque<GraphicsClip> clips = new ArrayDeque<>();
     private final Deque<GraphicsTransform> transforms = new ArrayDeque<>();
+    private final FloatBuffer frameModelview = BufferUtils.createFloatBuffer(16);
     private final IntBuffer parentScissor = BufferUtils.createIntBuffer(16);
     private Minecraft minecraft;
     private FontRenderer font;
@@ -92,10 +94,10 @@ public final class GuiRenderer {
         }
         frameState = GraphicsStateGuard.save();
         parentClipped = GL11.glIsEnabled(GL11.GL_SCISSOR_TEST);
-        if (parentClipped) {
-            parentScissor.clear();
-            GL11.glGetInteger(GL11.GL_SCISSOR_BOX, parentScissor);
-        }
+        parentScissor.clear();
+        GL11.glGetInteger(GL11.GL_SCISSOR_BOX, parentScissor);
+        frameModelview.clear();
+        GL11.glGetFloat(GL11.GL_MODELVIEW_MATRIX, frameModelview);
         GL11.glMatrixMode(GL11.GL_MODELVIEW);
         updateEnvironment(minecraft, font, screenWidth, screenHeight, displayWidth, displayHeight);
         clips.clear();
@@ -135,22 +137,27 @@ public final class GuiRenderer {
 
     void pushTransform(GraphicsTransform transform) {
         GraphicsTransform inherited = transforms.isEmpty() ? GraphicsTransform.IDENTITY : transforms.peek();
-        transforms.push(inherited.compose(transform));
-        if (transform != GraphicsTransform.IDENTITY) {
-            GL11.glMatrixMode(GL11.GL_MODELVIEW);
-            GL11.glPushMatrix();
-            GL11.glTranslated(transform.x, transform.y, 0);
-            GL11.glScaled(transform.scaleX, transform.scaleY, 1);
+        GraphicsTransform composed = inherited.compose(transform);
+        transforms.push(composed);
+        if (composed != inherited) {
+            applyTransform(composed);
         }
     }
 
     void popTransform() {
-        GraphicsTransform transform = transforms.pop();
+        GraphicsTransform previous = transforms.pop();
         GraphicsTransform parent = transforms.isEmpty() ? GraphicsTransform.IDENTITY : transforms.peek();
-        if (transform != parent) {
-            GL11.glMatrixMode(GL11.GL_MODELVIEW);
-            GL11.glPopMatrix();
+        if (previous != parent) {
+            applyTransform(parent);
         }
+    }
+
+    private void applyTransform(GraphicsTransform transform) {
+        GL11.glMatrixMode(GL11.GL_MODELVIEW);
+        frameModelview.rewind();
+        GL11.glLoadMatrix(frameModelview);
+        GL11.glTranslated(transform.x, transform.y, 0);
+        GL11.glScaled(transform.scaleX, transform.scaleY, 1);
     }
 
     public String trimToWidth(String text, int maximumWidth) {
@@ -356,7 +363,6 @@ public final class GuiRenderer {
                 requestedClip.getBottom()).transform(transform);
         clip = clips.isEmpty() ? clip : clips.peek().intersect(clip);
         clips.push(clip);
-        GL11.glPushAttrib(GL11.GL_SCISSOR_BIT);
         GL11.glEnable(GL11.GL_SCISSOR_TEST);
         applyClip(clip);
     }
@@ -366,7 +372,16 @@ public final class GuiRenderer {
             throw new IllegalStateException("GUI clip stack is empty");
         }
         clips.pop();
-        GL11.glPopAttrib();
+        if (!clips.isEmpty()) {
+            applyClip(clips.peek());
+        } else {
+            GL11.glScissor(parentScissor.get(0), parentScissor.get(1), parentScissor.get(2), parentScissor.get(3));
+            if (parentClipped) {
+                GL11.glEnable(GL11.GL_SCISSOR_TEST);
+            } else {
+                GL11.glDisable(GL11.GL_SCISSOR_TEST);
+            }
+        }
     }
 
     private void applyClip(GraphicsClip clip) {

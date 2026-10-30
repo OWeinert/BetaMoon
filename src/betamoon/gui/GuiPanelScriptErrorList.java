@@ -32,21 +32,25 @@ final class GuiPanelScriptErrorList extends GuiContainer {
     }
 
     @Override
-    protected Size measureElement(GuiContext context, Constraints constraints) {
-        content.setIssues(issues());
-        int height = content.measure(context, Constraints.upTo(Math.max(1, constraints.getMaxWidth()),
-                Integer.MAX_VALUE)).getHeight();
-        return new Size(constraints.getMaxWidth(), 18 + height);
-    }
-
-    @Override
-    protected void arrangeChildren(GuiContext context) {
+    protected void updateElement(GuiContext context) {
         List<ScriptIssue> issues = issues();
         content.setIssues(issues);
         int warnings = (int) issues.stream().filter(ScriptIssue::isWarning).count();
         int errors = issues.size() - warnings;
         summary = errors + (errors == 1 ? " error, " : " errors, ") + warnings
                 + (warnings == 1 ? " warning" : " warnings");
+    }
+
+    @Override
+    protected Size measureElement(GuiContext context, Constraints constraints) {
+        int height = content
+                .measure(context, Constraints.upTo(Math.max(1, constraints.getMaxWidth()), Integer.MAX_VALUE))
+                .getHeight();
+        return new Size(constraints.getMaxWidth(), 18 + height);
+    }
+
+    @Override
+    protected void arrangeChildren(GuiContext context) {
         int contentWidth = Math.max(1, getWidth());
         int contentHeight = content.measure(context, Constraints.upTo(contentWidth, Integer.MAX_VALUE)).getHeight();
         scrollView.setContentSize(contentWidth, contentHeight);

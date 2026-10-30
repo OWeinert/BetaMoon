@@ -43,3 +43,7 @@
 - Prepare shared Java UI textures and observations outside painting and retain usable images after invalid refreshes.
 - Add shared control behavior, typed screen primitives, replaceable templates and immutable style presets.
 - Share native button skins across adapters and support prepared bitmap fonts and nine-slice visuals.
+- Add reusable component compilation with typed props, local state, events, slots, scoped exports and keyed refresh.
+- Compile bounded custom paint and irregular hit regions into Java frames, with matching displayed input geometry.
+- Establish explicit raw graphics callbacks, prepared shaders/buffers/render targets and owner-scoped failure cleanup.
+- Preserve rendering state through deep UI composition and keep failed paint refreshes on their last usable frame.

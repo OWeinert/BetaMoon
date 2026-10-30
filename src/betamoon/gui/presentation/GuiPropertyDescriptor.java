@@ -12,7 +12,7 @@ import java.util.Set;
  */
 public final class GuiPropertyDescriptor {
     public enum Kind {
-        NUMBER, INTEGER, BOOLEAN, STRING, COLOR, STRING_LIST
+        NUMBER, INTEGER, BOOLEAN, STRING, COLOR, STRING_LIST, DATA
     }
 
     public enum Stage {
@@ -67,6 +67,11 @@ public final class GuiPropertyDescriptor {
     public Object normalize(Object value) {
         if (value == null && optional) {
             return null;
+        }
+        if (kind == Kind.DATA && value != null) {
+            GuiPublishedData detached = new GuiPublishedData();
+            detached.publish(Collections.singletonMap("value", value));
+            return detached.snapshot().get("value");
         }
         if (kind == Kind.STRING && value instanceof String) {
             if (((String) value).length() > 65536) {

@@ -5,6 +5,7 @@ import betamoon.gui.presentation.GuiPropertyDescriptor;
 import java.util.ArrayList;
 import java.util.List;
 import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.LuaError;
 
 /**
  * Strict conversion into typed Java properties; does not acquire host or native
@@ -17,6 +18,13 @@ public final class GuiPropertyValues {
     public static Object read(GuiPropertyDescriptor descriptor, LuaValue value) {
         Object candidate = null;
         switch (descriptor.kind) {
+            case DATA:
+                try {
+                    candidate = GuiLuaData.read(value, descriptor.name);
+                } catch (LuaError invalid) {
+                    throw new GuiProperties.ValueError(invalid.getMessage());
+                }
+                break;
             case STRING_LIST:
                 if (value.istable() && value.length() <= 4096) {
                     List<String> entries = new ArrayList<>();

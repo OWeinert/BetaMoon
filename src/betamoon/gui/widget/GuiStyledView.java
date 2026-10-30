@@ -51,6 +51,8 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
     private String justify = "start";
     private double preferredWidth;
     private double preferredHeight;
+    private double minimumWidth;
+    private double minimumHeight;
     private double layoutX;
     private double layoutY;
     private double anchorX = 0.5;
@@ -159,13 +161,16 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
         String nextVariant = string(values.get("variant"), "default");
         String nextAlign = string(values.get("align"), "stretch");
         String nextJustify = string(values.get("justify"), "start");
-        if (preferredWidth != width || preferredHeight != height || padding != nextPadding || gap != nextGap
+        if (preferredWidth != width || preferredHeight != height || minimumWidth != number(values, "minWidth", 0)
+                || minimumHeight != number(values, "minHeight", 0) || padding != nextPadding || gap != nextGap
                 || !text.equals(nextText) || !variant.equals(nextVariant) || !align.equals(nextAlign)
                 || !justify.equals(nextJustify)) {
             requestLayout();
         }
         preferredWidth = width;
         preferredHeight = height;
+        minimumWidth = number(values, "minWidth", 0);
+        minimumHeight = number(values, "minHeight", 0);
         padding = nextPadding;
         gap = nextGap;
         text = nextText;
@@ -289,8 +294,10 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
             width = Math.max(width, 1);
             height = Math.max(height, 1);
         }
-        return constraints.constrain(new Size(preferredWidth > 0 ? (int) Math.round(preferredWidth) : width,
-                preferredHeight > 0 ? (int) Math.round(preferredHeight) : height));
+        return constraints.constrain(new Size(
+                Math.max((int) Math.round(minimumWidth), preferredWidth > 0 ? (int) Math.round(preferredWidth) : width),
+                Math.max((int) Math.round(minimumHeight),
+                        preferredHeight > 0 ? (int) Math.round(preferredHeight) : height)));
     }
 
     @Override
