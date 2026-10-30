@@ -53,3 +53,7 @@
 - Compile bounded custom paint and irregular hit regions into Java frames, with matching displayed input geometry.
 - Establish explicit raw graphics callbacks, prepared shaders/buffers/render targets and owner-scoped failure cleanup.
 - Preserve rendering state through deep UI composition and keep failed paint refreshes on their last usable frame.
+
+### Fixed
+
+- Nested GUI scrolling now hands an exhausted wheel gesture to an eligible parent and handles extreme deltas without overflow.

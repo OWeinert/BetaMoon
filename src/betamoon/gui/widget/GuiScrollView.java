@@ -134,23 +134,29 @@ public final class GuiScrollView extends GuiContainer {
     @Override
     protected boolean onInput(GuiContext context, GuiInputEvent event) {
         if (event.getType() == GuiInputEvent.Type.SCROLL && contains(event.getMouseX(), event.getMouseY())) {
-            int delta = -event.getWheelDelta() / 8;
+            int delta = (int) (-(long) event.getWheelDelta() / 8);
+            int previousX = scrollX;
+            int previousY = scrollY;
             boolean horizontalAllowed = policy == Policy.HORIZONTAL || policy == Policy.BOTH;
             boolean verticalAllowed = policy == Policy.VERTICAL || policy == Policy.BOTH;
             if (event.isShiftDown() && horizontalAllowed && maxScrollX > 0) {
-                setScrollPosition(scrollX + delta, scrollY);
-                return true;
+                setScrollPosition(wheelOffset(scrollX, delta, maxScrollX), scrollY);
+                return previousX != scrollX;
             }
             if (verticalAllowed && maxScrollY > 0) {
-                setScrollPosition(scrollX, scrollY + delta);
-                return true;
+                setScrollPosition(scrollX, wheelOffset(scrollY, delta, maxScrollY));
+                return previousY != scrollY;
             }
             if (horizontalAllowed && maxScrollX > 0) {
-                setScrollPosition(scrollX + delta, scrollY);
-                return true;
+                setScrollPosition(wheelOffset(scrollX, delta, maxScrollX), scrollY);
+                return previousX != scrollX;
             }
         }
         return false;
+    }
+
+    private static int wheelOffset(int current, int delta, int maximum) {
+        return (int) Math.max(0, Math.min((long) current + delta, maximum));
     }
 
     private void updateLimits() {
