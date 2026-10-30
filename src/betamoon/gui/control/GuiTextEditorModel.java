@@ -156,6 +156,29 @@ public final class GuiTextEditorModel {
         return new Snapshot(maximumLength, committed, draft, caret, anchor, conflict, invalid, pending);
     }
 
+    public GuiTextEditorModel copy() {
+        GuiTextEditorModel copy = new GuiTextEditorModel(committed, maximumLength);
+        copy.restoreSnapshot(snapshot());
+        return copy;
+    }
+
+    /**
+     * Exact engine rollback/copy; this does not change whether an external
+     * acknowledgement is pending.
+     */
+    public void restoreSnapshot(Snapshot previous) {
+        if (maximumLength != previous.maximumLength) {
+            throw new IllegalArgumentException("Exact editor restoration requires compatible constraints");
+        }
+        committed = previous.committed;
+        draft = previous.draft;
+        caret = previous.caret;
+        anchor = previous.anchor;
+        conflict = previous.conflict;
+        invalid = previous.invalid;
+        pending = previous.pending;
+    }
+
     /**
      * Compatible local edits survive while a controlled editor observes its current
      * external value.
@@ -165,12 +188,7 @@ public final class GuiTextEditorModel {
             return false;
         }
         if (!externallyControlled) {
-            committed = previous.committed;
-            draft = previous.draft;
-            caret = previous.caret;
-            anchor = previous.anchor;
-            conflict = previous.conflict;
-            invalid = previous.invalid;
+            restoreSnapshot(previous);
             pending = false;
             return true;
         }

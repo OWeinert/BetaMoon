@@ -7,6 +7,7 @@ import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.framework.GuiInputEvent;
 import betamoon.gui.framework.GuiInputLifetime;
 import betamoon.gui.framework.GuiPreparationPhase;
+import betamoon.gui.presentation.GuiViewStateAdmission;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -120,7 +121,7 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
 
     @Override
     protected void prepareStructureElement(GuiContext context) {
-        if (closed || staging || !GuiPreparationPhase.active()) {
+        if (closed || staging || model.hasStateReservations() || !GuiPreparationPhase.active()) {
             return;
         }
         int height = visibleThroughParents() ? getHeight() : 0;
@@ -181,7 +182,8 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
                         prepared = factory.prepare(new GuiRowFactory.Context(context, budget, record.record,
                                 record.depth, getWidth(), rowHeight, next.rowState(record.record.key),
                                 previous == null ? null : previous.row,
-                                values -> publishRowState(record.record.key, stateIdentity, values)));
+                                values -> publishRowState(record.record.key, stateIdentity, values),
+                                values -> reserveRowState(record.record.key, stateIdentity, values)));
                     }
                     if (prepared == null) {
                         throw new IllegalArgumentException("Row factory returned no prepared row");
@@ -405,6 +407,26 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
     }
 
     private void publishRowState(String key, Object identity, Map<String, ?> values) {
+        requireStateOwner(key, identity);
+        model.publishRowState(key, values);
+    }
+
+    private GuiViewStateAdmission.Proposal reserveRowState(String key, Object identity, Map<String, Object> values) {
+        requireStateOwner(key, identity);
+        GuiCollectionModel.StateReservation reservation = model.reserveRowState(key, values);
+        return new GuiViewStateAdmission.Proposal() {
+            public void commit(Map<String, Object> accepted) {
+                publishRowState(key, identity, accepted);
+                reservation.commit();
+            }
+
+            public void close() {
+                reservation.close();
+            }
+        };
+    }
+
+    private void requireStateOwner(String key, Object identity) {
         requireOpen();
         if (staging) {
             throw new IllegalStateException("Row state publication cannot reenter collection candidate staging");
@@ -413,7 +435,6 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
         if (entry == null || entry.closed || entry.stateIdentity != identity) {
             throw new IllegalStateException("Row state publication expired with its realized view");
         }
-        model.publishRowState(key, values);
     }
 
     @Override

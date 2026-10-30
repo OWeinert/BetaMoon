@@ -5,6 +5,7 @@ import betamoon.luaapi.client.ui.GuiReadOnlyValues;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.interop.NativeCallbackContext;
 import betamoon.luamodloader.ScriptExecution;
+import betamoon.gui.presentation.GuiViewStateAdmission;
 import java.util.Map;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -68,6 +69,10 @@ final class GuiComponentEvents implements GuiComponentScope.Emitter {
             throw fatal;
         } catch (Throwable failure) {
             plan.runtime.discardUiCommands();
+            GuiViewStateAdmission.Refusal refusal = stateRefusal(failure);
+            if (refusal != null) {
+                throw refusal;
+            }
             GuiComponentScope failed = failure instanceof CallbackFailure
                     ? ((CallbackFailure) failure).scope
                     : view.scope;
@@ -174,5 +179,14 @@ final class GuiComponentEvents implements GuiComponentScope.Emitter {
             super(failure);
             this.scope = scope;
         }
+    }
+
+    private static GuiViewStateAdmission.Refusal stateRefusal(Throwable failure) {
+        for (int depth = 0; failure != null && depth < 8; depth++, failure = failure.getCause()) {
+            if (failure instanceof GuiViewStateAdmission.Refusal) {
+                return (GuiViewStateAdmission.Refusal) failure;
+            }
+        }
+        return null;
     }
 }

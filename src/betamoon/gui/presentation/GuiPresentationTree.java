@@ -12,6 +12,7 @@ import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.DoubleSupplier;
 import java.util.function.ToIntFunction;
@@ -38,6 +39,8 @@ public final class GuiPresentationTree implements AutoCloseable {
     private final long[] published;
     private GuiPresentationRuntime runtime;
     private boolean closed;
+    private GuiViewStateAdmission stateAdmission;
+    private final Map<String, LocalProposal> localProposals = new LinkedHashMap<>();
 
     public GuiPresentationTree(GuiDocumentDefinition definition, GuiPresentationHost host, Factory factory,
             Set<GuiCapability> capabilities, ToIntFunction<String> textWidth, DoubleSupplier clock) {
@@ -112,20 +115,133 @@ public final class GuiPresentationTree implements AutoCloseable {
      * while offscreen.
      */
     public Map<String, Object> captureViewState() {
+        return captureViewState(Collections.emptyMap());
+    }
+
+    private Map<String, Object> captureViewState(Map<String, GuiViewPublication> candidates) {
         requireActive();
         Map<String, Object> snapshot = new LinkedHashMap<>();
-        for (Map.Entry<String, GuiViewAdapter> view : ids.entrySet()) {
-            Map<String, Object> state = view.getValue().captureState();
+        for (int index = 0; index < views.size(); index++) {
+            String id = definition.presentation.nodes.get(index).id;
+            GuiViewAdapter view = views.get(index);
+            GuiPresentationNode node = runtime.element(id);
+            LocalProposal proposal = localProposals.get(id);
+            Map<String, Object> state = proposal == null ? view.captureState() : proposal.values;
+            GuiViewPublication candidate = candidates.get(id);
+            if (candidate != null) {
+                state = view.projectState(candidate.values, candidate::controlled, state);
+            } else if (published[index] != node.valueRevision()) {
+                state = view.projectState(node.values(), node::controlled, state);
+            }
             if (!state.isEmpty()) {
                 Map<String, Object> entry = new LinkedHashMap<>();
-                entry.put("type", definitions.get(view.getKey()).type);
+                entry.put("type", definitions.get(id).type);
                 entry.put("state", state);
-                snapshot.put(view.getKey(), entry);
+                snapshot.put(id, entry);
             }
         }
         GuiPublishedData detached = new GuiPublishedData();
         detached.publish(snapshot);
         return detached.snapshot();
+    }
+
+    public void admitViewStateWith(GuiViewStateAdmission admission) {
+        LuaCallbackScope.requireUiStateWrite();
+        requireActive();
+        runtime.requirePreparedViews();
+        if (stateAdmission != null || root().getParent() != null) {
+            throw new IllegalStateException("Install view state admission once before attaching the candidate");
+        }
+        stateAdmission = Objects.requireNonNull(admission, "view state admission");
+        for (Map.Entry<String, GuiViewAdapter> view : ids.entrySet()) {
+            String id = view.getKey();
+            view.getValue().admitStateWith(values -> beginLocalProposal(id, values));
+        }
+        runtime.admitPublicationsWith(candidates -> {
+            GuiViewStateAdmission.Proposal proposal = Objects
+                    .requireNonNull(stateAdmission.begin(captureViewState(candidates)), "binding state proposal");
+            return new GuiViewStateAdmission.Proposal() {
+                public void commit(Map<String, Object> accepted) {
+                    proposal.commit(captureViewState());
+                }
+
+                public void close() {
+                    proposal.close();
+                }
+            };
+        });
+    }
+
+    private GuiViewStateAdmission.Proposal beginLocalProposal(String id, Map<String, Object> values) {
+        requireActive();
+        GuiPublishedData detached = new GuiPublishedData();
+        detached.publish(values);
+        LocalProposal local = new LocalProposal(id, detached.snapshot(), localProposals.get(id));
+        localProposals.put(id, local);
+        try {
+            local.admission = Objects.requireNonNull(stateAdmission.begin(captureViewState()), "local state proposal");
+            return local;
+        } catch (RuntimeException | Error failure) {
+            local.restorePrevious();
+            throw failure;
+        }
+    }
+
+    private final class LocalProposal implements GuiViewStateAdmission.Proposal {
+        final String id;
+        final LocalProposal previous;
+        Map<String, Object> values;
+        GuiViewStateAdmission.Proposal admission;
+        boolean finished;
+        boolean released;
+
+        LocalProposal(String id, Map<String, Object> values, LocalProposal previous) {
+            this.id = id;
+            this.values = values;
+            this.previous = previous;
+        }
+
+        private void requireCurrent() {
+            requireActive();
+            if (finished || localProposals.get(id) != this) {
+                throw new IllegalStateException("Local control proposals finish once in reverse order");
+            }
+        }
+
+        public void commit(Map<String, Object> accepted) {
+            requireCurrent();
+            GuiPublishedData detached = new GuiPublishedData();
+            detached.publish(accepted);
+            values = detached.snapshot();
+            admission.commit(captureViewState());
+            finished = true;
+            restorePrevious();
+        }
+
+        private void restorePrevious() {
+            if (previous == null) {
+                localProposals.remove(id);
+            } else {
+                localProposals.put(id, previous);
+            }
+        }
+
+        public void close() {
+            if (!released) {
+                if (!finished && !closed) {
+                    requireCurrent();
+                }
+                try {
+                    admission.close();
+                } finally {
+                    if (!finished && !closed) {
+                        restorePrevious();
+                    }
+                    finished = true;
+                    released = true;
+                }
+            }
+        }
     }
 
     /** All compatible state validates before any candidate view changes. */
@@ -227,6 +343,10 @@ public final class GuiPresentationTree implements AutoCloseable {
                         candidate.publish();
                         candidate.retainFrom(this);
                         prepare.accept(candidate);
+                        if (stateAdmission != null && candidate.stateAdmission == null) {
+                            throw new IllegalStateException(
+                                    "Refresh of an admitted tree requires admission on its fresh candidate");
+                        }
                     });
             candidate.runtime = staged.candidate();
             return new PreparedReload(this, candidate, staged);
@@ -330,6 +450,8 @@ public final class GuiPresentationTree implements AutoCloseable {
             return;
         }
         closed = true;
+        stateAdmission = null;
+        localProposals.clear();
         RuntimeException failure = null;
         try {
             if (runtime != null) {

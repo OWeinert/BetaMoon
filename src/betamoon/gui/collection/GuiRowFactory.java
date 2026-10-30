@@ -2,6 +2,7 @@ package betamoon.gui.collection;
 
 import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiElement;
+import betamoon.gui.presentation.GuiViewStateAdmission;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import java.util.Map;
 import java.util.Objects;
@@ -72,6 +73,7 @@ public interface GuiRowFactory {
         public final Map<String, Object> state;
         public final Row previous;
         private final Consumer<Map<String, ?>> statePublication;
+        private final GuiViewStateAdmission proposals;
 
         public Context(GuiContext gui, GuiRowBudget budget, GuiCollectionModel.Record record, int depth, int width,
                 int height, Map<String, Object> state, Row previous) {
@@ -82,6 +84,14 @@ public interface GuiRowFactory {
 
         public Context(GuiContext gui, GuiRowBudget budget, GuiCollectionModel.Record record, int depth, int width,
                 int height, Map<String, Object> state, Row previous, Consumer<Map<String, ?>> statePublication) {
+            this(gui, budget, record, depth, width, height, state, previous, statePublication, values -> {
+                throw new IllegalStateException("This row context has no live control proposal owner");
+            });
+        }
+
+        public Context(GuiContext gui, GuiRowBudget budget, GuiCollectionModel.Record record, int depth, int width,
+                int height, Map<String, Object> state, Row previous, Consumer<Map<String, ?>> statePublication,
+                GuiViewStateAdmission proposals) {
             this.gui = gui;
             this.budget = budget;
             this.record = record;
@@ -91,6 +101,7 @@ public interface GuiRowFactory {
             this.state = state;
             this.previous = previous;
             this.statePublication = Objects.requireNonNull(statePublication, "row state publication");
+            this.proposals = Objects.requireNonNull(proposals, "row control proposals");
         }
 
         /**
@@ -99,7 +110,24 @@ public interface GuiRowFactory {
          */
         public void publishState(Map<String, ?> values) {
             LuaCallbackScope.requireUiStateWrite();
-            statePublication.accept(values);
+            try {
+                statePublication.accept(values);
+            } catch (GuiViewStateAdmission.Refusal refusal) {
+                throw refusal;
+            } catch (IllegalArgumentException refused) {
+                throw new GuiViewStateAdmission.Refusal(refused);
+            }
+        }
+
+        public GuiViewStateAdmission.Proposal reserveState(Map<String, Object> values) {
+            LuaCallbackScope.requireUiStateWrite();
+            try {
+                return proposals.begin(values);
+            } catch (GuiViewStateAdmission.Refusal refusal) {
+                throw refusal;
+            } catch (IllegalArgumentException refused) {
+                throw new GuiViewStateAdmission.Refusal(refused);
+            }
         }
     }
 }

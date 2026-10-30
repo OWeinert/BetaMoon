@@ -11,6 +11,7 @@ import betamoon.gui.framework.GuiViewportLayout;
 import betamoon.gui.graphics.GraphicsTransform;
 import betamoon.gui.presentation.GuiPresentationNode;
 import betamoon.gui.presentation.GuiViewAdapter;
+import betamoon.gui.presentation.GuiViewStateAdmission;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -250,7 +251,15 @@ public class GuiPaintView extends GuiElement implements GuiViewAdapter, GuiViewp
                 ? (GuiPaintProgram.Frame) context.getFrameContent()
                 : lastFrame;
         String region = frame == null ? null : frame.hit(event.getMouseX() - getLeft(), event.getMouseY() - getTop());
-        Decision decision = Objects.requireNonNull(input.input(event, region), "custom input result");
+        Decision decision;
+        try {
+            decision = Objects.requireNonNull(input.input(event, region), "custom input result");
+        } catch (GuiViewStateAdmission.Refusal refused) {
+            pressed = false;
+            context.cancelGesturesIn(this);
+            releasePointer(context);
+            return true;
+        }
         if (closed) {
             return decision.consumed;
         }

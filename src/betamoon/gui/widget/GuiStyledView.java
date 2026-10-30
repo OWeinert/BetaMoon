@@ -15,6 +15,7 @@ import betamoon.gui.framework.GuiViewportLayout;
 import betamoon.gui.graphics.GraphicsTransform;
 import betamoon.gui.presentation.GuiPresentationNode;
 import betamoon.gui.presentation.GuiViewAdapter;
+import betamoon.gui.presentation.GuiViewStateAdmission;
 import betamoon.gui.style.GuiControlStyle;
 import betamoon.gui.style.GuiStyleSheet;
 import betamoon.gui.style.GuiVisualTemplate;
@@ -68,6 +69,9 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
     private boolean valueControlled;
     private boolean selectedControlled;
     private boolean textControlled;
+    private GuiViewStateAdmission stateAdmission;
+    private boolean stateRejected;
+    private long admittedInputs;
     private boolean fill;
     private boolean hovered;
     private boolean dragging;
@@ -214,6 +218,7 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
         image = string(values.get("image"), "");
         valueControlled = controlled.test("value");
         selectedControlled = controlled.test("selected");
+        boolean wasTextControlled = textControlled;
         textControlled = controlled.test("text");
         if (!published || valueControlled) {
             value = number(values, "value", 0);
@@ -237,9 +242,13 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
         if ("textbox".equals(kind)) {
             if (editor == null || editor.maximumLength() != (int) number(values, "maximumLength", 4096)) {
                 editor = new GuiTextEditorModel(text, (int) number(values, "maximumLength", 4096));
+                textOffset = 0;
             } else if (textControlled) {
                 editor.observe(text);
+            } else if (wasTextControlled) {
+                editor.restore(editor.snapshot(), false);
             }
+            textOffset = Math.min(textOffset, editor.text().length());
         }
         setEnabled(!Boolean.FALSE.equals(values.get("enabled")));
         boolean nextClip = Boolean.TRUE.equals(values.get("clip"));
@@ -423,7 +432,9 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
     private int states() {
         return (hovered ? GuiStyleSheet.HOVERED : 0) | (activation.isPressed() || dragging ? GuiStyleSheet.PRESSED : 0)
                 | (isFocused() ? GuiStyleSheet.FOCUSED : 0) | (selected ? GuiStyleSheet.SELECTED : 0)
-                | (editor != null && (editor.invalid() || editor.conflict()) ? GuiStyleSheet.INVALID : 0)
+                | (stateRejected || editor != null && (editor.invalid() || editor.conflict())
+                        ? GuiStyleSheet.INVALID
+                        : 0)
                 | (!isEnabled() ? GuiStyleSheet.DISABLED : 0);
     }
 
@@ -433,7 +444,7 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
             return false;
         }
         if ("textbox".equals(kind)) {
-            return edit(context, event);
+            return editWithAdmission(context, event);
         }
         if ("slider".equals(kind)) {
             return slide(context, event);
@@ -448,15 +459,20 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
         }
         if ((result & GuiActivation.ACTIVATE) != 0) {
             if ("checkbox".equals(kind)) {
-                if (events.propose("change", !selected) && !selectedControlled) {
-                    selected = !selected;
-                }
+                boolean next = !selected;
+                changeLocal("selected", next, () -> {
+                    if (!selectedControlled) {
+                        selected = next;
+                    }
+                });
             } else if ("choice".equals(kind)) {
                 double next = (int) value % options.size() + 1;
-                if (events.propose("change", next) && !valueControlled) {
-                    value = next;
-                    requestLayout();
-                }
+                changeLocal("value", next, () -> {
+                    if (!valueControlled) {
+                        value = next;
+                        requestLayout();
+                    }
+                });
             } else {
                 events.propose("activate", null);
             }
@@ -510,8 +526,103 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
 
     private void propose(double proposed) {
         double next = range.snap(proposed);
-        if (events.propose("change", next) && !valueControlled) {
-            value = next;
+        changeLocal("value", next, () -> {
+            if (!valueControlled) {
+                value = next;
+            }
+        });
+    }
+
+    private void changeLocal(String property, Object proposed, Runnable apply) {
+        if (stateAdmission == null) {
+            if (events.propose("change", proposed)) {
+                apply.run();
+            }
+            return;
+        }
+        Map<String, Object> prospective = new LinkedHashMap<>(captureState());
+        if (prospective.containsKey(property)) {
+            prospective.put(property, proposed);
+        }
+        try (GuiViewStateAdmission.Proposal proposal = beginStateProposal(prospective)) {
+            if (events.propose("change", proposed)) {
+                apply.run();
+            }
+            proposal.commit(captureState());
+            stateRejected = false;
+        } catch (StateRefusal | GuiViewStateAdmission.Refusal refusal) {
+            stateRejected = true;
+        }
+    }
+
+    private GuiViewStateAdmission.Proposal beginStateProposal(Map<String, Object> prospective) {
+        try {
+            return stateAdmission.begin(prospective);
+        } catch (IllegalArgumentException refused) {
+            throw new StateRefusal(refused);
+        }
+    }
+
+    private boolean editWithAdmission(GuiContext context, GuiInputEvent event) {
+        if (stateAdmission == null || editor == null) {
+            return edit(context, event);
+        }
+        GuiTextEditorModel.Snapshot previous = editor.snapshot();
+        int offset = textOffset;
+        long before = admittedInputs;
+        try {
+            boolean handled = edit(context, event);
+            if (handled && before == admittedInputs) {
+                try (GuiViewStateAdmission.Proposal proposal = beginStateProposal(captureState())) {
+                    proposal.commit(captureState());
+                }
+            }
+            if (handled) {
+                stateRejected = false;
+            }
+            return handled;
+        } catch (StateRefusal | GuiViewStateAdmission.Refusal refused) {
+            editor.restoreSnapshot(previous);
+            textOffset = offset;
+            stateRejected = true;
+            requestLayout();
+            return true;
+        }
+    }
+
+    private void commitEditor() {
+        if (stateAdmission == null) {
+            editor.commit(events.propose("commit", editor.text()), textControlled);
+            return;
+        }
+        GuiTextEditorModel accepted = editor.copy();
+        accepted.commit(true, textControlled);
+        Map<String, Object> prospective = new LinkedHashMap<>(captureState());
+        prospective.put("editor", accepted.snapshot().values());
+        try (GuiViewStateAdmission.Proposal proposal = beginStateProposal(prospective)) {
+            editor.commit(events.propose("commit", editor.text()), textControlled);
+            proposal.commit(captureState());
+            admittedInputs++;
+            stateRejected = false;
+        }
+    }
+
+    private void notifyEditor(String event) {
+        if (stateAdmission == null) {
+            events.propose(event, editor.text());
+            return;
+        }
+        try (GuiViewStateAdmission.Proposal proposal = beginStateProposal(captureState())) {
+            events.propose(event, editor.text());
+            proposal.commit(captureState());
+            admittedInputs++;
+            stateRejected = false;
+        }
+    }
+
+    private static final class StateRefusal extends RuntimeException {
+        StateRefusal(IllegalArgumentException cause) {
+            super(cause);
         }
     }
 
@@ -553,12 +664,12 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
         } else if (key == Keyboard.KEY_BACK || key == Keyboard.KEY_DELETE) {
             editor.erase(key == Keyboard.KEY_BACK);
         } else if (key == Keyboard.KEY_RETURN || key == Keyboard.KEY_NUMPADENTER) {
-            editor.commit(events.propose("commit", editor.text()), textControlled);
+            commitEditor();
             caretStart = context.getCurrentTimeMillis();
             return true;
         } else if (key == Keyboard.KEY_ESCAPE) {
             editor.cancel();
-            events.propose("cancel", editor.text());
+            notifyEditor("cancel");
             caretStart = context.getCurrentTimeMillis();
             return true;
         } else if (event.getTypedChar() >= 32 && event.getTypedChar() != 127) {
@@ -570,7 +681,7 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
         if (key != Keyboard.KEY_LEFT && key != Keyboard.KEY_RIGHT && key != Keyboard.KEY_HOME && key != Keyboard.KEY_END
                 && !(control && (key == Keyboard.KEY_A || key == Keyboard.KEY_C))) {
             requestLayout();
-            events.propose("change", editor.text());
+            notifyEditor("change");
         }
         return true;
     }
@@ -580,7 +691,11 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
         if (!focused) {
             activation.cancelKeyboard();
             if (!closed && editor != null && !editor.pending() && !editor.text().equals(editor.committed())) {
-                editor.commit(events.propose("commit", editor.text()), textControlled);
+                try {
+                    commitEditor();
+                } catch (StateRefusal | GuiViewStateAdmission.Refusal refused) {
+                    stateRejected = true;
+                }
             }
         }
         caretStart = context.getCurrentTimeMillis();
@@ -600,7 +715,7 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
             case "disabled":
                 return !isEnabled();
             case "invalid":
-                return editor != null && (editor.invalid() || editor.conflict());
+                return stateRejected || editor != null && (editor.invalid() || editor.conflict());
             default:
                 return false;
         }
@@ -627,6 +742,61 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
             snapshot.put("textOffset", textOffset);
         }
         return Collections.unmodifiableMap(snapshot);
+    }
+
+    @Override
+    public Map<String, Object> projectState(Map<String, Object> values, Predicate<String> controlled,
+            Map<String, Object> current) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        if (("choice".equals(kind) || "slider".equals(kind)) && !controlled.test("value")) {
+            double local = number(current, "value", value);
+            if (!published) {
+                local = number(values, "value", 0);
+            }
+            if ("choice".equals(kind)) {
+                local = Math.max(1, Math.min(((List<?>) values.get("options")).size(), local));
+            } else {
+                local = new GuiNumericRange(number(values, "minimum", 0), number(values, "maximum", 100),
+                        number(values, "step", 1)).snap(local);
+            }
+            snapshot.put("value", local);
+        }
+        if ("checkbox".equals(kind) && !controlled.test("selected")) {
+            snapshot.put("selected",
+                    !published
+                            ? Boolean.TRUE.equals(values.get("selected"))
+                            : current.getOrDefault("selected", selected));
+        }
+        if ("textbox".equals(kind)) {
+            int maximum = (int) number(values, "maximumLength", 4096);
+            String publishedText = string(values.get("text"), "");
+            GuiTextEditorModel.Snapshot saved = current.containsKey("editor")
+                    ? GuiTextEditorModel.Snapshot.read(editorRecord(current.get("editor")))
+                    : editor == null ? null : editor.snapshot();
+            GuiTextEditorModel candidate = new GuiTextEditorModel(publishedText, maximum);
+            if (saved != null && saved.maximumLength == maximum) {
+                candidate.restoreSnapshot(saved);
+                if (controlled.test("text")) {
+                    candidate.observe(publishedText);
+                } else if (textControlled) {
+                    candidate.restore(saved, false);
+                }
+            }
+            snapshot.put("editor", candidate.snapshot().values());
+            snapshot.put("textOffset",
+                    saved == null || saved.maximumLength != maximum
+                            ? 0
+                            : Math.min((int) number(current, "textOffset", textOffset), candidate.text().length()));
+        }
+        return Collections.unmodifiableMap(snapshot);
+    }
+
+    @Override
+    public void admitStateWith(GuiViewStateAdmission admission) {
+        if (stateAdmission != null || closed) {
+            throw new IllegalStateException("Install local control admission once before activation");
+        }
+        stateAdmission = Objects.requireNonNull(admission, "local control admission");
     }
 
     @Override
@@ -720,6 +890,7 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
     public void close() {
         if (!closed) {
             closed = true;
+            stateAdmission = null;
             events = (event, value) -> false;
             presentationNode = null;
             javaValues = Collections.emptyMap();

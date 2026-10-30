@@ -3,6 +3,7 @@ package betamoon.gui.presentation;
 import betamoon.gui.framework.GuiElement;
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.Predicate;
 
 /**
  * Java views consume published values; animation replay cannot call Lua through
@@ -33,6 +34,15 @@ public interface GuiViewAdapter extends AutoCloseable {
      */
     default Map<String, Object> captureState() {
         return Collections.emptyMap();
+    }
+
+    /** Pure local state after the proposed properties/ownership are published. */
+    default Map<String, Object> projectState(Map<String, Object> values, Predicate<String> controlled,
+            Map<String, Object> current) {
+        return current;
+    }
+
+    default void admitStateWith(GuiViewStateAdmission admission) {
     }
 
     /**

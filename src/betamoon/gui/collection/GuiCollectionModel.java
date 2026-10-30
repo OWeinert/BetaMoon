@@ -337,6 +337,10 @@ public final class GuiCollectionModel {
         }
     }
 
+    public boolean hasStateReservations() {
+        return !reservations.isEmpty();
+    }
+
     public final class StateReservation implements AutoCloseable {
         private final String key;
         private final State previous;

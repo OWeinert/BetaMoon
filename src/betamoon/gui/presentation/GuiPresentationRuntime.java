@@ -25,6 +25,7 @@ import java.util.function.Supplier;
 import java.util.function.ToIntFunction;
 import java.util.function.Consumer;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -63,6 +64,27 @@ public class GuiPresentationRuntime implements AutoCloseable {
     private boolean stagedReload;
     private boolean layoutDirty;
     private BiConsumer<GuiNodeDefinition, Map<String, Object>> viewValidator;
+    private Function<Map<String, GuiViewPublication>, GuiViewStateAdmission.Proposal> publicationAdmission;
+
+    void admitPublicationsWith(Function<Map<String, GuiViewPublication>, GuiViewStateAdmission.Proposal> admission) {
+        requirePreparedViews();
+        if (publicationAdmission != null) {
+            throw new IllegalStateException("Install complete view publication admission once before activation");
+        }
+        publicationAdmission = Objects.requireNonNull(admission, "view publication admission");
+    }
+
+    private GuiViewStateAdmission.Proposal admitPublications(Map<String, GuiViewPublication> candidates) {
+        if (publicationAdmission == null || candidates.isEmpty()) {
+            return GuiViewStateAdmission.UNRESTRICTED;
+        }
+        try {
+            return Objects.requireNonNull(publicationAdmission.apply(Collections.unmodifiableMap(candidates)),
+                    "view publication proposal");
+        } catch (IllegalArgumentException | IllegalStateException invalid) {
+            throw new GuiProperties.ValueError("View state admission: " + invalid.getMessage());
+        }
+    }
 
     public void setViewValidator(BiConsumer<GuiNodeDefinition, Map<String, Object>> validator) {
         requireActive();
@@ -420,6 +442,8 @@ public class GuiPresentationRuntime implements AutoCloseable {
             node.pending = candidate(node, output, policy, reads);
             validateView(node, node.pending.effective);
             node.bindingFailed = false;
+        } catch (VirtualMachineError | ThreadDeath fatal) {
+            throw fatal;
         } catch (Throwable error) {
             node.pending = null;
             node.bindingFailed = true;
@@ -495,13 +519,13 @@ public class GuiPresentationRuntime implements AutoCloseable {
                 }
             }
         }
-        double timestamp = clock.getAsDouble();
+        List<GuiPresentationNode> eligible = new ArrayList<>();
         if (!geometry.isEmpty() || initial) {
             try {
                 validateLayout(geometry);
                 for (GuiPresentationNode node : nodes) {
                     if (geometry.containsKey(node)) {
-                        commit(node, initial, timestamp);
+                        eligible.add(node);
                     }
                 }
                 layoutDirty = false;
@@ -513,8 +537,33 @@ public class GuiPresentationRuntime implements AutoCloseable {
                 layoutDirty = false;
             }
         }
-        for (GuiPresentationNode node : appearance) {
-            commit(node, initial, timestamp);
+        eligible.addAll(appearance);
+        GuiViewStateAdmission.Proposal admission;
+        try {
+            Map<String, GuiViewPublication> publications = publicationAdmission == null
+                    ? Collections.emptyMap()
+                    : new LinkedHashMap<>();
+            if (publicationAdmission != null) {
+                for (GuiPresentationNode node : eligible) {
+                    Set<String> controlled = new LinkedHashSet<>(node.pending.bindingValues.keySet());
+                    controlled.addAll(node.pending.overrides.keySet());
+                    publications.put(node.definition.id, new GuiViewPublication(node.pending.effective, controlled));
+                }
+            }
+            admission = admitPublications(publications);
+        } catch (LuaError invalid) {
+            for (GuiPresentationNode node : eligible) {
+                node.dependencies.addAll(node.pending.dependencies);
+                diagnostic(node, invalid);
+            }
+            return;
+        }
+        try (GuiViewStateAdmission.Proposal proposal = admission) {
+            double timestamp = clock.getAsDouble();
+            for (GuiPresentationNode node : eligible) {
+                commit(node, initial, timestamp);
+            }
+            proposal.commit(Collections.emptyMap());
         }
     }
 
@@ -718,6 +767,11 @@ public class GuiPresentationRuntime implements AutoCloseable {
                     .arg1();
             commitCommands();
             return result;
+        } catch (GuiViewStateAdmission.Refusal refused) {
+            discardUiCommands();
+            throw refused;
+        } catch (VirtualMachineError | ThreadDeath fatal) {
+            throw fatal;
         } catch (Throwable error) {
             if (commands != null) {
                 for (Command command : commands) {
@@ -933,14 +987,42 @@ public class GuiPresentationRuntime implements AutoCloseable {
             report("presentation layout", invalid);
         }
         double now = clock.getAsDouble();
-        for (Command command : commands) {
-            if (!valid && geometry.contains(command.node)) {
-                if (command.request != null) {
-                    command.request.cancel("invalid_layout");
+        Map<String, GuiViewPublication> publications = publicationAdmission == null
+                ? Collections.emptyMap()
+                : new LinkedHashMap<>();
+        if (publicationAdmission != null) {
+            for (Map.Entry<GuiPresentationNode, CommandPlan> entry : plans.entrySet()) {
+                if (valid || !geometry.contains(entry.getKey())) {
+                    Set<String> controlled = new LinkedHashSet<>(entry.getKey().bindingValues.keySet());
+                    controlled.addAll(entry.getValue().overridden);
+                    publications.put(entry.getKey().definition.id,
+                            new GuiViewPublication(entry.getValue().targets, controlled));
                 }
-            } else {
-                applyCommand(command, now);
             }
+        }
+        GuiViewStateAdmission.Proposal admission;
+        try {
+            admission = admitPublications(publications);
+        } catch (LuaError invalid) {
+            report("presentation state", invalid);
+            for (Command command : commands) {
+                if (command.request != null) {
+                    command.request.cancel("invalid_state");
+                }
+            }
+            return;
+        }
+        try (GuiViewStateAdmission.Proposal proposal = admission) {
+            for (Command command : commands) {
+                if (!valid && geometry.contains(command.node)) {
+                    if (command.request != null) {
+                        command.request.cancel("invalid_layout");
+                    }
+                } else {
+                    applyCommand(command, now);
+                }
+            }
+            proposal.commit(Collections.emptyMap());
         }
         for (GuiPresentationNode node : plans.keySet()) {
             if (node.pending != null) {
@@ -1306,6 +1388,7 @@ public class GuiPresentationRuntime implements AutoCloseable {
             invokeEvent(new QueuedEvent("close", LuaTable::new));
         }
         active = false;
+        publicationAdmission = null;
         for (AutoCloseable subscription : subscriptions) {
             try {
                 subscription.close();

@@ -9,6 +9,7 @@ import betamoon.gui.presentation.GuiPropertyDescriptor;
 import betamoon.gui.presentation.GuiPropertyDescriptor.Kind;
 import betamoon.gui.presentation.GuiPropertyDescriptor.Stage;
 import betamoon.gui.presentation.GuiPublishedData;
+import betamoon.gui.presentation.GuiViewStateAdmission;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -211,11 +212,18 @@ public final class GuiRowStateAdmissionTest {
             expect(() -> first.context.publishState(Collections.emptyMap()));
         }
         first.state.set("root", Collections.singletonMap("text", "keyed"));
-        view.setScrollOffset(200);
+        try (GuiViewStateAdmission.Proposal proposal = first.context.reserveState(first.state.snapshot())) {
+            view.setScrollOffset(200);
+            scene.prepare();
+            require(view.scrollOffset() == 0 && view.rowElement("row0") == first && failures.isEmpty(),
+                    "Nested Java preparation replaced or rejected a model with an open control proposal");
+            proposal.commit(first.state.snapshot());
+        }
         scene.prepare();
         require(view.rowState("row0").get("root::text").equals("keyed"),
                 "A live typed state edit was not preserved when its row unmounted");
         expect(() -> first.context.publishState(Collections.singletonMap("root::text", "stale")));
+        expect(() -> first.context.reserveState(Collections.emptyMap()));
         view.setScrollOffset(0);
         scene.prepare();
         StateRow restored = latest.get("row0");
