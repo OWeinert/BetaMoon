@@ -17,6 +17,7 @@ import betamoon.gui.framework.GuiScene;
 import betamoon.gui.framework.GuiLayer;
 import betamoon.gui.graphics.GraphicsResources;
 import betamoon.gui.interop.GuiOwnedResources;
+import betamoon.gui.interop.GuiResourceOwners;
 import betamoon.gui.presentation.GuiCapability;
 import betamoon.gui.presentation.GuiDocumentDefinition;
 import betamoon.gui.presentation.GuiNodeDefinition;
@@ -36,6 +37,7 @@ import betamoon.luaapi.interop.NativeCallbackTable;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.world.LuaWorldActionAccess;
 import betamoon.luamodloader.ScriptExecution;
+import betamoon.luamodloader.ScriptResourceTracker;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -355,14 +357,14 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
     private final class Revision implements GuiPresentationHost, GuiComponentPlan.Services, AutoCloseable {
         final GuiScreenDefinition definition;
         final GuiScreenData data;
-        final Map<String, GuiOwnedResources> resources = new LinkedHashMap<>();
+        final GuiResourceOwners<GuiOwnedResources> resources;
         final List<Observer> observers = new ArrayList<>();
         GuiComponentPlan plan;
         GuiPresentationTree tree;
         boolean retired;
         boolean candidateInvalidated;
         final Map<String, GuiThemeDefinition> themeDefinitions = new LinkedHashMap<>();
-        final Map<String, GuiStyleSheet> preparedThemes = new LinkedHashMap<>();
+        final Map<String, Map<String, GuiStyleSheet>> preparedThemes = new LinkedHashMap<>();
         final GuiPaintBudget paintBudget = new GuiPaintBudget();
 
         Revision(GuiScreenDefinition definition, Revision previous, Map<String, Object> initialState,
@@ -371,10 +373,13 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
             data = previous == null
                     ? new GuiScreenData(definition.data, initialData)
                     : GuiScreenData.refresh(definition.data, previous.data.snapshot());
+            resources = new GuiResourceOwners<>(
+                    owner -> new GuiOwnedResources(client, screen, owner, definition.resources),
+                    ScriptResourceTracker::ownerGeneration, preparedThemes::remove, failure -> activation.controller
+                            .host().failure(definition.owner, definition.key + ".resources", failure));
             boolean complete = false;
             try {
-                resources.put(definition.owner,
-                        new GuiOwnedResources(client, screen, definition.owner, definition.resources));
+                resources.acquire(Collections.singleton(definition.owner));
                 plan = GuiComponentCompiler.prepare(components, definition.owner, definition.key, definition.root, this,
                         this, capabilities(), previous == null ? null : previous.plan, definition.state, initialState,
                         restoredState);
@@ -397,11 +402,7 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
                 if (plan.owners().size() > 32) {
                     throw new IllegalArgumentException("Screen exceeds 32 resource owners");
                 }
-                for (String owner : plan.owners()) {
-                    if (!resources.containsKey(owner)) {
-                        resources.put(owner, new GuiOwnedResources(client, screen, owner, definition.resources));
-                    }
-                }
+                resources.acquire(plan.owners());
                 if (candidateInvalidated) {
                     throw new IllegalStateException("Theme/component owner expired during preparation");
                 }
@@ -426,17 +427,17 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
         }
 
         GuiOwnedResources main() {
-            return resources.get(definition.owner);
+            return resources.required(definition.owner);
         }
 
         void updateResources() {
-            for (GuiOwnedResources owner : resources.values()) {
+            for (GuiOwnedResources owner : resources.snapshot().values()) {
                 owner.update();
             }
         }
 
         boolean needsResourceRevision() {
-            for (GuiOwnedResources owner : resources.values()) {
+            for (GuiOwnedResources owner : resources.snapshot().values()) {
                 if (owner.needsRevision()) {
                     return true;
                 }
@@ -446,7 +447,7 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
 
         Map<String, Long> resourceStamp() {
             Map<String, Long> values = new LinkedHashMap<>();
-            for (Map.Entry<String, GuiOwnedResources> entry : resources.entrySet()) {
+            for (Map.Entry<String, GuiOwnedResources> entry : resources.snapshot().entrySet()) {
                 if (entry.getValue().needsRevision()) {
                     values.put(entry.getKey(), entry.getValue().imageRevision());
                 }
@@ -514,11 +515,7 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
         }
 
         GuiOwnedResources required(String owner) {
-            GuiOwnedResources value = resources.get(owner);
-            if (value == null) {
-                throw new IllegalStateException("Rendering resources were not prepared for " + owner);
-            }
-            return value;
+            return resources.required(owner);
         }
 
         private String themeReference(GuiViewAppearance appearance) {
@@ -531,13 +528,14 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
 
         public GuiStyleSheet theme(String owner, GuiViewAppearance appearance) {
             String reference = themeReference(appearance);
-            String key = owner + "|" + reference;
-            GuiStyleSheet base = preparedThemes.get(key);
+            Map<String, GuiStyleSheet> ownerThemes = preparedThemes.computeIfAbsent(owner,
+                    key -> new LinkedHashMap<>());
+            GuiStyleSheet base = ownerThemes.get(reference);
             if (base == null) {
                 base = preset(reference)
                         ? GuiThemeDefinition.preset(reference)
                         : themeDefinitions.get(reference).prepare(required(owner).painting());
-                preparedThemes.put(key, base);
+                ownerThemes.put(reference, base);
             }
             return appearance.appearance.style.values.isEmpty()
                     ? base
@@ -631,20 +629,15 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
                         tree.close();
                     }
                 } finally {
-                    for (GuiOwnedResources value : new ArrayList<>(resources.values())) {
-                        try {
-                            value.close();
-                        } catch (RuntimeException failure) {
-                            activation.controller.host().failure(definition.owner, definition.key + ".resources",
-                                    failure);
-                        }
+                    try {
+                        resources.close();
+                    } finally {
+                        data.close();
+                        observers.clear();
+                        themeDefinitions.clear();
+                        preparedThemes.clear();
+                        paintBudget.clear();
                     }
-                    resources.clear();
-                    data.close();
-                    observers.clear();
-                    themeDefinitions.clear();
-                    preparedThemes.clear();
-                    paintBudget.clear();
                 }
             }
         }
