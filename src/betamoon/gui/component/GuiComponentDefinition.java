@@ -3,6 +3,7 @@ package betamoon.gui.component;
 import betamoon.content.ContentKey;
 import betamoon.content.ContentType;
 import betamoon.gui.presentation.GuiCapability;
+import betamoon.gui.action.GuiActionOrigin;
 import betamoon.luamodloader.ScriptResourceTracker;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -16,6 +17,8 @@ import org.luaj.vm2.LuaValue;
  * own state and retained views.
  */
 public final class GuiComponentDefinition {
+    private final Object callbackRevision = new Object();
+    private final GuiActionOrigin actionOrigin;
     public static final class SizeHint {
         public final int width;
         public final int height;
@@ -129,6 +132,17 @@ public final class GuiComponentDefinition {
         metadataBytes = bytes;
         ownerState = ScriptResourceTracker.ownerToken(owner);
         generation = ownerState.current();
+        ScriptResourceTracker.OwnerGeneration source = ownerState;
+        long version = generation;
+        actionOrigin = GuiActionOrigin.lifetime(() -> source.matches(version));
+    }
+
+    public Object callbackRevision() {
+        return callbackRevision;
+    }
+
+    public GuiActionOrigin actionOrigin() {
+        return actionOrigin;
     }
 
     public void requireActive() {

@@ -6,6 +6,7 @@ import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.interop.NativeCallbackContext;
 import betamoon.luamodloader.ScriptExecution;
 import betamoon.gui.presentation.GuiViewStateAdmission;
+import betamoon.gui.action.GuiActionOrigin;
 import java.util.Map;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
@@ -56,7 +57,7 @@ final class GuiComponentEvents implements GuiComponentScope.Emitter {
                 event.set("value", payload.get("value"));
             }
             event.set("elementId", view.authored.id == null ? LuaValue.NIL : LuaValue.valueOf(view.authored.id));
-            LuaValue result = call(view.scope, handler, event);
+            LuaValue result = call(view.scope, handler, event, "input".equals(name));
             if ("input".equals(name)) {
                 GuiComponentPlan.inputDecision(result, view.scope.path);
             } else if (!result.isnil() && !result.isboolean()) {
@@ -68,6 +69,7 @@ final class GuiComponentEvents implements GuiComponentScope.Emitter {
         } catch (VirtualMachineError | ThreadDeath fatal) {
             throw fatal;
         } catch (Throwable failure) {
+            GuiActionOrigin.rejectEvent();
             plan.runtime.discardUiCommands();
             GuiViewStateAdmission.Refusal refusal = stateRefusal(failure);
             if (refusal != null) {
@@ -103,7 +105,7 @@ final class GuiComponentEvents implements GuiComponentScope.Emitter {
         outer = context;
         plan.state.beginEvent();
         boolean finished = false;
-        try {
+        try (GuiActionOrigin.Frame sources = GuiActionOrigin.enter(plan.services.actionOrigins())) {
             root.eventContext(context, ((NativeCallbackContext) context).nativeCallbackScope(), this);
             LuaValue result = plan.services.event(context, event);
             finished = true;
@@ -112,6 +114,7 @@ final class GuiComponentEvents implements GuiComponentScope.Emitter {
         } catch (VirtualMachineError | ThreadDeath fatal) {
             throw fatal;
         } catch (Throwable failure) {
+            GuiActionOrigin.rejectEvent();
             plan.runtime.discardUiCommands();
             plan.disable(root);
             plan.services.failure(root.owner, root.path, failure);
@@ -145,23 +148,33 @@ final class GuiComponentEvents implements GuiComponentScope.Emitter {
         LuaTable event = new LuaTable();
         event.set("type", name);
         event.set("payload", GuiReadOnlyValues.fromPublished(detached));
-        LuaValue result = call(scope.eventScope, subscriber, event);
+        LuaValue result = call(scope.eventScope, subscriber, event, false);
         if (!result.isnil() && !result.isboolean()) {
             throw new LuaError("Semantic handlers return boolean or nil");
         }
         return result;
     }
 
-    private LuaValue call(GuiComponentScope scope, LuaValue handler, LuaTable event) {
+    private LuaValue call(GuiComponentScope scope, LuaValue handler, LuaTable event, boolean input) {
         if (++depth > 16) {
             depth--;
             throw new LuaError("Component event propagation exceeds depth 16");
         }
-        try (LuaCallbackScope callback = new LuaCallbackScope(false, true)) {
+        try (GuiActionOrigin.Frame sources = GuiActionOrigin.enter(plan.services.actionOrigins(),
+                scope.definition == null ? null : scope.definition.actionOrigin());
+                GuiActionOrigin.Frame outcome = GuiActionOrigin.event();
+                LuaCallbackScope callback = new LuaCallbackScope(false, true)) {
             scope.requireActive();
             LuaTable context = plan.eventContext(scope, callback, outer, this);
-            return ScriptExecution.invoke(scope.owner, "ui.event." + scope.path, handler,
+            LuaValue result = ScriptExecution.invoke(scope.owner, "ui.event." + scope.path, handler,
                     LuaValue.varargsOf(new LuaValue[]{context, event})).arg1();
+            if (input) {
+                GuiComponentPlan.inputDecision(result, scope.path);
+            } else if (!result.isnil() && !result.isboolean()) {
+                throw new LuaError("Semantic handlers return boolean or nil");
+            }
+            outcome.commit();
+            return result;
         } catch (VirtualMachineError | ThreadDeath fatal) {
             throw fatal;
         } catch (CallbackFailure failure) {

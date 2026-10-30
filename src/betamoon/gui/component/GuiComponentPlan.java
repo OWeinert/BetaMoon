@@ -2,6 +2,7 @@ package betamoon.gui.component;
 
 import java.util.function.Function;
 import betamoon.gui.drawing.GuiPaintProgram;
+import betamoon.gui.action.GuiActionOrigin;
 import betamoon.gui.drawing.GuiPaintView;
 import betamoon.gui.drawing.GuiRawDrawing;
 import betamoon.gui.drawing.GuiRawView;
@@ -37,6 +38,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.DoubleSupplier;
@@ -55,6 +57,10 @@ import org.luaj.vm2.lib.VarArgFunction;
 public final class GuiComponentPlan implements AutoCloseable {
     public static final String SCREEN_STATE = "screen";
     public interface Services {
+        default List<GuiActionOrigin> actionOrigins() {
+            return Collections.emptyList();
+        }
+
         default GuiStyleSheet theme(String owner) {
             return GuiStyleSheet.MENU;
         }
@@ -130,6 +136,7 @@ public final class GuiComponentPlan implements AutoCloseable {
     private final Set<PaintBinding> paints = new LinkedHashSet<>();
     private final GuiComponentEvents events;
     private boolean active = true;
+    private List<Object> callbackRevision;
     private Runnable invalidated = () -> {
     };
 
@@ -140,6 +147,22 @@ public final class GuiComponentPlan implements AutoCloseable {
         this.services = services;
         sources = host.snapshot();
         events = new GuiComponentEvents(this);
+    }
+
+    /**
+     * Opaque callback identities retain no Lua definitions or per-instance view
+     * state.
+     */
+    public List<Object> callbackRevision() {
+        requireActive();
+        if (callbackRevision == null) {
+            List<Object> revisions = new ArrayList<>();
+            for (GuiComponentDefinition definition : new TreeMap<>(dependencies).values()) {
+                revisions.add(definition.callbackRevision());
+            }
+            callbackRevision = Collections.unmodifiableList(revisions);
+        }
+        return callbackRevision;
     }
 
     void finish(List<GuiNodeDefinition> nodes) {

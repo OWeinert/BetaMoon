@@ -1,6 +1,7 @@
 package betamoon.gui.screen;
 
 import betamoon.gui.presentation.GuiPublishedData;
+import betamoon.gui.action.GuiActionOrigin;
 import betamoon.gui.screen.GuiActionDefinition.Scope;
 import betamoon.gui.screen.GuiActionTicket.Status;
 import betamoon.luaapi.utils.LuaCallbackScope;
@@ -79,6 +80,12 @@ public final class GuiActionQueue {
         if (unavailable != null) {
             return refused(unavailable);
         }
+        List<GuiActionOrigin> origins = GuiActionOrigin.capture();
+        for (GuiActionOrigin origin : origins) {
+            if (!origin.maySubmit()) {
+                return refused("origin_expired");
+            }
+        }
         Map<String, Object> normalized = action.payload.normalize(payload);
         GuiPublishedData detached = new GuiPublishedData();
         detached.publish(normalized);
@@ -101,7 +108,7 @@ public final class GuiActionQueue {
             order.addLast(activation.owner());
         }
         GuiActionTicket ticket = new GuiActionTicket(++identity);
-        owner.addLast(new Request(activation, action, detached.snapshot(), ticket));
+        owner.addLast(new Request(activation, action, detached.snapshot(), ticket, origins));
         size++;
         return new Submission(ticket, null);
     }
@@ -140,6 +147,7 @@ public final class GuiActionQueue {
         // slice indefinitely.
         long eligibleIdentity = identity;
         try {
+            cancelExpiredOrigins();
             while (!order.isEmpty() && attempts-- > 0 && executed < 8) {
                 if (executed > 0 && clock.getAsLong() - started >= 2_000_000) {
                     break;
@@ -148,7 +156,8 @@ public final class GuiActionQueue {
                 Deque<Request> owner = owners.get(name);
                 Request selected = null;
                 for (Request request : owner) {
-                    if (request.action.scope == boundary && request.ticket.identity <= eligibleIdentity) {
+                    if (request.action.scope == boundary && request.ticket.identity <= eligibleIdentity
+                            && !request.waitingForOrigin()) {
                         selected = request;
                         break;
                     }
@@ -180,14 +189,24 @@ public final class GuiActionQueue {
                 request.ticket.finish(Status.CANCELLED, null, "stale_screen_revision");
                 return;
             }
+            for (GuiActionOrigin origin : request.origins) {
+                if (origin.expired()) {
+                    request.ticket.finish(Status.CANCELLED, null, "origin_expired");
+                    return;
+                }
+            }
             String unavailable = activation.unavailable(request.action.scope);
             if (unavailable != null) {
                 request.ticket.finish(Status.REFUSED, null, unavailable);
                 return;
             }
             request.ticket.running();
-            Object result = activation.execute(request.action, request.payload);
-            request.ticket.finish(Status.SUCCEEDED, result, null);
+            try (GuiActionOrigin.Frame inherited = GuiActionOrigin.enter(request.origins);
+                    GuiActionOrigin.Frame outcome = GuiActionOrigin.event()) {
+                Object result = activation.execute(request.action, request.payload);
+                request.ticket.finish(Status.SUCCEEDED, result, null);
+                outcome.commit();
+            }
         } catch (VirtualMachineError | ThreadDeath fatal) {
             request.ticket.finish(Status.FAILED, null, "fatal_action_failure");
             throw fatal;
@@ -202,6 +221,22 @@ public final class GuiActionQueue {
         order.removeIf(name -> !owners.containsKey(name));
     }
 
+    private void cancelExpiredOrigins() {
+        for (Deque<Request> requests : owners.values()) {
+            requests.removeIf(request -> {
+                for (GuiActionOrigin origin : request.origins) {
+                    if (origin.expired()) {
+                        request.ticket.finish(Status.CANCELLED, null, "origin_expired");
+                        size--;
+                        return true;
+                    }
+                }
+                return false;
+            });
+        }
+        prune();
+    }
+
     private static Submission refused(String reason) {
         return new Submission(null, reason);
     }
@@ -212,13 +247,26 @@ public final class GuiActionQueue {
         final long revision;
         final Map<String, Object> payload;
         final GuiActionTicket ticket;
-        Request(Activation activation, GuiActionDefinition action, Map<String, Object> payload,
-                GuiActionTicket ticket) {
+        final List<GuiActionOrigin> origins;
+        Request(Activation activation, GuiActionDefinition action, Map<String, Object> payload, GuiActionTicket ticket,
+                List<GuiActionOrigin> origins) {
             this.activation = activation;
             this.action = action;
             this.revision = activation.revision();
             this.payload = payload;
             this.ticket = ticket;
+            this.origins = origins;
+        }
+
+        boolean waitingForOrigin() {
+            boolean pending = false;
+            for (GuiActionOrigin origin : origins) {
+                if (origin.expired()) {
+                    return false;
+                }
+                pending |= origin.pendingEvent();
+            }
+            return pending;
         }
     }
 }

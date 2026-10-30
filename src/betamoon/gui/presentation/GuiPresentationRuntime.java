@@ -3,6 +3,7 @@ package betamoon.gui.presentation;
 import betamoon.gui.animation.GuiAnimationRequest;
 import betamoon.gui.animation.GuiAnimationValueError;
 import betamoon.gui.animation.GuiTransitionPolicy;
+import betamoon.gui.action.GuiActionOrigin;
 import betamoon.gui.presentation.GuiGeometry.Bounds;
 import betamoon.gui.presentation.GuiGeometry;
 import betamoon.luaapi.utils.LuaCallbackScope;
@@ -756,7 +757,8 @@ public class GuiPresentationRuntime implements AutoCloseable {
 
     private LuaValue invokeEvent(QueuedEvent event) {
         commands = new ArrayList<>();
-        try (LuaCallbackScope scope = new LuaCallbackScope(false, !closing)) {
+        try (GuiActionOrigin.Frame origin = GuiActionOrigin.event();
+                LuaCallbackScope scope = new LuaCallbackScope(false, !closing)) {
             LuaTable context = host.context(scope);
             context.set("gui", guiAccess(scope));
             LuaTable payload = event.payload.get();
@@ -766,6 +768,7 @@ public class GuiPresentationRuntime implements AutoCloseable {
                             definition.presentation.onEvent, LuaValue.varargsOf(new LuaValue[]{context, payload}))
                     .arg1();
             commitCommands();
+            origin.commit();
             return result;
         } catch (GuiViewStateAdmission.Refusal refused) {
             discardUiCommands();

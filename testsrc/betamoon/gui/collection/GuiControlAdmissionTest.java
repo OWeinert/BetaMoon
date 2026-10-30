@@ -25,6 +25,11 @@ import betamoon.gui.presentation.GuiPresentationSources;
 import betamoon.gui.presentation.GuiPresentationTree;
 import betamoon.gui.presentation.GuiPublishedData;
 import betamoon.gui.presentation.GuiViewStateAdmission;
+import betamoon.gui.screen.GuiActionDefinition;
+import betamoon.gui.screen.GuiActionDefinition.Scope;
+import betamoon.gui.screen.GuiActionQueue;
+import betamoon.gui.screen.GuiActionTicket;
+import betamoon.gui.screen.GuiActionTicket.Status;
 import betamoon.gui.style.GuiStyleSheet;
 import betamoon.gui.widget.GuiBuiltInViews;
 import betamoon.gui.widget.GuiStyledView;
@@ -39,6 +44,7 @@ import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.jse.JsePlatform;
+import org.luaj.vm2.lib.ZeroArgFunction;
 import org.lwjgl.input.Keyboard;
 
 /**
@@ -49,6 +55,7 @@ public final class GuiControlAdmissionTest {
     public static void main(String[] arguments) {
         localEditorProposals();
         typedEventRejection();
+        callbackFailureOrigins();
         customCaptureRefusal();
         bindingAndCommandBatches();
         System.out.println("Control admission passed: rejected edit/commit isolation, draft rollback and recovery, "
@@ -185,13 +192,14 @@ public final class GuiControlAdmissionTest {
 
     private static void typedEventRejection() {
         Globals lua = JsePlatform.standardGlobals();
+        Actions actions = new Actions();
+        lua.set("submit", actions.submit);
         GuiComponentRegistry registry = new GuiComponentRegistry();
         GuiComponentSchema schema = GuiComponentParser
                 .schema(lua.load("return {mirror={type='string',default=''}}").call(), "state", false);
-        LuaValue authored = lua
-                .load("calls=0; return {type='textbox',id='box',width=180,height=24,maximumLength=65536,"
-                        + "on={change=function(ctx,event) calls=calls+1; ctx.state:set('mirror',event.value) end}}")
-                .call();
+        LuaValue authored = lua.load("calls=0; return {type='textbox',id='box',width=180,height=24,maximumLength=65536,"
+                + "on={change=function(ctx,event) calls=calls+1; submit(); "
+                + "ctx.state:set('mirror',event.value) end}}").call();
         Host host = new Host();
         List<Throwable> failures = new ArrayList<>();
         GuiComponentPlan.Services services = new GuiComponentPlan.Services() {
@@ -219,20 +227,112 @@ public final class GuiControlAdmissionTest {
             int edits = 0;
             while (!textbox.interaction("invalid") && edits < 6000) {
                 scene.keyTyped('x', Keyboard.KEY_X, false);
+                actions.queue.dispatch(Scope.CLIENT);
                 edits++;
             }
             require(edits > 1000 && edits < 6000 && textbox.isEnabled() && failures.isEmpty(),
                     "Combined typed/editor admission disabled its component instead of refusing the edit");
+            require(actions.last.status() == Status.CANCELLED && "origin_expired".equals(actions.last.reason())
+                    && actions.completed == edits - 1,
+                    "A recoverably refused typed callback retained its deferred action");
             require(textbox.text().equals(plan.state().get(GuiComponentPlan.SCREEN_STATE, "mirror"))
                     && budget.model.rowState("row").equals(budget.state(tree.captureViewState())),
                     "Refused typed event left different live state, editor text or dormant cache");
             String accepted = textbox.text();
             scene.keyTyped('\0', Keyboard.KEY_BACK, false);
+            actions.queue.dispatch(Scope.CLIENT);
             require(!textbox.interaction("invalid") && textbox.text().length() == accepted.length() - 1
                     && textbox.text().equals(plan.state().get(GuiComponentPlan.SCREEN_STATE, "mirror"))
                     && failures.isEmpty(), "A valid edit after typed-state refusal did not recover its event scope");
+            require(actions.last.status() == Status.SUCCEEDED, "A recovered callback could no longer submit intent");
         }
         require(host.observers.isEmpty(), "A guarded component left subscriptions after close");
+    }
+
+    private static final class Actions implements GuiActionQueue.Activation {
+        final GuiActionQueue queue = new GuiActionQueue(() -> 0);
+        final GuiActionDefinition action = new GuiActionDefinition("apply", Scope.CLIENT, GuiComponentSchema.EMPTY,
+                new ZeroArgFunction() {
+                    public LuaValue call() {
+                        return NIL;
+                    }
+                });
+        GuiActionTicket last;
+        int completed;
+        final LuaValue submit = new ZeroArgFunction() {
+            public LuaValue call() {
+                GuiActionQueue.Submission request = queue.submit(Actions.this, action, Collections.emptyMap());
+                require(request.ticket != null, "Callback intent was refused: " + request.reason);
+                last = request.ticket;
+                return NIL;
+            }
+        };
+
+        public String owner() {
+            return "typed-control-admission.lua";
+        }
+
+        public long revision() {
+            return 0;
+        }
+
+        public boolean active() {
+            return true;
+        }
+
+        public String unavailable(Scope scope) {
+            return null;
+        }
+
+        public Object execute(GuiActionDefinition definition, Map<String, Object> payload) {
+            completed++;
+            return null;
+        }
+
+        public void failed(String name, Throwable failure) {
+            throw new AssertionError(failure);
+        }
+    }
+
+    private static void callbackFailureOrigins() {
+        for (String result : Arrays.asList("error('failure fixture')", "return 3", "return true")) {
+            Globals lua = JsePlatform.standardGlobals();
+            Actions actions = new Actions();
+            lua.set("submit", actions.submit);
+            GuiComponentRegistry registry = new GuiComponentRegistry();
+            List<Throwable> failures = new ArrayList<>();
+            GuiComponentPlan.Services services = new GuiComponentPlan.Services() {
+                public GuiPaintCompiler.Resources paintResources(String owner) {
+                    throw new IllegalArgumentException("This callback fixture has no custom painting");
+                }
+
+                public void requireHost() {
+                }
+
+                public void failure(String owner, String path, Throwable failure) {
+                    failures.add(failure);
+                }
+            };
+            LuaValue authored = lua.load("return {type='button',id='button',width=80,height=24,"
+                    + "on={activate=function() submit(); " + result + " end}}").call();
+            try (GuiComponentPlan plan = GuiComponentCompiler.prepare(registry, "origin-callback-fixture.lua",
+                    "test:origin_callback",
+                    new GuiAuthoredNodeParser(registry).parse("origin-callback-fixture.lua", authored, "root"),
+                    new Host(), services, Collections.emptySet(), null);
+                    GuiPresentationTree tree = plan.createTree(Collections.emptySet(), text -> text.length() * 6,
+                            () -> 0)) {
+                GuiScene scene = scene(tree);
+                GuiElement button = tree.element(plan.elementId("button"));
+                scene.mousePressed(button.getLeft() + 2, button.getTop() + 2, 0);
+                scene.mouseReleased(button.getLeft() + 2, button.getTop() + 2, 0);
+                actions.queue.dispatch(Scope.CLIENT);
+                boolean succeeded = "return true".equals(result);
+                require(actions.last != null
+                        && actions.last.status() == (succeeded ? Status.SUCCEEDED : Status.CANCELLED)
+                        && failures.size() == (succeeded ? 0 : 1),
+                        "Swallowed callback failure/invalid result retained intent or cancelled a successful callback");
+            }
+        }
     }
 
     private static void customCaptureRefusal() {

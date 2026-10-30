@@ -1,6 +1,7 @@
 package betamoon.gui.screen;
 
 import betamoon.gui.component.GuiComponentSchema;
+import betamoon.gui.action.GuiActionOrigin;
 import betamoon.gui.screen.GuiActionDefinition.Scope;
 import betamoon.gui.screen.GuiActionTicket.Status;
 import betamoon.luaapi.utils.LuaCallbackScope;
@@ -23,6 +24,8 @@ public final class GuiActionQueueTest {
         fairDispatch();
         lifetimeAndFailures();
         capacityAndReadOnly();
+        originOutcomes();
+        originCapacityAndFollowups();
         System.out.println("UI actions passed: bounded owner fairness, logical boundaries, detached results, "
                 + "reentrancy, refusal, stale revisions, cancellation and exactly-once completion.");
     }
@@ -120,6 +123,99 @@ public final class GuiActionQueueTest {
                 return NIL;
             }
         });
+    }
+
+    private static void originOutcomes() {
+        GuiActionQueue queue = new GuiActionQueue(() -> 0);
+        Activation activation = new Activation("origins", new ArrayList<>());
+        GuiActionOrigin record = GuiActionOrigin.pending();
+        try (GuiActionOrigin.Frame source = GuiActionOrigin.enter(Collections.singletonList(record))) {
+            require(queue.submit(activation, CLIENT, Collections.emptyMap()).reason.equals("origin_expired"),
+                    "An unaccepted record submitted authoritative intent");
+        }
+        record.activate();
+        GuiActionTicket accepted;
+        try (GuiActionOrigin.Frame source = GuiActionOrigin.enter(Collections.singletonList(record));
+                GuiActionOrigin.Frame event = GuiActionOrigin.event()) {
+            accepted = queue.submit(activation, CLIENT, Collections.emptyMap()).ticket;
+            queue.dispatch(Scope.CLIENT);
+            require(accepted.status() == Status.QUEUED && activation.order.isEmpty(),
+                    "Deferred intent executed before its UI event finished validation");
+            event.commit();
+        }
+        queue.dispatch(Scope.CLIENT);
+        require(accepted.status() == Status.SUCCEEDED, "Accepted event did not release its deferred intent");
+        GuiActionTicket rejected;
+        try (GuiActionOrigin.Frame event = GuiActionOrigin.event()) {
+            rejected = queue.submit(activation, WORLD, Collections.emptyMap()).ticket;
+            GuiActionOrigin.rejectEvent();
+            event.commit();
+        }
+        queue.dispatch(Scope.CLIENT);
+        require(rejected.status() == Status.CANCELLED && rejected.reason().equals("origin_expired"),
+                "An explicitly refused UI event revived its intent or waited for a world tick to cancel");
+        GuiActionTicket nested;
+        GuiActionTicket recovered;
+        try (GuiActionOrigin.Frame outer = GuiActionOrigin.event()) {
+            try (GuiActionOrigin.Frame inner = GuiActionOrigin.event()) {
+                nested = queue.submit(activation, CLIENT, Collections.emptyMap()).ticket;
+            }
+            recovered = queue.submit(activation, CLIENT, Collections.emptyMap()).ticket;
+            outer.commit();
+        }
+        queue.dispatch(Scope.CLIENT);
+        require(nested.status() == Status.CANCELLED && recovered.status() == Status.SUCCEEDED,
+                "A caught nested callback failure retained its intent or cancelled the recovered caller's intent");
+        GuiActionTicket expired;
+        try (GuiActionOrigin.Frame source = GuiActionOrigin.enter(Collections.singletonList(record))) {
+            expired = queue.submit(activation, CLIENT, Collections.emptyMap()).ticket;
+        }
+        record.invalidate();
+        queue.dispatch(Scope.CLIENT);
+        require(expired.status() == Status.CANCELLED, "Expired record lifetime reached a later callback");
+        require(GuiActionOrigin.capture().isEmpty(), "UI origin scopes leaked after callback completion");
+    }
+
+    private static void originCapacityAndFollowups() {
+        GuiActionQueue queue = new GuiActionQueue(() -> 0);
+        Activation activation = new Activation("origin_capacity", new ArrayList<>());
+        for (int index = 0; index < 16; index++) {
+            GuiActionOrigin record = GuiActionOrigin.pending();
+            record.activate();
+            try (GuiActionOrigin.Frame source = GuiActionOrigin.enter(Collections.singletonList(record))) {
+                require(queue.submit(activation, CLIENT, Collections.emptyMap()).ticket != null,
+                        "A valid record could not use its owning screen's queue share");
+            }
+        }
+        require(queue.submit(activation, CLIENT, Collections.emptyMap()).reason.equals("action_queue_full"),
+                "Different row origins bypassed their shared activation capacity");
+        queue.cancel(activation, "screen_closed");
+        require(queue.pending() == 0, "Root cancellation failed to cancel record-origin requests");
+
+        List<GuiActionTicket> followups = new ArrayList<>();
+        activation.nested = () -> {
+            followups.add(queue.submit(activation, CLIENT, Collections.emptyMap()).ticket);
+            throw new IllegalArgumentException("Follow-up fixture failure");
+        };
+        GuiActionTicket failed = queue.submit(activation, CLIENT, Collections.emptyMap()).ticket;
+        queue.dispatch(Scope.CLIENT);
+        activation.nested = null;
+        queue.dispatch(Scope.CLIENT);
+        require(failed.status() == Status.FAILED && followups.get(0).status() == Status.CANCELLED,
+                "A failed action left its newly submitted follow-up eligible");
+        int[] remaining = {130};
+        activation.nested = () -> {
+            if (--remaining[0] > 0) {
+                require(queue.submit(activation, CLIENT, Collections.emptyMap()).ticket != null,
+                        "Completed outcome tokens accumulated across a valid deferred action chain");
+            }
+        };
+        queue.submit(activation, CLIENT, Collections.emptyMap());
+        for (int boundary = 0; boundary < 130; boundary++) {
+            queue.dispatch(Scope.CLIENT);
+        }
+        require(remaining[0] == 0 && queue.pending() == 0,
+                "A valid long action chain leaked origin scopes or stalled at the scope limit");
     }
 
     private static final class Activation implements GuiActionQueue.Activation {

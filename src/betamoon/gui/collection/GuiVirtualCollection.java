@@ -1,5 +1,6 @@
 package betamoon.gui.collection;
 
+import betamoon.gui.action.GuiActionOrigin;
 import betamoon.gui.framework.GuiContainer;
 import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiElement;
@@ -30,6 +31,7 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
     private final Consumer<Throwable> failures;
     private GuiCollectionModel model = new GuiCollectionModel();
     private Map<String, Entry> rows = new LinkedHashMap<>();
+    private Map<String, RecordOrigins> actionOrigins = new LinkedHashMap<>();
     private GuiCollectionModel.Snapshot requested;
     private GuiCollectionWindow window;
     private int requestedOffset;
@@ -160,6 +162,7 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
                 requireBoundedNesting();
             }
             GuiCollectionModel next = model.fork(requested == null ? model.snapshot() : requested);
+            Map<String, RecordOrigins> nextOrigins = prepareActionOrigins(next.snapshot());
             for (Entry entry : rows.values()) {
                 if (next.snapshot().keys.containsKey(entry.record.key)) {
                     next.publishRowState(entry.record.key, entry.row.state());
@@ -178,12 +181,13 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
                         || entry.depth != record.depth || entry.row.needsRefresh()) {
                     GuiRowFactory.Prepared prepared;
                     Object stateIdentity = new Object();
+                    GuiRowFactory.Context rowContext = new GuiRowFactory.Context(context, budget, record.record,
+                            record.depth, getWidth(), rowHeight, next.rowState(record.record.key),
+                            previous == null ? null : previous.row,
+                            values -> publishRowState(record.record.key, stateIdentity, values),
+                            values -> reserveRowState(record.record.key, stateIdentity, values));
                     try (GuiRowBudget.Preparation preparation = budget.prepareFactory()) {
-                        prepared = factory.prepare(new GuiRowFactory.Context(context, budget, record.record,
-                                record.depth, getWidth(), rowHeight, next.rowState(record.record.key),
-                                previous == null ? null : previous.row,
-                                values -> publishRowState(record.record.key, stateIdentity, values),
-                                values -> reserveRowState(record.record.key, stateIdentity, values)));
+                        prepared = factory.prepare(rowContext);
                     }
                     if (prepared == null) {
                         throw new IllegalArgumentException("Row factory returned no prepared row");
@@ -195,7 +199,13 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
                     if (row.element() == null || row.element().getParent() != null) {
                         throw new IllegalArgumentException("Row factory must prepare an unattached root");
                     }
-                    entry = new Entry(record.record, record.depth, row, prepared.reservation(), stateIdentity);
+                    Object revision = row.actionRevision();
+                    RecordOrigins origins = nextOrigins.get(record.record.key)
+                            .withCallbacks(revision == null ? factory : revision, refreshRevision);
+                    nextOrigins.put(record.record.key, origins);
+                    rowContext.bindActionOrigins(origins.recordOrigin, origins.callbackOrigin);
+                    entry = new Entry(record.record, record.depth, row, prepared.reservation(), stateIdentity,
+                            rowContext);
                     candidate.entry = entry;
                     next.publishRowState(record.record.key, row.state());
                 }
@@ -208,7 +218,7 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
                 candidate.prepared.validate();
             }
             requireOpen();
-            commit(context, next, nextWindow, nextRows, staged);
+            commit(context, next, nextWindow, nextRows, nextOrigins, staged);
             requested = null;
             requestedOffset = nextWindow.offset;
             explicitScroll = false;
@@ -244,7 +254,7 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
     }
 
     private void commit(GuiContext context, GuiCollectionModel next, GuiCollectionWindow nextWindow,
-            Map<String, Entry> nextRows, List<Staged> staged) {
+            Map<String, Entry> nextRows, Map<String, RecordOrigins> nextOrigins, List<Staged> staged) {
         List<GuiRowBudget.Reservation> additions = new ArrayList<>();
         List<GuiRowBudget.Reservation> removals = new ArrayList<>();
         GuiElement focused = null;
@@ -272,6 +282,12 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
                 candidate.entry.input.activate();
                 candidate.committed = true;
             }
+            for (Map.Entry<String, RecordOrigins> previous : actionOrigins.entrySet()) {
+                previous.getValue().retireUnless(nextOrigins.get(previous.getKey()));
+            }
+            for (RecordOrigins origins : nextOrigins.values()) {
+                origins.activate();
+            }
             for (Entry previous : rows.values()) {
                 if (nextRows.get(previous.record.key) != previous) {
                     previous.close();
@@ -280,6 +296,10 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
             model = next;
             window = nextWindow;
             rows = nextRows;
+            actionOrigins = nextOrigins;
+            for (Staged candidate : staged) {
+                candidate.entry.context.adopt();
+            }
             List<GuiElement> children = new ArrayList<>();
             for (Entry entry : nextRows.values()) {
                 children.add(entry.mount);
@@ -316,6 +336,21 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
             }
             throw failure;
         }
+    }
+
+    private Map<String, RecordOrigins> prepareActionOrigins(GuiCollectionModel.Snapshot snapshot) {
+        Map<String, RecordOrigins> next = new LinkedHashMap<>();
+        for (GuiCollectionModel.Record record : snapshot.records) {
+            RecordOrigins previous = actionOrigins.get(record.key);
+            RecordOrigins origins = previous != null && previous.record.equals(record)
+                    ? previous
+                    : new RecordOrigins(record);
+            if (origins.callbackOrigin != null && origins.refresh != refreshRevision) {
+                origins = origins.withCallbacks(origins.callbackRevision, refreshRevision);
+            }
+            next.put(record.key, origins);
+        }
+        return next;
     }
 
     @Override
@@ -443,6 +478,10 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
             return;
         }
         closed = true;
+        for (RecordOrigins origins : actionOrigins.values()) {
+            origins.retireUnless(null);
+        }
+        actionOrigins.clear();
         Throwable cleanup = null;
         try {
             for (Entry entry : rows.values()) {
@@ -498,14 +537,16 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
         final GuiInputLifetime input = new GuiInputLifetime();
         final RowMount mount;
         final Object stateIdentity;
+        final GuiRowFactory.Context context;
         boolean closed;
         Entry(GuiCollectionModel.Record record, int depth, GuiRowFactory.Row row, GuiRowBudget.Reservation reservation,
-                Object stateIdentity) {
+                Object stateIdentity, GuiRowFactory.Context context) {
             this.record = record;
             this.depth = depth;
             this.row = row;
             this.reservation = reservation;
             this.stateIdentity = stateIdentity;
+            this.context = context;
             mount = new RowMount(row.element());
             mount.inputLifetime(input);
         }
@@ -519,6 +560,49 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
                 } finally {
                     reservation.close();
                 }
+            }
+        }
+    }
+
+    private static final class RecordOrigins {
+        final GuiCollectionModel.Record record;
+        final GuiActionOrigin recordOrigin;
+        final GuiActionOrigin callbackOrigin;
+        final Object callbackRevision;
+        final long refresh;
+
+        RecordOrigins(GuiCollectionModel.Record record) {
+            this(record, GuiActionOrigin.pending(), null, null, -1);
+        }
+
+        RecordOrigins(GuiCollectionModel.Record record, GuiActionOrigin recordOrigin, GuiActionOrigin callbackOrigin,
+                Object callbackRevision, long refresh) {
+            this.record = record;
+            this.recordOrigin = recordOrigin;
+            this.callbackOrigin = callbackOrigin;
+            this.callbackRevision = callbackRevision;
+            this.refresh = refresh;
+        }
+
+        RecordOrigins withCallbacks(Object revision, long nextRefresh) {
+            return Objects.equals(callbackRevision, revision) && refresh == nextRefresh
+                    ? this
+                    : new RecordOrigins(record, recordOrigin, GuiActionOrigin.pending(), revision, nextRefresh);
+        }
+
+        void activate() {
+            recordOrigin.activate();
+            if (callbackOrigin != null) {
+                callbackOrigin.activate();
+            }
+        }
+
+        void retireUnless(RecordOrigins next) {
+            if (next == null || recordOrigin != next.recordOrigin) {
+                recordOrigin.invalidate();
+            }
+            if (callbackOrigin != null && (next == null || callbackOrigin != next.callbackOrigin)) {
+                callbackOrigin.invalidate();
             }
         }
     }

@@ -1,5 +1,12 @@
 package betamoon.gui.collection;
 
+import betamoon.gui.action.GuiActionOrigin;
+import betamoon.gui.component.GuiComponentSchema;
+import betamoon.gui.screen.GuiActionDefinition;
+import betamoon.gui.screen.GuiActionDefinition.Scope;
+import betamoon.gui.screen.GuiActionQueue;
+import betamoon.gui.screen.GuiActionTicket;
+import betamoon.gui.screen.GuiActionTicket.Status;
 import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiElement;
 import betamoon.gui.framework.GuiGeometry.Constraints;
@@ -19,7 +26,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.LinkedHashMap;
+import java.util.function.Consumer;
 import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.lib.ZeroArgFunction;
 
 /**
  * Realized rows are actual shared-scene elements, not just a window
@@ -131,12 +140,140 @@ public final class GuiVirtualCollectionTest {
         nestedRealization();
         cleanupFailures();
         dormantControlRows();
+        actionOrigins();
         System.out.println("Virtual collections passed: 4096 records, bounded shared elements, Java-only idle replay, "
                 + "atomic row rejection, scoped realization, keyed drafts/focus/capture and disposal.");
     }
 
     private static GuiCollectionModel.Record record(int index, String label) {
         return new GuiCollectionModel.Record("row" + index, null, label, true, Collections.emptyMap());
+    }
+
+    private static void actionOrigins() {
+        GuiActionQueue queue = new GuiActionQueue(() -> 0);
+        ActionActivation activation = new ActionActivation();
+        GuiActionDefinition action = new GuiActionDefinition("apply", Scope.WORLD, GuiComponentSchema.EMPTY,
+                new ZeroArgFunction() {
+                    public LuaValue call() {
+                        return NIL;
+                    }
+                });
+        GuiRowBudget budget = new GuiRowBudget();
+        List<Throwable> failures = new ArrayList<>();
+        Factory factory = new Factory();
+        factory.onPrepare = context -> {
+            try (GuiActionOrigin.Frame source = GuiActionOrigin.enter(context.actionOrigins())) {
+                require("origin_expired".equals(queue.submit(activation, action, Collections.emptyMap()).reason),
+                        "An unaccepted row candidate submitted deferred intent");
+            }
+        };
+        GuiVirtualCollection view = new GuiVirtualCollection(budget, factory, failures::add);
+        List<GuiCollectionModel.Record> records = new ArrayList<>();
+        for (int index = 0; index < 40; index++) {
+            records.add(record(index, "row" + index));
+        }
+        view.setModel(GuiCollectionModel.prepare(records));
+        GuiScene scene = new GuiScene();
+        scene.updateEnvironment(null, null, 320, 200, 320, 200);
+        scene.setContent(view);
+        prepare(scene);
+        GuiRowFactory.Context original = factory.contexts.get("row0");
+        GuiActionTicket survives = submit(queue, activation, action, original);
+        Collections.rotate(records, 5);
+        view.setModel(GuiCollectionModel.prepare(records));
+        prepare(scene);
+        view.setScrollOffset(600);
+        prepare(scene);
+        require(view.rowElement("row0") == null, "Origin fixture failed to unrealize its row");
+        queue.dispatch(Scope.WORLD);
+        require(survives.status() == Status.SUCCEEDED, "Reorder/offscreen disposal cancelled accepted keyed intent");
+        view.setScrollOffset(100);
+        prepare(scene);
+        GuiActionTicket removed = submit(queue, activation, action, factory.contexts.get("row0"));
+        records.removeIf(record -> record.key.equals("row0"));
+        view.setModel(GuiCollectionModel.prepare(records));
+        prepare(scene);
+        records.add(5, record(0, "row0"));
+        view.setModel(GuiCollectionModel.prepare(records));
+        prepare(scene);
+        queue.dispatch(Scope.CLIENT);
+        require(removed.status() == Status.CANCELLED && "origin_expired".equals(removed.reason()),
+                "Removing/reinserting an identical key revived world intent or waited for a world boundary");
+        GuiRowFactory.Context accepted = factory.contexts.get("row0");
+        GuiActionTicket unchanged = submit(queue, activation, action, accepted);
+        List<GuiCollectionModel.Record> invalid = new ArrayList<>(records);
+        invalid.set(5, record(0, "changed"));
+        invalid.set(6, record(1, "reject"));
+        view.setModel(GuiCollectionModel.prepare(invalid));
+        prepare(scene);
+        queue.dispatch(Scope.WORLD);
+        require(unchanged.status() == Status.SUCCEEDED && failures.size() == 1,
+                "A rejected later candidate expired the accepted record's deferred intent");
+        view.setModel(GuiCollectionModel.prepare(records));
+        prepare(scene);
+        GuiActionTicket changed = submit(queue, activation, action, accepted);
+        records.set(5, record(0, "changed"));
+        view.setModel(GuiCollectionModel.prepare(records));
+        prepare(scene);
+        queue.dispatch(Scope.CLIENT);
+        require(changed.status() == Status.CANCELLED, "Accepted record replacement retained stale deferred intent");
+        GuiActionTicket oldCode = submit(queue, activation, action, factory.contexts.get("row0"));
+        TestRow row = (TestRow) view.rowElement("row0");
+        row.refresh = true;
+        factory.revision = new Object();
+        prepare(scene);
+        queue.dispatch(Scope.CLIENT);
+        require(oldCode.status() == Status.CANCELLED, "Accepted callback replacement retained old callback intent");
+        GuiActionTicket refreshed = submit(queue, activation, action, factory.contexts.get("row0"));
+        view.setScrollOffset(600);
+        prepare(scene);
+        view.refreshRows();
+        prepare(scene);
+        queue.dispatch(Scope.CLIENT);
+        require(refreshed.status() == Status.CANCELLED, "Explicit refresh failed to expire dormant callback intent");
+        view.setScrollOffset(100);
+        prepare(scene);
+        GuiActionTicket closed = submit(queue, activation, action, factory.contexts.get("row0"));
+        view.close();
+        queue.dispatch(Scope.CLIENT);
+        require(closed.status() == Status.CANCELLED && budget.reservedElements() == 0,
+                "Closing the owning collection retained deferred world intent/resources");
+        budget.close();
+    }
+
+    private static GuiActionTicket submit(GuiActionQueue queue, ActionActivation activation, GuiActionDefinition action,
+            GuiRowFactory.Context context) {
+        try (GuiActionOrigin.Frame source = GuiActionOrigin.enter(context.actionOrigins())) {
+            GuiActionQueue.Submission submission = queue.submit(activation, action, Collections.emptyMap());
+            require(submission.ticket != null, "Accepted row intent was refused: " + submission.reason);
+            return submission.ticket;
+        }
+    }
+
+    private static final class ActionActivation implements GuiActionQueue.Activation {
+        public String owner() {
+            return "row-origin-fixture.lua";
+        }
+
+        public long revision() {
+            return 0;
+        }
+
+        public boolean active() {
+            return true;
+        }
+
+        public String unavailable(Scope scope) {
+            return null;
+        }
+
+        public Object execute(GuiActionDefinition action, Map<String, Object> payload) {
+            return null;
+        }
+
+        public void failed(String action, Throwable failure) {
+            throw new AssertionError(failure);
+        }
     }
 
     private static void prepare(GuiScene scene) {
@@ -357,13 +494,20 @@ public final class GuiVirtualCollectionTest {
 
     private static final class Factory implements GuiRowFactory {
         int builds;
+        Object revision;
+        final Map<String, Context> contexts = new LinkedHashMap<>();
+        Consumer<Context> onPrepare = context -> {
+        };
         public Prepared prepare(Context context) {
             require(GuiPreparationPhase.active(), "Row factory did not enter Java preparation");
             builds++;
+            onPrepare.accept(context);
             if (context.record.label.equals("reject")) {
                 throw new IllegalArgumentException("Rejected row fixture");
             }
             TestRow row = new TestRow();
+            row.revision = revision;
+            contexts.put(context.record.key, context);
             row.edits = ((Number) context.state.getOrDefault("edits", 0)).intValue();
             GuiRowBudget.Reservation reservation = context.budget.reserve(2);
             return prepared(row, reservation);
@@ -376,6 +520,8 @@ public final class GuiVirtualCollectionTest {
         int released;
         boolean closed;
         Error closeFailure;
+        boolean refresh;
+        Object revision;
         TestRow() {
             setFocusable(true);
         }
@@ -386,6 +532,14 @@ public final class GuiVirtualCollectionTest {
 
         public Map<String, Object> state() {
             return Collections.singletonMap("edits", edits);
+        }
+
+        public boolean needsRefresh() {
+            return refresh;
+        }
+
+        public Object actionRevision() {
+            return revision;
         }
 
         protected Size measureElement(GuiContext context, Constraints constraints) {

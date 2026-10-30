@@ -1,10 +1,14 @@
 package betamoon.gui.collection;
 
+import betamoon.gui.action.GuiActionOrigin;
 import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiElement;
 import betamoon.gui.presentation.GuiViewStateAdmission;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import java.util.Map;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -33,6 +37,13 @@ public interface GuiRowFactory {
         }
 
         default Object refreshStamp() {
+            return null;
+        }
+
+        /**
+         * Immutable callback signature; null uses the collection factory's identity.
+         */
+        default Object actionRevision() {
             return null;
         }
 
@@ -74,6 +85,9 @@ public interface GuiRowFactory {
         public final Row previous;
         private final Consumer<Map<String, ?>> statePublication;
         private final GuiViewStateAdmission proposals;
+        private final GuiActionOrigin adoption = GuiActionOrigin.pending();
+        private List<GuiActionOrigin> actionOrigins = Collections.singletonList(adoption);
+        private boolean originsBound;
 
         public Context(GuiContext gui, GuiRowBudget budget, GuiCollectionModel.Record record, int depth, int width,
                 int height, Map<String, Object> state, Row previous) {
@@ -102,6 +116,25 @@ public interface GuiRowFactory {
             this.previous = previous;
             this.statePublication = Objects.requireNonNull(statePublication, "row state publication");
             this.proposals = Objects.requireNonNull(proposals, "row control proposals");
+        }
+
+        public List<GuiActionOrigin> actionOrigins() {
+            return actionOrigins;
+        }
+
+        void bindActionOrigins(GuiActionOrigin record, GuiActionOrigin callbacks) {
+            if (originsBound) {
+                throw new IllegalStateException("Row action origins have already been bound");
+            }
+            actionOrigins = Collections.unmodifiableList(Arrays.asList(adoption, record, callbacks));
+            originsBound = true;
+        }
+
+        void adopt() {
+            if (!originsBound) {
+                throw new IllegalStateException("Row action origins must be bound before adoption");
+            }
+            adoption.activate();
         }
 
         /**
