@@ -160,6 +160,13 @@ public class GuiPresentationRuntime implements AutoCloseable {
         }
     }
 
+    void requirePreparedViews() {
+        requireActive();
+        if (!preparing) {
+            throw new IllegalStateException("Restore local view state before candidate activation");
+        }
+    }
+
     /**
      * Internal diagnostics only: immutable snapshots do not expose mutable render
      * state to Lua.

@@ -1,6 +1,7 @@
 package betamoon.gui.presentation;
 
 import betamoon.gui.framework.GuiElement;
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -24,6 +25,23 @@ public interface GuiViewAdapter extends AutoCloseable {
      * candidate view.
      */
     default void retainFrom(GuiViewAdapter previous) {
+    }
+
+    /**
+     * Detached local values only; pointer gestures, native resources and callbacks
+     * are never persisted.
+     */
+    default Map<String, Object> captureState() {
+        return Collections.emptyMap();
+    }
+
+    /**
+     * Validate now, then return an infallible Java-only application for an
+     * unactivated candidate.
+     */
+    default Runnable prepareStateRestore(Map<String, Object> state) {
+        return () -> {
+        };
     }
 
     default boolean interaction(String name) {

@@ -7,13 +7,19 @@ import betamoon.gui.framework.GuiGeometry.Size;
 import betamoon.gui.framework.GuiInputEvent;
 import betamoon.gui.framework.GuiPreparationPhase;
 import betamoon.gui.framework.GuiScene;
+import betamoon.gui.framework.GuiSharedControlsTest;
 import betamoon.gui.framework.HeadlessGuiFrames;
+import betamoon.gui.presentation.GuiPresentationTree;
+import betamoon.gui.style.GuiStyleSheet;
+import betamoon.gui.widget.GuiStyledView;
 import betamoon.interop.runtime.NativeContext;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashMap;
+import org.luaj.vm2.LuaValue;
 
 /**
  * Realized rows are actual shared-scene elements, not just a window
@@ -124,6 +130,7 @@ public final class GuiVirtualCollectionTest {
         budget.close();
         nestedRealization();
         cleanupFailures();
+        dormantControlRows();
         System.out.println("Virtual collections passed: 4096 records, bounded shared elements, Java-only idle replay, "
                 + "atomic row rejection, scoped realization, keyed drafts/focus/capture and disposal.");
     }
@@ -202,6 +209,121 @@ public final class GuiVirtualCollectionTest {
                     "One failed row cleanup skipped later resources or swallowed a fatal error");
             view.close();
             budget.close();
+        }
+    }
+
+    private static void dormantControlRows() {
+        GuiRowBudget budget = new GuiRowBudget();
+        List<Throwable> failures = new ArrayList<>();
+        Map<String, DraftRow> built = new LinkedHashMap<>();
+        GuiRowFactory factory = context -> {
+            GuiPresentationTree tree = GuiSharedControlsTest.document(GuiStyleSheet.MINIMAL, new ArrayList<>(),
+                    LuaValue.NIL);
+            GuiRowBudget.Reservation reservation = null;
+            try {
+                if (context.state.containsKey("views")) {
+                    tree.restoreViewState(viewState(context.state.get("views")));
+                }
+                reservation = budget.reserve(8);
+                DraftRow row = new DraftRow(tree);
+                built.put(context.record.key, row);
+                GuiRowFactory.Prepared candidate = prepared(row, reservation);
+                return new GuiRowFactory.Prepared() {
+                    public GuiRowFactory.Row candidate() {
+                        return candidate.candidate();
+                    }
+
+                    public GuiRowBudget.Reservation reservation() {
+                        return candidate.reservation();
+                    }
+
+                    public GuiRowFactory.Row commit() {
+                        tree.activate();
+                        return candidate.commit();
+                    }
+
+                    public void close() {
+                        candidate.close();
+                    }
+                };
+            } catch (RuntimeException | Error failure) {
+                tree.close();
+                if (reservation != null) {
+                    reservation.close();
+                }
+                throw failure;
+            }
+        };
+        GuiVirtualCollection view = new GuiVirtualCollection(budget, factory, failures::add);
+        view.setMetrics(200, 2);
+        List<GuiCollectionModel.Record> records = new ArrayList<>();
+        for (int index = 0; index < 4096; index++) {
+            records.add(record(index, "row" + index));
+        }
+        view.setModel(GuiCollectionModel.prepare(records));
+        GuiScene scene = new GuiScene();
+        scene.updateEnvironment(null, null, 320, 200, 320, 200);
+        scene.setContent(view);
+        prepare(scene);
+        DraftRow original = built.get("row0");
+        GuiStyledView textbox = (GuiStyledView) original.tree.element("textbox");
+        textbox.editor().selectAll();
+        textbox.editor().insert("saved local text");
+        textbox.editor().commit(true);
+        textbox.editor().move(1, false);
+        textbox.editor().move(5, true);
+        textbox.textOffset(1);
+        GuiElement checkbox = original.tree.element("checkbox");
+        scene.mousePressed(checkbox.getLeft() + 2, checkbox.getTop() + 2, 0);
+        scene.mouseReleased(checkbox.getLeft() + 2, checkbox.getTop() + 2, 0);
+
+        view.setScrollOffset(4003);
+        prepare(scene);
+        require(original.closed && view.rowElement("row0") == null && view.realizedRows() <= 6,
+                "An offscreen row retained its live document instead of detached controls");
+        view.setScrollOffset(0);
+        prepare(scene);
+        DraftRow restored = built.get("row0");
+        GuiStyledView text = (GuiStyledView) restored.tree.element("textbox");
+        require(restored != original && text.text().equals("saved local text") && text.editor().selectionStart() == 1
+                && text.editor().selectionEnd() == 5 && text.textOffset() == 1
+                && ((GuiStyledView) restored.tree.element("checkbox")).selected() && failures.isEmpty(),
+                "Recreated keyed rows lost real editor drafts/selection/viewport or local checkbox state");
+        view.close();
+        require(budget.reservedElements() == 0 && restored.closed, "Dormant row graphs retained resources after close");
+        budget.close();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> viewState(Object value) {
+        return (Map<String, Object>) value;
+    }
+
+    private static final class DraftRow implements GuiRowFactory.Row {
+        final GuiPresentationTree tree;
+        boolean closed;
+
+        DraftRow(GuiPresentationTree tree) {
+            this.tree = tree;
+        }
+
+        public GuiElement element() {
+            return tree.root();
+        }
+
+        public Map<String, Object> state() {
+            return Collections.singletonMap("views", tree.captureViewState());
+        }
+
+        public void update(GuiContext context, int width, int height) {
+            tree.update();
+        }
+
+        public void close() {
+            if (!closed) {
+                closed = true;
+                tree.close();
+            }
         }
     }
 

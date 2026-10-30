@@ -2,6 +2,7 @@ package betamoon.gui.presentation;
 
 import betamoon.gui.framework.GuiContainer;
 import betamoon.gui.framework.GuiElement;
+import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luamodloader.LuaScriptErrors;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -104,6 +105,68 @@ public final class GuiPresentationTree implements AutoCloseable {
     public GuiPresentationRuntime runtime() {
         requireActive();
         return runtime;
+    }
+
+    /**
+     * Bounded detached snapshots let a keyed row release its actual control graph
+     * while offscreen.
+     */
+    public Map<String, Object> captureViewState() {
+        requireActive();
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        for (Map.Entry<String, GuiViewAdapter> view : ids.entrySet()) {
+            Map<String, Object> state = view.getValue().captureState();
+            if (!state.isEmpty()) {
+                Map<String, Object> entry = new LinkedHashMap<>();
+                entry.put("type", definitions.get(view.getKey()).type);
+                entry.put("state", state);
+                snapshot.put(view.getKey(), entry);
+            }
+        }
+        GuiPublishedData detached = new GuiPublishedData();
+        detached.publish(snapshot);
+        return detached.snapshot();
+    }
+
+    /** All compatible state validates before any candidate view changes. */
+    public void restoreViewState(Map<String, Object> snapshot) {
+        LuaCallbackScope.requireUiStateWrite();
+        requireActive();
+        runtime.requirePreparedViews();
+        if (root().getParent() != null) {
+            throw new IllegalStateException("Restore view state before attaching the candidate graph");
+        }
+        GuiPublishedData detached = new GuiPublishedData();
+        detached.publish(snapshot);
+        List<Runnable> restores = new ArrayList<>();
+        for (Map.Entry<String, Object> saved : detached.snapshot().entrySet()) {
+            GuiViewAdapter view = ids.get(saved.getKey());
+            if (view == null) {
+                continue;
+            }
+            Map<String, Object> entry = stateRecord(saved.getValue());
+            if (!(entry.get("type") instanceof String)) {
+                throw new IllegalArgumentException("View snapshot requires its control type");
+            }
+            if (definitions.get(saved.getKey()).type.equals(entry.get("type"))) {
+                Runnable restore = view.prepareStateRestore(stateRecord(entry.get("state")));
+                if (restore == null) {
+                    throw new IllegalArgumentException("View adapter returned no prepared state restoration");
+                }
+                restores.add(restore);
+            }
+        }
+        for (Runnable restore : restores) {
+            restore.run();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> stateRecord(Object value) {
+        if (!(value instanceof Map)) {
+            throw new IllegalArgumentException("View snapshot requires detached records");
+        }
+        return (Map<String, Object>) value;
     }
 
     public void update() {

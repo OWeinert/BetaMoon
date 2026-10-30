@@ -608,23 +608,112 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
 
     @Override
     public void retainFrom(GuiViewAdapter previous) {
-        if (previous instanceof GuiStyledView) {
-            GuiStyledView old = (GuiStyledView) previous;
-            if (!valueControlled) {
-                value = "choice".equals(kind)
-                        ? Math.max(1, Math.min(options.size(), old.value))
-                        : "slider".equals(kind)
-                                ? range.snap(old.value)
-                                : Math.max(range.minimum, Math.min(range.maximum, old.value));
+        if (previous instanceof GuiStyledView && kind.equals(((GuiStyledView) previous).kind)) {
+            prepareStateRestore(previous.captureState()).run();
+        }
+    }
+
+    @Override
+    public Map<String, Object> captureState() {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        if (("choice".equals(kind) || "slider".equals(kind)) && !valueControlled) {
+            snapshot.put("value", value);
+        }
+        if ("checkbox".equals(kind) && !selectedControlled) {
+            snapshot.put("selected", selected);
+        }
+        if (editor != null) {
+            snapshot.put("editor", editor.snapshot().values());
+            snapshot.put("textOffset", textOffset);
+        }
+        return Collections.unmodifiableMap(snapshot);
+    }
+
+    @Override
+    public Runnable prepareStateRestore(Map<String, Object> snapshot) {
+        if (closed) {
+            throw new IllegalStateException("Cannot restore a closed control");
+        }
+        for (String name : snapshot.keySet()) {
+            if (!("value".equals(name) && ("choice".equals(kind) || "slider".equals(kind)))
+                    && !("selected".equals(name) && "checkbox".equals(kind))
+                    && !(("editor".equals(name) || "textOffset".equals(name)) && editor != null)) {
+                throw new IllegalArgumentException("Unsupported " + kind + " snapshot field: " + name);
+            }
+        }
+        double nextValue = restoredValue(snapshot);
+        boolean nextSelected = selected;
+        if (snapshot.containsKey("selected")) {
+            if (!(snapshot.get("selected") instanceof Boolean)) {
+                throw new IllegalArgumentException("Checkbox snapshot requires a boolean selection");
             }
             if (!selectedControlled) {
-                selected = old.selected;
+                nextSelected = (Boolean) snapshot.get("selected");
             }
-            if (editor != null && old.editor != null) {
-                editor.retainFrom(old.editor);
-            }
-            textOffset = editor == null ? 0 : Math.min(old.textOffset, editor.text().length());
         }
+        GuiTextEditorModel nextEditor = editor;
+        int nextOffset = textOffset;
+        boolean compatibleEditor = true;
+        if (snapshot.containsKey("editor")) {
+            GuiTextEditorModel.Snapshot saved = GuiTextEditorModel.Snapshot.read(editorRecord(snapshot.get("editor")));
+            GuiTextEditorModel candidate = new GuiTextEditorModel(editor.committed(), editor.maximumLength());
+            if (candidate.restore(saved, textControlled)) {
+                nextEditor = candidate;
+            } else {
+                compatibleEditor = false;
+            }
+        }
+        if (snapshot.containsKey("textOffset")) {
+            double offset = snapshotNumber(snapshot.get("textOffset"), "textOffset");
+            if (offset < 0 || offset > Integer.MAX_VALUE || offset != Math.rint(offset)) {
+                throw new IllegalArgumentException("Invalid editor viewport offset");
+            }
+            if (compatibleEditor) {
+                nextOffset = Math.min((int) offset, nextEditor.text().length());
+            }
+        }
+        double restoredValue = nextValue;
+        boolean restoredSelected = nextSelected;
+        GuiTextEditorModel restoredEditor = nextEditor;
+        int restoredOffset = nextOffset;
+        return () -> {
+            value = restoredValue;
+            selected = restoredSelected;
+            editor = restoredEditor;
+            textOffset = restoredOffset;
+            requestLayout();
+        };
+    }
+
+    private double restoredValue(Map<String, Object> snapshot) {
+        if (!snapshot.containsKey("value")) {
+            return value;
+        }
+        double saved = snapshotNumber(snapshot.get("value"), "value");
+        if (Math.abs(saved) > 1.0E12
+                || "choice".equals(kind) && (saved < 1 || saved > 4096 || saved != Math.rint(saved))) {
+            throw new IllegalArgumentException("Invalid numeric control snapshot value");
+        }
+        if (valueControlled) {
+            return value;
+        }
+        return "choice".equals(kind) ? Math.max(1, Math.min(options.size(), saved)) : range.snap(saved);
+    }
+
+    private static double snapshotNumber(Object value, String name) {
+        double number = value instanceof Number ? ((Number) value).doubleValue() : Double.NaN;
+        if (!Double.isFinite(number)) {
+            throw new IllegalArgumentException("Invalid control snapshot " + name);
+        }
+        return number;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> editorRecord(Object value) {
+        if (!(value instanceof Map)) {
+            throw new IllegalArgumentException("Editor snapshot requires a detached record");
+        }
+        return (Map<String, Object>) value;
     }
 
     @Override

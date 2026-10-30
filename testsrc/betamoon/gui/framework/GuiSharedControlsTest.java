@@ -48,6 +48,7 @@ public final class GuiSharedControlsTest {
         visibilityAndClipping();
         rejectedValues();
         controlledModeAndInvalidRefresh();
+        dormantViewState();
         System.out.println("Shared controls passed: Java/Lua views, activation timing/cancel, draft conflicts, "
                 + "numeric ranges, visibility, templates, style inheritance and bitmap metrics.");
     }
@@ -119,6 +120,126 @@ public final class GuiSharedControlsTest {
             }
         };
         expect(() -> new GuiStyledView("slider", styles, incomplete, (event, value) -> true));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void dormantViewState() {
+        try (GuiPresentationTree original = document(GuiStyleSheet.MINIMAL, new ArrayList<>(), LuaValue.NIL)) {
+            GuiScene scene = new GuiScene();
+            scene.updateEnvironment(null, null, 320, 240, 320, 240);
+            scene.setDocument(original);
+            scene.prepare();
+            HeadlessGuiFrames.layout(scene);
+            click(scene, original.element("checkbox"));
+            GuiStyledView textbox = (GuiStyledView) original.element("textbox");
+            textbox.editor().selectAll();
+            textbox.editor().insert("local committed value");
+            textbox.editor().commit(true);
+            textbox.editor().move(2, false);
+            textbox.editor().move(7, true);
+            textbox.textOffset(2);
+            Map<String, Object> snapshot = original.captureViewState();
+            textbox.editor().insert("later edit");
+
+            try (GuiPresentationTree restored = document(GuiStyleSheet.MINIMAL, new ArrayList<>(), LuaValue.NIL)) {
+                Map<String, Object> invalid = new LinkedHashMap<>(snapshot);
+                Map<String, Object> entry = new LinkedHashMap<>((Map<String, Object>) invalid.get("textbox"));
+                Map<String, Object> state = new LinkedHashMap<>((Map<String, Object>) entry.get("state"));
+                Map<String, Object> editor = new LinkedHashMap<>((Map<String, Object>) state.get("editor"));
+                editor.put("caret", 1.5);
+                state.put("editor", editor);
+                entry.put("state", state);
+                invalid.put("textbox", entry);
+                expect(() -> restored.restoreViewState(invalid));
+                require(!((GuiStyledView) restored.element("checkbox")).selected()
+                        && ((GuiStyledView) restored.element("textbox")).text().equals("seed"),
+                        "A later invalid editor snapshot partly changed earlier candidate controls");
+                restored.restoreViewState(snapshot);
+                GuiStyledView text = (GuiStyledView) restored.element("textbox");
+                require(text.text().equals("local committed value") && text.editor().committed().equals(text.text())
+                        && text.editor().selectionStart() == 2 && text.editor().selectionEnd() == 7
+                        && text.textOffset() == 2 && ((GuiStyledView) restored.element("checkbox")).selected(),
+                        "Detached restore lost clean local values/selection or retained live editor references");
+                GuiPresentationTree next = restored.reload(definition(LuaValue.NIL));
+                try {
+                    GuiStyledView refreshed = (GuiStyledView) next.element("textbox");
+                    require(refreshed.text().equals("local committed value") && refreshed.editor().selectionStart() == 2
+                            && refreshed.editor().selectionEnd() == 7,
+                            "Compatible live refresh lost clean local text or selection");
+                    try {
+                        next.restoreViewState(snapshot);
+                        throw new AssertionError("Active graph accepted dormant view restoration");
+                    } catch (IllegalStateException expected) {
+                        require(refreshed.text().equals("local committed value"),
+                                "Rejected restore mutated active views");
+                    }
+                } finally {
+                    next.close();
+                }
+            }
+            boundRestoration(snapshot);
+            expect(() -> GuiTextEditorModel.Snapshot.read(Collections.emptyMap()));
+        }
+
+        GuiTextEditorModel pending = new GuiTextEditorModel("published", 100);
+        pending.insert(" draft");
+        pending.move(2, false);
+        pending.move(5, true);
+        pending.commit(true, true);
+        GuiTextEditorModel waiting = new GuiTextEditorModel("published", 100);
+        waiting.restore(GuiTextEditorModel.Snapshot.read(pending.snapshot().values()), true);
+        require(waiting.pending() && waiting.selectionStart() == 2 && waiting.selectionEnd() == 5,
+                "Compatible restoration lost a pending controlled draft/selection");
+        GuiTextEditorModel acknowledged = new GuiTextEditorModel("published draft", 100);
+        acknowledged.restore(pending.snapshot(), true);
+        require(!acknowledged.pending() && !acknowledged.conflict() && acknowledged.selectionStart() == 2
+                && acknowledged.selectionEnd() == 5, "Acknowledged controlled restore retained stale pending state");
+        GuiTextEditorModel changed = new GuiTextEditorModel("other", 100);
+        changed.restore(pending.snapshot(), true);
+        require(changed.conflict() && !changed.pending() && changed.text().equals("published draft")
+                && changed.committed().equals("other"), "Changed publication did not retain a conflicting draft");
+        GuiTextEditorModel incompatible = new GuiTextEditorModel("fresh", 5);
+        require(!incompatible.restore(pending.snapshot(), false) && incompatible.text().equals("fresh"),
+                "Changed editor constraints restored incompatible text");
+        GuiTextEditorModel local = new GuiTextEditorModel("published", 100);
+        local.restore(pending.snapshot(), false);
+        require(!local.pending() && local.text().equals("published draft"),
+                "An editor that became local retained a pending external acknowledgment");
+    }
+
+    private static void boundRestoration(Map<String, Object> snapshot) {
+        Globals lua = JsePlatform.standardGlobals();
+        lua.load("checkbox=function(v) return {selected=false} end; "
+                + "textbox=function(v) return {text='current model'} end; "
+                + "slider=function(v) return {value=75} end").call();
+        GuiDocumentDefinition base = definition(LuaValue.NIL);
+        List<GuiNodeDefinition> nodes = new ArrayList<>();
+        for (GuiNodeDefinition node : base.presentation.nodes) {
+            LuaValue binding = lua.get(node.id);
+            nodes.add(new GuiNodeDefinition(node.id, node.path, node.type, node.parent, node.element, node.condition,
+                    node.properties, binding, node.transition, node.explicitTransition));
+        }
+        GuiDocumentDefinition definition = new GuiDocumentDefinition(base.name, base.owner, base.width, base.height,
+                null, null, Collections.emptyList(),
+                new GuiPresentationDefinition(nodes, LuaValue.NIL, Collections.emptySet(), base.owner), true);
+        try (GuiPresentationTree bound = new GuiPresentationTree(definition, new Host(),
+                new GuiBuiltInViews(GuiStyleSheet.MINIMAL, node -> (event, value) -> true), Collections.emptySet(),
+                text -> text.length() * 6, () -> 0)) {
+            try (LuaCallbackScope readOnly = LuaCallbackScope.binding()) {
+                try {
+                    bound.restoreViewState(snapshot);
+                    throw new AssertionError("Read-only derivation restored local view state");
+                } catch (LuaError expected) {
+                    require(((GuiStyledView) bound.element("textbox")).text().equals("current model"),
+                            "Read-only rejected restoration partly changed an editor");
+                }
+            }
+            bound.restoreViewState(snapshot);
+            require(!((GuiStyledView) bound.element("checkbox")).selected()
+                    && ((GuiStyledView) bound.element("textbox")).text().equals("current model")
+                    && ((GuiStyledView) bound.element("slider")).fraction() == .75,
+                    "Detached local state overwrote current binding-controlled values");
+        }
     }
 
     private static GuiAtlasLease atlas() {
