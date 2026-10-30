@@ -3,6 +3,7 @@ package betamoon.gui.framework;
 import betamoon.gui.framework.GuiContainer.SceneRoot;
 import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.presentation.GuiPresentationTree;
+import betamoon.interop.runtime.NativeContext;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -327,6 +328,16 @@ public final class GuiScene {
      * actions.
      */
     public void prepare() {
+        if (!GuiPreparationPhase.active() && !NativeContext.hasFrame()) {
+            try (GuiPreparationPhase preparation = GuiPreparationPhase.open()) {
+                preparePublished();
+            }
+        } else {
+            preparePublished();
+        }
+    }
+
+    private void preparePublished() {
         if (!deferredEffects.isEmpty()) {
             List<Runnable> effects = new ArrayList<>(deferredEffects);
             deferredEffects.clear();
@@ -349,6 +360,15 @@ public final class GuiScene {
             finishDispatch();
         }
         ensureLayout();
+        if (GuiPreparationPhase.active()) {
+            dispatchDepth++;
+            try {
+                root.prepareStructure(context);
+            } finally {
+                finishDispatch();
+            }
+            ensureLayout();
+        }
         preparingVisuals = true;
         try {
             root.prepareVisuals(context);
@@ -499,6 +519,29 @@ public final class GuiScene {
         if (pointerCapture == element) {
             pointerCapture = null;
             pointerCaptureButton = -1;
+        }
+    }
+
+    void cancelGesturesIn(GuiElement element) {
+        dispatchDepth++;
+        try {
+            if (isDescendantOf(pointerCapture, element)) {
+                cancelPointerCapture();
+            }
+            for (Map.Entry<Integer, GuiElement> entry : new ArrayList<>(gestureTargets.entrySet())) {
+                if (isDescendantOf(entry.getValue(), element)) {
+                    gestureTargets.remove(entry.getKey());
+                    cancelledGestures.add(entry.getKey());
+                    Runnable cancel = () -> entry.getValue().cancelPointer(context, entry.getKey());
+                    if (painting || layingOut || preparingVisuals) {
+                        deferredEffects.add(cancel);
+                    } else {
+                        cancel.run();
+                    }
+                }
+            }
+        } finally {
+            finishDispatch();
         }
     }
 

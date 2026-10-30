@@ -5,7 +5,10 @@ import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.framework.GuiGeometry.Size;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /** Element that owns and renders an ordered collection of children. */
 public class GuiContainer extends GuiElement {
@@ -59,11 +62,61 @@ public class GuiContainer extends GuiElement {
         return readOnlyChildren;
     }
 
+    /**
+     * Reorder retained children without detaching compatible focus/state owners.
+     */
+    public final void reconcileChildren(List<? extends GuiElement> desired) {
+        if (desired == null || desired.size() > 4096) {
+            throw new IllegalArgumentException("Retained child reconciliation requires at most 4096 elements");
+        }
+        List<GuiElement> snapshot = new ArrayList<>(desired);
+        Set<GuiElement> unique = Collections.newSetFromMap(new IdentityHashMap<GuiElement, Boolean>());
+        for (GuiElement child : snapshot) {
+            if (child == null || child == this || isAncestor(child) || !unique.add(child)
+                    || child.getParent() != null && child.getParent() != this) {
+                throw new IllegalArgumentException(
+                        "Reconciled children must be unique and unattached or already owned");
+            }
+        }
+        GuiScene scene = scene();
+        if (scene != null && scene.deferMutation(() -> reconcileChildren(snapshot))) {
+            return;
+        }
+        Map<GuiElement, Integer> positions = new IdentityHashMap<>();
+        for (int index = 0; index < children.size(); index++) {
+            positions.put(children.get(index), index);
+        }
+        for (GuiElement child : new ArrayList<>(children)) {
+            if (!unique.contains(child)) {
+                remove(child);
+            }
+        }
+        for (int index = 0; index < snapshot.size(); index++) {
+            GuiElement child = snapshot.get(index);
+            if (child.getParent() == null) {
+                add(child);
+            } else if (scene != null && positions.get(child) != null && positions.get(child) != index) {
+                scene.cancelGesturesIn(child);
+            }
+        }
+        children.clear();
+        children.addAll(snapshot);
+        requestLayout();
+    }
+
     @Override
     void update(GuiContext context) {
         super.update(context);
         for (GuiElement child : children) {
             child.update(context);
+        }
+    }
+
+    @Override
+    void prepareStructure(GuiContext context) {
+        super.prepareStructure(context);
+        for (GuiElement child : children) {
+            child.prepareStructure(context);
         }
     }
 

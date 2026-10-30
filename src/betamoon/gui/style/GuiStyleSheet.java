@@ -123,7 +123,7 @@ public final class GuiStyleSheet {
     }
 
     public GuiStyleSheet withInline(GuiControlStyle values) {
-        return new GuiStyleSheet(this, values);
+        return values.values().isEmpty() ? this : new GuiStyleSheet(this, values);
     }
 
     /**

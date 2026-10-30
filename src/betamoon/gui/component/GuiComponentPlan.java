@@ -323,6 +323,18 @@ public final class GuiComponentPlan implements AutoCloseable {
         });
     }
 
+    public GuiPresentationTree.PreparedReload prepareReloadTree(GuiPresentationTree previous,
+            Consumer<GuiPresentationTree> prepare) {
+        requireActive();
+        if (runtime != null) {
+            throw new IllegalStateException("Prepare a component reload using a fresh compiled plan");
+        }
+        return previous.prepareReload(document, this::createView, candidate -> {
+            runtime = candidate.runtime();
+            prepare.accept(candidate);
+        });
+    }
+
     private GuiViewAdapter createView(GuiNodeDefinition node) {
         View metadata = views.get(node.id);
         if (metadata == null) {

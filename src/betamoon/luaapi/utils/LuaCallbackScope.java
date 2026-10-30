@@ -92,6 +92,14 @@ public final class LuaCallbackScope implements AutoCloseable {
         }
     }
 
+    /**
+     * Effective read-only intersection, for Java update coordinators; querying it
+     * grants no authority.
+     */
+    public static boolean uiStateWriteAllowed() {
+        return BINDING_DEPTH.get() == 0 && UI_READ_ONLY.get() == 0;
+    }
+
     public void requireUiStateMutable() {
         requireActive();
         requireUiStateWrite();

@@ -231,6 +231,17 @@ public abstract class GuiElement {
         updateElement(context);
     }
 
+    /**
+     * Logical structural preparation uses provisional bounds before the final
+     * layout pass.
+     */
+    protected void prepareStructureElement(GuiContext context) {
+    }
+
+    void prepareStructure(GuiContext context) {
+        prepareStructureElement(context);
+    }
+
     /** Runs after update/layout, never from frame sampling or paint. */
     protected void prepareVisualsElement(GuiContext context) {
     }

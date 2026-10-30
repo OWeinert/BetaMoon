@@ -25,6 +25,7 @@ import betamoon.gui.presentation.GuiPresentationSources;
 import betamoon.gui.presentation.GuiPresentationTree;
 import betamoon.gui.style.GuiStyleSheet;
 import betamoon.interop.runtime.NativeEventAccess;
+import betamoon.interop.runtime.NativeContext;
 import betamoon.luaapi.client.ui.GuiLuaData;
 import betamoon.luaapi.client.ui.GuiModelLuaAccess;
 import betamoon.luaapi.client.ui.GuiPaintCompiler;
@@ -144,6 +145,14 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
         current.main().host().observe(update);
     }
 
+    void prepareLogical(Runnable update) {
+        if (NativeContext.hasFrame()) {
+            observe(update);
+        } else {
+            current.main().host().update(update);
+        }
+    }
+
     void paint(Runnable paint) {
         current.main().host().paint(paint);
     }
@@ -181,7 +190,7 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
                 throw new IllegalStateException("Dialog host closed during attachment");
             }
         }
-        observe(() -> screen.scene().prepare());
+        prepareLogical(() -> screen.scene().prepare());
     }
 
     @Override
@@ -198,14 +207,14 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
             current.emit("update");
         }
         if (parent == null) {
-            observe(() -> screen.scene().prepare());
+            prepareLogical(() -> screen.scene().prepare());
         }
     }
 
     @Override
     public void flush() {
         if (parent == null && usable()) {
-            observe(() -> screen.scene().prepare());
+            prepareLogical(() -> screen.scene().prepare());
         }
     }
 

@@ -10,9 +10,11 @@ import java.nio.charset.StandardCharsets;
 import java.awt.image.BufferedImage;
 import javax.imageio.ImageIO;
 import org.luaj.vm2.Globals;
+import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.jse.JsePlatform;
+import org.luaj.vm2.lib.ZeroArgFunction;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 
@@ -52,11 +54,24 @@ final class UiLiveClientChecks {
             Class.forName("betamoon.luaapi.event.EventsApi", true, loader).getMethod("attach", LuaTable.class)
                     .invoke(null, module);
             lua.set("betamoon", module);
+            lua.set("checkPreparationAuthority", new ZeroArgFunction() {
+                public LuaValue call() {
+                    verifyAuthority(true);
+                    return LuaValue.NIL;
+                }
+            });
+            lua.set("checkClientUiAuthority", new ZeroArgFunction() {
+                public LuaValue call() {
+                    verifyAuthority(false);
+                    return LuaValue.NIL;
+                }
+            });
             Class.forName("betamoon.luamodloader.ScriptExecution", false, loader)
                     .getMethod("withOwner", String.class, Supplier.class)
                     .invoke(null, OWNER, (Supplier<Object>) () -> lua
                             .load("ui=betamoon.client.ui; rawCalls=0; paintCalls=0; bad=false; "
                                     + "ui.components:add{key='uitest:wheel',size={width=80,height=80},paint=function(v)paintCalls=paintCalls+1;"
+                                    + "checkPreparationAuthority();"
                                     + "return {{op='ring',x=40,y=40,inner=20,outer=32,sweep=300,color='#FF55AAFF'},{op='hitCircle',name='wheel',x=40,y=40,radius=32}}end};"
                                     + "ui.components:add{key='uitest:raw',size={width=80,height=32},rawDraw=function(f)rawCalls=rawCalls+1;"
                                     + "assert(not pcall(function()form:close()end));f.gl:enable('texture',false);f.gl:program('tintProgram');"
@@ -82,7 +97,7 @@ final class UiLiveClientChecks {
                                     + "ui.screens:add(definition);wrongGuiTick=false;betamoon.events:on('gui_tick',function(ctx)"
                                     + "if form and form:status()=='active' and ctx.name~='GuiManagedScreen' then wrongGuiTick=true end end);"
                                     + "opening=betamoon.events:on('game_tick',function(ctx)if not form then "
-                                    + "assert(not pcall(function()luajava.bindClass('betamoon.luaapi.utils.LuaCallbackScope').requireGameplayWrite()end));"
+                                    + "checkClientUiAuthority();"
                                     + "form=assert(ui.screens:open('uitest:form',{state={count=7}}));assert(form:status()=='queued')end end)")
                             .call());
             phase = 1;
@@ -361,6 +376,37 @@ final class UiLiveClientChecks {
         lua = null;
         System.out
                 .println("[UI-LIVE] world screen, world-boundary action, observed data and environment cleanup passed");
+    }
+
+    private static void verifyAuthority(boolean preparation) {
+        try {
+            Class<?> scope = Class.forName("betamoon.luaapi.utils.LuaCallbackScope", false, loader);
+            if (preparation) {
+                Class<?> phase = Class.forName("betamoon.gui.framework.GuiPreparationPhase", false, loader);
+                require(!((Boolean) phase.getMethod("active").invoke(null)),
+                        "Lua inherited Java preparation eligibility");
+                denied(phase.getMethod("open"));
+                denied(scope.getMethod("requireUiStateWrite"));
+            } else {
+                scope.getMethod("requireUiStateWrite").invoke(null);
+            }
+            denied(scope.getMethod("requireGameplayWrite"));
+        } catch (ReflectiveOperationException failure) {
+            throw new AssertionError("Runtime authority assertion failed", failure);
+        }
+    }
+
+    private static void denied(Method method) throws ReflectiveOperationException {
+        try {
+            method.invoke(null);
+        } catch (InvocationTargetException expected) {
+            Throwable cause = expected.getCause();
+            if (cause instanceof IllegalStateException || cause instanceof LuaError) {
+                return;
+            }
+            throw expected;
+        }
+        throw new AssertionError("Callback unexpectedly allowed " + method.getName());
     }
 
     private static void capture(Object client) throws Exception {

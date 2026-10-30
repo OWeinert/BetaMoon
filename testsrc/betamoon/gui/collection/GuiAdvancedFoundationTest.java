@@ -8,14 +8,18 @@ import betamoon.gui.framework.GuiGeometry.Insets;
 import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.framework.GuiGeometry.Size;
 import betamoon.gui.framework.GuiGridLayout;
+import betamoon.gui.framework.GuiPreparationPhase;
 import betamoon.gui.framework.GuiScene;
 import betamoon.gui.framework.HeadlessGuiFrames;
 import betamoon.gui.widget.GuiScrollView;
+import betamoon.interop.runtime.NativeContext;
+import betamoon.luaapi.utils.LuaCallbackScope;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import org.luaj.vm2.LuaError;
 
 /**
  * Data and geometry checks; row-factory/Lua integration is a separate P6 gate.
@@ -26,6 +30,8 @@ public final class GuiAdvancedFoundationTest {
         virtualWindows();
         gridGeometry();
         nestedScroll();
+        preparationPhases();
+        rowBudgets();
         System.out.println("Advanced foundations passed: atomic keyed trees/state, bounded 4096-record windows, "
                 + "reorder anchors, responsive grids and exhausted nested scrolling.");
     }
@@ -44,6 +50,13 @@ public final class GuiAdvancedFoundationTest {
                 "Parent-later records or stable sibling order failed");
         model.select("child");
         model.publishRowState("child", Collections.singletonMap("draft", "saved"));
+        GuiCollectionModel fork = model.fork(
+                GuiCollectionModel.prepare(Arrays.asList(row("child", "root"), row("root", null), row("new", null))));
+        fork.expand("root", false);
+        fork.publishRowState("child", Collections.singletonMap("draft", "candidate"));
+        require(model.expanded().contains("root") && model.rowState("child").get("draft").equals("saved")
+                && model.snapshot().keys.containsKey("other") && !model.snapshot().keys.containsKey("new"),
+                "Candidate model preparation changed displayed state, expansion or records");
         long revision = model.revision();
         GuiCollectionModel.Snapshot previous = model.snapshot();
         expect(() -> model.publish(Arrays.asList(row("duplicate", null), row("duplicate", null))));
@@ -219,10 +232,90 @@ public final class GuiAdvancedFoundationTest {
                 "Extreme wheel input overflowed or reversed its scroll direction");
     }
 
+    private static void rowBudgets() {
+        GuiRowBudget budget = new GuiRowBudget();
+        expect(budget::prepareFactory);
+        try (GuiPreparationPhase phase = GuiPreparationPhase.open()) {
+            List<GuiRowBudget.Preparation> preparations = new ArrayList<>();
+            for (int level = 0; level < 32; level++) {
+                preparations.add(budget.prepareFactory());
+            }
+            expect(budget::prepareFactory);
+            expect(preparations.get(0)::close);
+            for (int level = preparations.size() - 1; level >= 0; level--) {
+                preparations.get(level).close();
+                preparations.get(level).close();
+            }
+            try (GuiRowBudget.Preparation restored = budget.prepareFactory()) {
+                require(restored != null, "Unwinding factory nesting did not restore preparation capacity");
+            }
+        }
+        GuiRowBudget.Reservation original = budget.reserve(8000);
+        budget.activateReplacing(Collections.singletonList(original), Collections.emptyList());
+        GuiRowBudget.Reservation candidate = budget.reserve(8000);
+        expect(() -> budget.reserve(500));
+        expect(() -> budget.activateReplacing(Collections.singletonList(candidate), Collections.emptyList()));
+        require(original.active() && !candidate.active() && budget.liveElements() == 8000 && budget.liveRows() == 1,
+                "Failed row admission partly retired the previous views");
+        budget.activateReplacing(Collections.singletonList(candidate), Collections.singletonList(original));
+        require(!original.active() && candidate.active() && budget.reservedElements() == 16000,
+                "Row replacement discarded a still-held predecessor's reservation");
+        original.close();
+        original.close();
+        require(budget.reservedElements() == 8000 && budget.liveElements() == 8000,
+                "Retiring old rows released the successor or double-released a reservation");
+        GuiRowBudget foreign = new GuiRowBudget();
+        GuiRowBudget.Reservation unowned = foreign.reserve(1);
+        expect(() -> budget.activateReplacing(Collections.singletonList(unowned),
+                Collections.singletonList(candidate)));
+        budget.close();
+        candidate.close();
+        require(!candidate.active() && budget.liveElements() == 0 && budget.reservedElements() == 0,
+                "Host close left a live row or released its budget twice");
+        expect(() -> budget.reserve(1));
+        foreign.close();
+    }
+
+    private static void preparationPhases() {
+        require(!GuiPreparationPhase.active(), "Preparation leaked outside its update");
+        try (GuiPreparationPhase outer = GuiPreparationPhase.open()) {
+            require(GuiPreparationPhase.active(), "Java update could not coordinate prepared work");
+            try (NativeContext denied = NativeContext.denied("row-phase-test.lua")) {
+                require(!GuiPreparationPhase.active(), "A Lua/native callback inherited Java preparation eligibility");
+                expect(GuiPreparationPhase::open);
+            }
+            try (LuaCallbackScope binding = LuaCallbackScope.binding()) {
+                require(!GuiPreparationPhase.active(), "Read-only derivation inherited preparation eligibility");
+                expect(GuiPreparationPhase::open);
+            }
+            require(GuiPreparationPhase.active(), "Returning from a callback lost its enclosing Java update");
+            GuiPreparationPhase inner = GuiPreparationPhase.open();
+            expect(outer::close);
+            inner.close();
+            inner.close();
+        }
+        require(!GuiPreparationPhase.active(), "Preparation remained active after update disposal");
+        boolean[] prepared = {false};
+        GuiElement observer = new GuiElement() {
+            protected void updateElement(GuiContext context) {
+                prepared[0] = GuiPreparationPhase.active();
+            }
+        };
+        GuiScene scene = new GuiScene();
+        scene.updateEnvironment(null, null, 100, 100, 100, 100);
+        scene.setContent(observer);
+        scene.prepare();
+        require(prepared[0] && !GuiPreparationPhase.active(), "Scene update did not bracket Java preparation");
+        try (NativeContext denied = NativeContext.denied("row-phase-test.lua")) {
+            scene.prepare();
+            require(!prepared[0], "A nested callback scene update promoted preparation eligibility");
+        }
+    }
+
     private static void expect(Runnable operation) {
         try {
             operation.run();
-        } catch (IllegalArgumentException expected) {
+        } catch (IllegalArgumentException | IllegalStateException | LuaError expected) {
             return;
         }
         throw new AssertionError("Invalid advanced UI candidate was accepted");

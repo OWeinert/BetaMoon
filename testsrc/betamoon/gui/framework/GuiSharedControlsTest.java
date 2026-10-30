@@ -94,6 +94,8 @@ public final class GuiSharedControlsTest {
         rules.put("plain", new GuiStyleSheet.Rule("default", GuiControlStyle.of("shadow", false, "background", 0),
                 Collections.singletonMap(GuiStyleSheet.DISABLED, GuiControlStyle.of("foreground", 0xFF888888))));
         GuiStyleSheet styles = new GuiStyleSheet(rules);
+        require(styles.withInline(GuiControlStyle.of()) == styles,
+                "An empty inline style duplicated the immutable resolved stylesheet");
         GuiControlStyle disabled = styles.resolve("plain", GuiStyleSheet.HOVERED | GuiStyleSheet.DISABLED);
         require(disabled.number("foreground", 0) == 0xFF888888 && !disabled.flag("shadow", true)
                 && disabled.number("background", -1) == 0, "Style precedence lost disabled/false/transparent values");

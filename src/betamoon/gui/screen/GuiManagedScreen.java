@@ -6,6 +6,7 @@ import betamoon.gui.framework.GuiElement;
 import betamoon.gui.framework.GuiScene;
 import net.minecraft.src.GuiScreen;
 import org.lwjgl.input.Keyboard;
+import java.util.function.Consumer;
 
 /**
  * Ordinary native adapter over the same scene used by Java menus; no generated
@@ -39,44 +40,51 @@ public final class GuiManagedScreen extends GuiComponentScreen {
 
     @Override
     public void initGui() {
-        if (page != null && page.usable()) {
-            page.observe(() -> super.initGui());
-        }
+        runUi(current -> current.prepareLogical(() -> super.initGui()));
     }
 
     @Override
     public void updateScreen() {
-        if (page != null && page.usable()) {
-            page.observe(() -> super.updateScreen());
-        }
+        runUi(current -> current.prepareLogical(() -> super.updateScreen()));
     }
 
     @Override
     public void drawScreen(int x, int y, float partialTicks) {
-        if (page == null || !page.usable()) {
+        GuiNativeScreenPage painting = page;
+        if (painting == null || !painting.usable()) {
             drawDefaultBackground();
             return;
         }
         try {
-            page.paint(() -> super.drawScreen(x, y, partialTicks));
+            painting.paint(() -> super.drawScreen(x, y, partialTicks));
         } catch (VirtualMachineError | ThreadDeath fatal) {
             throw fatal;
         } catch (Throwable failure) {
-            page.renderFailed(failure);
+            painting.renderFailed(failure);
         }
     }
 
     @Override
     public void handleMouseInput() {
-        if (page != null && page.usable()) {
-            page.input(() -> super.handleMouseInput());
-        }
+        runUi(current -> current.input(() -> super.handleMouseInput()));
     }
 
     @Override
     public void handleKeyboardInput() {
-        if (page != null && page.usable()) {
-            page.input(() -> super.handleKeyboardInput());
+        runUi(current -> current.input(() -> super.handleKeyboardInput()));
+    }
+
+    private void runUi(Consumer<GuiNativeScreenPage> operation) {
+        GuiNativeScreenPage current = page;
+        if (current == null || !current.usable()) {
+            return;
+        }
+        try {
+            operation.accept(current);
+        } catch (VirtualMachineError | ThreadDeath fatal) {
+            throw fatal;
+        } catch (Throwable failure) {
+            current.renderFailed(failure);
         }
     }
 

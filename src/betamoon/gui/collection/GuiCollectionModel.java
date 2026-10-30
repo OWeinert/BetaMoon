@@ -21,6 +21,7 @@ public final class GuiCollectionModel {
     public static final int MAX_RECORDS = 4096;
     private static final long MAX_METADATA_BYTES = 4 * 1024 * 1024;
     private static final long MAX_STATE_BYTES = 4 * 1024 * 1024;
+    private static final Snapshot EMPTY = prepare(Collections.emptyList());
 
     public static final class Record {
         public final String key;
@@ -104,7 +105,7 @@ public final class GuiCollectionModel {
         }
     }
 
-    private Snapshot snapshot = prepare(Collections.emptyList());
+    private Snapshot snapshot = EMPTY;
     private final Set<String> expanded = new LinkedHashSet<>();
     private final Map<String, State> states = new HashMap<>();
     private List<Row> visible = Collections.emptyList();
@@ -165,6 +166,25 @@ public final class GuiCollectionModel {
 
     public boolean publish(List<Record> records) {
         return publish(prepare(records));
+    }
+
+    /**
+     * Stage model, expansion and state changes without modifying the displayed
+     * collection.
+     */
+    public GuiCollectionModel fork(Snapshot candidate) {
+        Objects.requireNonNull(candidate, "collection snapshot");
+        GuiCollectionModel copy = new GuiCollectionModel();
+        copy.snapshot = snapshot;
+        copy.expanded.addAll(expanded);
+        copy.states.putAll(states);
+        copy.visible = visible;
+        copy.publishedExpansion = publishedExpansion;
+        copy.selected = selected;
+        copy.revision = revision;
+        copy.stateBytes = stateBytes;
+        copy.publish(candidate);
+        return copy;
     }
 
     public boolean publish(Snapshot candidate) {

@@ -104,6 +104,14 @@ public final class GuiContext {
         scene.releasePointer(element);
     }
 
+    /**
+     * Cancel pending pointer gestures in a moving subtree, retaining keyboard
+     * focus.
+     */
+    public void cancelGesturesIn(GuiElement element) {
+        scene.cancelGesturesIn(element);
+    }
+
     public void showTooltip(String text) {
         if (text != null && !text.isEmpty()) {
             showTooltip(Arrays.asList(text));

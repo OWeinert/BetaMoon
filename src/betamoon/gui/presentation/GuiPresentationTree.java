@@ -148,22 +148,81 @@ public final class GuiPresentationTree implements AutoCloseable {
 
     public GuiPresentationTree reload(GuiDocumentDefinition replacement, Factory replacementFactory,
             Consumer<GuiPresentationTree> prepare) {
+        try (PreparedReload prepared = prepareReload(replacement, replacementFactory, prepare)) {
+            return prepared.commit();
+        }
+    }
+
+    public PreparedReload prepareReload(GuiDocumentDefinition replacement, Factory replacementFactory,
+            Consumer<GuiPresentationTree> prepare) {
         requireActive();
         GuiPresentationTree candidate = new GuiPresentationTree(replacement, replacementFactory, capabilities);
         try {
-            candidate.runtime = runtime.reload(replacement,
+            GuiPresentationRuntime.PreparedReload staged = runtime.prepareReload(replacement,
                     prepared -> prepared.setViewValidator(candidate::validateValues), prepared -> {
                         candidate.runtime = prepared;
                         candidate.publish();
                         candidate.retainFrom(this);
                         prepare.accept(candidate);
                     });
+            candidate.runtime = staged.candidate();
+            return new PreparedReload(this, candidate, staged);
         } catch (RuntimeException | Error failure) {
             candidate.closeAfterFailure(failure);
             throw failure;
         }
-        close();
-        return candidate;
+    }
+
+    public PreparedReload prepareReload(GuiDocumentDefinition replacement, Consumer<GuiPresentationTree> prepare) {
+        return prepareReload(replacement, factory, prepare);
+    }
+
+    public static final class PreparedReload implements AutoCloseable {
+        private final GuiPresentationTree previous;
+        private final GuiPresentationTree candidate;
+        private final GuiPresentationRuntime.PreparedReload runtime;
+        private boolean finished;
+
+        private PreparedReload(GuiPresentationTree previous, GuiPresentationTree candidate,
+                GuiPresentationRuntime.PreparedReload runtime) {
+            this.previous = previous;
+            this.candidate = candidate;
+            this.runtime = runtime;
+        }
+
+        public GuiPresentationTree candidate() {
+            if (finished) {
+                throw new IllegalStateException("Prepared tree reload is already committed or discarded");
+            }
+            return candidate;
+        }
+
+        public void validate() {
+            candidate();
+            previous.requireActive();
+            candidate.requireActive();
+            runtime.validate();
+        }
+
+        public GuiPresentationTree commit() {
+            validate();
+            runtime.commit();
+            previous.close();
+            finished = true;
+            return candidate;
+        }
+
+        @Override
+        public void close() {
+            if (!finished) {
+                finished = true;
+                try {
+                    runtime.close();
+                } finally {
+                    candidate.close();
+                }
+            }
+        }
     }
 
     private void publish() {

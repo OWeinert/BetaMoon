@@ -60,6 +60,7 @@ public class GuiPresentationRuntime implements AutoCloseable {
     private boolean ownerInvalidated;
     private boolean initialized;
     private boolean preparing;
+    private boolean stagedReload;
     private boolean layoutDirty;
     private BiConsumer<GuiNodeDefinition, Map<String, Object>> viewValidator;
 
@@ -149,6 +150,9 @@ public class GuiPresentationRuntime implements AutoCloseable {
     }
 
     public void activatePrepared() {
+        if (stagedReload) {
+            throw new IllegalStateException("Commit a prepared reload before activation");
+        }
         requireUsablePublication();
         if (preparing) {
             preparing = false;
@@ -1154,6 +1158,13 @@ public class GuiPresentationRuntime implements AutoCloseable {
 
     public GuiPresentationRuntime reload(GuiDocumentDefinition replacement, Consumer<GuiPresentationRuntime> configure,
             Consumer<GuiPresentationRuntime> prepareViews) {
+        try (PreparedReload prepared = prepareReload(replacement, configure, prepareViews)) {
+            return prepared.commit();
+        }
+    }
+
+    public PreparedReload prepareReload(GuiDocumentDefinition replacement, Consumer<GuiPresentationRuntime> configure,
+            Consumer<GuiPresentationRuntime> prepareViews) {
         requireActive();
         if (replacement.retained != definition.retained) {
             throw new LuaError("Presentation refresh cannot change its layout/host contract");
@@ -1161,6 +1172,7 @@ public class GuiPresentationRuntime implements AutoCloseable {
         GuiPresentationHost replacementHost = host.forDefinition(replacement);
         GuiPresentationRuntime candidate = createReplacement(replacement, replacementHost);
         candidate.preparing = true;
+        candidate.stagedReload = true;
         candidate.viewport = viewport;
         try {
             configure.accept(candidate);
@@ -1219,13 +1231,56 @@ public class GuiPresentationRuntime implements AutoCloseable {
             candidate.validateLayout(Collections.emptyMap());
             candidate.displayedGeometry = null;
             prepareViews.accept(candidate);
-            dispose(false);
-            candidate.preparing = false;
-            candidate.queue("reload", LuaTable::new);
-            return candidate;
+            return new PreparedReload(this, candidate);
         } catch (Throwable error) {
             candidate.dispose(false);
             throw error;
+        }
+    }
+
+    /** Multiple host candidates may validate before any predecessor is retired. */
+    public static final class PreparedReload implements AutoCloseable {
+        private final GuiPresentationRuntime previous;
+        private final GuiPresentationRuntime candidate;
+        private boolean finished;
+
+        private PreparedReload(GuiPresentationRuntime previous, GuiPresentationRuntime candidate) {
+            this.previous = previous;
+            this.candidate = candidate;
+        }
+
+        public GuiPresentationRuntime candidate() {
+            if (finished) {
+                throw new IllegalStateException("Prepared reload is already committed or discarded");
+            }
+            return candidate;
+        }
+
+        public void validate() {
+            candidate();
+            previous.requireActive();
+            candidate.requireUsablePublication();
+            if (!candidate.callbacksValid()) {
+                throw new LuaError("Prepared reload owner has expired");
+            }
+        }
+
+        public GuiPresentationRuntime commit() {
+            validate();
+            previous.dispose(false);
+            candidate.stagedReload = false;
+            candidate.preparing = false;
+            candidate.queue("reload", LuaTable::new);
+            finished = true;
+            return candidate;
+        }
+
+        @Override
+        public void close() {
+            if (!finished) {
+                finished = true;
+                candidate.dispose(false);
+            }
         }
     }
 

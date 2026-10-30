@@ -30,6 +30,7 @@ public final class GuiRetainedTreeTest {
         sharedTreeAndSampling();
         atomicRevision();
         preparedActivation();
+        stagedRevisions();
         System.out.println("Retained tree passed: typed Java/Lua values, shared views, cached publication, "
                 + "Java-only animation, candidate failure isolation and revision cleanup.");
     }
@@ -105,6 +106,43 @@ public final class GuiRetainedTreeTest {
             }
             return new View();
         }, Collections.emptySet(), text -> text.length() * 6, () -> model.time);
+    }
+
+    private static void stagedRevisions() {
+        Model model = new Model();
+        GuiPresentationTree original = tree(definition(LuaValue.NIL, 400, "overlay"), model);
+        GuiElement root = original.root();
+        GuiPresentationTree rolledBack;
+        try (GuiPresentationTree.PreparedReload first = original.prepareReload(definition(LuaValue.NIL, 800, "overlay"),
+                candidate -> {
+                })) {
+            rolledBack = first.candidate();
+            require(original.root() == root && model.listeners.size() == 2,
+                    "Preparing one row retired its predecessor before the complete batch validated");
+            expect(IllegalStateException.class, rolledBack::activate);
+            expect(LuaError.class, () -> original.prepareReload(definition(LuaValue.NIL, 777, "overlay"), candidate -> {
+            }));
+            require(original.root() == root && model.listeners.size() == 2,
+                    "A later failed candidate invalidated the old batch or leaked observers");
+        }
+        require(original.root() == root && model.listeners.size() == 1, "Batch rollback closed the predecessor");
+        expect(IllegalStateException.class, rolledBack::root);
+        GuiPresentationTree replacement;
+        try (GuiPresentationTree.PreparedReload first = original.prepareReload(definition(LuaValue.NIL, 800, "overlay"),
+                candidate -> {
+                });
+                GuiPresentationTree.PreparedReload competing = original
+                        .prepareReload(definition(LuaValue.NIL, 900, "overlay"), candidate -> {
+                        })) {
+            replacement = first.commit();
+            expect(IllegalStateException.class, original::root);
+            expect(IllegalStateException.class, first::commit);
+            expect(IllegalStateException.class, competing::commit);
+        }
+        require(model.listeners.size() == 1 && ((View) replacement.root()).closed == 0,
+                "A stale competing commit affected the chosen successor or retained subscriptions");
+        replacement.close();
+        require(model.listeners.isEmpty(), "Committed batch retained a source observer after close");
     }
 
     private static void preparedActivation() {

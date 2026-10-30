@@ -2,6 +2,7 @@ package betamoon.gui.interop;
 
 import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.framework.GuiRenderer;
+import betamoon.gui.framework.GuiPreparationPhase;
 import betamoon.gui.framework.GuiTheme;
 import betamoon.gui.graphics.GraphicsClip;
 import betamoon.gui.graphics.GraphicsRenderScope;
@@ -120,6 +121,25 @@ public final class NativeClientScreenHost implements AutoCloseable {
     public void observe(Runnable observer) {
         requireAttached();
         session.observe(observer);
+    }
+
+    /**
+     * Logical Java orchestration lets callbacks and prepared resources enter their
+     * own audited scopes.
+     */
+    public void update(Runnable updater) {
+        requireAttached();
+        if (!session.active()) {
+            throw new NativeAccessFailure("native_client_screen_inactive", "owning screen session is unavailable");
+        }
+        try (GuiPreparationPhase preparation = GuiPreparationPhase.open()) {
+            updater.run();
+        }
+        requireAttached();
+        if (!session.active()) {
+            throw new NativeAccessFailure("native_client_screen_inactive",
+                    "owning screen session changed during update");
+        }
     }
 
     public void paint(Runnable painter) {
