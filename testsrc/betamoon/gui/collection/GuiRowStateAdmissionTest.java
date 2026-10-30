@@ -29,6 +29,7 @@ public final class GuiRowStateAdmissionTest {
         sourceAdmission();
         stateAdmissionReentry();
         typedTransactions();
+        rowReservations();
         realizedOwnership();
         System.out.println("Row state admission passed: detached preflight, event rollback, aggregate budgets, "
                 + "observer isolation, live row identity, dormant restoration and stale publisher refusal.");
@@ -231,6 +232,97 @@ public final class GuiRowStateAdmissionTest {
         expect(() -> current.context.publishState(Collections.emptyMap()));
         require(budget.reservedElements() == 0 && failures.isEmpty(), "State ownership checks leaked a row or failed");
         budget.close();
+    }
+
+    private static void rowReservations() {
+        GuiCollectionModel model = new GuiCollectionModel();
+        List<GuiCollectionModel.Record> records = new ArrayList<>();
+        for (int index = 0; index < 501; index++) {
+            records.add(record(index, "row" + index));
+        }
+        model.publish(records);
+        model.publishRowState("row0", Collections.singletonMap("text", "accepted"));
+        long before = model.revision();
+        try (GuiCollectionModel.StateReservation outer = model.reserveRowState("row0",
+                Collections.singletonMap("text", "outer"))) {
+            expect(() -> model.fork(model.snapshot()));
+            expect(() -> model.publish(model.snapshot()));
+            try (GuiCollectionModel.StateReservation inner = model.reserveRowState("row0",
+                    Collections.singletonMap("text", "inner"))) {
+                expect(outer::close);
+                inner.commit();
+                expect(inner::commit);
+            }
+            require(model.revision() == before && model.rowState("row0").get("text").equals("inner"),
+                    "A nested control proposal published an intermediate revision");
+            model.publishRowState("row1", Collections.singletonMap("text", "independent"));
+        }
+        require(model.rowState("row0").get("text").equals("accepted")
+                && model.rowState("row1").get("text").equals("independent") && model.revision() == before + 1,
+                "Rejected control proposal changed its accepted row or rolled back an independent row edit");
+        before = model.revision();
+        try (GuiCollectionModel.StateReservation outer = model.reserveRowState("row0",
+                Collections.singletonMap("text", "proposed"))) {
+            model.publishRowState("row0", Collections.singletonMap("text", "combined event and control"));
+            outer.commit();
+        }
+        require(model.rowState("row0").get("text").equals("combined event and control")
+                && model.revision() == before + 1,
+                "Accepted control/event state did not publish exactly one complete row revision");
+        before = model.revision();
+        try (GuiCollectionModel.StateReservation empty = model.reserveRowState("row2", Collections.emptyMap())) {
+            empty.commit();
+        }
+        require(model.revision() == before, "An empty proposal dirtied an unchanged row");
+
+        List<GuiCollectionModel.StateReservation> nested = new ArrayList<>();
+        for (int depth = 0; depth < 32; depth++) {
+            nested.add(model.reserveRowState("row0", Collections.singletonMap("text", "nested")));
+        }
+        expect(() -> model.reserveRowState("row0", Collections.emptyMap()));
+        for (int depth = nested.size() - 1; depth >= 0; depth--) {
+            nested.get(depth).close();
+            nested.get(depth).close();
+        }
+        require(model.rowState("row0").get("text").equals("combined event and control"),
+                "Unwinding nested rejected proposals lost the accepted row snapshot");
+
+        model.publishRowState("row0", Collections.singletonMap("text", repeat(10000)));
+        GuiCollectionModel baseline = model.fork(model.snapshot());
+        int baselineCount = fillRows(baseline, 2, records.size());
+        try (GuiCollectionModel.StateReservation shrink = model.reserveRowState("row0", Collections.emptyMap())) {
+            int proposedCount = fillRows(model, 2, records.size());
+            require(proposedCount == baselineCount,
+                    "A prospective shrink freed capacity that a rejected control edit still needs for rollback");
+        }
+        require(model.rowState("row0").get("text").equals(repeat(10000)),
+                "Full-budget rollback could not restore its previous accepted row");
+        before = model.revision();
+        expect(() -> model.reserveRowState("row0", Collections.singletonMap("text", repeat(15000))));
+        require(model.revision() == before && model.rowState("row0").get("text").equals(repeat(10000)),
+                "An over-budget reservation partly changed a row or its accounting");
+        model.publishRowState("row2", Collections.emptyMap());
+        try (GuiCollectionModel.StateReservation growth = model.reserveRowState("row0",
+                Collections.singletonMap("text", repeat(15000)))) {
+            growth.commit();
+        }
+        require(model.rowState("row0").get("text").equals(repeat(15000)),
+                "Released dormant capacity did not become available to a committed control proposal");
+    }
+
+    private static int fillRows(GuiCollectionModel model, int first, int lastExclusive) {
+        String payload = repeat(10000);
+        int filled = first;
+        while (filled < lastExclusive) {
+            try {
+                model.publishRowState("row" + filled, Collections.singletonMap("pad", payload));
+                filled++;
+            } catch (IllegalArgumentException full) {
+                break;
+            }
+        }
+        require(filled > 400 && filled < lastExclusive, "Reservation fixture did not reach its aggregate budget");
+        return filled;
     }
 
     private static final class StateRow extends GuiElement implements GuiRowFactory.Row {

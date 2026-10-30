@@ -108,6 +108,7 @@ public final class GuiCollectionModel {
     private Snapshot snapshot = EMPTY;
     private final Set<String> expanded = new LinkedHashSet<>();
     private final Map<String, State> states = new HashMap<>();
+    private final Map<String, StateReservation> reservations = new HashMap<>();
     private List<Row> visible = Collections.emptyList();
     private Set<String> publishedExpansion = Collections.emptySet();
     private String selected;
@@ -173,6 +174,7 @@ public final class GuiCollectionModel {
      * collection.
      */
     public GuiCollectionModel fork(Snapshot candidate) {
+        requireNoReservations();
         Objects.requireNonNull(candidate, "collection snapshot");
         GuiCollectionModel copy = new GuiCollectionModel();
         copy.snapshot = snapshot;
@@ -188,6 +190,7 @@ public final class GuiCollectionModel {
     }
 
     public boolean publish(Snapshot candidate) {
+        requireNoReservations();
         Objects.requireNonNull(candidate, "collection snapshot");
         if (snapshot.records.equals(candidate.records)) {
             return false;
@@ -259,23 +262,149 @@ public final class GuiCollectionModel {
 
     public boolean publishRowState(String key, Map<String, ?> values) {
         required(key);
+        State candidate = prepareState(values);
+        State previous = states.get(key);
+        if (values(previous).equals(candidate.values)) {
+            return false;
+        }
+        StateReservation reservation = reservations.get(key);
+        long previousCharge = reservation == null ? bytes(previous) : reservation.heldBytes;
+        long nextCharge = reservation == null ? candidate.bytes : Math.max(reservation.previousCharge, candidate.bytes);
+        requireStateBudget(stateBytes - previousCharge + nextCharge);
+        states.put(key, candidate);
+        stateBytes += nextCharge - previousCharge;
+        if (reservation == null) {
+            revision++;
+        } else {
+            reservation.heldBytes = nextCharge;
+        }
+        return true;
+    }
+
+    /**
+     * Reserve a prospective control snapshot before callbacks. Both acceptance and
+     * rollback remain within budget while other rows are edited. Tokens are
+     * engine-owned, synchronous and close in reverse order.
+     */
+    public StateReservation reserveRowState(String key, Map<String, ?> values) {
+        required(key);
+        State candidate = prepareState(values);
+        StateReservation parent = reservations.get(key);
+        if (parent != null && parent.depth >= 32) {
+            throw new IllegalStateException("Row state proposal nesting exceeds 32");
+        }
+        State previous = states.get(key);
+        long previousCharge = parent == null ? bytes(previous) : parent.heldBytes;
+        long held = Math.max(previousCharge, candidate.bytes);
+        requireStateBudget(stateBytes - previousCharge + held);
+        StateReservation reservation = new StateReservation(key, previous, parent, previousCharge, held);
+        states.put(key, candidate);
+        reservations.put(key, reservation);
+        stateBytes += held - previousCharge;
+        return reservation;
+    }
+
+    private static State prepareState(Map<String, ?> values) {
         GuiPublishedData detached = new GuiPublishedData();
         detached.publish(values);
         GuiComponentLimits.Values budget = new GuiComponentLimits.Values(16384, 2048);
         budget.add(detached.snapshot());
         long bytes = budget.estimatedBytes();
-        State previous = states.get(key);
-        if ((previous == null ? Collections.emptyMap() : previous.values).equals(detached.snapshot())) {
-            return false;
-        }
-        long total = stateBytes - (previous == null ? 0 : previous.bytes) + bytes;
-        if (bytes > 65536 || total > MAX_STATE_BYTES) {
+        if (bytes > 65536) {
             throw new IllegalArgumentException("Collection row state exceeds its 64 KiB row / 4 MiB model budget");
         }
-        states.put(key, new State(detached.snapshot(), bytes));
-        stateBytes = total;
-        revision++;
-        return true;
+        return new State(detached.snapshot(), bytes);
+    }
+
+    private static void requireStateBudget(long total) {
+        if (total > MAX_STATE_BYTES) {
+            throw new IllegalArgumentException("Collection row state exceeds its 4 MiB model budget");
+        }
+    }
+
+    private static long bytes(State state) {
+        return state == null ? 0 : state.bytes;
+    }
+
+    private static Map<String, Object> values(State state) {
+        return state == null ? Collections.emptyMap() : state.values;
+    }
+
+    private void requireNoReservations() {
+        if (!reservations.isEmpty()) {
+            throw new IllegalStateException(
+                    "Finish synchronous row state proposals before replacing the collection model");
+        }
+    }
+
+    public final class StateReservation implements AutoCloseable {
+        private final String key;
+        private final State previous;
+        private final StateReservation parent;
+        private final long previousCharge;
+        private final int depth;
+        private final Thread thread = Thread.currentThread();
+        private long heldBytes;
+        private boolean finished;
+
+        private StateReservation(String key, State previous, StateReservation parent, long previousCharge,
+                long heldBytes) {
+            this.key = key;
+            this.previous = previous;
+            this.parent = parent;
+            this.previousCharge = previousCharge;
+            this.heldBytes = heldBytes;
+            depth = parent == null ? 1 : parent.depth + 1;
+        }
+
+        public void commit() {
+            requireCurrent();
+            State current = states.get(key);
+            if (previous == null && current.values.isEmpty()) {
+                states.remove(key);
+                current = null;
+            }
+            long charge = parent == null ? bytes(current) : Math.max(parent.previousCharge, bytes(current));
+            stateBytes += charge - heldBytes;
+            finish();
+            if (parent == null) {
+                if (!values(previous).equals(values(current))) {
+                    revision++;
+                }
+            } else {
+                parent.heldBytes = charge;
+            }
+        }
+
+        private void requireCurrent() {
+            if (finished || Thread.currentThread() != thread || reservations.get(key) != this) {
+                throw new IllegalStateException(
+                        "Row state proposals finish once, in reverse order, on their owning thread");
+            }
+        }
+
+        private void finish() {
+            if (parent == null) {
+                reservations.remove(key);
+            } else {
+                reservations.put(key, parent);
+            }
+            finished = true;
+        }
+
+        @Override
+        public void close() {
+            if (!finished) {
+                requireCurrent();
+                if (previous == null) {
+                    states.remove(key);
+                } else {
+                    states.put(key, previous);
+                }
+                stateBytes += previousCharge - heldBytes;
+                finish();
+            }
+        }
     }
 
     private Record required(String key) {
