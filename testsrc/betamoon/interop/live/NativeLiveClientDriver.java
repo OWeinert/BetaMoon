@@ -35,6 +35,7 @@ public final class NativeLiveClientDriver {
     private static TinyMappingResolver mappings;
     private static RuntimeNamespace namespace;
     private static int stage;
+    private static boolean n7WorldComplete;
     private static int ticks;
     private static int reportedStage = -1;
     private static boolean busy;
@@ -104,11 +105,14 @@ public final class NativeLiveClientDriver {
                 System.out.println("[N6-LIVE] stage=" + stage + " ticks=" + ticks);
                 reportedStage = stage;
             }
-            if (world != null) {
+            if (world != null && !(Boolean.getBoolean("betamoon.ui.live") && n7WorldComplete)) {
                 call(client, CLIENT, "displayGuiScreen", "(Lnet/minecraft/src/GuiScreen;)V", new Object[]{null});
             }
             if (stage == 0) {
                 if (Boolean.getBoolean("betamoon.native.x3") && !NativeX3LiveClientChecks.beforeWorld(client)) {
+                    return;
+                }
+                if (Boolean.getBoolean("betamoon.ui.live") && !UiLiveClientChecks.beforeWorld(client)) {
                     return;
                 }
                 if (Boolean.getBoolean("betamoon.native.x10") && !NativeHostLiveFixture.beforeWorld(client)) {
@@ -158,7 +162,13 @@ public final class NativeLiveClientDriver {
                         return;
                     }
                 }
-                if (Boolean.getBoolean("betamoon.native.n7") && !NativeN7LiveClientChecks.inWorld(client, world)) {
+                if (Boolean.getBoolean("betamoon.native.n7") && !n7WorldComplete) {
+                    if (!NativeN7LiveClientChecks.inWorld(client, world)) {
+                        return;
+                    }
+                    n7WorldComplete = true;
+                }
+                if (Boolean.getBoolean("betamoon.ui.live") && !UiLiveClientChecks.inWorld(client)) {
                     return;
                 }
                 call(client, CLIENT, "changeWorld1", "(Lnet/minecraft/src/World;)V", new Object[]{null});
@@ -181,6 +191,9 @@ public final class NativeLiveClientDriver {
                         CatalogJson.encode(payload.manifest()).getBytes(StandardCharsets.UTF_8));
                 if (Boolean.getBoolean("betamoon.native.x10") && !NativeHostLiveFixture.afterWorld()) {
                     throw new AssertionError("X10 native renderer did not complete its world lifecycle");
+                }
+                if (Boolean.getBoolean("betamoon.ui.live")) {
+                    UiLiveClientChecks.afterWorld();
                 }
                 write("passed", null);
                 stage = 99;

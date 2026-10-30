@@ -285,7 +285,7 @@ final class LuaInputMap extends LuaTable {
             InputActionEvent input) {
         Minecraft minecraft = ClientInputRuntime.client();
         boolean current = minecraft != null && minecraft.theWorld != null && !minecraft.theWorld.multiplayerWorld;
-        try (LuaCallbackScope scope = LuaCallbackScope.withQueuedTeleport(false, current)) {
+        try (LuaCallbackScope scope = LuaCallbackScope.withQueuedTeleport(false, true, current)) {
             scope.nativeEntry(NativeEventAccess.entry(scope, minecraft, minecraft == null ? null : minecraft.theWorld,
                     minecraft == null ? null : minecraft.thePlayer));
             LuaTable event = (LuaTable) NativeCallbackTable.wrap(scope, event(input));

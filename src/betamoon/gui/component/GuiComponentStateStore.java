@@ -20,6 +20,7 @@ public final class GuiComponentStateStore implements AutoCloseable {
     private final GuiPublishedData publication = new GuiPublishedData();
     private boolean closed;
     private boolean sealed;
+    private Map<String, Object> restoration = Collections.emptyMap();
     private Map<String, Map<String, Object>> transaction;
 
     public void create(String key, GuiComponentSchema schema, GuiComponentStateStore previous) {
@@ -46,12 +47,58 @@ public final class GuiComponentStateStore implements AutoCloseable {
         }
         Entry candidate = new Entry(schema, schema.normalize(values));
         entries.put(key, candidate);
+        restoreEntry(key, candidate);
+    }
+
+    /** Seeds detached options/history before the instance becomes observable. */
+    public void seed(String key, Map<String, Object> changes) {
+        requireActive();
+        if (sealed) {
+            throw new IllegalStateException("Initial UI state is already sealed");
+        }
+        Entry entry = entry(key);
+        entry.values = entry.schema.patch(entry.values, changes);
+    }
+
+    /**
+     * History carries only detached values; the current schema decides what remains
+     * compatible.
+     */
+    public void restore(Map<String, Object> flatValues) {
+        requireActive();
+        if (sealed) {
+            throw new IllegalStateException("UI state restoration must precede activation");
+        }
+        GuiPublishedData detached = new GuiPublishedData();
+        detached.publish(flatValues);
+        restoration = detached.snapshot();
+        for (Map.Entry<String, Entry> item : entries.entrySet()) {
+            restoreEntry(item.getKey(), item.getValue());
+        }
+    }
+
+    private void restoreEntry(String key, Entry entry) {
+        if (restoration.isEmpty()) {
+            return;
+        }
+        Map<String, Object> restored = new LinkedHashMap<>(entry.values);
+        for (Map.Entry<String, GuiComponentSchema.Field> field : entry.schema.fields().entrySet()) {
+            String source = source(key, field.getKey());
+            if (restoration.containsKey(source)) {
+                try {
+                    restored.put(field.getKey(), field.getValue().descriptor.normalize(restoration.get(source)));
+                } catch (IllegalArgumentException incompatible) {
+                    /* The current validated default remains. */ }
+            }
+        }
+        entry.values = entry.schema.normalize(restored);
     }
 
     public void seal() {
         requireActive();
         publish();
         sealed = true;
+        restoration = Collections.emptyMap();
     }
 
     public Map<String, Object> values(String key) {
@@ -193,6 +240,7 @@ public final class GuiComponentStateStore implements AutoCloseable {
     public void close() {
         closed = true;
         entries.clear();
+        restoration = Collections.emptyMap();
         observers.clear();
         transaction = null;
         publication.publish(Collections.emptyMap());

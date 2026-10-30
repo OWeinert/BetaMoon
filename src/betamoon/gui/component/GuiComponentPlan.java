@@ -19,6 +19,7 @@ import betamoon.gui.presentation.GuiPresentationTree;
 import betamoon.gui.presentation.GuiViewAdapter;
 import betamoon.gui.style.GuiDefaultTemplate;
 import betamoon.gui.style.GuiStyleSheet;
+import betamoon.gui.style.GuiViewAppearance;
 import betamoon.gui.style.GuiVisualTemplate;
 import betamoon.gui.widget.GuiStyledView;
 import betamoon.luaapi.client.ui.GuiLuaPaintSource;
@@ -52,6 +53,7 @@ import org.luaj.vm2.lib.VarArgFunction;
  * the shared presentation tree.
  */
 public final class GuiComponentPlan implements AutoCloseable {
+    public static final String SCREEN_STATE = "screen";
     public interface Services {
         default GuiStyleSheet theme(String owner) {
             return GuiStyleSheet.MENU;
@@ -61,11 +63,30 @@ public final class GuiComponentPlan implements AutoCloseable {
             return GuiDefaultTemplate.INSTANCE;
         }
 
+        default GuiStyleSheet theme(String owner, GuiViewAppearance appearance) {
+            return theme(owner);
+        }
+
+        default GuiVisualTemplate template(String owner, GuiViewAppearance appearance) {
+            return template(owner, appearance.node.type);
+        }
+
         GuiPaintCompiler.Resources paintResources(String owner);
 
         default GraphicsResources rawResources(String owner) {
             return new GraphicsResources() {
             };
+        }
+
+        default Set<String> events() {
+            return Collections.singleton("control");
+        }
+
+        default LuaValue event(LuaTable context, LuaTable event) {
+            return LuaValue.NIL;
+        }
+
+        default void paintAccepted(String path, GuiPaintProgram[] programs) {
         }
 
         void requireHost();
@@ -77,7 +98,10 @@ public final class GuiComponentPlan implements AutoCloseable {
         final GuiComponentScope scope;
         final GuiAuthoredNode authored;
         final GuiComponentDefinition leaf;
-        View(GuiComponentScope scope, GuiAuthoredNode authored, GuiComponentDefinition leaf) {
+        final GuiViewAppearance appearance;
+        View(GuiComponentScope scope, GuiAuthoredNode authored, GuiComponentDefinition leaf,
+                GuiViewAppearance appearance) {
+            this.appearance = appearance;
             this.scope = scope;
             this.authored = authored;
             this.leaf = leaf;
@@ -130,26 +154,14 @@ public final class GuiComponentPlan implements AutoCloseable {
             }
         };
         document = new GuiComponentDocument(key, owner,
-                new GuiPresentationDefinition(nodes, callback, Collections.singleton("control"), owner), this);
+                new GuiPresentationDefinition(nodes, callback, services.events(), owner), this);
         Set<String> owners = new LinkedHashSet<>();
         owners.add(owner);
         for (GuiComponentDefinition dependency : dependencies.values()) {
             owners.add(dependency.owner);
         }
         for (String source : owners) {
-            ScriptResourceTracker.Cleanup cleanup = () -> {
-                Runnable notify = invalidated;
-                try {
-                    close();
-                } finally {
-                    notify.run();
-                }
-            };
-            cleanups.put(source, cleanup);
-            ScriptExecution.withOwner(source, () -> {
-                ScriptResourceTracker.track(cleanup);
-                return null;
-            });
+            dependOnOwner(source);
         }
         GuiPresentationHost.Observer listener = new GuiPresentationHost.Observer() {
             public void changed(String source, Object previous, Object value) {
@@ -167,9 +179,46 @@ public final class GuiComponentPlan implements AutoCloseable {
         subscriptions.add(state.observe(listener));
     }
 
+    public void dependOnOwner(String source) {
+        requireActive();
+        if (cleanups.containsKey(source)) {
+            return;
+        }
+        ScriptResourceTracker.Cleanup cleanup = () -> {
+            Runnable notify = invalidated;
+            try {
+                close();
+            } finally {
+                notify.run();
+            }
+        };
+        ScriptExecution.withOwner(source, () -> {
+            ScriptResourceTracker.track(cleanup);
+            return null;
+        });
+        cleanups.put(source, cleanup);
+    }
+
+    public List<GuiViewAppearance> appearances() {
+        requireActive();
+        List<GuiViewAppearance> result = new ArrayList<>();
+        for (View view : views.values()) {
+            result.add(view.appearance);
+        }
+        return Collections.unmodifiableList(result);
+    }
+
     public GuiDocumentDefinition document() {
         requireActive();
         return document;
+    }
+
+    public GuiPresentationRuntime runtime() {
+        requireActive();
+        if (runtime == null) {
+            throw new IllegalStateException("UI views are not prepared");
+        }
+        return runtime;
     }
 
     public GuiComponentStateStore state() {
@@ -214,6 +263,44 @@ public final class GuiComponentPlan implements AutoCloseable {
         return false;
     }
 
+    /**
+     * Exact tracked inputs for suppressing repeated preparation of an unchanged
+     * rejected candidate.
+     */
+    public Map<String, Object> compilationInputs(GuiComponentRegistry registry, GuiPresentationSources current) {
+        requireActive();
+        Map<String, Object> result = new LinkedHashMap<>();
+        for (String key : dependencies.keySet()) {
+            result.put("component:" + key, registry.get(key));
+        }
+        for (Map.Entry<String, Map<String, Object>> scope : derivationReads.entrySet()) {
+            for (String read : scope.getValue().keySet()) {
+                Object value;
+                if (read.startsWith("state:")) {
+                    String key = read.substring(6);
+                    value = current.state.containsKey(key) ? current.state.get(key) : state.snapshot().get(key);
+                } else if (read.startsWith("data:")) {
+                    value = current.data.get(read.substring(5));
+                } else {
+                    int split = read.lastIndexOf(':');
+                    value = interaction(read.substring(12, split), read.substring(split + 1));
+                }
+                result.put(scope.getKey() + "|" + read, value);
+            }
+        }
+        return Collections.unmodifiableMap(result);
+    }
+
+    public Set<String> owners() {
+        requireActive();
+        Set<String> result = new LinkedHashSet<>(cleanups.keySet());
+        result.add(owner);
+        for (GuiComponentDefinition definition : dependencies.values()) {
+            result.add(definition.owner);
+        }
+        return Collections.unmodifiableSet(result);
+    }
+
     boolean interaction(String id, String name) {
         GuiViewAdapter view = adapters.get(id);
         return view != null && view.interaction(name);
@@ -243,8 +330,9 @@ public final class GuiComponentPlan implements AutoCloseable {
         }
         GuiViewAdapter result;
         if (metadata.leaf == null) {
-            result = new GuiStyledView(node.type, services.theme(metadata.scope.owner),
-                    services.template(metadata.scope.owner, node.type), (event, value) -> available(metadata.scope)
+            result = new GuiStyledView(node.type, services.theme(metadata.scope.owner, metadata.appearance),
+                    services.template(metadata.scope.owner, metadata.appearance),
+                    (event, value) -> available(metadata.scope)
                             && accepted(runtime.dispatchUiEvent(node.id, event, value)));
         } else {
             PaintBinding paint = new PaintBinding(node, metadata);
@@ -434,6 +522,7 @@ public final class GuiComponentPlan implements AutoCloseable {
             if (commands > 4096 || vertices > 65536 || hitVertices > 16384 || expressions > 32768 || text > 131072) {
                 throw new IllegalArgumentException("UI document exceeds its prepared drawing budget");
             }
+            services.paintAccepted(node.path, new GuiPaintProgram[]{program});
             paintCosts.put(this, program);
         }
 

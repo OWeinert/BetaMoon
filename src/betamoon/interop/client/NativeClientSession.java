@@ -95,6 +95,14 @@ public final class NativeClientSession implements AutoCloseable {
         }
     }
 
+    /**
+     * Logical UI observation permits local presentation changes, never native
+     * effects or preparation.
+     */
+    public void observe(Runnable observer) {
+        enter(NativeEntry.Phase.QUERY, NativePermissions.READ_ONLY, true, observer);
+    }
+
     public void paint(Runnable painter) {
         enter(NativeEntry.Phase.QUERY, NativePermissions.READ_ONLY, false, painter);
     }

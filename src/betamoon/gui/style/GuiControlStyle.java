@@ -42,6 +42,10 @@ public final class GuiControlStyle {
         this.values = Collections.unmodifiableMap(copy);
     }
 
+    public Map<String, Object> values() {
+        return values;
+    }
+
     public GuiControlStyle merge(GuiControlStyle overrides) {
         Map<String, Object> merged = new LinkedHashMap<>(values);
         merged.putAll(overrides.values);

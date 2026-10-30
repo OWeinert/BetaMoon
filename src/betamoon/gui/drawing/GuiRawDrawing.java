@@ -62,7 +62,7 @@ public final class GuiRawDrawing implements AutoCloseable {
 
     public void publish(Map<String, ?> values) {
         LuaCallbackScope.requireUiStateWrite();
-        requireOwner();
+        requireOwnerGeneration();
         if (data.publish(values)) {
             publishedData = GuiReadOnlyValues.fromPublished(data.snapshot());
         }
@@ -137,6 +137,12 @@ public final class GuiRawDrawing implements AutoCloseable {
             callback = null;
             pendingFailure = failure;
             return false;
+        }
+    }
+
+    private void requireOwnerGeneration() {
+        if (closed || failed || !ownerState.matches(generation)) {
+            throw new IllegalStateException("Raw drawing owner is closed, disabled or expired");
         }
     }
 

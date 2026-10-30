@@ -8,6 +8,7 @@ import betamoon.gui.component.GuiComponentSchema;
 import betamoon.gui.component.GuiComponentLimits;
 import betamoon.gui.presentation.GuiProperties;
 import betamoon.gui.widget.GuiBuiltInViews;
+import betamoon.gui.style.GuiNodeAppearance;
 import betamoon.luaapi.utils.LuaDeclarationValues;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -83,7 +84,7 @@ public final class GuiAuthoredNodeParser {
             }
             Set<String> allowed = new LinkedHashSet<>(properties.baseline().keySet());
             allowed.addAll(Arrays.asList("id", "key", "type", "component", "children", "slots", "props", "on", "bind",
-                    "transition"));
+                    "transition", "style", "theme", "template"));
             for (String name : LuaDeclarationValues.keys(value, path)) {
                 if (!allowed.contains(name)) {
                     throw LuaDeclarationValues.error(path + "." + name, "unknown node field");
@@ -96,6 +97,16 @@ public final class GuiAuthoredNodeParser {
                 }
             }
             properties = properties.withDefaults(values);
+            GuiNodeAppearance appearance = new GuiNodeAppearance(optionalString(value.get("theme"), path + ".theme"),
+                    optionalString(value.get("template"), path + ".template"),
+                    GuiStyleParser.values(value.get("style"), path + ".style"));
+            budget.add(appearance.style.values);
+            if (appearance.theme != null) {
+                budget.text(appearance.theme);
+            }
+            if (appearance.template != null) {
+                budget.text(appearance.template);
+            }
             Map<String, Object> props = definition == null
                     ? Collections.emptyMap()
                     : readDeclaredProps(definition.props, value.get("props"), path + ".props");
@@ -160,7 +171,7 @@ public final class GuiAuthoredNodeParser {
                     value.get("transition").isnil()
                             ? GuiTransitionPolicy.DEFAULT
                             : transition(properties, definition, value.get("transition")),
-                    !value.get("transition").isnil());
+                    !value.get("transition").isnil(), appearance);
         } finally {
             ancestors.remove(table);
         }

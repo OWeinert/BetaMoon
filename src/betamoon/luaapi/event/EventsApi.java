@@ -108,6 +108,12 @@ public final class EventsApi {
             this.nativeContext = nativeContext;
         }
 
+        private boolean allowsClientUi() {
+            return name.equals("game_tick") || name.equals("gui_tick") || name.equals("gui_opened")
+                    || name.equals("gui_closed") || name.equals("screen_changed") || name.equals("key_input")
+                    || name.equals("mouse_input");
+        }
+
         private LuaValue subscribe(LuaValue functionValue) {
             LuaCallbackScope.requireNoBindingMutation();
             if (!functionValue.isfunction()) {
@@ -134,8 +140,9 @@ public final class EventsApi {
                         && minecraft.theWorld == world;
                 try (ScriptDiagnostics.Scope diagnostic = ScriptDiagnostics
                         .gameContext(() -> ClientScriptDiagnostics.occurrence(minecraft, world));
-                        LuaCallbackScope scope = LuaCallbackScope
-                                .withQueuedTeleport(current && !TeleportRuntime.frozen(), current)) {
+                        LuaCallbackScope scope = LuaCallbackScope.withQueuedTeleport(
+                                current && !TeleportRuntime.frozen(),
+                                current && !TeleportRuntime.frozen() || allowsClientUi(), current)) {
                     LuaValue view = contextFactory.apply(ctx);
                     if (nativeContext) {
                         scope.nativeEntry(NativeEventAccess.entry(scope, minecraft, world, player));

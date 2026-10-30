@@ -118,7 +118,7 @@ public class GuiContainer extends GuiElement {
 
     @Override
     void collectFocusableElements(List<GuiElement> elements) {
-        if (!isVisible() || !isEnabled() || getOpacity() == 0) {
+        if (!isAvailable()) {
             return;
         }
         if (isFocusable()) {
@@ -166,6 +166,17 @@ public class GuiContainer extends GuiElement {
 
         GuiScene getScene() {
             return scene;
+        }
+
+        @Override
+        protected void renderElement(GuiContext context) {
+            for (GuiElement child : getChildren()) {
+                if (scene.dimBefore(child)) {
+                    context.getRenderer().drawRect(0, 0, context.getScreenWidth(), context.getScreenHeight(),
+                            0x88000000);
+                }
+                child.render(context);
+            }
         }
 
         @Override

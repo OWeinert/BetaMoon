@@ -723,6 +723,47 @@ public class GuiPresentationRuntime implements AutoCloseable {
         }
     }
 
+    /**
+     * Direct shared element commands for owned screen handles, with the same
+     * validation/transaction path.
+     */
+    public LuaValue invokeElement(String id, String method, LuaValue first, LuaValue second) {
+        requireActive();
+        boolean read = "get".equals(method) || "target".equals(method);
+        if (!Arrays
+                .asList("set", "animate", "override", "clearOverride", "cancel", "finish", "refresh", "get", "target")
+                .contains(method)) {
+            throw new IllegalArgumentException("Unknown UI element operation: " + method);
+        }
+        if (!read) {
+            LuaCallbackScope.requireUiStateWrite();
+        }
+        if (preparing || closing || !callbacksValid()) {
+            throw new IllegalStateException("UI element revision is unavailable");
+        }
+        boolean ownCommands = !read && commands == null;
+        if (ownCommands) {
+            commands = new ArrayList<>();
+        }
+        try {
+            LuaTable handle = nodeHandle(element(id));
+            LuaValue result = handle.get(method).call(handle, first, second);
+            if (ownCommands) {
+                commitCommands();
+            }
+            return result;
+        } catch (RuntimeException | Error failure) {
+            if (ownCommands) {
+                discardUiCommands();
+            }
+            throw failure;
+        } finally {
+            if (ownCommands) {
+                commands = null;
+            }
+        }
+    }
+
     private LuaTable guiAccess(LuaCallbackScope scope) {
         LuaTable gui = new LuaTable();
         gui.set("element", new VarArgFunction() {

@@ -16,6 +16,8 @@ import betamoon.interop.client.NativeClientSession;
 import betamoon.interop.discovery.NativeDiscoveryRuntime;
 import betamoon.interop.runtime.NativeContext;
 import betamoon.interop.runtime.NativeEntry;
+import betamoon.interop.runtime.NativePermissions;
+import betamoon.luaapi.utils.LuaCallbackScope;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -34,6 +36,7 @@ import org.lwjgl.opengl.GL11;
 public final class NativeClientScreenHost implements AutoCloseable {
     private final Minecraft client;
     private final GuiScreen screen;
+    private final boolean detached;
     private final NativeClientSession session;
     private final GuiRenderer renderer = new GuiRenderer(GuiTheme.DEFAULT);
     private NativeClientResource<FontRenderer> font;
@@ -41,13 +44,32 @@ public final class NativeClientScreenHost implements AutoCloseable {
     private NativeClientAction close;
 
     public NativeClientScreenHost(Minecraft client, GuiScreen screen, String owner) {
+        this(client, screen, owner, false);
+    }
+
+    private NativeClientScreenHost(Minecraft client, GuiScreen screen, String owner, boolean detached) {
         NativeBindings bindings = NativeDiscoveryRuntime.bindingsIfAvailable();
-        if (bindings == null || client == null || screen == null || client.currentScreen != screen) {
+        if (bindings == null || client == null || screen == null || !detached && client.currentScreen != screen) {
             throw new NativeAccessFailure("native_client_unavailable", "initialize an active native client screen");
         }
         this.client = client;
         this.screen = screen;
+        this.detached = detached;
         session = bindings.clients.create(owner, this::roots);
+    }
+
+    /**
+     * Java-managed candidate preparation; the candidate still cannot paint or
+     * receive input.
+     */
+    public static NativeClientScreenHost prepareDetached(Minecraft client, GuiScreen screen, String owner) {
+        return new NativeClientScreenHost(client, screen, owner, true);
+    }
+
+    private void requireAttached() {
+        if (client.currentScreen != screen) {
+            throw new NativeAccessFailure("native_client_screen_inactive", "use an attached owning screen");
+        }
     }
 
     public void initialize() {
@@ -70,6 +92,18 @@ public final class NativeClientScreenHost implements AutoCloseable {
         });
     }
 
+    public NativeEntry queryEntry(LuaCallbackScope callback) {
+        return new NativeEntry(NativeDiscoveryRuntime.bindingsIfAvailable(), callback,
+                callback.isBinding() ? NativeEntry.Phase.BINDING : NativeEntry.Phase.QUERY, NativePermissions.READ_ONLY,
+                roots(), session::active);
+    }
+
+    public NativeEntry actionEntry(LuaCallbackScope callback) {
+        requireAttached();
+        return NativeEntry.clientAction(NativeDiscoveryRuntime.bindingsIfAvailable(), callback, roots(),
+                () -> client.currentScreen == screen && session.active());
+    }
+
     public NativeClientSession session() {
         return session;
     }
@@ -79,10 +113,17 @@ public final class NativeClientScreenHost implements AutoCloseable {
     }
 
     public void input(Consumer<NativeClientActionPermit> callback) {
+        requireAttached();
         session.input(callback);
     }
 
+    public void observe(Runnable observer) {
+        requireAttached();
+        session.observe(observer);
+    }
+
     public void paint(Runnable painter) {
+        requireAttached();
         session.paint(() -> {
             GraphicsClip.Pixels clip = new GraphicsClip(0, 0, screen.width, screen.height).pixels(screen.width,
                     screen.height, client.displayWidth, client.displayHeight);
@@ -156,7 +197,7 @@ public final class NativeClientScreenHost implements AutoCloseable {
         roots.put("client", client);
         roots.put("world", client.theWorld);
         roots.put("player", client.thePlayer);
-        roots.put("screen", client.currentScreen);
+        roots.put("screen", detached ? screen : client.currentScreen);
         roots.put("font", client.fontRenderer);
         roots.put("textures", client.renderEngine);
         return roots;

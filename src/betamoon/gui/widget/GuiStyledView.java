@@ -20,6 +20,9 @@ import betamoon.gui.style.GuiStyleSheet;
 import betamoon.gui.style.GuiVisualTemplate;
 import betamoon.gui.style.GuiNativeButtonSkin;
 import java.util.Arrays;
+import java.util.AbstractMap;
+import java.util.LinkedHashMap;
+import java.util.Set;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -76,6 +79,20 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
     private boolean vertical;
     private int preparedNativeTexture = -1;
     private boolean clipChildren;
+    private GuiPresentationNode presentationNode;
+    private long javaValueRevision;
+    private Map<String, Object> javaValues = Collections.emptyMap();
+    private final Map<String, Object> templateCurrent = new AbstractMap<String, Object>() {
+        @Override
+        public Object get(Object name) {
+            return name instanceof String ? templateValue((String) name, false) : null;
+        }
+
+        @Override
+        public Set<Entry<String, Object>> entrySet() {
+            return snapshotTemplateValues(false).entrySet();
+        }
+    };
 
     public GuiStyledView(String kind, GuiStyleSheet theme, GuiVisualTemplate template, Events events) {
         this.kind = Objects.requireNonNull(kind, "view kind");
@@ -109,7 +126,7 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
 
     @Override
     public void validateValues(Map<String, Object> values) {
-        theme.resolve(String.valueOf(values.getOrDefault("variant", "default")), 0).requireActive();
+        theme.resolve(styleReference(values), 0).requireActive();
         if (!Arrays.asList("start", "center", "end", "stretch").contains(values.getOrDefault("align", "stretch"))
                 || !Arrays.asList("start", "center", "end").contains(values.getOrDefault("justify", "start"))
                 || !Arrays.asList("visible", "hidden", "collapsed")
@@ -136,6 +153,7 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
 
     @Override
     public void publish(GuiPresentationNode node) {
+        presentationNode = node;
         publishValues(node.values(), node::controlled);
     }
 
@@ -148,17 +166,20 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
         validateValues(normalized);
         published = false;
         editor = null;
+        presentationNode = null;
         publishValues(normalized, name -> false);
         return this;
     }
 
     private void publishValues(Map<String, Object> values, Predicate<String> controlled) {
+        javaValues = values;
+        javaValueRevision++;
         double width = number(values, "width", 0);
         double height = number(values, "height", 0);
         double nextPadding = number(values, "padding", 0);
         double nextGap = number(values, "gap", 0);
         String nextText = string(values.get("text"), "");
-        String nextVariant = string(values.get("variant"), "default");
+        String nextVariant = styleReference(values);
         String nextAlign = string(values.get("align"), "stretch");
         String nextJustify = string(values.get("justify"), "start");
         if (preferredWidth != width || preferredHeight != height || minimumWidth != number(values, "minWidth", 0)
@@ -236,13 +257,19 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
     protected void updateElement(GuiContext context) {
         if (!closed) {
             theme.resolve(variant, 0).requireActive();
-            template.prepare(context, this);
             if ("button".equals(kind) || "choice".equals(kind)) {
                 preparedNativeTexture = context.getRenderer().preparePackagedTexture(GuiNativeButtonSkin.TEXTURE);
             }
             if (!image.isEmpty()) {
                 context.getRenderer().preparePackagedTexture(image);
             }
+        }
+    }
+
+    @Override
+    protected void prepareVisualsElement(GuiContext context) {
+        if (!closed) {
+            template.prepare(context, this);
         }
     }
 
@@ -602,8 +629,57 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
 
     @Override
     public void close() {
-        closed = true;
-        events = (event, value) -> false;
+        if (!closed) {
+            closed = true;
+            events = (event, value) -> false;
+            presentationNode = null;
+            javaValues = Collections.emptyMap();
+            template.close();
+        }
+    }
+
+    public long templateRevision() {
+        return presentationNode == null ? javaValueRevision : presentationNode.valueRevision();
+    }
+
+    public GuiControlStyle style(int states) {
+        return theme.resolve(variant, states);
+    }
+
+    public int interactionStates() {
+        return states();
+    }
+
+    public Map<String, Object> templateValues(boolean targets) {
+        return targets ? snapshotTemplateValues(true) : templateCurrent;
+    }
+
+    private Map<String, Object> snapshotTemplateValues(boolean targets) {
+        Map<String, Object> values = new LinkedHashMap<>();
+        for (String name : javaValues.keySet()) {
+            values.put(name, templateValue(name, targets));
+        }
+        values.put("fraction", templateValue("fraction", targets));
+        return Collections.unmodifiableMap(values);
+    }
+
+    private Object templateValue(String name, boolean targets) {
+        if (name.equals("fraction")) {
+            Object number = templateValue("value", targets);
+            return number instanceof Number ? range.fraction(((Number) number).doubleValue()) : 0D;
+        }
+        if (name.equals("text") && javaValues.containsKey(name)) {
+            return text();
+        }
+        if (name.equals("selected") && javaValues.containsKey(name)) {
+            return selected;
+        }
+        if (name.equals("value") && !valueControlled && javaValues.containsKey(name)) {
+            return value;
+        }
+        return presentationNode == null
+                ? javaValues.get(name)
+                : targets ? presentationNode.target(name) : presentationNode.get(name);
     }
 
     public String kind() {
@@ -648,6 +724,11 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
 
     public int preparedNativeTexture() {
         return preparedNativeTexture;
+    }
+
+    private static String styleReference(Map<String, Object> values) {
+        String reference = string(values.get("styleRef"), "");
+        return reference.isEmpty() ? string(values.get("variant"), "default") : reference;
     }
 
     private static String string(Object value, String fallback) {

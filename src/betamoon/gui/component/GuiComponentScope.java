@@ -31,6 +31,7 @@ final class GuiComponentScope {
     final GuiComponentScope eventScope;
     final String stateKey;
     final GuiComponentStateStore state;
+    final GuiComponentSchema stateSchema;
     final Map<String, Object> props;
     final LuaValue propsView;
     final Map<String, List<GuiAuthoredNode>> slots;
@@ -43,6 +44,18 @@ final class GuiComponentScope {
     GuiComponentScope(String path, String owner, GuiComponentDefinition definition, GuiComponentScope parent,
             GuiComponentScope eventScope, String stateKey, GuiComponentStateStore state, Map<String, Object> props,
             Map<String, List<GuiAuthoredNode>> slots, Map<String, LuaValue> subscriptions) {
+        this(path, owner, definition, parent, eventScope, stateKey, state, props, slots, subscriptions, null);
+    }
+
+    GuiComponentScope(String path, String owner, GuiComponentDefinition definition, GuiComponentScope parent,
+            GuiComponentScope eventScope, String stateKey, GuiComponentStateStore state, Map<String, Object> props,
+            Map<String, List<GuiAuthoredNode>> slots, Map<String, LuaValue> subscriptions,
+            GuiComponentSchema rootState) {
+        this.stateSchema = rootState != null
+                ? rootState
+                : definition != null
+                        ? definition.state
+                        : eventScope != null ? eventScope.stateSchema : GuiComponentSchema.EMPTY;
         this.path = path;
         this.owner = owner;
         this.definition = definition;
@@ -89,7 +102,7 @@ final class GuiComponentScope {
                 public Varargs invoke(Varargs arguments) {
                     requireActive();
                     String name = arguments.arg(arguments.arg1() == local ? 2 : 1).checkjstring();
-                    if (!definition.state.fields().containsKey(name)) {
+                    if (!stateSchema.fields().containsKey(name)) {
                         throw new LuaError(path + ": unknown local state field: " + name);
                     }
                     return observed.get("get").call(observed,
@@ -134,7 +147,7 @@ final class GuiComponentScope {
                     requireActive();
                     int offset = arguments.arg1() == local ? 1 : 0;
                     String name = arguments.arg(offset + 1).checkjstring();
-                    GuiComponentSchema.Field field = definition.state.fields().get(name);
+                    GuiComponentSchema.Field field = stateSchema.fields().get(name);
                     if (field == null) {
                         throw new LuaError(path + ": unknown local state field: " + name);
                     }

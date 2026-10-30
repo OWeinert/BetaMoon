@@ -110,12 +110,48 @@ public final class GuiScene {
         return layer;
     }
 
+    public GuiLayer openLayer(GuiPresentationTree document, boolean modal) {
+        GuiLayer layer = openLayer(new GuiLayerDocument(document), modal);
+        document.activate();
+        return layer;
+    }
+
+    void replaceLayer(GuiLayer layer, GuiPresentationTree replacement) {
+        if (!layer.isActive() || !layers.contains(layer) || !(layer.content instanceof GuiLayerDocument)) {
+            throw new IllegalStateException("Layer document is unavailable");
+        }
+        if (deferMutation(() -> replaceLayer(layer, replacement))) {
+            return;
+        }
+        GuiPresentationTree previous = layer.document();
+        GuiElement restore = previous == null ? null : replacement.compatibleElement(previous, focusedElement);
+        ((GuiLayerDocument) layer.content).replace(replacement);
+        replacement.activate();
+        if (restore != null) {
+            requestFocus(restore);
+        }
+        if (previous != null) {
+            previous.close();
+        }
+        requestLayout();
+    }
+
+    boolean dimBefore(GuiElement element) {
+        for (GuiLayer layer : layers) {
+            if (layer.isActive() && layer.modal) {
+                return layer.content == element;
+            }
+        }
+        return false;
+    }
+
     void closeLayer(GuiLayer layer) {
         layer.content.setVisible(false);
         Runnable detach = () -> {
             boolean top = !layers.isEmpty() && layers.get(layers.size() - 1) == layer;
             layers.remove(layer);
             root.remove(layer.content);
+            layer.finishClose();
             if (top) {
                 requestFocus(layer.opener);
                 if (focusedElement == null) {
@@ -215,6 +251,11 @@ public final class GuiScene {
             if (document != null) {
                 document.sample();
             }
+            for (GuiLayer layer : new ArrayList<>(layers)) {
+                if (layer.isActive() && layer.document() != null) {
+                    layer.document().sample();
+                }
+            }
             ensureLayout();
             renderingFrame = displayedFrame == null || frameDirty
                     ? new GuiFrameSnapshot(root, ++frameRevision, context)
@@ -295,6 +336,11 @@ public final class GuiScene {
         }
         if (document != null) {
             document.update();
+        }
+        for (GuiLayer layer : new ArrayList<>(layers)) {
+            if (layer.isActive() && layer.document() != null) {
+                layer.document().update();
+            }
         }
         dispatchDepth++;
         try {

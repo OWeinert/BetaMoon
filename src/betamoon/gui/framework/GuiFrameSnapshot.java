@@ -149,8 +149,9 @@ public final class GuiFrameSnapshot {
         }
 
         boolean eligible() {
-            return element.attachmentRevision() == attachment && element.isVisible() && element.isEnabled()
-                    && element.getOpacity() > 0 && opacity > 0 && (parent == null || parent.eligible());
+            return element.attachmentRevision() == attachment && element.inputLifetimeActive() && element.isVisible()
+                    && element.isEnabled() && element.getOpacity() > 0 && opacity > 0
+                    && (parent == null || parent.eligible());
         }
     }
 }

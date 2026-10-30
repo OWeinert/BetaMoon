@@ -67,9 +67,10 @@ final class GuiComponentHost implements GuiPresentationHost {
     }
 
     public GuiPresentationHost forDefinition(GuiDocumentDefinition replacement) {
-        GuiPresentationHost next = host.forDefinition(replacement);
-        return replacement instanceof GuiComponentDocument
-                ? new GuiComponentHost(next, ((GuiComponentDocument) replacement).plan)
-                : next;
+        if (replacement instanceof GuiComponentDocument) {
+            GuiComponentPlan next = ((GuiComponentDocument) replacement).plan;
+            return new GuiComponentHost(next.host.forDefinition(replacement), next);
+        }
+        return host.forDefinition(replacement);
     }
 }

@@ -7,6 +7,7 @@ import betamoon.client.control.input.InputFamily;
 import betamoon.content.ContentKey;
 import betamoon.content.ContentType;
 import betamoon.luaapi.BetaMoonModule;
+import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luamodloader.LuaScriptRegistry;
 import betamoon.luamodloader.ScriptExecution;
 import betamoon.luamodloader.ScriptResourceTracker;
@@ -17,6 +18,8 @@ import net.minecraft.src.KeyBinding;
 import net.minecraft.src.ModLoader;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.LuaError;
+import org.luaj.vm2.lib.ZeroArgFunction;
 import org.luaj.vm2.lib.jse.JsePlatform;
 import org.lwjgl.input.Keyboard;
 
@@ -29,6 +32,19 @@ public final class InputLuaApiTest {
 
     public static void main(String[] args) {
         Globals lua = JsePlatform.standardGlobals();
+        int[] checkedUiActions = {0};
+        lua.set("checkUiAuthority", new ZeroArgFunction() {
+            public LuaValue call() {
+                LuaCallbackScope.requireUiStateWrite();
+                try {
+                    LuaCallbackScope.requireGameplayWrite();
+                    throw new AssertionError("Input-map UI publication granted gameplay mutation");
+                } catch (LuaError expected) {
+                }
+                checkedUiActions[0]++;
+                return LuaValue.NIL;
+            }
+        });
         try {
             TestMod mod = new TestMod();
             ClientHotkeys.initialize(mod);
@@ -38,7 +54,7 @@ public final class InputLuaApiTest {
                     + "jump={default='key.j'},rotate={default='ctrl+key.r'},zoom='mouse.wheel'}}\n"
                     + "assert(controls.key=='mymod:input_map/gameplay')\n"
                     + "controls:on('jump',function(ctx) trace=trace..'default:'..ctx.phase..','; "
-                    + "assert(ctx.map==controls.key and ctx.action=='jump'); "
+                    + "assert(ctx.map==controls.key and ctx.action=='jump'); checkUiAuthority(); "
                     + "return betamoon.callbackResults.handled end)\n"
                     + "controls:on('zoom',function(ctx) trace=trace..'zoom:'..ctx.amount..','; return 'handled' end)\n"
                     + "layer=controls:activate{priority=50,captures={look=true}}\n"
@@ -57,8 +73,7 @@ public final class InputLuaApiTest {
                     + "hotkey:on(function(event) trace=trace..'hotkey:'..event.binding..','; "
                     + "assert(event.key==hotkey.key and event.keyCode==34) end)\n"
                     + "assert(not pcall(function() betamoon.input:hotkey{key='mymod:bad',label='Bad',"
-                    + "default='ctrl+key.g'} end))\n"
-                    + "controller=betamoon.input.controllers:add{key='mymod:player',"
+                    + "default='ctrl+key.g'} end))\n" + "controller=betamoon.input.controllers:add{key='mymod:player',"
                     + "stages={movement='manual',worldActions='disabled'}}\n"
                     + "assert(controller.key=='mymod:input_controller/player' and controller:isActive())\n"
                     + "assert(betamoon.input.controllers:get('mymod:player').key==controller.key)\n"
@@ -79,6 +94,7 @@ public final class InputLuaApiTest {
             require(ClientInputRuntime.router().accept(InputDeviceEvent.key(Keyboard.KEY_J, true)),
                     "Handled Lua actions consume native input");
             lua.get("checkPressed").call();
+            require(checkedUiActions[0] > 0, "Named input-map callback did not exercise local UI authority");
             require("hotkey:key.g,high:pressed,default:pressed,".equals(lua.get("trace").checkjstring()),
                     "Lua contexts use global priority before default handling");
             require(ClientInputRuntime.router().captures(InputFamily.MOVEMENT)
@@ -105,8 +121,8 @@ public final class InputLuaApiTest {
                     && ClientInputRuntime.router().contextCount() == 0, "Script unload removes Lua maps and contexts");
             require(ClientHotkeys.activeCount() == 0 && ClientHotkeys.retainedCount() == 1,
                     "Script unload detaches hotkeys while retaining their native Controls slots");
-            require(ClientInputRuntime.controllers().get(
-                    ContentKey.parseForType("mymod:player", ContentType.INPUT_CONTROLLER)) == null,
+            require(ClientInputRuntime.controllers()
+                    .get(ContentKey.parseForType("mymod:player", ContentType.INPUT_CONTROLLER)) == null,
                     "Script unload closes controller registrations");
             System.out.println("Input Lua API passed: maps, controllers, hotkeys, callbacks and cleanup.");
         } finally {

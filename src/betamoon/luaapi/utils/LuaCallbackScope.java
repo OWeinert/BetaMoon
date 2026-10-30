@@ -60,6 +60,11 @@ public final class LuaCallbackScope implements AutoCloseable {
         return new LuaCallbackScope(mutable, mutable, queuedTeleportAllowed);
     }
 
+    public static LuaCallbackScope withQueuedTeleport(boolean mutable, boolean uiStateMutable,
+            boolean queuedTeleportAllowed) {
+        return new LuaCallbackScope(mutable, uiStateMutable, queuedTeleportAllowed);
+    }
+
     public static LuaCallbackScope binding() {
         LuaCallbackScope scope = new LuaCallbackScope(false, false);
         scope.binding = true;

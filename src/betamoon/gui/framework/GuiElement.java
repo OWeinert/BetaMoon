@@ -18,6 +18,15 @@ public abstract class GuiElement {
     private boolean focusable;
     private boolean collapsed;
     private double opacity = 1;
+    private GuiInputLifetime inputLifetime;
+
+    public final void inputLifetime(GuiInputLifetime lifetime) {
+        inputLifetime = lifetime;
+    }
+
+    final boolean inputLifetimeActive() {
+        return inputLifetime == null || inputLifetime.active();
+    }
 
     public final double getOpacity() {
         return opacity;
@@ -330,11 +339,11 @@ public abstract class GuiElement {
     }
 
     final boolean isAvailable() {
-        return visible && enabled && opacity > 0 && (parent == null || parent.isAvailable());
+        return visible && enabled && opacity > 0 && inputLifetimeActive() && (parent == null || parent.isAvailable());
     }
 
     void collectFocusableElements(List<GuiElement> elements) {
-        if (visible && enabled && opacity > 0 && focusable) {
+        if (isAvailable() && focusable) {
             elements.add(this);
         }
     }

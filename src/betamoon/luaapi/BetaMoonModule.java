@@ -1,6 +1,7 @@
 package betamoon.luaapi;
 
 import betamoon.hooks.HookLuaValue;
+import betamoon.luaapi.client.ui.GuiUiApi;
 import betamoon.luaapi.asset.AssetsApi;
 import betamoon.luaapi.audio.AudioApi;
 import betamoon.luaapi.audio.StepSoundApi;
@@ -96,6 +97,7 @@ public final class BetaMoonModule extends TwoArgFunction {
         DimensionsApi.attach(module);
         TeleportApi.attach(module);
         InputApi.attach(module);
+        GuiUiApi.attach(module, source);
         CapabilitiesApi.attach(module);
         SystemsApi.attach(module);
         LogicalNetworksApi.attach(module);

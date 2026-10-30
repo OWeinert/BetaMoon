@@ -2,6 +2,7 @@ package betamoon.gui.component;
 
 import betamoon.gui.animation.GuiTransitionPolicy;
 import betamoon.gui.presentation.GuiProperties;
+import betamoon.gui.style.GuiNodeAppearance;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -29,11 +30,21 @@ public final class GuiAuthoredNode {
     public final LuaValue binding;
     public final GuiTransitionPolicy transition;
     public final boolean explicitTransition;
+    public final GuiNodeAppearance appearance;
 
     public GuiAuthoredNode(String owner, String type, String component, String slot, int slotIndex, String id,
             String key, GuiProperties properties, Map<String, Object> props, Map<String, List<GuiAuthoredNode>> slots,
             List<GuiAuthoredNode> children, Map<String, LuaValue> handlers, LuaValue binding,
             GuiTransitionPolicy transition, boolean explicitTransition) {
+        this(owner, type, component, slot, slotIndex, id, key, properties, props, slots, children, handlers, binding,
+                transition, explicitTransition, GuiNodeAppearance.DEFAULT);
+    }
+
+    public GuiAuthoredNode(String owner, String type, String component, String slot, int slotIndex, String id,
+            String key, GuiProperties properties, Map<String, Object> props, Map<String, List<GuiAuthoredNode>> slots,
+            List<GuiAuthoredNode> children, Map<String, LuaValue> handlers, LuaValue binding,
+            GuiTransitionPolicy transition, boolean explicitTransition, GuiNodeAppearance appearance) {
+        this.appearance = appearance;
         this.owner = owner;
         this.type = type;
         this.component = component;

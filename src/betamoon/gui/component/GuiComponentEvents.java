@@ -3,6 +3,7 @@ package betamoon.gui.component;
 import betamoon.luaapi.client.ui.GuiAuthoredNodeParser;
 import betamoon.luaapi.client.ui.GuiReadOnlyValues;
 import betamoon.luaapi.utils.LuaCallbackScope;
+import betamoon.luaapi.interop.NativeCallbackContext;
 import betamoon.luamodloader.ScriptExecution;
 import java.util.Map;
 import org.luaj.vm2.LuaError;
@@ -23,6 +24,9 @@ final class GuiComponentEvents implements GuiComponentScope.Emitter {
     }
 
     LuaValue handle(LuaTable context, LuaTable payload) {
+        if (!"control".equals(payload.get("type").tojstring())) {
+            return lifecycle(context, payload);
+        }
         GuiComponentPlan.View view = plan.views.get(payload.get("elementId").optjstring(""));
         if (view == null || !plan.available(view.scope)) {
             return LuaValue.FALSE;
@@ -70,6 +74,42 @@ final class GuiComponentEvents implements GuiComponentScope.Emitter {
             plan.disable(failed);
             plan.services.failure(failed.owner, failed.path,
                     failure instanceof CallbackFailure ? failure.getCause() : failure);
+            return LuaValue.FALSE;
+        } finally {
+            try {
+                if (!finished) {
+                    plan.state.finishEvent(false);
+                }
+            } finally {
+                outer = null;
+                depth = 0;
+            }
+        }
+    }
+
+    private LuaValue lifecycle(LuaTable context, LuaTable event) {
+        GuiComponentScope root = plan.scopes.get("root");
+        if (!plan.available(root)) {
+            return LuaValue.NIL;
+        }
+        if (outer != null || !(context instanceof NativeCallbackContext)) {
+            throw new IllegalStateException("Screen events require their own scoped context");
+        }
+        outer = context;
+        plan.state.beginEvent();
+        boolean finished = false;
+        try {
+            root.eventContext(context, ((NativeCallbackContext) context).nativeCallbackScope(), this);
+            LuaValue result = plan.services.event(context, event);
+            finished = true;
+            plan.state.finishEvent(true);
+            return result;
+        } catch (VirtualMachineError | ThreadDeath fatal) {
+            throw fatal;
+        } catch (Throwable failure) {
+            plan.runtime.discardUiCommands();
+            plan.disable(root);
+            plan.services.failure(root.owner, root.path, failure);
             return LuaValue.FALSE;
         } finally {
             try {

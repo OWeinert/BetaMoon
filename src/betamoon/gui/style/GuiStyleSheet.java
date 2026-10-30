@@ -45,6 +45,15 @@ public final class GuiStyleSheet {
     }
 
     private final Map<String, GuiControlStyle[]> compiled;
+    private final GuiStyleSheet inherited;
+    private final GuiControlStyle inline;
+    private final Map<String, GuiControlStyle[]> inlineVariants = new LinkedHashMap<String, GuiControlStyle[]>(4, 0.75F,
+            true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, GuiControlStyle[]> entry) {
+            return size() > 4;
+        }
+    };
 
     public GuiStyleSheet(Map<String, Rule> rules) {
         if (rules == null || rules.isEmpty() || rules.size() > 128) {
@@ -58,11 +67,28 @@ public final class GuiStyleSheet {
             compile(name, rules, result, new LinkedHashSet<String>());
         }
         compiled = Collections.unmodifiableMap(result);
+        inherited = null;
+        inline = null;
     }
 
     public GuiControlStyle resolve(String variant, int states) {
-        GuiControlStyle[] values = compiled.get(variant);
-        if (values == null || states < 0 || states >= 64) {
+        if (states < 0 || states >= 64) {
+            throw new IllegalArgumentException("Invalid style state: " + states);
+        }
+        GuiControlStyle[] values;
+        if (inherited == null) {
+            values = compiled.get(variant);
+        } else {
+            values = inlineVariants.get(variant);
+            if (values == null) {
+                values = new GuiControlStyle[64];
+                for (int state = 0; state < 64; state++) {
+                    values[state] = inherited.resolve(variant, state).merge(inline);
+                }
+                inlineVariants.put(variant, values);
+            }
+        }
+        if (values == null) {
             throw new IllegalArgumentException("Unknown style variant or state: " + variant);
         }
         return values[states];
@@ -78,6 +104,75 @@ public final class GuiStyleSheet {
             throw new IllegalArgumentException("Missing or cyclic style variant: " + key);
         }
         GuiControlStyle[] parent = rule.parent == null ? null : compile(rule.parent, rules, compiled, visiting);
+        GuiControlStyle[] values = states(rule, parent);
+        visiting.remove(key);
+        compiled.put(key, values);
+        return values;
+    }
+
+    private GuiStyleSheet(Map<String, GuiControlStyle[]> compiled, boolean prepared) {
+        this.compiled = Collections.unmodifiableMap(new LinkedHashMap<>(compiled));
+        inherited = null;
+        inline = null;
+    }
+
+    private GuiStyleSheet(GuiStyleSheet inherited, GuiControlStyle inline) {
+        compiled = inherited.compiled;
+        this.inherited = inherited;
+        this.inline = inline;
+    }
+
+    public GuiStyleSheet withInline(GuiControlStyle values) {
+        return new GuiStyleSheet(this, values);
+    }
+
+    /**
+     * Overlay named variants on a prepared preset, preserving its finite Java state
+     * resolution.
+     */
+    public GuiStyleSheet overlay(Map<String, Rule> rules) {
+        Map<String, GuiControlStyle[]> overrides = new LinkedHashMap<>();
+        for (String name : rules.keySet()) {
+            if (name == null || !name.matches("[A-Za-z][A-Za-z0-9_.-]{0,127}")) {
+                throw new IllegalArgumentException("Invalid style variant name");
+            }
+            compileOverlay(name, rules, overrides, new LinkedHashSet<>());
+        }
+        Map<String, GuiControlStyle[]> combined = new LinkedHashMap<>(compiled);
+        combined.putAll(overrides);
+        if (combined.size() > 128) {
+            throw new IllegalArgumentException("Style sheet exceeds 128 variants");
+        }
+        return new GuiStyleSheet(combined, true);
+    }
+
+    private GuiControlStyle[] compileOverlay(String name, Map<String, Rule> rules,
+            Map<String, GuiControlStyle[]> output, Set<String> visiting) {
+        if (output.containsKey(name)) {
+            return output.get(name);
+        }
+        Rule rule = rules.get(name);
+        if (rule == null || !visiting.add(name) || visiting.size() > 32) {
+            throw new IllegalArgumentException("Missing/cyclic style variant: " + name);
+        }
+        GuiControlStyle[] parent;
+        if (rule.parent == null) {
+            parent = compiled.getOrDefault(name, compiled.get("default"));
+        } else {
+            parent = rules.containsKey(rule.parent)
+                    ? compileOverlay(rule.parent, rules, output, visiting)
+                    : compiled.get(rule.parent);
+        }
+        if (parent == null) {
+            throw new IllegalArgumentException("Unknown parent style variant: " + rule.parent);
+        }
+        GuiControlStyle[] values = states(rule, parent);
+        visiting.remove(name);
+        output.put(name, values);
+        return values;
+    }
+
+    private static GuiControlStyle[] states(Rule rule, GuiControlStyle[] parent) {
         GuiControlStyle[] values = new GuiControlStyle[64];
         for (int state = 0; state < 64; state++) {
             GuiControlStyle value = parent == null ? rule.values : parent[state].merge(rule.values);
@@ -97,8 +192,6 @@ public final class GuiStyleSheet {
             values[state] = value;
             value.requireActive();
         }
-        visiting.remove(key);
-        compiled.put(key, values);
         return values;
     }
 
@@ -108,9 +201,13 @@ public final class GuiStyleSheet {
                 "padding", container ? 4 : 6, "borderWidth", 1, "shadow", nativeButton, "nativeButton", nativeButton,
                 "font", GuiFontFace.NATIVE);
         Map<Integer, GuiControlStyle> states = new LinkedHashMap<>();
-        states.put(HOVERED, GuiControlStyle.of("background", 0xFF304C68));
+        states.put(HOVERED,
+                nativeButton
+                        ? GuiControlStyle.of("background", 0xFF304C68, "foreground", 0xFFFFFFA0)
+                        : GuiControlStyle.of("background", 0xFF304C68));
         states.put(PRESSED, GuiControlStyle.of("background", 0xFF132536));
-        states.put(DISABLED, GuiControlStyle.of("foreground", 0xFF777777, "background", 0xFF20252B));
+        states.put(DISABLED,
+                GuiControlStyle.of("foreground", nativeButton ? 0xFFA0A0A0 : 0xFF777777, "background", 0xFF20252B));
         return new GuiStyleSheet(Collections.singletonMap("default", new Rule(null, base, states)));
     }
 }

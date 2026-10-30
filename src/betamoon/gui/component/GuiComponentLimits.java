@@ -2,6 +2,8 @@ package betamoon.gui.component;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Map;
 
 /**
@@ -67,6 +69,40 @@ public final class GuiComponentLimits {
         public long estimatedBytes() {
             return estimatedBytes;
         }
+    }
+
+    public static long authoredMetadata(GuiAuthoredNode root) {
+        Values budget = new Values(4 * 1024 * 1024, 262144);
+        Deque<GuiAuthoredNode> pending = new ArrayDeque<>();
+        pending.add(root);
+        int count = 0;
+        while (!pending.isEmpty()) {
+            GuiAuthoredNode node = pending.removeFirst();
+            if (++count > 4096) {
+                throw new IllegalArgumentException("UI authored tree exceeds 4096 nodes");
+            }
+            if (node.properties != null) {
+                budget.add(node.properties.baseline());
+            }
+            budget.add(node.props);
+            budget.add(node.appearance.style.values);
+            if (node.appearance.theme != null) {
+                budget.text(node.appearance.theme);
+            }
+            if (node.appearance.template != null) {
+                budget.text(node.appearance.template);
+            }
+            for (String text : new String[]{node.owner, node.type, node.component, node.slot, node.id, node.key}) {
+                if (text != null) {
+                    budget.text(text);
+                }
+            }
+            pending.addAll(node.children);
+            for (List<GuiAuthoredNode> content : node.slots.values()) {
+                pending.addAll(content);
+            }
+        }
+        return budget.estimatedBytes() + count * 256L;
     }
 
     private GuiComponentLimits() {

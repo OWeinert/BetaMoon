@@ -69,6 +69,7 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
         properties.add(GuiPropertyDescriptor.value("visible", Kind.BOOLEAN, true, Stage.HIT, Stage.MEASURE));
         properties.add(GuiPropertyDescriptor.value("visibility", Kind.STRING, "visible", Stage.HIT, Stage.MEASURE));
         properties.add(GuiPropertyDescriptor.value("variant", Kind.STRING, "default", Stage.MEASURE, Stage.PAINT));
+        properties.add(GuiPropertyDescriptor.value("styleRef", Kind.STRING, "", Stage.MEASURE, Stage.PAINT));
         properties.add(GuiPropertyDescriptor.value("align", Kind.STRING, "stretch", Stage.ARRANGE));
         properties.add(GuiPropertyDescriptor.value("justify", Kind.STRING, "start", Stage.ARRANGE));
         properties.add(GuiPropertyDescriptor.value("clip", Kind.BOOLEAN, false, Stage.HIT));

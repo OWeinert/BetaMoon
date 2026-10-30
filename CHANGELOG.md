@@ -4,6 +4,12 @@
 
 ### Added
 
+- Worldless and world-context Lua client screens with typed state/data, retained refresh, navigation and modal dialogs.
+- Declared client/world UI actions with bounded fair queues, detached tickets and stale-request cancellation.
+- Public reusable UI components, themes and prepared templates over the shared Java/Lua controls.
+- Prepared text/images/bitmap fonts, geometry and explicit scoped raw graphics with owned shaders, buffers and targets.
+- Four progressive client UI examples with configurable shortcuts, editor definitions and Lua API wiki references.
+
 - Native Interop API catalog foundations for mapped Minecraft classes, native members, and source-file discovery.
 - Native class/member queries, installed-mod discovery, reusable metadata caches, and attached source browsing.
 - Native debug reports with an optional detailed-catalog checkbox in Debug Tools.

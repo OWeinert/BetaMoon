@@ -35,8 +35,7 @@ public final class GuiDefaultTemplate implements GuiVisualTemplate {
         if (nativeButton) {
             GuiNativeButtonSkin.draw(view.preparedNativeTexture(), bounds, view.isEnabled(),
                     view.interaction("hovered"), (int) Math.round(context.getOpacity() * 255));
-            foreground = color(context,
-                    view.isEnabled() ? view.interaction("hovered") ? 0xFFFFFFA0 : 0xFFE0E0E0 : 0xFFA0A0A0);
+            foreground = color(context, style, "foreground", 0xFFE0E0E0);
         } else if (surface) {
             if (style.drawable("backgroundDrawable") == null) {
                 renderer.drawRect(bounds, color(context, style, "background", 0xFF202020));

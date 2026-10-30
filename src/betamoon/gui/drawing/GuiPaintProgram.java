@@ -384,6 +384,9 @@ public final class GuiPaintProgram {
 
                 public void paint(GuiContext context, Frame frame) {
                     int faded = color & 0xFFFFFF | (int) Math.round((color >>> 24) * context.getOpacity()) << 24;
+                    GL11.glEnable(GL11.GL_TEXTURE_2D);
+                    GL11.glEnable(GL11.GL_BLEND);
+                    GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
                     font.draw(context, text, (int) Math.round(frame.values[px]), (int) Math.round(frame.values[py]),
                             faded, shadow);
                 }

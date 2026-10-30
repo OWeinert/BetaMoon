@@ -14,5 +14,8 @@ public interface GuiVisualTemplate {
     default void prepare(GuiContext context, GuiStyledView view) {
     }
 
+    default void close() {
+    }
+
     void paint(GuiContext context, GuiStyledView view, GuiControlStyle style);
 }

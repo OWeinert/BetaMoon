@@ -69,6 +69,7 @@ used by later examples.
 | 30 | `01_beg_30_custom_fuel.lua` | Registering an item as vanilla furnace fuel |
 | 31 | `01_beg_31_simple_feature_placement.lua` | Separating a reusable feature from its scheduled placement |
 | 32 | `01_beg_32_simple_tree_placement.lua` | Scheduling a vanilla-adapter tree with surface conditions |
+| 33 | `01_beg_33_first_screen.lua` | Worldless client screen, shared controls and a configurable F6 shortcut |
 
 ## Intermediate
 
@@ -112,6 +113,7 @@ state, physical behavior, and event-driven logic.
 | 33 | `02_int_33_sunken_cellar/` | Minimal footprint-to-surface excavation for a negatively offset cellar |
 | 34 | `02_int_34_excavated_foundation/` | Exact clearance voxels, a named 3D excavation mask, and an authored foundation footprint |
 | 35 | `02_int_35_material_and_step_sound/` | Custom and vanilla block materials and step sounds, backed by a packaged WAV |
+| 36 | `02_int_36_reactive_screen.lua` | Reactive form, typed state/data, declared client action and modal dialog (F7) |
 
 ## Advanced
 
@@ -146,6 +148,8 @@ and, where useful, organize private modules with `require`.
 | 23 | `03_adv_23_world_service_and_data.lua` | Persistent per-world services and detached world, chunk, and player views |
 | 24 | `03_adv_24_native_reflection.lua` | Native metadata, loader selection, exact method references and scoped world receivers |
 | 25 | `03_adv_25_native_world_observer.lua` | Owned native listener with read-only notifications and automatic reload/world cleanup |
+| 26 | `03_adv_26_prepared_ui_components.lua` | Keyed reusable components, slots/exports, prepared geometry and replaceable templates (F8) |
+| 27 | `03_adv_27_raw_ui_graphics.lua` | Explicit raw graphics with prepared shader, VBO and target (F9) |
 
 ## Trying the interactive examples
 
@@ -324,3 +328,11 @@ unverified structure. A full output pauses processing, while changed input or an
 resets progress. Both multiblock scripts require a restart after edits.
 
 When updating these lessons, replace older advanced-script copies so renamed lessons are not loaded twice.
+
+## Client UI lessons
+
+Beginner 33, Intermediate 36 and Advanced 26–27 work from the main menu and from a local single-player
+world. Press F6/F7/F8/F9 respectively; rebind them in Options → Controls → BetaMoon. Protected native
+screens refuse opening. Escape closes dialogs before the parent screen. These lessons require the Java
+agent and no extra assets. Advanced 27 requires shader/framebuffer support and deliberately runs Lua
+per frame; ordinary controls and prepared drawing replay without Lua in paint.

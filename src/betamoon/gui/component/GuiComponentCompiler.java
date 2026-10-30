@@ -10,6 +10,7 @@ import betamoon.gui.presentation.GuiPresentationHost;
 import betamoon.gui.presentation.GuiPresentationRuntime;
 import betamoon.gui.presentation.GuiProperties;
 import betamoon.gui.presentation.GuiPropertyDescriptor;
+import betamoon.gui.style.GuiViewAppearance;
 import betamoon.luaapi.client.ui.GuiAuthoredNodeParser;
 import betamoon.luaapi.client.ui.GuiReadOnlyValues;
 import betamoon.luaapi.utils.LuaCallbackScope;
@@ -53,10 +54,26 @@ public final class GuiComponentCompiler {
     public static GuiComponentPlan prepare(GuiComponentRegistry registry, String owner, String key,
             GuiAuthoredNode root, GuiPresentationHost host, GuiComponentPlan.Services services,
             Set<GuiCapability> capabilities, GuiComponentPlan previous) {
+        return prepare(registry, owner, key, root, host, services, capabilities, previous, null, Collections.emptyMap(),
+                Collections.emptyMap());
+    }
+
+    public static GuiComponentPlan prepare(GuiComponentRegistry registry, String owner, String key,
+            GuiAuthoredNode root, GuiPresentationHost host, GuiComponentPlan.Services services,
+            Set<GuiCapability> capabilities, GuiComponentPlan previous, GuiComponentSchema screenState,
+            Map<String, Object> initialState, Map<String, Object> restoredState) {
         GuiComponentPlan plan = new GuiComponentPlan(owner, key, host, services);
         try {
-            GuiComponentScope scope = new GuiComponentScope("root", owner, null, null, null, null, plan.state,
-                    Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
+            plan.state.restore(restoredState);
+            String stateKey = screenState == null ? null : GuiComponentPlan.SCREEN_STATE;
+            if (screenState != null) {
+                plan.state.create(stateKey, screenState, previous == null ? null : previous.state);
+                if (!initialState.isEmpty()) {
+                    plan.state.seed(stateKey, initialState);
+                }
+            }
+            GuiComponentScope scope = new GuiComponentScope("root", owner, null, null, null, stateKey, plan.state,
+                    Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), screenState);
             plan.scopes.put(scope.path, scope);
             GuiComponentCompiler compiler = new GuiComponentCompiler(registry, capabilities, previous, plan);
             compiler.expand(root, scope, -1, "root/node", 0);
@@ -205,7 +222,7 @@ public final class GuiComponentCompiler {
         GuiComponentScope caller = component.eventScope;
         GuiComponentScope placement = new GuiComponentScope(path + "/slot." + authored.slot, caller.owner,
                 caller.definition, component, caller.eventScope, caller.stateKey, plan.state, caller.props,
-                caller.slots, caller.subscriptions);
+                caller.slots, caller.subscriptions, caller.stateSchema);
         plan.scopes.put(placement.path, placement);
         int first = -1;
         int start = authored.slotIndex == 0 ? 0 : authored.slotIndex - 1;
@@ -237,9 +254,14 @@ public final class GuiComponentCompiler {
         declarationBudget.text(id);
         declarationBudget.text(path);
         declarationBudget.add(properties.baseline());
+        declarationBudget.add(authored.appearance.style.values);
         nodes.add(new GuiNodeDefinition(id, path, type, parent, null, null, properties, binding, transition,
                 authored.explicitTransition));
-        plan.views.put(id, new GuiComponentPlan.View(scope, authored, leaf));
+        String inheritedTheme = authored.appearance.theme != null
+                ? authored.appearance.theme
+                : parent < 0 ? null : plan.views.get(nodes.get(parent).id).appearance.theme;
+        plan.views.put(id, new GuiComponentPlan.View(scope, authored, leaf,
+                new GuiViewAppearance(scope.owner, nodes.get(index), authored.appearance, inheritedTheme)));
         return index;
     }
 
