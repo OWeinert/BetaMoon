@@ -160,7 +160,19 @@ public final class GuiPresentationTree implements AutoCloseable {
         stateAdmission = Objects.requireNonNull(admission, "view state admission");
         for (Map.Entry<String, GuiViewAdapter> view : ids.entrySet()) {
             String id = view.getKey();
-            view.getValue().admitStateWith(values -> beginLocalProposal(id, values));
+            view.getValue().admitStateWith(new GuiViewStateAdmission() {
+                public Proposal begin(Map<String, Object> values) {
+                    return beginLocalProposal(id, values);
+                }
+
+                public Object revision() {
+                    return stateAdmission == null ? null : stateAdmission.revision();
+                }
+
+                public boolean pending() {
+                    return stateAdmission != null && stateAdmission.pending();
+                }
+            });
         }
         installPublicationAdmission();
     }

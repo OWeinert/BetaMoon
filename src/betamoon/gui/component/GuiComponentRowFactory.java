@@ -248,6 +248,8 @@ public final class GuiComponentRowFactory implements GuiRowFactory {
         value.put("enabled", context.record.enabled);
         value.put("data", context.record.data);
         value.put("depth", context.depth);
+        value.put("selected", context.selected);
+        value.put("expanded", context.expanded);
         return value;
     }
 
@@ -270,21 +272,34 @@ public final class GuiComponentRowFactory implements GuiRowFactory {
 
     private static void admit(Context context, GuiComponentPlan plan, GuiPresentationTree tree) {
         plan.state().admitWith(typed -> context.publishState(snapshot(typed, tree.captureViewState())));
-        tree.admitViewStateWith(views -> {
-            GuiViewStateAdmission.Proposal proposal = context.reserveState(snapshot(plan.state().snapshot(), views));
-            return new GuiViewStateAdmission.Proposal() {
-                public void commit(Map<String, Object> accepted) {
-                    proposal.commit(snapshot(plan.state().snapshot(), accepted));
-                }
+        tree.admitViewStateWith(new GuiViewStateAdmission() {
+            public Proposal begin(Map<String, Object> views) {
+                Proposal proposal = context.reserveState(snapshot(plan.state().snapshot(), views));
+                return new Proposal() {
+                    public void commit(Map<String, Object> accepted) {
+                        proposal.commit(snapshot(plan.state().snapshot(), accepted));
+                    }
 
-                public void close() {
-                    proposal.close();
-                }
-            };
+                    public void close() {
+                        proposal.close();
+                    }
+                };
+            }
+
+            public Object revision() {
+                return context.stateRevision();
+            }
+
+            public boolean pending() {
+                return context.statePending();
+            }
         });
     }
 
     private static Map<String, Object> snapshot(Map<String, Object> typed, Map<String, Object> views) {
+        if (typed.isEmpty() && views.isEmpty()) {
+            return Collections.emptyMap();
+        }
         Map<String, Object> value = new LinkedHashMap<>();
         value.put("state", typed);
         value.put("views", views);

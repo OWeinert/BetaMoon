@@ -261,6 +261,16 @@ public final class GuiCollectionModel {
         return value == null ? Collections.emptyMap() : value.values;
     }
 
+    public Map<String, Object> rowStates() {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        for (Map.Entry<String, State> entry : states.entrySet()) {
+            if (!entry.getValue().values.isEmpty()) {
+                snapshot.put(entry.getKey(), entry.getValue().values);
+            }
+        }
+        return Collections.unmodifiableMap(snapshot);
+    }
+
     public boolean publishRowState(String key, Map<String, ?> values) {
         required(key);
         State candidate = prepareState(values);

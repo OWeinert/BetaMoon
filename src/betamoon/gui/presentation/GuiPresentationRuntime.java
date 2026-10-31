@@ -987,6 +987,7 @@ public class GuiPresentationRuntime implements AutoCloseable {
             validateLayout(geometryCandidates);
         } catch (LuaError invalid) {
             valid = false;
+            GuiActionOrigin.rejectEvent();
             report("presentation layout", invalid);
         }
         double now = clock.getAsDouble();
@@ -1007,6 +1008,7 @@ public class GuiPresentationRuntime implements AutoCloseable {
         try {
             admission = admitPublications(publications);
         } catch (LuaError invalid) {
+            GuiActionOrigin.rejectEvent();
             report("presentation state", invalid);
             for (Command command : commands) {
                 if (command.request != null) {

@@ -100,10 +100,12 @@ public final class GuiControlAdmissionTest {
 
     private static void bindingAndCommandBatches() {
         Globals lua = JsePlatform.standardGlobals();
+        Actions actions = new Actions();
+        lua.set("submit", actions.submit);
         lua.load("calls=0; commands=''; " + "function first(v) calls=calls+1; return {text=v.data:get('first')} end; "
                 + "function second(v) calls=calls+1; return {text=v.data:get('second')} end; "
                 + "function flag(v) calls=calls+1; return {selected=v.data:get('flag')} end; "
-                + "function onEvent(ctx,event) if event.type=='control' then "
+                + "function onEvent(ctx,event) if event.type=='control' then submit(); "
                 + "ctx.gui:element('first'):set{text=commands}; "
                 + "ctx.gui:element('second'):set{text=commands} end end").call();
         List<GuiNodeDefinition> nodes = Arrays.asList(
@@ -153,6 +155,9 @@ public final class GuiControlAdmissionTest {
             revision = budget.model.revision();
             tree.runtime().dispatchUiEvent("flag", "change", true);
             scene.prepare();
+            actions.queue.dispatch(Scope.CLIENT);
+            require(actions.last.status() == Status.CANCELLED && "origin_expired".equals(actions.last.reason()),
+                    "A rejected complete UI command batch retained its deferred action");
             require(first.text().equals(smaller) && second.text().equals(smaller)
                     && tree.runtime().element("first").target("text").equals(smaller)
                     && tree.runtime().element("second").target("text").equals(smaller)
@@ -161,6 +166,9 @@ public final class GuiControlAdmissionTest {
             lua.set("commands", repeat(500));
             tree.runtime().dispatchUiEvent("flag", "change", true);
             scene.prepare();
+            actions.queue.dispatch(Scope.CLIENT);
+            require(actions.last.status() == Status.SUCCEEDED,
+                    "A valid later command batch did not recover deferred action admission");
             require(first.text().equals(repeat(500)) && second.text().equals(repeat(500))
                     && budget.model.rowState("row").equals(budget.state(tree.captureViewState())),
                     "A valid command batch failed to publish the same complete control/cache snapshot");

@@ -101,6 +101,8 @@ public interface GuiRowFactory {
         public final int height;
         public final Map<String, Object> state;
         public final Row previous;
+        public final boolean selected;
+        public final boolean expanded;
         private final Consumer<Map<String, ?>> statePublication;
         private final GuiViewStateAdmission proposals;
         private final GuiActionOrigin adoption = GuiActionOrigin.pending();
@@ -124,6 +126,12 @@ public interface GuiRowFactory {
         public Context(GuiContext gui, GuiRowBudget budget, GuiCollectionModel.Record record, int depth, int width,
                 int height, Map<String, Object> state, Row previous, Consumer<Map<String, ?>> statePublication,
                 GuiViewStateAdmission proposals) {
+            this(gui, budget, record, depth, width, height, state, previous, statePublication, proposals, false, false);
+        }
+
+        public Context(GuiContext gui, GuiRowBudget budget, GuiCollectionModel.Record record, int depth, int width,
+                int height, Map<String, Object> state, Row previous, Consumer<Map<String, ?>> statePublication,
+                GuiViewStateAdmission proposals, boolean selected, boolean expanded) {
             this.gui = gui;
             this.budget = budget;
             this.record = record;
@@ -132,6 +140,8 @@ public interface GuiRowFactory {
             this.height = height;
             this.state = state;
             this.previous = previous;
+            this.selected = selected;
+            this.expanded = expanded;
             this.statePublication = Objects.requireNonNull(statePublication, "row state publication");
             this.proposals = Objects.requireNonNull(proposals, "row control proposals");
         }
@@ -179,6 +189,14 @@ public interface GuiRowFactory {
             } catch (IllegalArgumentException refused) {
                 throw new GuiViewStateAdmission.Refusal(refused);
             }
+        }
+
+        public Object stateRevision() {
+            return proposals.revision();
+        }
+
+        public boolean statePending() {
+            return proposals.pending();
         }
     }
 }

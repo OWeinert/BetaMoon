@@ -11,6 +11,22 @@ public interface GuiViewStateAdmission {
     Proposal begin(Map<String, Object> prospective);
 
     /**
+     * Immutable Java-only input/capacity epoch for retrying rejected descendants
+     * after admission inputs change.
+     */
+    default Object revision() {
+        return null;
+    }
+
+    /**
+     * An ancestor proposal must finish before descendants realize or retire their
+     * view graphs.
+     */
+    default boolean pending() {
+        return false;
+    }
+
+    /**
      * Expected engine validation refusal; a synchronous event/control proposal must
      * roll back and remain usable.
      */

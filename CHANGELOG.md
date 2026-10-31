@@ -60,4 +60,4 @@
 ### Fixed
 
 - Nested GUI scrolling now hands an exhausted wheel gesture to an eligible parent and handles extreme deltas without overflow.
-- Deferred UI actions from failed callbacks or expired component owners now cancel before dispatch.
+- Deferred UI actions from failed callbacks, rejected GUI command batches or expired component owners now cancel before dispatch.
