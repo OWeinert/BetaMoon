@@ -10,6 +10,10 @@ import betamoon.gui.framework.GuiElement;
 import betamoon.gui.framework.GuiGeometry.Constraints;
 import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.framework.GuiGeometry.Size;
+import betamoon.gui.framework.GuiGeometry.Insets;
+import betamoon.gui.framework.GuiGridGeometry;
+import betamoon.gui.framework.GuiMeasurementPreview;
+import betamoon.gui.presentation.GuiViewPublication;
 import betamoon.gui.framework.GuiInputEvent;
 import betamoon.gui.framework.GuiViewportLayout;
 import betamoon.gui.graphics.GraphicsTransform;
@@ -44,6 +48,7 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
     private final String kind;
     private final GuiStyleSheet theme;
     private final GuiVisualTemplate template;
+    private GuiGridGeometry grid;
     private Events events;
     private final GuiActivation activation = new GuiActivation(GuiActivation.Timing.RELEASE);
     private GuiNumericRange range = new GuiNumericRange(0, 100, 1);
@@ -131,6 +136,9 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
     @Override
     public void validateValues(Map<String, Object> values) {
         theme.resolve(styleReference(values), 0).requireActive();
+        if ("grid".equals(kind)) {
+            grid(values);
+        }
         if (!Arrays.asList("start", "center", "end", "stretch").contains(values.getOrDefault("align", "stretch"))
                 || !Arrays.asList("start", "center", "end").contains(values.getOrDefault("justify", "start"))
                 || !Arrays.asList("visible", "hidden", "collapsed")
@@ -176,6 +184,14 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
     }
 
     private void publishValues(Map<String, Object> values, Predicate<String> controlled) {
+        if ("grid".equals(kind)) {
+            GuiGridGeometry candidate = grid(values);
+            if (grid == null || grid.fixedColumns() != candidate.fixedColumns()
+                    || grid.minimumCellWidth() != candidate.minimumCellWidth()) {
+                requestLayout();
+            }
+            grid = candidate;
+        }
         javaValues = values;
         javaValueRevision++;
         double width = number(values, "width", 0);
@@ -284,12 +300,32 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
 
     @Override
     protected Size measureElement(GuiContext context, Constraints constraints) {
-        GuiControlStyle style = theme.resolve(variant, 0);
+        GuiViewPublication pending = GuiMeasurementPreview.values(this);
+        Map<String, Object> values = pending == null ? null : pending.values;
+        double preferredWidth = values == null ? this.preferredWidth : number(values, "width", 0);
+        double preferredHeight = values == null ? this.preferredHeight : number(values, "height", 0);
+        double minimumWidth = values == null ? this.minimumWidth : number(values, "minWidth", 0);
+        double minimumHeight = values == null ? this.minimumHeight : number(values, "minHeight", 0);
+        double padding = values == null ? this.padding : number(values, "padding", 0);
+        double gap = values == null ? this.gap : number(values, "gap", 0);
+        boolean vertical = values == null ? this.vertical : "vertical".equals(values.get("orientation"));
+        GuiGridGeometry grid = values == null ? this.grid : "grid".equals(kind) ? grid(values) : null;
+        if (grid != null) {
+            int width = preferredWidth > 0
+                    ? Math.min(constraints.getMaxWidth(), (int) Math.round(preferredWidth))
+                    : constraints.getMaxWidth();
+            Size measured = grid.measure(context, Constraints.upTo(width, constraints.getMaxHeight()), getChildren());
+            return constraints.constrain(new Size(Math.max((int) Math.round(minimumWidth), measured.getWidth()),
+                    Math.max((int) Math.round(minimumHeight),
+                            preferredHeight > 0 ? (int) Math.round(preferredHeight) : measured.getHeight())));
+        }
+        GuiControlStyle style = theme.resolve(values == null ? variant : styleReference(values), 0);
         int inset = isFocusable() ? style.number("padding", 4) : 0;
         int width = 0;
         int height = 0;
         if (Arrays.asList("text", "button", "checkbox", "choice", "textbox", "dialog", "tooltip").contains(kind)) {
-            width = style.font().width(context, text()) + inset * 2 + ("checkbox".equals(kind) ? 20 : 0);
+            width = style.font().width(context, measurementText(pending)) + inset * 2
+                    + ("checkbox".equals(kind) ? 20 : 0);
             height = style.font().lineHeight(context) + inset * 2;
         }
         boolean horizontal = "row".equals(kind);
@@ -317,6 +353,16 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
             primary += (int) gap * Math.max(0, count - 1);
             width = (horizontal ? primary : cross) + (int) padding * 2;
             height = (horizontal ? cross : primary) + (int) padding * 2;
+            if (horizontal) {
+                int available = Math.min(constraints.getMaxWidth(),
+                        preferredWidth > 0
+                                ? (int) Math.round(preferredWidth)
+                                : Math.max((int) Math.round(minimumWidth), width));
+                height = Math.max(height,
+                        measureGrowingRow(context, Math.max(0, available - (int) padding * 2),
+                                Math.max(0, constraints.getMaxHeight() - (int) padding * 2), (int) gap)
+                                + (int) padding * 2);
+            }
         }
         if (isFocusable()) {
             width = Math.max(width, "textbox".equals(kind) || "slider".equals(kind) ? 120 : 40);
@@ -350,6 +396,10 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
 
     @Override
     protected void arrangeChildren(GuiContext context) {
+        if (grid != null) {
+            grid.arrange(context, getBounds(), getChildren());
+            return;
+        }
         int left = getLeft() + (int) padding;
         int top = getTop() + (int) padding;
         int width = Math.max(0, getWidth() - (int) padding * 2);
@@ -406,6 +456,71 @@ public final class GuiStyledView extends GuiContainer implements GuiViewAdapter,
 
     private int aligned(int available, int size) {
         return "center".equals(align) ? (available - size) / 2 : "end".equals(align) ? available - size : 0;
+    }
+
+    private int measureGrowingRow(GuiContext context, int width, int maximumHeight, int gap) {
+        int fixed = 0;
+        int count = 0;
+        double weight = 0;
+        for (GuiElement child : getChildren()) {
+            if (!child.isCollapsed()) {
+                double grow = measureGrow(child);
+                weight += grow;
+                if (grow == 0) {
+                    fixed += child.getMeasuredSize().getWidth();
+                }
+                count++;
+            }
+        }
+        int remaining = Math.max(0, width - fixed - gap * Math.max(0, count - 1));
+        int cross = 0;
+        for (GuiElement child : getChildren()) {
+            if (child.isCollapsed()) {
+                continue;
+            }
+            double grow = measureGrow(child);
+            if (grow > 0 && weight > 0) {
+                int allocated = (int) Math.round(remaining * grow / weight);
+                remaining -= allocated;
+                weight -= grow;
+                child.measure(context, Constraints.upTo(allocated, maximumHeight));
+            }
+            cross = Math.max(cross, child.getMeasuredSize().getHeight());
+        }
+        return cross;
+    }
+
+    private static double measureGrow(GuiElement child) {
+        if (!(child instanceof GuiStyledView)) {
+            return 0;
+        }
+        GuiViewPublication pending = GuiMeasurementPreview.values(child);
+        return pending == null ? ((GuiStyledView) child).grow : number(pending.values, "grow", 0);
+    }
+
+    private static GuiGridGeometry grid(Map<String, Object> values) {
+        int padding = (int) number(values, "padding", 0);
+        return new GuiGridGeometry((int) number(values, "columns", 1), (int) number(values, "minimumCellWidth", 0),
+                (int) number(values, "gap", 0), new Insets(padding, padding, padding, padding));
+    }
+
+    private String measurementText(GuiViewPublication pending) {
+        if (pending == null) {
+            return text();
+        }
+        Map<String, Object> state = projectState(pending.values, pending::controlled, captureState());
+        if (editor != null && state.containsKey("editor")) {
+            return (String) editorRecord(state.get("editor")).get("draft");
+        }
+        String text = string(pending.values.get("text"), "");
+        if ("choice".equals(kind)) {
+            List<?> options = (List<?>) pending.values.get("options");
+            double selected = pending.controlled("value")
+                    ? number(pending.values, "value", 1)
+                    : number(state, "value", value);
+            text += options.get((int) selected - 1);
+        }
+        return text;
     }
 
     @Override

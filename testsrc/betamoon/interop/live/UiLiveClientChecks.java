@@ -92,7 +92,7 @@ final class UiLiveClientChecks {
                                     + "dialogOpens=0;dialogRefreshes=0;dialogDefinition={key='uitest:dialog',state={count={type='integer',default=0}},"
                                     + "on={open=function()dialogOpens=dialogOpens+1 end,refresh=function()dialogRefreshes=dialogRefreshes+1 end},"
                                     + "actions={accept={scope='client',payload={},handler=function(ctx)ctx.state:set('count',4);return true end}},"
-                                    + "root={type='column',width=160,height=60,children={{type='text',text='Confirm'},"
+                                    + "root={type='grid',columns=1,width=160,height=60,children={{type='text',text='Confirm'},"
                                     + "{type='button',id='accept',text='Accept',on={activate=function(ctx)dialogTicket=ctx.screen:request('accept',{})end}}}}};ui.screens:add(dialogDefinition);"
                                     + "ui.screens:add(definition);wrongGuiTick=false;betamoon.events:on('gui_tick',function(ctx)"
                                     + "if form and form:status()=='active' and ctx.name~='GuiManagedScreen' then wrongGuiTick=true end end);"
@@ -179,7 +179,8 @@ final class UiLiveClientChecks {
             }
             require(lua.load("return popup.state:get('count')==4 and form.state:get('count')==8").call().toboolean(),
                     "Dialog action used its parent's model");
-            lua.load("dialogDefinition.root.children[2].text='Accepted';ui.screens:add(dialogDefinition)").call();
+            lua.load("dialogDefinition.root.children[2].text='Accepted';dialogDefinition.root.columns=2;"
+                    + "ui.screens:add(dialogDefinition)").call();
             phase = 10;
             wait = 0;
             return false;

@@ -48,7 +48,7 @@ public abstract class GuiElement {
     }
 
     public final boolean isCollapsed() {
-        return collapsed;
+        return GuiMeasurementPreview.collapsed(this, collapsed);
     }
 
     /**
@@ -192,7 +192,8 @@ public abstract class GuiElement {
     }
 
     public final Size measure(GuiContext context, Constraints constraints) {
-        if (collapsed) {
+        GuiMeasurementPreview.remember(this);
+        if (isCollapsed()) {
             measuredSize = Size.ZERO;
             return measuredSize;
         }
@@ -201,6 +202,14 @@ public abstract class GuiElement {
         }
         measuredSize = constraints.constrain(measureElement(context, constraints));
         return measuredSize;
+    }
+
+    final GuiContext layoutContext() {
+        return scene == null ? null : scene.getContext();
+    }
+
+    final void restoreMeasuredSize(Size size) {
+        measuredSize = size;
     }
 
     protected Size measureElement(GuiContext context, Constraints constraints) {

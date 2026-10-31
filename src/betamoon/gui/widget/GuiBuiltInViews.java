@@ -22,8 +22,8 @@ import java.util.function.Function;
  */
 public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
     private static final List<String> TYPES = Collections
-            .unmodifiableList(Arrays.asList("text", "image", "panel", "row", "column", "overlay", "spacer", "divider",
-                    "button", "checkbox", "choice", "slider", "textbox", "progress", "dialog", "tooltip"));
+            .unmodifiableList(Arrays.asList("text", "image", "panel", "row", "column", "grid", "overlay", "spacer",
+                    "divider", "button", "checkbox", "choice", "slider", "textbox", "progress", "dialog", "tooltip"));
     private final GuiStyleSheet theme;
     private final Function<GuiNodeDefinition, GuiVisualTemplate> templates;
     private final Function<GuiNodeDefinition, GuiStyledView.Events> events;
@@ -73,6 +73,12 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
         properties.add(GuiPropertyDescriptor.value("align", Kind.STRING, "stretch", Stage.ARRANGE));
         properties.add(GuiPropertyDescriptor.value("justify", Kind.STRING, "start", Stage.ARRANGE));
         properties.add(GuiPropertyDescriptor.value("clip", Kind.BOOLEAN, false, Stage.HIT));
+        if ("grid".equals(type)) {
+            properties.add(new GuiPropertyDescriptor("columns", Kind.INTEGER, 1, 0, 64, false, false,
+                    Collections.singleton(Stage.MEASURE), Collections.emptySet()));
+            properties.add(new GuiPropertyDescriptor("minimumCellWidth", Kind.INTEGER, 0, 0, 16384, false, false,
+                    Collections.singleton(Stage.MEASURE), Collections.emptySet()));
+        }
         if (Arrays.asList("text", "button", "checkbox", "choice", "textbox", "dialog", "tooltip").contains(type)) {
             properties.add(GuiPropertyDescriptor.value("text", Kind.STRING, "", Stage.MEASURE, Stage.PAINT));
         }

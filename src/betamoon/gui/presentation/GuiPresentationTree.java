@@ -2,6 +2,7 @@ package betamoon.gui.presentation;
 
 import betamoon.gui.framework.GuiContainer;
 import betamoon.gui.framework.GuiElement;
+import betamoon.gui.framework.GuiMeasurementPreview;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luamodloader.LuaScriptErrors;
 import java.util.ArrayList;
@@ -40,6 +41,8 @@ public final class GuiPresentationTree implements AutoCloseable {
     private GuiPresentationRuntime runtime;
     private boolean closed;
     private GuiViewStateAdmission stateAdmission;
+    private boolean publicationAdmissionInstalled;
+    private final boolean hasGrid;
     private final Map<String, LocalProposal> localProposals = new LinkedHashMap<>();
 
     public GuiPresentationTree(GuiDocumentDefinition definition, GuiPresentationHost host, Factory factory,
@@ -50,6 +53,7 @@ public final class GuiPresentationTree implements AutoCloseable {
             runtime.setViewValidator(this::validateValues);
             runtime.prepareInitial();
             publish();
+            installPublicationAdmission();
         } catch (RuntimeException | Error failure) {
             closeAfterFailure(failure);
             throw failure;
@@ -61,6 +65,7 @@ public final class GuiPresentationTree implements AutoCloseable {
         this.factory = factory;
         this.capabilities = Collections.unmodifiableSet(new HashSet<>(capabilities));
         validate(definition, capabilities);
+        hasGrid = definition.presentation.nodes.stream().anyMatch(node -> node.type.equals("grid"));
         published = new long[definition.presentation.nodes.size()];
         Arrays.fill(published, -1);
         Map<GuiElement, Boolean> unique = new IdentityHashMap<>();
@@ -157,7 +162,24 @@ public final class GuiPresentationTree implements AutoCloseable {
             String id = view.getKey();
             view.getValue().admitStateWith(values -> beginLocalProposal(id, values));
         }
+        installPublicationAdmission();
+    }
+
+    private void installPublicationAdmission() {
+        if (publicationAdmissionInstalled || !hasGrid && stateAdmission == null) {
+            return;
+        }
         runtime.admitPublicationsWith(candidates -> {
+            if (hasGrid) {
+                Map<GuiElement, GuiViewPublication> values = new IdentityHashMap<>();
+                for (Map.Entry<String, GuiViewPublication> candidate : candidates.entrySet()) {
+                    values.put(ids.get(candidate.getKey()).element(), candidate.getValue());
+                }
+                GuiMeasurementPreview.validate(root(), values);
+            }
+            if (stateAdmission == null) {
+                return GuiViewStateAdmission.UNRESTRICTED;
+            }
             GuiViewStateAdmission.Proposal proposal = Objects
                     .requireNonNull(stateAdmission.begin(captureViewState(candidates)), "binding state proposal");
             return new GuiViewStateAdmission.Proposal() {
@@ -170,6 +192,7 @@ public final class GuiPresentationTree implements AutoCloseable {
                 }
             };
         });
+        publicationAdmissionInstalled = true;
     }
 
     private GuiViewStateAdmission.Proposal beginLocalProposal(String id, Map<String, Object> values) {
@@ -345,6 +368,7 @@ public final class GuiPresentationTree implements AutoCloseable {
                         candidate.runtime = prepared;
                         candidate.publish();
                         candidate.retainFrom(this);
+                        candidate.installPublicationAdmission();
                         prepare.accept(candidate);
                         if (stateAdmission != null && candidate.stateAdmission == null) {
                             throw new IllegalStateException(
