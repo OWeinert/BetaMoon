@@ -1,6 +1,7 @@
 package betamoon.gui.collection;
 
 import betamoon.gui.action.GuiActionOrigin;
+import betamoon.gui.drawing.GuiPaintBudget;
 import betamoon.gui.framework.GuiContainer;
 import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiElement;
@@ -141,7 +142,7 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
         if (height > 0) {
             try {
                 for (Entry entry : new ArrayList<>(rows.values())) {
-                    entry.row.update(context, getWidth(), rowHeight);
+                    entry.row.update(context, getWidth(), window == null ? rowHeight : window.rowHeight);
                     if (entry.row.needsRefresh()) {
                         refresh = true;
                         rowInputs.add(entry.record.key);
@@ -187,7 +188,8 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
                 Entry previous = rows.get(record.record.key);
                 Entry entry = previous;
                 if (entry == null || refreshRevision != appliedRefreshRevision || !entry.record.equals(record.record)
-                        || entry.depth != record.depth || entry.row.needsRefresh()) {
+                        || entry.depth != record.depth || entry.row.needsRefresh()
+                        || window != null && window.rowHeight != rowHeight) {
                     GuiRowFactory.Prepared prepared;
                     Object stateIdentity = new Object();
                     GuiRowFactory.Context rowContext = new GuiRowFactory.Context(context, budget, record.record,
@@ -266,6 +268,8 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
             Map<String, Entry> nextRows, Map<String, RecordOrigins> nextOrigins, List<Staged> staged) {
         List<GuiRowBudget.Reservation> additions = new ArrayList<>();
         List<GuiRowBudget.Reservation> removals = new ArrayList<>();
+        List<GuiPaintBudget> paintAdditions = new ArrayList<>();
+        List<GuiPaintBudget> paintRemovals = new ArrayList<>();
         GuiElement focused = null;
         Entry focusedRow = null;
         for (Entry previous : rows.values()) {
@@ -276,13 +280,21 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
             }
             if (nextRows.get(previous.record.key) != previous) {
                 removals.add(previous.reservation);
+                if (previous.row.paintBudget() != null && previous.row.paintBudget().active()) {
+                    paintRemovals.add(previous.row.paintBudget());
+                }
             }
         }
         for (Staged candidate : staged) {
             additions.add(candidate.entry.reservation);
+            if (candidate.entry.row.paintBudget() != null) {
+                paintAdditions.add(candidate.entry.row.paintBudget());
+            }
         }
+        GuiPaintBudget.validateReplacing(paintAdditions, paintRemovals);
         budget.activateReplacing(additions, removals);
         try {
+            GuiPaintBudget.activateReplacing(paintAdditions, paintRemovals);
             for (Staged candidate : staged) {
                 GuiRowFactory.Row committed = candidate.prepared.commit();
                 if (committed != candidate.entry.row) {

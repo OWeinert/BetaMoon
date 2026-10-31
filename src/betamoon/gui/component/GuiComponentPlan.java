@@ -7,6 +7,7 @@ import betamoon.gui.drawing.GuiPaintView;
 import betamoon.gui.drawing.GuiRawDrawing;
 import betamoon.gui.drawing.GuiRawView;
 import betamoon.gui.framework.GuiElement;
+import betamoon.gui.collection.GuiRowFactory;
 import betamoon.gui.framework.GuiInputEvent;
 import betamoon.gui.graphics.GraphicsResources;
 import betamoon.gui.presentation.GuiCapability;
@@ -57,6 +58,10 @@ import org.luaj.vm2.lib.VarArgFunction;
 public final class GuiComponentPlan implements AutoCloseable {
     public static final String SCREEN_STATE = "screen";
     public interface Services {
+        default GuiComponentRowFactory.Environment rowEnvironment(GuiRowFactory.Context context, String theme) {
+            throw new IllegalStateException("This UI host has no prepared collection row resources");
+        }
+
         default List<GuiActionOrigin> actionOrigins() {
             return Collections.emptyList();
         }
@@ -138,7 +143,7 @@ public final class GuiComponentPlan implements AutoCloseable {
     private boolean active = true;
     private List<Object> callbackRevision;
     private Supplier<List<GuiActionOrigin>> inheritedActionOrigins = Collections::emptyList;
-    private List<GuiActionOrigin> dependencyActionOrigins = Collections.emptyList();
+    private final Map<String, GuiActionOrigin> ownerActionOrigins = new LinkedHashMap<>();
     private Runnable invalidated = () -> {
     };
 
@@ -178,7 +183,7 @@ public final class GuiComponentPlan implements AutoCloseable {
     List<GuiActionOrigin> actionOrigins() {
         List<GuiActionOrigin> origins = new ArrayList<>(services.actionOrigins());
         origins.addAll(inheritedActionOrigins.get());
-        origins.addAll(dependencyActionOrigins);
+        origins.addAll(ownerActionOrigins.values());
         return origins;
     }
 
@@ -197,12 +202,9 @@ public final class GuiComponentPlan implements AutoCloseable {
                 new GuiPresentationDefinition(nodes, callback, services.events(), owner), this);
         Set<String> owners = new LinkedHashSet<>();
         owners.add(owner);
-        Map<String, GuiActionOrigin> dependencyOwners = new LinkedHashMap<>();
         for (GuiComponentDefinition dependency : dependencies.values()) {
             owners.add(dependency.owner);
-            dependencyOwners.putIfAbsent(dependency.owner, dependency.actionOrigin());
         }
-        dependencyActionOrigins = Collections.unmodifiableList(new ArrayList<>(dependencyOwners.values()));
         for (String source : owners) {
             dependOnOwner(source);
         }
@@ -227,6 +229,8 @@ public final class GuiComponentPlan implements AutoCloseable {
         if (cleanups.containsKey(source)) {
             return;
         }
+        ScriptResourceTracker.OwnerGeneration token = ScriptResourceTracker.ownerToken(source);
+        long generation = token.current();
         ScriptResourceTracker.Cleanup cleanup = () -> {
             Runnable notify = invalidated;
             try {
@@ -240,6 +244,7 @@ public final class GuiComponentPlan implements AutoCloseable {
             return null;
         });
         cleanups.put(source, cleanup);
+        ownerActionOrigins.put(source, GuiActionOrigin.lifetime(() -> token.matches(generation)));
     }
 
     public List<GuiViewAppearance> appearances() {
@@ -516,7 +521,7 @@ public final class GuiComponentPlan implements AutoCloseable {
         state.close();
         host = null;
         inheritedActionOrigins = Collections::emptyList;
-        dependencyActionOrigins = Collections.emptyList();
+        ownerActionOrigins.clear();
         invalidated = () -> {
         };
         if (!failures.isEmpty()) {

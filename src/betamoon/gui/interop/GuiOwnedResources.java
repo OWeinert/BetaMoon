@@ -22,6 +22,7 @@ import betamoon.gui.style.GuiNamedFontFace;
 import betamoon.interop.client.NativeClientResource;
 import betamoon.luaapi.client.ui.GuiPaintCompiler;
 import betamoon.luamodloader.ScriptExecution;
+import betamoon.luaapi.utils.LuaCallbackScope;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -33,7 +34,7 @@ import net.minecraft.src.GuiScreen;
  * One actual NativeClientSession per consuming owner; graphics methods reuse
  * its existing handles.
  */
-public final class GuiOwnedResources implements GraphicsResources, AutoCloseable {
+public final class GuiOwnedResources implements GuiPreparedRowEnvironment.Resources {
     private final NativeClientScreenHost host;
     private final String owner;
     private final Map<String, NativeClientResource<GraphicsMesh>> meshes = new LinkedHashMap<>();
@@ -66,6 +67,10 @@ public final class GuiOwnedResources implements GraphicsResources, AutoCloseable
 
     public NativeClientScreenHost host() {
         return host;
+    }
+
+    public void bindContext(LuaCallbackScope scope) {
+        scope.nativeEntry(host.queryEntry(scope));
     }
 
     private void prepare(Minecraft client, GuiResourceDefinitions definitions) {

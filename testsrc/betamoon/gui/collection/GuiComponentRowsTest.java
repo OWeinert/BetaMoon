@@ -10,6 +10,12 @@ import betamoon.gui.framework.GuiPreparationPhase;
 import betamoon.gui.framework.GuiScene;
 import betamoon.gui.framework.HeadlessGuiFrames;
 import betamoon.gui.interop.GuiResourceOwners;
+import betamoon.gui.interop.GuiPreparedRowEnvironment;
+import betamoon.gui.drawing.GuiPaintBudget;
+import betamoon.gui.style.GuiThemeRegistry;
+import betamoon.gui.style.GuiDrawable;
+import betamoon.gui.style.GuiFontFace;
+import betamoon.luaapi.client.ui.GuiStyleParser;
 import betamoon.gui.presentation.GuiDocumentDefinition;
 import betamoon.gui.presentation.GuiNodeDefinition;
 import betamoon.gui.presentation.GuiPresentationHost;
@@ -47,6 +53,7 @@ import org.lwjgl.input.Keyboard;
 public final class GuiComponentRowsTest {
     private static final String OWNER = "component-row-screen.lua";
     private static final String COMPONENT = "component-row-counter.lua";
+    private static final String THEME = "component-row-theme.lua";
 
     public static void main(String[] arguments) {
         Fixture fixture = new Fixture();
@@ -65,6 +72,8 @@ public final class GuiComponentRowsTest {
         final GuiComponentRegistry components = new GuiComponentRegistry();
         final GuiRowBudget budget = new GuiRowBudget();
         final Host host = new Host();
+        final GuiThemeRegistry themes = new GuiThemeRegistry();
+        final GuiPaintBudget paint = new GuiPaintBudget();
         final List<Throwable> failures = new ArrayList<>();
         final GuiResourceOwners<Resource> resources = new GuiResourceOwners<>(owner -> new Resource(),
                 ScriptResourceTracker::ownerGeneration, owner -> {
@@ -79,6 +88,7 @@ public final class GuiComponentRowsTest {
 
             public void failure(String owner, String path, Throwable failure) {
                 require(!path.equals("root"), "A row callback failure escaped as an owning screen root failure");
+                require(path.contains("/row/"), "A row callback/template failure lost its row diagnostic identity");
                 failures.add(failure);
             }
 
@@ -112,6 +122,7 @@ public final class GuiComponentRowsTest {
                 }
             });
             registerCounter("Count ");
+            registerTheme("#FFFFFF");
             LuaValue builder = lua.load("calls=0; failKey=''; return function(row) calls=calls+1; readOnlyCheck(); "
                     + "assert(not pcall(function() row.label='mutated' end)); "
                     + "if row.key==failKey then error('later row fixture') end; "
@@ -156,36 +167,54 @@ public final class GuiComponentRowsTest {
                             .call()));
         }
 
+        void registerTheme(String tint) {
+            themes.add(GuiStyleParser.theme(THEME,
+                    lua.load("return {key='test:row_theme',base='minimal',templates={button={parts={'content','focus'},"
+                            + "paint=function(view) templateCalls=(templateCalls or 0)+1; local result={}; "
+                            + "for i=1,1024 do result[i]={op='rect',width=1,height=1,color='" + tint
+                            + "'} end; return result end}}}").call()));
+        }
+
         GuiComponentRowFactory.Environment environment(GuiRowFactory.Context context) {
+            GuiPreparedRowEnvironment<Resource> environment = new GuiPreparedRowEnvironment<>(host, services, resources,
+                    paint.scope(), "test:row_theme", themes, "test:rows/row/" + context.record.key, () -> true);
             liveEnvironments++;
             return new GuiComponentRowFactory.Environment() {
-                GuiResourceOwners<Resource>.Lease lease;
                 boolean closed;
 
                 public GuiPresentationHost host() {
-                    return host;
+                    return environment.host();
                 }
 
                 public GuiComponentPlan.Services services() {
-                    return services;
+                    return environment.services();
                 }
 
                 public void prepare(GuiComponentPlan plan) {
-                    lease = resources.acquire(plan.owners());
+                    environment.prepare(plan);
                 }
 
                 public void validate() {
-                    lease.resource(OWNER);
-                    lease.resource(COMPONENT);
+                    environment.validate();
+                }
+
+                public boolean needsRefresh() {
+                    return environment.needsRefresh();
+                }
+
+                public Object refreshStamp() {
+                    return environment.refreshStamp();
+                }
+
+                public GuiPaintBudget paintBudget() {
+                    return environment.paintBudget();
                 }
 
                 public void close() {
                     if (!closed) {
                         closed = true;
                         liveEnvironments--;
-                        if (lease != null) {
-                            lease.close();
-                        }
+                        environment.close();
                     }
                 }
             };
@@ -194,7 +223,7 @@ public final class GuiComponentRowsTest {
         void run() {
             prepare();
             require(collection.realizedRows() == 3 && lua.get("calls").checkint() == 3 && liveEnvironments == 3
-                    && resources.snapshot().size() == 2 && failures.isEmpty(),
+                    && resources.snapshot().size() == 3 && failures.isEmpty(),
                     "4096 Lua records did not create only the bounded accepted shared graphs/owner groups: "
                             + failures);
             GuiElement first = collection.rowElement("row0");
@@ -218,13 +247,15 @@ public final class GuiComponentRowsTest {
                     .equals("saved draft"), "Row root typed state did not follow its actual editor event");
             int calls = lua.get("calls").checkint();
             int bindingCalls = lua.get("bindingCalls").checkint();
+            int templateCalls = lua.get("templateCalls").checkint();
             int observations = host.observers.size();
             for (int frame = 0; frame < 10; frame++) {
                 prepare();
                 collection.sampleRows();
             }
             require(lua.get("calls").checkint() == calls && lua.get("bindingCalls").checkint() == bindingCalls
-                    && lifecycleCalls == 0 && host.observers.size() == observations,
+                    && lua.get("templateCalls").checkint() == templateCalls && lifecycleCalls == 0
+                    && host.observers.size() == observations,
                     "An unchanged Lua row reran its factory or accumulated subscriptions");
 
             GuiStyledView limited = control(collection.rowElement("row1"), "textbox");
@@ -274,6 +305,42 @@ public final class GuiComponentRowsTest {
                     && control(collection.rowElement("row0"), "button").text().equals("Count row0:1"),
                     "Dormant Lua rows lost component state, editor drafts or selection");
 
+            GuiElement beforeTheme = collection.rowElement("row0");
+            registerTheme("#55AAFF");
+            prepare();
+            require(collection.rowElement("row0") != beforeTheme
+                    && control(collection.rowElement("row0"), "button").text().equals("Count row0:1")
+                    && liveEnvironments == 3 && resources.snapshot().size() == 3,
+                    "A dynamic row theme replacement lost typed state or retained old candidate environments");
+
+            GuiElement beforeBadTheme = collection.rowElement("row0");
+            int beforeThemeFailure = failures.size();
+            themes.add(GuiStyleParser.theme(THEME,
+                    lua.load("return {key='test:row_theme',base='minimal',templates={button={parts={'content','focus'},"
+                            + "paint=function() error('template fixture') end}}}").call()));
+            prepare();
+            require(collection.rowElement("row0") == beforeBadTheme && failures.size() > beforeThemeFailure
+                    && liveEnvironments == 3 && resources.snapshot().size() == 3,
+                    "A failed dynamic row template retired accepted visuals, references or resources");
+            int badThemeCalls = lua.get("calls").checkint();
+            prepare();
+            require(lua.get("calls").checkint() == badThemeCalls, "An unchanged invalid row theme retried Lua on idle");
+            registerTheme("#55AAFF");
+            prepare();
+            require(collection.rowElement("row0") != beforeBadTheme,
+                    "Replacing an invalid row theme did not retry its rejected candidate");
+
+            GuiElement acceptedViewport = collection.rowElement("row0");
+            int beforePaintRefusal = failures.size();
+            collection.setMetrics(40, 1);
+            prepare();
+            require(collection.rowElement("row0") == acceptedViewport && collection.realizedRows() == 3
+                    && failures.size() == beforePaintRefusal + 1 && liveEnvironments == 3
+                    && resources.snapshot().size() == 3,
+                    "An over-budget complete row window partly retired accepted templates, leases or viewport");
+            collection.setMetrics(80, 1);
+            prepare();
+
             click(control(collection.rowElement("row0"), "button"));
             registerCounter("Changed ");
             prepare();
@@ -291,8 +358,19 @@ public final class GuiComponentRowsTest {
             collection.refreshRows();
             prepare();
             require(control(collection.rowElement("row0"), "button").text().equals("Recovered row0:2")
-                    && liveEnvironments == 3 && resources.snapshot().size() == 2,
+                    && liveEnvironments == 3 && resources.snapshot().size() == 3,
                     "A reloaded row dependency could not recover from its last admitted detached state");
+            click(control(collection.rowElement("row0"), "button"));
+            ScriptResourceTracker.unload(THEME);
+            actions.queue.dispatch(Scope.CLIENT);
+            require(actions.last.status() == Status.CANCELLED && liveEnvironments == 0
+                    && resources.snapshot().isEmpty(),
+                    "An unloaded dynamic theme owner retained row resources or eligible callback intent");
+            registerTheme("#FFFFFF");
+            collection.refreshRows();
+            prepare();
+            require(control(collection.rowElement("row0"), "button").text().equals("Recovered row0:3")
+                    && liveEnvironments == 3, "A reloaded theme did not restore admitted keyed row state");
             int beforeFailure = failures.size();
             lua.set("failEvent", LuaValue.TRUE);
             scene.getContext().requestFocus(control(collection.rowElement("row0"), "textbox"));
@@ -322,9 +400,11 @@ public final class GuiComponentRowsTest {
         public void close() {
             collection.close();
             resources.close();
+            paint.close();
             budget.close();
             ScriptResourceTracker.unload(COMPONENT);
             ScriptResourceTracker.unload(OWNER);
+            ScriptResourceTracker.unload(THEME);
         }
     }
 
@@ -433,7 +513,23 @@ public final class GuiComponentRowsTest {
         }
     }
 
-    private static final class Resource implements AutoCloseable {
+    private static final class Resource implements GuiPreparedRowEnvironment.Resources {
+        public GuiPaintCompiler.Resources painting() {
+            return new GuiPaintCompiler.Resources() {
+                public GuiFontFace font(String key) {
+                    return GuiFontFace.NATIVE;
+                }
+
+                public GuiDrawable image(String key) {
+                    return GuiDrawable.solid(0);
+                }
+            };
+        }
+
+        public void bindContext(LuaCallbackScope scope) {
+            scope.requireActive();
+        }
+
         public void close() {
         }
     }

@@ -18,6 +18,9 @@ import betamoon.gui.framework.GuiLayer;
 import betamoon.gui.graphics.GraphicsResources;
 import betamoon.gui.interop.GuiOwnedResources;
 import betamoon.gui.interop.GuiResourceOwners;
+import betamoon.gui.interop.GuiPreparedRowEnvironment;
+import betamoon.gui.collection.GuiRowFactory;
+import betamoon.gui.component.GuiComponentRowFactory;
 import betamoon.gui.presentation.GuiCapability;
 import betamoon.gui.presentation.GuiDocumentDefinition;
 import betamoon.gui.presentation.GuiNodeDefinition;
@@ -510,6 +513,12 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
             return required(owner).painting();
         }
 
+        public GuiComponentRowFactory.Environment rowEnvironment(GuiRowFactory.Context context, String theme) {
+            return new GuiPreparedRowEnvironment<>(this, this, resources, paintBudget.scope(),
+                    theme == null ? definition.theme : theme, GuiClientUiRuntime.themes(),
+                    definition.key + "/row/" + context.record.key, () -> !retired && !candidateInvalidated);
+        }
+
         public GraphicsResources rawResources(String owner) {
             return required(owner);
         }
@@ -636,7 +645,7 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
                         observers.clear();
                         themeDefinitions.clear();
                         preparedThemes.clear();
-                        paintBudget.clear();
+                        paintBudget.close();
                     }
                 }
             }

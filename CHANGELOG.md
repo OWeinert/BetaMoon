@@ -53,7 +53,8 @@
 - Compile bounded custom paint and irregular hit regions into Java frames, with matching displayed input geometry.
 - Establish explicit raw graphics callbacks, prepared shaders/buffers/render targets and owner-scoped failure cleanup.
 - Preserve rendering state through deep UI composition and keep failed paint refreshes on their last usable frame.
-- Compile realized Lua rows through shared component plans with keyed typed/editor state and transactional refresh.
+- Compile realized Lua rows through shared component plans with keyed typed/editor state, scoped resources/themes,
+  complete paint-budget admission and transactional refresh.
 
 ### Fixed
 

@@ -9,6 +9,7 @@ import betamoon.gui.framework.GuiPreparationPhase;
 import betamoon.gui.framework.GuiScene;
 import betamoon.gui.action.GuiActionOrigin;
 import betamoon.gui.drawing.GuiPaintProgram;
+import betamoon.gui.drawing.GuiPaintBudget;
 import betamoon.gui.graphics.GraphicsResources;
 import betamoon.gui.presentation.GuiCapability;
 import betamoon.gui.presentation.GuiPresentationHost;
@@ -57,6 +58,18 @@ public final class GuiComponentRowFactory implements GuiRowFactory {
         }
 
         default void validate() {
+        }
+
+        default boolean needsRefresh() {
+            return false;
+        }
+
+        default Object refreshStamp() {
+            return null;
+        }
+
+        default GuiPaintBudget paintBudget() {
+            return null;
         }
 
         /** Release leases once; repeated calls must be harmless. */
@@ -192,6 +205,10 @@ public final class GuiComponentRowFactory implements GuiRowFactory {
 
         public List<GuiActionOrigin> actionOrigins() {
             return delegate.actionOrigins();
+        }
+
+        public Environment rowEnvironment(Context context, String theme) {
+            return delegate.rowEnvironment(context, theme);
         }
 
         public GuiStyleSheet theme(String owner, GuiViewAppearance appearance) {
@@ -332,12 +349,20 @@ public final class GuiComponentRowFactory implements GuiRowFactory {
             }
         }
 
+        public GuiPaintBudget paintBudget() {
+            return environment.paintBudget();
+        }
+
         public boolean needsRefresh() {
-            return invalidated || plan.requiresRecompile(components, environment.host().snapshot());
+            return invalidated || environment.needsRefresh()
+                    || plan.requiresRecompile(components, environment.host().snapshot());
         }
 
         public Object refreshStamp() {
-            return invalidated ? Boolean.TRUE : plan.compilationInputs(components, environment.host().snapshot());
+            return invalidated
+                    ? Boolean.TRUE
+                    : Arrays.asList(plan.compilationInputs(components, environment.host().snapshot()),
+                            environment.refreshStamp());
         }
 
         void expire() {

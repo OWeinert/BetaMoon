@@ -1,6 +1,7 @@
 package betamoon.gui.collection;
 
 import betamoon.gui.action.GuiActionOrigin;
+import betamoon.gui.drawing.GuiPaintBudget;
 import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiElement;
 import betamoon.gui.presentation.GuiViewStateAdmission;
@@ -43,6 +44,10 @@ public interface GuiRowFactory {
          * Java-only replay of accepted animation values; no model/factory or Lua work.
          */
         default void sample() {
+        }
+
+        default GuiPaintBudget paintBudget() {
+            return null;
         }
 
         default boolean needsRefresh() {
