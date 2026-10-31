@@ -21,8 +21,8 @@ import java.util.function.Function;
  * remains separate.
  */
 public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
-    private static final List<String> TYPES = Collections
-            .unmodifiableList(Arrays.asList("text", "image", "panel", "row", "column", "grid", "overlay", "spacer",
+    private static final List<String> TYPES = Collections.unmodifiableList(
+            Arrays.asList("text", "image", "panel", "row", "column", "grid", "list", "tree", "overlay", "spacer",
                     "divider", "button", "checkbox", "choice", "slider", "textbox", "progress", "dialog", "tooltip"));
     private final GuiStyleSheet theme;
     private final Function<GuiNodeDefinition, GuiVisualTemplate> templates;
@@ -42,6 +42,9 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
     @Override
     public GuiViewAdapter create(GuiNodeDefinition definition) {
         requireType(definition.type);
+        if (collection(definition.type)) {
+            throw new IllegalArgumentException("Collection views require a host row budget and GuiCollectionView");
+        }
         return new GuiStyledView(definition.type, theme, templates.apply(definition), events.apply(definition));
     }
 
@@ -73,6 +76,19 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
         properties.add(GuiPropertyDescriptor.value("align", Kind.STRING, "stretch", Stage.ARRANGE));
         properties.add(GuiPropertyDescriptor.value("justify", Kind.STRING, "start", Stage.ARRANGE));
         properties.add(GuiPropertyDescriptor.value("clip", Kind.BOOLEAN, false, Stage.HIT));
+        if (collection(type)) {
+            properties.add(
+                    GuiPropertyDescriptor.value("records", Kind.COLLECTION, Collections.emptyList(), Stage.SEMANTICS));
+            properties.add(GuiPropertyDescriptor.value("selectedKey", Kind.STRING, "", Stage.SEMANTICS));
+            properties.add(new GuiPropertyDescriptor("rowHeight", Kind.INTEGER, 20, 1, 1024, false, false,
+                    Collections.singleton(Stage.MEASURE), Collections.emptySet()));
+            properties.add(new GuiPropertyDescriptor("overscan", Kind.INTEGER, 1, 0, 8, false, false,
+                    Collections.singleton(Stage.SEMANTICS), Collections.emptySet()));
+            if ("tree".equals(type)) {
+                properties.add(GuiPropertyDescriptor.value("expandedKeys", Kind.STRING_LIST, Collections.emptyList(),
+                        Stage.SEMANTICS));
+            }
+        }
         if ("grid".equals(type)) {
             properties.add(new GuiPropertyDescriptor("columns", Kind.INTEGER, 1, 0, 64, false, false,
                     Collections.singleton(Stage.MEASURE), Collections.emptySet()));
@@ -110,6 +126,10 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
                     Collections.singleton(Stage.SEMANTICS), Collections.emptySet()));
         }
         return new GuiProperties(type, properties);
+    }
+
+    public static boolean collection(String type) {
+        return "list".equals(type) || "tree".equals(type);
     }
 
     private static void requireType(String type) {

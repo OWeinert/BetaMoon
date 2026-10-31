@@ -2,6 +2,7 @@ package betamoon.luaapi.client.ui;
 
 import betamoon.gui.animation.GuiTransitionPolicy;
 import betamoon.gui.component.GuiAuthoredNode;
+import betamoon.gui.component.GuiCollectionDeclaration;
 import betamoon.gui.component.GuiComponentDefinition;
 import betamoon.gui.component.GuiComponentRegistry;
 import betamoon.gui.component.GuiComponentSchema;
@@ -85,6 +86,17 @@ public final class GuiAuthoredNodeParser {
             Set<String> allowed = new LinkedHashSet<>(properties.baseline().keySet());
             allowed.addAll(Arrays.asList("id", "key", "type", "component", "children", "slots", "props", "on", "bind",
                     "transition", "style", "theme", "template"));
+            boolean collection = GuiBuiltInViews.collection(type);
+            GuiCollectionDeclaration rows = null;
+            if (collection) {
+                allowed.addAll(Arrays.asList("row", "rowState"));
+                if (!value.get("children").isnil()) {
+                    throw LuaDeclarationValues.error(path + ".children", "collections use a row function");
+                }
+                rows = new GuiCollectionDeclaration(value.get("row"),
+                        GuiComponentParser.schema(value.get("rowState"), path + ".rowState", true));
+                budget.schema(rows.state);
+            }
             for (String name : LuaDeclarationValues.keys(value, path)) {
                 if (!allowed.contains(name)) {
                     throw LuaDeclarationValues.error(path + "." + name, "unknown node field");
@@ -157,7 +169,8 @@ public final class GuiAuthoredNodeParser {
                 }
             } else {
                 for (String name : handlers.keySet()) {
-                    if (!Arrays.asList("activate", "change", "commit", "cancel").contains(name)) {
+                    if (!Arrays.asList("activate", "change", "commit", "cancel").contains(name)
+                            && !("tree".equals(type) && "expand".equals(name))) {
                         throw LuaDeclarationValues.error(path + ".on." + name, "unknown built-in semantic event");
                     }
                 }
@@ -171,7 +184,7 @@ public final class GuiAuthoredNodeParser {
                     value.get("transition").isnil()
                             ? GuiTransitionPolicy.DEFAULT
                             : transition(properties, definition, value.get("transition")),
-                    !value.get("transition").isnil(), appearance);
+                    !value.get("transition").isnil(), appearance, rows);
         } finally {
             ancestors.remove(table);
         }

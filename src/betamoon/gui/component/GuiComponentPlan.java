@@ -8,6 +8,9 @@ import betamoon.gui.drawing.GuiRawDrawing;
 import betamoon.gui.drawing.GuiRawView;
 import betamoon.gui.framework.GuiElement;
 import betamoon.gui.collection.GuiRowFactory;
+import betamoon.gui.collection.GuiRowBudget;
+import betamoon.gui.collection.GuiCollectionView;
+import betamoon.gui.widget.GuiBuiltInViews;
 import betamoon.gui.framework.GuiInputEvent;
 import betamoon.gui.graphics.GraphicsResources;
 import betamoon.gui.presentation.GuiCapability;
@@ -58,6 +61,10 @@ import org.luaj.vm2.lib.VarArgFunction;
 public final class GuiComponentPlan implements AutoCloseable {
     public static final String SCREEN_STATE = "screen";
     public interface Services {
+        default GuiRowBudget rowBudget() {
+            throw new IllegalStateException("This UI host has no shared collection budget");
+        }
+
         default GuiComponentRowFactory.Environment rowEnvironment(GuiRowFactory.Context context, String theme) {
             throw new IllegalStateException("This UI host has no prepared collection row resources");
         }
@@ -134,6 +141,10 @@ public final class GuiComponentPlan implements AutoCloseable {
     GuiPresentationRuntime runtime;
     final Services services;
     private GuiComponentDocument document;
+    GuiComponentRegistry registry;
+    Set<GuiCapability> capabilities;
+    ToIntFunction<String> textWidth;
+    DoubleSupplier clock;
     private final Map<String, GuiViewAdapter> adapters = new LinkedHashMap<>();
     private final Map<String, ScriptResourceTracker.Cleanup> cleanups = new LinkedHashMap<>();
     private final List<AutoCloseable> subscriptions = new ArrayList<>();
@@ -357,6 +368,8 @@ public final class GuiComponentPlan implements AutoCloseable {
     public GuiPresentationTree createTree(Set<GuiCapability> capabilities, ToIntFunction<String> textWidth,
             DoubleSupplier clock) {
         requireActive();
+        this.textWidth = textWidth;
+        this.clock = clock;
         GuiPresentationTree tree = new GuiPresentationTree(document, new GuiComponentHost(host, this), this::createView,
                 capabilities, textWidth, clock);
         runtime = tree.runtime();
@@ -389,7 +402,20 @@ public final class GuiComponentPlan implements AutoCloseable {
             throw new IllegalArgumentException("Missing compiled component view: " + node.id);
         }
         GuiViewAdapter result;
-        if (metadata.leaf == null) {
+        if (metadata.leaf == null && GuiBuiltInViews.collection(node.type)) {
+            GuiCollectionDeclaration declaration = metadata.authored.collection;
+            GuiRowFactory rows = declaration == null || declaration.row.isnil()
+                    ? null
+                    : new GuiComponentRowFactory(registry, metadata.scope.owner, key + "/" + node.id, declaration.row,
+                            declaration.state, capabilities,
+                            context -> services.rowEnvironment(context, metadata.appearance.theme), textWidth, clock);
+            result = new GuiCollectionView(node.type, services.rowBudget(), rows,
+                    services.theme(metadata.scope.owner, metadata.appearance),
+                    services.template(metadata.scope.owner, metadata.appearance),
+                    (event, value) -> available(metadata.scope)
+                            && accepted(runtime.dispatchUiEvent(node.id, event, value)),
+                    failure -> services.failure(metadata.scope.owner, node.path, failure));
+        } else if (metadata.leaf == null) {
             result = new GuiStyledView(node.type, services.theme(metadata.scope.owner, metadata.appearance),
                     services.template(metadata.scope.owner, metadata.appearance),
                     (event, value) -> available(metadata.scope)

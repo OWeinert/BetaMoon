@@ -30,6 +30,14 @@ public final class GuiComponentLimits {
             add(value, 0);
         }
 
+        public void schema(GuiComponentSchema schema) {
+            for (Map.Entry<String, GuiComponentSchema.Field> entry : schema.fields().entrySet()) {
+                text(entry.getKey());
+                add(entry.getValue().descriptor.defaultValue);
+                estimatedBytes += 128;
+            }
+        }
+
         private void add(Object value, int depth) {
             if (++values > maximumValues || depth > 16) {
                 throw new IllegalArgumentException("UI declaration value/depth budget exceeded");
@@ -85,6 +93,9 @@ public final class GuiComponentLimits {
                 budget.add(node.properties.baseline());
             }
             budget.add(node.props);
+            if (node.collection != null) {
+                budget.schema(node.collection.state);
+            }
             budget.add(node.appearance.style.values);
             if (node.appearance.theme != null) {
                 budget.text(node.appearance.theme);

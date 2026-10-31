@@ -207,6 +207,10 @@ public final class GuiComponentRowFactory implements GuiRowFactory {
             return delegate.actionOrigins();
         }
 
+        public GuiRowBudget rowBudget() {
+            return delegate.rowBudget();
+        }
+
         public Environment rowEnvironment(Context context, String theme) {
             return delegate.rowEnvironment(context, theme);
         }

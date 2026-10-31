@@ -20,6 +20,7 @@ import betamoon.gui.interop.GuiOwnedResources;
 import betamoon.gui.interop.GuiResourceOwners;
 import betamoon.gui.interop.GuiPreparedRowEnvironment;
 import betamoon.gui.collection.GuiRowFactory;
+import betamoon.gui.collection.GuiRowBudget;
 import betamoon.gui.component.GuiComponentRowFactory;
 import betamoon.gui.presentation.GuiCapability;
 import betamoon.gui.presentation.GuiDocumentDefinition;
@@ -104,6 +105,7 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
                 candidate.close();
                 if (parent == null) {
                     screen.page(null);
+                    screen.rowBudget.close();
                 }
             }
         }
@@ -346,6 +348,7 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
                 if (parent == null) {
                     screen.scene().setDocument(null);
                     screen.page(null);
+                    screen.rowBudget.close();
                 } else if (layer != null) {
                     layer.close();
                     layer = null;
@@ -511,6 +514,10 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
 
         public GuiPaintCompiler.Resources paintResources(String owner) {
             return required(owner).painting();
+        }
+
+        public GuiRowBudget rowBudget() {
+            return screen.rowBudget;
         }
 
         public GuiComponentRowFactory.Environment rowEnvironment(GuiRowFactory.Context context, String theme) {

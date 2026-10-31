@@ -2,6 +2,7 @@ package betamoon.gui.interop;
 
 import betamoon.gui.action.GuiActionOrigin;
 import betamoon.gui.collection.GuiRowFactory;
+import betamoon.gui.collection.GuiRowBudget;
 import betamoon.gui.component.GuiComponentPlan;
 import betamoon.gui.component.GuiComponentRowFactory;
 import betamoon.gui.drawing.GuiPaintBudget;
@@ -152,6 +153,10 @@ public final class GuiPreparedRowEnvironment<T extends GuiPreparedRowEnvironment
 
     public GuiPaintBudget paintBudget() {
         return paint;
+    }
+
+    public GuiRowBudget rowBudget() {
+        return parent.rowBudget();
     }
 
     public GuiComponentRowFactory.Environment rowEnvironment(GuiRowFactory.Context context, String theme) {

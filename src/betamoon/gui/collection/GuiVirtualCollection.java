@@ -22,6 +22,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.LinkedHashSet;
 import java.util.function.Consumer;
+import java.util.function.BooleanSupplier;
 
 /**
  * Fixed-height row realization mounts ordinary elements into the host's
@@ -49,6 +50,7 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
     private boolean staging;
     private List<Object> rejected;
     private GuiElement restoreFocus;
+    private String requestedFocus;
     private boolean selectionRequested;
     private String requestedSelection;
     private boolean expansionRequested;
@@ -309,6 +311,27 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
         if (key != null && (key.isEmpty() || key.length() > 255)) {
             throw new IllegalArgumentException("Collection state requires a bounded nonempty key");
         }
+    }
+
+    public boolean recordEvent(String key, BooleanSupplier event) {
+        requireOpen();
+        RecordOrigins origins = actionOrigins.get(key);
+        if (origins == null || !origins.record.enabled) {
+            return false;
+        }
+        List<GuiActionOrigin> values = origins.callbackOrigin == null
+                ? Collections.singletonList(origins.recordOrigin)
+                : Arrays.asList(origins.recordOrigin, origins.callbackOrigin);
+        try (GuiActionOrigin.Frame frame = GuiActionOrigin.enter(values)) {
+            return event.getAsBoolean();
+        }
+    }
+
+    public void focusRow(String key) {
+        LuaCallbackScope.requireUiStateWrite();
+        requireOpen();
+        requireKey(key);
+        requestedFocus = key;
     }
 
     public int realizedRows() {
@@ -638,6 +661,13 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
             restoreFocus = null;
             context.requestFocus(target);
         }
+        if (requestedFocus != null) {
+            GuiElement target = rowElement(requestedFocus);
+            requestedFocus = null;
+            if (target != null && target.isFocusable()) {
+                context.requestFocus(target);
+            }
+        }
     }
 
     private static GuiElement focused(GuiContext context, GuiElement element) {
@@ -707,8 +737,19 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
         if (event.getType() == GuiInputEvent.Type.SCROLL && contains(event.getMouseX(), event.getMouseY())) {
             int previous = requestedOffset;
             long target = previous - (long) event.getWheelDelta() / 8;
-            setScrollOffset((int) Math.max(0, Math.min(Integer.MAX_VALUE, target)));
-            return previous != requestedOffset;
+            int maximum = Math.max(0, model.visible().size() * rowHeight - getHeight());
+            int next = (int) Math.max(0, Math.min(maximum, target));
+            if (next == previous) {
+                return false;
+            }
+            Map<String, Object> prospective = state(model, selection(), expansion(), next);
+            try (GuiViewStateAdmission.Proposal proposal = admit(prospective)) {
+                setScrollOffset(next);
+                proposal.commit(captureState());
+                return previous != requestedOffset;
+            } catch (GuiViewStateAdmission.Refusal refused) {
+                return false;
+            }
         }
         return false;
     }

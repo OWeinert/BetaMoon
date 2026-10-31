@@ -28,6 +28,7 @@ final class UiLiveClientChecks {
     private static final String OWNER = "ui-live-acceptance.lua";
     private static Globals lua;
     private static Object activation;
+    private static Object dialogActivation;
     private static Object screen;
     private static int phase;
     private static int wait;
@@ -89,10 +90,14 @@ final class UiLiveClientChecks {
                                     + "root={type='column',width=200,height=190,gap=3,children={{type='text',id='readout',bind=function(v)return {text='Count '..v.state:get('count')}end},"
                                     + "{component='uitest:wheel'},{component='uitest:raw'},{type='button',id='apply',text='Apply',on={activate=function(ctx)ticket=assert(ctx.screen:request('apply',{}))end}},"
                                     + "{type='button',id='close',text='Close',on={activate=function(ctx)ctx.screen:close()end}}}}};"
-                                    + "dialogOpens=0;dialogRefreshes=0;dialogDefinition={key='uitest:dialog',state={count={type='integer',default=0}},"
+                                    + "dialogOpens=0;dialogRefreshes=0;rowCalls=0;rowEdits=0;dialogDefinition={key='uitest:dialog',state={count={type='integer',default=0}},"
                                     + "on={open=function()dialogOpens=dialogOpens+1 end,refresh=function()dialogRefreshes=dialogRefreshes+1 end},"
                                     + "actions={accept={scope='client',payload={},handler=function(ctx)ctx.state:set('count',4);return true end}},"
-                                    + "root={type='grid',columns=1,width=160,height=60,children={{type='text',text='Confirm'},"
+                                    + "root={type='grid',columns=1,width=160,height=110,children={{type='text',text='Confirm'},"
+                                    + "{type='list',id='entries',height=40,rowHeight=20,overscan=0,records=(function()local rows={}for i=1,4096 do rows[i]={key='r'..i}end return rows end)(),"
+                                    + "rowState={count={type='integer',default=0}},row=function(row)rowCalls=rowCalls+1;checkPreparationAuthority();"
+                                    + "return{type='button',id='entry',bind=function(v)return{text=row.label..':'..v.state:get('count')}end,"
+                                    + "on={activate=function(ctx)assert(ctx.native);ctx.state:set('count',ctx.state:get('count')+1);rowEdits=rowEdits+1 end}}end},"
                                     + "{type='button',id='accept',text='Accept',on={activate=function(ctx)dialogTicket=ctx.screen:request('accept',{})end}}}}};ui.screens:add(dialogDefinition);"
                                     + "ui.screens:add(definition);wrongGuiTick=false;betamoon.events:on('gui_tick',function(ctx)"
                                     + "if form and form:status()=='active' and ctx.name~='GuiManagedScreen' then wrongGuiTick=true end end);"
@@ -164,6 +169,11 @@ final class UiLiveClientChecks {
             dialogsField.setAccessible(true);
             Object parent = activation;
             activation = ((java.util.Map<?, ?>) dialogsField.get(controller)).values().iterator().next();
+            dialogActivation = activation;
+            Object entries = invoke(element("entries"), "collection");
+            require(((Number) invoke(entries, "realizedRows")).intValue() == 2 && lua.get("rowCalls").toint() == 2,
+                    "Native Lua list did not bound its 4096 records to two realized rows");
+            clickElement(client, invoke(entries, "rowElement", String.class, "r1"));
             click(client, "accept");
             activation = parent;
             wait = 0;
@@ -179,7 +189,9 @@ final class UiLiveClientChecks {
             }
             require(lua.load("return popup.state:get('count')==4 and form.state:get('count')==8").call().toboolean(),
                     "Dialog action used its parent's model");
-            lua.load("dialogDefinition.root.children[2].text='Accepted';dialogDefinition.root.columns=2;"
+            require(lua.get("rowEdits").toint() == 1 && lua.get("rowCalls").toint() == 2,
+                    "A real row event lost its state or caused idle factory polling");
+            lua.load("dialogDefinition.root.children[3].text='Accepted';dialogDefinition.root.columns=2;"
                     + "ui.screens:add(dialogDefinition)").call();
             phase = 10;
             wait = 0;
@@ -192,6 +204,13 @@ final class UiLiveClientChecks {
             require(lua.load("return popup.state:get('count')==4 and popup:element('accept'):get('text')=='Accepted' "
                     + "and dialogOpens==1 and dialogRefreshes==1").call().toboolean(),
                     "Dialog visual refresh lost state or reopened its lifecycle");
+            Object parent = activation;
+            activation = dialogActivation;
+            Object entries = invoke(element("entries"), "collection");
+            Object row = invoke(entries, "rowElement", String.class, "r1");
+            activation = parent;
+            require(invoke(row, "text").equals("r1:1") && lua.get("rowCalls").toint() == 4,
+                    "Native collection refresh lost keyed row state or rebuilt offscreen rows");
             NativeLiveClientDriver.call(screen, SCREEN, "keyTyped", "(CI)V", '\0', 1);
             require(lua.load("return popup:status()=='closed' and form:status()=='active'").call().toboolean(),
                     "Escape did not close only the modal document");
@@ -453,7 +472,10 @@ final class UiLiveClientChecks {
     }
 
     private static void click(Object client, String id) throws Exception {
-        Object element = element(id);
+        clickElement(client, element(id));
+    }
+
+    private static void clickElement(Object client, Object element) throws Exception {
         int x = ((Number) invoke(element, "getLeft")).intValue() + 4;
         int y = ((Number) invoke(element, "getTop")).intValue() + 4;
         NativeLiveClientDriver.call(screen, SCREEN, "mouseClicked", "(III)V", x, y, 0);

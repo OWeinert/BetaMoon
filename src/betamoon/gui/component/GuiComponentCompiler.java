@@ -64,6 +64,12 @@ public final class GuiComponentCompiler {
             Map<String, Object> initialState, Map<String, Object> restoredState) {
         GuiComponentPlan plan = new GuiComponentPlan(owner, key, host, services);
         try {
+            plan.registry = registry;
+            plan.capabilities = Collections.unmodifiableSet(new LinkedHashSet<>(capabilities));
+            if (previous != null) {
+                plan.textWidth = previous.textWidth;
+                plan.clock = previous.clock;
+            }
             plan.state.restore(restoredState);
             String stateKey = screenState == null ? null : GuiComponentPlan.SCREEN_STATE;
             if (screenState != null) {
@@ -254,6 +260,9 @@ public final class GuiComponentCompiler {
         declarationBudget.text(id);
         declarationBudget.text(path);
         declarationBudget.add(properties.baseline());
+        if (authored.collection != null) {
+            declarationBudget.schema(authored.collection.state);
+        }
         declarationBudget.add(authored.appearance.style.values);
         nodes.add(new GuiNodeDefinition(id, path, type, parent, null, null, properties, binding, transition,
                 authored.explicitTransition));

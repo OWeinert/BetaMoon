@@ -4,6 +4,7 @@ import betamoon.client.control.input.ClientInputRuntime;
 import betamoon.gui.framework.GuiComponentScreen;
 import betamoon.gui.framework.GuiElement;
 import betamoon.gui.framework.GuiScene;
+import betamoon.gui.collection.GuiRowBudget;
 import net.minecraft.src.GuiScreen;
 import org.lwjgl.input.Keyboard;
 import java.util.function.Consumer;
@@ -13,6 +14,7 @@ import java.util.function.Consumer;
  * host class.
  */
 public final class GuiManagedScreen extends GuiComponentScreen {
+    final GuiRowBudget rowBudget = new GuiRowBudget();
     private GuiNativeScreenPage page;
 
     void page(GuiNativeScreenPage page) {

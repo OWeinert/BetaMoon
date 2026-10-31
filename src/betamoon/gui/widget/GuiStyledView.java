@@ -39,7 +39,7 @@ import org.lwjgl.input.Keyboard;
  * Shared retained primitives and controls. Java and parsed Lua documents
  * instantiate this same view.
  */
-public final class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiViewportLayout {
+public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiViewportLayout {
     @FunctionalInterface
     public interface Events {
         boolean propose(String event, Object value);

@@ -15,6 +15,7 @@ import org.luaj.vm2.LuaValue;
  * presentation/view index.
  */
 public final class GuiAuthoredNode {
+    public final GuiCollectionDeclaration collection;
     public final String owner;
     public final String type;
     public final String component;
@@ -44,6 +45,16 @@ public final class GuiAuthoredNode {
             String key, GuiProperties properties, Map<String, Object> props, Map<String, List<GuiAuthoredNode>> slots,
             List<GuiAuthoredNode> children, Map<String, LuaValue> handlers, LuaValue binding,
             GuiTransitionPolicy transition, boolean explicitTransition, GuiNodeAppearance appearance) {
+        this(owner, type, component, slot, slotIndex, id, key, properties, props, slots, children, handlers, binding,
+                transition, explicitTransition, appearance, null);
+    }
+
+    public GuiAuthoredNode(String owner, String type, String component, String slot, int slotIndex, String id,
+            String key, GuiProperties properties, Map<String, Object> props, Map<String, List<GuiAuthoredNode>> slots,
+            List<GuiAuthoredNode> children, Map<String, LuaValue> handlers, LuaValue binding,
+            GuiTransitionPolicy transition, boolean explicitTransition, GuiNodeAppearance appearance,
+            GuiCollectionDeclaration collection) {
+        this.collection = collection;
         this.appearance = appearance;
         this.owner = owner;
         this.type = type;
