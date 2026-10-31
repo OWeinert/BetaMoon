@@ -87,6 +87,7 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
     private List<?> options = Collections.singletonList("");
     private boolean vertical;
     private int preparedNativeTexture = -1;
+    private boolean resourcesPrepared;
     private boolean clipChildren;
     private GuiPresentationNode presentationNode;
     private long javaValueRevision;
@@ -281,6 +282,7 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
     @Override
     protected void updateElement(GuiContext context) {
         if (!closed) {
+            resourcesPrepared = true;
             theme.resolve(variant, 0).requireActive();
             if ("button".equals(kind) || "choice".equals(kind)) {
                 preparedNativeTexture = context.getRenderer().preparePackagedTexture(GuiNativeButtonSkin.TEXTURE);
@@ -294,6 +296,9 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
     @Override
     protected void prepareVisualsElement(GuiContext context) {
         if (!closed) {
+            if (!resourcesPrepared) {
+                updateElement(context);
+            }
             template.prepare(context, this);
         }
     }

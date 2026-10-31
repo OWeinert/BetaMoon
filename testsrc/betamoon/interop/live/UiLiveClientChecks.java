@@ -87,9 +87,12 @@ final class UiLiveClientChecks {
                                     + "resources={buffers={quad={mode='quads',vertices={0,0,80,0,80,32,0,32}}},"
                                     + "programs={tintProgram={vertex='void main(){gl_Position=gl_ModelViewProjectionMatrix*gl_Vertex;}',"
                                     + "fragment='uniform vec4 tint;void main(){gl_FragColor=tint;}',uniforms={tint=4}}},targets={scratch={width=16,height=16}}},"
-                                    + "root={type='column',width=200,height=190,gap=3,children={{type='text',id='readout',bind=function(v)return {text='Count '..v.state:get('count')}end},"
+                                    + "root={type='column',width=200,height=236,gap=2,children={{type='text',id='readout',bind=function(v)return {text='Count '..v.state:get('count')}end},"
                                     + "{component='uitest:wheel'},{component='uitest:raw'},{type='button',id='apply',text='Apply',on={activate=function(ctx)ticket=assert(ctx.screen:request('apply',{}))end}},"
-                                    + "{type='button',id='close',text='Close',on={activate=function(ctx)ctx.screen:close()end}}}}};"
+                                    + "{type='button',id='close',text='Close',on={activate=function(ctx)ctx.screen:close()end}},"
+                                    + "{type='table',id='scores',theme='menu',height=60,overscan=0,columns={{key='title'},{key='score',width=50}},"
+                                    + "records={{key='a',data={title='A',score=2}},{key='b',data={title='B',score=1}}},"
+                                    + "on={sort=function()tableSorts=(tableSorts or 0)+1 end}}}}};"
                                     + "dialogOpens=0;dialogRefreshes=0;rowCalls=0;rowEdits=0;dialogDefinition={key='uitest:dialog',state={count={type='integer',default=0}},"
                                     + "on={open=function()dialogOpens=dialogOpens+1 end,refresh=function()dialogRefreshes=dialogRefreshes+1 end},"
                                     + "actions={accept={scope='client',payload={},handler=function(ctx)ctx.state:set('count',4);return true end}},"
@@ -126,6 +129,9 @@ final class UiLiveClientChecks {
             lua.load(
                     "oldElement=form:element('apply'); local t,r=form:request('world',{});assert(t==nil and r=='world_unavailable')")
                     .call();
+            Object table = element("scores");
+            Object header = ((java.util.List<?>) invoke(table, "getChildren")).get(1);
+            clickElement(client, ((java.util.List<?>) invoke(header, "getChildren")).get(1));
             click(client, "apply");
             phase = 2;
             return false;
@@ -136,6 +142,11 @@ final class UiLiveClientChecks {
             }
             require(lua.load("return form.state:get('count')==8 and ticket:result().applied").call().toboolean(),
                     "Client action did not publish its detached completion/state");
+            Object tableRows = invoke(element("scores"), "collection");
+            Object first = ((java.util.List<?>) invoke(tableRows, "visibleRows")).get(0);
+            Object record = first.getClass().getField("record").get(first);
+            require(record.getClass().getField("key").get(record).equals("b") && lua.get("tableSorts").toint() == 1,
+                    "Native default table headers did not sort through shared input");
             require(!lua.get("wrongGuiTick").toboolean(),
                     "gui_tick described the screen replaced by queued UI activation");
             capture(client);

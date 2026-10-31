@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import org.lwjgl.input.Keyboard;
 
@@ -28,7 +29,7 @@ import org.lwjgl.input.Keyboard;
  * Keyed list/tree behavior composed from the shared styled and virtual row
  * elements.
  */
-public final class GuiCollectionView extends GuiStyledView {
+public class GuiCollectionView extends GuiStyledView {
     private final GuiVirtualCollection collection;
     private final String kind;
     private final Events events;
@@ -59,7 +60,7 @@ public final class GuiCollectionView extends GuiStyledView {
     public void validateValues(Map<String, Object> values) {
         super.validateValues(values);
         GuiCollectionModel.Snapshot records = ((GuiCollectionValues) values.get("records")).model();
-        if ("list".equals(kind)) {
+        if (!"tree".equals(kind)) {
             for (GuiCollectionModel.Record record : records.records) {
                 if (record.parent != null) {
                     throw new IllegalArgumentException("List records cannot have parents; use a tree");
@@ -119,6 +120,10 @@ public final class GuiCollectionView extends GuiStyledView {
         String selection = !published || controlled.test("selectedKey")
                 ? key((String) values.get("selectedKey"))
                 : (String) current.get("selection");
+        if (next.containsKey("anchor") && !records.keys.containsKey(next.get("anchor"))) {
+            next.remove("anchor");
+            next.remove("inset");
+        }
         GuiCollectionModel.Record selected = records.keys.get(selection);
         next.remove("selection");
         if (selected != null && selected.enabled) {
@@ -244,7 +249,7 @@ public final class GuiCollectionView extends GuiStyledView {
         return admission == null ? GuiViewStateAdmission.UNRESTRICTED : admission.begin(prospective);
     }
 
-    private GuiRowFactory.Prepared prepareDefault(GuiRowFactory.Context context, GuiStyleSheet theme,
+    protected GuiRowFactory.Prepared prepareDefault(GuiRowFactory.Context context, GuiStyleSheet theme,
             GuiVisualTemplate template) {
         StringBuilder label = new StringBuilder(context.selected ? "* " : "  ");
         for (int depth = 0; depth < context.depth; depth++) {
@@ -257,22 +262,32 @@ public final class GuiCollectionView extends GuiStyledView {
         }
         label.append(context.record.label);
         GuiStyledView view = new GuiStyledView("button", theme, template, (event, value) -> {
-            try (GuiActionOrigin.Frame origins = GuiActionOrigin.enter(context.actionOrigins())) {
-                if (!select(context.record.key, false)) {
-                    return false;
-                }
-                if ("tree".equals(kind) && collection.model().branch(context.record.key)
-                        && !expand(context.record.key, !collection.expansion().contains(context.record.key))) {
-                    return false;
-                }
-                return events.propose("activate", context.record.key);
-            }
+            return activateDefault(context);
         });
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("text", label.toString());
         values.put("height", context.height);
         values.put("fill", true);
         view.configure(values);
+        return preparedRow(context, view, 2, (width, height) -> {
+        });
+    }
+
+    protected boolean activateDefault(GuiRowFactory.Context context) {
+        try (GuiActionOrigin.Frame origins = GuiActionOrigin.enter(context.actionOrigins())) {
+            if (!select(context.record.key, false)) {
+                return false;
+            }
+            if ("tree".equals(kind) && collection.model().branch(context.record.key)
+                    && !expand(context.record.key, !collection.expansion().contains(context.record.key))) {
+                return false;
+            }
+            return events.propose("activate", context.record.key);
+        }
+    }
+
+    protected static GuiRowFactory.Prepared preparedRow(GuiRowFactory.Context context, GuiStyledView view, int elements,
+            BiConsumer<Integer, Integer> update) {
         GuiRowFactory.Row row = new GuiRowFactory.Row() {
             public GuiElement element() {
                 return view;
@@ -280,6 +295,10 @@ public final class GuiCollectionView extends GuiStyledView {
 
             public Map<String, Object> state() {
                 return Collections.emptyMap();
+            }
+
+            public void update(GuiContext context, int width, int height) {
+                update.accept(width, height);
             }
 
             public GuiElement compatibleFocus(GuiRowFactory.Row previous, GuiElement focused) {
@@ -290,7 +309,7 @@ public final class GuiCollectionView extends GuiStyledView {
                 view.close();
             }
         };
-        GuiRowBudget.Reservation reservation = context.budget.reserve(2);
+        GuiRowBudget.Reservation reservation = context.budget.reserve(elements);
         return new GuiRowFactory.Prepared() {
             private boolean committed;
             public GuiRowFactory.Row candidate() {

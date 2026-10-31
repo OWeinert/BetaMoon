@@ -8,7 +8,8 @@
 - Declared client/world UI actions with bounded fair queues, detached tickets and stale-request cancellation.
 - Public reusable UI components, themes and prepared templates over the shared Java/Lua controls.
 - Fixed and responsive Lua grid layouts with reactive column settings and rejected-layout retention.
-- Keyed virtual Lua lists and trees with custom rows, row-local state, retained drafts and keyboard navigation.
+- Keyed virtual Lua lists, tables and trees with custom rows, row-local state, retained drafts and keyboard navigation.
+- Shared table columns/headers with stable primitive sorting and filtering that preserve hidden keyed state.
 - Prepared text/images/bitmap fonts, geometry and explicit scoped raw graphics with owned shaders, buffers and targets.
 - Four progressive client UI examples with configurable shortcuts, editor definitions and Lua API wiki references.
 

@@ -22,6 +22,7 @@ public final class GuiCollectionStateTest {
     public static void main(String[] arguments) {
         keyedState();
         ancestorAdmission();
+        restoredAnchor();
         System.out.println("Collection state passed: keyed selection/expansion/reveal, detached restoration, "
                 + "remove/reinsert pruning and containing-row edit/proposal/structure admission.");
     }
@@ -79,6 +80,36 @@ public final class GuiCollectionStateTest {
         require(fixture.failures.isEmpty() && restored.failures.isEmpty(), "Valid keyed collection state failed");
         restored.close();
         fixture.close();
+    }
+
+    private static void restoredAnchor() {
+        try (Fixture original = new Fixture(); Fixture restored = new Fixture(); Fixture removed = new Fixture()) {
+            List<GuiCollectionModel.Record> records = new ArrayList<>();
+            for (int i = 0; i < 8; i++) {
+                records.add(record("r" + i, null, "Row " + i));
+            }
+            original.view.setModel(GuiCollectionModel.prepare(records));
+            original.prepare();
+            original.view.setScrollOffset(45);
+            original.prepare();
+            Map<String, Object> state = original.view.captureState();
+            List<GuiCollectionModel.Record> reordered = new ArrayList<>(records);
+            GuiCollectionModel.Record anchor = reordered.remove(2);
+            reordered.add(5, anchor);
+            restored.view.setModel(GuiCollectionModel.prepare(reordered));
+            restored.view.setMetrics(30, 0);
+            restored.view.prepareStateRestore(state).run();
+            restored.prepare();
+            require(restored.view.scrollOffset() == 155
+                    && restored.view.rowElement("r2").getTop() == restored.view.getTop() - 5,
+                    "Refresh restored an index instead of its visible key/inset after reorder and metric change");
+            records.remove(2);
+            removed.view.setModel(GuiCollectionModel.prepare(records));
+            removed.view.prepareStateRestore(state).run();
+            removed.prepare();
+            require(removed.view.scrollOffset() == 45,
+                    "Removed restore anchor did not use its clamped numeric fallback");
+        }
     }
 
     private static void ancestorAdmission() {

@@ -42,8 +42,13 @@ public final class GuiCollectionControlTest {
         nestedRows();
         declarationBudgets();
         nestedRefusal();
-        System.out.println("Collection controls passed: parsed list/tree, 4096-record Lua virtualization, "
-                + "keyed editors, keyboard/reveal, disabled rows, stale gestures, model refusal and refresh.");
+        tables();
+        tableReplacementRefusal();
+        controlledSort();
+        nestedTableAdmission();
+        System.out.println(
+                "Collection controls passed: parsed list/tree/table, stable sort/filter/header alignment, 4096-record Lua virtualization, "
+                        + "keyed editors, keyboard/reveal, disabled rows, stale gestures, model refusal and refresh.");
     }
 
     private static void defaultRows() {
@@ -220,6 +225,170 @@ public final class GuiCollectionControlTest {
         }
     }
 
+    private static void tables() {
+        try (Fixture f = new Fixture()) {
+            f.open("columns={{key='title',label='Name'},{key='score',width=40}};"
+                    + "records={{key='a',label='Alfa',data={title='A',score=3}},"
+                    + "{key='b',data={title='B',score=1}},{key='c',data={title='C',score=1}},"
+                    + "{key='d',data={title='D'}},{key='e',data={title='E',score=false}},"
+                    + "{key='f',data={title='F',score='one'}}};return {type='table',id='table',"
+                    + "width=160,height=80,overscan=0,bind=function(v)local version=v.data:get('version');"
+                    + "return{records=records,columns=columns,filter=v.data:get('filter')}end}");
+            GuiTableView table = (GuiTableView) f.view("table");
+            GuiVirtualCollection rows = table.collection();
+            require(rows.realizedRows() == 3, "Table header did not reserve body viewport height");
+            GuiStyledView header = (GuiStyledView) table.getChildren().get(1);
+            GuiElement score = header.getChildren().get(1);
+            GuiStyledView first = (GuiStyledView) rows.rowElement("a");
+            GuiStyledView cells = (GuiStyledView) first.getChildren().get(0);
+            require(score.getWidth() == 40 && cells.getChildren().get(1).getLeft() == score.getLeft(),
+                    "Header and cells disagreed on shared column widths");
+            click(f, score);
+            require(rows.scrollOffset() == 0 && order(rows).equals("d,e,b,c,a,f"),
+                    "Primitive ascending sort or stable equal-key ordering failed");
+            click(f, score);
+            require(order(rows).equals("f,a,b,c,e,d"), "Descending sort was not stable");
+            rows.setSelection("a");
+            f.prepare();
+            f.host.filter = "alfa";
+            f.host.change();
+            f.prepare();
+            require(order(rows).equals("a") && rows.model().records.size() == 6 && rows.selection().equals("a"),
+                    "Filtering removed full-model identity or selection");
+            f.host.filter = "missing";
+            f.host.change();
+            f.prepare();
+            require(rows.realizedRows() == 0 && rows.selection().equals("a"), "Filtered selection was pruned");
+            f.host.filter = "";
+            f.host.change();
+            f.prepare();
+            f.reload();
+            table = (GuiTableView) f.view("table");
+            rows = table.collection();
+            require(order(rows).equals("f,a,b,c,e,d"), "Unbound table sort did not survive refresh");
+            header = (GuiStyledView) table.getChildren().get(1);
+            GuiElement accepted = header.getChildren().get(1);
+            f.lua.load("columns[2].key='title'").call();
+            f.host.change();
+            f.prepare();
+            require(header.getChildren().get(1) == accepted && order(rows).equals("f,a,b,c,e,d"),
+                    "Invalid column metadata replaced the accepted table");
+            f.lua.load("columns[2]=nil").call();
+            f.host.change();
+            f.prepare();
+            require(header.getChildren().size() == 1
+                    && ((GuiStyledView) ((GuiStyledView) rows.rowElement("a")).getChildren().get(0)).getChildren()
+                            .size() == 1,
+                    "Changing the column count broke accepted row updates or header/body replacement");
+        }
+        try (Fixture f = new Fixture()) {
+            f.open("return{type='table',id='table',width=160,height=60,overscan=0,columns={{key='score'}},"
+                    + "records={{key='a',label='Alfa',data={score=3}},{key='b',data={score=1}}},"
+                    + "bind=function(v)return{filter=v.data:get('filter')}end,"
+                    + "rowState={draft={type='string',default=''}},row=function()return{type='textbox',"
+                    + "bind=function(v)return{text=v.state:get('draft')}end,"
+                    + "on={change=function(ctx,e)ctx.state:set('draft',e.value)end}}end}");
+            GuiTableView table = (GuiTableView) f.view("table");
+            f.scene.getContext().requestFocus(table.collection().rowElement("a"));
+            f.scene.keyTyped('x', Keyboard.KEY_X, false);
+            f.prepare();
+            f.host.filter = "b";
+            f.host.change();
+            f.prepare();
+            require(table.collection().rowElement("a") == null, "Filter retained an excluded row graph");
+            f.host.filter = "";
+            f.host.change();
+            f.prepare();
+            require(((GuiStyledView) table.collection().rowElement("a")).text().equals("x"),
+                    "Filtered-out table row lost its keyed draft");
+        }
+    }
+
+    private static void tableReplacementRefusal() {
+        try (Fixture f = new Fixture()) {
+            f.open("fail=false;columns={{key='score'}};return{type='table',id='table',width=160,height=60,"
+                    + "overscan=0,records={{key='a',data={score=1}}},"
+                    + "bind=function(v)local version=v.data:get('version');return{columns=columns}end,"
+                    + "row=function()if fail then error('replacement fixture')end return{type='text',text='Row'}end}");
+            GuiTableView table = (GuiTableView) f.view("table");
+            GuiStyledView header = (GuiStyledView) table.getChildren().get(1);
+            GuiElement previous = table.collection().rowElement("a");
+            f.lua.load("fail=true;columns={{key='score'},{key='title'}}").call();
+            f.host.change();
+            f.prepare();
+            require(f.failures.size() == 1 && table.collection().rowElement("a") == previous
+                    && header.getChildren().size() == 1,
+                    "A failed row replacement exposed candidate headers or retired the accepted body");
+            f.prepare();
+            require(f.failures.size() == 1, "A failed table replacement retried factories while idle");
+            f.failures.clear();
+            f.lua.set("fail", LuaValue.FALSE);
+            table.collection().refreshRows();
+            f.prepare();
+            require(header.getChildren().size() == 2 && table.collection().rowElement("a") != previous,
+                    "A corrected table could not publish its header and row replacement together");
+        }
+    }
+
+    private static void controlledSort() {
+        try (Fixture f = new Fixture()) {
+            f.open("return{type='table',id='table',width=160,height=60,columns={{key='score'}},"
+                    + "records={{key='a',data={score=2}},{key='b',data={score=1}}},"
+                    + "bind=function(v)return{sortColumn=v.data:get('sortColumn'),sortDirection=v.data:get('sortDirection')}end,"
+                    + "on={sort=function(ctx,e)wantedSort=e.value end}}");
+            GuiTableView table = (GuiTableView) f.view("table");
+            GuiStyledView header = (GuiStyledView) table.getChildren().get(1);
+            click(f, header.getChildren().get(0));
+            require(order(table.collection()).equals("a,b")
+                    && f.lua.get("wantedSort").get("direction").tojstring().equals("ascending"),
+                    "Controlled sort accepted a local proposal without acknowledgement");
+            f.host.sortColumn = "score";
+            f.host.sortDirection = "ascending";
+            f.host.change();
+            f.prepare();
+            require(order(table.collection()).equals("b,a"), "Acknowledged controlled sort did not reorder rows");
+            f.reload();
+            require(order(f.view("table").collection()).equals("b,a"),
+                    "Controlled sort was overwritten during refresh");
+        }
+    }
+
+    private static void nestedTableAdmission() {
+        try (Fixture f = new Fixture()) {
+            f.open("sorts=0;return{type='list',id='outer',width=160,height=80,rowHeight=80,overscan=0,records={{key='group'}},"
+                    + "rowState={padding={type='string',default=string.rep('x',16100)}},row=function()return{type='column',children={"
+                    + "{type='button',height=20,text='Clear',on={activate=function(ctx)ctx.state:set('padding','')end}},"
+                    + "{type='table',height=60,overscan=0,columns={{key=string.rep('k',255)}},records={{key='a'}},"
+                    + "on={sort=function()sorts=sorts+1 end}}}}end}");
+            GuiStyledView row = (GuiStyledView) f.view("outer").collection().rowElement("group");
+            GuiTableView table = (GuiTableView) row.getChildren().get(1);
+            GuiStyledView header = (GuiStyledView) table.getChildren().get(1);
+            require(f.budget.liveElements() >= 70,
+                    "Nested table headers escaped their containing-row element allowance");
+            click(f, header.getChildren().get(0));
+            require(f.lua.get("sorts").toint() == 0 && !table.captureState().containsKey("sortColumn"),
+                    "An over-budget nested sort called Lua or changed accepted local state");
+            click(f, row.getChildren().get(0));
+            click(f, header.getChildren().get(0));
+            require(f.lua.get("sorts").toint() == 1 && table.captureState().containsKey("sortColumn"),
+                    "Nested sort did not recover after containing-row state capacity was freed");
+        }
+    }
+
+    private static void click(Fixture f, GuiElement element) {
+        f.scene.mousePressed(element.getLeft() + 3, element.getTop() + 3, 0);
+        f.scene.mouseReleased(element.getLeft() + 3, element.getTop() + 3, 0);
+        f.prepare();
+    }
+
+    private static String order(GuiVirtualCollection rows) {
+        List<String> keys = new ArrayList<>();
+        for (GuiCollectionModel.Row row : rows.visibleRows()) {
+            keys.add(row.record.key);
+        }
+        return String.join(",", keys);
+    }
+
     private static final class Fixture implements AutoCloseable {
         final Globals lua = JsePlatform.standardGlobals();
         final GuiComponentRegistry registry = new GuiComponentRegistry();
@@ -319,6 +488,9 @@ public final class GuiCollectionControlTest {
         final List<Observer> observers = new ArrayList<>();
         int version;
         String selected = "a";
+        String filter = "";
+        String sortColumn = "";
+        String sortDirection = "none";
         public GuiPresentationSources snapshot() {
             return new GuiPresentationSources(Collections.emptyMap(), data(), Collections.emptyMap());
         }
@@ -327,6 +499,9 @@ public final class GuiCollectionControlTest {
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("version", version);
             result.put("selected", selected);
+            result.put("filter", filter);
+            result.put("sortColumn", sortColumn);
+            result.put("sortDirection", sortDirection);
             return result;
         }
 
@@ -352,6 +527,9 @@ public final class GuiCollectionControlTest {
             for (Observer observer : new ArrayList<>(observers)) {
                 observer.changed("data:version", before, version);
                 observer.changed("data:selected", null, selected);
+                observer.changed("data:filter", null, filter);
+                observer.changed("data:sortColumn", null, sortColumn);
+                observer.changed("data:sortDirection", null, sortDirection);
             }
         }
     }

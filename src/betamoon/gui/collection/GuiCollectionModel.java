@@ -111,6 +111,7 @@ public final class GuiCollectionModel {
     private final Map<String, State> states = new HashMap<>();
     private final Map<String, StateReservation> reservations = new HashMap<>();
     private List<Row> visible = Collections.emptyList();
+    private List<String> projection;
     private Set<String> publishedExpansion = Collections.emptySet();
     private String selected;
     private long revision;
@@ -182,6 +183,7 @@ public final class GuiCollectionModel {
         copy.expanded.addAll(expanded);
         copy.states.putAll(states);
         copy.visible = visible;
+        copy.projection = projection;
         copy.publishedExpansion = publishedExpansion;
         copy.selected = selected;
         copy.revision = revision;
@@ -430,8 +432,39 @@ public final class GuiCollectionModel {
         return record;
     }
 
+    public void project(List<String> keys) {
+        requireNoReservations();
+        if (Objects.equals(projection, keys)) {
+            return;
+        }
+        if (keys != null) {
+            if (keys.size() > MAX_RECORDS || new HashSet<>(keys).size() != keys.size()) {
+                throw new IllegalArgumentException("Collection projection requires unique bounded record keys");
+            }
+            for (String key : keys) {
+                if (required(key).parent != null) {
+                    throw new IllegalArgumentException("Ordered projections require flat records");
+                }
+            }
+        }
+        projection = keys == null ? null : Collections.unmodifiableList(new ArrayList<>(keys));
+        rebuildVisible();
+        revision++;
+    }
+
     private void rebuildVisible() {
-        visible = snapshot.visible(expanded);
+        if (projection == null) {
+            visible = snapshot.visible(expanded);
+        } else {
+            List<Row> rows = new ArrayList<>();
+            for (String key : projection) {
+                Record record = snapshot.keys.get(key);
+                if (record != null) {
+                    rows.add(new Row(record, 0));
+                }
+            }
+            visible = Collections.unmodifiableList(rows);
+        }
         publishedExpansion = Collections.unmodifiableSet(new LinkedHashSet<>(expanded));
     }
 

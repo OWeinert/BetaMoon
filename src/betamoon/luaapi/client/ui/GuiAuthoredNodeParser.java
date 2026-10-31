@@ -170,7 +170,8 @@ public final class GuiAuthoredNodeParser {
             } else {
                 for (String name : handlers.keySet()) {
                     if (!Arrays.asList("activate", "change", "commit", "cancel").contains(name)
-                            && !("tree".equals(type) && "expand".equals(name))) {
+                            && !("tree".equals(type) && "expand".equals(name))
+                            && !("table".equals(type) && "sort".equals(name))) {
                         throw LuaDeclarationValues.error(path + ".on." + name, "unknown built-in semantic event");
                     }
                 }

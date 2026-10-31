@@ -10,6 +10,7 @@ import betamoon.gui.framework.GuiElement;
 import betamoon.gui.collection.GuiRowFactory;
 import betamoon.gui.collection.GuiRowBudget;
 import betamoon.gui.collection.GuiCollectionView;
+import betamoon.gui.collection.GuiTableView;
 import betamoon.gui.widget.GuiBuiltInViews;
 import betamoon.gui.framework.GuiInputEvent;
 import betamoon.gui.graphics.GraphicsResources;
@@ -199,6 +200,10 @@ public final class GuiComponentPlan implements AutoCloseable {
     }
 
     void finish(List<GuiNodeDefinition> nodes) {
+        if (elementAllowance(nodes) > GuiRowBudget.MAX_LIVE_ELEMENTS) {
+            throw new IllegalArgumentException(
+                    "UI document exceeds 8192 elements including collection/header allowances");
+        }
         long raw = views.values().stream().filter(view -> view.leaf != null && !view.leaf.rawDraw.isnil()).count();
         if (raw > 32) {
             throw new IllegalArgumentException("UI document exceeds 32 raw drawing contributions");
@@ -278,6 +283,19 @@ public final class GuiComponentPlan implements AutoCloseable {
             throw new IllegalStateException("UI views are not prepared");
         }
         return runtime;
+    }
+
+    private static int elementAllowance(List<GuiNodeDefinition> nodes) {
+        int count = 0;
+        for (GuiNodeDefinition node : nodes) {
+            count += GuiBuiltInViews.elementAllowance(node.type);
+        }
+        return count;
+    }
+
+    public int rowElementAllowance() {
+        requireActive();
+        return 1 + elementAllowance(document.presentation.nodes);
     }
 
     public GuiComponentStateStore state() {
@@ -409,12 +427,14 @@ public final class GuiComponentPlan implements AutoCloseable {
                     : new GuiComponentRowFactory(registry, metadata.scope.owner, key + "/" + node.id, declaration.row,
                             declaration.state, capabilities,
                             context -> services.rowEnvironment(context, metadata.appearance.theme), textWidth, clock);
-            result = new GuiCollectionView(node.type, services.rowBudget(), rows,
-                    services.theme(metadata.scope.owner, metadata.appearance),
-                    services.template(metadata.scope.owner, metadata.appearance),
-                    (event, value) -> available(metadata.scope)
-                            && accepted(runtime.dispatchUiEvent(node.id, event, value)),
-                    failure -> services.failure(metadata.scope.owner, node.path, failure));
+            GuiStyleSheet theme = services.theme(metadata.scope.owner, metadata.appearance);
+            GuiVisualTemplate template = services.template(metadata.scope.owner, metadata.appearance);
+            GuiStyledView.Events events = (event, value) -> available(metadata.scope)
+                    && accepted(runtime.dispatchUiEvent(node.id, event, value));
+            Consumer<Throwable> failure = error -> services.failure(metadata.scope.owner, node.path, error);
+            result = "table".equals(node.type)
+                    ? new GuiTableView(services.rowBudget(), rows, theme, template, events, failure)
+                    : new GuiCollectionView(node.type, services.rowBudget(), rows, theme, template, events, failure);
         } else if (metadata.leaf == null) {
             result = new GuiStyledView(node.type, services.theme(metadata.scope.owner, metadata.appearance),
                     services.template(metadata.scope.owner, metadata.appearance),

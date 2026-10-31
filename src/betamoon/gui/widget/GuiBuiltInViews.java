@@ -1,6 +1,7 @@
 package betamoon.gui.widget;
 
 import betamoon.gui.presentation.GuiNodeDefinition;
+import betamoon.gui.collection.GuiTableColumns;
 import betamoon.gui.presentation.GuiPresentationTree;
 import betamoon.gui.presentation.GuiProperties;
 import betamoon.gui.presentation.GuiPropertyDescriptor;
@@ -21,9 +22,9 @@ import java.util.function.Function;
  * remains separate.
  */
 public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
-    private static final List<String> TYPES = Collections.unmodifiableList(
-            Arrays.asList("text", "image", "panel", "row", "column", "grid", "list", "tree", "overlay", "spacer",
-                    "divider", "button", "checkbox", "choice", "slider", "textbox", "progress", "dialog", "tooltip"));
+    private static final List<String> TYPES = Collections.unmodifiableList(Arrays.asList("text", "image", "panel",
+            "row", "column", "grid", "list", "tree", "table", "overlay", "spacer", "divider", "button", "checkbox",
+            "choice", "slider", "textbox", "progress", "dialog", "tooltip"));
     private final GuiStyleSheet theme;
     private final Function<GuiNodeDefinition, GuiVisualTemplate> templates;
     private final Function<GuiNodeDefinition, GuiStyledView.Events> events;
@@ -89,6 +90,14 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
                         Stage.SEMANTICS));
             }
         }
+        if ("table".equals(type)) {
+            properties.add(GuiPropertyDescriptor.value("columns", Kind.DATA, Collections.emptyList(), Stage.MEASURE));
+            properties.add(GuiPropertyDescriptor.value("sortColumn", Kind.STRING, "", Stage.SEMANTICS));
+            properties.add(GuiPropertyDescriptor.value("sortDirection", Kind.STRING, "none", Stage.SEMANTICS));
+            properties.add(GuiPropertyDescriptor.value("filter", Kind.STRING, "", Stage.SEMANTICS));
+            properties.add(new GuiPropertyDescriptor("headerHeight", Kind.INTEGER, 20, 1, 1024, false, false,
+                    Collections.singleton(Stage.MEASURE), Collections.emptySet()));
+        }
         if ("grid".equals(type)) {
             properties.add(new GuiPropertyDescriptor("columns", Kind.INTEGER, 1, 0, 64, false, false,
                     Collections.singleton(Stage.MEASURE), Collections.emptySet()));
@@ -128,8 +137,12 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
         return new GuiProperties(type, properties);
     }
 
+    public static int elementAllowance(String type) {
+        return "table".equals(type) ? 3 + GuiTableColumns.MAX_COLUMNS : collection(type) ? 2 : 1;
+    }
+
     public static boolean collection(String type) {
-        return "list".equals(type) || "tree".equals(type);
+        return "list".equals(type) || "tree".equals(type) || "table".equals(type);
     }
 
     private static void requireType(String type) {

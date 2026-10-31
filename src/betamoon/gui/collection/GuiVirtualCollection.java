@@ -56,8 +56,13 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
     private boolean expansionRequested;
     private Set<String> requestedExpansion = Collections.emptySet();
     private String requestedReveal;
+    private String requestedAnchor;
+    private int requestedAnchorInset;
+    private boolean projectionRequested;
+    private List<String> requestedProjection;
     private GuiViewStateAdmission stateAdmission;
     private long intentRevision;
+    private long acceptedIntentRevision;
 
     public GuiVirtualCollection(GuiRowBudget budget, GuiRowFactory factory, Consumer<Throwable> failures) {
         this.budget = Objects.requireNonNull(budget, "row budget");
@@ -95,6 +100,13 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
     public void setScrollOffset(int offset) {
         LuaCallbackScope.requireUiStateWrite();
         requireOpen();
+        if (requestedAnchor != null) {
+            requestedAnchor = null;
+            requestedAnchorInset = 0;
+            explicitScroll = true;
+            intentRevision++;
+            dirty = true;
+        }
         int maximum = Math.max(0, model.visible().size() * rowHeight - getHeight());
         int next = Math.max(0, Math.min(offset, maximum));
         if (requestedOffset != next) {
@@ -103,6 +115,17 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
             explicitScroll = true;
             dirty = true;
         }
+    }
+
+    public void scrollToStart() {
+        LuaCallbackScope.requireUiStateWrite();
+        requireOpen();
+        requestedOffset = 0;
+        requestedAnchor = null;
+        requestedAnchorInset = 0;
+        explicitScroll = true;
+        intentRevision++;
+        dirty = true;
     }
 
     public void refreshRows() {
@@ -162,6 +185,20 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
         }
     }
 
+    public void setProjection(List<String> keys) {
+        LuaCallbackScope.requireUiStateWrite();
+        requireOpen();
+        if (!Objects.equals(requestedProjection, keys)) {
+            if (keys != null && keys.size() > GuiCollectionModel.MAX_RECORDS) {
+                throw new IllegalArgumentException("Collection projection exceeds 4096 keys");
+            }
+            requestedProjection = keys == null ? null : Collections.unmodifiableList(new ArrayList<>(keys));
+            projectionRequested = true;
+            intentRevision++;
+            dirty = true;
+        }
+    }
+
     public void reveal(String key) {
         LuaCallbackScope.requireUiStateWrite();
         requireOpen();
@@ -182,11 +219,21 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
     }
 
     public Map<String, Object> captureState() {
-        return state(model, selection(), expansion(), explicitScroll ? requestedOffset : scrollOffset());
+        Map<String, Object> values = state(model, selection(), expansion(),
+                explicitScroll ? requestedOffset : scrollOffset(),
+                window == null || explicitScroll ? rowHeight : window.rowHeight);
+        if (requestedAnchor == null) {
+            return values;
+        }
+        Map<String, Object> pending = new LinkedHashMap<>(values);
+        pending.put("schema", 1);
+        pending.put("anchor", requestedAnchor);
+        pending.put("inset", requestedAnchorInset);
+        return Collections.unmodifiableMap(pending);
     }
 
     private static Map<String, Object> state(GuiCollectionModel model, String selection, Set<String> expansion,
-            int offset) {
+            int offset, int rowHeight) {
         Map<String, Object> rows = model.rowStates();
         if (selection == null && expansion.isEmpty() && offset == 0 && rows.isEmpty()) {
             return Collections.emptyMap();
@@ -201,6 +248,11 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
         }
         if (offset != 0) {
             values.put("offset", offset);
+            int index = offset / rowHeight;
+            if (index < model.visible().size()) {
+                values.put("anchor", model.visible().get(index).record.key);
+                values.put("inset", offset % rowHeight);
+            }
         }
         if (!rows.isEmpty()) {
             values.put("rows", rows);
@@ -217,9 +269,12 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
         GuiCollectionModel next = new GuiCollectionModel();
         next.publish(requested == null ? model.snapshot() : requested);
         int offset = 0;
+        String anchor = null;
+        int inset = 0;
         if (!values.isEmpty()) {
             for (String field : values.keySet()) {
-                if (!Arrays.asList("schema", "selection", "expanded", "offset", "rows").contains(field)) {
+                if (!Arrays.asList("schema", "selection", "expanded", "offset", "rows", "anchor", "inset")
+                        .contains(field)) {
                     throw new IllegalArgumentException("Unknown collection state field: " + field);
                 }
             }
@@ -261,6 +316,22 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
                 }
                 offset = (int) value;
             }
+            if (values.containsKey("anchor")) {
+                if (!(values.get("anchor") instanceof String)) {
+                    throw new IllegalArgumentException("Saved collection anchor requires a key");
+                }
+                anchor = (String) values.get("anchor");
+                requireKey(anchor);
+            }
+            if (values.containsKey("inset")) {
+                Object number = values.get("inset");
+                if (anchor == null || !(number instanceof Number) || !Double.isFinite(((Number) number).doubleValue())
+                        || ((Number) number).doubleValue() != Math.rint(((Number) number).doubleValue())
+                        || ((Number) number).doubleValue() < 0 || ((Number) number).doubleValue() > 1023) {
+                    throw new IllegalArgumentException("Saved collection inset requires an anchor and integer 0..1023");
+                }
+                inset = ((Number) number).intValue();
+            }
             if (values.containsKey("rows")) {
                 for (Map.Entry<String, Object> entry : stateRecord(values.get("rows")).entrySet()) {
                     if (next.snapshot().keys.containsKey(entry.getKey())) {
@@ -270,6 +341,8 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
             }
         }
         int restoredOffset = offset;
+        String restoredAnchor = anchor;
+        int restoredInset = inset;
         long preparedRevision = intentRevision;
         return () -> {
             requireOpen();
@@ -285,6 +358,8 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
             requestedExpansion = Collections.emptySet();
             requestedReveal = null;
             requestedOffset = restoredOffset;
+            requestedAnchor = restoredAnchor;
+            requestedAnchorInset = restoredInset;
             explicitScroll = true;
             dirty = true;
         };
@@ -332,6 +407,14 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
         requireOpen();
         requireKey(key);
         requestedFocus = key;
+    }
+
+    public long intentRevision() {
+        return intentRevision;
+    }
+
+    public long acceptedIntentRevision() {
+        return acceptedIntentRevision;
     }
 
     public int realizedRows() {
@@ -393,7 +476,8 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
         }
         List<Object> attempt = Arrays.asList(requested, requestedOffset, explicitScroll, getWidth(), height, rowHeight,
                 overscan, refreshRevision, rowInputs, selectionRequested, requestedSelection, expansionRequested,
-                requestedExpansion, requestedReveal, stateRevision());
+                requestedExpansion, requestedReveal, requestedAnchor, requestedAnchorInset, projectionRequested,
+                requestedProjection, stateRevision());
         if (attempt.equals(rejected)) {
             return;
         }
@@ -418,6 +502,9 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
                     }
                 }
             }
+            if (projectionRequested) {
+                next.project(requestedProjection);
+            }
             Map<String, RecordOrigins> nextOrigins = prepareActionOrigins(next.snapshot());
             for (Entry entry : rows.values()) {
                 if (entry.row.hasLiveState() && next.snapshot().keys.containsKey(entry.record.key)) {
@@ -427,6 +514,15 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
             GuiCollectionWindow nextWindow = window == null || explicitScroll
                     ? GuiCollectionWindow.create(next.visible(), rowHeight, height, overscan, requestedOffset)
                     : window.reconcile(next.visible(), rowHeight, height, overscan);
+            if (requestedAnchor != null) {
+                for (int index = 0; index < next.visible().size(); index++) {
+                    if (next.visible().get(index).record.key.equals(requestedAnchor)) {
+                        nextWindow = GuiCollectionWindow.create(next.visible(), rowHeight, height, overscan,
+                                index * rowHeight + Math.min(rowHeight - 1, requestedAnchorInset));
+                        break;
+                    }
+                }
+            }
             if (requestedReveal != null) {
                 for (int index = 0; index < next.visible().size(); index++) {
                     if (next.visible().get(index).record.key.equals(requestedReveal)) {
@@ -488,12 +584,16 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
             }
             requireOpen();
             commit(context, next, nextWindow, nextRows, nextOrigins, staged);
+            acceptedIntentRevision = intentRevision;
             requested = null;
             selectionRequested = false;
             requestedSelection = null;
             expansionRequested = false;
             requestedExpansion = Collections.emptySet();
             requestedReveal = null;
+            projectionRequested = false;
+            requestedAnchor = null;
+            requestedAnchorInset = 0;
             requestedOffset = nextWindow.offset;
             explicitScroll = false;
             dirty = false;
@@ -531,7 +631,7 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
             Map<String, Entry> nextRows, Map<String, RecordOrigins> nextOrigins, List<Staged> staged) {
         Map<String, Object> state = stateAdmission == null
                 ? Collections.emptyMap()
-                : state(next, next.selected(), next.expanded(), nextWindow.offset);
+                : state(next, next.selected(), next.expanded(), nextWindow.offset, nextWindow.rowHeight);
         try (GuiViewStateAdmission.Proposal proposal = admit(state)) {
             commitAccepted(context, next, nextWindow, nextRows, nextOrigins, staged);
             proposal.commit(state);
@@ -742,7 +842,7 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
             if (next == previous) {
                 return false;
             }
-            Map<String, Object> prospective = state(model, selection(), expansion(), next);
+            Map<String, Object> prospective = state(model, selection(), expansion(), next, rowHeight);
             try (GuiViewStateAdmission.Proposal proposal = admit(prospective)) {
                 setScrollOffset(next);
                 proposal.commit(captureState());

@@ -132,7 +132,7 @@ public final class GuiComponentRowFactory implements GuiRowFactory {
                     previous == null ? null : previous.plan, state, Collections.emptyMap(), saved(context, "state"));
             plan.inheritActionOrigins(context::actionOrigins);
             environment.prepare(plan);
-            reservation = context.budget.reserve(plan.document().presentation.nodes.size() + 1);
+            reservation = context.budget.reserve(plan.rowElementAllowance());
             GuiComponentPlan acceptedPlan = plan;
             if (previous == null) {
                 tree = plan.createTree(capabilities, textWidth, clock);
