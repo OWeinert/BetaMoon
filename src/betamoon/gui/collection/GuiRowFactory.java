@@ -29,7 +29,20 @@ public interface GuiRowFactory {
 
         Map<String, Object> state();
 
+        /**
+         * An expired dependency can leave only the last admitted detached state usable.
+         */
+        default boolean hasLiveState() {
+            return true;
+        }
+
         default void update(GuiContext context, int width, int height) {
+        }
+
+        /**
+         * Java-only replay of accepted animation values; no model/factory or Lua work.
+         */
+        default void sample() {
         }
 
         default boolean needsRefresh() {

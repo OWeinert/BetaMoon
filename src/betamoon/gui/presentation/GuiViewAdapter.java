@@ -22,6 +22,13 @@ public interface GuiViewAdapter extends AutoCloseable {
     void publish(GuiPresentationNode node);
 
     /**
+     * Replay already prepared nested presentations without collecting sources or
+     * invoking Lua.
+     */
+    default void sample() {
+    }
+
+    /**
      * Copies compatible Java editor/interaction state into an already validated
      * candidate view.
      */

@@ -137,6 +137,8 @@ public final class GuiComponentPlan implements AutoCloseable {
     private final GuiComponentEvents events;
     private boolean active = true;
     private List<Object> callbackRevision;
+    private Supplier<List<GuiActionOrigin>> inheritedActionOrigins = Collections::emptyList;
+    private List<GuiActionOrigin> dependencyActionOrigins = Collections.emptyList();
     private Runnable invalidated = () -> {
     };
 
@@ -165,6 +167,21 @@ public final class GuiComponentPlan implements AutoCloseable {
         return callbackRevision;
     }
 
+    void inheritActionOrigins(Supplier<List<GuiActionOrigin>> origins) {
+        requireActive();
+        if (runtime != null) {
+            throw new IllegalStateException("Install row origins before preparing views");
+        }
+        inheritedActionOrigins = Objects.requireNonNull(origins, "inherited UI action origins");
+    }
+
+    List<GuiActionOrigin> actionOrigins() {
+        List<GuiActionOrigin> origins = new ArrayList<>(services.actionOrigins());
+        origins.addAll(inheritedActionOrigins.get());
+        origins.addAll(dependencyActionOrigins);
+        return origins;
+    }
+
     void finish(List<GuiNodeDefinition> nodes) {
         long raw = views.values().stream().filter(view -> view.leaf != null && !view.leaf.rawDraw.isnil()).count();
         if (raw > 32) {
@@ -180,9 +197,12 @@ public final class GuiComponentPlan implements AutoCloseable {
                 new GuiPresentationDefinition(nodes, callback, services.events(), owner), this);
         Set<String> owners = new LinkedHashSet<>();
         owners.add(owner);
+        Map<String, GuiActionOrigin> dependencyOwners = new LinkedHashMap<>();
         for (GuiComponentDefinition dependency : dependencies.values()) {
             owners.add(dependency.owner);
+            dependencyOwners.putIfAbsent(dependency.owner, dependency.actionOrigin());
         }
+        dependencyActionOrigins = Collections.unmodifiableList(new ArrayList<>(dependencyOwners.values()));
         for (String source : owners) {
             dependOnOwner(source);
         }
@@ -495,6 +515,8 @@ public final class GuiComponentPlan implements AutoCloseable {
         document = null;
         state.close();
         host = null;
+        inheritedActionOrigins = Collections::emptyList;
+        dependencyActionOrigins = Collections.emptyList();
         invalidated = () -> {
         };
         if (!failures.isEmpty()) {

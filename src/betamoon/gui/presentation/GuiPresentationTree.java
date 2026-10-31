@@ -309,6 +309,9 @@ public final class GuiPresentationTree implements AutoCloseable {
     public void sample() {
         requireActive();
         runtime.sample();
+        for (GuiViewAdapter view : views) {
+            view.sample();
+        }
         publish();
     }
 

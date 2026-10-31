@@ -105,7 +105,7 @@ final class GuiComponentEvents implements GuiComponentScope.Emitter {
         outer = context;
         plan.state.beginEvent();
         boolean finished = false;
-        try (GuiActionOrigin.Frame sources = GuiActionOrigin.enter(plan.services.actionOrigins())) {
+        try (GuiActionOrigin.Frame sources = GuiActionOrigin.enter(plan.actionOrigins())) {
             root.eventContext(context, ((NativeCallbackContext) context).nativeCallbackScope(), this);
             LuaValue result = plan.services.event(context, event);
             finished = true;
@@ -160,7 +160,7 @@ final class GuiComponentEvents implements GuiComponentScope.Emitter {
             depth--;
             throw new LuaError("Component event propagation exceeds depth 16");
         }
-        try (GuiActionOrigin.Frame sources = GuiActionOrigin.enter(plan.services.actionOrigins(),
+        try (GuiActionOrigin.Frame sources = GuiActionOrigin.enter(plan.actionOrigins(),
                 scope.definition == null ? null : scope.definition.actionOrigin());
                 GuiActionOrigin.Frame outcome = GuiActionOrigin.event();
                 LuaCallbackScope callback = new LuaCallbackScope(false, true)) {

@@ -111,6 +111,15 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
         return window == null ? 0 : window.offset;
     }
 
+    /** Called by the owning presentation adapter's Java frame sampler. */
+    public void sampleRows() {
+        if (!closed) {
+            for (Entry row : rows.values()) {
+                row.row.sample();
+            }
+        }
+    }
+
     public GuiElement rowElement(String key) {
         Entry row = rows.get(key);
         return row == null ? null : row.row.element();
@@ -118,7 +127,7 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
 
     public Map<String, Object> rowState(String key) {
         Entry row = rows.get(key);
-        return row == null ? model.rowState(key) : row.row.state();
+        return row == null || !row.row.hasLiveState() ? model.rowState(key) : row.row.state();
     }
 
     @Override
@@ -164,7 +173,7 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
             GuiCollectionModel next = model.fork(requested == null ? model.snapshot() : requested);
             Map<String, RecordOrigins> nextOrigins = prepareActionOrigins(next.snapshot());
             for (Entry entry : rows.values()) {
-                if (next.snapshot().keys.containsKey(entry.record.key)) {
+                if (entry.row.hasLiveState() && next.snapshot().keys.containsKey(entry.record.key)) {
                     next.publishRowState(entry.record.key, entry.row.state());
                 }
             }
