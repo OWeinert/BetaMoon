@@ -1381,7 +1381,8 @@ public final class GuiShowcaseRenderTest {
             require(((List<?>) organizedDraft.get("effects")).size() == 1 && "bad".equals(intensityInput.value())
                     && configScene.getFocusedElement() == intensityInput,
                     "Invalid unrelated text stays in place and blocks per-field Reset");
-            intensityText.setText("1.0");
+            // Read the active native field after focus reveal rearranges its adapter.
+            ((GuiTextBox) textField.get(intensityInput)).setText("1.0");
             organizedScroll.reveal(effectsReset.getBounds());
             configuration.updateScreen();
             configuration.drawScreen(0, 0, 0.0F);

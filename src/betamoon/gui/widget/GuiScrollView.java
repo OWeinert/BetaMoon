@@ -5,9 +5,14 @@ import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiElement;
 import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.framework.GuiInputEvent;
+import betamoon.gui.framework.GuiFocusViewport;
+import betamoon.gui.framework.GuiFrameContent;
+import betamoon.gui.graphics.GraphicsClip;
+import betamoon.gui.graphics.GraphicsTransform;
+import org.lwjgl.input.Keyboard;
 
 /** Clips and scrolls one retained element inside a fixed viewport. */
-public final class GuiScrollView extends GuiContainer {
+public final class GuiScrollView extends GuiContainer implements GuiFocusViewport {
     public enum Policy {
         VERTICAL, HORIZONTAL, BOTH
     }
@@ -28,8 +33,18 @@ public final class GuiScrollView extends GuiContainer {
     private boolean draggingVertical;
     private boolean draggingHorizontal;
     private int dragOffset;
+    private Rect arrangedBounds;
+    private int arrangedScrollX;
+    private int arrangedScrollY;
+    private int arrangedMaxX;
+    private int arrangedMaxY;
 
     public GuiScrollView(GuiElement content, Policy policy) {
+        this(content, policy, false);
+    }
+
+    public GuiScrollView(GuiElement content, Policy policy, boolean focusable) {
+        setFocusable(focusable);
         if (content == null) {
             throw new IllegalArgumentException("Scroll content cannot be null");
         }
@@ -84,6 +99,7 @@ public final class GuiScrollView extends GuiContainer {
         setScrollPosition(0, 0);
         draggingVertical = false;
         draggingHorizontal = false;
+        requestLayout();
     }
 
     /**
@@ -102,8 +118,42 @@ public final class GuiScrollView extends GuiContainer {
     }
 
     @Override
+    public GraphicsClip revealFocus(GraphicsClip bounds) {
+        int oldX = scrollX;
+        int oldY = scrollY;
+        double x = bounds.left < getLeft()
+                ? bounds.left - getLeft()
+                : bounds.right > getRight() ? Math.min(bounds.left - getLeft(), bounds.right - getRight()) : 0;
+        double y = bounds.top < getTop()
+                ? bounds.top - getTop()
+                : bounds.bottom > getBottom() ? Math.min(bounds.top - getTop(), bounds.bottom - getBottom()) : 0;
+        setScrollPosition((int) Math.max(0, Math.min(maxScrollX, scrollX + x)),
+                (int) Math.max(0, Math.min(maxScrollY, scrollY + y)));
+        return new GraphicsClip(Math.max(getLeft(), Math.min(getRight(), bounds.left + oldX - scrollX)),
+                Math.max(getTop(), Math.min(getBottom(), bounds.top + oldY - scrollY)),
+                Math.max(getLeft(), Math.min(getRight(), bounds.right + oldX - scrollX)),
+                Math.max(getTop(), Math.min(getBottom(), bounds.bottom + oldY - scrollY)));
+    }
+
+    @Override
     protected void arrangeChildren(GuiContext context) {
         updateLimits();
+        if (arrangedBounds != null) {
+            if (!arrangedBounds.equals(getBounds()) || arrangedMaxX != maxScrollX || arrangedMaxY != maxScrollY
+                    || verticalHandle.dragging != null && !draggingVertical
+                    || horizontalHandle.dragging != null && !draggingHorizontal) {
+                context.cancelGesturesIn(verticalHandle);
+                context.cancelGesturesIn(horizontalHandle);
+            }
+            if (arrangedScrollX != scrollX || arrangedScrollY != scrollY) {
+                context.cancelGesturesIn(content);
+            }
+        }
+        arrangedBounds = getBounds();
+        arrangedScrollX = scrollX;
+        arrangedScrollY = scrollY;
+        arrangedMaxX = maxScrollX;
+        arrangedMaxY = maxScrollY;
         content.arrange(context, Rect.fromPositionAndSize(getLeft() - scrollX, getTop() - scrollY,
                 Math.max(contentWidth, getWidth()), Math.max(contentHeight, getHeight())));
         boolean showVertical = maxScrollY > 0 && policy != Policy.HORIZONTAL;
@@ -125,10 +175,10 @@ public final class GuiScrollView extends GuiContainer {
         context.getRenderer().pushClip(getBounds());
         try {
             content.render(context);
+            drawScrollbars(context);
         } finally {
             context.getRenderer().popClip();
         }
-        drawScrollbars(context);
     }
 
     @Override
@@ -151,6 +201,50 @@ public final class GuiScrollView extends GuiContainer {
                 setScrollPosition(wheelOffset(scrollX, delta, maxScrollX), scrollY);
                 return previousX != scrollX;
             }
+        }
+        if (event.getType() == GuiInputEvent.Type.KEY_TYPED) {
+            int x = scrollX;
+            int y = scrollY;
+            switch (event.getKeyCode()) {
+                case Keyboard.KEY_LEFT:
+                    x = wheelOffset(x, -16, maxScrollX);
+                    break;
+                case Keyboard.KEY_RIGHT:
+                    x = wheelOffset(x, 16, maxScrollX);
+                    break;
+                case Keyboard.KEY_UP:
+                    y = wheelOffset(y, -16, maxScrollY);
+                    break;
+                case Keyboard.KEY_DOWN:
+                    y = wheelOffset(y, 16, maxScrollY);
+                    break;
+                case Keyboard.KEY_PRIOR:
+                case Keyboard.KEY_NEXT:
+                    int direction = event.getKeyCode() == Keyboard.KEY_PRIOR ? -1 : 1;
+                    if (policy == Policy.HORIZONTAL
+                            || policy == Policy.BOTH && (event.isShiftDown() || maxScrollY == 0)) {
+                        x = wheelOffset(x, direction * getWidth(), maxScrollX);
+                    } else {
+                        y = wheelOffset(y, direction * getHeight(), maxScrollY);
+                    }
+                    break;
+                case Keyboard.KEY_HOME:
+                case Keyboard.KEY_END:
+                    boolean end = event.getKeyCode() == Keyboard.KEY_END;
+                    if (policy == Policy.HORIZONTAL
+                            || policy == Policy.BOTH && (event.isShiftDown() || maxScrollY == 0)) {
+                        x = end ? maxScrollX : 0;
+                    } else {
+                        y = end ? maxScrollY : 0;
+                    }
+                    break;
+                default:
+                    return false;
+            }
+            int previousX = scrollX;
+            int previousY = scrollY;
+            setScrollPosition(x, y);
+            return previousX != scrollX || previousY != scrollY;
         }
         return false;
     }
@@ -185,50 +279,8 @@ public final class GuiScrollView extends GuiContainer {
         }
     }
 
-    private boolean startVerticalDrag(int mouseX, int mouseY) {
-        if (maxScrollY <= 0 || policy == Policy.HORIZONTAL || !verticalThumb().contains(mouseX, mouseY)) {
-            return false;
-        }
-        draggingVertical = true;
-        draggingHorizontal = false;
-        dragOffset = mouseY - verticalThumb().getTop();
-        return true;
-    }
-
-    private boolean startHorizontalDrag(int mouseX, int mouseY) {
-        if (maxScrollX <= 0 || policy == Policy.VERTICAL || !horizontalThumb().contains(mouseX, mouseY)) {
-            return false;
-        }
-        draggingHorizontal = true;
-        draggingVertical = false;
-        dragOffset = mouseX - horizontalThumb().getLeft();
-        return true;
-    }
-
-    private void dragVertical(int mouseY) {
-        Rect track = verticalTrack();
-        Rect thumb = verticalThumb();
-        int range = track.getHeight() - thumb.getHeight();
-        if (range <= 0) {
-            return;
-        }
-        int relative = clamp(mouseY - track.getTop() - dragOffset, 0, range);
-        scrollY = relative * maxScrollY / range;
-    }
-
-    private void dragHorizontal(int mouseX) {
-        Rect track = horizontalTrack();
-        Rect thumb = horizontalThumb();
-        int range = track.getWidth() - thumb.getWidth();
-        if (range <= 0) {
-            return;
-        }
-        int relative = clamp(mouseX - track.getLeft() - dragOffset, 0, range);
-        scrollX = relative * maxScrollX / range;
-    }
-
     private Rect verticalTrack() {
-        return new Rect(getRight() - SCROLLBAR_SIZE, getTop(), getRight(),
+        return new Rect(Math.max(getLeft(), getRight() - SCROLLBAR_SIZE), getTop(), getRight(),
                 getBottom() - (maxScrollX > 0 ? SCROLLBAR_SIZE : 0));
     }
 
@@ -236,20 +288,20 @@ public final class GuiScrollView extends GuiContainer {
         Rect track = verticalTrack();
         int thumbHeight = thumbSize(track.getHeight(), getHeight(), contentHeight);
         int range = track.getHeight() - thumbHeight;
-        int offset = maxScrollY == 0 ? 0 : range * scrollY / maxScrollY;
+        int offset = maxScrollY == 0 ? 0 : (int) ((long) range * scrollY / maxScrollY);
         return Rect.fromPositionAndSize(track.getLeft(), track.getTop() + offset, track.getWidth(), thumbHeight);
     }
 
     private Rect horizontalTrack() {
-        return new Rect(getLeft(), getBottom() - SCROLLBAR_SIZE, getRight() - (maxScrollY > 0 ? SCROLLBAR_SIZE : 0),
-                getBottom());
+        return new Rect(getLeft(), Math.max(getTop(), getBottom() - SCROLLBAR_SIZE),
+                getRight() - (maxScrollY > 0 ? SCROLLBAR_SIZE : 0), getBottom());
     }
 
     private Rect horizontalThumb() {
         Rect track = horizontalTrack();
         int thumbWidth = thumbSize(track.getWidth(), getWidth(), contentWidth);
         int range = track.getWidth() - thumbWidth;
-        int offset = maxScrollX == 0 ? 0 : range * scrollX / maxScrollX;
+        int offset = maxScrollX == 0 ? 0 : (int) ((long) range * scrollX / maxScrollX);
         return Rect.fromPositionAndSize(track.getLeft() + offset, track.getTop(), thumbWidth, track.getHeight());
     }
 
@@ -257,7 +309,7 @@ public final class GuiScrollView extends GuiContainer {
         if (trackSize <= 0 || totalSize <= 0) {
             return Math.max(0, trackSize);
         }
-        int size = Math.max(MINIMUM_THUMB_SIZE, trackSize * viewportSize / totalSize);
+        int size = Math.max(MINIMUM_THUMB_SIZE, (int) ((long) trackSize * viewportSize / totalSize));
         return Math.min(trackSize, size);
     }
 
@@ -269,38 +321,88 @@ public final class GuiScrollView extends GuiContainer {
      * Input layer kept above scroll content so content cannot consume scrollbar
      * drags.
      */
+    private static final class ScrollbarFrame implements GuiFrameContent {
+        final Rect track;
+        final Rect thumb;
+        final int maximum;
+        final int position;
+
+        ScrollbarFrame(Rect track, Rect thumb, int maximum, int position) {
+            this.track = track;
+            this.thumb = thumb;
+            this.maximum = maximum;
+            this.position = position;
+        }
+
+        public boolean contains(double x, double y) {
+            return true;
+        }
+    }
+
     private final class ScrollbarHandle extends GuiElement {
         private final boolean vertical;
+        private ScrollbarFrame dragging;
+        private GraphicsTransform dragTransform;
 
         private ScrollbarHandle(boolean vertical) {
             this.vertical = vertical;
         }
 
         @Override
+        protected GuiFrameContent sampleFrameContent() {
+            return new ScrollbarFrame(vertical ? verticalTrack() : horizontalTrack(),
+                    vertical ? verticalThumb() : horizontalThumb(), vertical ? maxScrollY : maxScrollX,
+                    vertical ? scrollY : scrollX);
+        }
+
+        @Override
         protected boolean onInput(GuiContext context, GuiInputEvent event) {
             if (event.getType() == GuiInputEvent.Type.POINTER_DOWN && event.getButton() == 0) {
-                boolean started = vertical
-                        ? startVerticalDrag(event.getMouseX(), event.getMouseY())
-                        : startHorizontalDrag(event.getMouseX(), event.getMouseY());
-                if (started) {
-                    capturePointer(context);
+                ScrollbarFrame frame = (ScrollbarFrame) context.getFrameContent();
+                if (frame == null || frame.maximum != (vertical ? maxScrollY : maxScrollX)
+                        || frame.position != (vertical ? scrollY : scrollX)
+                        || !frame.track.equals(vertical ? verticalTrack() : horizontalTrack())) {
+                    return true;
                 }
-                return started;
+                if (frame.thumb.contains(event.getMouseX(), event.getMouseY())) {
+                    dragging = frame;
+                    dragTransform = context.getElementTransform();
+                    draggingVertical = vertical;
+                    draggingHorizontal = !vertical;
+                    dragOffset = vertical
+                            ? event.getMouseY() - frame.thumb.getTop()
+                            : event.getMouseX() - frame.thumb.getLeft();
+                    capturePointer(context);
+                } else {
+                    boolean before = vertical
+                            ? event.getMouseY() < frame.thumb.getTop()
+                            : event.getMouseX() < frame.thumb.getLeft();
+                    int page = vertical ? GuiScrollView.this.getHeight() : GuiScrollView.this.getWidth();
+                    int next = wheelOffset(frame.position, before ? -page : page, frame.maximum);
+                    setScrollPosition(vertical ? scrollX : next, vertical ? next : scrollY);
+                }
+                if (GuiScrollView.this.isFocusable()) {
+                    context.requestFocus(GuiScrollView.this);
+                }
+                return true;
             }
-            if (event.getType() == GuiInputEvent.Type.POINTER_DRAG) {
-                if (!event.isMouseDown()) {
+            if (event.getType() == GuiInputEvent.Type.POINTER_DRAG && dragging != null) {
+                GraphicsTransform current = context.getElementTransform();
+                if (!event.isMouseDown() || current.x != dragTransform.x || current.y != dragTransform.y
+                        || current.scaleX != dragTransform.scaleX || current.scaleY != dragTransform.scaleY) {
                     return endDrag(context);
                 }
-                if (vertical && draggingVertical) {
-                    dragVertical(event.getMouseY());
-                    requestLayout();
-                    return true;
+                int range = vertical
+                        ? dragging.track.getHeight() - dragging.thumb.getHeight()
+                        : dragging.track.getWidth() - dragging.thumb.getWidth();
+                int position = vertical
+                        ? event.getMouseY() - dragging.track.getTop() - dragOffset
+                        : event.getMouseX() - dragging.track.getLeft() - dragOffset;
+                if (range > 0) {
+                    int next = (int) ((long) clamp(position, 0, range) * dragging.maximum / range);
+                    setScrollPosition(vertical ? scrollX : next, vertical ? next : scrollY);
                 }
-                if (!vertical && draggingHorizontal) {
-                    dragHorizontal(event.getMouseX());
-                    requestLayout();
-                    return true;
-                }
+                return true;
             }
             if (event.getType() == GuiInputEvent.Type.POINTER_UP
                     || event.getType() == GuiInputEvent.Type.POINTER_CANCEL) {
@@ -310,14 +412,16 @@ public final class GuiScrollView extends GuiContainer {
         }
 
         private boolean endDrag(GuiContext context) {
-            boolean wasDragging = vertical ? draggingVertical : draggingHorizontal;
+            boolean active = dragging != null;
+            dragging = null;
+            dragTransform = null;
             if (vertical) {
                 draggingVertical = false;
             } else {
                 draggingHorizontal = false;
             }
             releasePointer(context);
-            return wasDragging;
+            return active;
         }
     }
 }

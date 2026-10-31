@@ -46,9 +46,15 @@ public final class NativeLiveClientDriver {
     private static int worldFrames;
     private static int exportFrames;
     private static long lastFrame;
+    private static long presentedFrames;
     private static long worldWindow;
 
+    public static long presentedFrames() {
+        return presentedFrames;
+    }
+
     public static void framePresented() {
+        presentedFrames++;
         long now = System.nanoTime();
         long elapsed = now - lastFrame;
         if (lastFrame != 0) {

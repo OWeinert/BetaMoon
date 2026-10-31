@@ -36,6 +36,8 @@ final class UiLiveClientChecks {
     private static int example;
     private static String exampleOwner;
     private static Object exampleMenu;
+    private static long exampleMenuFrame;
+    private static long exampleOpenedFrame;
     private static final String[] EXAMPLES = {"01_beg_33_first_screen.lua", "02_int_36_reactive_screen.lua",
             "03_adv_26_prepared_ui_components.lua", "03_adv_27_raw_ui_graphics.lua"};
     private static final String[] EXAMPLE_SCREENS = {"example:first_screen", "example:reactive_form",
@@ -296,14 +298,23 @@ final class UiLiveClientChecks {
             }
             Object nativeMenu = NativeLiveClientDriver.field(client, CLIENT, "currentScreen",
                     "Lnet/minecraft/src/GuiScreen;");
-            if (exampleMenu != nativeMenu) {
-                exampleMenu = nativeMenu;
+            // Main-menu customization occurs during rendering; catch-up ticks can precede
+            // that replacement.
+            if (nativeMenu == null || !nativeMenu.getClass().getName().equals("betamoon.gui.GuiBetaMoonMainMenu")) {
+                exampleMenu = null;
                 wait = 0;
                 return false;
             }
-            if (++wait < 3) {
+            if (exampleMenu != nativeMenu) {
+                exampleMenu = nativeMenu;
+                exampleMenuFrame = NativeLiveClientDriver.presentedFrames();
+                wait = 0;
                 return false;
             }
+            if (++wait < 3 || NativeLiveClientDriver.presentedFrames() <= exampleMenuFrame) {
+                return false;
+            }
+            exampleOpenedFrame = NativeLiveClientDriver.presentedFrames();
             exampleOwner = EXAMPLES[example];
             lua = JsePlatform.standardGlobals();
             Object module = Class.forName("betamoon.luaapi.BetaMoonModule", true, loader).getConstructor(String.class)
@@ -327,6 +338,10 @@ final class UiLiveClientChecks {
         }
         if (phase == 12) {
             if (++wait < 7) {
+                return false;
+            }
+            if (NativeLiveClientDriver.presentedFrames() <= exampleOpenedFrame) {
+                require(wait < 60, "Distributed example had no presented frame: " + exampleOwner);
                 return false;
             }
             require(lua.load("return exampleForm:status()=='active'").call().toboolean(),

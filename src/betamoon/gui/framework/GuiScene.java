@@ -1,5 +1,6 @@
 package betamoon.gui.framework;
 
+import betamoon.gui.graphics.GraphicsClip;
 import betamoon.gui.framework.GuiContainer.SceneRoot;
 import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.presentation.GuiPresentationTree;
@@ -668,7 +669,7 @@ public final class GuiScene {
         for (int i = 0; i < path.size(); i++) {
             GuiElement element = path.get(i);
             if (element.isFocusable() && element.isEnabled()) {
-                changeFocus(element);
+                changeFocus(element, false);
                 return;
             }
         }
@@ -701,6 +702,10 @@ public final class GuiScene {
     }
 
     private void changeFocus(GuiElement element) {
+        changeFocus(element, true);
+    }
+
+    private void changeFocus(GuiElement element, boolean reveal) {
         if (focusedElement == element) {
             return;
         }
@@ -709,9 +714,46 @@ public final class GuiScene {
         if (previous != null) {
             notifyFocus(previous, false);
         }
-        if (element != null) {
-            notifyFocus(element, true);
+        if (element != null && focusedElement == element) {
+            Runnable gained = () -> {
+                if (focusedElement != element || !element.belongsTo(this)) {
+                    return;
+                }
+                if (reveal) {
+                    revealFocus(element);
+                }
+                notifyFocus(element, true);
+            };
+            if (painting || layingOut || preparingVisuals) {
+                deferredEffects.add(gained);
+            } else {
+                gained.run();
+            }
         }
+    }
+
+    private void revealFocus(GuiElement element) {
+        boolean hasViewport = false;
+        for (GuiContainer parent = element.getParent(); parent != null; parent = parent.getParent()) {
+            if (parent instanceof GuiFocusViewport) {
+                hasViewport = true;
+                break;
+            }
+        }
+        if (!hasViewport) {
+            return;
+        }
+        ensureLayout();
+        Rect bounds = element.getBounds();
+        GraphicsClip target = new GraphicsClip(bounds.getLeft(), bounds.getTop(), bounds.getRight(), bounds.getBottom())
+                .transform(element.arrangedTransform());
+        for (GuiContainer parent = element.getParent(); parent != null; parent = parent.getParent()) {
+            if (parent instanceof GuiFocusViewport) {
+                target = ((GuiFocusViewport) parent).revealFocus(target);
+            }
+            target = target.transform(parent.arrangedTransform());
+        }
+        ensureLayout();
     }
 
     private void notifyFocus(GuiElement element, boolean focused) {

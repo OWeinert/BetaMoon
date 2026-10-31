@@ -61,5 +61,7 @@
 
 ### Fixed
 
+- Shared viewports reveal nested keyboard focus, page by keyboard/track and cancel moving or stale scrollbar gestures.
+
 - Nested GUI scrolling now hands an exhausted wheel gesture to an eligible parent and handles extreme deltas without overflow.
 - Deferred UI actions from failed callbacks, rejected GUI command batches or expired component owners now cancel before dispatch.
