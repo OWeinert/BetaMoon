@@ -19,7 +19,8 @@ import java.util.Set;
  */
 public final class GuiCollectionModel {
     public static final int MAX_RECORDS = 4096;
-    private static final long MAX_METADATA_BYTES = 4 * 1024 * 1024;
+    public static final int MAX_METADATA_BYTES = 4 * 1024 * 1024;
+    public static final int MAX_METADATA_VALUES = 131072;
     private static final long MAX_STATE_BYTES = 4 * 1024 * 1024;
     private static final Snapshot EMPTY = prepare(Collections.emptyList());
 
@@ -121,7 +122,7 @@ public final class GuiCollectionModel {
         }
         Map<String, Record> keys = new LinkedHashMap<>();
         Map<String, List<Record>> children = new HashMap<>();
-        GuiComponentLimits.Values budget = new GuiComponentLimits.Values(4 * 1024 * 1024, 131072);
+        GuiComponentLimits.Values budget = new GuiComponentLimits.Values(MAX_METADATA_BYTES, MAX_METADATA_VALUES);
         for (Record record : records) {
             if (record == null || keys.put(record.key, record) != null) {
                 throw new IllegalArgumentException("Collection keys must be unique and records cannot be null");

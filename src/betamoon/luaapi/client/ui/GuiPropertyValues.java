@@ -18,6 +18,13 @@ public final class GuiPropertyValues {
     public static Object read(GuiPropertyDescriptor descriptor, LuaValue value) {
         Object candidate = null;
         switch (descriptor.kind) {
+            case COLLECTION:
+                try {
+                    candidate = GuiLuaCollectionValues.read(value, descriptor.name);
+                } catch (LuaError invalid) {
+                    throw new GuiProperties.ValueError(invalid.getMessage());
+                }
+                break;
             case DATA:
                 try {
                     candidate = GuiLuaData.read(value, descriptor.name);

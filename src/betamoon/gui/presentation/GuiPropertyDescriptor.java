@@ -1,5 +1,6 @@
 package betamoon.gui.presentation;
 
+import betamoon.gui.collection.GuiCollectionValues;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.ArrayList;
@@ -12,7 +13,7 @@ import java.util.Set;
  */
 public final class GuiPropertyDescriptor {
     public enum Kind {
-        NUMBER, INTEGER, BOOLEAN, STRING, COLOR, STRING_LIST, DATA
+        NUMBER, INTEGER, BOOLEAN, STRING, COLOR, STRING_LIST, DATA, COLLECTION
     }
 
     public enum Stage {
@@ -67,6 +68,9 @@ public final class GuiPropertyDescriptor {
     public Object normalize(Object value) {
         if (value == null && optional) {
             return null;
+        }
+        if (kind == Kind.COLLECTION) {
+            return GuiCollectionValues.normalize(value);
         }
         if (kind == Kind.DATA && value != null) {
             GuiPublishedData detached = new GuiPublishedData();
