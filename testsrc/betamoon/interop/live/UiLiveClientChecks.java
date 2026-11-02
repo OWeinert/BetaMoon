@@ -92,9 +92,9 @@ final class UiLiveClientChecks {
                                     + "root={type='column',width=200,height=236,gap=2,children={{type='text',id='readout',bind=function(v)return {text='Count '..v.state:get('count')}end},"
                                     + "{component='uitest:wheel'},{component='uitest:raw'},{type='button',id='apply',text='Apply',on={activate=function(ctx)ticket=assert(ctx.screen:request('apply',{}))end}},"
                                     + "{type='button',id='close',text='Close',on={activate=function(ctx)ctx.screen:close()end}},"
-                                    + "{type='table',id='scores',theme='menu',height=60,overscan=0,columns={{key='title'},{key='score',width=50}},"
+                                    + "{type='table',id='scores',theme='menu',height=60,overscan=0,columns={{key='title',width=150},{key='score',width=100}},"
                                     + "records={{key='a',data={title='A',score=2}},{key='b',data={title='B',score=1}}},"
-                                    + "on={sort=function()tableSorts=(tableSorts or 0)+1 end}}}}};"
+                                    + "on={sort=function()tableSorts=(tableSorts or 0)+1 end,scroll=function(ctx,e)tableScroll=e.value.scrollX end}}}}};"
                                     + "dialogOpens=0;dialogRefreshes=0;rowCalls=0;rowEdits=0;dialogDefinition={key='uitest:dialog',state={count={type='integer',default=0}},"
                                     + "on={open=function()dialogOpens=dialogOpens+1 end,refresh=function()dialogRefreshes=dialogRefreshes+1 end},"
                                     + "actions={accept={scope='client',payload={},handler=function(ctx)ctx.state:set('count',4);return true end}},"
@@ -132,8 +132,10 @@ final class UiLiveClientChecks {
                     "oldElement=form:element('apply'); local t,r=form:request('world',{});assert(t==nil and r=='world_unavailable')")
                     .call();
             Object table = element("scores");
-            Object header = ((java.util.List<?>) invoke(table, "getChildren")).get(1);
+            Object header = invoke(table, "header");
             clickElement(client, ((java.util.List<?>) invoke(header, "getChildren")).get(1));
+            Object tableViewport = invoke(table, "viewport");
+            tableViewport.getClass().getMethod("setScrollPosition", int.class, int.class).invoke(tableViewport, 30, 0);
             click(client, "apply");
             phase = 2;
             return false;
@@ -144,7 +146,11 @@ final class UiLiveClientChecks {
             }
             require(lua.load("return form.state:get('count')==8 and ticket:result().applied").call().toboolean(),
                     "Client action did not publish its detached completion/state");
-            Object tableRows = invoke(element("scores"), "collection");
+            Object table = element("scores");
+            require(((Number) invoke(invoke(table, "viewport"), "getScrollX")).intValue() == 30
+                    && lua.get("tableScroll").toint() == 30,
+                    "Native table did not publish horizontal scrolling through the shared viewport");
+            Object tableRows = invoke(table, "collection");
             Object first = ((java.util.List<?>) invoke(tableRows, "visibleRows")).get(0);
             Object record = first.getClass().getField("record").get(first);
             require(record.getClass().getField("key").get(record).equals("b") && lua.get("tableSorts").toint() == 1,

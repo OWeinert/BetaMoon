@@ -237,7 +237,7 @@ public final class GuiCollectionControlTest {
             GuiTableView table = (GuiTableView) f.view("table");
             GuiVirtualCollection rows = table.collection();
             require(rows.realizedRows() == 3, "Table header did not reserve body viewport height");
-            GuiStyledView header = (GuiStyledView) table.getChildren().get(1);
+            GuiStyledView header = table.header();
             GuiElement score = header.getChildren().get(1);
             GuiStyledView first = (GuiStyledView) rows.rowElement("a");
             GuiStyledView cells = (GuiStyledView) first.getChildren().get(0);
@@ -266,7 +266,7 @@ public final class GuiCollectionControlTest {
             table = (GuiTableView) f.view("table");
             rows = table.collection();
             require(order(rows).equals("f,a,b,c,e,d"), "Unbound table sort did not survive refresh");
-            header = (GuiStyledView) table.getChildren().get(1);
+            header = table.header();
             GuiElement accepted = header.getChildren().get(1);
             f.lua.load("columns[2].key='title'").call();
             f.host.change();
@@ -311,13 +311,14 @@ public final class GuiCollectionControlTest {
                     + "bind=function(v)local version=v.data:get('version');return{columns=columns}end,"
                     + "row=function()if fail then error('replacement fixture')end return{type='text',text='Row'}end}");
             GuiTableView table = (GuiTableView) f.view("table");
-            GuiStyledView header = (GuiStyledView) table.getChildren().get(1);
+            GuiStyledView header = table.header();
             GuiElement previous = table.collection().rowElement("a");
-            f.lua.load("fail=true;columns={{key='score'},{key='title'}}").call();
+            f.lua.load("fail=true;columns={{key='score',width=150},{key='title',width=150}}").call();
             f.host.change();
             f.prepare();
             require(f.failures.size() == 1 && table.collection().rowElement("a") == previous
-                    && header.getChildren().size() == 1,
+                    && header.getChildren().size() == 1 && table.collection().getWidth() == 160
+                    && !table.viewport().canScrollHorizontally(),
                     "A failed row replacement exposed candidate headers or retired the accepted body");
             f.prepare();
             require(f.failures.size() == 1, "A failed table replacement retried factories while idle");
@@ -325,7 +326,8 @@ public final class GuiCollectionControlTest {
             f.lua.set("fail", LuaValue.FALSE);
             table.collection().refreshRows();
             f.prepare();
-            require(header.getChildren().size() == 2 && table.collection().rowElement("a") != previous,
+            require(header.getChildren().size() == 2 && table.collection().rowElement("a") != previous
+                    && table.collection().getWidth() == 300 && table.viewport().canScrollHorizontally(),
                     "A corrected table could not publish its header and row replacement together");
         }
     }
@@ -337,7 +339,7 @@ public final class GuiCollectionControlTest {
                     + "bind=function(v)return{sortColumn=v.data:get('sortColumn'),sortDirection=v.data:get('sortDirection')}end,"
                     + "on={sort=function(ctx,e)wantedSort=e.value end}}");
             GuiTableView table = (GuiTableView) f.view("table");
-            GuiStyledView header = (GuiStyledView) table.getChildren().get(1);
+            GuiStyledView header = table.header();
             click(f, header.getChildren().get(0));
             require(order(table.collection()).equals("a,b")
                     && f.lua.get("wantedSort").get("direction").tojstring().equals("ascending"),
@@ -362,7 +364,7 @@ public final class GuiCollectionControlTest {
                     + "on={sort=function()sorts=sorts+1 end}}}}end}");
             GuiStyledView row = (GuiStyledView) f.view("outer").collection().rowElement("group");
             GuiTableView table = (GuiTableView) row.getChildren().get(1);
-            GuiStyledView header = (GuiStyledView) table.getChildren().get(1);
+            GuiStyledView header = table.header();
             require(f.budget.liveElements() >= 70,
                     "Nested table headers escaped their containing-row element allowance");
             click(f, header.getChildren().get(0));

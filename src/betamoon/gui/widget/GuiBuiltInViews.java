@@ -88,6 +88,7 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
             }
         }
         if (collection(type)) {
+            properties.add(GuiPropertyDescriptor.value("scrollbars", Kind.BOOLEAN, true, Stage.PAINT, Stage.HIT));
             properties.add(
                     GuiPropertyDescriptor.value("records", Kind.COLLECTION, Collections.emptyList(), Stage.SEMANTICS));
             properties.add(GuiPropertyDescriptor.value("selectedKey", Kind.STRING, "", Stage.SEMANTICS));
@@ -101,6 +102,8 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
             }
         }
         if ("table".equals(type)) {
+            properties.add(new GuiPropertyDescriptor("scrollX", Kind.INTEGER, 0, 0, 16384, false, false,
+                    Collections.singleton(Stage.ARRANGE), Collections.emptySet()));
             properties.add(GuiPropertyDescriptor.value("columns", Kind.DATA, Collections.emptyList(), Stage.MEASURE));
             properties.add(GuiPropertyDescriptor.value("sortColumn", Kind.STRING, "", Stage.SEMANTICS));
             properties.add(GuiPropertyDescriptor.value("sortDirection", Kind.STRING, "none", Stage.SEMANTICS));
@@ -150,7 +153,7 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
     public static int elementAllowance(String type) {
         return "scroll".equals(type)
                 ? 5
-                : "table".equals(type) ? 3 + GuiTableColumns.MAX_COLUMNS : collection(type) ? 2 : 1;
+                : "table".equals(type) ? 7 + GuiTableColumns.MAX_COLUMNS : collection(type) ? 6 : 1;
     }
 
     public static boolean collection(String type) {

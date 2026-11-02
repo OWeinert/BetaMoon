@@ -1,5 +1,8 @@
 package betamoon.gui.widget;
 
+import java.util.function.IntSupplier;
+import java.util.Objects;
+
 import betamoon.gui.framework.GuiContainer;
 import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiElement;
@@ -32,6 +35,7 @@ public final class GuiScrollView extends GuiContainer implements GuiFocusViewpor
     private final ScrollbarHandle horizontalHandle = new ScrollbarHandle(false);
     private Policy policy;
     private boolean scrollbarsVisible = true;
+    private IntSupplier virtualOffset;
     private int contentWidth;
     private int contentHeight;
     private int scrollX;
@@ -71,6 +75,22 @@ public final class GuiScrollView extends GuiContainer implements GuiFocusViewpor
             this.policy = policy;
             requestLayout();
         }
+    }
+
+    /**
+     * The child owns row positioning; this viewport supplies metrics, clipping and
+     * shared scroll gestures.
+     */
+    public void setVirtualContent(IntSupplier virtualOffset) {
+        LuaCallbackScope.requireUiStateWrite();
+        if (this.virtualOffset != virtualOffset) {
+            this.virtualOffset = Objects.requireNonNull(virtualOffset, "virtual offset");
+            requestLayout();
+        }
+    }
+
+    public boolean canScrollHorizontally() {
+        return policy != Policy.VERTICAL && maxScrollX > 0;
     }
 
     public void setScrollbarsVisible(boolean visible) {
@@ -171,6 +191,9 @@ public final class GuiScrollView extends GuiContainer implements GuiFocusViewpor
         double x = bounds.left < getLeft()
                 ? bounds.left - getLeft()
                 : bounds.right > getRight() ? Math.min(bounds.left - getLeft(), bounds.right - getRight()) : 0;
+        if (virtualOffset != null && bounds.right - bounds.left > getWidth()) {
+            x = 0;
+        }
         double y = bounds.top < getTop()
                 ? bounds.top - getTop()
                 : bounds.bottom > getBottom() ? Math.min(bounds.top - getTop(), bounds.bottom - getBottom()) : 0;
@@ -184,6 +207,9 @@ public final class GuiScrollView extends GuiContainer implements GuiFocusViewpor
 
     @Override
     protected void arrangeChildren(GuiContext context) {
+        if (virtualOffset != null) {
+            scrollY = Math.max(0, virtualOffset.getAsInt());
+        }
         updateLimits();
         if (arrangedBounds != null) {
             if (!arrangedBounds.equals(getBounds()) || arrangedMaxX != maxScrollX || arrangedMaxY != maxScrollY
@@ -201,8 +227,11 @@ public final class GuiScrollView extends GuiContainer implements GuiFocusViewpor
         arrangedScrollY = scrollY;
         arrangedMaxX = maxScrollX;
         arrangedMaxY = maxScrollY;
-        content.arrange(context, Rect.fromPositionAndSize(getLeft() - scrollX, getTop() - scrollY,
-                Math.max(contentWidth, getWidth()), Math.max(contentHeight, getHeight())));
+        content.arrange(context,
+                virtualOffset != null
+                        ? getBounds()
+                        : Rect.fromPositionAndSize(getLeft() - scrollX, getTop() - scrollY,
+                                Math.max(contentWidth, getWidth()), Math.max(contentHeight, getHeight())));
         boolean showVertical = scrollbarsVisible && maxScrollY > 0 && policy != Policy.HORIZONTAL;
         if (!showVertical) {
             draggingVertical = false;
@@ -249,7 +278,7 @@ public final class GuiScrollView extends GuiContainer implements GuiFocusViewpor
                 return previousX != scrollX;
             }
         }
-        if (event.getType() == GuiInputEvent.Type.KEY_TYPED) {
+        if (event.getType() == GuiInputEvent.Type.KEY_TYPED && virtualOffset == null) {
             int x = scrollX;
             int y = scrollY;
             switch (event.getKeyCode()) {

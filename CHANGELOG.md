@@ -9,7 +9,8 @@
 - Public reusable UI components, themes and prepared templates over the shared Java/Lua controls.
 - Fixed and responsive Lua grid layouts with reactive column settings and rejected-layout retention.
 - Keyed virtual Lua lists, tables and trees with custom rows, row-local state, retained drafts and keyboard navigation.
-- Shared table columns/headers with stable primitive sorting and filtering that preserve hidden keyed state.
+- Shared table columns/headers with stable primitive sorting, filtering and synchronized horizontal scrolling.
+- Bounded collection scrollbar dragging with pinned table headers and retained/controlled horizontal offsets.
 - Authored scroll viewports with retained/admitted offsets, measured content and shared nested keyboard navigation.
 - Prepared text/images/bitmap fonts, geometry and explicit scoped raw graphics with owned shaders, buffers and targets.
 - Four progressive client UI examples with configurable shortcuts, editor definitions and Lua API wiki references.

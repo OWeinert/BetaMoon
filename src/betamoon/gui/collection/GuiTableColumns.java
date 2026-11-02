@@ -86,6 +86,10 @@ public final class GuiTableColumns {
         return null;
     }
 
+    public int contentWidth(int viewport) {
+        return Math.max(fixedWidth + flexible, Math.min(16384, viewport));
+    }
+
     public int[] widths(int viewport) {
         int[] result = new int[columns.size()];
         int available = Math.max(flexible, Math.min(16384, viewport) - fixedWidth);

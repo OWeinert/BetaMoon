@@ -2,6 +2,9 @@ package betamoon.gui.collection;
 
 import betamoon.gui.action.GuiActionOrigin;
 import betamoon.gui.framework.GuiContext;
+import betamoon.gui.framework.GuiContainer;
+import betamoon.gui.framework.GuiGeometry.Rect;
+import betamoon.gui.widget.GuiScrollView;
 import betamoon.gui.framework.GuiElement;
 import betamoon.gui.framework.GuiInputEvent;
 import betamoon.gui.presentation.GuiPresentationNode;
@@ -31,6 +34,14 @@ import org.lwjgl.input.Keyboard;
  */
 public class GuiCollectionView extends GuiStyledView {
     private final GuiVirtualCollection collection;
+    private final GuiContainer content = new GuiContainer() {
+        @Override
+        protected void arrangeChildren(GuiContext context) {
+            arrangeCollection(context, getBounds());
+        }
+    };
+    private final GuiScrollView viewport;
+    private final Runnable releasePositionHandler;
     private final String kind;
     private final Events events;
     private final boolean defaultRows;
@@ -48,12 +59,51 @@ public class GuiCollectionView extends GuiStyledView {
         collection = new GuiVirtualCollection(budget,
                 factory == null ? context -> prepareDefault(context, theme, GuiDefaultTemplate.INSTANCE) : factory,
                 failures);
-        add(collection);
+        content.add(collection);
+        viewport = add(new GuiScrollView(content, GuiScrollView.Policy.VERTICAL));
+        viewport.setVirtualContent(collection::scrollOffset);
+        releasePositionHandler = viewport.handlePositionWith(this::proposeScroll);
         setFocusable(true);
     }
 
     public GuiVirtualCollection collection() {
         return collection;
+    }
+
+    public GuiScrollView viewport() {
+        return viewport;
+    }
+
+    protected GuiContainer collectionContent() {
+        return content;
+    }
+
+    protected void arrangeCollection(GuiContext context, Rect bounds) {
+        collection.arrange(context, bounds);
+    }
+
+    protected int contentWidth(int viewportWidth) {
+        return viewportWidth;
+    }
+
+    protected int fixedHeaderHeight(int viewportHeight) {
+        return 0;
+    }
+
+    protected void proposeScroll(int x, int y) {
+        if (collection.requestScrollOffset(y)) {
+            viewport.publishScrollPosition(viewport.getScrollX(), collection.requestedScrollOffset());
+        }
+    }
+
+    @Override
+    protected void arrangeChildren(GuiContext context) {
+        int width = Math.max(0, getWidth() - ((Number) properties.getOrDefault("padding", 0)).intValue() * 2);
+        int height = Math.max(0, getHeight() - ((Number) properties.getOrDefault("padding", 0)).intValue() * 2);
+        int headerHeight = fixedHeaderHeight(height);
+        int contentHeight = Math.max(0, collection.contentHeight() - (height == headerHeight ? 1 : 0));
+        viewport.setContentSize(contentWidth(width), headerHeight + contentHeight);
+        super.arrangeChildren(context);
     }
 
     @Override
@@ -90,6 +140,7 @@ public class GuiCollectionView extends GuiStyledView {
     private void publishCollection(Map<String, Object> values, Predicate<String> controlled) {
         this.properties = values;
         this.controlled = controlled;
+        viewport.setScrollbarsVisible(!Boolean.FALSE.equals(values.get("scrollbars")));
         collection.setModel(((GuiCollectionValues) values.get("records")).model());
         collection.setMetrics(((Number) values.get("rowHeight")).intValue(),
                 ((Number) values.get("overscan")).intValue());
@@ -417,6 +468,7 @@ public class GuiCollectionView extends GuiStyledView {
     @Override
     public void close() {
         try {
+            releasePositionHandler.run();
             collection.close();
         } finally {
             super.close();

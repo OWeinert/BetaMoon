@@ -4,9 +4,12 @@ import betamoon.gui.action.GuiActionOrigin;
 import betamoon.gui.drawing.GuiPaintBudget;
 import betamoon.gui.framework.GuiContainer;
 import betamoon.gui.framework.GuiContext;
+import betamoon.gui.framework.GuiFocusViewport;
+import betamoon.gui.graphics.GraphicsClip;
 import betamoon.gui.framework.GuiElement;
 import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.framework.GuiInputEvent;
+import betamoon.gui.widget.GuiScrollView;
 import betamoon.gui.framework.GuiInputLifetime;
 import betamoon.gui.framework.GuiPreparationPhase;
 import betamoon.gui.presentation.GuiViewStateAdmission;
@@ -28,7 +31,7 @@ import java.util.function.BooleanSupplier;
  * Fixed-height row realization mounts ordinary elements into the host's
  * existing parent graph.
  */
-public final class GuiVirtualCollection extends GuiContainer implements AutoCloseable {
+public final class GuiVirtualCollection extends GuiContainer implements AutoCloseable, GuiFocusViewport {
     private final GuiRowBudget budget;
     private final GuiRowFactory factory;
     private final Consumer<Throwable> failures;
@@ -107,7 +110,7 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
             intentRevision++;
             dirty = true;
         }
-        int maximum = Math.max(0, model.visible().size() * rowHeight - getHeight());
+        int maximum = Math.max(0, model.visible().size() * rowHeight - Math.max(1, getHeight()));
         int next = Math.max(0, Math.min(offset, maximum));
         if (requestedOffset != next) {
             requestedOffset = next;
@@ -835,23 +838,60 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
     @Override
     protected boolean onInput(GuiContext context, GuiInputEvent event) {
         if (event.getType() == GuiInputEvent.Type.SCROLL && contains(event.getMouseX(), event.getMouseY())) {
+            if (event.isShiftDown()) {
+                for (GuiContainer parent = getParent(); parent != null; parent = parent.getParent()) {
+                    if (parent instanceof GuiScrollView && ((GuiScrollView) parent).canScrollHorizontally()) {
+                        return false;
+                    }
+                }
+            }
             int previous = requestedOffset;
             long target = previous - (long) event.getWheelDelta() / 8;
-            int maximum = Math.max(0, model.visible().size() * rowHeight - getHeight());
-            int next = (int) Math.max(0, Math.min(maximum, target));
-            if (next == previous) {
-                return false;
-            }
-            Map<String, Object> prospective = state(model, selection(), expansion(), next, rowHeight);
-            try (GuiViewStateAdmission.Proposal proposal = admit(prospective)) {
-                setScrollOffset(next);
-                proposal.commit(captureState());
-                return previous != requestedOffset;
-            } catch (GuiViewStateAdmission.Refusal refused) {
-                return false;
-            }
+            return requestScrollOffset((int) Math.max(0, Math.min(Integer.MAX_VALUE, target)));
         }
         return false;
+    }
+
+    @Override
+    public GraphicsClip revealFocus(GraphicsClip bounds) {
+        int before = requestedOffset;
+        double delta = bounds.top < getTop()
+                ? bounds.top - getTop()
+                : bounds.bottom > getBottom() ? Math.min(bounds.top - getTop(), bounds.bottom - getBottom()) : 0;
+        if (delta != 0) {
+            requestScrollOffset((int) Math.max(0, Math.min(Integer.MAX_VALUE, before + delta)));
+        }
+        int shift = before - requestedOffset;
+        return new GraphicsClip(Math.max(getLeft(), Math.min(getRight(), bounds.left)),
+                Math.max(getTop(), Math.min(getBottom(), bounds.top + shift)),
+                Math.max(getLeft(), Math.min(getRight(), bounds.right)),
+                Math.max(getTop(), Math.min(getBottom(), bounds.bottom + shift)));
+    }
+
+    public int contentHeight() {
+        return model.visible().size() * (window == null ? rowHeight : window.rowHeight);
+    }
+
+    public int requestedScrollOffset() {
+        return requestedOffset;
+    }
+
+    public boolean requestScrollOffset(int offset) {
+        LuaCallbackScope.requireUiStateWrite();
+        requireOpen();
+        int maximum = Math.max(0, model.visible().size() * rowHeight - Math.max(1, getHeight()));
+        int next = Math.max(0, Math.min(maximum, offset));
+        if (next == requestedOffset) {
+            return false;
+        }
+        Map<String, Object> prospective = state(model, selection(), expansion(), next, rowHeight);
+        try (GuiViewStateAdmission.Proposal proposal = admit(prospective)) {
+            setScrollOffset(next);
+            proposal.commit(captureState());
+            return true;
+        } catch (GuiViewStateAdmission.Refusal refused) {
+            return false;
+        }
     }
 
     private void requireOpen() {
