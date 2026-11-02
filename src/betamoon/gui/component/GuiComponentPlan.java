@@ -28,6 +28,7 @@ import betamoon.gui.style.GuiStyleSheet;
 import betamoon.gui.style.GuiViewAppearance;
 import betamoon.gui.style.GuiVisualTemplate;
 import betamoon.gui.widget.GuiStyledView;
+import betamoon.gui.widget.GuiScrollControl;
 import betamoon.luaapi.client.ui.GuiLuaPaintSource;
 import betamoon.luaapi.client.ui.GuiPaintCompiler;
 import betamoon.luaapi.client.ui.GuiReadOnlyValues;
@@ -436,10 +437,13 @@ public final class GuiComponentPlan implements AutoCloseable {
                     ? new GuiTableView(services.rowBudget(), rows, theme, template, events, failure)
                     : new GuiCollectionView(node.type, services.rowBudget(), rows, theme, template, events, failure);
         } else if (metadata.leaf == null) {
-            result = new GuiStyledView(node.type, services.theme(metadata.scope.owner, metadata.appearance),
-                    services.template(metadata.scope.owner, metadata.appearance),
-                    (event, value) -> available(metadata.scope)
-                            && accepted(runtime.dispatchUiEvent(node.id, event, value)));
+            GuiStyleSheet theme = services.theme(metadata.scope.owner, metadata.appearance);
+            GuiVisualTemplate template = services.template(metadata.scope.owner, metadata.appearance);
+            GuiStyledView.Events events = (event, value) -> available(metadata.scope)
+                    && accepted(runtime.dispatchUiEvent(node.id, event, value));
+            result = "scroll".equals(node.type)
+                    ? new GuiScrollControl(theme, template, events)
+                    : new GuiStyledView(node.type, theme, template, events);
         } else {
             PaintBinding paint = new PaintBinding(node, metadata);
             paints.add(paint);

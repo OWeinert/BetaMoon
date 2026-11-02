@@ -98,12 +98,12 @@ final class UiLiveClientChecks {
                                     + "dialogOpens=0;dialogRefreshes=0;rowCalls=0;rowEdits=0;dialogDefinition={key='uitest:dialog',state={count={type='integer',default=0}},"
                                     + "on={open=function()dialogOpens=dialogOpens+1 end,refresh=function()dialogRefreshes=dialogRefreshes+1 end},"
                                     + "actions={accept={scope='client',payload={},handler=function(ctx)ctx.state:set('count',4);return true end}},"
-                                    + "root={type='grid',columns=1,width=160,height=110,children={{type='text',text='Confirm'},"
+                                    + "root={type='scroll',id='dialogScroll',width=160,height=110,children={{type='grid',columns=1,height=170,children={{type='text',text='Confirm'},"
                                     + "{type='list',id='entries',height=40,rowHeight=20,overscan=0,records=(function()local rows={}for i=1,4096 do rows[i]={key='r'..i}end return rows end)(),"
                                     + "rowState={count={type='integer',default=0}},row=function(row)rowCalls=rowCalls+1;checkPreparationAuthority();"
                                     + "return{type='button',id='entry',bind=function(v)return{text=row.label..':'..v.state:get('count')}end,"
                                     + "on={activate=function(ctx)assert(ctx.native);ctx.state:set('count',ctx.state:get('count')+1);rowEdits=rowEdits+1 end}}end},"
-                                    + "{type='button',id='accept',text='Accept',on={activate=function(ctx)dialogTicket=ctx.screen:request('accept',{})end}}}}};ui.screens:add(dialogDefinition);"
+                                    + "{type='button',id='accept',text='Accept',on={activate=function(ctx)dialogTicket=ctx.screen:request('accept',{})end}}}}}}};ui.screens:add(dialogDefinition);"
                                     + "ui.screens:add(definition);wrongGuiTick=false;betamoon.events:on('gui_tick',function(ctx)"
                                     + "if form and form:status()=='active' and ctx.name~='GuiManagedScreen' then wrongGuiTick=true end end);"
                                     + "opening=betamoon.events:on('game_tick',function(ctx)if not form then "
@@ -204,8 +204,10 @@ final class UiLiveClientChecks {
                     "Dialog action used its parent's model");
             require(lua.get("rowEdits").toint() == 1 && lua.get("rowCalls").toint() == 2,
                     "A real row event lost its state or caused idle factory polling");
-            lua.load("dialogDefinition.root.children[3].text='Accepted';dialogDefinition.root.columns=2;"
-                    + "ui.screens:add(dialogDefinition)").call();
+            lua.load(
+                    "dialogDefinition.root.children[1].children[3].text='Accepted';dialogDefinition.root.children[1].columns=2;dialogDefinition.root.scrollY=20;"
+                            + "ui.screens:add(dialogDefinition)")
+                    .call();
             phase = 10;
             wait = 0;
             return false;
@@ -219,6 +221,9 @@ final class UiLiveClientChecks {
                     "Dialog visual refresh lost state or reopened its lifecycle");
             Object parent = activation;
             activation = dialogActivation;
+            Object viewport = invoke(element("dialogScroll"), "viewport");
+            require(((Number) invoke(viewport, "getScrollY")).intValue() == 20,
+                    "Native authored scroll did not publish its offset through modal refresh");
             Object entries = invoke(element("entries"), "collection");
             Object row = invoke(entries, "rowElement", String.class, "r1");
             activation = parent;

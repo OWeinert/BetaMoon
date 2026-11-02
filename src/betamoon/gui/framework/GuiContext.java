@@ -1,6 +1,8 @@
 package betamoon.gui.framework;
 
 import java.util.Arrays;
+import java.util.ArrayList;
+import betamoon.gui.framework.GuiGeometry.Rect;
 import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.FontRenderer;
@@ -86,6 +88,42 @@ public final class GuiContext {
 
     public GraphicsClip getElementClip() {
         return currentNode == null ? new GraphicsClip(0, 0, screenWidth, screenHeight) : currentNode.hitClip;
+    }
+
+    /**
+     * Current retained geometry, for logical preparation before a new displayed
+     * frame exists.
+     */
+    public boolean intersectsViewport(GuiElement element) {
+        List<GuiElement> path = new ArrayList<>();
+        for (GuiElement current = element; current != null; current = current.getParent()) {
+            path.add(current);
+        }
+        GraphicsTransform transform = GraphicsTransform.IDENTITY;
+        GraphicsClip clip = new GraphicsClip(0, 0, screenWidth, screenHeight);
+        for (int index = path.size() - 1; index >= 0; index--) {
+            GuiElement current = path.get(index);
+            if (!current.isVisible() || current.isCollapsed() || current.getOpacity() == 0) {
+                return false;
+            }
+            transform = transform.compose(current.arrangedTransform());
+            Rect bounds = current.getBounds();
+            if (current == element) {
+                return !clip.intersect(
+                        new GraphicsClip(bounds.getLeft(), bounds.getTop(), bounds.getRight(), bounds.getBottom())
+                                .transform(transform))
+                        .isEmpty();
+            }
+            Rect requested = current.childInputClip();
+            if (requested != null) {
+                clip = clip.intersect(new GraphicsClip(requested.getLeft(), requested.getTop(), requested.getRight(),
+                        requested.getBottom()).transform(transform));
+                if (clip.isEmpty()) {
+                    return false;
+                }
+            }
+        }
+        return false;
     }
 
     public boolean isFocused(GuiElement element) {

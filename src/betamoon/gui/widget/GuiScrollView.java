@@ -10,6 +10,7 @@ import betamoon.gui.framework.GuiFrameContent;
 import betamoon.gui.graphics.GraphicsClip;
 import betamoon.gui.graphics.GraphicsTransform;
 import org.lwjgl.input.Keyboard;
+import betamoon.luaapi.utils.LuaCallbackScope;
 
 /** Clips and scrolls one retained element inside a fixed viewport. */
 public final class GuiScrollView extends GuiContainer implements GuiFocusViewport {
@@ -20,10 +21,17 @@ public final class GuiScrollView extends GuiContainer implements GuiFocusViewpor
     private static final int SCROLLBAR_SIZE = 4;
     private static final int MINIMUM_THUMB_SIZE = 12;
 
+    @FunctionalInterface
+    public interface PositionHandler {
+        void propose(int x, int y);
+    }
+
     private final GuiElement content;
+    private PositionHandler positionHandler;
     private final ScrollbarHandle verticalHandle = new ScrollbarHandle(true);
     private final ScrollbarHandle horizontalHandle = new ScrollbarHandle(false);
     private Policy policy;
+    private boolean scrollbarsVisible = true;
     private int contentWidth;
     private int contentHeight;
     private int scrollX;
@@ -65,6 +73,14 @@ public final class GuiScrollView extends GuiContainer implements GuiFocusViewpor
         }
     }
 
+    public void setScrollbarsVisible(boolean visible) {
+        LuaCallbackScope.requireUiStateWrite();
+        if (scrollbarsVisible != visible) {
+            scrollbarsVisible = visible;
+            requestLayout();
+        }
+    }
+
     public void setContentSize(int width, int height) {
         int resolvedWidth = Math.max(0, width);
         int resolvedHeight = Math.max(0, height);
@@ -84,15 +100,46 @@ public final class GuiScrollView extends GuiContainer implements GuiFocusViewpor
         return scrollY;
     }
 
+    public Runnable handlePositionWith(PositionHandler handler) {
+        LuaCallbackScope.requireUiStateWrite();
+        if (handler == null || positionHandler != null) {
+            throw new IllegalStateException("Install a scroll position handler once");
+        }
+        positionHandler = handler;
+        return () -> {
+            if (positionHandler == handler) {
+                positionHandler = null;
+            }
+        };
+    }
+
     public void setScrollPosition(int x, int y) {
+        LuaCallbackScope.requireUiStateWrite();
         int resolvedX = clamp(x, 0, maxScrollX);
         int resolvedY = clamp(y, 0, maxScrollY);
         if (scrollX == resolvedX && scrollY == resolvedY) {
             return;
         }
-        scrollX = resolvedX;
-        scrollY = resolvedY;
-        requestLayout();
+        if (positionHandler != null) {
+            positionHandler.propose(resolvedX, resolvedY);
+        } else {
+            publishScrollPosition(resolvedX, resolvedY);
+        }
+    }
+
+    /**
+     * Owner publication/restoration; limits are applied by the next arrangement.
+     */
+    public void publishScrollPosition(int x, int y) {
+        LuaCallbackScope.requireUiStateWrite();
+        if (x < 0 || y < 0) {
+            throw new IllegalArgumentException("Scroll positions cannot be negative");
+        }
+        if (scrollX != x || scrollY != y) {
+            scrollX = x;
+            scrollY = y;
+            requestLayout();
+        }
     }
 
     public void resetScroll() {
@@ -156,13 +203,13 @@ public final class GuiScrollView extends GuiContainer implements GuiFocusViewpor
         arrangedMaxY = maxScrollY;
         content.arrange(context, Rect.fromPositionAndSize(getLeft() - scrollX, getTop() - scrollY,
                 Math.max(contentWidth, getWidth()), Math.max(contentHeight, getHeight())));
-        boolean showVertical = maxScrollY > 0 && policy != Policy.HORIZONTAL;
+        boolean showVertical = scrollbarsVisible && maxScrollY > 0 && policy != Policy.HORIZONTAL;
         if (!showVertical) {
             draggingVertical = false;
         }
         verticalHandle.setVisible(showVertical);
         verticalHandle.arrange(context, verticalTrack());
-        boolean showHorizontal = maxScrollX > 0 && policy != Policy.VERTICAL;
+        boolean showHorizontal = scrollbarsVisible && maxScrollX > 0 && policy != Policy.VERTICAL;
         if (!showHorizontal) {
             draggingHorizontal = false;
         }
@@ -261,6 +308,9 @@ public final class GuiScrollView extends GuiContainer implements GuiFocusViewpor
     }
 
     private void drawScrollbars(GuiContext context) {
+        if (!scrollbarsVisible) {
+            return;
+        }
         if (maxScrollY > 0 && policy != Policy.HORIZONTAL) {
             Rect track = verticalTrack();
             Rect thumb = verticalThumb();

@@ -389,7 +389,7 @@ public final class GuiCollectionControlTest {
         return String.join(",", keys);
     }
 
-    private static final class Fixture implements AutoCloseable {
+    static final class Fixture implements AutoCloseable {
         final Globals lua = JsePlatform.standardGlobals();
         final GuiComponentRegistry registry = new GuiComponentRegistry();
         final GuiRowBudget budget = new GuiRowBudget();
@@ -484,8 +484,9 @@ public final class GuiCollectionControlTest {
         }
     }
 
-    private static final class Host implements GuiPresentationHost {
+    static final class Host implements GuiPresentationHost {
         final List<Observer> observers = new ArrayList<>();
+        final Map<String, Object> extra = new LinkedHashMap<>();
         int version;
         String selected = "a";
         String filter = "";
@@ -502,6 +503,7 @@ public final class GuiCollectionControlTest {
             result.put("filter", filter);
             result.put("sortColumn", sortColumn);
             result.put("sortDirection", sortDirection);
+            result.putAll(extra);
             return result;
         }
 
@@ -530,6 +532,9 @@ public final class GuiCollectionControlTest {
                 observer.changed("data:filter", null, filter);
                 observer.changed("data:sortColumn", null, sortColumn);
                 observer.changed("data:sortDirection", null, sortDirection);
+                for (Map.Entry<String, Object> entry : extra.entrySet()) {
+                    observer.changed("data:" + entry.getKey(), null, entry.getValue());
+                }
             }
         }
     }

@@ -1,6 +1,7 @@
 package betamoon.gui.presentation;
 
 import betamoon.gui.framework.GuiElement;
+import betamoon.gui.framework.GuiContainer;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -11,6 +12,14 @@ import java.util.function.Predicate;
  */
 public interface GuiViewAdapter extends AutoCloseable {
     GuiElement element();
+
+    /**
+     * The retained mount for authored children; composite controls can supply their
+     * existing inner container.
+     */
+    default GuiContainer childContainer() {
+        return element() instanceof GuiContainer ? (GuiContainer) element() : null;
+    }
 
     /**
      * Check all target values before any candidate views are published or the

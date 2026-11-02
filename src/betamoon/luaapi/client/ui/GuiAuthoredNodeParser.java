@@ -72,6 +72,10 @@ public final class GuiAuthoredNodeParser {
                         Collections.emptyMap(), Collections.emptyList(), Collections.emptyMap(), LuaValue.NIL,
                         GuiTransitionPolicy.DEFAULT, false);
             }
+            if ("scroll".equals(type) && (value.get("children").isnil()
+                    || LuaDeclarationValues.length(value.get("children"), path + ".children") != 1)) {
+                throw LuaDeclarationValues.error(path + ".children", "a scroll control requires one child tree");
+            }
             GuiProperties properties;
             GuiComponentDefinition definition = null;
             try {

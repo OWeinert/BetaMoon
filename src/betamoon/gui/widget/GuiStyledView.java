@@ -118,6 +118,9 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
     }
 
     private static Iterable<String> requiredParts(String kind) {
+        if ("scroll".equals(kind)) {
+            return Collections.singletonList("focus");
+        }
         if ("slider".equals(kind)) {
             return Arrays.asList("track", "thumb", "focus");
         }
@@ -1043,7 +1046,7 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
         return Collections.unmodifiableMap(values);
     }
 
-    private Object templateValue(String name, boolean targets) {
+    protected Object templateValue(String name, boolean targets) {
         if (name.equals("fraction")) {
             Object number = templateValue("value", targets);
             return number instanceof Number ? range.fraction(((Number) number).doubleValue()) : 0D;

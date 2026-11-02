@@ -450,7 +450,7 @@ public final class GuiVirtualCollection extends GuiContainer implements AutoClos
                 || !GuiPreparationPhase.active()) {
             return;
         }
-        int height = visibleThroughParents() ? getHeight() : 0;
+        int height = visibleThroughParents() && context.intersectsViewport(this) ? getHeight() : 0;
         boolean refresh = false;
         List<Object> rowInputs = new ArrayList<>();
         if (height > 0) {

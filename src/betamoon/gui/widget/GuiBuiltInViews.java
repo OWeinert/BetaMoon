@@ -23,8 +23,8 @@ import java.util.function.Function;
  */
 public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
     private static final List<String> TYPES = Collections.unmodifiableList(Arrays.asList("text", "image", "panel",
-            "row", "column", "grid", "list", "tree", "table", "overlay", "spacer", "divider", "button", "checkbox",
-            "choice", "slider", "textbox", "progress", "dialog", "tooltip"));
+            "row", "column", "grid", "scroll", "list", "tree", "table", "overlay", "spacer", "divider", "button",
+            "checkbox", "choice", "slider", "textbox", "progress", "dialog", "tooltip"));
     private final GuiStyleSheet theme;
     private final Function<GuiNodeDefinition, GuiVisualTemplate> templates;
     private final Function<GuiNodeDefinition, GuiStyledView.Events> events;
@@ -46,7 +46,9 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
         if (collection(definition.type)) {
             throw new IllegalArgumentException("Collection views require a host row budget and GuiCollectionView");
         }
-        return new GuiStyledView(definition.type, theme, templates.apply(definition), events.apply(definition));
+        return "scroll".equals(definition.type)
+                ? new GuiScrollControl(theme, templates.apply(definition), events.apply(definition))
+                : new GuiStyledView(definition.type, theme, templates.apply(definition), events.apply(definition));
     }
 
     public static GuiProperties properties(String type) {
@@ -77,6 +79,14 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
         properties.add(GuiPropertyDescriptor.value("align", Kind.STRING, "stretch", Stage.ARRANGE));
         properties.add(GuiPropertyDescriptor.value("justify", Kind.STRING, "start", Stage.ARRANGE));
         properties.add(GuiPropertyDescriptor.value("clip", Kind.BOOLEAN, false, Stage.HIT));
+        if ("scroll".equals(type)) {
+            properties.add(GuiPropertyDescriptor.value("direction", Kind.STRING, "vertical", Stage.MEASURE));
+            properties.add(GuiPropertyDescriptor.value("scrollbars", Kind.BOOLEAN, true, Stage.PAINT, Stage.HIT));
+            for (String name : Arrays.asList("contentWidth", "contentHeight", "scrollX", "scrollY")) {
+                properties.add(new GuiPropertyDescriptor(name, Kind.INTEGER, 0, 0, 16384, false, false,
+                        Collections.singleton(Stage.MEASURE), Collections.emptySet()));
+            }
+        }
         if (collection(type)) {
             properties.add(
                     GuiPropertyDescriptor.value("records", Kind.COLLECTION, Collections.emptyList(), Stage.SEMANTICS));
@@ -138,7 +148,9 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
     }
 
     public static int elementAllowance(String type) {
-        return "table".equals(type) ? 3 + GuiTableColumns.MAX_COLUMNS : collection(type) ? 2 : 1;
+        return "scroll".equals(type)
+                ? 5
+                : "table".equals(type) ? 3 + GuiTableColumns.MAX_COLUMNS : collection(type) ? 2 : 1;
     }
 
     public static boolean collection(String type) {

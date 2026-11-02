@@ -42,7 +42,7 @@ public final class GuiPresentationTree implements AutoCloseable {
     private boolean closed;
     private GuiViewStateAdmission stateAdmission;
     private boolean publicationAdmissionInstalled;
-    private final boolean hasGrid;
+    private final boolean hasMeasuredLayout;
     private final Map<String, LocalProposal> localProposals = new LinkedHashMap<>();
 
     public GuiPresentationTree(GuiDocumentDefinition definition, GuiPresentationHost host, Factory factory,
@@ -65,7 +65,8 @@ public final class GuiPresentationTree implements AutoCloseable {
         this.factory = factory;
         this.capabilities = Collections.unmodifiableSet(new HashSet<>(capabilities));
         validate(definition, capabilities);
-        hasGrid = definition.presentation.nodes.stream().anyMatch(node -> node.type.equals("grid"));
+        hasMeasuredLayout = definition.presentation.nodes.stream()
+                .anyMatch(node -> node.type.equals("grid") || node.type.equals("scroll"));
         published = new long[definition.presentation.nodes.size()];
         Arrays.fill(published, -1);
         Map<GuiElement, Boolean> unique = new IdentityHashMap<>();
@@ -83,11 +84,11 @@ public final class GuiPresentationTree implements AutoCloseable {
                 definitions.put(node.id, node);
                 viewIds.put(view.element(), node.id);
                 if (node.parent >= 0) {
-                    GuiElement parent = views.get(node.parent).element();
-                    if (!(parent instanceof GuiContainer)) {
+                    GuiContainer parent = views.get(node.parent).childContainer();
+                    if (parent == null) {
                         throw new IllegalArgumentException(node.path + ": parent does not accept children");
                     }
-                    ((GuiContainer) parent).add(view.element());
+                    parent.add(view.element());
                 }
             }
         } catch (RuntimeException | Error failure) {
@@ -178,11 +179,11 @@ public final class GuiPresentationTree implements AutoCloseable {
     }
 
     private void installPublicationAdmission() {
-        if (publicationAdmissionInstalled || !hasGrid && stateAdmission == null) {
+        if (publicationAdmissionInstalled || !hasMeasuredLayout && stateAdmission == null) {
             return;
         }
         runtime.admitPublicationsWith(candidates -> {
-            if (hasGrid) {
+            if (hasMeasuredLayout) {
                 Map<GuiElement, GuiViewPublication> values = new IdentityHashMap<>();
                 for (Map.Entry<String, GuiViewPublication> candidate : candidates.entrySet()) {
                     values.put(ids.get(candidate.getKey()).element(), candidate.getValue());
