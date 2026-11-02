@@ -14,11 +14,19 @@ public final class GuiTextEditorModel {
     private int caret;
     private int anchor = -1;
     private final int maximumLength;
+    private final boolean multiline;
+    private GuiTextLines lines;
+    private int preferredColumn = -1;
     private boolean conflict;
     private boolean invalid;
     private boolean pending;
 
     public GuiTextEditorModel(String value, int maximumLength) {
+        this(value, maximumLength, false);
+    }
+
+    public GuiTextEditorModel(String value, int maximumLength, boolean multiline) {
+        value = multiline ? GuiTextLines.normalize(value) : value;
         if (value == null || maximumLength < 0 || value.length() > maximumLength) {
             throw new IllegalArgumentException("Invalid initial editor value or length limit");
         }
@@ -26,6 +34,7 @@ public final class GuiTextEditorModel {
         draft = value;
         caret = value.length();
         this.maximumLength = maximumLength;
+        this.multiline = multiline;
     }
 
     public String text() {
@@ -60,11 +69,40 @@ public final class GuiTextEditorModel {
         return maximumLength;
     }
 
+    public boolean multiline() {
+        return multiline;
+    }
+
+    public GuiTextLines lines() {
+        if (!multiline) {
+            throw new IllegalStateException("Line navigation requires a multiline editor");
+        }
+        if (lines == null) {
+            lines = new GuiTextLines(draft);
+        }
+        return lines;
+    }
+
+    public void moveVertical(int delta, boolean selecting) {
+        GuiTextLines lines = lines();
+        int column = preferredColumn < 0 ? lines.columnAt(caret) : preferredColumn;
+        int line = (int) Math.max(0, Math.min(lines.count() - 1L, (long) lines.lineAt(caret) + delta));
+        move(lines.position(line, column), selecting);
+        preferredColumn = column;
+    }
+
+    public void moveLineBoundary(boolean end, boolean selecting) {
+        GuiTextLines lines = lines();
+        int line = lines.lineAt(caret);
+        move(end ? lines.end(line) : lines.start(line), selecting);
+    }
+
     public boolean pending() {
         return pending;
     }
 
     public void move(int position, boolean selecting) {
+        preferredColumn = -1;
         if (selecting && anchor < 0) {
             anchor = caret;
         } else if (!selecting) {
@@ -74,14 +112,17 @@ public final class GuiTextEditorModel {
     }
 
     public void selectAll() {
+        preferredColumn = -1;
         anchor = 0;
         caret = draft.length();
     }
 
     public void insert(String text) {
         GuiTextEditOperations.Result result = GuiTextEditOperations.replace(draft, selectionStart(), selectionEnd(),
-                text, maximumLength);
+                multiline ? GuiTextLines.normalize(text) : text, maximumLength);
         draft = result.text;
+        lines = null;
+        preferredColumn = -1;
         caret = result.caret;
         anchor = -1;
         invalid = false;
@@ -89,6 +130,7 @@ public final class GuiTextEditorModel {
     }
 
     public void erase(boolean backwards) {
+        preferredColumn = -1;
         if (selectionStart() != selectionEnd()) {
             insert("");
         } else if (backwards && caret > 0) {
@@ -101,6 +143,7 @@ public final class GuiTextEditorModel {
     }
 
     public void observe(String value) {
+        value = multiline ? GuiTextLines.normalize(value) : value;
         if (value == null || value.length() > maximumLength) {
             throw new IllegalArgumentException("Invalid external editor value");
         }
@@ -113,6 +156,8 @@ public final class GuiTextEditorModel {
         }
         if (draft.equals(committed)) {
             draft = value;
+            lines = null;
+            preferredColumn = -1;
             caret = Math.min(caret, draft.length());
             anchor = -1;
             conflict = false;
@@ -141,6 +186,8 @@ public final class GuiTextEditorModel {
 
     public void cancel() {
         draft = committed;
+        lines = null;
+        preferredColumn = -1;
         caret = Math.min(caret, draft.length());
         anchor = -1;
         conflict = false;
@@ -153,11 +200,12 @@ public final class GuiTextEditorModel {
     }
 
     public Snapshot snapshot() {
-        return new Snapshot(maximumLength, committed, draft, caret, anchor, conflict, invalid, pending);
+        return new Snapshot(maximumLength, committed, draft, caret, anchor, conflict, invalid, pending, multiline,
+                preferredColumn);
     }
 
     public GuiTextEditorModel copy() {
-        GuiTextEditorModel copy = new GuiTextEditorModel(committed, maximumLength);
+        GuiTextEditorModel copy = new GuiTextEditorModel(committed, maximumLength, multiline);
         copy.restoreSnapshot(snapshot());
         return copy;
     }
@@ -167,7 +215,7 @@ public final class GuiTextEditorModel {
      * acknowledgement is pending.
      */
     public void restoreSnapshot(Snapshot previous) {
-        if (maximumLength != previous.maximumLength) {
+        if (maximumLength != previous.maximumLength || multiline != previous.multiline) {
             throw new IllegalArgumentException("Exact editor restoration requires compatible constraints");
         }
         committed = previous.committed;
@@ -177,6 +225,8 @@ public final class GuiTextEditorModel {
         conflict = previous.conflict;
         invalid = previous.invalid;
         pending = previous.pending;
+        preferredColumn = previous.preferredColumn;
+        lines = null;
     }
 
     /**
@@ -184,7 +234,7 @@ public final class GuiTextEditorModel {
      * external value.
      */
     public boolean restore(Snapshot previous, boolean externallyControlled) {
-        if (maximumLength != previous.maximumLength) {
+        if (maximumLength != previous.maximumLength || multiline != previous.multiline) {
             return false;
         }
         if (!externallyControlled) {
@@ -208,6 +258,8 @@ public final class GuiTextEditorModel {
             conflict = previous.conflict || !committed.equals(previous.committed);
             pending = previous.pending && !conflict;
         }
+        lines = null;
+        preferredColumn = draft.equals(previous.draft) ? previous.preferredColumn : -1;
         return true;
     }
 
@@ -224,9 +276,11 @@ public final class GuiTextEditorModel {
         public final boolean conflict;
         public final boolean invalid;
         public final boolean pending;
+        public final boolean multiline;
+        public final int preferredColumn;
 
         private Snapshot(int maximumLength, String committed, String draft, int caret, int anchor, boolean conflict,
-                boolean invalid, boolean pending) {
+                boolean invalid, boolean pending, boolean multiline, int preferredColumn) {
             this.maximumLength = maximumLength;
             this.committed = committed;
             this.draft = draft;
@@ -235,11 +289,13 @@ public final class GuiTextEditorModel {
             this.conflict = conflict;
             this.invalid = invalid;
             this.pending = pending;
+            this.multiline = multiline;
+            this.preferredColumn = preferredColumn;
         }
 
         public Map<String, Object> values() {
             Map<String, Object> values = new LinkedHashMap<>();
-            values.put("schema", 1);
+            values.put("schema", multiline ? 2 : 1);
             values.put("maximumLength", maximumLength);
             values.put("committed", committed);
             values.put("draft", draft);
@@ -248,19 +304,29 @@ public final class GuiTextEditorModel {
             values.put("conflict", conflict);
             values.put("invalid", invalid);
             values.put("pending", pending);
+            if (multiline) {
+                values.put("multiline", true);
+                values.put("preferredColumn", preferredColumn);
+            }
             return Collections.unmodifiableMap(values);
         }
 
         public static Snapshot read(Map<String, Object> values) {
-            if (values.size() != 9 || integer(values, "schema", 1, 1) != 1) {
+            int schema = integer(values, "schema", 1, 2);
+            if (values.size() != (schema == 1 ? 9 : 11) || schema == 2 && !flag(values, "multiline")) {
                 throw new IllegalArgumentException("Invalid editor snapshot schema or fields");
             }
             int maximum = integer(values, "maximumLength", 0, Integer.MAX_VALUE);
             String committed = text(values, "committed", maximum);
             String draft = text(values, "draft", maximum);
+            if (schema == 2 && (!GuiTextLines.normalize(committed).equals(committed)
+                    || !GuiTextLines.normalize(draft).equals(draft))) {
+                throw new IllegalArgumentException("Multiline snapshots require LF-normalized text");
+            }
             return new Snapshot(maximum, committed, draft, integer(values, "caret", 0, draft.length()),
                     integer(values, "anchor", -1, draft.length()), flag(values, "conflict"), flag(values, "invalid"),
-                    flag(values, "pending"));
+                    flag(values, "pending"), schema == 2,
+                    schema == 2 ? integer(values, "preferredColumn", -1, maximum) : -1);
         }
 
         private static int integer(Map<String, Object> values, String name, int minimum, int maximum) {
