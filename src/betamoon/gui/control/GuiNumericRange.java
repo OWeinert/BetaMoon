@@ -1,6 +1,7 @@
 package betamoon.gui.control;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 /**
  * Shared numeric bounds/step operations. Domain adapters decide whether and how
@@ -42,6 +43,31 @@ public final class GuiNumericRange {
     public double valueAt(long index) {
         double value = decimalMinimum.add(decimalStep.multiply(BigDecimal.valueOf(index))).doubleValue();
         return Math.max(minimum, Math.min(maximum, value));
+    }
+
+    /**
+     * Decimal-stable nearest-step value, for controls without a legacy snapping
+     * contract.
+     */
+    public double snapDecimal(double proposed) {
+        double snapped = decimalMinimum.add(decimalStep.multiply(nearestDecimalIndex(proposed))).doubleValue();
+        return Math.max(minimum, Math.min(maximum, snapped));
+    }
+
+    /**
+     * Matches decimal midpoint rounding and clips values before calculating a step
+     * index.
+     */
+    public long indexDecimal(double value) {
+        return nearestDecimalIndex(value).min(BigDecimal.valueOf(Long.MAX_VALUE)).longValueExact();
+    }
+
+    private BigDecimal nearestDecimalIndex(double proposed) {
+        if (!Double.isFinite(proposed)) {
+            throw new IllegalArgumentException("Numeric proposals must be finite");
+        }
+        double clamped = Math.max(minimum, Math.min(maximum, proposed));
+        return BigDecimal.valueOf(clamped).subtract(decimalMinimum).divide(decimalStep, 0, RoundingMode.HALF_UP);
     }
 
     public long index(double value) {

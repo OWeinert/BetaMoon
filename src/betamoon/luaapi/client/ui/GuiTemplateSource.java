@@ -80,6 +80,9 @@ public final class GuiTemplateSource implements GuiPreparedTemplate.Source {
             metrics.put("lineHeight", lineHeight);
             metrics.put("textWidth", normal.font().width(context, view.text()));
             metrics.put("padding", normal.number("padding", 0));
+            if (view.kind().equals("stepper")) {
+                metrics.put("stepperButtonWidth", view.stepperButtonWidth());
+            }
             if (view.editor() != null) {
                 int caret = view.editor().caret();
                 int start = view.editor().selectionStart();

@@ -98,7 +98,7 @@ final class UiLiveClientChecks {
                                     + "dialogOpens=0;dialogRefreshes=0;rowCalls=0;rowEdits=0;dialogDefinition={key='uitest:dialog',state={count={type='integer',default=0}},"
                                     + "on={open=function()dialogOpens=dialogOpens+1 end,refresh=function()dialogRefreshes=dialogRefreshes+1 end},"
                                     + "actions={accept={scope='client',payload={},handler=function(ctx)ctx.state:set('count',4);return true end}},"
-                                    + "root={type='scroll',id='dialogScroll',width=160,height=110,children={{type='grid',columns=1,height=170,children={{type='text',text='Confirm'},"
+                                    + "root={type='scroll',id='dialogScroll',width=160,height=110,children={{type='grid',columns=1,height=170,children={{type='stepper',id='quantity',text='Count ',maximum=10,step=0.5,on={change=function(ctx,e)stepperValue=e.value end}},"
                                     + "{type='list',id='entries',height=40,rowHeight=20,overscan=0,records=(function()local rows={}for i=1,4096 do rows[i]={key='r'..i}end return rows end)(),"
                                     + "rowState={count={type='integer',default=0}},row=function(row)rowCalls=rowCalls+1;checkPreparationAuthority();"
                                     + "return{type='button',id='entry',bind=function(v)return{text=row.label..':'..v.state:get('count')}end,"
@@ -189,6 +189,8 @@ final class UiLiveClientChecks {
             Object parent = activation;
             activation = ((java.util.Map<?, ?>) dialogsField.get(controller)).values().iterator().next();
             dialogActivation = activation;
+            click(client, "quantity");
+            NativeLiveClientDriver.call(screen, SCREEN, "keyTyped", "(CI)V", '\0', 200);
             Object entries = invoke(element("entries"), "collection");
             require(((Number) invoke(entries, "realizedRows")).intValue() == 2 && lua.get("rowCalls").toint() == 2,
                     "Native Lua list did not bound its 4096 records to two realized rows");
@@ -208,6 +210,8 @@ final class UiLiveClientChecks {
             }
             require(lua.load("return popup.state:get('count')==4 and form.state:get('count')==8").call().toboolean(),
                     "Dialog action used its parent's model");
+            require(lua.get("stepperValue").todouble() == 0.5,
+                    "Native numeric stepper did not propose its keyboard step");
             require(lua.get("rowEdits").toint() == 1 && lua.get("rowCalls").toint() == 2,
                     "A real row event lost its state or caused idle factory polling");
             lua.load(
@@ -227,6 +231,9 @@ final class UiLiveClientChecks {
                     "Dialog visual refresh lost state or reopened its lifecycle");
             Object parent = activation;
             activation = dialogActivation;
+            java.util.Map<?, ?> quantity = (java.util.Map<?, ?>) invoke(element("quantity"), "captureState");
+            require(((Number) quantity.get("value")).doubleValue() == 0.5,
+                    "Native numeric stepper lost its local value through modal refresh");
             Object viewport = invoke(element("dialogScroll"), "viewport");
             require(((Number) invoke(viewport, "getScrollY")).intValue() == 20,
                     "Native authored scroll did not publish its offset through modal refresh");

@@ -25,6 +25,7 @@ import betamoon.gui.style.GuiStyleSheet;
 import betamoon.gui.style.GuiVisualTemplate;
 import betamoon.gui.style.GuiNativeButtonSkin;
 import java.util.Arrays;
+import java.math.BigDecimal;
 import java.util.AbstractMap;
 import java.util.LinkedHashMap;
 import java.util.Set;
@@ -80,6 +81,9 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
     private boolean fill;
     private boolean hovered;
     private boolean dragging;
+    private int stepperDirection;
+    private long numericRevision;
+    private long pressedNumericRevision;
     private boolean published;
     private boolean closed;
     private int textOffset;
@@ -114,12 +118,15 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
                 throw new IllegalArgumentException(kind + " template is missing required part: " + part);
             }
         }
-        setFocusable(Arrays.asList("button", "checkbox", "choice", "slider", "textbox").contains(kind));
+        setFocusable(Arrays.asList("button", "checkbox", "choice", "slider", "stepper", "textbox").contains(kind));
     }
 
     private static Iterable<String> requiredParts(String kind) {
         if ("scroll".equals(kind)) {
             return Collections.singletonList("focus");
+        }
+        if ("stepper".equals(kind)) {
+            return Arrays.asList("content", "focus", "decrement", "increment");
         }
         if ("slider".equals(kind)) {
             return Arrays.asList("track", "thumb", "focus");
@@ -149,7 +156,7 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
                         .contains(values.getOrDefault("visibility", "visible"))) {
             throw new IllegalArgumentException("Invalid alignment, justification or visibility");
         }
-        if ("slider".equals(kind) || "progress".equals(kind)) {
+        if ("slider".equals(kind) || "stepper".equals(kind) || "progress".equals(kind)) {
             new GuiNumericRange(number(values, "minimum", 0), number(values, "maximum", 100),
                     number(values, "step", 1));
             if (!Arrays.asList("horizontal", "vertical").contains(values.getOrDefault("orientation", "horizontal"))) {
@@ -188,6 +195,9 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
     }
 
     private void publishValues(Map<String, Object> values, Predicate<String> controlled) {
+        GuiNumericRange previousRange = range;
+        double previousValue = value;
+        boolean wasValueControlled = valueControlled;
         if ("grid".equals(kind)) {
             GuiGridGeometry candidate = grid(values);
             if (grid == null || grid.fixedColumns() != candidate.fixedColumns()
@@ -250,14 +260,14 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
             options = (List<?>) values.get("options");
             value = Math.max(1, Math.min(options.size(), value));
         }
-        if ("slider".equals(kind) || "progress".equals(kind)) {
+        if ("slider".equals(kind) || "stepper".equals(kind) || "progress".equals(kind)) {
             double minimum = number(values, "minimum", 0);
             double maximum = number(values, "maximum", 100);
             double step = number(values, "step", 1);
             if (range.minimum != minimum || range.maximum != maximum || range.step != step) {
                 range = new GuiNumericRange(minimum, maximum, step);
             }
-            value = "slider".equals(kind) ? range.snap(value) : Math.max(minimum, Math.min(maximum, value));
+            value = "progress".equals(kind) ? Math.max(minimum, Math.min(maximum, value)) : snapValue(range, value);
         }
         if ("textbox".equals(kind)) {
             if (editor == null || editor.maximumLength() != (int) number(values, "maximumLength", 4096)) {
@@ -279,6 +289,10 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
         setOpacity(number(values, "opacity", 1));
         setVisualTransform(new GraphicsTransform(number(values, "translateX", 0), number(values, "translateY", 0),
                 number(values, "scaleX", 1), number(values, "scaleY", 1)));
+        if ("stepper".equals(kind)
+                && (previousRange != range || previousValue != value || wasValueControlled != valueControlled)) {
+            numericRevision++;
+        }
         published = true;
     }
 
@@ -331,10 +345,14 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
         int inset = isFocusable() ? style.number("padding", 4) : 0;
         int width = 0;
         int height = 0;
-        if (Arrays.asList("text", "button", "checkbox", "choice", "textbox", "dialog", "tooltip").contains(kind)) {
+        if (Arrays.asList("text", "button", "checkbox", "choice", "stepper", "textbox", "dialog", "tooltip")
+                .contains(kind)) {
             width = style.font().width(context, measurementText(pending)) + inset * 2
                     + ("checkbox".equals(kind) ? 20 : 0);
             height = style.font().lineHeight(context) + inset * 2;
+            if ("stepper".equals(kind)) {
+                width += 40;
+            }
         }
         boolean horizontal = "row".equals(kind);
         boolean flow = horizontal || "column".equals(kind);
@@ -528,6 +546,12 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
                     : number(state, "value", value);
             text += options.get((int) selected - 1);
         }
+        if ("stepper".equals(kind)) {
+            GuiNumericRange previewRange = new GuiNumericRange(number(pending.values, "minimum", 0),
+                    number(pending.values, "maximum", 100), number(pending.values, "step", 1));
+            return text + numericText(
+                    previewRange.snapDecimal(number(state, "value", number(pending.values, "value", value))));
+        }
         return text;
     }
 
@@ -572,6 +596,9 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
         if ("slider".equals(kind)) {
             return slide(context, event);
         }
+        if ("stepper".equals(kind)) {
+            return step(context, event);
+        }
         int result = activation.input(event, contains(event.getMouseX(), event.getMouseY()), isFocused());
         if ((result & GuiActivation.CAPTURE) != 0) {
             requestFocus(context);
@@ -601,6 +628,78 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
             }
         }
         return (result & GuiActivation.CONSUMED) != 0;
+    }
+
+    private boolean step(GuiContext context, GuiInputEvent event) {
+        if (event.getType() == GuiInputEvent.Type.KEY_TYPED && isFocused()) {
+            switch (event.getKeyCode()) {
+                case Keyboard.KEY_LEFT:
+                case Keyboard.KEY_DOWN:
+                case Keyboard.KEY_SUBTRACT:
+                    propose(range.valueAt(range.indexDecimal(value) - 1));
+                    return true;
+                case Keyboard.KEY_RIGHT:
+                case Keyboard.KEY_UP:
+                case Keyboard.KEY_ADD:
+                    propose(range.valueAt(range.indexDecimal(value) + 1));
+                    return true;
+                case Keyboard.KEY_PRIOR:
+                    propose(range.valueAt(range.indexDecimal(value) + 10));
+                    return true;
+                case Keyboard.KEY_NEXT:
+                    propose(range.valueAt(range.indexDecimal(value) - 10));
+                    return true;
+                case Keyboard.KEY_HOME:
+                    propose(range.minimum);
+                    return true;
+                case Keyboard.KEY_END:
+                    propose(range.maximum);
+                    return true;
+                default:
+                    return false;
+            }
+        }
+        if (!event.isPointerEvent()) {
+            return false;
+        }
+        if (event.getType() == GuiInputEvent.Type.POINTER_DOWN && event.getButton() == 0) {
+            stepperDirection = stepperDirectionAt(event.getMouseX());
+            pressedNumericRevision = numericRevision;
+        }
+        boolean inside = contains(event.getMouseX(), event.getMouseY());
+        if (event.getType() == GuiInputEvent.Type.POINTER_UP) {
+            inside &= stepperDirectionAt(event.getMouseX()) == stepperDirection
+                    && pressedNumericRevision == numericRevision;
+        }
+        int result = activation.input(event, inside, isFocused());
+        if ((result & GuiActivation.CAPTURE) != 0) {
+            requestFocus(context);
+            capturePointer(context);
+        }
+        if ((result & GuiActivation.ACTIVATE) != 0 && stepperDirection != 0) {
+            propose(range.valueAt(range.indexDecimal(value) + stepperDirection));
+        }
+        if ((result & GuiActivation.RELEASE) != 0) {
+            releasePointer(context);
+            stepperDirection = 0;
+        }
+        return (result & GuiActivation.CONSUMED) != 0;
+    }
+
+    public int stepperButtonWidth() {
+        return Math.min(20, getWidth() / 3);
+    }
+
+    private int stepperDirectionAt(int x) {
+        return x < getLeft() + stepperButtonWidth() ? -1 : x >= getRight() - stepperButtonWidth() ? 1 : 0;
+    }
+
+    private double snapValue(GuiNumericRange range, double value) {
+        return "stepper".equals(kind) ? range.snapDecimal(value) : range.snap(value);
+    }
+
+    private static String numericText(double value) {
+        return BigDecimal.valueOf(value).stripTrailingZeros().toPlainString();
     }
 
     private boolean slide(GuiContext context, GuiInputEvent event) {
@@ -648,10 +747,17 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
     }
 
     private void propose(double proposed) {
-        double next = range.snap(proposed);
+        double next = snapValue(range, proposed);
+        if ("stepper".equals(kind) && next == value) {
+            return;
+        }
         changeLocal("value", next, () -> {
             if (!valueControlled) {
                 value = next;
+                if ("stepper".equals(kind)) {
+                    numericRevision++;
+                    requestLayout();
+                }
             }
         });
     }
@@ -854,7 +960,7 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
     @Override
     public Map<String, Object> captureState() {
         Map<String, Object> snapshot = new LinkedHashMap<>();
-        if (("choice".equals(kind) || "slider".equals(kind)) && !valueControlled) {
+        if (("choice".equals(kind) || "slider".equals(kind) || "stepper".equals(kind)) && !valueControlled) {
             snapshot.put("value", value);
         }
         if ("checkbox".equals(kind) && !selectedControlled) {
@@ -871,7 +977,7 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
     public Map<String, Object> projectState(Map<String, Object> values, Predicate<String> controlled,
             Map<String, Object> current) {
         Map<String, Object> snapshot = new LinkedHashMap<>();
-        if (("choice".equals(kind) || "slider".equals(kind)) && !controlled.test("value")) {
+        if (("choice".equals(kind) || "slider".equals(kind) || "stepper".equals(kind)) && !controlled.test("value")) {
             double local = number(current, "value", value);
             if (!published) {
                 local = number(values, "value", 0);
@@ -879,8 +985,8 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
             if ("choice".equals(kind)) {
                 local = Math.max(1, Math.min(((List<?>) values.get("options")).size(), local));
             } else {
-                local = new GuiNumericRange(number(values, "minimum", 0), number(values, "maximum", 100),
-                        number(values, "step", 1)).snap(local);
+                local = snapValue(new GuiNumericRange(number(values, "minimum", 0), number(values, "maximum", 100),
+                        number(values, "step", 1)), local);
             }
             snapshot.put("value", local);
         }
@@ -928,7 +1034,7 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
             throw new IllegalStateException("Cannot restore a closed control");
         }
         for (String name : snapshot.keySet()) {
-            if (!("value".equals(name) && ("choice".equals(kind) || "slider".equals(kind)))
+            if (!("value".equals(name) && ("choice".equals(kind) || "slider".equals(kind) || "stepper".equals(kind)))
                     && !("selected".equals(name) && "checkbox".equals(kind))
                     && !(("editor".equals(name) || "textOffset".equals(name)) && editor != null)) {
                 throw new IllegalArgumentException("Unsupported " + kind + " snapshot field: " + name);
@@ -970,6 +1076,9 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
         GuiTextEditorModel restoredEditor = nextEditor;
         int restoredOffset = nextOffset;
         return () -> {
+            if ("stepper".equals(kind) && value != restoredValue) {
+                numericRevision++;
+            }
             value = restoredValue;
             selected = restoredSelected;
             editor = restoredEditor;
@@ -990,7 +1099,7 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
         if (valueControlled) {
             return value;
         }
-        return "choice".equals(kind) ? Math.max(1, Math.min(options.size(), saved)) : range.snap(saved);
+        return "choice".equals(kind) ? Math.max(1, Math.min(options.size(), saved)) : snapValue(range, saved);
     }
 
     private static double snapshotNumber(Object value, String name) {
@@ -1057,7 +1166,7 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
         if (name.equals("selected") && javaValues.containsKey(name)) {
             return selected;
         }
-        if (name.equals("value") && !valueControlled && javaValues.containsKey(name)) {
+        if (name.equals("value") && (!valueControlled || "stepper".equals(kind)) && javaValues.containsKey(name)) {
             return value;
         }
         return presentationNode == null
@@ -1070,7 +1179,11 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
     }
 
     public String text() {
-        return editor != null ? editor.text() : "choice".equals(kind) ? text + options.get((int) value - 1) : text;
+        return editor != null
+                ? editor.text()
+                : "choice".equals(kind)
+                        ? text + options.get((int) value - 1)
+                        : "stepper".equals(kind) ? text + numericText(value) : text;
     }
 
     public String image() {

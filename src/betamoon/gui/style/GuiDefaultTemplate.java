@@ -16,8 +16,8 @@ import java.util.Set;
  */
 public final class GuiDefaultTemplate implements GuiVisualTemplate {
     public static final GuiDefaultTemplate INSTANCE = new GuiDefaultTemplate();
-    private static final Set<String> PARTS = Collections.unmodifiableSet(
-            new LinkedHashSet<>(Arrays.asList("content", "focus", "track", "thumb", "caret", "selection")));
+    private static final Set<String> PARTS = Collections.unmodifiableSet(new LinkedHashSet<>(
+            Arrays.asList("content", "focus", "track", "thumb", "caret", "selection", "decrement", "increment")));
 
     @Override
     public Set<String> parts() {
@@ -59,6 +59,8 @@ public final class GuiDefaultTemplate implements GuiVisualTemplate {
                     color(context, style, "border", 0xFF555555));
         } else if ("progress".equals(kind) || "slider".equals(kind)) {
             range(context, view, style);
+        } else if ("stepper".equals(kind)) {
+            stepper(context, view, style, foreground);
         } else if ("textbox".equals(kind)) {
             editor(context, view, style, foreground);
         } else if (!view.text().isEmpty()) {
@@ -85,6 +87,35 @@ public final class GuiDefaultTemplate implements GuiVisualTemplate {
             } finally {
                 renderer.popClip();
             }
+        }
+    }
+
+    private static void stepper(GuiContext context, GuiStyledView view, GuiControlStyle style, int foreground) {
+        Rect bounds = view.getBounds();
+        int side = view.stepperButtonWidth();
+        int y = bounds.getTop() + (bounds.getHeight() - style.font().lineHeight(context)) / 2;
+        GuiRenderer renderer = context.getRenderer();
+        renderer.pushClip(bounds);
+        try {
+            renderer.drawRect(bounds.getLeft() + side, bounds.getTop(), bounds.getLeft() + side + 1, bounds.getBottom(),
+                    color(context, style, "border", 0xFF555555));
+            renderer.drawRect(bounds.getRight() - side - 1, bounds.getTop(), bounds.getRight() - side,
+                    bounds.getBottom(), color(context, style, "border", 0xFF555555));
+            style.font().draw(context, "-", bounds.getLeft() + (side - style.font().width(context, "-")) / 2, y,
+                    foreground, style.flag("shadow", true));
+            style.font().draw(context, "+", bounds.getRight() - side + (side - style.font().width(context, "+")) / 2, y,
+                    foreground, style.flag("shadow", true));
+            renderer.pushClip(Rect.fromPositionAndSize(bounds.getLeft() + side + 2, bounds.getTop(),
+                    Math.max(0, bounds.getWidth() - side * 2 - 4), bounds.getHeight()));
+            try {
+                style.font().draw(context, view.text(),
+                        bounds.getLeft() + (bounds.getWidth() - style.font().width(context, view.text())) / 2, y,
+                        foreground, style.flag("shadow", true));
+            } finally {
+                renderer.popClip();
+            }
+        } finally {
+            renderer.popClip();
         }
     }
 

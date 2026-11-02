@@ -24,6 +24,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -69,8 +71,49 @@ final class GuiSharedControlRenderChecks {
                 require(GL11.glGetError() == GL11.GL_NO_ERROR, "Shared control painter leaked invalid GL operations");
             }
         }
+        numericSteppers(minecraft, font, output);
         bitmapAtlas(minecraft, font, output);
         phaseSafeOwnershipLoss(minecraft, font);
+    }
+
+    private static void numericSteppers(Minecraft minecraft, FontRenderer font, File output) throws Exception {
+        List<GuiStyledView> controls = new ArrayList<>();
+        GuiContainer content = new GuiContainer() {
+            @Override
+            protected void arrangeChildren(GuiContext context) {
+                for (int i = 0; i < controls.size(); i++) {
+                    controls.get(i).arrange(context, Rect.fromPositionAndSize(70, 65 + i * 50, 180, 24));
+                }
+            }
+        };
+        for (GuiStyleSheet theme : Arrays.asList(GuiStyleSheet.MENU, GuiStyleSheet.MINIMAL)) {
+            Map<String, Object> values = new LinkedHashMap<>();
+            values.put("text", "Amount ");
+            values.put("step", 0.1);
+            values.put("value", 0.2);
+            GuiStyledView control = new GuiStyledView("stepper", theme, GuiDefaultTemplate.INSTANCE,
+                    (event, value) -> true).configure(values);
+            controls.add(control);
+            content.add(control);
+        }
+        GuiScene scene = new GuiScene();
+        scene.setContent(content);
+        scene.updateEnvironment(minecraft, font, 320, 240, 320, 240);
+        scene.prepare();
+        GuiShowcaseRenderTest.setupFrame();
+        scene.render(0, 0, 0);
+        GuiStyledView stepper = controls.get(0);
+        scene.mousePressed(stepper.getRight() - 3, stepper.getTop() + 5, 0);
+        scene.mouseReleased(stepper.getRight() - 3, stepper.getTop() + 5, 0);
+        scene.prepare();
+        GuiShowcaseRenderTest.setupFrame();
+        scene.render(0, 0, 0);
+        require(stepper.text().equals("Amount 0.3"), "Rendered numeric stepper did not use shared decimal stepping");
+        ImageIO.write(GuiShowcaseRenderTest.capture(320, 240), "png", new File(output, "shared-controls-stepper.png"));
+        require(GL11.glGetError() == GL11.GL_NO_ERROR, "Numeric stepper painter leaked invalid GL operations");
+        for (GuiStyledView control : controls) {
+            control.close();
+        }
     }
 
     private static void phaseSafeOwnershipLoss(Minecraft minecraft, FontRenderer font) {

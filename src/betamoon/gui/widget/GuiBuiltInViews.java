@@ -12,6 +12,7 @@ import betamoon.gui.style.GuiDefaultTemplate;
 import betamoon.gui.style.GuiStyleSheet;
 import betamoon.gui.style.GuiVisualTemplate;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -24,7 +25,7 @@ import java.util.function.Function;
 public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
     private static final List<String> TYPES = Collections.unmodifiableList(Arrays.asList("text", "image", "panel",
             "row", "column", "grid", "scroll", "list", "tree", "table", "overlay", "spacer", "divider", "button",
-            "checkbox", "choice", "slider", "textbox", "progress", "dialog", "tooltip"));
+            "checkbox", "choice", "slider", "stepper", "textbox", "progress", "dialog", "tooltip"));
     private final GuiStyleSheet theme;
     private final Function<GuiNodeDefinition, GuiVisualTemplate> templates;
     private final Function<GuiNodeDefinition, GuiStyledView.Events> events;
@@ -117,7 +118,8 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
             properties.add(new GuiPropertyDescriptor("minimumCellWidth", Kind.INTEGER, 0, 0, 16384, false, false,
                     Collections.singleton(Stage.MEASURE), Collections.emptySet()));
         }
-        if (Arrays.asList("text", "button", "checkbox", "choice", "textbox", "dialog", "tooltip").contains(type)) {
+        if (Arrays.asList("text", "button", "checkbox", "choice", "stepper", "textbox", "dialog", "tooltip")
+                .contains(type)) {
             properties.add(GuiPropertyDescriptor.value("text", Kind.STRING, "", Stage.MEASURE, Stage.PAINT));
         }
         if ("image".equals(type)) {
@@ -132,16 +134,21 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
             properties.add(GuiPropertyDescriptor.value("options", Kind.STRING_LIST, Collections.singletonList(""),
                     Stage.MEASURE));
         }
-        if (Arrays.asList("slider", "progress").contains(type)) {
-            properties.add(GuiPropertyDescriptor.number("value", 0, -1.0E12, 1.0E12, Stage.PAINT, Stage.SEMANTICS));
+        if (Arrays.asList("slider", "stepper", "progress").contains(type)) {
+            properties.add("stepper".equals(type)
+                    ? new GuiPropertyDescriptor("value", Kind.NUMBER, 0, -1.0E12, 1.0E12, false, false,
+                            EnumSet.of(Stage.MEASURE, Stage.PAINT, Stage.SEMANTICS), Collections.emptySet())
+                    : GuiPropertyDescriptor.number("value", 0, -1.0E12, 1.0E12, Stage.PAINT, Stage.SEMANTICS));
             properties.add(new GuiPropertyDescriptor("minimum", Kind.NUMBER, 0, -1.0E12, 1.0E12, false, false,
                     Collections.singleton(Stage.SEMANTICS), Collections.emptySet()));
             properties.add(new GuiPropertyDescriptor("maximum", Kind.NUMBER, 100, -1.0E12, 1.0E12, false, false,
                     Collections.singleton(Stage.SEMANTICS), Collections.emptySet()));
             properties.add(new GuiPropertyDescriptor("step", Kind.NUMBER, 1, 1.0E-6, 1.0E12, false, false,
                     Collections.singleton(Stage.SEMANTICS), Collections.emptySet()));
-            properties
-                    .add(GuiPropertyDescriptor.value("orientation", Kind.STRING, "horizontal", Stage.PAINT, Stage.HIT));
+            if (!"stepper".equals(type)) {
+                properties.add(
+                        GuiPropertyDescriptor.value("orientation", Kind.STRING, "horizontal", Stage.PAINT, Stage.HIT));
+            }
         }
         if ("textbox".equals(type)) {
             properties.add(new GuiPropertyDescriptor("maximumLength", Kind.INTEGER, 4096, 0, 65536, false, false,

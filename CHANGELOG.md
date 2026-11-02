@@ -12,6 +12,7 @@
 - Shared table columns/headers with stable primitive sorting, filtering and synchronized horizontal scrolling.
 - Bounded collection scrollbar dragging with pinned table headers and retained/controlled horizontal offsets.
 - Authored scroll viewports with retained/admitted offsets, measured content and shared nested keyboard navigation.
+- Decimal numeric steppers with distinct pointer targets, keyboard stepping and retained/controlled values.
 - Prepared text/images/bitmap fonts, geometry and explicit scoped raw graphics with owned shaders, buffers and targets.
 - Four progressive client UI examples with configurable shortcuts, editor definitions and Lua API wiki references.
 
