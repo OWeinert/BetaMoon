@@ -26,7 +26,7 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
     private static final List<String> TYPES = Collections
             .unmodifiableList(Arrays.asList("text", "image", "panel", "row", "column", "grid", "scroll", "list", "tree",
                     "table", "overlay", "spacer", "divider", "button", "checkbox", "choice", "radio", "slider",
-                    "stepper", "textbox", "textarea", "progress", "dialog", "tooltip"));
+                    "stepper", "textbox", "textarea", "numberbox", "progress", "dialog", "tooltip"));
     private final GuiStyleSheet theme;
     private final Function<GuiNodeDefinition, GuiVisualTemplate> templates;
     private final Function<GuiNodeDefinition, GuiStyledView.Events> events;
@@ -48,14 +48,28 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
         if (collection(definition.type)) {
             throw new IllegalArgumentException("Collection views require a host row budget and GuiCollectionView");
         }
-        return "scroll".equals(definition.type)
-                ? new GuiScrollControl(theme, templates.apply(definition), events.apply(definition))
-                : "radio".equals(definition.type)
-                        ? new GuiRadioView(theme, templates.apply(definition), events.apply(definition))
-                        : "textarea".equals(definition.type)
-                                ? new GuiTextAreaView(theme, templates.apply(definition), events.apply(definition))
-                                : new GuiStyledView(definition.type, theme, templates.apply(definition),
-                                        events.apply(definition));
+        return createControl(definition.type, theme, templates.apply(definition), events.apply(definition));
+    }
+
+    /** Java and authored component plans instantiate the same retained controls. */
+    public static GuiStyledView createControl(String type, GuiStyleSheet theme, GuiVisualTemplate template,
+            GuiStyledView.Events events) {
+        requireType(type);
+        if (collection(type)) {
+            throw new IllegalArgumentException("Collection views require a host row budget and GuiCollectionView");
+        }
+        switch (type) {
+            case "scroll":
+                return new GuiScrollControl(theme, template, events);
+            case "radio":
+                return new GuiRadioView(theme, template, events);
+            case "textarea":
+                return new GuiTextAreaView(theme, template, events);
+            case "numberbox":
+                return new GuiNumberBoxView(theme, template, events);
+            default:
+                return new GuiStyledView(type, theme, template, events);
+        }
     }
 
     public static GuiProperties properties(String type) {
@@ -166,6 +180,16 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
         if ("textarea".equals(type)) {
             properties.add(GuiPropertyDescriptor.value("wrap", Kind.BOOLEAN, true, Stage.MEASURE));
             properties.add(GuiPropertyDescriptor.value("scrollbars", Kind.BOOLEAN, true, Stage.PAINT, Stage.HIT));
+        }
+        if ("numberbox".equals(type)) {
+            properties.add(new GuiPropertyDescriptor("value", Kind.NUMBER, 0, -1.0E12, 1.0E12, false, false,
+                    EnumSet.of(Stage.MEASURE, Stage.PAINT, Stage.SEMANTICS), Collections.emptySet()));
+            properties.add(new GuiPropertyDescriptor("minimum", Kind.NUMBER, 0, -1.0E12, 1.0E12, false, false,
+                    Collections.singleton(Stage.SEMANTICS), Collections.emptySet()));
+            properties.add(new GuiPropertyDescriptor("maximum", Kind.NUMBER, 100, -1.0E12, 1.0E12, false, false,
+                    Collections.singleton(Stage.SEMANTICS), Collections.emptySet()));
+            properties.add(new GuiPropertyDescriptor("step", Kind.NUMBER, 0, 0, 1.0E12, false, false,
+                    Collections.singleton(Stage.SEMANTICS), Collections.emptySet()));
         }
         if ("textbox".equals(type) || "textarea".equals(type)) {
             properties.add(new GuiPropertyDescriptor("maximumLength", Kind.INTEGER, 4096, 0, 65536, false, false,

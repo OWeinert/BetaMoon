@@ -74,7 +74,7 @@ public final class GuiDefaultTemplate implements GuiVisualTemplate {
                 frame.paint(context, foreground, color(context, style, "selection", 0x8855AAFF),
                         style.flag("shadow", true), view.caretVisible(context));
             }
-        } else if ("textbox".equals(kind)) {
+        } else if ("textbox".equals(kind) || "numberbox".equals(kind)) {
             editor(context, view, style, foreground);
         } else if (!view.text().isEmpty()) {
             int x = bounds.getLeft();

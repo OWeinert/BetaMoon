@@ -18,6 +18,7 @@ import betamoon.gui.style.GuiStyleSheet;
 import betamoon.gui.style.GuiVisualTemplate;
 import betamoon.gui.widget.GuiStyledView;
 import betamoon.gui.widget.GuiRadioView;
+import betamoon.gui.widget.GuiNumberBoxView;
 import betamoon.gui.widget.GuiTextAreaView;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
@@ -76,8 +77,60 @@ final class GuiSharedControlRenderChecks {
         numericSteppers(minecraft, font, output);
         radioSelection(minecraft, font, output);
         multilineTextareas(minecraft, font, output);
+        numericEntries(minecraft, font, output);
         bitmapAtlas(minecraft, font, output);
         phaseSafeOwnershipLoss(minecraft, font);
+    }
+
+    private static void numericEntries(Minecraft minecraft, FontRenderer font, File output) throws Exception {
+        List<GuiNumberBoxView> controls = new ArrayList<>();
+        GuiContainer content = new GuiContainer() {
+            @Override
+            protected void arrangeChildren(GuiContext context) {
+                for (int i = 0; i < controls.size(); i++) {
+                    controls.get(i).arrange(context, Rect.fromPositionAndSize(70, 65 + i * 50, 180, 24));
+                }
+            }
+        };
+        for (GuiStyleSheet theme : Arrays.asList(GuiStyleSheet.MENU, GuiStyleSheet.MINIMAL)) {
+            Map<String, Object> values = new LinkedHashMap<>();
+            values.put("value", 12.5);
+            GuiNumberBoxView box = new GuiNumberBoxView(theme, GuiDefaultTemplate.INSTANCE, (event, value) -> true)
+                    .configure(values);
+            controls.add(box);
+            content.add(box);
+        }
+        GuiScene scene = new GuiScene();
+        scene.setContent(content);
+        scene.updateEnvironment(minecraft, font, 320, 240, 320, 240);
+        scene.prepare();
+        GuiShowcaseRenderTest.setupFrame();
+        scene.render(0, 0, 0);
+        GuiNumberBoxView valid = controls.get(0);
+        scene.getContext().requestFocus(valid);
+        scene.keyTyped('\0', Keyboard.KEY_A, false, true);
+        for (char character : "0.125".toCharArray()) {
+            scene.keyTyped(character, 0, false);
+        }
+        scene.keyTyped('\0', Keyboard.KEY_RETURN, false);
+        require(valid.templateValues(true).get("value").equals(0.125), "Rendered numberbox rounded unstepped input");
+        GuiNumberBoxView invalid = controls.get(1);
+        scene.getContext().requestFocus(invalid);
+        scene.keyTyped('\0', Keyboard.KEY_A, false, true);
+        for (char character : "1e-".toCharArray()) {
+            scene.keyTyped(character, 0, false);
+        }
+        scene.keyTyped('\0', Keyboard.KEY_RETURN, false);
+        require(invalid.interaction("invalid") && invalid.text().equals("1e-"), "Invalid numeric draft was discarded");
+        scene.prepare();
+        GuiShowcaseRenderTest.setupFrame();
+        scene.render(0, 0, 0);
+        ImageIO.write(GuiShowcaseRenderTest.capture(320, 240), "png",
+                new File(output, "shared-controls-numberbox.png"));
+        require(GL11.glGetError() == GL11.GL_NO_ERROR, "Numeric entry painter leaked invalid GL operations");
+        for (GuiNumberBoxView box : controls) {
+            box.close();
+        }
     }
 
     private static void numericSteppers(Minecraft minecraft, FontRenderer font, File output) throws Exception {

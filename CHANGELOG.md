@@ -15,6 +15,7 @@
 - Decimal numeric steppers with distinct pointer targets, keyboard stepping and retained/controlled values.
 - Keyed radio groups with disabled choices, controlled selection and focused-option reveal through shared scrolling.
 - Plain multiline textareas with wrapping, scrolling, selection, clipboard editing and retained/controlled drafts.
+- Direct numeric entry with finite decimal validation, optional explicit stepping and retained/controlled drafts.
 - Prepared text/images/bitmap fonts, geometry and explicit scoped raw graphics with owned shaders, buffers and targets.
 - Four progressive client UI examples with configurable shortcuts, editor definitions and Lua API wiki references.
 

@@ -113,13 +113,14 @@ final class UiLiveClientChecks {
                                     + "dialogOpens=0;dialogRefreshes=0;rowCalls=0;rowEdits=0;dialogDefinition={key='uitest:dialog',state={count={type='integer',default=0}},"
                                     + "on={open=function()dialogOpens=dialogOpens+1 end,refresh=function()dialogRefreshes=dialogRefreshes+1 end},"
                                     + "actions={accept={scope='client',payload={},handler=function(ctx)ctx.state:set('count',4);return true end}},"
-                                    + "root={type='scroll',id='dialogScroll',width=160,height=110,children={{type='grid',columns=1,height=170,children={{type='stepper',id='quantity',text='Count ',maximum=10,step=0.5,on={change=function(ctx,e)stepperValue=e.value end}},"
+                                    + "root={type='scroll',id='dialogScroll',width=160,height=130,children={{type='grid',columns=1,height=170,children={{type='stepper',id='quantity',text='Count ',maximum=10,step=0.5,on={change=function(ctx,e)stepperValue=e.value end}},"
                                     + "{type='list',id='entries',height=40,rowHeight=20,overscan=0,records=(function()local rows={}for i=1,4096 do rows[i]={key='r'..i}end return rows end)(),"
                                     + "rowState={count={type='integer',default=0}},row=function(row)rowCalls=rowCalls+1;checkPreparationAuthority();"
                                     + "return{type='button',id='entry',bind=function(v)return{text=row.label..':'..v.state:get('count')}end,"
                                     + "on={activate=function(ctx)assert(ctx.native);ctx.state:set('count',ctx.state:get('count')+1);rowEdits=rowEdits+1 end}}end},"
                                     + "{type='button',id='accept',text='Accept',on={activate=function(ctx)dialogTicket=ctx.screen:request('accept',{})end}},"
-                                    + "{type='textarea',id='notes',theme='uitest:notes',height=26,text='Note',on={change=function(ctx,e)notesDraft=e.value end,commit=function(ctx,e)notesCommit=e.value end}}}}}}};ui.screens:add(dialogDefinition);"
+                                    + "{type='textarea',id='notes',theme='uitest:notes',height=26,text='Note',on={change=function(ctx,e)notesDraft=e.value end,commit=function(ctx,e)notesCommit=e.value end}},"
+                                    + "{type='numberbox',id='amount',height=20,on={change=function(ctx,e)numericValue=e.value end}}}}}}};ui.screens:add(dialogDefinition);"
                                     + "ui.screens:add(definition);wrongGuiTick=false;betamoon.events:on('gui_tick',function(ctx)"
                                     + "if form and form:status()=='active' and ctx.name~='GuiManagedScreen' then wrongGuiTick=true end end);"
                                     + "opening=betamoon.events:on('game_tick',function(ctx)if not form then "
@@ -216,6 +217,15 @@ final class UiLiveClientChecks {
             require(((Number) invoke(entries, "realizedRows")).intValue() == 2 && lua.get("rowCalls").toint() == 2,
                     "Native Lua list did not bound its 4096 records to two realized rows");
             clickElement(client, invoke(entries, "rowElement", String.class, "r1"));
+            click(client, "amount");
+            NativeLiveClientDriver.call(screen, SCREEN, "keyTyped", "(CI)V", '\0', 199);
+            NativeLiveClientDriver.call(screen, SCREEN, "keyTyped", "(CI)V", '\0', 211);
+            for (char character : "1.25".toCharArray()) {
+                NativeLiveClientDriver.call(screen, SCREEN, "keyTyped", "(CI)V", character, 0);
+            }
+            NativeLiveClientDriver.call(screen, SCREEN, "keyTyped", "(CI)V", '\r', 28);
+            require(lua.get("numericValue").todouble() == 1.25,
+                    "Native numeric entry did not commit its decimal value");
             click(client, "notes");
             NativeLiveClientDriver.call(screen, SCREEN, "keyTyped", "(CI)V", '\0', 207);
             NativeLiveClientDriver.call(screen, SCREEN, "keyTyped", "(CI)V", '\r', 28);
@@ -265,6 +275,8 @@ final class UiLiveClientChecks {
                     "Native numeric stepper lost its local value through modal refresh");
             require(invoke(element("notes"), "text").equals("Note\nx"),
                     "Native textarea refresh lost its local multiline text");
+            require(invoke(element("amount"), "text").equals("1.25"),
+                    "Native numeric entry refresh lost its accepted local number");
             Object viewport = invoke(element("dialogScroll"), "viewport");
             require(((Number) invoke(viewport, "getScrollY")).intValue() == 20,
                     "Native authored scroll did not publish its offset through modal refresh");

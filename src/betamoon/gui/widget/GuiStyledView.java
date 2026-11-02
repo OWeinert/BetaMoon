@@ -136,7 +136,7 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
         if ("slider".equals(kind)) {
             return Arrays.asList("track", "thumb", "focus");
         }
-        if ("textbox".equals(kind) || "textarea".equals(kind)) {
+        if ("textbox".equals(kind) || "textarea".equals(kind) || "numberbox".equals(kind)) {
             return Arrays.asList("content", "caret", "selection", "focus");
         }
         return Arrays.asList("button", "checkbox", "choice").contains(kind)
