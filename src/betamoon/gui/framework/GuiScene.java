@@ -732,6 +732,12 @@ public final class GuiScene {
         }
     }
 
+    void revealFocusedRegion() {
+        if (focusedElement != null) {
+            revealFocus(focusedElement);
+        }
+    }
+
     private void revealFocus(GuiElement element) {
         boolean hasViewport = false;
         for (GuiContainer parent = element.getParent(); parent != null; parent = parent.getParent()) {
@@ -744,7 +750,7 @@ public final class GuiScene {
             return;
         }
         ensureLayout();
-        Rect bounds = element.getBounds();
+        Rect bounds = element.focusBounds();
         GraphicsClip target = new GraphicsClip(bounds.getLeft(), bounds.getTop(), bounds.getRight(), bounds.getBottom())
                 .transform(element.arrangedTransform());
         for (GuiContainer parent = element.getParent(); parent != null; parent = parent.getParent()) {

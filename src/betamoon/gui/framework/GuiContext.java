@@ -1,5 +1,7 @@
 package betamoon.gui.framework;
 
+import betamoon.luaapi.utils.LuaCallbackScope;
+
 import java.util.Arrays;
 import java.util.ArrayList;
 import betamoon.gui.framework.GuiGeometry.Rect;
@@ -128,6 +130,15 @@ public final class GuiContext {
 
     public boolean isFocused(GuiElement element) {
         return scene.getFocusedElement() == element;
+    }
+
+    /**
+     * Java input coordinators may reveal the current focused subregion after
+     * navigation.
+     */
+    public void revealFocusedRegion() {
+        LuaCallbackScope.requireUiStateWrite();
+        scene.revealFocusedRegion();
     }
 
     public void requestFocus(GuiElement element) {

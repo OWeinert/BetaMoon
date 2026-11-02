@@ -17,6 +17,7 @@ import betamoon.gui.style.GuiDrawable;
 import betamoon.gui.style.GuiStyleSheet;
 import betamoon.gui.style.GuiVisualTemplate;
 import betamoon.gui.widget.GuiStyledView;
+import betamoon.gui.widget.GuiRadioView;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -72,6 +73,7 @@ final class GuiSharedControlRenderChecks {
             }
         }
         numericSteppers(minecraft, font, output);
+        radioSelection(minecraft, font, output);
         bitmapAtlas(minecraft, font, output);
         phaseSafeOwnershipLoss(minecraft, font);
     }
@@ -112,6 +114,62 @@ final class GuiSharedControlRenderChecks {
         ImageIO.write(GuiShowcaseRenderTest.capture(320, 240), "png", new File(output, "shared-controls-stepper.png"));
         require(GL11.glGetError() == GL11.GL_NO_ERROR, "Numeric stepper painter leaked invalid GL operations");
         for (GuiStyledView control : controls) {
+            control.close();
+        }
+    }
+
+    private static void radioSelection(Minecraft minecraft, FontRenderer font, File output) throws Exception {
+        List<GuiRadioView> controls = new ArrayList<>();
+        GuiContainer content = new GuiContainer() {
+            @Override
+            protected void arrangeChildren(GuiContext context) {
+                controls.get(0).arrange(context, Rect.fromPositionAndSize(60, 30, 200, 80));
+                controls.get(1).arrange(context, Rect.fromPositionAndSize(60, 140, 200, 24));
+            }
+        };
+        for (GuiStyleSheet theme : Arrays.asList(GuiStyleSheet.MENU, GuiStyleSheet.MINIMAL)) {
+            Map<String, Object> values = new LinkedHashMap<>();
+            List<Map<String, Object>> options = new ArrayList<>();
+            for (String key : Arrays.asList("Low", "Medium", "High")) {
+                Map<String, Object> option = new LinkedHashMap<>();
+                option.put("key", key);
+                option.put("enabled", !key.equals("Medium"));
+                options.add(option);
+            }
+            values.put("options", options);
+            values.put("selectedKey", "Low");
+            values.put("optionHeight", 24);
+            values.put("orientation", controls.isEmpty() ? "vertical" : "horizontal");
+            GuiRadioView radio = new GuiRadioView(theme, GuiDefaultTemplate.INSTANCE, (event, value) -> true)
+                    .configure(values);
+            controls.add(radio);
+            content.add(radio);
+        }
+        GuiScene scene = new GuiScene();
+        scene.setContent(content);
+        scene.updateEnvironment(minecraft, font, 320, 240, 320, 240);
+        scene.prepare();
+        GuiShowcaseRenderTest.setupFrame();
+        scene.render(0, 0, 0);
+        GuiRadioView radio = controls.get(0);
+        for (int index : new int[]{2, 0}) {
+            Rect bounds = radio.optionBounds(index);
+            scene.mousePressed(bounds.getLeft() + 4, bounds.getTop() + 4, 0);
+            scene.mouseReleased(bounds.getLeft() + 4, bounds.getTop() + 4, 0);
+            scene.prepare();
+            GuiShowcaseRenderTest.setupFrame();
+            scene.render(0, 0, 0);
+            require(radio.selectedKey().equals(index == 0 ? "Low" : "High"),
+                    "Radio selection did not refresh its displayed input revision");
+        }
+        scene.getContext().requestFocus(controls.get(1));
+        scene.keyTyped('\0', Keyboard.KEY_END, false);
+        scene.prepare();
+        GuiShowcaseRenderTest.setupFrame();
+        scene.render(0, 0, 0);
+        ImageIO.write(GuiShowcaseRenderTest.capture(320, 240), "png", new File(output, "shared-controls-radio.png"));
+        require(GL11.glGetError() == GL11.GL_NO_ERROR, "Radio painter leaked invalid GL operations");
+        for (GuiRadioView control : controls) {
             control.close();
         }
     }

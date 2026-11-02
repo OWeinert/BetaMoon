@@ -29,6 +29,7 @@ import betamoon.gui.style.GuiViewAppearance;
 import betamoon.gui.style.GuiVisualTemplate;
 import betamoon.gui.widget.GuiStyledView;
 import betamoon.gui.widget.GuiScrollControl;
+import betamoon.gui.widget.GuiRadioView;
 import betamoon.luaapi.client.ui.GuiLuaPaintSource;
 import betamoon.luaapi.client.ui.GuiPaintCompiler;
 import betamoon.luaapi.client.ui.GuiReadOnlyValues;
@@ -443,7 +444,9 @@ public final class GuiComponentPlan implements AutoCloseable {
                     && accepted(runtime.dispatchUiEvent(node.id, event, value));
             result = "scroll".equals(node.type)
                     ? new GuiScrollControl(theme, template, events)
-                    : new GuiStyledView(node.type, theme, template, events);
+                    : "radio".equals(node.type)
+                            ? new GuiRadioView(theme, template, events)
+                            : new GuiStyledView(node.type, theme, template, events);
         } else {
             PaintBinding paint = new PaintBinding(node, metadata);
             paints.add(paint);

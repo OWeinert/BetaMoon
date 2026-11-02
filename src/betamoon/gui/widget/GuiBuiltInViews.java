@@ -25,7 +25,7 @@ import java.util.function.Function;
 public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
     private static final List<String> TYPES = Collections.unmodifiableList(Arrays.asList("text", "image", "panel",
             "row", "column", "grid", "scroll", "list", "tree", "table", "overlay", "spacer", "divider", "button",
-            "checkbox", "choice", "slider", "stepper", "textbox", "progress", "dialog", "tooltip"));
+            "checkbox", "choice", "radio", "slider", "stepper", "textbox", "progress", "dialog", "tooltip"));
     private final GuiStyleSheet theme;
     private final Function<GuiNodeDefinition, GuiVisualTemplate> templates;
     private final Function<GuiNodeDefinition, GuiStyledView.Events> events;
@@ -49,7 +49,10 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
         }
         return "scroll".equals(definition.type)
                 ? new GuiScrollControl(theme, templates.apply(definition), events.apply(definition))
-                : new GuiStyledView(definition.type, theme, templates.apply(definition), events.apply(definition));
+                : "radio".equals(definition.type)
+                        ? new GuiRadioView(theme, templates.apply(definition), events.apply(definition))
+                        : new GuiStyledView(definition.type, theme, templates.apply(definition),
+                                events.apply(definition));
     }
 
     public static GuiProperties properties(String type) {
@@ -127,6 +130,13 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
         }
         if ("checkbox".equals(type)) {
             properties.add(GuiPropertyDescriptor.value("selected", Kind.BOOLEAN, false, Stage.PAINT, Stage.SEMANTICS));
+        }
+        if ("radio".equals(type)) {
+            properties.add(GuiPropertyDescriptor.value("options", Kind.DATA, Collections.emptyList(), Stage.MEASURE));
+            properties.add(GuiPropertyDescriptor.value("selectedKey", Kind.STRING, "", Stage.SEMANTICS));
+            properties.add(GuiPropertyDescriptor.value("orientation", Kind.STRING, "vertical", Stage.MEASURE));
+            properties.add(new GuiPropertyDescriptor("optionHeight", Kind.INTEGER, 20, 1, 1024, false, false,
+                    Collections.singleton(Stage.MEASURE), Collections.emptySet()));
         }
         if ("choice".equals(type)) {
             properties.add(new GuiPropertyDescriptor("value", Kind.INTEGER, 1, 1, 4096, false, false,

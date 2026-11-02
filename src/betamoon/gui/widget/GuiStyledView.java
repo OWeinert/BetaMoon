@@ -15,6 +15,7 @@ import betamoon.gui.framework.GuiGridGeometry;
 import betamoon.gui.framework.GuiMeasurementPreview;
 import betamoon.gui.presentation.GuiViewPublication;
 import betamoon.gui.framework.GuiInputEvent;
+import betamoon.gui.framework.GuiFrameContent;
 import betamoon.gui.framework.GuiViewportLayout;
 import betamoon.gui.graphics.GraphicsTransform;
 import betamoon.gui.presentation.GuiPresentationNode;
@@ -83,7 +84,8 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
     private boolean dragging;
     private int stepperDirection;
     private long numericRevision;
-    private long pressedNumericRevision;
+    private StepperFrame pressedStepperFrame;
+    private GraphicsTransform stepperPressTransform;
     private boolean published;
     private boolean closed;
     private int textOffset;
@@ -124,6 +126,9 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
     private static Iterable<String> requiredParts(String kind) {
         if ("scroll".equals(kind)) {
             return Collections.singletonList("focus");
+        }
+        if ("radio".equals(kind)) {
+            return Arrays.asList("options", "focus");
         }
         if ("stepper".equals(kind)) {
             return Arrays.asList("content", "focus", "decrement", "increment");
@@ -663,13 +668,23 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
             return false;
         }
         if (event.getType() == GuiInputEvent.Type.POINTER_DOWN && event.getButton() == 0) {
+            StepperFrame frame = (StepperFrame) context.getFrameContent();
+            if (frame == null || frame.revision != numericRevision || !frame.bounds.equals(getBounds())
+                    || frame.side != stepperButtonWidth()) {
+                return true;
+            }
+            pressedStepperFrame = frame;
+            stepperPressTransform = context.getElementTransform();
             stepperDirection = stepperDirectionAt(event.getMouseX());
-            pressedNumericRevision = numericRevision;
         }
         boolean inside = contains(event.getMouseX(), event.getMouseY());
         if (event.getType() == GuiInputEvent.Type.POINTER_UP) {
-            inside &= stepperDirectionAt(event.getMouseX()) == stepperDirection
-                    && pressedNumericRevision == numericRevision;
+            inside &= stepperDirectionAt(event.getMouseX()) == stepperDirection && pressedStepperFrame != null
+                    && pressedStepperFrame.revision == numericRevision && pressedStepperFrame.bounds.equals(getBounds())
+                    && stepperPressTransform.x == context.getElementTransform().x
+                    && stepperPressTransform.y == context.getElementTransform().y
+                    && stepperPressTransform.scaleX == context.getElementTransform().scaleX
+                    && stepperPressTransform.scaleY == context.getElementTransform().scaleY;
         }
         int result = activation.input(event, inside, isFocused());
         if ((result & GuiActivation.CAPTURE) != 0) {
@@ -682,8 +697,33 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
         if ((result & GuiActivation.RELEASE) != 0) {
             releasePointer(context);
             stepperDirection = 0;
+            pressedStepperFrame = null;
+            stepperPressTransform = null;
         }
         return (result & GuiActivation.CONSUMED) != 0;
+    }
+
+    @Override
+    protected GuiFrameContent sampleFrameContent() {
+        return "stepper".equals(kind)
+                ? new StepperFrame(getBounds(), numericRevision, stepperButtonWidth())
+                : super.sampleFrameContent();
+    }
+
+    private static final class StepperFrame implements GuiFrameContent {
+        private final Rect bounds;
+        private final long revision;
+        private final int side;
+
+        private StepperFrame(Rect bounds, long revision, int side) {
+            this.bounds = bounds;
+            this.revision = revision;
+            this.side = side;
+        }
+
+        public boolean contains(double x, double y) {
+            return true;
+        }
     }
 
     public int stepperButtonWidth() {
@@ -1123,6 +1163,8 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
         if (!closed) {
             closed = true;
             stateAdmission = null;
+            pressedStepperFrame = null;
+            stepperPressTransform = null;
             events = (event, value) -> false;
             presentationNode = null;
             javaValues = Collections.emptyMap();

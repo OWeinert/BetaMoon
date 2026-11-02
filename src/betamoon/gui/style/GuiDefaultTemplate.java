@@ -5,6 +5,9 @@ import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.framework.GuiRenderer;
 import betamoon.gui.widget.GuiStyledView;
+import betamoon.gui.widget.GuiRadioView;
+import betamoon.gui.control.GuiSelectionOptions;
+import betamoon.gui.graphics.GraphicsClip;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -16,8 +19,8 @@ import java.util.Set;
  */
 public final class GuiDefaultTemplate implements GuiVisualTemplate {
     public static final GuiDefaultTemplate INSTANCE = new GuiDefaultTemplate();
-    private static final Set<String> PARTS = Collections.unmodifiableSet(new LinkedHashSet<>(
-            Arrays.asList("content", "focus", "track", "thumb", "caret", "selection", "decrement", "increment")));
+    private static final Set<String> PARTS = Collections.unmodifiableSet(new LinkedHashSet<>(Arrays.asList("content",
+            "focus", "track", "thumb", "caret", "selection", "decrement", "increment", "options")));
 
     @Override
     public Set<String> parts() {
@@ -30,7 +33,8 @@ public final class GuiDefaultTemplate implements GuiVisualTemplate {
         Rect bounds = view.getBounds();
         String kind = view.kind();
         int foreground = color(context, style, "foreground", 0xFFE0E0E0);
-        boolean surface = view.isFocusable() || "panel".equals(kind) || "dialog".equals(kind) || "tooltip".equals(kind);
+        boolean surface = view.isFocusable() && !"radio".equals(kind) || "panel".equals(kind) || "dialog".equals(kind)
+                || "tooltip".equals(kind);
         boolean nativeButton = style.flag("nativeButton", false) && ("button".equals(kind) || "choice".equals(kind));
         if (nativeButton) {
             GuiNativeButtonSkin.draw(view.preparedNativeTexture(), bounds, view.isEnabled(),
@@ -44,7 +48,7 @@ public final class GuiDefaultTemplate implements GuiVisualTemplate {
             }
             border(renderer, bounds, style.number("borderWidth", 1), color(context, style, "border", 0xFF555555));
         }
-        if (view.isFocused()) {
+        if (view.isFocused() && !"radio".equals(kind)) {
             border(renderer, bounds, 1, color(context, style, "focus", 0xFFFFFFA0));
         }
         if ("image".equals(kind)) {
@@ -59,6 +63,8 @@ public final class GuiDefaultTemplate implements GuiVisualTemplate {
                     color(context, style, "border", 0xFF555555));
         } else if ("progress".equals(kind) || "slider".equals(kind)) {
             range(context, view, style);
+        } else if ("radio".equals(kind)) {
+            radio(context, (GuiRadioView) view, style, foreground);
         } else if ("stepper".equals(kind)) {
             stepper(context, view, style, foreground);
         } else if ("textbox".equals(kind)) {
@@ -84,6 +90,47 @@ public final class GuiDefaultTemplate implements GuiVisualTemplate {
             renderer.pushClip(bounds);
             try {
                 style.font().draw(context, view.text(), x, y, foreground, style.flag("shadow", true));
+            } finally {
+                renderer.popClip();
+            }
+        }
+    }
+
+    private static void radio(GuiContext context, GuiRadioView view, GuiControlStyle style, int foreground) {
+        GuiRenderer renderer = context.getRenderer();
+        String focus = view.focusKey();
+        for (int i = 0; i < view.options().options.size(); i++) {
+            Rect bounds = view.optionBounds(i);
+            if (bounds.isEmpty()
+                    || new GraphicsClip(bounds.getLeft(), bounds.getTop(), bounds.getRight(), bounds.getBottom())
+                            .transform(context.getElementTransform()).intersect(context.getElementClip()).isEmpty()) {
+                continue;
+            }
+            GuiSelectionOptions.Option option = view.options().options.get(i);
+            int color = option.enabled
+                    ? foreground
+                    : color(context, view.style(GuiStyleSheet.DISABLED), "foreground", 0xFF777777);
+            renderer.pushClip(bounds);
+            try {
+                int x = bounds.getLeft() + 4;
+                int y = bounds.getTop() + (bounds.getHeight() - 12) / 2;
+                renderer.drawRect(x + 3, y, x + 9, y + 1, color);
+                renderer.drawRect(x + 3, y + 11, x + 9, y + 12, color);
+                renderer.drawRect(x, y + 3, x + 1, y + 9, color);
+                renderer.drawRect(x + 11, y + 3, x + 12, y + 9, color);
+                renderer.drawRect(x + 1, y + 1, x + 3, y + 3, color);
+                renderer.drawRect(x + 9, y + 1, x + 11, y + 3, color);
+                renderer.drawRect(x + 1, y + 9, x + 3, y + 11, color);
+                renderer.drawRect(x + 9, y + 9, x + 11, y + 11, color);
+                if (option.key.equals(view.selectedKey())) {
+                    renderer.drawRect(x + 4, y + 4, x + 8, y + 8, color(context, style, "accent", 0xFF55AAFF));
+                }
+                style.font().draw(context, option.label, bounds.getLeft() + 22,
+                        bounds.getTop() + (bounds.getHeight() - style.font().lineHeight(context)) / 2, color,
+                        style.flag("shadow", true));
+                if (view.isFocused() && option.key.equals(focus)) {
+                    border(renderer, bounds, 1, color(context, style, "focus", 0xFFFFFFA0));
+                }
             } finally {
                 renderer.popClip();
             }

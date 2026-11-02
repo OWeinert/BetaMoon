@@ -10,6 +10,7 @@ import betamoon.gui.style.GuiPreparedTemplate;
 import betamoon.gui.style.GuiStyleSheet;
 import betamoon.gui.style.GuiThemeDefinition;
 import betamoon.gui.widget.GuiStyledView;
+import betamoon.gui.widget.GuiRadioView;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.utils.LuaDeclarationValues;
 import betamoon.luamodloader.ScriptExecution;
@@ -82,6 +83,9 @@ public final class GuiTemplateSource implements GuiPreparedTemplate.Source {
             metrics.put("padding", normal.number("padding", 0));
             if (view.kind().equals("stepper")) {
                 metrics.put("stepperButtonWidth", view.stepperButtonWidth());
+            }
+            if (view instanceof GuiRadioView) {
+                metrics.put("radioOptions", ((GuiRadioView) view).templateOptions());
             }
             if (view.editor() != null) {
                 int caret = view.editor().caret();

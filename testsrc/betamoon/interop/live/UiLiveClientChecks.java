@@ -83,13 +83,19 @@ final class UiLiveClientChecks {
                                     + "templateCalls=0;ui.themes:add{key='uitest:theme',base='minimal',variants={default={values={foreground='#FFEEEEEE'}}},templates={button={parts={'content','focus'},paint=function(v)templateCalls=templateCalls+1;"
                                     + "local function commands(c)return {{op='rect',width={source='width'},height={source='height'},color=c},{op='text',text=v.props.text,x=6,y=5,color=v.styles.default.foreground}}end;"
                                     + "return {default=commands('#FF263B50'),hovered=commands('#FF456B90'),pressed=commands('#FF152839'),focused=commands('#FF385169')}end}}};"
+                                    + "radioPaints=0;ui.themes:add{key='uitest:radio',base='minimal',templates={radio={parts={'options','focus'},paint=function(v)radioPaints=radioPaints+1;"
+                                    + "assert(#v.metrics.radioOptions==2);local out={}for i,opt in ipairs(v.props.options)do local b=v.metrics.radioOptions[i];"
+                                    + "out[#out+1]={op='text',text=(v.props.selectedKey==opt.key and '(*) 'or'( ) ')..opt.label,x=b.x+2,y=b.y+5,color='#FFFFFFFF'}end return out end}}};"
                                     + "definition={key='uitest:form',theme='uitest:theme',state={count={type='integer',default=0,min=0,max=100}},"
                                     + "actions={apply={scope='client',payload={},handler=function(ctx)ctx.state:set('count',ctx.state:get('count')+1);return {applied=true}end},"
                                     + "world={scope='world',payload={},handler=function()error('worldless action ran')end}},"
                                     + "resources={buffers={quad={mode='quads',vertices={0,0,80,0,80,32,0,32}}},"
                                     + "programs={tintProgram={vertex='void main(){gl_Position=gl_ModelViewProjectionMatrix*gl_Vertex;}',"
                                     + "fragment='uniform vec4 tint;void main(){gl_FragColor=tint;}',uniforms={tint=4}}},targets={scratch={width=16,height=16}}},"
-                                    + "root={type='column',width=200,height=236,gap=2,children={{type='text',id='readout',bind=function(v)return {text='Count '..v.state:get('count')}end},"
+                                    + "root={type='column',width=200,height=236,gap=0,children={{type='row',height=20,children={"
+                                    + "{type='text',id='readout',grow=1,bind=function(v)return {text='Count '..v.state:get('count')}end},"
+                                    + "{type='radio',id='mode',theme='uitest:radio',width=100,height=20,orientation='horizontal',"
+                                    + "options={{key='a',label='A'},{key='b',label='B'}},selectedKey='a',on={change=function(ctx,e)radioValue=e.value end}}}},"
                                     + "{component='uitest:wheel'},{component='uitest:raw'},{type='button',id='apply',text='Apply',on={activate=function(ctx)ticket=assert(ctx.screen:request('apply',{}))end}},"
                                     + "{type='button',id='close',text='Close',on={activate=function(ctx)ctx.screen:close()end}},"
                                     + "{type='table',id='scores',theme='menu',height=60,overscan=0,columns={{key='title',width=150},{key='score',width=100}},"
@@ -131,6 +137,8 @@ final class UiLiveClientChecks {
             lua.load(
                     "oldElement=form:element('apply'); local t,r=form:request('world',{});assert(t==nil and r=='world_unavailable')")
                     .call();
+            click(client, "mode");
+            NativeLiveClientDriver.call(screen, SCREEN, "keyTyped", "(CI)V", '\0', 205);
             Object table = element("scores");
             Object header = invoke(table, "header");
             clickElement(client, ((java.util.List<?>) invoke(header, "getChildren")).get(1));
@@ -146,6 +154,9 @@ final class UiLiveClientChecks {
             }
             require(lua.load("return form.state:get('count')==8 and ticket:result().applied").call().toboolean(),
                     "Client action did not publish its detached completion/state");
+            require(invoke(element("mode"), "selectedKey").equals("b") && lua.get("radioValue").tojstring().equals("b")
+                    && lua.get("radioPaints").toint() == 2,
+                    "Native radio input or prepared option template did not use the shared control");
             Object table = element("scores");
             require(((Number) invoke(invoke(table, "viewport"), "getScrollX")).intValue() == 30
                     && lua.get("tableScroll").toint() == 30,
@@ -259,6 +270,8 @@ final class UiLiveClientChecks {
             }
             require(lua.load("return form.state:get('count')==8 and form:element('apply'):get('text')=='Updated'")
                     .call().toboolean(), "Visual refresh reopened/reset the page");
+            require(invoke(element("mode"), "selectedKey").equals("b"),
+                    "Radio selection was lost through native refresh");
             require(lua.load("return paintCalls==2").call().toboolean(),
                     "Compatible visual refresh rebuilt paint repeatedly");
             lua.load(

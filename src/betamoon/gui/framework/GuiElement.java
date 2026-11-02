@@ -232,6 +232,13 @@ public abstract class GuiElement {
     protected void arrangeElement(GuiContext context) {
     }
 
+    /**
+     * The region to reveal when this control receives keyboard/programmatic focus.
+     */
+    protected Rect focusBounds() {
+        return getBounds();
+    }
+
     /** Publishes dynamic values outside measurement and painting. */
     protected void updateElement(GuiContext context) {
     }

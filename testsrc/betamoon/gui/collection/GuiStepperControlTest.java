@@ -26,6 +26,7 @@ public final class GuiStepperControlTest {
         pointerAndKeyboard();
         intrinsicAndDecimalEndpoint();
         controlledAndRefresh();
+        displayedFrameAdmission();
         admissionAndTemplates();
         System.out.println("Steppers passed: decimal values, distinct pointer targets/cancel, keyboard bounds, "
                 + "controlled acknowledgement, retained refresh, template values and pre-event admission.");
@@ -139,6 +140,28 @@ public final class GuiStepperControlTest {
             f.lua.set("reject", LuaValue.TRUE);
             f.key(Keyboard.KEY_UP);
             require(value(stepper) == 0.3, "A rejected change moved the local value");
+        }
+    }
+
+    private static void displayedFrameAdmission() {
+        try (Fixture f = new Fixture()) {
+            f.host.extra.put("amount", 0.2);
+            f.open("changes=0;return{type='stepper',id='stepper',width=120,step=0.1,"
+                    + "bind=function(v)return{value=v.data:get('amount')}end,"
+                    + "on={change=function()changes=changes+1 end}}");
+            GuiStyledView stepper = view(f);
+            int x = stepper.getRight() - 3;
+            int y = stepper.getTop() + 5;
+            f.host.extra.put("amount", 0.6);
+            f.host.change();
+            f.scene.prepare();
+            f.scene.mousePressed(x, y, 0);
+            f.scene.mouseReleased(x, y, 0);
+            require(f.lua.get("changes").toint() == 0, "A press stepped a value not yet displayed");
+            HeadlessGuiFrames.layout(f.scene);
+            f.scene.mousePressed(x, y, 0);
+            f.scene.mouseReleased(x, y, 0);
+            require(f.lua.get("changes").toint() == 1, "Stepping did not recover after the accepted frame");
         }
     }
 
