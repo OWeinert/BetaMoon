@@ -10,24 +10,39 @@ import java.awt.datatransfer.StringSelection;
  */
 public final class GuiClipboard {
     public static String read(int maximumLength) {
+        return read(maximumLength, false);
+    }
+
+    public static String read(int maximumLength, boolean multiline) {
         try {
             Object value = Toolkit.getDefaultToolkit().getSystemClipboard().getData(DataFlavor.stringFlavor);
             if (value instanceof String) {
-                String text = (String) value;
-                StringBuilder result = new StringBuilder(Math.min(maximumLength, text.length()));
-                for (int i = 0; i < text.length() && result.length() < maximumLength; i++) {
-                    char character = text.charAt(i);
-                    if (character >= 32 && character != 127) {
-                        result.append(character);
-                    }
-                }
-                return result.toString();
+                return filter((String) value, maximumLength, multiline);
             }
         } catch (Exception ignored) {
             // Clipboard ownership, headless sessions and unsupported formats are
             // recoverable.
         }
         return "";
+    }
+
+    public static String filter(String text, int maximumLength, boolean multiline) {
+        if (text == null || maximumLength < 0) {
+            throw new IllegalArgumentException("Clipboard text and a nonnegative limit are required");
+        }
+        StringBuilder result = new StringBuilder(Math.min(maximumLength, text.length()));
+        for (int i = 0; i < text.length() && result.length() < maximumLength; i++) {
+            char character = text.charAt(i);
+            if (multiline && character == '\r') {
+                if (i + 1 < text.length() && text.charAt(i + 1) == '\n') {
+                    i++;
+                }
+                result.append('\n');
+            } else if (character >= 32 && character != 127 || multiline && (character == '\n' || character == '\t')) {
+                result.append(character);
+            }
+        }
+        return result.toString();
     }
 
     public static void write(String text) {

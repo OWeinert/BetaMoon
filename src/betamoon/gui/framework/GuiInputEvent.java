@@ -12,18 +12,25 @@ public final class GuiInputEvent {
     private final int button;
     private final int wheelDelta;
     private final boolean shiftDown;
+    private final boolean controlDown;
     private final boolean mouseDown;
     private final char typedChar;
     private final int keyCode;
 
     private GuiInputEvent(Type type, int mouseX, int mouseY, int button, int wheelDelta, boolean shiftDown,
             boolean mouseDown, char typedChar, int keyCode) {
+        this(type, mouseX, mouseY, button, wheelDelta, shiftDown, mouseDown, typedChar, keyCode, false);
+    }
+
+    private GuiInputEvent(Type type, int mouseX, int mouseY, int button, int wheelDelta, boolean shiftDown,
+            boolean mouseDown, char typedChar, int keyCode, boolean controlDown) {
         this.type = type;
         this.mouseX = mouseX;
         this.mouseY = mouseY;
         this.button = button;
         this.wheelDelta = wheelDelta;
         this.shiftDown = shiftDown;
+        this.controlDown = controlDown;
         this.mouseDown = mouseDown;
         this.typedChar = typedChar;
         this.keyCode = keyCode;
@@ -53,6 +60,10 @@ public final class GuiInputEvent {
         return new GuiInputEvent(Type.KEY_TYPED, 0, 0, -1, 0, shiftDown, false, typedChar, keyCode);
     }
 
+    public static GuiInputEvent keyTyped(char typedChar, int keyCode, boolean shiftDown, boolean controlDown) {
+        return new GuiInputEvent(Type.KEY_TYPED, 0, 0, -1, 0, shiftDown, false, typedChar, keyCode, controlDown);
+    }
+
     public static GuiInputEvent keyUp(int keyCode, boolean shiftDown) {
         return new GuiInputEvent(Type.KEY_UP, 0, 0, -1, 0, shiftDown, false, '\0', keyCode);
     }
@@ -62,7 +73,7 @@ public final class GuiInputEvent {
     }
 
     GuiInputEvent at(int x, int y) {
-        return new GuiInputEvent(type, x, y, button, wheelDelta, shiftDown, mouseDown, typedChar, keyCode);
+        return new GuiInputEvent(type, x, y, button, wheelDelta, shiftDown, mouseDown, typedChar, keyCode, controlDown);
     }
 
     public Type getType() {
@@ -87,6 +98,10 @@ public final class GuiInputEvent {
 
     public boolean isShiftDown() {
         return shiftDown;
+    }
+
+    public boolean isControlDown() {
+        return controlDown;
     }
 
     public boolean isMouseDown() {

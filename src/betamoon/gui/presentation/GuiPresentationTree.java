@@ -65,8 +65,8 @@ public final class GuiPresentationTree implements AutoCloseable {
         this.factory = factory;
         this.capabilities = Collections.unmodifiableSet(new HashSet<>(capabilities));
         validate(definition, capabilities);
-        hasMeasuredLayout = definition.presentation.nodes.stream()
-                .anyMatch(node -> node.type.equals("grid") || node.type.equals("scroll"));
+        hasMeasuredLayout = definition.presentation.nodes.stream().anyMatch(
+                node -> node.type.equals("grid") || node.type.equals("scroll") || node.type.equals("textarea"));
         published = new long[definition.presentation.nodes.size()];
         Arrays.fill(published, -1);
         Map<GuiElement, Boolean> unique = new IdentityHashMap<>();

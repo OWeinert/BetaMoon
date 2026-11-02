@@ -6,6 +6,7 @@ import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.framework.GuiRenderer;
 import betamoon.gui.widget.GuiStyledView;
 import betamoon.gui.widget.GuiRadioView;
+import betamoon.gui.widget.GuiTextAreaFrame;
 import betamoon.gui.control.GuiSelectionOptions;
 import betamoon.gui.graphics.GraphicsClip;
 import java.util.Arrays;
@@ -67,6 +68,12 @@ public final class GuiDefaultTemplate implements GuiVisualTemplate {
             radio(context, (GuiRadioView) view, style, foreground);
         } else if ("stepper".equals(kind)) {
             stepper(context, view, style, foreground);
+        } else if ("textarea".equals(kind)) {
+            GuiTextAreaFrame frame = (GuiTextAreaFrame) context.getFrameContent();
+            if (frame != null) {
+                frame.paint(context, foreground, color(context, style, "selection", 0x8855AAFF),
+                        style.flag("shadow", true), view.caretVisible(context));
+            }
         } else if ("textbox".equals(kind)) {
             editor(context, view, style, foreground);
         } else if (!view.text().isEmpty()) {

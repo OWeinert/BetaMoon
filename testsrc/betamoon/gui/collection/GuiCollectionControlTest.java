@@ -13,6 +13,7 @@ import betamoon.gui.presentation.GuiPresentationHost;
 import betamoon.gui.presentation.GuiPresentationSources;
 import betamoon.gui.presentation.GuiPresentationTree;
 import betamoon.gui.widget.GuiStyledView;
+import betamoon.gui.style.GuiStyleSheet;
 import betamoon.luaapi.client.ui.GuiAuthoredNodeParser;
 import betamoon.luaapi.client.ui.GuiPaintCompiler;
 import betamoon.luaapi.utils.LuaCallbackScope;
@@ -396,9 +397,14 @@ public final class GuiCollectionControlTest {
         final GuiComponentRegistry registry = new GuiComponentRegistry();
         final GuiRowBudget budget = new GuiRowBudget();
         final Host host = new Host();
+        GuiStyleSheet theme = GuiStyleSheet.MENU;
         final GuiScene scene = new GuiScene();
         final List<Throwable> failures = new ArrayList<>();
         final GuiComponentPlan.Services services = new GuiComponentPlan.Services() {
+            public GuiStyleSheet theme(String owner) {
+                return theme;
+            }
+
             public GuiRowBudget rowBudget() {
                 return budget;
             }

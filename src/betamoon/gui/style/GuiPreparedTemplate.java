@@ -59,7 +59,8 @@ public final class GuiPreparedTemplate implements GuiVisualTemplate {
         List<Object> next = Arrays.asList(view.getWidth(), view.getHeight(), view.templateValues(true),
                 view.editor() == null ? 0 : view.editor().caret(),
                 view.editor() == null ? 0 : view.editor().selectionStart(),
-                view.editor() == null ? 0 : view.editor().selectionEnd(), view.textOffset());
+                view.editor() == null ? 0 : view.editor().selectionEnd(), view.textOffset(),
+                view.templateLayoutState());
         if (next.equals(attempted)) {
             return;
         }

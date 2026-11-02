@@ -233,6 +233,13 @@ public abstract class GuiElement {
     }
 
     /**
+     * Lets composite controls reveal their own caret/selection before ancestor
+     * viewport projection.
+     */
+    protected void revealFocus(GuiContext context) {
+    }
+
+    /**
      * The region to reveal when this control receives keyboard/programmatic focus.
      */
     protected Rect focusBounds() {

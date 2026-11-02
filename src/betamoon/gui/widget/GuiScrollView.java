@@ -36,6 +36,7 @@ public final class GuiScrollView extends GuiContainer implements GuiFocusViewpor
     private Policy policy;
     private boolean scrollbarsVisible = true;
     private IntSupplier virtualOffset;
+    private IntSupplier virtualHorizontalOffset;
     private int contentWidth;
     private int contentHeight;
     private int scrollX;
@@ -82,8 +83,13 @@ public final class GuiScrollView extends GuiContainer implements GuiFocusViewpor
      * shared scroll gestures.
      */
     public void setVirtualContent(IntSupplier virtualOffset) {
+        setVirtualContent(null, virtualOffset);
+    }
+
+    public void setVirtualContent(IntSupplier horizontalOffset, IntSupplier virtualOffset) {
         LuaCallbackScope.requireUiStateWrite();
-        if (this.virtualOffset != virtualOffset) {
+        if (this.virtualOffset != virtualOffset || virtualHorizontalOffset != horizontalOffset) {
+            virtualHorizontalOffset = horizontalOffset;
             this.virtualOffset = Objects.requireNonNull(virtualOffset, "virtual offset");
             requestLayout();
         }
@@ -207,6 +213,9 @@ public final class GuiScrollView extends GuiContainer implements GuiFocusViewpor
 
     @Override
     protected void arrangeChildren(GuiContext context) {
+        if (virtualHorizontalOffset != null) {
+            scrollX = Math.max(0, virtualHorizontalOffset.getAsInt());
+        }
         if (virtualOffset != null) {
             scrollY = Math.max(0, virtualOffset.getAsInt());
         }

@@ -86,6 +86,15 @@ final class UiLiveClientChecks {
                                     + "radioPaints=0;ui.themes:add{key='uitest:radio',base='minimal',templates={radio={parts={'options','focus'},paint=function(v)radioPaints=radioPaints+1;"
                                     + "assert(#v.metrics.radioOptions==2);local out={}for i,opt in ipairs(v.props.options)do local b=v.metrics.radioOptions[i];"
                                     + "out[#out+1]={op='text',text=(v.props.selectedKey==opt.key and '(*) 'or'( ) ')..opt.label,x=b.x+2,y=b.y+5,color='#FFFFFFFF'}end return out end}}};"
+                                    + "notesPaints=0;ui.themes:add{key='uitest:notes',base='minimal',templates={textarea={parts={'content','caret','selection','focus'},"
+                                    + "paint=function(v)checkPreparationAuthority();notesPaints=notesPaints+1;local f=v.metrics.textarea;local out={}"
+                                    + "out[#out+1]={op='rect',width=v.width,height=v.height,color='#FF202838'};"
+                                    + "for _,r in ipairs(f.selection)do out[#out+1]={op='rect',x=r.x,y=r.y,width=r.width,height=r.height,color='#8855AAFF'}end;"
+                                    + "for _,r in ipairs(f.lines)do out[#out+1]={op='text',text=r.text,x=r.x,y=r.y,color='#FFFFFFFF'}end;"
+                                    + "local focus={}for i,c in ipairs(out)do focus[i]=c end;focus[#focus+1]={op='rect',width=v.width,height=1,color='#FFFFFFA0'};"
+                                    + "local caret={}for i,c in ipairs(focus)do caret[i]=c end;local c=f.caret;"
+                                    + "caret[#caret+1]={op='rect',x=c.x,y=c.y,width=c.width,height=c.height,color='#FFFFFFFF'};"
+                                    + "return{default=out,focused=focus,caret=caret}end}}};"
                                     + "definition={key='uitest:form',theme='uitest:theme',state={count={type='integer',default=0,min=0,max=100}},"
                                     + "actions={apply={scope='client',payload={},handler=function(ctx)ctx.state:set('count',ctx.state:get('count')+1);return {applied=true}end},"
                                     + "world={scope='world',payload={},handler=function()error('worldless action ran')end}},"
@@ -109,7 +118,8 @@ final class UiLiveClientChecks {
                                     + "rowState={count={type='integer',default=0}},row=function(row)rowCalls=rowCalls+1;checkPreparationAuthority();"
                                     + "return{type='button',id='entry',bind=function(v)return{text=row.label..':'..v.state:get('count')}end,"
                                     + "on={activate=function(ctx)assert(ctx.native);ctx.state:set('count',ctx.state:get('count')+1);rowEdits=rowEdits+1 end}}end},"
-                                    + "{type='button',id='accept',text='Accept',on={activate=function(ctx)dialogTicket=ctx.screen:request('accept',{})end}}}}}}};ui.screens:add(dialogDefinition);"
+                                    + "{type='button',id='accept',text='Accept',on={activate=function(ctx)dialogTicket=ctx.screen:request('accept',{})end}},"
+                                    + "{type='textarea',id='notes',theme='uitest:notes',height=26,text='Note',on={change=function(ctx,e)notesDraft=e.value end,commit=function(ctx,e)notesCommit=e.value end}}}}}}};ui.screens:add(dialogDefinition);"
                                     + "ui.screens:add(definition);wrongGuiTick=false;betamoon.events:on('gui_tick',function(ctx)"
                                     + "if form and form:status()=='active' and ctx.name~='GuiManagedScreen' then wrongGuiTick=true end end);"
                                     + "opening=betamoon.events:on('game_tick',function(ctx)if not form then "
@@ -206,6 +216,12 @@ final class UiLiveClientChecks {
             require(((Number) invoke(entries, "realizedRows")).intValue() == 2 && lua.get("rowCalls").toint() == 2,
                     "Native Lua list did not bound its 4096 records to two realized rows");
             clickElement(client, invoke(entries, "rowElement", String.class, "r1"));
+            click(client, "notes");
+            NativeLiveClientDriver.call(screen, SCREEN, "keyTyped", "(CI)V", '\0', 207);
+            NativeLiveClientDriver.call(screen, SCREEN, "keyTyped", "(CI)V", '\r', 28);
+            NativeLiveClientDriver.call(screen, SCREEN, "keyTyped", "(CI)V", 'x', 0);
+            require(lua.get("notesCommit").isnil() && invoke(element("notes"), "text").equals("Note\nx"),
+                    "Native textarea Enter submitted instead of inserting a line break");
             click(client, "accept");
             activation = parent;
             wait = 0;
@@ -221,6 +237,8 @@ final class UiLiveClientChecks {
             }
             require(lua.load("return popup.state:get('count')==4 and form.state:get('count')==8").call().toboolean(),
                     "Dialog action used its parent's model");
+            require(lua.get("notesCommit").tojstring().equals("Note\nx") && lua.get("notesPaints").toint() < 16,
+                    "Native textarea blur or bounded template preparation failed");
             require(lua.get("stepperValue").todouble() == 0.5,
                     "Native numeric stepper did not propose its keyboard step");
             require(lua.get("rowEdits").toint() == 1 && lua.get("rowCalls").toint() == 2,
@@ -245,6 +263,8 @@ final class UiLiveClientChecks {
             java.util.Map<?, ?> quantity = (java.util.Map<?, ?>) invoke(element("quantity"), "captureState");
             require(((Number) quantity.get("value")).doubleValue() == 0.5,
                     "Native numeric stepper lost its local value through modal refresh");
+            require(invoke(element("notes"), "text").equals("Note\nx"),
+                    "Native textarea refresh lost its local multiline text");
             Object viewport = invoke(element("dialogScroll"), "viewport");
             require(((Number) invoke(viewport, "getScrollY")).intValue() == 20,
                     "Native authored scroll did not publish its offset through modal refresh");

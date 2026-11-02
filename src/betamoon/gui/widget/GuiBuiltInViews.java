@@ -23,9 +23,10 @@ import java.util.function.Function;
  * remains separate.
  */
 public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
-    private static final List<String> TYPES = Collections.unmodifiableList(Arrays.asList("text", "image", "panel",
-            "row", "column", "grid", "scroll", "list", "tree", "table", "overlay", "spacer", "divider", "button",
-            "checkbox", "choice", "radio", "slider", "stepper", "textbox", "progress", "dialog", "tooltip"));
+    private static final List<String> TYPES = Collections
+            .unmodifiableList(Arrays.asList("text", "image", "panel", "row", "column", "grid", "scroll", "list", "tree",
+                    "table", "overlay", "spacer", "divider", "button", "checkbox", "choice", "radio", "slider",
+                    "stepper", "textbox", "textarea", "progress", "dialog", "tooltip"));
     private final GuiStyleSheet theme;
     private final Function<GuiNodeDefinition, GuiVisualTemplate> templates;
     private final Function<GuiNodeDefinition, GuiStyledView.Events> events;
@@ -51,8 +52,10 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
                 ? new GuiScrollControl(theme, templates.apply(definition), events.apply(definition))
                 : "radio".equals(definition.type)
                         ? new GuiRadioView(theme, templates.apply(definition), events.apply(definition))
-                        : new GuiStyledView(definition.type, theme, templates.apply(definition),
-                                events.apply(definition));
+                        : "textarea".equals(definition.type)
+                                ? new GuiTextAreaView(theme, templates.apply(definition), events.apply(definition))
+                                : new GuiStyledView(definition.type, theme, templates.apply(definition),
+                                        events.apply(definition));
     }
 
     public static GuiProperties properties(String type) {
@@ -121,7 +124,7 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
             properties.add(new GuiPropertyDescriptor("minimumCellWidth", Kind.INTEGER, 0, 0, 16384, false, false,
                     Collections.singleton(Stage.MEASURE), Collections.emptySet()));
         }
-        if (Arrays.asList("text", "button", "checkbox", "choice", "stepper", "textbox", "dialog", "tooltip")
+        if (Arrays.asList("text", "button", "checkbox", "choice", "stepper", "textbox", "textarea", "dialog", "tooltip")
                 .contains(type)) {
             properties.add(GuiPropertyDescriptor.value("text", Kind.STRING, "", Stage.MEASURE, Stage.PAINT));
         }
@@ -160,7 +163,11 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
                         GuiPropertyDescriptor.value("orientation", Kind.STRING, "horizontal", Stage.PAINT, Stage.HIT));
             }
         }
-        if ("textbox".equals(type)) {
+        if ("textarea".equals(type)) {
+            properties.add(GuiPropertyDescriptor.value("wrap", Kind.BOOLEAN, true, Stage.MEASURE));
+            properties.add(GuiPropertyDescriptor.value("scrollbars", Kind.BOOLEAN, true, Stage.PAINT, Stage.HIT));
+        }
+        if ("textbox".equals(type) || "textarea".equals(type)) {
             properties.add(new GuiPropertyDescriptor("maximumLength", Kind.INTEGER, 4096, 0, 65536, false, false,
                     Collections.singleton(Stage.SEMANTICS), Collections.emptySet()));
         }
@@ -168,7 +175,7 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
     }
 
     public static int elementAllowance(String type) {
-        return "scroll".equals(type)
+        return "scroll".equals(type) || "textarea".equals(type)
                 ? 5
                 : "table".equals(type) ? 7 + GuiTableColumns.MAX_COLUMNS : collection(type) ? 6 : 1;
     }

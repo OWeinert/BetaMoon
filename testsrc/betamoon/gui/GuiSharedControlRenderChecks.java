@@ -18,6 +18,7 @@ import betamoon.gui.style.GuiStyleSheet;
 import betamoon.gui.style.GuiVisualTemplate;
 import betamoon.gui.widget.GuiStyledView;
 import betamoon.gui.widget.GuiRadioView;
+import betamoon.gui.widget.GuiTextAreaView;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -74,6 +75,7 @@ final class GuiSharedControlRenderChecks {
         }
         numericSteppers(minecraft, font, output);
         radioSelection(minecraft, font, output);
+        multilineTextareas(minecraft, font, output);
         bitmapAtlas(minecraft, font, output);
         phaseSafeOwnershipLoss(minecraft, font);
     }
@@ -170,6 +172,74 @@ final class GuiSharedControlRenderChecks {
         ImageIO.write(GuiShowcaseRenderTest.capture(320, 240), "png", new File(output, "shared-controls-radio.png"));
         require(GL11.glGetError() == GL11.GL_NO_ERROR, "Radio painter leaked invalid GL operations");
         for (GuiRadioView control : controls) {
+            control.close();
+        }
+    }
+
+    private static void multilineTextareas(Minecraft minecraft, FontRenderer font, File output) throws Exception {
+        List<GuiTextAreaView> controls = new ArrayList<>();
+        AtomicInteger firstWidth = new AtomicInteger(200);
+        GuiContainer content = new GuiContainer() {
+            @Override
+            protected void arrangeChildren(GuiContext context) {
+                controls.get(0).arrange(context, Rect.fromPositionAndSize(60, 20, firstWidth.get(), 90));
+                controls.get(1).arrange(context, Rect.fromPositionAndSize(60, 130, 200, 85));
+            }
+        };
+        for (GuiStyleSheet theme : Arrays.asList(GuiStyleSheet.MENU, GuiStyleSheet.MINIMAL)) {
+            Map<String, Object> values = new LinkedHashMap<>();
+            values.put("text", controls.isEmpty()
+                    ? "First line\nSecond line wraps across the available width.\nThird line\nFourth line\nFifth line"
+                    : "Codes: a\u00a7cb\nA long unwrapped line keeps its selection and horizontal scrolling.\nLast line");
+            values.put("wrap", controls.isEmpty());
+            GuiTextAreaView area = new GuiTextAreaView(theme, GuiDefaultTemplate.INSTANCE, (event, value) -> true)
+                    .configure(values);
+            controls.add(area);
+            content.add(area);
+        }
+        GuiScene scene = new GuiScene();
+        scene.setContent(content);
+        scene.updateEnvironment(minecraft, font, 320, 240, 320, 240);
+        scene.prepare();
+        GuiShowcaseRenderTest.setupFrame();
+        scene.render(0, 0, 0);
+        GuiTextAreaView area = controls.get(1);
+        scene.getContext().requestFocus(area);
+        scene.keyTyped('\0', Keyboard.KEY_HOME, false, true);
+        scene.keyTyped('\0', Keyboard.KEY_DOWN, true, false);
+        scene.prepare();
+        GuiShowcaseRenderTest.setupFrame();
+        scene.render(0, 0, 0);
+        BufferedImage pixels = GuiShowcaseRenderTest.capture(320, 240);
+        ImageIO.write(pixels, "png", new File(output, "shared-controls-textarea.png"));
+        for (int y = 0; y < pixels.getHeight(); y++) {
+            for (int x = 0; x < pixels.getWidth(); x++) {
+                int color = pixels.getRGB(x, y);
+                require((color >> 16 & 255) <= (color >> 8 & 255) + 50,
+                        "Plain textarea text was interpreted as a Minecraft color escape");
+            }
+        }
+        Object cached = controls.get(0).frame().layout;
+        for (int i = 0; i < 3; i++) {
+            scene.prepare();
+            GuiShowcaseRenderTest.setupFrame();
+            scene.render(0, 0, 0);
+        }
+        require(controls.get(0).frame().layout == cached, "Idle rendering rebuilt textarea line layout");
+        scene.getContext().requestFocus(controls.get(0));
+        int caret = controls.get(0).editor().caret();
+        int rows = controls.get(0).frame().layout.rows.size();
+        firstWidth.set(120);
+        scene.getContext().requestLayout();
+        scene.prepare();
+        GuiShowcaseRenderTest.setupFrame();
+        scene.render(0, 0, 0);
+        require(controls.get(0).editor().caret() == caret && controls.get(0).frame().layout.rows.size() > rows,
+                "Narrow reflow changed the caret or failed to wrap");
+        ImageIO.write(GuiShowcaseRenderTest.capture(320, 240), "png",
+                new File(output, "shared-controls-textarea-narrow.png"));
+        require(GL11.glGetError() == GL11.GL_NO_ERROR, "Textarea painting leaked invalid GL operations");
+        for (GuiTextAreaView control : controls) {
             control.close();
         }
     }

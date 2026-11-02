@@ -136,7 +136,7 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
         if ("slider".equals(kind)) {
             return Arrays.asList("track", "thumb", "focus");
         }
-        if ("textbox".equals(kind)) {
+        if ("textbox".equals(kind) || "textarea".equals(kind)) {
             return Arrays.asList("content", "caret", "selection", "focus");
         }
         return Arrays.asList("button", "checkbox", "choice").contains(kind)
@@ -581,7 +581,7 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
         return clipChildren ? getBounds() : null;
     }
 
-    private int states() {
+    protected int states() {
         return (hovered ? GuiStyleSheet.HOVERED : 0) | (activation.isPressed() || dragging ? GuiStyleSheet.PRESSED : 0)
                 | (isFocused() ? GuiStyleSheet.FOCUSED : 0) | (selected ? GuiStyleSheet.SELECTED : 0)
                 | (stateRejected || editor != null && (editor.invalid() || editor.conflict())
@@ -1182,6 +1182,14 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
 
     public int interactionStates() {
         return states();
+    }
+
+    /**
+     * Additional Java layout inputs that invalidate a prepared template without
+     * per-frame Lua.
+     */
+    public Object templateLayoutState() {
+        return null;
     }
 
     public Map<String, Object> templateValues(boolean targets) {

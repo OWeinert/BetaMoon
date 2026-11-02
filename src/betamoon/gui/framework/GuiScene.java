@@ -458,12 +458,18 @@ public final class GuiScene {
     }
 
     public boolean keyTyped(char typedChar, int keyCode, boolean shiftDown) {
+        boolean control = Keyboard.isCreated()
+                && (Keyboard.isKeyDown(Keyboard.KEY_LCONTROL) || Keyboard.isKeyDown(Keyboard.KEY_RCONTROL));
+        return keyTyped(typedChar, keyCode, shiftDown, control);
+    }
+
+    public boolean keyTyped(char typedChar, int keyCode, boolean shiftDown, boolean controlDown) {
         GuiElement scope = modalScope();
         if (keyCode == Keyboard.KEY_TAB && moveFocus(shiftDown)) {
             return true;
         }
-        boolean handled = focusedElement != null
-                && dispatchFromElement(focusedElement, GuiInputEvent.keyTyped(typedChar, keyCode, shiftDown));
+        boolean handled = focusedElement != null && dispatchFromElement(focusedElement,
+                GuiInputEvent.keyTyped(typedChar, keyCode, shiftDown, controlDown));
         if (!handled && keyCode == Keyboard.KEY_ESCAPE && !layers.isEmpty()) {
             layers.get(layers.size() - 1).close();
             return true;
@@ -739,6 +745,8 @@ public final class GuiScene {
     }
 
     private void revealFocus(GuiElement element) {
+        ensureLayout();
+        element.revealFocus(context);
         boolean hasViewport = false;
         for (GuiContainer parent = element.getParent(); parent != null; parent = parent.getParent()) {
             if (parent instanceof GuiFocusViewport) {
@@ -747,6 +755,7 @@ public final class GuiScene {
             }
         }
         if (!hasViewport) {
+            ensureLayout();
             return;
         }
         ensureLayout();
