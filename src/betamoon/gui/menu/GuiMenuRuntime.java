@@ -7,27 +7,22 @@ import betamoon.gui.GuiBetaMoonMainMenu;
 import betamoon.gui.GuiMenuBuiltinViews;
 import betamoon.gui.GuiWorldCreation;
 import betamoon.gui.collection.GuiRowBudget;
-import betamoon.gui.component.GuiComponentPlan;
 import betamoon.gui.component.GuiComponentSchema;
 import betamoon.gui.framework.GuiContainer;
 import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiDocumentMount;
 import betamoon.gui.framework.GuiGeometry.Rect;
-import betamoon.gui.framework.GuiInputLifetime;
 import betamoon.gui.framework.GuiElement;
 import betamoon.gui.framework.GuiPreparationPhase;
 import betamoon.gui.framework.GuiScene;
 import betamoon.gui.interop.NativeClientScreenHost;
-import betamoon.gui.presentation.GuiPresentationTree;
 import betamoon.gui.screen.GuiActionDefinition;
 import betamoon.gui.screen.GuiActionQueue;
 import betamoon.gui.screen.GuiClientUiRuntime;
 import betamoon.gui.screen.GuiHostElementBudget;
-import betamoon.gui.screen.GuiNativeScreenPage;
 import betamoon.gui.screen.GuiScreenActivation;
-import betamoon.gui.screen.GuiScreenAttachment;
+import betamoon.gui.screen.GuiAttachedDocument;
 import betamoon.gui.screen.GuiScreenController;
-import betamoon.gui.screen.GuiScreenDefinition;
 import betamoon.interop.discovery.NativeDiscoveryRuntime;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.client.ui.GuiMenuLuaAccess;
@@ -37,9 +32,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.lang.ref.WeakReference;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.GuiButton;
 import net.minecraft.src.GuiIngameMenu;
@@ -166,8 +161,8 @@ public final class GuiMenuRuntime {
         boolean suppressed = context.replacementReady();
         Runnable drawing = () -> {
             for (Entry entry : new ArrayList<>(context.entries.values())) {
-                if (entry.visible && entry.page != null) {
-                    entry.page.sampleAttached();
+                if (entry.visible && entry.document.page() != null) {
+                    entry.document.page().sampleAttached();
                 }
             }
             context.scene.render(mouseX, mouseY, partialTicks);
@@ -270,8 +265,8 @@ public final class GuiMenuRuntime {
         final Map<String, Entry> entries = new LinkedHashMap<>();
         final MenuRoot root = new MenuRoot();
         final GuiMenuBuiltinViews engine;
-        final Object world;
-        final Object player;
+        Object world;
+        Object player;
         List<?> buttons;
         NativeClientScreenHost host;
         GuiMenuLayout layout;
@@ -339,14 +334,17 @@ public final class GuiMenuRuntime {
                 reconcile();
                 for (Entry entry : new ArrayList<>(entries.values())) {
                     if (entry.visible && !entry.failed) {
-                        entry.controller.tick();
+                        entry.document.tick();
+                        if (closed || client.currentScreen != screen) {
+                            return;
+                        }
                         if (entry.failed) {
                             entry.close();
                             continue;
                         }
                         GuiScreenActivation activation = entry.controller.current();
-                        if (activation == null || !activation.active() || entry.page == null
-                                || !entry.page.attachedUsable()) {
+                        if (activation == null || !activation.active() || entry.document.page() == null
+                                || !entry.document.page().attachedUsable()) {
                             entry.fail("document_unavailable");
                         } else {
                             entry.claim.publish("active", null, activation);
@@ -465,7 +463,7 @@ public final class GuiMenuRuntime {
             for (Entry entry : entries.values()) {
                 entry.mount.setVisible(entry.visible);
                 if (!entry.visible && !entry.failed) {
-                    entry.controller.suspend("menu_suspended");
+                    entry.document.suspend("menu_suspended");
                     entry.claim.publish(entry.refusal == null ? "suspended" : "refused",
                             entry.refusal == null ? "replacement_priority" : entry.refusal, entry.controller.current());
                 }
@@ -490,8 +488,8 @@ public final class GuiMenuRuntime {
                 try (GuiPreparationPhase preparation = GuiPreparationPhase.open()) {
                     scene.runActions();
                     for (Entry entry : new ArrayList<>(entries.values())) {
-                        if (entry.visible && entry.page != null && entry.page.attachedUsable()) {
-                            entry.page.flush();
+                        if (entry.visible && entry.document.page() != null && entry.document.page().attachedUsable()) {
+                            entry.document.page().flush();
                         }
                     }
                     scene.prepare();
@@ -518,6 +516,8 @@ public final class GuiMenuRuntime {
                 host.close();
             }
             rows.close();
+            world = null;
+            player = null;
         }
 
         private final class MenuRoot extends GuiContainer {
@@ -535,16 +535,15 @@ public final class GuiMenuRuntime {
         }
     }
 
-    private static final class Entry implements GuiScreenController.Host, GuiScreenAttachment, AutoCloseable {
+    private static final class Entry implements GuiAttachedDocument.Host, AutoCloseable {
         final Context context;
         final GuiMenuDefinition definition;
         final GuiMenuActivation claim;
-        final GuiDocumentMount mount = new GuiDocumentMount();
-        final GuiScreenController controller = new GuiScreenController(GuiClientUiRuntime.screens(), this);
-        GuiNativeScreenPage page;
-        final Map<Object, GuiHostElementBudget.Claim> capacity = new IdentityHashMap<>();
-        String refusal;
+        final GuiAttachedDocument document;
+        final GuiDocumentMount mount;
+        final GuiScreenController controller;
         Rect bounds = Rect.EMPTY;
+        String refusal;
         boolean visible;
         boolean painted;
         boolean failed;
@@ -554,22 +553,15 @@ public final class GuiMenuRuntime {
             this.context = context;
             this.definition = definition;
             this.claim = claim;
-            GuiInputLifetime input = new GuiInputLifetime(() -> usable());
-            input.activate();
-            mount.inputLifetime(input);
-            mount.paintWhen(this::usable);
-            mount.onFailure(error -> failure(definition.owner, definition.key + ".paint", error));
+            document = new GuiAttachedDocument(this, definition.owner, definition.screen);
+            mount = document.mount();
+            controller = document.controller();
             try {
-                GuiScreenDefinition screen = GuiClientUiRuntime.screens().getRequired(definition.screen);
-                if (!screen.owner.equals(definition.owner)) {
-                    throw new IllegalArgumentException("Menu screen belongs to another owner");
-                }
                 if (definition.replacement && !definition.target.equals("minecraft:main")
                         && !definition.target.equals("minecraft:pause")) {
                     fail("target_replacement_unavailable");
                 } else {
-                    GuiScreenController.OpenResult opened = controller.open(definition.owner, definition.screen,
-                            Collections.emptyMap(), Collections.emptyMap());
+                    GuiScreenController.OpenResult opened = document.open();
                     if (opened.instance == null) {
                         fail(opened.reason);
                     }
@@ -580,15 +572,33 @@ public final class GuiMenuRuntime {
         }
 
         boolean usable() {
-            return !retired && !failed && !mount.failed() && visible && claim.requested() && definition.available()
-                    && context.client.currentScreen == context.screen && !context.closed
-                    && (page == null || page.attachedUsable());
+            return document.usable();
         }
 
         void fail(String reason) {
             failed = true;
             painted = false;
             claim.publish("refused", reason, null);
+        }
+
+        public Minecraft client() {
+            return context.client;
+        }
+
+        public GuiScreen screen() {
+            return context.screen;
+        }
+
+        public GuiScene scene() {
+            return context.scene;
+        }
+
+        public GuiRowBudget rowBudget() {
+            return context.rows;
+        }
+
+        public GuiHostElementBudget elementBudget() {
+            return context.budget;
         }
 
         public long environment() {
@@ -609,37 +619,21 @@ public final class GuiMenuRuntime {
             return context.client.isGamePaused || context.screen.doesGuiPauseGame() || TeleportRuntime.frozen();
         }
 
-        public boolean canOpen() {
-            return !retired && claim.requested() && context.client.currentScreen == context.screen;
+        public boolean attached() {
+            return !retired && claim.requested() && definition.available() && !context.closed
+                    && context.client.currentScreen == context.screen;
         }
 
-        public boolean canNavigate() {
-            return false;
+        public boolean inputAvailable() {
+            return !failed && visible;
         }
 
-        public Object screenIdentity() {
-            return context.client.currentScreen;
-        }
-
-        public boolean current(GuiScreenActivation activation) {
-            return canOpen() && visible && !failed;
-        }
-
-        public GuiScreenController.Page prepare(GuiScreenActivation activation, GuiScreenController.History history) {
-            GuiNativeScreenPage prepared = new GuiNativeScreenPage(context.client, activation,
-                    GuiClientUiRuntime.screens(), GuiClientUiRuntime.components(), history, this);
-            if (page == null) {
-                page = prepared;
-            }
-            return prepared;
-        }
-
-        public void display(GuiScreenActivation activation) {
-            // The actual native menu remains the host of this registered document.
-        }
-
-        public void fallback() {
+        public void closed() {
             fail("document_closed");
+        }
+
+        public void documentChanged() {
+            painted = false;
         }
 
         public void failure(String owner, String path, Throwable failure) {
@@ -647,69 +641,20 @@ public final class GuiMenuRuntime {
             LuaApiUtils.warnForScript(owner, "UI menu", path + ": " + failure.getMessage(), failure);
         }
 
-        public GuiScreen nativeScreen() {
-            return context.screen;
-        }
-
-        public GuiScene scene() {
-            return context.scene;
-        }
-
-        public GuiRowBudget rowBudget() {
-            return context.rows;
-        }
-
-        public boolean inputAvailable() {
-            return !retired && !failed && visible && claim.requested() && definition.available() && !context.closed
-                    && context.client.currentScreen == context.screen;
-        }
-
-        public void prepare(Object document, GuiComponentPlan plan) {
-            capacity.put(document, context.budget.prepare(document, plan.rowElementAllowance()));
-        }
-
-        public void attach(GuiPresentationTree document) {
-            mount.document(document);
-        }
-
-        public void replace(GuiPresentationTree document) {
-            attach(document);
-            painted = false;
-        }
-
-        public void commit(Object document) {
-            GuiHostElementBudget.Claim pending = capacity.get(document);
-            if (pending == null) {
-                throw new IllegalStateException("Attached document has no capacity proposal");
-            }
-            pending.commit();
-            capacity.remove(document);
-        }
-
-        public void abort(Object document) {
-            GuiHostElementBudget.Claim pending = capacity.get(document);
-            if (pending != null) {
-                pending.close();
-                capacity.remove(document);
-            }
-        }
-
-        public void release(Object document) {
-            abort(document);
-            context.budget.remove(document);
-        }
-
-        public void detach() {
-            mount.document(null);
-            page = null;
-            painted = false;
-        }
-
         public void context(LuaTable value, LuaCallbackScope scope, GuiScreenActivation activation) {
+            WeakReference<Entry> reference = new WeakReference<>(this);
             value.set("menu",
-                    GuiMenuLuaAccess.context(definition.owner, scope, definition.target, definition.key,
-                            name -> usable() && GuiNativeMenuActions.enabled(definition.target, name, context.buttons),
-                            name -> request(activation, name)));
+                    GuiMenuLuaAccess.context(definition.owner, scope, definition.target, definition.key, name -> {
+                        Entry entry = reference.get();
+                        return entry != null && entry.usable()
+                                && GuiNativeMenuActions.enabled(entry.definition.target, name, entry.context.buttons);
+                    }, name -> {
+                        Entry entry = reference.get();
+                        if (entry == null) {
+                            throw new IllegalStateException("Menu callback host expired");
+                        }
+                        return entry.request(activation, name);
+                    }));
         }
 
         private GuiActionQueue.Submission request(GuiScreenActivation activation, String command) {
@@ -733,10 +678,7 @@ public final class GuiMenuRuntime {
         public void close() {
             if (!retired) {
                 retired = true;
-                controller.reset("menu_detached");
-                for (Object document : new ArrayList<>(capacity.keySet())) {
-                    release(document);
-                }
+                document.close();
             }
         }
     }

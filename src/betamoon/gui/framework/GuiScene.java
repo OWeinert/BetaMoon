@@ -48,6 +48,10 @@ public final class GuiScene {
     private boolean painting;
     private boolean layingOut;
     private boolean preparingVisuals;
+    private enum PaintPass {
+        ALL, CONTENT, LAYERS
+    }
+    private PaintPass paintPass = PaintPass.ALL;
     private final List<Runnable> deferredEffects = new ArrayList<>();
 
     public void setDocument(GuiPresentationTree replacement) {
@@ -168,13 +172,17 @@ public final class GuiScene {
         return false;
     }
 
-    boolean inactiveLayer(GuiElement element) {
+    boolean paints(GuiElement element) {
         for (GuiLayer layer : layers) {
             if (layer.content == element) {
-                return !layer.isActive();
+                return layer.isActive() && paintPass != PaintPass.CONTENT;
             }
         }
-        return false;
+        return paintPass != PaintPass.LAYERS;
+    }
+
+    public boolean hasModalLayer() {
+        return modalScope() != null;
     }
 
     void closeLayer(GuiLayer layer) {
@@ -274,27 +282,59 @@ public final class GuiScene {
     }
 
     public void render(int mouseX, int mouseY, float partialTicks) {
-        context.updateFrame(mouseX, mouseY, partialTicks, System.currentTimeMillis());
-        tooltipLines = Collections.emptyList();
+        renderPass(mouseX, mouseY, partialTicks, PaintPass.ALL);
+    }
+
+    /**
+     * Native hosts can paint items between content and the scene's portal layers.
+     */
+    public void renderContent(int mouseX, int mouseY, float partialTicks) {
+        renderPass(mouseX, mouseY, partialTicks, PaintPass.CONTENT);
+    }
+
+    /**
+     * Replays layers using the content pass's exact displayed geometry and frame
+     * time.
+     */
+    public void renderLayers() {
+        if (displayedFrame != null) {
+            renderPass(context.getMouseX(), context.getMouseY(), context.getPartialTicks(), PaintPass.LAYERS);
+        }
+    }
+
+    private void renderPass(int mouseX, int mouseY, float partialTicks, PaintPass pass) {
+        if (pass != PaintPass.LAYERS) {
+            context.updateFrame(mouseX, mouseY, partialTicks, System.currentTimeMillis());
+            tooltipLines = Collections.emptyList();
+        }
         renderer.beginFrame(context.getMinecraft(), context.getFont(), context.getScreenWidth(),
                 context.getScreenHeight(), context.getDisplayWidth(), context.getDisplayHeight());
+        paintPass = pass;
         painting = true;
         try {
-            if (document != null) {
-                document.sample();
-            }
-            for (GuiLayer layer : new ArrayList<>(layers)) {
-                if (layer.isActive() && layer.document() != null) {
-                    layer.document().sample();
+            if (pass != PaintPass.LAYERS) {
+                if (document != null) {
+                    document.sample();
                 }
+                for (GuiLayer layer : new ArrayList<>(layers)) {
+                    if (layer.isActive() && layer.document() != null) {
+                        layer.document().sample();
+                    }
+                }
+                ensureLayout();
             }
-            ensureLayout();
-            renderingFrame = displayedFrame == null || frameDirty
-                    ? new GuiFrameSnapshot(root, ++frameRevision, context)
-                    : displayedFrame;
-            frameDirty = false;
+            if (pass == PaintPass.LAYERS) {
+                renderingFrame = displayedFrame;
+            } else {
+                renderingFrame = displayedFrame == null || frameDirty
+                        ? new GuiFrameSnapshot(root, ++frameRevision, context)
+                        : displayedFrame;
+            }
+            if (pass != PaintPass.LAYERS) {
+                frameDirty = false;
+            }
             root.render(context);
-            if (!tooltipLines.isEmpty()) {
+            if (pass != PaintPass.CONTENT && !tooltipLines.isEmpty()) {
                 renderer.drawTooltip(tooltipLines, mouseX, mouseY);
             }
             displayedFrame = renderingFrame;
@@ -307,9 +347,10 @@ public final class GuiScene {
                 renderer.endFrame();
             } finally {
                 painting = false;
+                paintPass = PaintPass.ALL;
             }
         }
-        if (!waitingForRender.isEmpty()) {
+        if (pass != PaintPass.CONTENT && !waitingForRender.isEmpty()) {
             readyActions.addAll(waitingForRender);
             waitingForRender.clear();
         }

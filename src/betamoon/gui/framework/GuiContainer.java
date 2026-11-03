@@ -224,7 +224,7 @@ public class GuiContainer extends GuiElement {
         @Override
         protected void renderElement(GuiContext context) {
             for (GuiElement child : getChildren()) {
-                if (scene.inactiveLayer(child)) {
+                if (!scene.paints(child)) {
                     continue;
                 }
                 if (scene.dimBefore(child)) {

@@ -52,7 +52,7 @@ final class UiMenuLiveChecks {
             lua.load("ui=bm.client.ui;u2=partner.client.ui;clicks=0;nativeMode=false;bad=false;"
                     + "ui.screens:add{key='menutest:detail',root={type='text',text='Menu detail'}};"
                     + "ui.screens:add{key='menutest:first',root={type='button',id='open',height=20,text='Open',on={activate=function(ctx)"
-                    + "clicks=clicks+1;if nativeMode then ticket=assert(ctx.menu:action('options')) "
+                    + "clicks=clicks+1;lastMenuContext=ctx.menu;if nativeMode then ticket=assert(ctx.menu:action('options')) "
                     + "else page=assert(ui.screens:open('menutest:detail'))end end}}};"
                     + "u2.screens:add{key='menutest:second',root={type='button',id='second',height=20,text='Partner'}};"
                     + "ui.screens:add{key='menutest:options',root={type='button',id='back',height=20,text='Back',"
@@ -78,8 +78,12 @@ final class UiMenuLiveChecks {
             capture(client, "ui-native-menu.png");
             click("menutest:a", "open");
             require(lua.get("clicks").toint() == 1, "Contribution native click count: " + lua.get("clicks"));
+            require(lua.load("return not pcall(function()lastMenuContext:enabled('options')end)").call().toboolean(),
+                    "A retained menu callback context remained usable after input returned");
             next(2);
         } else if (phase == 2 && ready("page and page:status()=='active'")) {
+            require(lua.load("return a:status()=='queued' and b:status()=='queued'").call().toboolean(),
+                    "Native navigation changed retired menu claims from queued to a stale failure status");
             require(currentScreen(client).getClass().getName().equals("betamoon.gui.screen.GuiManagedScreen"),
                     "A contributed action did not open a normal registered screen");
             lua.load("page:close()").call();
@@ -183,7 +187,7 @@ final class UiMenuLiveChecks {
         Object activation = invoke(field(entry, "controller"), "current");
         Object plan = invoke(activation, "plan");
         String resolved = (String) plan.getClass().getMethod("elementId", String.class).invoke(plan, id);
-        Object page = field(entry, "page");
+        Object page = invoke(field(entry, "document"), "page");
         Method tree = page.getClass().getDeclaredMethod("tree");
         tree.setAccessible(true);
         Object element = tree.invoke(page).getClass().getMethod("element", String.class).invoke(tree.invoke(page),
