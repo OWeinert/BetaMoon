@@ -27,6 +27,7 @@ public final class GuiScreenActivation implements GuiActionQueue.Activation {
     public final String key;
     GuiScreenDefinition definition;
     GuiScreenActivation parent;
+    String popoverAnchor;
     final GuiInputLifetime input = new GuiInputLifetime();
     GuiScreenController.Page page;
     Status status = Status.QUEUED;
@@ -81,6 +82,17 @@ public final class GuiScreenActivation implements GuiActionQueue.Activation {
 
     public GuiScreenController.OpenResult dialog(String key, Map<String, Object> state, Map<String, Object> data) {
         return controller.dialog(this, key, state, data);
+    }
+
+    public GuiScreenController.OpenResult popover(String key, String anchor, Map<String, Object> state,
+            Map<String, Object> data) {
+        requireActive();
+        plan().elementId(anchor);
+        GuiScreenController.OpenResult result = controller.dialog(this, key, state, data);
+        if (result.instance != null) {
+            result.instance.popoverAnchor = anchor;
+        }
+        return result;
     }
 
     GuiScreenActivation root() {

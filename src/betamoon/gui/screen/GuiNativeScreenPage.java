@@ -190,7 +190,16 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
         if (parent == null) {
             screen.scene().setDocument(current.tree);
         } else {
-            layer = screen.scene().openLayer(current.tree, true);
+            if (activation.popoverAnchor == null) {
+                layer = screen.scene().openLayer(current.tree, true);
+            } else {
+                GuiElement anchor = parent.current.tree
+                        .element(parent.current.plan.elementId(activation.popoverAnchor));
+                if (screen.scene().getContext().visibleBounds(anchor).isEmpty()) {
+                    throw new IllegalStateException("Popover anchor is unavailable");
+                }
+                layer = screen.scene().openPopover(anchor, current.tree);
+            }
             layer.onClosed(() -> activation.controller.externalClosed(activation));
             if (!activation.active() || !parent.usable()) {
                 layer.close();

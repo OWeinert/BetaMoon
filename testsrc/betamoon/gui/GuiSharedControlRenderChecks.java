@@ -20,6 +20,7 @@ import betamoon.gui.widget.GuiStyledView;
 import betamoon.gui.widget.GuiRadioView;
 import betamoon.gui.widget.GuiNumberBoxView;
 import betamoon.gui.widget.GuiTextAreaView;
+import betamoon.gui.widget.GuiBuiltInViews;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -78,8 +79,84 @@ final class GuiSharedControlRenderChecks {
         radioSelection(minecraft, font, output);
         multilineTextareas(minecraft, font, output);
         numericEntries(minecraft, font, output);
+        selectionsAndStatus(minecraft, font, output);
         bitmapAtlas(minecraft, font, output);
         phaseSafeOwnershipLoss(minecraft, font);
+    }
+
+    private static void selectionsAndStatus(Minecraft minecraft, FontRenderer font, File output) throws Exception {
+        List<GuiStyledView> controls = new ArrayList<>();
+        List<Rect> rectangles = new ArrayList<>();
+        GuiContainer content = new GuiContainer() {
+            @Override
+            protected void arrangeChildren(GuiContext context) {
+                for (int index = 0; index < controls.size(); index++) {
+                    controls.get(index).arrange(context, rectangles.get(index));
+                }
+            }
+        };
+        for (String presentation : Arrays.asList("linear", "segmented", "radial", "label")) {
+            Map<String, Object> values = new LinkedHashMap<>();
+            values.put("presentation", presentation);
+            values.put("value", 62.5);
+            values.put("segments", 8);
+            GuiStyledView status = GuiBuiltInViews.createControl("progress", GuiStyleSheet.MINIMAL,
+                    GuiDefaultTemplate.INSTANCE, (event, value) -> true).configure(values);
+            rectangles.add(presentation.equals("radial")
+                    ? Rect.fromPositionAndSize(215, 65, 64, 64)
+                    : Rect.fromPositionAndSize(30, 65 + controls.size() * 30, 150, 16));
+            controls.add(status);
+            content.add(status);
+        }
+        Map<String, Object> options = new LinkedHashMap<>();
+        options.put("options",
+                Arrays.asList(Collections.singletonMap("key", "Audio"), Collections.singletonMap("key", "Video")));
+        options.put("selectedKey", "Audio");
+        GuiStyledView tabs = GuiBuiltInViews
+                .createControl("tabs", GuiStyleSheet.MINIMAL, GuiDefaultTemplate.INSTANCE, (event, value) -> true)
+                .configure(options);
+        rectangles.add(Rect.fromPositionAndSize(30, 20, 250, 20));
+        controls.add(tabs);
+        content.add(tabs);
+        GuiStyledView select = GuiBuiltInViews
+                .createControl("dropdown", GuiStyleSheet.MINIMAL, GuiDefaultTemplate.INSTANCE, (event, value) -> true)
+                .configure(options);
+        rectangles.add(Rect.fromPositionAndSize(30, 190, 150, 20));
+        controls.add(select);
+        content.add(select);
+        GuiScene scene = new GuiScene();
+        scene.setContent(content);
+        scene.updateEnvironment(minecraft, font, 320, 240, 320, 240);
+        scene.prepare();
+        GuiShowcaseRenderTest.setupFrame();
+        scene.render(0, 0, 0);
+        ImageIO.write(GuiShowcaseRenderTest.capture(320, 240), "png",
+                new File(output, "shared-controls-status-tabs.png"));
+        for (GuiStyledView control : controls) {
+            if (control.kind().equals("progress")) {
+                Map<String, Object> values = new LinkedHashMap<>();
+                values.put("presentation", control.templateValues(true).get("presentation"));
+                values.put("indeterminate", true);
+                control.configure(values);
+            }
+        }
+        scene.prepare();
+        GuiShowcaseRenderTest.setupFrame();
+        scene.render(0, 0, 0);
+        ImageIO.write(GuiShowcaseRenderTest.capture(320, 240), "png",
+                new File(output, "shared-controls-status-indeterminate.png"));
+        scene.getContext().requestFocus(select);
+        scene.keyTyped('\r', Keyboard.KEY_RETURN, false);
+        scene.prepare();
+        GuiShowcaseRenderTest.setupFrame();
+        scene.render(0, 0, 0);
+        ImageIO.write(GuiShowcaseRenderTest.capture(320, 240), "png", new File(output, "shared-controls-dropdown.png"));
+        scene.keyTyped('\0', Keyboard.KEY_ESCAPE, false);
+        require(scene.getFocusedElement() == select && GL11.glGetError() == GL11.GL_NO_ERROR,
+                "Rendered popup lost focus or status rendering leaked GL state");
+        for (GuiStyledView control : controls) {
+            control.close();
+        }
     }
 
     private static void numericEntries(Minecraft minecraft, FontRenderer font, File output) throws Exception {

@@ -30,7 +30,7 @@ import org.lwjgl.input.Keyboard;
  * A keyed radio group is one retained focus stop with bounded, shared option
  * geometry.
  */
-public final class GuiRadioView extends GuiStyledView {
+public class GuiRadioView extends GuiStyledView {
     private GuiSelectionOptions options = new GuiSelectionOptions(Collections.emptyList());
     private Map<String, Object> values = Collections.emptyMap();
     private Events events;
@@ -47,7 +47,11 @@ public final class GuiRadioView extends GuiStyledView {
     private boolean revealPending;
 
     public GuiRadioView(GuiStyleSheet theme, GuiVisualTemplate template, Events events) {
-        super("radio", theme, template, events);
+        this("radio", theme, template, events);
+    }
+
+    protected GuiRadioView(String kind, GuiStyleSheet theme, GuiVisualTemplate template, Events events) {
+        super(kind, theme, template, events);
         this.events = events;
     }
 
@@ -56,7 +60,7 @@ public final class GuiRadioView extends GuiStyledView {
         super.validateValues(values);
         new GuiSelectionOptions(values.get("options"));
         GuiSelectionOptions.key(values.get("selectedKey"), true);
-        if (!Arrays.asList("vertical", "horizontal").contains(values.get("orientation"))) {
+        if (!Arrays.asList("vertical", "horizontal").contains(values.getOrDefault("orientation", "vertical"))) {
             throw new IllegalArgumentException("Radio orientation requires vertical or horizontal");
         }
     }
@@ -65,7 +69,7 @@ public final class GuiRadioView extends GuiStyledView {
     public GuiRadioView configure(Map<String, Object> values) {
         super.configure(values);
         published = false;
-        publishRadio(GuiBuiltInViews.properties("radio").withDefaults(values).baseline(), name -> false);
+        publishRadio(GuiBuiltInViews.properties(kind()).withDefaults(values).baseline(), name -> false);
         return this;
     }
 
@@ -330,7 +334,7 @@ public final class GuiRadioView extends GuiStyledView {
                 values.get("scaleY"));
     }
 
-    private boolean select(String key) {
+    protected boolean select(String key) {
         if (key.isEmpty() || key.equals(selected)) {
             return true;
         }

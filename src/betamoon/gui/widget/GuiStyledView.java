@@ -56,6 +56,7 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
     private GuiNumericRange range = new GuiNumericRange(0, 100, 1);
     private GuiTextEditorModel editor;
     private String text = "";
+    private String statusLabel = "";
     private String image = "";
     private String variant = "default";
     private String align = "stretch";
@@ -127,7 +128,7 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
         if ("scroll".equals(kind)) {
             return Collections.singletonList("focus");
         }
-        if ("radio".equals(kind)) {
+        if ("radio".equals(kind) || "tabs".equals(kind)) {
             return Arrays.asList("options", "focus");
         }
         if ("stepper".equals(kind)) {
@@ -139,7 +140,7 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
         if ("textbox".equals(kind) || "textarea".equals(kind) || "numberbox".equals(kind)) {
             return Arrays.asList("content", "caret", "selection", "focus");
         }
-        return Arrays.asList("button", "checkbox", "choice").contains(kind)
+        return Arrays.asList("button", "checkbox", "choice", "dropdown", "contextmenu").contains(kind)
                 ? Arrays.asList("content", "focus")
                 : Collections.emptyList();
     }
@@ -154,6 +155,10 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
         theme.resolve(styleReference(values), 0).requireActive();
         if ("grid".equals(kind)) {
             grid(values);
+        }
+        if ("progress".equals(kind)
+                && !Arrays.asList("linear", "segmented", "radial", "label").contains(values.get("presentation"))) {
+            throw new IllegalArgumentException("Progress presentation requires linear, segmented, radial or label");
         }
         if (!Arrays.asList("start", "center", "end", "stretch").contains(values.getOrDefault("align", "stretch"))
                 || !Arrays.asList("start", "center", "end").contains(values.getOrDefault("justify", "start"))
@@ -273,6 +278,11 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
                 range = new GuiNumericRange(minimum, maximum, step);
             }
             value = "progress".equals(kind) ? Math.max(minimum, Math.min(maximum, value)) : snapValue(range, value);
+            if ("progress".equals(kind)) {
+                statusLabel = text + (Boolean.TRUE.equals(values.get("indeterminate"))
+                        ? "..."
+                        : numericText(value) + " / " + numericText(maximum));
+            }
         }
         if ("textbox".equals(kind)) {
             if (editor == null || editor.maximumLength() != (int) number(values, "maximumLength", 4096)) {
@@ -400,8 +410,11 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
             height = Math.max(height, 20);
         }
         if ("progress".equals(kind)) {
-            width = Math.max(width, vertical ? 8 : 100);
-            height = Math.max(height, vertical ? 100 : 8);
+            Object presentation = values == null ? javaValues.get("presentation") : values.get("presentation");
+            boolean radial = "radial".equals(presentation);
+            boolean label = "label".equals(presentation);
+            width = Math.max(width, radial ? 64 : vertical ? 8 : 100);
+            height = Math.max(height, radial ? 64 : label ? style.font().lineHeight(context) : vertical ? 100 : 8);
         }
         if ("divider".equals(kind)) {
             width = Math.max(width, 1);
@@ -1234,6 +1247,10 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
                 : "choice".equals(kind)
                         ? text + options.get((int) value - 1)
                         : "stepper".equals(kind) ? text + numericText(value) : text;
+    }
+
+    public String statusLabel() {
+        return statusLabel;
     }
 
     public String image() {

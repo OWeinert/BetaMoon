@@ -16,6 +16,9 @@
 - Keyed radio groups with disabled choices, controlled selection and focused-option reveal through shared scrolling.
 - Plain multiline textareas with wrapping, scrolling, selection, clipboard editing and retained/controlled drafts.
 - Direct numeric entry with finite decimal validation, optional explicit stepping and retained/controlled drafts.
+- Keyed dropdowns, context menus and tabs with shared keyboard navigation and viewport-fitted popovers.
+- Anchored registered-screen popovers with focus restoration, outside/Escape/Tab dismissal and owned cleanup.
+- Segmented, radial, value-label and indeterminate status presentations over shared numeric ranges.
 - Prepared text/images/bitmap fonts, geometry and explicit scoped raw graphics with owned shaders, buffers and targets.
 - Four progressive client UI examples with configurable shortcuts, editor definitions and Lua API wiki references.
 
@@ -68,6 +71,7 @@
 ### Fixed
 
 - Shared viewports reveal nested keyboard focus, page by keyboard/track and cancel moving or stale scrollbar gestures.
+- Keyboard navigation reveals an unchanged selected list row after it moves offscreen during reorder.
 
 - Nested GUI scrolling now hands an exhausted wheel gesture to an eligible parent and handles extreme deltas without overflow.
 - Deferred UI actions from failed callbacks, rejected GUI command batches or expired component owners now cancel before dispatch.

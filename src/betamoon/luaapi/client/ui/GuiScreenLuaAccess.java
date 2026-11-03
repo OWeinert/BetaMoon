@@ -50,18 +50,23 @@ public final class GuiScreenLuaAccess {
             guard(source, scope, true);
             return LuaValue.valueOf(activation.back());
         }));
-        for (String operation : Arrays.asList("push", "replace", "dialog")) {
+        for (String operation : Arrays.asList("push", "replace", "dialog", "popover")) {
             access.set(operation, function(args -> {
                 guard(source, scope, true);
                 int offset = args.arg1() == access ? 1 : 0;
                 String key = LuaDeclarationValues.string(args.arg(offset + 1), "screen key");
                 GuiScreenDefinition definition = definitions.getRequired(key);
-                Map<String, Object>[] options = options(definition, args.arg(offset + 2));
-                GuiScreenController.OpenResult result = operation.equals("dialog")
-                        ? activation.dialog(key, options[0], options[1])
-                        : operation.equals("push")
-                                ? activation.push(key, options[0], options[1])
-                                : activation.replace(key, options[0], options[1]);
+                boolean popover = operation.equals("popover");
+                Map<String, Object>[] options = options(definition, args.arg(offset + (popover ? 3 : 2)));
+                GuiScreenController.OpenResult result = popover
+                        ? activation.popover(key,
+                                LuaDeclarationValues.string(args.arg(offset + 2), "anchor element id"), options[0],
+                                options[1])
+                        : operation.equals("dialog")
+                                ? activation.dialog(key, options[0], options[1])
+                                : operation.equals("push")
+                                        ? activation.push(key, options[0], options[1])
+                                        : activation.replace(key, options[0], options[1]);
                 return result.instance == null
                         ? refused(result.reason)
                         : instance(source, result.instance, null, definitions);

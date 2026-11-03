@@ -8,11 +8,13 @@ import betamoon.gui.widget.GuiStyledView;
 import betamoon.gui.widget.GuiRadioView;
 import betamoon.gui.widget.GuiTextAreaFrame;
 import betamoon.gui.control.GuiSelectionOptions;
+import betamoon.gui.control.GuiStatusGeometry;
 import betamoon.gui.graphics.GraphicsClip;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.Map;
 
 /**
  * Default Java painter. Input and editing remain in the view when this template
@@ -64,6 +66,25 @@ public final class GuiDefaultTemplate implements GuiVisualTemplate {
                     color(context, style, "border", 0xFF555555));
         } else if ("progress".equals(kind) || "slider".equals(kind)) {
             range(context, view, style);
+        } else if ("tabs".equals(kind)) {
+            GuiRadioView tabs = (GuiRadioView) view;
+            for (int i = 0; i < tabs.options().options.size(); i++) {
+                GuiSelectionOptions.Option option = tabs.options().options.get(i);
+                Rect tab = tabs.optionBounds(i);
+                if (option.key.equals(tabs.selectedKey())) {
+                    renderer.drawRect(tab, color(context, style, "selection", 0x8855AAFF));
+                }
+                renderer.pushClip(tab);
+                try {
+                    style.font().draw(context, option.label, tab.getLeft() + 4, tab.getTop() + 5,
+                            option.enabled ? foreground : 0xFF777777, style.flag("shadow", true));
+                } finally {
+                    renderer.popClip();
+                }
+                if (tabs.isFocused() && option.key.equals(tabs.focusKey())) {
+                    border(renderer, tab, 1, color(context, style, "focus", 0xFFFFFFA0));
+                }
+            }
         } else if ("radio".equals(kind)) {
             radio(context, (GuiRadioView) view, style, foreground);
         } else if ("stepper".equals(kind)) {
@@ -73,6 +94,23 @@ public final class GuiDefaultTemplate implements GuiVisualTemplate {
             if (frame != null) {
                 frame.paint(context, foreground, color(context, style, "selection", 0x8855AAFF),
                         style.flag("shadow", true), view.caretVisible(context));
+            }
+        } else if ("dropdown".equals(kind) || "contextmenu".equals(kind)) {
+            int y = bounds.getTop() + (bounds.getHeight() - style.font().lineHeight(context)) / 2;
+            renderer.pushClip(new Rect(bounds.getLeft() + 4, bounds.getTop(),
+                    Math.max(bounds.getLeft() + 4, bounds.getRight() - 16), bounds.getBottom()));
+            try {
+                style.font().draw(context, view.text(), bounds.getLeft() + 4, y, foreground,
+                        style.flag("shadow", true));
+            } finally {
+                renderer.popClip();
+            }
+            renderer.pushClip(bounds);
+            try {
+                style.font().draw(context, "dropdown".equals(kind) ? "v" : "...", bounds.getRight() - 14, y, foreground,
+                        style.flag("shadow", true));
+            } finally {
+                renderer.popClip();
             }
         } else if ("textbox".equals(kind) || "numberbox".equals(kind)) {
             editor(context, view, style, foreground);
@@ -178,7 +216,65 @@ public final class GuiDefaultTemplate implements GuiVisualTemplate {
         Rect bounds = view.getBounds();
         int accent = color(context, style, "accent", 0xFF55AAFF);
         if ("progress".equals(view.kind())) {
+            Map<String, Object> values = view.templateValues(false);
+            String presentation = (String) values.get("presentation");
+            boolean indeterminate = Boolean.TRUE.equals(values.get("indeterminate"));
+            double phase = GuiStatusGeometry.phase(context.getCurrentTimeMillis());
+            double fraction = indeterminate ? phase : view.fraction();
+            if ("radial".equals(presentation)) {
+                renderer.drawSector(bounds, 0, 1, color(context, style, "background", 0xFF202020));
+                renderer.drawSector(bounds, indeterminate ? phase : 0, indeterminate ? 0.25 : fraction, accent);
+                return;
+            }
+            if ("label".equals(presentation)) {
+                renderer.pushClip(bounds);
+                try {
+                    style.font().draw(context, view.statusLabel(), bounds.getLeft(), bounds.getTop(),
+                            color(context, style, "foreground", 0xFFE0E0E0), style.flag("shadow", true));
+                } finally {
+                    renderer.popClip();
+                }
+                return;
+            }
+            if ("segmented".equals(presentation)) {
+                int count = ((Number) values.get("segments")).intValue();
+                for (int index = 0; index < count; index++) {
+                    int start = (view.vertical() ? bounds.getHeight() : bounds.getWidth()) * index / count;
+                    int end = (view.vertical() ? bounds.getHeight() : bounds.getWidth()) * (index + 1) / count;
+                    double fill = indeterminate
+                            ? index == Math.min(count - 1, (int) (phase * count)) ? 1 : 0
+                            : GuiStatusGeometry.segment(fraction, index, count);
+                    Rect segment = view.vertical()
+                            ? new Rect(bounds.getLeft(), bounds.getBottom() - end + 1, bounds.getRight(),
+                                    bounds.getBottom() - start)
+                            : new Rect(bounds.getLeft() + start, bounds.getTop(), bounds.getLeft() + end - 1,
+                                    bounds.getBottom());
+                    renderer.drawRect(segment, color(context, style, "background", 0xFF202020));
+                    Rect filled = view.vertical()
+                            ? new Rect(segment.getLeft(),
+                                    segment.getBottom() - (int) Math.round(segment.getHeight() * fill),
+                                    segment.getRight(), segment.getBottom())
+                            : new Rect(segment.getLeft(), segment.getTop(),
+                                    segment.getLeft() + (int) Math.round(segment.getWidth() * fill),
+                                    segment.getBottom());
+                    renderer.drawRect(filled, accent);
+                }
+                return;
+            }
             renderer.drawRect(bounds, color(context, style, "background", 0xFF202020));
+            if (indeterminate) {
+                int extent = view.vertical() ? bounds.getHeight() : bounds.getWidth();
+                int start = (int) Math.round((phase * 1.25 - 0.25) * extent);
+                int end = Math.min(extent, start + Math.max(1, extent / 4));
+                start = Math.max(0, start);
+                renderer.drawRect(view.vertical()
+                        ? new Rect(bounds.getLeft(), bounds.getBottom() - end, bounds.getRight(),
+                                bounds.getBottom() - start)
+                        : new Rect(bounds.getLeft() + start, bounds.getTop(), bounds.getLeft() + end,
+                                bounds.getBottom()),
+                        accent);
+                return;
+            }
             if (view.vertical()) {
                 renderer.drawRect(bounds.getLeft(),
                         bounds.getBottom() - (int) Math.round(bounds.getHeight() * view.fraction()), bounds.getRight(),

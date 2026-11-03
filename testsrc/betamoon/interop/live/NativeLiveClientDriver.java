@@ -246,8 +246,7 @@ public final class NativeLiveClientDriver {
         return field.get(object);
     }
 
-    private static void setField(Object object, String owner, String name, String descriptor, Object value)
-            throws Exception {
+    static void setField(Object object, String owner, String name, String descriptor, Object value) throws Exception {
         ResolvedField target = mappings.resolveField(new FieldRef(new ClassRef(owner), name, descriptor), namespace);
         Class<?> type = Class.forName(target.getOwner().replace('/', '.'), false, object.getClass().getClassLoader());
         Field field = type.getDeclaredField(target.getName());

@@ -19,13 +19,19 @@ public abstract class GuiElement {
     private boolean collapsed;
     private double opacity = 1;
     private GuiInputLifetime inputLifetime;
+    private GuiElement inputOwner;
 
     public final void inputLifetime(GuiInputLifetime lifetime) {
         inputLifetime = lifetime;
     }
 
     final boolean inputLifetimeActive() {
-        return inputLifetime == null || inputLifetime.active();
+        return (inputLifetime == null || inputLifetime.active())
+                && (inputOwner == null || inputOwner.belongsTo(scene) && inputOwner.isAvailable());
+    }
+
+    final void inheritInputFrom(GuiElement owner) {
+        inputOwner = owner;
     }
 
     public final double getOpacity() {

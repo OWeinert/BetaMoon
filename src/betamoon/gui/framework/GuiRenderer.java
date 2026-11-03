@@ -243,6 +243,45 @@ public final class GuiRenderer {
         drawRect(rect.getLeft(), rect.getTop(), rect.getRight(), rect.getBottom(), color);
     }
 
+    /**
+     * Bounded sector triangles; uses the same saved GL state as ordinary
+     * rectangles.
+     */
+    public void drawSector(Rect bounds, double start, double fraction, int color) {
+        if (!Double.isFinite(start) || !Double.isFinite(fraction) || bounds.isEmpty()) {
+            return;
+        }
+        fraction = Math.max(0, Math.min(1, fraction));
+        int triangles = (int) Math.ceil(fraction * 64);
+        double radius = Math.min(bounds.getWidth(), bounds.getHeight()) / 2D;
+        double x = bounds.getLeft() + bounds.getWidth() / 2D;
+        double y = bounds.getTop() + bounds.getHeight() / 2D;
+        GL11.glPushAttrib(DRAW_STATE_BITS);
+        try {
+            GL11.glEnable(GL11.GL_BLEND);
+            GL11.glDisable(GL11.GL_TEXTURE_2D);
+            GL11.glDisable(GL11.GL_CULL_FACE);
+            GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+            GL11.glColor4f((color >> 16 & 255) / 255F, (color >> 8 & 255) / 255F, (color & 255) / 255F,
+                    (color >>> 24) / 255F);
+            if (triangles > 0) {
+                Tessellator batch = Tessellator.instance;
+                batch.startDrawing(GL11.GL_TRIANGLES);
+                double previous = start * Math.PI * 2 - Math.PI / 2;
+                for (int i = 1; i <= triangles; i++) {
+                    double angle = (start + Math.min(fraction, i / 64D)) * Math.PI * 2 - Math.PI / 2;
+                    batch.addVertex(x, y, 0);
+                    batch.addVertex(x + Math.cos(previous) * radius, y + Math.sin(previous) * radius, 0);
+                    batch.addVertex(x + Math.cos(angle) * radius, y + Math.sin(angle) * radius, 0);
+                    previous = angle;
+                }
+                batch.draw();
+            }
+        } finally {
+            GL11.glPopAttrib();
+        }
+    }
+
     public void drawRect(int left, int top, int right, int bottom, int color) {
         if (right <= left || bottom <= top) {
             return;

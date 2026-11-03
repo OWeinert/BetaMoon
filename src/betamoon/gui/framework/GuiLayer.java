@@ -7,19 +7,28 @@ import betamoon.gui.presentation.GuiPresentationTree;
  * exactly once.
  */
 public final class GuiLayer implements AutoCloseable {
+    interface Document {
+        GuiPresentationTree document();
+
+        void replace(GuiPresentationTree replacement);
+    }
     final GuiElement content;
     final GuiElement opener;
     final boolean modal;
+    final boolean dim;
+    final boolean closeOnTab;
     private final GuiScene scene;
     private boolean active = true;
     private Runnable closed = () -> {
     };
 
-    GuiLayer(GuiScene scene, GuiElement content, boolean modal, GuiElement opener) {
+    GuiLayer(GuiScene scene, GuiElement content, boolean modal, GuiElement opener, boolean dim, boolean closeOnTab) {
         this.scene = scene;
         this.content = content;
         this.modal = modal;
         this.opener = opener;
+        this.dim = dim;
+        this.closeOnTab = closeOnTab;
     }
 
     public boolean isActive() {
@@ -27,7 +36,7 @@ public final class GuiLayer implements AutoCloseable {
     }
 
     public GuiPresentationTree document() {
-        return content instanceof GuiLayerDocument ? ((GuiLayerDocument) content).document() : null;
+        return content instanceof Document ? ((Document) content).document() : null;
     }
 
     public void onClosed(Runnable callback) {
@@ -48,7 +57,7 @@ public final class GuiLayer implements AutoCloseable {
             GuiPresentationTree document = document();
             if (document != null) {
                 document.close();
-                ((GuiLayerDocument) content).replace(null);
+                ((Document) content).replace(null);
             }
         }
     }

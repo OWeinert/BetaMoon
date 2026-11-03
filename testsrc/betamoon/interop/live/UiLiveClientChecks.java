@@ -33,6 +33,7 @@ final class UiLiveClientChecks {
     private static int phase;
     private static int wait;
     private static int worldPhase;
+    private static int originalGuiScale;
     private static int example;
     private static String exampleOwner;
     private static Object exampleMenu;
@@ -120,7 +121,8 @@ final class UiLiveClientChecks {
                                     + "on={activate=function(ctx)assert(ctx.native);ctx.state:set('count',ctx.state:get('count')+1);rowEdits=rowEdits+1 end}}end},"
                                     + "{type='button',id='accept',text='Accept',on={activate=function(ctx)dialogTicket=ctx.screen:request('accept',{})end}},"
                                     + "{type='textarea',id='notes',theme='uitest:notes',height=26,text='Note',on={change=function(ctx,e)notesDraft=e.value end,commit=function(ctx,e)notesCommit=e.value end}},"
-                                    + "{type='numberbox',id='amount',height=20,on={change=function(ctx,e)numericValue=e.value end}}}}}}};ui.screens:add(dialogDefinition);"
+                                    + "{type='row',height=20,children={{type='numberbox',id='amount',grow=1,height=20,on={change=function(ctx,e)numericValue=e.value end}},"
+                                    + "{type='dropdown',id='selection',grow=1,height=20,selectedKey='a',options={{key='a'},{key='off',enabled=false},{key='b'}},on={change=function(ctx,e)menuValue=e.value end}}}}}}}}};ui.screens:add(dialogDefinition);"
                                     + "ui.screens:add(definition);wrongGuiTick=false;betamoon.events:on('gui_tick',function(ctx)"
                                     + "if form and form:status()=='active' and ctx.name~='GuiManagedScreen' then wrongGuiTick=true end end);"
                                     + "opening=betamoon.events:on('game_tick',function(ctx)if not form then "
@@ -217,6 +219,10 @@ final class UiLiveClientChecks {
             require(((Number) invoke(entries, "realizedRows")).intValue() == 2 && lua.get("rowCalls").toint() == 2,
                     "Native Lua list did not bound its 4096 records to two realized rows");
             clickElement(client, invoke(entries, "rowElement", String.class, "r1"));
+            click(client, "selection");
+            NativeLiveClientDriver.call(screen, SCREEN, "keyTyped", "(CI)V", '\0', 208);
+            NativeLiveClientDriver.call(screen, SCREEN, "keyTyped", "(CI)V", '\r', 28);
+            require(lua.get("menuValue").tojstring().equals("b"), "Native dropdown did not skip its disabled option");
             click(client, "amount");
             NativeLiveClientDriver.call(screen, SCREEN, "keyTyped", "(CI)V", '\0', 199);
             NativeLiveClientDriver.call(screen, SCREEN, "keyTyped", "(CI)V", '\0', 211);
@@ -306,6 +312,22 @@ final class UiLiveClientChecks {
                     "Radio selection was lost through native refresh");
             require(lua.load("return paintCalls==2").call().toboolean(),
                     "Compatible visual refresh rebuilt paint repeatedly");
+            lua.load("ui.screens:add{key='uitest:help',root={type='button',text='Help',width=100,height=30}};"
+                    + "anchored=assert(form:popover('uitest:help','apply'))").call();
+            wait = 0;
+            phase = 31;
+            return false;
+        }
+        if (phase == 31) {
+            if (!lua.load("return anchored:status()=='active'").call().toboolean()) {
+                require(++wait < 30, "Registered-screen popover did not activate");
+                return false;
+            }
+            require(NativeLiveClientDriver.field(client, CLIENT, "currentScreen",
+                    "Lnet/minecraft/src/GuiScreen;") == screen, "Anchored popover replaced the native screen");
+            NativeLiveClientDriver.call(screen, SCREEN, "keyTyped", "(CI)V", '\0', 1);
+            require(lua.load("return anchored:status()=='closed' and form:status()=='active'").call().toboolean(),
+                    "Escape did not dismiss only the registered-screen popover");
             lua.load(
                     "ui.components:add{key='uitest:wheel',size={width=80,height=80},paint=function()return {{op='rect',width=-1,height=10}}end}")
                     .call();
@@ -321,8 +343,38 @@ final class UiLiveClientChecks {
                     "Lnet/minecraft/src/GuiScreen;") == screen, "Rejected custom paint replaced the native page");
             require(lua.load("return form:status()=='active' and form.state:get('count')==8").call().toboolean(),
                     "Rejected paint refresh discarded the usable model");
-            click(client, "close");
-            phase = 5;
+            Object settings = NativeLiveClientDriver.field(client, CLIENT, "gameSettings",
+                    "Lnet/minecraft/src/GameSettings;");
+            originalGuiScale = ((Number) NativeLiveClientDriver.field(settings, "net/minecraft/src/GameSettings",
+                    "guiScale", "I")).intValue();
+            resizeGui(client, 1);
+            wait = 0;
+            phase = 41;
+            return false;
+        }
+        if (phase == 41 || phase == 42 || phase == 43) {
+            if (++wait < 4) {
+                return false;
+            }
+            require(lua.load("return form:status()=='active'").call().toboolean(),
+                    "GUI scale change lost the active document");
+            if (phase == 41) {
+                click(client, "apply");
+                resizeGui(client, 2);
+                phase = 42;
+            } else if (phase == 42) {
+                require(lua.load("return form.state:get('count')==9").call().toboolean(),
+                        "Small GUI scale changed dispatch count");
+                click(client, "apply");
+                resizeGui(client, originalGuiScale);
+                phase = 43;
+            } else {
+                require(lua.load("return form.state:get('count')==10").call().toboolean(),
+                        "Large GUI scale changed dispatch count");
+                click(client, "close");
+                phase = 5;
+            }
+            wait = 0;
             return false;
         }
         if (phase == 5) {
@@ -516,6 +568,21 @@ final class UiLiveClientChecks {
             throw expected;
         }
         throw new AssertionError("Callback unexpectedly allowed " + method.getName());
+    }
+
+    private static void resizeGui(Object client, int requested) throws Exception {
+        Object settings = NativeLiveClientDriver.field(client, CLIENT, "gameSettings",
+                "Lnet/minecraft/src/GameSettings;");
+        NativeLiveClientDriver.setField(settings, "net/minecraft/src/GameSettings", "guiScale", "I", requested);
+        int width = ((Number) NativeLiveClientDriver.field(client, CLIENT, "displayWidth", "I")).intValue();
+        int height = ((Number) NativeLiveClientDriver.field(client, CLIENT, "displayHeight", "I")).intValue();
+        int factor = 1;
+        int maximum = requested == 0 ? 1000 : requested;
+        while (factor < maximum && width / (factor + 1) >= 320 && height / (factor + 1) >= 240) {
+            factor++;
+        }
+        NativeLiveClientDriver.call(screen, SCREEN, "setWorldAndResolution", "(Lnet/minecraft/client/Minecraft;II)V",
+                client, (int) Math.ceil(width / (double) factor), (int) Math.ceil(height / (double) factor));
     }
 
     private static void capture(Object client) throws Exception {

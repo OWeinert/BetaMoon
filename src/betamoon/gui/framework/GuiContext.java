@@ -145,6 +145,47 @@ public final class GuiContext {
         scene.requestFocus(element);
     }
 
+    public GuiLayer openPopover(GuiElement anchor, GuiElement content, boolean atPointer, int x, int y) {
+        LuaCallbackScope.requireUiStateWrite();
+        return scene.openPopover(anchor, content, atPointer, x, y);
+    }
+
+    /**
+     * Current arranged anchor geometry, projected through ancestor transforms and
+     * clipping.
+     */
+    public Rect visibleBounds(GuiElement element) {
+        if (element == null || !element.belongsTo(scene) || !element.isAvailable()) {
+            return Rect.EMPTY;
+        }
+        List<GuiElement> path = new ArrayList<>();
+        for (GuiElement current = element; current != null; current = current.getParent()) {
+            path.add(current);
+        }
+        GraphicsTransform transform = GraphicsTransform.IDENTITY;
+        GraphicsClip clip = new GraphicsClip(0, 0, screenWidth, screenHeight);
+        for (int index = path.size() - 1; index >= 0; index--) {
+            GuiElement current = path.get(index);
+            transform = transform.compose(current.arrangedTransform());
+            Rect bounds = current.getBounds();
+            if (current == element) {
+                GraphicsClip result = clip.intersect(
+                        new GraphicsClip(bounds.getLeft(), bounds.getTop(), bounds.getRight(), bounds.getBottom())
+                                .transform(transform));
+                return result.isEmpty()
+                        ? Rect.EMPTY
+                        : new Rect((int) Math.floor(result.left), (int) Math.floor(result.top),
+                                (int) Math.ceil(result.right), (int) Math.ceil(result.bottom));
+            }
+            Rect requested = current.childInputClip();
+            if (requested != null) {
+                clip = clip.intersect(new GraphicsClip(requested.getLeft(), requested.getTop(), requested.getRight(),
+                        requested.getBottom()).transform(transform));
+            }
+        }
+        return Rect.EMPTY;
+    }
+
     public void capturePointer(GuiElement element) {
         scene.capturePointer(element);
     }

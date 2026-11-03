@@ -6,17 +6,17 @@ import betamoon.gui.presentation.GuiPresentationTree;
 /**
  * Stable scene portal preserves layer order while a document revision changes.
  */
-final class GuiLayerDocument extends GuiContainer implements GuiViewportLayout {
+final class GuiLayerDocument extends GuiContainer implements GuiViewportLayout, GuiLayer.Document {
     private GuiPresentationTree document;
     GuiLayerDocument(GuiPresentationTree document) {
         replace(document);
     }
 
-    GuiPresentationTree document() {
+    public GuiPresentationTree document() {
         return document;
     }
 
-    void replace(GuiPresentationTree replacement) {
+    public void replace(GuiPresentationTree replacement) {
         clear();
         document = replacement;
         if (replacement != null) {

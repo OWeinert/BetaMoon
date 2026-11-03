@@ -241,6 +241,9 @@ public class GuiCollectionView extends GuiStyledView {
 
     private boolean select(String key, boolean reveal) {
         if (Objects.equals(key, collection.selection())) {
+            if (reveal) {
+                collection.reveal(key);
+            }
             return true;
         }
         Map<String, Object> next = new LinkedHashMap<>(captureState());

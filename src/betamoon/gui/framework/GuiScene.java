@@ -85,10 +85,14 @@ public final class GuiScene {
     }
 
     public GuiLayer openLayer(GuiElement content, boolean modal) {
+        return openLayer(content, modal, modal, false);
+    }
+
+    private GuiLayer openLayer(GuiElement content, boolean modal, boolean dim, boolean closeOnTab) {
         if (content == null || content.getParent() != null) {
             throw new IllegalArgumentException("A layer requires unattached content");
         }
-        GuiLayer layer = new GuiLayer(this, content, modal, focusedElement);
+        GuiLayer layer = new GuiLayer(this, content, modal, focusedElement, dim, closeOnTab);
         Runnable attach = () -> {
             if (!layer.isActive()) {
                 return;
@@ -118,8 +122,24 @@ public final class GuiScene {
         return layer;
     }
 
+    public GuiLayer openPopover(GuiElement anchor, GuiElement content, boolean atPointer, int x, int y) {
+        if (anchor == null || !anchor.belongsTo(this) || !anchor.isAvailable()) {
+            throw new IllegalArgumentException("Popover anchor must be an available element in this scene");
+        }
+        GuiAnchoredPopover portal = new GuiAnchoredPopover(anchor, content, atPointer, x, y);
+        GuiLayer layer = openLayer(portal, true, false, true);
+        portal.bind(layer);
+        return layer;
+    }
+
+    public GuiLayer openPopover(GuiElement anchor, GuiPresentationTree document) {
+        GuiLayer layer = openPopover(anchor, new GuiLayerDocument(document), false, 0, 0);
+        document.activate();
+        return layer;
+    }
+
     void replaceLayer(GuiLayer layer, GuiPresentationTree replacement) {
-        if (!layer.isActive() || !layers.contains(layer) || !(layer.content instanceof GuiLayerDocument)) {
+        if (!layer.isActive() || !layers.contains(layer) || !(layer.content instanceof GuiLayer.Document)) {
             throw new IllegalStateException("Layer document is unavailable");
         }
         if (deferMutation(() -> replaceLayer(layer, replacement))) {
@@ -127,7 +147,7 @@ public final class GuiScene {
         }
         GuiPresentationTree previous = layer.document();
         GuiElement restore = previous == null ? null : replacement.compatibleElement(previous, focusedElement);
-        ((GuiLayerDocument) layer.content).replace(replacement);
+        ((GuiLayer.Document) layer.content).replace(replacement);
         replacement.activate();
         if (restore != null) {
             requestFocus(restore);
@@ -140,7 +160,7 @@ public final class GuiScene {
 
     boolean dimBefore(GuiElement element) {
         for (GuiLayer layer : layers) {
-            if (layer.isActive() && layer.modal) {
+            if (layer.isActive() && layer.dim) {
                 return layer.content == element;
             }
         }
@@ -464,6 +484,12 @@ public final class GuiScene {
     }
 
     public boolean keyTyped(char typedChar, int keyCode, boolean shiftDown, boolean controlDown) {
+        if (keyCode == Keyboard.KEY_TAB && !layers.isEmpty()) {
+            GuiLayer top = layers.get(layers.size() - 1);
+            if (top.closeOnTab) {
+                top.close();
+            }
+        }
         GuiElement scope = modalScope();
         if (keyCode == Keyboard.KEY_TAB && moveFocus(shiftDown)) {
             return true;
