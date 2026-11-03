@@ -129,11 +129,7 @@ public final class InputRouter {
             return false;
         }
         physical.apply(event);
-        Boolean guiDecision = event.device() == InputDeviceEvent.Device.MOUSE_BUTTON
-                ? guiDecision(guiGestures, rearmGuiButtons, event, repeated)
-                : event.device() == InputDeviceEvent.Device.KEYBOARD
-                        ? guiDecision(guiKeys, rearmGuiKeys, event, repeated)
-                        : null;
+        Boolean guiDecision = guiDecision(event, repeated);
         if (guiDecision != null && (event.pressed() || guiDecision)) {
             return guiDecision;
         }
@@ -148,6 +144,26 @@ public final class InputRouter {
             consumed |= captures(registration, InputFamily.NAMED_ACTIONS);
         }
         return guiDecision != null ? guiDecision : consumed || update.retainedConsumption;
+    }
+
+    /**
+     * Engine settings/capture screens settle GUI gestures without dispatching
+     * script input maps.
+     */
+    public boolean acceptProtected(InputDeviceEvent event, boolean repeated) {
+        if (event == null) {
+            return false;
+        }
+        physical.apply(event);
+        return Boolean.TRUE.equals(guiDecision(event, repeated));
+    }
+
+    private Boolean guiDecision(InputDeviceEvent event, boolean repeated) {
+        return event.device() == InputDeviceEvent.Device.MOUSE_BUTTON
+                ? guiDecision(guiGestures, rearmGuiButtons, event, repeated)
+                : event.device() == InputDeviceEvent.Device.KEYBOARD
+                        ? guiDecision(guiKeys, rearmGuiKeys, event, repeated)
+                        : null;
     }
 
     private Boolean guiDecision(Map<Integer, WeakReference<Object>> gestures, Set<Integer> rearm,

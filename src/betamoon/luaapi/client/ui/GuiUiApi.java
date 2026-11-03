@@ -107,6 +107,7 @@ public final class GuiUiApi {
         ui.set("themes", themes);
         ui.set("components", components);
         ui.set("screens", screens);
+        ui.set("menus", GuiMenuLuaAccess.registry(source));
         client.set("ui", ui);
         module.set("client", client);
     }
@@ -125,10 +126,10 @@ public final class GuiUiApi {
         value.set("pauseGame", LuaValue.valueOf(definition.pauseGame));
         return value;
     }
-    private interface Method {
+    interface Method {
         Varargs invoke(Varargs arguments);
     }
-    private static LuaValue owned(String source, Method method) {
+    static LuaValue owned(String source, Method method) {
         VarArgFunction operation = new VarArgFunction() {
             public Varargs invoke(Varargs arguments) {
                 return method.invoke(arguments);

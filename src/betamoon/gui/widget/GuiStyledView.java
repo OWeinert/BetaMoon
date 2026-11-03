@@ -1,9 +1,9 @@
 package betamoon.gui.widget;
 
 import betamoon.gui.control.GuiActivation;
-import betamoon.gui.control.GuiClipboard;
 import betamoon.gui.control.GuiNumericRange;
 import betamoon.gui.control.GuiTextEditorModel;
+import betamoon.gui.control.GuiTextEditKeys;
 import betamoon.gui.framework.GuiContainer;
 import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiElement;
@@ -930,38 +930,24 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
         int key = event.getKeyCode();
         boolean control = Keyboard.isCreated()
                 && (Keyboard.isKeyDown(Keyboard.KEY_LCONTROL) || Keyboard.isKeyDown(Keyboard.KEY_RCONTROL));
-        if (control && key == Keyboard.KEY_A) {
-            editor.selectAll();
-        } else if (control && (key == Keyboard.KEY_C || key == Keyboard.KEY_X)) {
-            GuiClipboard.write(editor.text().substring(editor.selectionStart(), editor.selectionEnd()));
-            if (key == Keyboard.KEY_X) {
-                editor.insert("");
-            }
-        } else if (control && key == Keyboard.KEY_V) {
-            editor.insert(GuiClipboard.read(editor.maximumLength()));
-        } else if (key == Keyboard.KEY_LEFT || key == Keyboard.KEY_RIGHT) {
-            editor.move(editor.caret() + (key == Keyboard.KEY_LEFT ? -1 : 1), event.isShiftDown());
-        } else if (key == Keyboard.KEY_HOME || key == Keyboard.KEY_END) {
-            editor.move(key == Keyboard.KEY_HOME ? 0 : editor.text().length(), event.isShiftDown());
-        } else if (key == Keyboard.KEY_BACK || key == Keyboard.KEY_DELETE) {
-            editor.erase(key == Keyboard.KEY_BACK);
-        } else if (key == Keyboard.KEY_RETURN || key == Keyboard.KEY_NUMPADENTER) {
+        if (key == Keyboard.KEY_RETURN || key == Keyboard.KEY_NUMPADENTER) {
             commitEditor();
             caretStart = context.getCurrentTimeMillis();
             return true;
-        } else if (key == Keyboard.KEY_ESCAPE) {
+        }
+        if (key == Keyboard.KEY_ESCAPE) {
             editor.cancel();
             notifyEditor("cancel");
             caretStart = context.getCurrentTimeMillis();
             return true;
-        } else if (event.getTypedChar() >= 32 && event.getTypedChar() != 127) {
-            editor.insert(String.valueOf(event.getTypedChar()));
-        } else {
+        }
+        GuiTextEditKeys.Result result = GuiTextEditKeys.apply(editor, event.getTypedChar(), key, event.isShiftDown(),
+                control, character -> true);
+        if (result == GuiTextEditKeys.Result.UNHANDLED) {
             return false;
         }
         caretStart = context.getCurrentTimeMillis();
-        if (key != Keyboard.KEY_LEFT && key != Keyboard.KEY_RIGHT && key != Keyboard.KEY_HOME && key != Keyboard.KEY_END
-                && !(control && (key == Keyboard.KEY_A || key == Keyboard.KEY_C))) {
+        if (result == GuiTextEditKeys.Result.EDIT) {
             requestLayout();
             notifyEditor("change");
         }

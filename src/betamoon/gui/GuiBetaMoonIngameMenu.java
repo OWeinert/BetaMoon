@@ -1,32 +1,49 @@
 package betamoon.gui;
 
-import net.minecraft.src.GuiButton;
+import betamoon.client.control.input.ClientInputRuntime;
+import betamoon.gui.menu.GuiMenuRuntime;
 import net.minecraft.src.GuiIngameMenu;
 
-/** Adds BetaMoon's Scripts screen to Minecraft's in-game pause menu. */
+/**
+ * Engine adapter for the common native-menu contribution host, including
+ * agent-free recovery.
+ */
 public final class GuiBetaMoonIngameMenu extends GuiIngameMenu {
-    private static final int SCRIPTS_BUTTON_ID = 900;
-    private static final int SCRIPTS_BUTTON_WIDTH = 90;
-    private static final int SCRIPTS_BUTTON_HEIGHT = 20;
-    private static final int MENU_EDGE_INSET = 10;
-    private static final int MENU_BOTTOM_INSET = 20;
-
     @Override
-    @SuppressWarnings("unchecked") // Minecraft exposes the inherited control list without a generic type.
     public void initGui() {
         super.initGui();
-
-        int buttonY = this.height - MENU_BOTTOM_INSET - SCRIPTS_BUTTON_HEIGHT;
-        this.controlList.add(new GuiButton(SCRIPTS_BUTTON_ID, MENU_EDGE_INSET, buttonY,
-                SCRIPTS_BUTTON_WIDTH, SCRIPTS_BUTTON_HEIGHT, "Scripts"));
+        GuiMenuRuntime.initialized(mc, this, controlList);
     }
 
     @Override
-    protected void actionPerformed(GuiButton button) {
-        if (button.id == SCRIPTS_BUTTON_ID) {
-            this.mc.displayGuiScreen(new GuiScreenScripts(this));
-            return;
+    public void updateScreen() {
+        super.updateScreen();
+        GuiMenuRuntime.tick(mc);
+    }
+
+    @Override
+    public void drawScreen(int mouseX, int mouseY, float partialTicks) {
+        GuiMenuRuntime.nativePaint(this, controlList, () -> super.drawScreen(mouseX, mouseY, partialTicks));
+        GuiMenuRuntime.paint(this, mouseX, mouseY, partialTicks);
+    }
+
+    @Override
+    public void handleKeyboardInput() {
+        if (!ClientInputRuntime.consumesCurrentKeyboardEvent() && !GuiMenuRuntime.keyboard(this)) {
+            super.handleKeyboardInput();
         }
-        super.actionPerformed(button);
+    }
+
+    @Override
+    public void handleMouseInput() {
+        if (!ClientInputRuntime.consumesCurrentMouseEvent() && !GuiMenuRuntime.mouse(this)) {
+            super.handleMouseInput();
+        }
+    }
+
+    @Override
+    public void onGuiClosed() {
+        GuiMenuRuntime.closed(this);
+        super.onGuiClosed();
     }
 }

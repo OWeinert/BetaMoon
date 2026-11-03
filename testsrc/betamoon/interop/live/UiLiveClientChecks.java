@@ -34,6 +34,7 @@ final class UiLiveClientChecks {
     private static int wait;
     private static int worldPhase;
     private static int originalGuiScale;
+    private static long resizedFrame;
     private static int example;
     private static String exampleOwner;
     private static Object exampleMenu;
@@ -353,7 +354,7 @@ final class UiLiveClientChecks {
             return false;
         }
         if (phase == 41 || phase == 42 || phase == 43) {
-            if (++wait < 4) {
+            if (++wait < 4 || NativeLiveClientDriver.presentedFrames() <= resizedFrame + 1) {
                 return false;
             }
             require(lua.load("return form:status()=='active'").call().toboolean(),
@@ -370,7 +371,7 @@ final class UiLiveClientChecks {
                 phase = 43;
             } else {
                 require(lua.load("return form.state:get('count')==10").call().toboolean(),
-                        "Large GUI scale changed dispatch count");
+                        "Large GUI scale changed dispatch count: " + lua.load("return form.state:get('count')").call());
                 click(client, "close");
                 phase = 5;
             }
@@ -571,6 +572,7 @@ final class UiLiveClientChecks {
     }
 
     private static void resizeGui(Object client, int requested) throws Exception {
+        resizedFrame = NativeLiveClientDriver.presentedFrames();
         Object settings = NativeLiveClientDriver.field(client, CLIENT, "gameSettings",
                 "Lnet/minecraft/src/GameSettings;");
         NativeLiveClientDriver.setField(settings, "net/minecraft/src/GameSettings", "guiScale", "I", requested);
@@ -636,6 +638,11 @@ final class UiLiveClientChecks {
         int y = ((Number) invoke(element, "getTop")).intValue() + 4;
         NativeLiveClientDriver.call(screen, SCREEN, "mouseClicked", "(III)V", x, y, 0);
         NativeLiveClientDriver.call(screen, SCREEN, "mouseMovedOrUp", "(III)V", x, y, 0);
+        Class<?> input = Class.forName("betamoon.client.control.input.ClientInputRuntime", false, loader);
+        Class<?> device = Class.forName("betamoon.client.control.input.InputDeviceEvent", false, loader);
+        Object router = input.getMethod("router").invoke(null);
+        Object release = device.getMethod("mouseButton", int.class, boolean.class).invoke(null, 0, false);
+        router.getClass().getMethod("acceptProtected", device, boolean.class).invoke(router, release, false);
     }
 
     private static Object element(String id) throws Exception {

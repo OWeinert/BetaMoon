@@ -7,11 +7,19 @@ import org.lwjgl.input.Mouse;
 
 /** Minecraft screen adapter for one retained {@link GuiScene}. */
 public abstract class GuiComponentScreen extends GuiScreen {
-    private final GuiScene scene = new GuiScene();
+    private final GuiScene scene;
     private int pointerX;
     private int pointerY;
     private int inputBatchDepth;
     private boolean closed;
+
+    protected GuiComponentScreen() {
+        this(new GuiScene());
+    }
+
+    protected GuiComponentScreen(GuiScene scene) {
+        this.scene = scene;
+    }
 
     protected abstract GuiElement createContent();
 

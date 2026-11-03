@@ -174,7 +174,7 @@ public final class GuiScreenLuaAccess {
         return access;
     }
 
-    private static LuaTable ticket(String source, GuiActionTicket ticket) {
+    static LuaTable ticket(String source, GuiActionTicket ticket) {
         LuaTable access = new LuaTable();
         access.set("id", LuaValue.valueOf((double) ticket.identity));
         access.set("status", function(args -> {
@@ -192,7 +192,7 @@ public final class GuiScreenLuaAccess {
         return access;
     }
 
-    private static void guard(String source, LuaCallbackScope scope, boolean mutable) {
+    static void guard(String source, LuaCallbackScope scope, boolean mutable) {
         if (scope != null) {
             scope.requireActive();
         }

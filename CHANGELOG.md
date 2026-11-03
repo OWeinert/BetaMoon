@@ -4,6 +4,7 @@
 
 ### Added
 
+- Owned native-menu sections and main/pause replacements with deterministic ordering, typed native actions and fault fallback.
 - Worldless and world-context Lua client screens with typed state/data, retained refresh, navigation and modal dialogs.
 - Declared client/world UI actions with bounded fair queues, detached tickets and stale-request cancellation.
 - Public reusable UI components, themes and prepared templates over the shared Java/Lua controls.
@@ -50,6 +51,9 @@
 - Indexed native metadata and cancellable detailed exports with progress, captured counters and atomic completion.
 
 ### UI foundations
+
+- Share editor state and single-line key behavior across authored textboxes and native-looking Java fields.
+- Keep native menu input behind eligible contributed controls and settle GUI gestures in protected settings screens.
 
 - Extract shared visual definitions, source observation, bindings, transitions, element handles and geometry
   from container GUIs while preserving their Lua declarations and behavior.

@@ -31,6 +31,10 @@ public final class GuiScreenController {
 
         boolean canOpen();
 
+        default boolean canNavigate() {
+            return true;
+        }
+
         Object screenIdentity();
 
         boolean current(GuiScreenActivation activation);
@@ -157,6 +161,19 @@ public final class GuiScreenController {
         return host;
     }
 
+    /**
+     * Retain the root's local state while removing transient effects and dialogs
+     * from a covered host.
+     */
+    public void suspend(String reason) {
+        if (current != null) {
+            actions.cancel(current, reason);
+        }
+        for (GuiScreenActivation dialog : new ArrayList<>(dialogs.values())) {
+            retire(dialog, reason, Status.CLOSED, false);
+        }
+    }
+
     public GuiActionQueue actions() {
         return actions;
     }
@@ -171,6 +188,9 @@ public final class GuiScreenController {
 
     OpenResult navigate(GuiScreenActivation source, String key, Map<String, Object> state, Map<String, Object> data,
             boolean push) {
+        if (!host.canNavigate()) {
+            return refused("attached_navigation_unavailable");
+        }
         if (source.parent != null) {
             return refused("dialog_navigation_unavailable");
         }

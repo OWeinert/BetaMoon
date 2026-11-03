@@ -128,6 +128,7 @@ public final class GuiScene {
         }
         GuiAnchoredPopover portal = new GuiAnchoredPopover(anchor, content, atPointer, x, y);
         GuiLayer layer = openLayer(portal, true, false, true);
+        layer.ownedBy(anchor);
         portal.bind(layer);
         return layer;
     }
@@ -162,6 +163,15 @@ public final class GuiScene {
         for (GuiLayer layer : layers) {
             if (layer.isActive() && layer.dim) {
                 return layer.content == element;
+            }
+        }
+        return false;
+    }
+
+    boolean inactiveLayer(GuiElement element) {
+        for (GuiLayer layer : layers) {
+            if (layer.content == element) {
+                return !layer.isActive();
             }
         }
         return false;
@@ -336,7 +346,7 @@ public final class GuiScene {
         prepare();
     }
 
-    void runActions() {
+    public void runActions() {
         List<GuiAction> actions = new ArrayList<GuiAction>(readyActions);
         readyActions.clear();
         for (int i = 0; i < actions.size(); i++) {
@@ -370,6 +380,10 @@ public final class GuiScene {
             document.update();
         }
         for (GuiLayer layer : new ArrayList<>(layers)) {
+            if (!layer.isActive()) {
+                layer.close();
+                continue;
+            }
             if (layer.isActive() && layer.document() != null) {
                 layer.document().update();
             }
@@ -464,7 +478,7 @@ public final class GuiScene {
         return dispatchPath(hitPath(mouseX, mouseY), GuiInputEvent.pointerDrag(mouseX, mouseY, mouseDown));
     }
 
-    int capturedPointerButton() {
+    public int capturedPointerButton() {
         return pointerCaptureButton;
     }
 

@@ -121,6 +121,9 @@ public final class NativeLiveClientDriver {
                 if (Boolean.getBoolean("betamoon.ui.live") && !UiLiveClientChecks.beforeWorld(client)) {
                     return;
                 }
+                if (Boolean.getBoolean("betamoon.ui.live") && !UiMenuLiveChecks.beforeWorld(client)) {
+                    return;
+                }
                 if (Boolean.getBoolean("betamoon.native.x10") && !NativeHostLiveFixture.beforeWorld(client)) {
                     return;
                 }

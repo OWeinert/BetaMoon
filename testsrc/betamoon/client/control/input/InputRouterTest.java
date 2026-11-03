@@ -82,6 +82,23 @@ public final class InputRouterTest {
                 "Focus return lost held-key suppression");
         require(!router.accept(InputDeviceEvent.key(Keyboard.KEY_RETURN, true), false),
                 "A fresh key press after a lost outside release remained stuck");
+        router.observeScreen(second);
+        router.claimGuiGesture(0, second);
+        require(!router.acceptProtected(InputDeviceEvent.mouseButton(0, false), false) && !router.hasGuiGesture(0),
+                "Protected settings retained their own released GUI gesture");
+        router.claimGuiKey(Keyboard.KEY_SPACE, second);
+        router.observeScreen(first);
+        require(router.acceptProtected(InputDeviceEvent.key(Keyboard.KEY_SPACE, false), false)
+                && !router.hasGuiKey(Keyboard.KEY_SPACE), "An old GUI release reached a protected successor");
+        int[] protectedCallbacks = {0};
+        InputMapRegistration protectedMap = router.register(definition(), "protected.lua");
+        protectedMap.activate(10, EnumSet.noneOf(InputFamily.class)).on("jump", event -> {
+            protectedCallbacks[0]++;
+            return InputDisposition.HANDLED;
+        });
+        router.acceptProtected(InputDeviceEvent.key(Keyboard.KEY_SPACE, true), false);
+        router.acceptProtected(InputDeviceEvent.key(Keyboard.KEY_SPACE, false), false);
+        require(protectedCallbacks[0] == 0, "Protected GUI bookkeeping dispatched a script binding");
         router.clear();
     }
 

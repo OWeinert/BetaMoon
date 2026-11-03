@@ -19,6 +19,7 @@ public final class GuiLayer implements AutoCloseable {
     final boolean closeOnTab;
     private final GuiScene scene;
     private boolean active = true;
+    private GuiElement owner;
     private Runnable closed = () -> {
     };
 
@@ -32,7 +33,15 @@ public final class GuiLayer implements AutoCloseable {
     }
 
     public boolean isActive() {
-        return active;
+        return active && (owner == null || owner.belongsTo(scene) && owner.isAvailable());
+    }
+
+    public void ownedBy(GuiElement owner) {
+        if (owner == null || !owner.belongsTo(scene) || !owner.isAvailable()) {
+            throw new IllegalArgumentException("Layer owner must be available in its scene");
+        }
+        this.owner = owner;
+        content.inheritInputFrom(owner);
     }
 
     public GuiPresentationTree document() {

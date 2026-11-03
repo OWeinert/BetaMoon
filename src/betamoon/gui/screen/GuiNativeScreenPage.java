@@ -5,6 +5,7 @@ import betamoon.gui.component.GuiComponentPlan;
 import betamoon.gui.component.GuiComponentRegistry;
 import betamoon.gui.component.GuiComponentStateStore;
 import betamoon.gui.framework.GuiElement;
+import betamoon.gui.framework.GuiInputLifetime;
 import betamoon.gui.drawing.GuiPaintBudget;
 import betamoon.gui.drawing.GuiPaintProgram;
 import betamoon.gui.style.GuiThemeDefinition;
@@ -53,6 +54,7 @@ import java.util.Map;
 import java.util.Set;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.ScaledResolution;
+import net.minecraft.src.GuiScreen;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.Varargs;
@@ -67,6 +69,7 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
     private final GuiScreenRegistry screens;
     private final GuiComponentRegistry components;
     private final GuiManagedScreen screen;
+    private final GuiScreenAttachment attachment;
     private final GuiNativeScreenPage parent;
     private GuiLayer layer;
     private final long started = System.nanoTime();
@@ -80,12 +83,22 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
 
     public GuiNativeScreenPage(Minecraft client, GuiScreenActivation activation, GuiScreenRegistry screens,
             GuiComponentRegistry components, GuiScreenController.History history) {
+        this(client, activation, screens, components, history, null);
+    }
+
+    public GuiNativeScreenPage(Minecraft client, GuiScreenActivation activation, GuiScreenRegistry screens,
+            GuiComponentRegistry components, GuiScreenController.History history, GuiScreenAttachment attachment) {
         this.client = client;
         this.activation = activation;
         this.screens = screens;
         this.components = components;
         parent = activation.parent == null ? null : (GuiNativeScreenPage) activation.parent.page;
-        screen = parent == null ? new GuiManagedScreen() : parent.screen;
+        this.attachment = parent == null ? attachment : parent.attachment;
+        screen = parent != null
+                ? parent.screen
+                : attachment == null
+                        ? new GuiManagedScreen()
+                        : new GuiManagedScreen(attachment.scene(), attachment.rowBudget());
         if (parent == null) {
             screen.page(this);
         }
@@ -94,25 +107,42 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
                 activation.initialData, history == null ? Collections.emptyMap() : history.state);
         boolean complete = false;
         try {
+            if (this.attachment != null) {
+                this.attachment.prepare(this, candidate.plan);
+            }
             candidate.tree = candidate.plan.createTree(candidate.capabilities(), client.fontRenderer::getStringWidth,
                     this::clock);
-            candidate.tree.root().inputLifetime(activation.input);
+            candidate.tree.root().inputLifetime(documentInput());
             screen.scene().prepareDetached(candidate.tree);
             current = candidate;
             complete = true;
         } finally {
             if (!complete) {
                 candidate.close();
+                if (this.attachment != null) {
+                    this.attachment.abort(this);
+                }
                 if (parent == null) {
                     screen.page(null);
-                    screen.rowBudget.close();
+                    if (attachment == null) {
+                        screen.rowBudget.close();
+                    }
                 }
             }
         }
     }
 
-    public GuiManagedScreen screen() {
-        return screen;
+    public GuiScreen screen() {
+        return attachment == null ? screen : attachment.nativeScreen();
+    }
+
+    private GuiInputLifetime documentInput() {
+        if (attachment == null) {
+            return activation.input;
+        }
+        GuiInputLifetime input = new GuiInputLifetime(() -> activation.input.active() && attachment.inputAvailable());
+        input.activate();
+        return input;
     }
 
     GuiScreenActivation activation() {
@@ -125,6 +155,28 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
 
     public GuiComponentPlan plan() {
         return current.plan;
+    }
+
+    /**
+     * Java-only animation/frame sampling for attached documents in a shared native
+     * scene.
+     */
+    public void sampleAttached() {
+        if (attachment != null && usable()) {
+            current.tree.sample();
+        }
+    }
+
+    public boolean attachedUsable() {
+        return attachment != null && usable();
+    }
+
+    public void inputAttached(Runnable input) {
+        input(input);
+    }
+
+    public void paintAttached(Runnable paint) {
+        paint(paint);
     }
 
     public Map<String, Object> data() {
@@ -187,7 +239,11 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
 
     @Override
     public void activate() {
-        if (parent == null) {
+        if (parent == null && attachment != null) {
+            attachment.attach(current.tree);
+            current.tree.activate();
+            prepareLogical(() -> current.tree.update());
+        } else if (parent == null) {
             screen.scene().setDocument(current.tree);
         } else {
             if (activation.popoverAnchor == null) {
@@ -201,10 +257,14 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
                 layer = screen.scene().openPopover(anchor, current.tree);
             }
             layer.onClosed(() -> activation.controller.externalClosed(activation));
+            layer.ownedBy(parent.current.tree.root());
             if (!activation.active() || !parent.usable()) {
                 layer.close();
                 throw new IllegalStateException("Dialog host closed during attachment");
             }
+        }
+        if (attachment != null) {
+            attachment.commit(this);
         }
         prepareLogical(() -> screen.scene().prepare());
     }
@@ -222,15 +282,19 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
         if (++ticks % current.definition.updateInterval == 0 && current.definition.callbacks.containsKey("update")) {
             current.emit("update");
         }
-        if (parent == null) {
+        if (parent == null && attachment == null) {
             prepareLogical(() -> screen.scene().prepare());
+        } else if (parent == null) {
+            current.tree.update();
         }
     }
 
     @Override
     public void flush() {
-        if (parent == null && usable()) {
+        if (parent == null && attachment == null && usable()) {
             prepareLogical(() -> screen.scene().prepare());
+        } else if (parent == null && usable()) {
+            prepareLogical(() -> current.tree.update());
         }
     }
 
@@ -257,17 +321,25 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
         try {
             candidate = new Revision(definition, current, Collections.emptyMap(), Collections.emptyMap(),
                     Collections.emptyMap());
+            if (attachment != null) {
+                attachment.prepare(this, candidate.plan);
+            }
             Revision prepared = candidate;
             candidate.tree = candidate.plan.reloadTree(current.tree, tree -> {
-                tree.root().inputLifetime(activation.input);
+                tree.root().inputLifetime(documentInput());
                 screen.scene().prepareDetached(tree);
             });
             Revision previous = current;
             current = candidate;
-            if (parent == null) {
+            if (parent == null && attachment != null) {
+                attachment.replace(current.tree);
+            } else if (parent == null) {
                 screen.scene().setDocument(current.tree);
             } else {
                 layer.replace(current.tree);
+            }
+            if (attachment != null) {
+                attachment.commit(this);
             }
             previous.close();
             rejectedStamp = null;
@@ -275,6 +347,9 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
             rejectedStamp = attemptedStamp;
             if (candidate != null && candidate != current) {
                 candidate.close();
+            }
+            if (attachment != null && candidate != current) {
+                attachment.abort(this);
             }
             throw failure;
         }
@@ -354,7 +429,13 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
                 }
             } finally {
                 current = null;
-                if (parent == null) {
+                if (attachment != null) {
+                    attachment.release(this);
+                }
+                if (parent == null && attachment != null) {
+                    attachment.detach();
+                    screen.page(null);
+                } else if (parent == null) {
                     screen.scene().setDocument(null);
                     screen.page(null);
                     screen.rowBudget.close();
@@ -389,7 +470,7 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
                     ? new GuiScreenData(definition.data, initialData)
                     : GuiScreenData.refresh(definition.data, previous.data.snapshot());
             resources = new GuiResourceOwners<>(
-                    owner -> new GuiOwnedResources(client, screen, owner, definition.resources),
+                    owner -> new GuiOwnedResources(client, screen(), owner, definition.resources),
                     ScriptResourceTracker::ownerGeneration, preparedThemes::remove, failure -> activation.controller
                             .host().failure(definition.owner, definition.key + ".resources", failure));
             boolean complete = false;
@@ -503,6 +584,9 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
                     GuiModelLuaAccess.create(scope, definition.data, data::snapshot, data::publish, definition.owner));
             context.set("screen",
                     GuiScreenLuaAccess.instance(definition.owner, activation, scope, screens::getRequired));
+            if (attachment != null) {
+                attachment.context(context, scope, activation);
+            }
             if (activation.environment == activation.controller.host().environment() && client.theWorld != null) {
                 context.set("world", LuaWorldActionAccess.create(scope, client.theWorld, 0, 0, 0));
                 if (client.thePlayer != null) {
@@ -626,7 +710,7 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
         }
 
         public void requireHost() {
-            if (candidateInvalidated || !usable() || client.currentScreen != screen) {
+            if (candidateInvalidated || !usable() || client.currentScreen != screen()) {
                 throw new IllegalStateException("Screen graphics attachment expired");
             }
         }

@@ -61,10 +61,12 @@ public final class ClientInputRuntime {
         keyboardConsumed = false;
         if (available) {
             int keyCode = Keyboard.getEventKey();
+            ROUTER.observeScreen(currentMinecraft == null ? null : currentMinecraft.currentScreen);
             if (isProtectedScreen()) {
+                keyboardConsumed = ROUTER.acceptProtected(InputDeviceEvent.key(keyCode, Keyboard.getEventKeyState()),
+                        Keyboard.isRepeatEvent());
                 return true;
             }
-            ROUTER.observeScreen(currentMinecraft == null ? null : currentMinecraft.currentScreen);
             boolean guiOwned = ROUTER.hasGuiKey(keyCode);
             keyboardConsumed = ROUTER.accept(InputDeviceEvent.key(keyCode, Keyboard.getEventKeyState()),
                     Keyboard.isRepeatEvent());
@@ -92,10 +94,14 @@ public final class ClientInputRuntime {
         boolean available = Mouse.next();
         mouseConsumed = false;
         if (available) {
+            ROUTER.observeScreen(currentMinecraft == null ? null : currentMinecraft.currentScreen);
             if (isProtectedScreen()) {
+                if (Mouse.getEventButton() >= 0) {
+                    mouseConsumed = ROUTER.acceptProtected(
+                            InputDeviceEvent.mouseButton(Mouse.getEventButton(), Mouse.getEventButtonState()), false);
+                }
                 return true;
             }
-            ROUTER.observeScreen(currentMinecraft == null ? null : currentMinecraft.currentScreen);
             int wheel = Mouse.getEventDWheel();
             if (wheel != 0) {
                 mouseConsumed |= ROUTER.accept(InputDeviceEvent.mouseWheel(wheel));

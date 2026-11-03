@@ -14,8 +14,17 @@ import java.util.function.Consumer;
  * host class.
  */
 public final class GuiManagedScreen extends GuiComponentScreen {
-    final GuiRowBudget rowBudget = new GuiRowBudget();
+    final GuiRowBudget rowBudget;
     private GuiNativeScreenPage page;
+
+    public GuiManagedScreen() {
+        this(new GuiScene(), new GuiRowBudget());
+    }
+
+    GuiManagedScreen(GuiScene scene, GuiRowBudget rowBudget) {
+        super(scene);
+        this.rowBudget = rowBudget;
+    }
 
     void page(GuiNativeScreenPage page) {
         this.page = page;

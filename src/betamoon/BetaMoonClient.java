@@ -234,7 +234,7 @@ public final class BetaMoonClient {
     }
 
     private void addBetamoonMenues(net.minecraft.client.Minecraft mc, GuiScreen current) {
-        if (current instanceof GuiIngameMenu && !(current instanceof GuiBetaMoonIngameMenu)) {
+        if (current != null && current.getClass() == GuiIngameMenu.class) {
             mc.displayGuiScreen(new GuiBetaMoonIngameMenu());
             return;
         }
@@ -255,7 +255,7 @@ public final class BetaMoonClient {
             }
 
             // Render custom Main Menu
-            if (!(current instanceof GuiBetaMoonMainMenu)) {
+            if (current.getClass() == GuiMainMenu.class) {
                 mc.displayGuiScreen(new GuiBetaMoonMainMenu());
                 return;
             }

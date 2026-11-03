@@ -16,6 +16,8 @@ public final class GuiRowBudget implements AutoCloseable {
     private int reservedElements;
     private int liveElements;
     private int liveRows;
+    private int externalLiveElements;
+    private int externalReservedElements;
     private boolean closed;
     private int preparationDepth;
 
@@ -29,7 +31,8 @@ public final class GuiRowBudget implements AutoCloseable {
 
     public Reservation reserve(int elements) {
         requireOpen();
-        if (elements < 1 || elements > MAX_LIVE_ELEMENTS || elements > MAX_RESERVED_ELEMENTS - reservedElements) {
+        if (elements < 1 || elements > MAX_LIVE_ELEMENTS
+                || elements > MAX_RESERVED_ELEMENTS - reservedElements - externalReservedElements) {
             throw new IllegalArgumentException("Row candidates exceed the host's 16384 reserved element budget");
         }
         Reservation reservation = new Reservation(this, elements);
@@ -54,7 +57,7 @@ public final class GuiRowBudget implements AutoCloseable {
             elements += candidate.elements;
         }
         int rows = liveRows - previous.size() + next.size();
-        if (elements > MAX_LIVE_ELEMENTS || rows > MAX_LIVE_ROWS) {
+        if (elements > MAX_LIVE_ELEMENTS - externalLiveElements || rows > MAX_LIVE_ROWS) {
             throw new IllegalArgumentException("Host exceeds 8192 live row elements or 1024 live rows");
         }
         for (Reservation old : previous) {
@@ -93,6 +96,28 @@ public final class GuiRowBudget implements AutoCloseable {
         return reservedElements;
     }
 
+    /**
+     * Static attached roots share capacity with dynamic rows; candidate roots also
+     * reserve their peak cost.
+     */
+    public void externalElements(int live, int reserved) {
+        requireOpen();
+        if (live < 0 || reserved < live || live > MAX_LIVE_ELEMENTS - liveElements
+                || reserved > MAX_RESERVED_ELEMENTS - reservedElements) {
+            throw new IllegalArgumentException("Attached documents exceed shared host element capacity");
+        }
+        externalLiveElements = live;
+        externalReservedElements = reserved;
+    }
+
+    public int totalLiveElements() {
+        return liveElements + externalLiveElements;
+    }
+
+    public int totalReservedElements() {
+        return reservedElements + externalReservedElements;
+    }
+
     public int liveElements() {
         return liveElements;
     }
@@ -119,6 +144,8 @@ public final class GuiRowBudget implements AutoCloseable {
             reservedElements = 0;
             liveElements = 0;
             liveRows = 0;
+            externalLiveElements = 0;
+            externalReservedElements = 0;
         }
     }
 

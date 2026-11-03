@@ -7,7 +7,10 @@ import betamoon.gui.framework.GuiInputEvent;
 import betamoon.gui.widget.GuiTextBox;
 import net.minecraft.src.GuiScreen;
 
-/** Retained adapter for the native Minecraft text field. */
+/**
+ * Native-looking adapter using the same plain editor model and keys as authored
+ * textboxes.
+ */
 final class GuiConfigInput extends GuiElement {
     private final GuiScreen screen;
     private GuiTextBox field;
@@ -37,9 +40,13 @@ final class GuiConfigInput extends GuiElement {
         }
         value = value();
         previousBounds = getBounds();
+        GuiTextBox previous = field;
         field = new GuiTextBox(screen, context.getRenderer().getFont(), getLeft(), getTop(), getWidth(), getHeight(),
-                Math.max(8192, value.length() + 1024));
+                previous == null ? Math.max(8192, value.length() + 1024) : previous.editorModel().maximumLength());
         field.setText(value);
+        if (previous != null) {
+            field.editorModel().restoreSnapshot(previous.editorModel().snapshot());
+        }
         field.isEnabled = isEnabled();
         field.setFocused(isFocused());
     }
@@ -67,7 +74,8 @@ final class GuiConfigInput extends GuiElement {
         if (event.getType() == GuiInputEvent.Type.POINTER_DOWN && event.getButton() == 0) {
             requestFocus(context);
             field.setFocused(true);
-            field.mouseClicked(event.getMouseX(), event.getMouseY(), event.getButton());
+            field.mouseClicked(event.getMouseX() - getLeft() + previousBounds.getLeft(),
+                    event.getMouseY() - getTop() + previousBounds.getTop(), event.getButton());
             return true;
         }
         if (event.getType() == GuiInputEvent.Type.KEY_TYPED && isFocused()) {

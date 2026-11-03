@@ -1,7 +1,7 @@
 package betamoon.gui.screen;
 
 import betamoon.gui.component.GuiComponentRegistry;
-import betamoon.gui.GuiBetaMoonMainMenu;
+import betamoon.gui.menu.GuiMenuRuntime;
 import betamoon.gui.style.GuiThemeRegistry;
 import betamoon.interop.binding.NativeBindings;
 import betamoon.interop.discovery.NativeDiscoveryRuntime;
@@ -10,7 +10,7 @@ import betamoon.teleport.TeleportRuntime;
 import java.lang.ref.WeakReference;
 import java.util.Map;
 import net.minecraft.client.Minecraft;
-import net.minecraft.src.GuiMainMenu;
+import net.minecraft.src.GuiScreen;
 import net.minecraft.src.World;
 
 /**
@@ -75,6 +75,8 @@ public final class GuiClientUiRuntime {
         boolean hadPlayer;
         boolean alive;
         long environment;
+        WeakReference<GuiScreen> returnScreen = new WeakReference<>(null);
+        long returnEnvironment;
 
         ClientHost(Minecraft client) {
             this.client = client;
@@ -113,8 +115,7 @@ public final class GuiClientUiRuntime {
         }
 
         public boolean canOpen() {
-            return client.currentScreen == null || (client.currentScreen.getClass() == GuiMainMenu.class
-                    || client.currentScreen.getClass() == GuiBetaMoonMainMenu.class);
+            return client.currentScreen == null || GuiMenuRuntime.target(client.currentScreen) != null;
         }
 
         public Object screenIdentity() {
@@ -131,11 +132,17 @@ public final class GuiClientUiRuntime {
         }
 
         public void display(GuiScreenActivation activation) {
+            if (GuiMenuRuntime.target(client.currentScreen) != null) {
+                returnScreen = new WeakReference<>(client.currentScreen);
+                returnEnvironment = environment();
+            }
             client.displayGuiScreen(((GuiNativeScreenPage) activation.page).screen());
         }
 
         public void fallback() {
-            client.displayGuiScreen(null);
+            GuiScreen parent = returnEnvironment == environment() ? returnScreen.get() : null;
+            returnScreen.clear();
+            client.displayGuiScreen(parent);
         }
 
         public void failure(String owner, String path, Throwable failure) {

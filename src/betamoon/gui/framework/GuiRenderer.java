@@ -423,6 +423,19 @@ public final class GuiRenderer {
         }
     }
 
+    int clipDepth() {
+        return clips.size();
+    }
+
+    void restoreClipDepth(int depth) {
+        while (clips.size() > depth) {
+            popClip();
+        }
+        if (clips.size() != depth) {
+            throw new IllegalStateException("A document discarded its host clip stack");
+        }
+    }
+
     private void applyClip(GraphicsClip clip) {
         if (clip == null || screenWidth <= 0 || screenHeight <= 0 || displayWidth <= 0 || displayHeight <= 0) {
             GL11.glScissor(0, 0, 0, 0);

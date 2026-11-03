@@ -367,6 +367,7 @@ public final class InstrumentationTransformTest {
                     || diagnostic.getHookId().startsWith("betamoon:entity_natural_spawn")
                     || diagnostic.getHookId().startsWith("betamoon:entity_motion")
                     || diagnostic.getHookId().startsWith("betamoon:client_control")
+                    || diagnostic.getHookId().startsWith("betamoon:gui_menu")
                     || diagnostic.getHookId().startsWith("betamoon:tick_events")
                     || diagnostic.getHookId().startsWith("betamoon:worldgen_surface")
                     || diagnostic.getHookId().startsWith("betamoon:world_generator")
@@ -503,6 +504,11 @@ public final class InstrumentationTransformTest {
         require(population != null && countCallbackCalls(population, "generate") == 24
                 && countCallbackCalls(population, "snow") == 1, "Native population must expose every category gate");
         verifyClientControlSeams(mappings, clientJarPath, transformer);
+        byte[] menu = transformControlClass(mappings, clientJarPath, transformer, "net/minecraft/src/GuiScreen");
+        require(countCallbackCalls(menu, "initialized") == 1 && countCallbackCalls(menu, "closed") == 1,
+                "Native menu lifecycle and button paint hooks did not match exactly once");
+        assertAroundCallbacks(mappings, menu, "net/minecraft/src/GuiScreen", "drawScreen", "(IIF)V", "beforePaint",
+                "paint");
         EntityMotionHookTest.verify(mappings, clientJarPath);
         verifyFluidInteractionSeam(mappings, clientJarPath, transformer, RuntimeNamespace.CLIENT);
         verifyFluidContactSeams(mappings, clientJarPath, transformer, RuntimeNamespace.CLIENT);

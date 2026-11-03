@@ -732,6 +732,15 @@ public final class GuiShowcaseRenderTest {
         field.appendText("ignored");
         field.textboxKeyTyped('x', Keyboard.KEY_X);
         require("ab".equals(field.getText()), "Disabled textboxes reject typing and paste");
+        field.isEnabled = true;
+        field.setText("abcd");
+        field.textboxKeyTyped('\0', Keyboard.KEY_HOME);
+        field.textboxKeyTyped('x', Keyboard.KEY_X);
+        field.textboxKeyTyped('\0', Keyboard.KEY_DELETE);
+        require("xbcd".equals(field.getText()), "Java text fields did not use shared caret editing");
+        field.editorModel().selectAll();
+        field.appendText("replacement");
+        require("replacement".equals(field.getText()), "Java paste did not replace the shared selection");
     }
 
     private static void renderControls(Minecraft minecraft, File output) throws Exception {

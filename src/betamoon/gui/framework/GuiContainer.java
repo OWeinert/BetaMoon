@@ -224,6 +224,9 @@ public class GuiContainer extends GuiElement {
         @Override
         protected void renderElement(GuiContext context) {
             for (GuiElement child : getChildren()) {
+                if (scene.inactiveLayer(child)) {
+                    continue;
+                }
                 if (scene.dimBefore(child)) {
                     context.getRenderer().drawRect(0, 0, context.getScreenWidth(), context.getScreenHeight(),
                             0x88000000);
