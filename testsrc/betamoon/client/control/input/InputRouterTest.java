@@ -12,6 +12,7 @@ import java.util.List;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.charset.StandardCharsets;
+import betamoon.luamodloader.ScriptResourceTracker;
 import org.lwjgl.input.Keyboard;
 
 /** Standalone contracts for named action transitions and context ownership. */
@@ -22,6 +23,7 @@ public final class InputRouterTest {
     public static void main(String[] args) throws Exception {
         verifyBindings();
         verifyGuiHandoff();
+        verifyNativeFamilyCaptures();
         verifyTransitionsAndConsumption();
         verifyPriorityFailureAndCapture();
         verifyRebindingAndLifecycle();
@@ -32,6 +34,68 @@ public final class InputRouterTest {
         InputControlsGuiTest.main(new String[0]);
         System.out
                 .println("Input router passed: bindings, transitions, contexts, preferences and controller contracts.");
+    }
+
+    private static void verifyNativeFamilyCaptures() {
+        InputRouter router = new InputRouter((context, action, error) -> {
+            throw new AssertionError(error);
+        });
+        Object world = new Object();
+        Object player = new Object();
+        router.beginCycle(world, player, null, true);
+        InputMapRegistration unrelated = router.register(definition(), "unrelated-map.lua");
+        InputContext unrelatedContext = unrelated.activate(0, EnumSet.of(InputFamily.MOVEMENT));
+        router.accept(InputDeviceEvent.mouseButton(0, true));
+        InputFamilyCapture capture = router.captureNativeFamilies("cursor-owner.lua",
+                EnumSet.of(InputFamily.LOOK, InputFamily.WORLD_ACTIONS));
+        require(router.captures(InputFamily.LOOK) && router.captures(InputFamily.WORLD_ACTIONS)
+                && router.captures(InputFamily.MOVEMENT) && router.registrationCount() == 1,
+                "Native UI capture changed named maps or unrelated family ownership");
+        router.beginCycle(world, player, null, true);
+        require(capture.isActive(), "Unchanged input environment revoked cursor ownership");
+        capture.close();
+        require(!router.captures(InputFamily.LOOK) && router.captures(InputFamily.MOVEMENT)
+                && router.isPhysicalConsumed(InputDeviceEvent.Device.MOUSE_BUTTON, 0),
+                "Closing cursor capture removed another context or resumed a held world action");
+        require(router.accept(InputDeviceEvent.mouseButton(0, false)) && !router.hasGuiGesture(0),
+                "Cursor-close release leaked to native gameplay or retained a stale gesture");
+        capture = router.captureNativeFamilies("cursor-owner.lua", EnumSet.of(InputFamily.LOOK));
+        router.accept(InputDeviceEvent.mouseButton(1, true));
+        capture.close();
+        require(!router.hasGuiGesture(1), "Look-only ownership captured an unrelated physical pointer");
+        router.accept(InputDeviceEvent.mouseButton(1, false));
+        capture = router.captureNativeFamilies("cursor-owner.lua", EnumSet.of(InputFamily.WORLD_ACTIONS));
+        router.accept(InputDeviceEvent.mouseButton(0, true));
+        router.beginCycle(world, player, null, false);
+        require(!capture.isActive() && router.captureCount() == 0, "Focus loss retained native UI family tokens");
+        router.beginCycle(world, player, null, true);
+        require(!router.accept(InputDeviceEvent.mouseButton(0, true)),
+                "A fresh press after focus loss was swallowed by a missing old release");
+        router.accept(InputDeviceEvent.mouseButton(0, false));
+        capture = router.captureNativeFamilies("cursor-owner.lua", EnumSet.of(InputFamily.WORLD_ACTIONS));
+        router.accept(InputDeviceEvent.mouseButton(0, true));
+        router.observeScreen(new Object());
+        require(!capture.isActive() && router.accept(InputDeviceEvent.mouseButton(0, false))
+                && unrelatedContext.isActive() && router.captures(InputFamily.MOVEMENT),
+                "Native screen transition leaked a cursor release or removed an unrelated input context");
+        capture = router.captureNativeFamilies("cursor-owner.lua", EnumSet.of(InputFamily.LOOK));
+        ScriptResourceTracker.unload("cursor-owner.lua");
+        require(!capture.isActive() && router.captureCount() == 0, "Owner unload retained native family captures");
+        boolean[] alive = {true};
+        GuiInputOwner overlay = () -> alive[0];
+        router.claimGuiGesture(2, overlay);
+        require(!router.accept(InputDeviceEvent.mouseButton(2, false)),
+                "An active screenless UI owner lost its own release");
+        router.claimGuiKey(Keyboard.KEY_SPACE, overlay);
+        alive[0] = false;
+        require(router.accept(InputDeviceEvent.key(Keyboard.KEY_SPACE, false)),
+                "An expired screenless UI owner released an activation key into native input");
+        expectFailure(() -> router.captureNativeFamilies("cursor-owner.lua", EnumSet.of(InputFamily.GUI)),
+                "Native family ownership must not create an implicit full GUI capture");
+        unrelated.close();
+        router.clear();
+        require(router.captureCount() == 0 && router.contextCount() == 0 && router.registrationCount() == 0,
+                "Router teardown retained UI or named input ownership");
     }
 
     private static void verifyBindings() {

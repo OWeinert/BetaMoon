@@ -33,6 +33,10 @@ final class InputPhysicalState {
         return mouseButtons.contains(Integer.valueOf(button));
     }
 
+    Set<Integer> mouseButtons() {
+        return new HashSet<>(mouseButtons);
+    }
+
     int modifiers() {
         int result = 0;
         if (isKeyDown(Keyboard.KEY_LSHIFT) || isKeyDown(Keyboard.KEY_RSHIFT)) {

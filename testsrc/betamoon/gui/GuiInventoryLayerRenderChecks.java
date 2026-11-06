@@ -60,11 +60,15 @@ final class GuiInventoryLayerRenderChecks {
         scene.renderContent(110, 90, 0.5F);
         GuiFrameSnapshot frame = scene.getDisplayedFrame();
         long time = scene.getContext().getCurrentTimeMillis();
+        scene.renderDisplayedContent();
+        require(scene.getDisplayedFrame() == frame && scene.getContext().getCurrentTimeMillis() == time
+                && samples[0] == 2 && paints[0] == 2 && paints[1] == 0,
+                "Content replay resampled the shared frame or painted a portal layer");
         scene.getContext().getRenderer().drawRect(20, 20, 60, 60, 0xFF0066CC);
         scene.renderLayers();
         scene.getContext().getRenderer().drawRect(110, 90, 114, 94, 0xFFFFFFFF);
         require(scene.getDisplayedFrame() == frame && scene.getContext().getCurrentTimeMillis() == time
-                && samples[0] == 2 && paints[0] == 1 && paints[1] == 1,
+                && samples[0] == 2 && paints[0] == 2 && paints[1] == 1,
                 "Split inventory paint resampled geometry/time or painted a scene part twice");
         BufferedImage image = GuiShowcaseRenderTest.capture(320, 240);
         require(image.getRGB(120, 100) == 0xFFCC3344 && image.getRGB(111, 91) == 0xFFFFFFFF,

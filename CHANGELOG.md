@@ -53,6 +53,7 @@
 ### UI foundations
 
 - Customize native player inventory panels, semantic slot positions, preview and shared screen content with owned fallback.
+- Reuse detached inventory layout snapshots in reactive bindings and reusable component callbacks.
 
 - Share editor state and single-line key behavior across authored textboxes and native-looking Java fields.
 - Keep native menu input behind eligible contributed controls and settle GUI gestures in protected settings screens.

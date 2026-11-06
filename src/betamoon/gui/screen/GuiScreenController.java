@@ -35,6 +35,10 @@ public final class GuiScreenController {
             return true;
         }
 
+        default boolean canOpenLayers() {
+            return true;
+        }
+
         Object screenIdentity();
 
         boolean current(GuiScreenActivation activation);
@@ -199,6 +203,9 @@ public final class GuiScreenController {
 
     public OpenResult dialog(GuiScreenActivation source, String key, Map<String, Object> state,
             Map<String, Object> data) {
+        if (!host.canOpenLayers()) {
+            return refused("input_unavailable");
+        }
         if (dialogs.size() >= 32) {
             return refused("dialog_limit");
         }
@@ -479,6 +486,10 @@ public final class GuiScreenController {
             retire(target, "screen_closed", Status.CANCELLED, false);
             return;
         }
+        if (operation.kind == Kind.DIALOG && !host.canOpenLayers()) {
+            retire(target, "input_unavailable", Status.CANCELLED, false);
+            return;
+        }
         if (target.environment != host.environment() || !target.definition.available()
                 || target.definition.context == GuiScreenDefinition.Context.WORLD && !host.worldAvailable()) {
             retire(target, "environment_changed", Status.CANCELLED, false);
@@ -499,6 +510,7 @@ public final class GuiScreenController {
             // native ownership changes.
             if (target.terminal() || !target.definition.available() || target.environment != host.environment()
                     || !operation.sameScreen(host.screenIdentity())
+                    || operation.kind == Kind.DIALOG && !host.canOpenLayers()
                     || (operation.source == null ? current != null : !belongsCurrent(operation.source))) {
                 retire(target, "preparation_invalidated", Status.CANCELLED, false);
                 return;

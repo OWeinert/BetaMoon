@@ -23,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Collections;
 import java.util.function.Consumer;
+import java.util.function.BooleanSupplier;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.FontRenderer;
 import net.minecraft.src.GuiScreen;
@@ -40,6 +41,8 @@ public final class NativeClientScreenHost implements AutoCloseable {
     private GuiScreen screen;
     private boolean closed;
     private final boolean detached;
+    private final boolean overlay;
+    private BooleanSupplier overlayAttached;
     private final NativeClientSession session;
     private final GuiRenderer renderer = new GuiRenderer(GuiTheme.DEFAULT);
     private NativeClientResource<FontRenderer> font;
@@ -47,10 +50,11 @@ public final class NativeClientScreenHost implements AutoCloseable {
     private NativeClientAction close;
 
     public NativeClientScreenHost(Minecraft client, GuiScreen screen, String owner) {
-        this(client, screen, owner, false);
+        this(client, screen, owner, false, null);
     }
 
-    private NativeClientScreenHost(Minecraft client, GuiScreen screen, String owner, boolean detached) {
+    private NativeClientScreenHost(Minecraft client, GuiScreen screen, String owner, boolean detached,
+            BooleanSupplier overlayAttached) {
         NativeBindings bindings = NativeDiscoveryRuntime.bindingsIfAvailable();
         if (bindings == null || client == null || screen == null || !detached && client.currentScreen != screen) {
             throw new NativeAccessFailure("native_client_unavailable", "initialize an active native client screen");
@@ -58,6 +62,8 @@ public final class NativeClientScreenHost implements AutoCloseable {
         this.client = client;
         this.screen = screen;
         this.detached = detached;
+        this.overlay = overlayAttached != null;
+        this.overlayAttached = overlayAttached;
         session = bindings.clients.create(owner, this::roots);
     }
 
@@ -66,11 +72,30 @@ public final class NativeClientScreenHost implements AutoCloseable {
      * receive input.
      */
     public static NativeClientScreenHost prepareDetached(Minecraft client, GuiScreen screen, String owner) {
-        return new NativeClientScreenHost(client, screen, owner, true);
+        return new NativeClientScreenHost(client, screen, owner, true, null);
+    }
+
+    /**
+     * Java-owned overlay viewport. The existing session still observes the actual
+     * current native screen, including a worldless or gameplay null screen.
+     */
+    public static NativeClientScreenHost prepareOverlay(Minecraft client, GuiScreen viewport, String owner,
+            BooleanSupplier attached) {
+        if (attached == null) {
+            throw new IllegalArgumentException("Overlay attachment predicate is required");
+        }
+        return new NativeClientScreenHost(client, viewport, owner, true, attached);
+    }
+
+    private boolean attached() {
+        return !closed && screen != null
+                && (overlay
+                        ? overlayAttached != null && overlayAttached.getAsBoolean()
+                        : client.currentScreen == screen);
     }
 
     private void requireAttached() {
-        if (closed || screen == null || client.currentScreen != screen) {
+        if (!attached()) {
             throw new NativeAccessFailure("native_client_screen_inactive", "use an attached owning screen");
         }
     }
@@ -87,24 +112,26 @@ public final class NativeClientScreenHost implements AutoCloseable {
             items = session.resource(RenderItem::new, ignored -> {
                 // The GUI item adapter has no independently allocated native resource.
             });
-            close = session.action("close-owned-screen", () -> {
-                if (!closed && client.currentScreen == screen) {
-                    client.displayGuiScreen(null);
-                }
-            }, true);
+            if (!overlay) {
+                close = session.action("close-owned-screen", () -> {
+                    if (attached()) {
+                        client.displayGuiScreen(null);
+                    }
+                }, true);
+            }
         });
     }
 
     public NativeEntry queryEntry(LuaCallbackScope callback) {
         return new NativeEntry(NativeDiscoveryRuntime.bindingsIfAvailable(), callback,
                 callback.isBinding() ? NativeEntry.Phase.BINDING : NativeEntry.Phase.QUERY, NativePermissions.READ_ONLY,
-                roots(), session::active);
+                roots(), () -> session.active() && (!overlay || attached()));
     }
 
     public NativeEntry actionEntry(LuaCallbackScope callback) {
         requireAttached();
         return NativeEntry.clientAction(NativeDiscoveryRuntime.bindingsIfAvailable(), callback, roots(),
-                () -> client.currentScreen == screen && session.active());
+                () -> attached() && session.active());
     }
 
     public NativeClientSession session() {
@@ -207,6 +234,7 @@ public final class NativeClientScreenHost implements AutoCloseable {
         } finally {
             closed = true;
             screen = null;
+            overlayAttached = null;
         }
     }
 
@@ -227,7 +255,7 @@ public final class NativeClientScreenHost implements AutoCloseable {
         roots.put("client", client);
         roots.put("world", client.theWorld);
         roots.put("player", client.thePlayer);
-        roots.put("screen", detached ? screen : client.currentScreen);
+        roots.put("screen", overlay ? client.currentScreen : detached ? screen : client.currentScreen);
         roots.put("font", client.fontRenderer);
         roots.put("textures", client.renderEngine);
         return roots;

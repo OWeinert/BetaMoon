@@ -19,6 +19,7 @@ import betamoon.gui.presentation.GuiCapability;
 import betamoon.interop.discovery.NativeDiscoveryRuntime;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.client.ui.GuiInventoryLuaAccess;
+import betamoon.luaapi.client.ui.GuiScopedSnapshot;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.teleport.TeleportRuntime;
 import java.util.ArrayList;
@@ -607,6 +608,10 @@ public final class GuiInventoryRuntime {
         GuiInventoryLayout layout;
         GuiAttachedDocument document;
         GuiDrawable background;
+        GuiScopedSnapshot publishedLayout;
+        int publishedWidth = -1;
+        int publishedHeight = -1;
+        boolean publishedDisplayed;
         boolean failed;
         boolean retired;
 
@@ -707,15 +712,22 @@ public final class GuiInventoryRuntime {
         }
 
         public void context(LuaTable value, LuaCallbackScope scope, GuiScreenActivation activation) {
-            value.set("inventory", GuiInventoryLuaAccess.context(definition.owner, scope, snapshot()));
+            value.set("inventory", GuiInventoryLuaAccess.context(scope, snapshot()));
         }
 
-        private Map<String, Object> snapshot() {
+        private GuiScopedSnapshot snapshot() {
+            boolean displayed = context.displayedWidth == context.screen.width
+                    && context.displayedHeight == context.screen.height && context.frameEntry == this && eligible()
+                    && context.backgroundPainted && context.layersPainted;
+            if (publishedLayout != null && publishedWidth == context.screen.width
+                    && publishedHeight == context.screen.height && publishedDisplayed == displayed) {
+                return publishedLayout;
+            }
             Rect panel = layout.panel(context.screen.width, context.screen.height);
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("panel", rect(panel));
             result.put("preview", rect(layout.preview));
-            result.put("displayed", context.inputReady() && context.frameEntry == this);
+            result.put("displayed", displayed);
             List<Map<String, Object>> slots = new ArrayList<>();
             for (GuiInventorySchema.Slot slot : GuiInventorySchema.SLOTS) {
                 GuiInventoryProfile.Position position = layout.slots.get(slot.nativeIndex);
@@ -726,7 +738,11 @@ public final class GuiInventoryRuntime {
                 slots.add(values);
             }
             result.put("slots", slots);
-            return result;
+            publishedWidth = context.screen.width;
+            publishedHeight = context.screen.height;
+            publishedDisplayed = displayed;
+            publishedLayout = new GuiScopedSnapshot(result);
+            return publishedLayout;
         }
 
         private static Map<String, Object> rect(Rect rect) {
@@ -746,6 +762,7 @@ public final class GuiInventoryRuntime {
                     document.close();
                 }
                 background = null;
+                publishedLayout = null;
             }
         }
     }

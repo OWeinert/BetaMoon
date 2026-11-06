@@ -6,6 +6,8 @@ import betamoon.instrumentation.mapping.ResolvedField;
 import betamoon.instrumentation.mapping.ResolvedMethod;
 import betamoon.instrumentation.mapping.RuntimeNamespace;
 import betamoon.instrumentation.registry.PlannedHook;
+import java.util.ArrayList;
+import java.util.List;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
@@ -33,6 +35,9 @@ final class FieldReadRedirectInjector {
             }
             ResolvedField field = mappings.resolveField(definition.getField(), namespace);
             ResolvedMethod handler = mappings.resolveMethod(definition.getHandler().getMethod(), namespace);
+            if (definition.getFilteredReads() > 0) {
+                return filter(node, definition, target, field, handler);
+            }
             if (!handler.getDescriptor().equals("(L" + field.getOwner() + ";)" + field.getDescriptor())) {
                 throw new HookTransformException(definition.getId(),
                         "Field policy must preserve receiver and value type");
@@ -73,5 +78,56 @@ final class FieldReadRedirectInjector {
             }
         }
         throw new HookTransformException(definition.getId(), "Target method not found");
+    }
+
+    private HookTransformOutcome filter(ClassNode node, FieldReadRedirectHookDefinition definition,
+            ResolvedMethod target, ResolvedField field, ResolvedMethod handler) throws HookTransformException {
+        if (!handler.getDescriptor().equals("(" + field.getDescriptor() + ")" + field.getDescriptor())) {
+            throw new HookTransformException(definition.getId(), "Field filter must preserve the read value type");
+        }
+        for (MethodNode method : node.methods) {
+            if (!method.name.equals(target.getName()) || !method.desc.equals(target.getDescriptor())) {
+                continue;
+            }
+            List<FieldInsnNode> reads = new ArrayList<>();
+            int applied = 0;
+            for (AbstractInsnNode instruction : method.instructions) {
+                if (!(instruction instanceof FieldInsnNode)) {
+                    continue;
+                }
+                FieldInsnNode read = (FieldInsnNode) instruction;
+                if (read.getOpcode() != Opcodes.GETFIELD || !read.owner.equals(field.getOwner())
+                        || !read.name.equals(field.getName()) || !read.desc.equals(field.getDescriptor())) {
+                    continue;
+                }
+                reads.add(read);
+                AbstractInsnNode next = read.getNext();
+                while (next != null && next.getOpcode() < 0) {
+                    next = next.getNext();
+                }
+                if (next instanceof MethodInsnNode) {
+                    MethodInsnNode call = (MethodInsnNode) next;
+                    if (call.getOpcode() == Opcodes.INVOKESTATIC && call.owner.equals(handler.getOwner())
+                            && call.name.equals(handler.getName()) && call.desc.equals(handler.getDescriptor())) {
+                        applied++;
+                    }
+                }
+            }
+            if (reads.size() != definition.getFilteredReads()) {
+                return HookTransformOutcome.NO_MATCH;
+            }
+            if (applied == reads.size()) {
+                return HookTransformOutcome.ALREADY_APPLIED;
+            }
+            if (applied != 0) {
+                return HookTransformOutcome.NO_MATCH;
+            }
+            for (FieldInsnNode read : reads) {
+                method.instructions.insert(read, new MethodInsnNode(Opcodes.INVOKESTATIC, handler.getOwner(),
+                        handler.getName(), handler.getDescriptor(), false));
+            }
+            return HookTransformOutcome.APPLIED;
+        }
+        return HookTransformOutcome.NO_MATCH;
     }
 }

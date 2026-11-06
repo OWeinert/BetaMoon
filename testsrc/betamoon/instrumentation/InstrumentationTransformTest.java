@@ -76,6 +76,7 @@ public final class InstrumentationTransformTest {
         verifyEarlyReturnExecution(mappings);
         verifyExceptionalCleanup(mappings);
         verifyFrozenRedirectAndNoMatch(mappings);
+        FieldReadFilterTest.run(mappings);
         System.out.println("BetaMoon instrumentation transformation tests passed.");
     }
 

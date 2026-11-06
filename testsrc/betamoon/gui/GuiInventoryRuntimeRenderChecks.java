@@ -62,9 +62,10 @@ final class GuiInventoryRuntimeRenderChecks {
             Globals lua = JsePlatform.standardGlobals();
             GuiClientUiRuntime.screens().add(GuiScreenParser.parse(OWNER,
                     lua.load("return {key='fixture:inventory-content',requires={'native_inventory','native_items'},"
-                            + "root={type='button',text='Inventory settings',width=120,height=20,anchorY=0},"
+                            + "root={type='button',width=120,height=20,anchorY=0,"
+                            + "bind=function(ctx) boundLayout=ctx.inventory:layout(); return {text='Inventory settings'} end},"
                             + "on={update=function(ctx) local layout=ctx.inventory:layout(); "
-                            + "seen=layout.slots[45].id; retained=ctx.inventory end}}").call(),
+                            + "seen=layout.slots[45].id; callbackLayout=layout; retained=ctx.inventory end}}").call(),
                     GuiClientUiRuntime.components()));
             GuiInventoryRuntime.registry().add(GuiInventoryParser.parse(OWNER, lua.load(
                     "return {key='fixture:inventory',screen='fixture:inventory-content',panel={width=200,height=200},"
@@ -72,6 +73,8 @@ final class GuiInventoryRuntimeRenderChecks {
                     .call()));
             GuiInventoryActivation claim = GuiInventoryRuntime.registry().activate(OWNER, "fixture:inventory");
             GuiInventoryRuntime.tick(client);
+            require(lua.get("boundLayout") == lua.get("callbackLayout"),
+                    "Inventory binding and update recopied the same detached layout publication");
             require(client.thePlayer.inventorySlots.getSlot(36).yDisplayPosition == 142,
                     "Inventory geometry changed during update instead of the displayed-frame boundary");
             render(screen, client);

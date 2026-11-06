@@ -5,6 +5,9 @@ import betamoon.gui.component.GuiComponentPlan;
 import betamoon.gui.framework.GuiScene;
 import betamoon.gui.presentation.GuiPresentationTree;
 import betamoon.gui.presentation.GuiCapability;
+import betamoon.gui.interop.GuiOwnedResources;
+import betamoon.gui.graphics.GuiResourceDefinitions;
+import net.minecraft.client.Minecraft;
 import java.util.Collections;
 import java.util.Set;
 import betamoon.luaapi.utils.LuaCallbackScope;
@@ -22,12 +25,20 @@ public interface GuiScreenAttachment {
 
     GuiRowBudget rowBudget();
 
+    default GuiOwnedResources resources(Minecraft client, String owner, GuiResourceDefinitions definitions) {
+        return new GuiOwnedResources(client, nativeScreen(), owner, definitions);
+    }
+
     default Set<GuiCapability> capabilities() {
         return Collections.emptySet();
     }
 
     default boolean inputAvailable() {
         return true;
+    }
+
+    default boolean presentationAvailable() {
+        return inputAvailable();
     }
 
     void attach(GuiPresentationTree document);

@@ -27,6 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.function.BooleanSupplier;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.GuiScreen;
 
@@ -48,8 +49,19 @@ public final class GuiOwnedResources implements GuiPreparedRowEnvironment.Resour
     private final Map<String, GuiFontFace> fonts = new LinkedHashMap<>();
 
     public GuiOwnedResources(Minecraft client, GuiScreen screen, String owner, GuiResourceDefinitions definitions) {
+        this(client, owner, definitions, () -> NativeClientScreenHost.prepareDetached(client, screen, owner));
+    }
+
+    public static GuiOwnedResources overlay(Minecraft client, GuiScreen viewport, String owner,
+            GuiResourceDefinitions definitions, BooleanSupplier attached) {
+        return new GuiOwnedResources(client, owner, definitions,
+                () -> NativeClientScreenHost.prepareOverlay(client, viewport, owner, attached));
+    }
+
+    private GuiOwnedResources(Minecraft client, String owner, GuiResourceDefinitions definitions,
+            Supplier<NativeClientScreenHost> factory) {
         this.owner = owner;
-        host = ScriptExecution.withOwner(owner, () -> NativeClientScreenHost.prepareDetached(client, screen, owner));
+        host = ScriptExecution.withOwner(owner, factory);
         boolean complete = false;
         try {
             ScriptExecution.withOwner(owner, () -> {

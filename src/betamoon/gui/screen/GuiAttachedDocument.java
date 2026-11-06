@@ -8,6 +8,8 @@ import betamoon.gui.framework.GuiInputLifetime;
 import betamoon.gui.framework.GuiScene;
 import betamoon.gui.presentation.GuiPresentationTree;
 import betamoon.gui.presentation.GuiCapability;
+import betamoon.gui.interop.GuiOwnedResources;
+import betamoon.gui.graphics.GuiResourceDefinitions;
 import java.util.Set;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import java.util.ArrayList;
@@ -43,6 +45,14 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
         boolean attached();
 
         boolean inputAvailable();
+
+        default boolean presentationAvailable() {
+            return inputAvailable();
+        }
+
+        default GuiOwnedResources resources(String owner, GuiResourceDefinitions definitions) {
+            return new GuiOwnedResources(client(), screen(), owner, definitions);
+        }
 
         long environment();
 
@@ -101,7 +111,7 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
     }
 
     public boolean usable() {
-        return inputAvailable() && !mount.failed() && page != null && page.attachedUsable();
+        return presentationAvailable() && !mount.failed() && page != null && page.attachedUsable();
     }
 
     public void tick() {
@@ -136,12 +146,16 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
         return false;
     }
 
+    public boolean canOpenLayers() {
+        return inputAvailable();
+    }
+
     public Object screenIdentity() {
         return closed ? null : host.client().currentScreen;
     }
 
     public boolean current(GuiScreenActivation activation) {
-        return canOpen() && host.inputAvailable();
+        return canOpen() && host.presentationAvailable();
     }
 
     public GuiScreenController.Page prepare(GuiScreenActivation activation, GuiScreenController.History history) {
@@ -177,6 +191,13 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
         return host.scene();
     }
 
+    public GuiOwnedResources resources(Minecraft client, String owner, GuiResourceDefinitions definitions) {
+        if (closed) {
+            throw new IllegalStateException("Attached document is closed");
+        }
+        return host.resources(owner, definitions);
+    }
+
     public Set<GuiCapability> capabilities() {
         return closed ? Collections.emptySet() : host.capabilities();
     }
@@ -187,6 +208,10 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
 
     public boolean inputAvailable() {
         return !closed && host.attached() && host.inputAvailable();
+    }
+
+    public boolean presentationAvailable() {
+        return !closed && host.attached() && host.presentationAvailable();
     }
 
     public void prepare(Object document, GuiComponentPlan plan) {

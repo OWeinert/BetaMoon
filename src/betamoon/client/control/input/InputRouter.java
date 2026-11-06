@@ -1,6 +1,7 @@
 package betamoon.client.control.input;
 
 import betamoon.content.ContentKey;
+import betamoon.luaapi.utils.LuaCallbackScope;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -37,6 +38,7 @@ public final class InputRouter {
 
     private final Map<ContentKey, InputMapRegistration> registrations = new LinkedHashMap<ContentKey, InputMapRegistration>();
     private final List<InputContext> contexts = new ArrayList<InputContext>();
+    private final List<InputFamilyCapture> familyCaptures = new ArrayList<>();
     private final Map<ActionIdentity, MutableActionState> states = new HashMap<ActionIdentity, MutableActionState>();
     private final InputPhysicalState physical = new InputPhysicalState();
     private final Map<Integer, WeakReference<Object>> guiGestures = new HashMap<>();
@@ -99,7 +101,59 @@ public final class InputRouter {
         return context;
     }
 
+    /**
+     * Java-owned UI interaction uses native captures without registering a
+     * fictitious named action.
+     */
+    public InputFamilyCapture captureNativeFamilies(String owner, EnumSet<InputFamily> families) {
+        LuaCallbackScope.requireUiStateWrite();
+        if (owner == null || owner.trim().isEmpty() || families == null || families.isEmpty()
+                || families.contains(InputFamily.NAMED_ACTIONS) || families.contains(InputFamily.GUI)) {
+            throw new IllegalArgumentException("Native captures require an owner and native gameplay families");
+        }
+        if (familyCaptures.size() >= 32) {
+            throw new IllegalArgumentException("Native family capture capacity exceeded");
+        }
+        InputFamilyCapture result = new InputFamilyCapture(this, owner, families);
+        familyCaptures.add(result);
+        try {
+            result.track();
+            if (families.contains(InputFamily.WORLD_ACTIONS)) {
+                retainHeldPointer(result);
+            }
+            return result;
+        } catch (RuntimeException | Error failure) {
+            result.close();
+            throw failure;
+        }
+    }
+
+    void removeCapture(InputFamilyCapture capture) {
+        familyCaptures.remove(capture);
+    }
+
+    private void closeCaptures() {
+        for (InputFamilyCapture capture : new ArrayList<>(familyCaptures)) {
+            capture.close();
+        }
+    }
+
+    public int captureCount() {
+        return familyCaptures.size();
+    }
+
+    public void retainHeldPointer(Object owner) {
+        for (int button : physical.mouseButtons()) {
+            claimGuiGesture(button, owner);
+        }
+    }
+
     public void beginCycle(Object currentWorld, Object currentPlayer, Object currentScreen, boolean hasFocus) {
+        boolean lifecycleChanged = world != currentWorld || player != currentPlayer || screen != currentScreen
+                || focused != hasFocus;
+        if (lifecycleChanged || !hasFocus) {
+            closeCaptures();
+        }
         if (focused && !hasFocus) {
             rearmGuiButtons.addAll(guiGestures.keySet());
             rearmGuiKeys.addAll(guiKeys.keySet());
@@ -109,8 +163,6 @@ public final class InputRouter {
         for (MutableActionState state : states.values()) {
             state.beginCycle();
         }
-        boolean lifecycleChanged = world != currentWorld || player != currentPlayer || screen != currentScreen
-                || focused != hasFocus;
         world = currentWorld;
         player = currentPlayer;
         screen = currentScreen;
@@ -177,7 +229,8 @@ public final class InputRouter {
             return null;
         }
         Object owner = reference.get();
-        boolean suppress = owner == null || owner != screen;
+        boolean suppress = owner == null
+                || owner != screen && !(owner instanceof GuiInputOwner && ((GuiInputOwner) owner).ownsGuiInput());
         if (!event.pressed()) {
             gestures.remove(event.code());
             rearm.remove(event.code());
@@ -318,6 +371,11 @@ public final class InputRouter {
     }
 
     public boolean captures(InputFamily family) {
+        for (InputFamilyCapture capture : familyCaptures) {
+            if (capture.captures(family)) {
+                return true;
+            }
+        }
         for (InputContext context : contexts) {
             if (context.captures(family)) {
                 return true;
@@ -428,6 +486,7 @@ public final class InputRouter {
     }
 
     public void clear() {
+        closeCaptures();
         for (InputMapRegistration registration : new ArrayList<InputMapRegistration>(registrations.values())) {
             unregister(registration);
         }
@@ -471,6 +530,7 @@ public final class InputRouter {
     /** Screen replacement can occur in the middle of one native input queue. */
     public void observeScreen(Object currentScreen) {
         if (screen != currentScreen) {
+            closeCaptures();
             screen = currentScreen;
             releaseAll(null);
         }

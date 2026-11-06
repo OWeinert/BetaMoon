@@ -8,7 +8,6 @@ import betamoon.gui.screen.GuiScreenDefinition;
 import betamoon.gui.graphics.GuiResourceDefinitions;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.utils.LuaDeclarationValues;
-import java.util.Map;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
@@ -70,11 +69,8 @@ public final class GuiInventoryLuaAccess {
      * The callback retains only detached layout values, even when the expired Lua
      * table is kept.
      */
-    public static LuaTable context(String owner, LuaCallbackScope scope, Map<String, Object> layout) {
-        LuaTable value = new LuaTable();
-        LuaValue detached = GuiReadOnlyValues.fromPublished(layout);
-        value.set("layout", GuiPresentationLuaAccess.function(owner, scope, false, args -> detached));
-        return value;
+    public static LuaTable context(LuaCallbackScope scope, GuiScopedSnapshot layout) {
+        return layout.access(scope, "layout");
     }
 
     private GuiInventoryLuaAccess() {

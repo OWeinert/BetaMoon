@@ -298,12 +298,25 @@ public final class GuiScene {
      */
     public void renderLayers() {
         if (displayedFrame != null) {
-            renderPass(context.getMouseX(), context.getMouseY(), context.getPartialTicks(), PaintPass.LAYERS);
+            renderPass(context.getMouseX(), context.getMouseY(), context.getPartialTicks(), PaintPass.LAYERS, true);
+        }
+    }
+
+    /**
+     * Replays content from the captured frame without resampling time or geometry.
+     */
+    public void renderDisplayedContent() {
+        if (displayedFrame != null) {
+            renderPass(context.getMouseX(), context.getMouseY(), context.getPartialTicks(), PaintPass.CONTENT, true);
         }
     }
 
     private void renderPass(int mouseX, int mouseY, float partialTicks, PaintPass pass) {
-        if (pass != PaintPass.LAYERS) {
+        renderPass(mouseX, mouseY, partialTicks, pass, false);
+    }
+
+    private void renderPass(int mouseX, int mouseY, float partialTicks, PaintPass pass, boolean replay) {
+        if (!replay) {
             context.updateFrame(mouseX, mouseY, partialTicks, System.currentTimeMillis());
             tooltipLines = Collections.emptyList();
         }
@@ -312,7 +325,7 @@ public final class GuiScene {
         paintPass = pass;
         painting = true;
         try {
-            if (pass != PaintPass.LAYERS) {
+            if (!replay) {
                 if (document != null) {
                     document.sample();
                 }
@@ -323,14 +336,14 @@ public final class GuiScene {
                 }
                 ensureLayout();
             }
-            if (pass == PaintPass.LAYERS) {
+            if (replay) {
                 renderingFrame = displayedFrame;
             } else {
                 renderingFrame = displayedFrame == null || frameDirty
                         ? new GuiFrameSnapshot(root, ++frameRevision, context)
                         : displayedFrame;
             }
-            if (pass != PaintPass.LAYERS) {
+            if (!replay) {
                 frameDirty = false;
             }
             root.render(context);

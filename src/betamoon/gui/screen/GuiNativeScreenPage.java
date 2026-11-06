@@ -478,7 +478,9 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
                     ? new GuiScreenData(definition.data, initialData)
                     : GuiScreenData.refresh(definition.data, previous.data.snapshot());
             resources = new GuiResourceOwners<>(
-                    owner -> new GuiOwnedResources(client, screen(), owner, definition.resources),
+                    owner -> attachment == null
+                            ? new GuiOwnedResources(client, screen(), owner, definition.resources)
+                            : attachment.resources(client, owner, definition.resources),
                     ScriptResourceTracker::ownerGeneration, preparedThemes::remove, failure -> activation.controller
                             .host().failure(definition.owner, definition.key + ".resources", failure));
             boolean complete = false;
@@ -609,7 +611,11 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
 
         public LuaTable bindingContext(LuaCallbackScope scope) {
             scope.nativeEntry(main().host().queryEntry(scope));
-            return new NativeCallbackTable(scope);
+            LuaTable context = new NativeCallbackTable(scope);
+            if (attachment != null) {
+                attachment.context(context, scope, activation);
+            }
+            return context;
         }
 
         public GuiPresentationHost forDefinition(GuiDocumentDefinition replacement) {
@@ -721,7 +727,8 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
         }
 
         public void requireHost() {
-            if (candidateInvalidated || !usable() || client.currentScreen != screen()) {
+            if (candidateInvalidated || !usable()
+                    || (attachment == null ? client.currentScreen != screen() : !attachment.presentationAvailable())) {
                 throw new IllegalStateException("Screen graphics attachment expired");
             }
         }
