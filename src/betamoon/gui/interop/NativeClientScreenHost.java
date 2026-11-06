@@ -21,6 +21,7 @@ import betamoon.interop.runtime.NativePermissions;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Collections;
 import java.util.function.Consumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.FontRenderer;
@@ -36,7 +37,8 @@ import org.lwjgl.opengl.GL11;
  */
 public final class NativeClientScreenHost implements AutoCloseable {
     private final Minecraft client;
-    private final GuiScreen screen;
+    private GuiScreen screen;
+    private boolean closed;
     private final boolean detached;
     private final NativeClientSession session;
     private final GuiRenderer renderer = new GuiRenderer(GuiTheme.DEFAULT);
@@ -68,7 +70,7 @@ public final class NativeClientScreenHost implements AutoCloseable {
     }
 
     private void requireAttached() {
-        if (client.currentScreen != screen) {
+        if (closed || screen == null || client.currentScreen != screen) {
             throw new NativeAccessFailure("native_client_screen_inactive", "use an attached owning screen");
         }
     }
@@ -86,7 +88,7 @@ public final class NativeClientScreenHost implements AutoCloseable {
                 // The GUI item adapter has no independently allocated native resource.
             });
             close = session.action("close-owned-screen", () -> {
-                if (client.currentScreen == screen) {
+                if (!closed && client.currentScreen == screen) {
                     client.displayGuiScreen(null);
                 }
             }, true);
@@ -200,7 +202,12 @@ public final class NativeClientScreenHost implements AutoCloseable {
 
     @Override
     public void close() {
-        session.close();
+        try {
+            session.close();
+        } finally {
+            closed = true;
+            screen = null;
+        }
     }
 
     private void requirePaint() {
@@ -213,6 +220,9 @@ public final class NativeClientScreenHost implements AutoCloseable {
     }
 
     private Map<String, Object> roots() {
+        if (closed) {
+            return Collections.emptyMap();
+        }
         Map<String, Object> roots = new LinkedHashMap<>();
         roots.put("client", client);
         roots.put("world", client.theWorld);

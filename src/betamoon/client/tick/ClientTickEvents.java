@@ -10,6 +10,7 @@ import betamoon.event.context.GuiEventCtx;
 import betamoon.event.context.WorldEventCtx;
 import betamoon.instrumentation.agent.BetaMoonAgent;
 import betamoon.gui.menu.GuiMenuRuntime;
+import betamoon.gui.inventory.GuiInventoryRuntime;
 import betamoon.interop.discovery.NativeDiscoveryRuntime;
 import betamoon.multiblock.MultiblockRuntime;
 import betamoon.runtime.RuntimeEnvironment;
@@ -48,6 +49,7 @@ public final class ClientTickEvents {
         NativeDiscoveryRuntime.poll();
         GuiClientUiRuntime.tick(minecraft);
         GuiMenuRuntime.tick(minecraft);
+        GuiInventoryRuntime.tick(minecraft);
         GuiScreen screen = minecraft.currentScreen;
         Events.GAME_TICK.publish(new GameEventCtx(minecraft, world));
         if (screen != null) {
@@ -69,6 +71,7 @@ public final class ClientTickEvents {
         WorldServiceRuntime.tick(world);
         if (minecraft.theWorld == world) {
             GuiClientUiRuntime.worldTick(minecraft, world);
+            GuiInventoryRuntime.worldTick(minecraft, world);
             Events.WORLD_TICK.publish(new WorldEventCtx(minecraft, world));
         }
     }

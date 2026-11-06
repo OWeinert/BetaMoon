@@ -3,6 +3,9 @@ package betamoon.gui.inventory;
 import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.inventory.GuiInventoryProfile.Position;
 import betamoon.luamodloader.ScriptResourceTracker;
+import betamoon.luaapi.client.ui.GuiInventoryParser;
+import org.luaj.vm2.LuaError;
+import org.luaj.vm2.lib.jse.JsePlatform;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -19,6 +22,7 @@ public final class GuiInventoryLayoutTest {
         try {
             semanticGeometry();
             rejectedGeometry();
+            strictDeclarations();
             ownedClaims();
         } finally {
             ScriptResourceTracker.unload(OWNER);
@@ -57,6 +61,23 @@ public final class GuiInventoryLayoutTest {
                 profile(200, 200, Collections.emptyMap(), Collections.emptyMap(), "native"), 176, 166, defaults()));
         refused(() -> profile(0, 0, Collections.singletonMap("invented", new Position(8, 8)), Collections.emptyMap(),
                 "panel"));
+    }
+
+    private static void strictDeclarations() {
+        GuiInventoryProfile profile = GuiInventoryParser.parse(OWNER,
+                JsePlatform.standardGlobals().load("return {key='test:parsed',preview={visible=false}}").call());
+        require(profile.preview.isEmpty() && profile.slotFrames && profile.panelWidth == 0,
+                "Parsed inventory defaults changed");
+        for (String fields : new String[]{"unexpected=true", "groups={missing={x=1,y=1}}",
+                "positions={['hotbar/10']={x=1,y=1}}", "panel={width=200.5}", "preview={visible=false,width=1.5}"}) {
+            try {
+                GuiInventoryParser.parse(OWNER,
+                        JsePlatform.standardGlobals().load("return {key='test:invalid'," + fields + "}").call());
+            } catch (LuaError expected) {
+                continue;
+            }
+            throw new AssertionError("Inventory accepted an invalid declaration: " + fields);
+        }
     }
 
     private static void ownedClaims() {

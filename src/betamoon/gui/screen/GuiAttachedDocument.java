@@ -7,6 +7,8 @@ import betamoon.gui.framework.GuiContainer;
 import betamoon.gui.framework.GuiInputLifetime;
 import betamoon.gui.framework.GuiScene;
 import betamoon.gui.presentation.GuiPresentationTree;
+import betamoon.gui.presentation.GuiCapability;
+import java.util.Set;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -31,6 +33,10 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
         GuiRowBudget rowBudget();
 
         GuiHostElementBudget elementBudget();
+
+        default Set<GuiCapability> capabilities() {
+            return Collections.emptySet();
+        }
 
         boolean available();
 
@@ -169,6 +175,10 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
 
     public GuiScene scene() {
         return host.scene();
+    }
+
+    public Set<GuiCapability> capabilities() {
+        return closed ? Collections.emptySet() : host.capabilities();
     }
 
     public GuiRowBudget rowBudget() {

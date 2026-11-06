@@ -108,6 +108,7 @@ public final class GuiUiApi {
         ui.set("components", components);
         ui.set("screens", screens);
         ui.set("menus", GuiMenuLuaAccess.registry(source));
+        ui.set("inventories", GuiInventoryLuaAccess.registry(source));
         client.set("ui", ui);
         module.set("client", client);
     }

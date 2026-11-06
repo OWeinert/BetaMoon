@@ -13,6 +13,7 @@ import betamoon.gui.style.GuiViewAppearance;
 import betamoon.gui.style.GuiVisualTemplate;
 import betamoon.gui.style.GuiDefaultTemplate;
 import betamoon.gui.style.GuiPreparedTemplate;
+import betamoon.gui.style.GuiDrawable;
 import betamoon.luaapi.client.ui.GuiTemplateSource;
 import betamoon.gui.framework.GuiScene;
 import betamoon.gui.framework.GuiLayer;
@@ -169,6 +170,13 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
 
     public boolean attachedUsable() {
         return attachment != null && usable();
+    }
+
+    public GuiDrawable preparedDrawable(String name) {
+        if (!usable()) {
+            throw new IllegalStateException("Prepared screen resources are unavailable");
+        }
+        return current.main().drawable(name);
     }
 
     public void inputAttached(Runnable input) {
@@ -512,7 +520,10 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
 
         Set<GuiCapability> capabilities() {
             EnumSet<GuiCapability> values = EnumSet.of(GuiCapability.INPUT, GuiCapability.MODAL_LAYERS,
-                    GuiCapability.PREPARED_DRAWING, GuiCapability.RAW_DRAWING);
+                    GuiCapability.NATIVE_ITEMS, GuiCapability.PREPARED_DRAWING, GuiCapability.RAW_DRAWING);
+            if (attachment != null) {
+                values.addAll(attachment.capabilities());
+            }
             if (activation.controller.host().worldAvailable()) {
                 values.add(GuiCapability.WORLD_DATA);
             }

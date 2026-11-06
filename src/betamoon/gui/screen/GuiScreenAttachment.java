@@ -4,6 +4,9 @@ import betamoon.gui.collection.GuiRowBudget;
 import betamoon.gui.component.GuiComponentPlan;
 import betamoon.gui.framework.GuiScene;
 import betamoon.gui.presentation.GuiPresentationTree;
+import betamoon.gui.presentation.GuiCapability;
+import java.util.Collections;
+import java.util.Set;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import net.minecraft.src.GuiScreen;
 import org.luaj.vm2.LuaTable;
@@ -18,6 +21,10 @@ public interface GuiScreenAttachment {
     GuiScene scene();
 
     GuiRowBudget rowBudget();
+
+    default Set<GuiCapability> capabilities() {
+        return Collections.emptySet();
+    }
 
     default boolean inputAvailable() {
         return true;

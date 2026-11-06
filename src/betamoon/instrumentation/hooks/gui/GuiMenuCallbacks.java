@@ -1,6 +1,7 @@
 package betamoon.instrumentation.hooks.gui;
 
 import betamoon.gui.menu.GuiMenuRuntime;
+import betamoon.gui.inventory.GuiInventoryRuntime;
 import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.GuiScreen;
@@ -12,6 +13,7 @@ public final class GuiMenuCallbacks {
 
     public static int changing(Minecraft client, GuiScreen next) {
         GuiMenuRuntime.changing(client, next);
+        GuiInventoryRuntime.changing(client, next);
         return 0;
     }
 
@@ -19,6 +21,7 @@ public final class GuiMenuCallbacks {
     }
 
     public static void initialized(GuiScreen screen, Minecraft client, List<?> buttons) {
+        GuiInventoryRuntime.initialized(client, screen);
         if (!GuiMenuRuntime.manual(screen)) {
             GuiMenuRuntime.initialized(client, screen, buttons);
         }
@@ -36,6 +39,7 @@ public final class GuiMenuCallbacks {
 
     public static void closed(GuiScreen screen) {
         GuiMenuRuntime.closed(screen);
+        GuiInventoryRuntime.closed(screen);
     }
 
     private GuiMenuCallbacks() {

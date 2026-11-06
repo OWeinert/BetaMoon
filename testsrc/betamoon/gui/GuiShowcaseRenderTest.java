@@ -226,6 +226,7 @@ public final class GuiShowcaseRenderTest {
             verifyModalScreens(minecraft, output);
             renderControls(minecraft, output);
             GuiInventoryLayerRenderChecks.run(minecraft, font, output);
+            GuiInventoryRuntimeRenderChecks.run(minecraft, new TestWorld(), output);
             renderUpdateNotice(minecraft, font, output);
             verifyVisualSlotFrames(minecraft, font, definition, entity, output);
             verifyExpansionPanels(minecraft, font, output);

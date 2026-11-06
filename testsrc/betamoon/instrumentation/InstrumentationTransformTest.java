@@ -368,6 +368,7 @@ public final class InstrumentationTransformTest {
                     || diagnostic.getHookId().startsWith("betamoon:entity_motion")
                     || diagnostic.getHookId().startsWith("betamoon:client_control")
                     || diagnostic.getHookId().startsWith("betamoon:gui_menu")
+                    || diagnostic.getHookId().startsWith("betamoon:gui_inventory")
                     || diagnostic.getHookId().startsWith("betamoon:tick_events")
                     || diagnostic.getHookId().startsWith("betamoon:worldgen_surface")
                     || diagnostic.getHookId().startsWith("betamoon:world_generator")
@@ -509,6 +510,7 @@ public final class InstrumentationTransformTest {
                 "Native menu lifecycle and button paint hooks did not match exactly once");
         assertAroundCallbacks(mappings, menu, "net/minecraft/src/GuiScreen", "drawScreen", "(IIF)V", "beforePaint",
                 "paint");
+        verifyInventorySeams(mappings, clientJarPath, transformer);
         EntityMotionHookTest.verify(mappings, clientJarPath);
         verifyFluidInteractionSeam(mappings, clientJarPath, transformer, RuntimeNamespace.CLIENT);
         verifyFluidContactSeams(mappings, clientJarPath, transformer, RuntimeNamespace.CLIENT);
@@ -645,6 +647,46 @@ public final class InstrumentationTransformTest {
                 "beforeGuiKeyboardInput", "afterGuiKeyboardInput");
         assertAroundCallbacks(mappings, gui, "net/minecraft/src/GuiScreen", "handleMouseInput", "()V",
                 "beforeGuiMouseInput", "afterGuiMouseInput");
+    }
+
+    private static void verifyInventorySeams(TinyMappingResolver mappings, String clientJarPath,
+            BetaMoonTransformer transformer) throws Exception {
+        byte[] container = transformControlClass(mappings, clientJarPath, transformer,
+                "net/minecraft/src/GuiContainer");
+        byte[] inventory = transformControlClass(mappings, clientJarPath, transformer,
+                "net/minecraft/src/GuiInventory");
+        verifyInventoryBytecode(container, inventory);
+        TransformationReport namedReport = new TransformationReport();
+        HookRegistry namedRegistry = new HookRegistry(namedReport);
+        BuiltinHookModules.registerAll(namedRegistry);
+        BetaMoonTransformer namedTransformer = new BetaMoonTransformer(
+                namedRegistry.freeze(mappings, RuntimeNamespace.NAMED, RuntimeNamespace.NAMED), mappings, namedReport,
+                true, false);
+        byte[][] named = new byte[2][];
+        String[] names = {"net/minecraft/src/GuiContainer", "net/minecraft/src/GuiInventory"};
+        for (int index = 0; index < names.length; index++) {
+            try (InputStream input = InstrumentationTransformTest.class
+                    .getResourceAsStream("/" + names[index] + ".class")) {
+                require(input != null, "Missing named inventory fixture class");
+                named[index] = namedTransformer.transform(null, names[index], null, null, readFully(input, 8192));
+                require(named[index] != null, "Named inventory seam did not transform");
+                require(namedTransformer.transform(null, names[index], null, null, named[index]) == null,
+                        "Named inventory hooks must be idempotent");
+            }
+        }
+        verifyInventoryBytecode(named[0], named[1]);
+    }
+
+    private static void verifyInventoryBytecode(byte[] container, byte[] inventory) {
+        require(countCallbackCalls(container, "beforeDraw") == 1 && countCallbackCalls(container, "afterDraw") == 1
+                && countCallbackCalls(container, "failedDraw") == 1,
+                "Inventory geometry must bracket the native draw, including exceptional cleanup");
+        require(countCallbackCalls(container, "cursor") == 4,
+                "Inventory layer paint must preserve all four native cursor-stack reads");
+        require(countCallbackCalls(container, "beforeHover") == 1 && countCallbackCalls(container, "closing") == 1,
+                "Inventory modal hover and native close must have exactly one presentation seam");
+        require(countCallbackCalls(inventory, "background") == 1 && countCallbackCalls(inventory, "foreground") == 1,
+                "Only the native player inventory may replace its background and label");
     }
 
     private static byte[] transformControlClass(TinyMappingResolver mappings, String clientJarPath,

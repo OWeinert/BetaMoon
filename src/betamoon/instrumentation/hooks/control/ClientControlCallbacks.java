@@ -3,6 +3,7 @@ package betamoon.instrumentation.hooks.control;
 import betamoon.client.control.input.ClientInputRuntime;
 import betamoon.gui.GuiTabbedControls;
 import betamoon.gui.menu.GuiMenuRuntime;
+import betamoon.gui.inventory.GuiInventoryRuntime;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.EntityPlayerSP;
@@ -51,7 +52,8 @@ public final class ClientControlCallbacks {
 
     public static int beforeGuiKeyboardInput(GuiScreen screen) {
         return ClientInputRuntime.consumesCurrentKeyboardEvent()
-                || !GuiMenuRuntime.manual(screen) && GuiMenuRuntime.keyboard(screen) ? 1 : 0;
+                || !GuiMenuRuntime.manual(screen) && GuiMenuRuntime.keyboard(screen)
+                || GuiInventoryRuntime.keyboard(screen) ? 1 : 0;
     }
 
     public static void afterGuiKeyboardInput(GuiScreen screen, int decision) {
@@ -59,7 +61,9 @@ public final class ClientControlCallbacks {
 
     public static int beforeGuiMouseInput(GuiScreen screen) {
         return ClientInputRuntime.consumesCurrentMouseEvent()
-                || !GuiMenuRuntime.manual(screen) && GuiMenuRuntime.mouse(screen) ? 1 : 0;
+                || !GuiMenuRuntime.manual(screen) && GuiMenuRuntime.mouse(screen) || GuiInventoryRuntime.mouse(screen)
+                        ? 1
+                        : 0;
     }
 
     public static void afterGuiMouseInput(GuiScreen screen, int decision) {
