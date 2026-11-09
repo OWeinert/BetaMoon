@@ -78,6 +78,9 @@ final class CallRedirectInjector {
         ResolvedMethod handler = mappings.resolveMethod(definition.getHandler().getMethod(), namespace);
         validateHandler(definition, invocation, handler);
         CallCounts counts = findCalls(method, definition, invocation, handler);
+        if (!CallRedirectShapeMatcher.matches(definition.getShapes(), counts.originals, counts.redirects)) {
+            return HookTransformOutcome.NO_MATCH;
+        }
         if (definition.redirectsAllCallsInTarget()) {
             return redirectAllCalls(method, definition, handler, counts);
         }

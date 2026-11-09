@@ -178,6 +178,15 @@ public final class NativeClientScreenHost implements AutoCloseable {
                     screen.height, client.displayWidth, client.displayHeight);
             try (GraphicsRenderScope scope = GraphicsRenderScope.open(this::requirePaint, GraphicsStateGuard::enter,
                     GraphicsTransform.IDENTITY, clip)) {
+                if (overlay) {
+                    GL11.glViewport(0, 0, client.displayWidth, client.displayHeight);
+                    GL11.glMatrixMode(GL11.GL_PROJECTION);
+                    GL11.glLoadIdentity();
+                    GL11.glOrtho(0, screen.width, screen.height, 0, 1000, 3000);
+                    GL11.glMatrixMode(GL11.GL_MODELVIEW);
+                    GL11.glLoadIdentity();
+                    GL11.glTranslatef(0, 0, -2000);
+                }
                 painter.run();
             }
         });

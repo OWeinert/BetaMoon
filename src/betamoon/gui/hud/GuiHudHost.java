@@ -35,6 +35,7 @@ import net.minecraft.src.GuiChat;
 import net.minecraft.src.GuiScreen;
 import net.minecraft.src.ScaledResolution;
 import org.luaj.vm2.LuaTable;
+import org.lwjgl.input.Mouse;
 
 /**
  * One retained scene and resource boundary for a stable native client
@@ -334,6 +335,20 @@ final class GuiHudHost implements AutoCloseable {
             suppressed.add(part);
         }
         return hidden;
+    }
+
+    boolean nativeSuppressed(GuiHudNativePart part) {
+        return nativeDrawing && prepared() && suppressed.contains(part);
+    }
+
+    void clientOverlay(float partialTicks) {
+        int x = 0;
+        int y = 0;
+        if (Mouse.isCreated() && client.displayWidth > 0 && client.displayHeight > 0) {
+            x = Mouse.getX() * viewport.width / client.displayWidth;
+            y = viewport.height - Mouse.getY() * viewport.height / client.displayHeight - 1;
+        }
+        clientOverlay(x, y, partialTicks);
     }
 
     void clientOverlay(int mouseX, int mouseY, float partialTicks) {

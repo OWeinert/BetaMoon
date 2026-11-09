@@ -71,7 +71,15 @@ public final class GuiHudRuntime {
 
     public static void beginNative(Minecraft client, int mouseX, int mouseY, float partialTicks) {
         if (current != null && current.client == client && current.valid()) {
-            current.beginNative(mouseX, mouseY, partialTicks);
+            GuiHudHost rendering = current;
+            try {
+                rendering.beginNative(mouseX, mouseY, partialTicks);
+            } catch (VirtualMachineError | ThreadDeath fatal) {
+                throw fatal;
+            } catch (Throwable failure) {
+                rendering.nativeDrawing = false;
+                rendering.failed(failure);
+            }
         }
     }
 
@@ -93,6 +101,23 @@ public final class GuiHudRuntime {
         } catch (Throwable failure) {
             rendering.failed(failure);
             return false;
+        }
+    }
+
+    public static boolean nativeSuppressed(GuiHudNativePart part) {
+        return current != null && current.valid() && current.nativeSuppressed(part);
+    }
+
+    public static void clientOverlay(Minecraft client, float partialTicks) {
+        if (current != null && current.client == client && current.valid()) {
+            GuiHudHost rendering = current;
+            try {
+                rendering.clientOverlay(partialTicks);
+            } catch (VirtualMachineError | ThreadDeath fatal) {
+                throw fatal;
+            } catch (Throwable failure) {
+                rendering.failed(failure);
+            }
         }
     }
 

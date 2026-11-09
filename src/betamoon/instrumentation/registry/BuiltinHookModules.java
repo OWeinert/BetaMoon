@@ -11,6 +11,7 @@ import betamoon.instrumentation.hooks.block.ContentCallbackOverrideHook;
 import betamoon.instrumentation.hooks.control.ClientControlHook;
 import betamoon.instrumentation.hooks.gui.GuiMenuHook;
 import betamoon.instrumentation.hooks.gui.GuiInventoryHook;
+import betamoon.instrumentation.hooks.gui.GuiHudHook;
 import betamoon.instrumentation.hooks.dimension.DimensionHook;
 import betamoon.instrumentation.hooks.dimension.DimensionMapHook;
 import betamoon.instrumentation.hooks.entity.EntityLifecycleHook;
@@ -96,6 +97,7 @@ public final class BuiltinHookModules {
         registry.registerModule(new ClientControlHook());
         registry.registerModule(new GuiMenuHook());
         registry.registerModule(new GuiInventoryHook());
+        registry.registerModule(new GuiHudHook());
         registry.registerModule(new TickEventHook());
         registry.registerModule(new FluidCameraHook());
         registry.registerModule(new ParticleHook());

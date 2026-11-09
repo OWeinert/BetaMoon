@@ -16,8 +16,8 @@ public final class TransformationReport {
     }
 
     public void registered(String hookId, String target, String matchRequirement, boolean required) {
-        diagnostics.put(hookId, new HookDiagnostic(hookId, HookStatus.REGISTERED, "Registered", target,
-                matchRequirement, required));
+        diagnostics.put(hookId,
+                new HookDiagnostic(hookId, HookStatus.REGISTERED, "Registered", target, matchRequirement, required));
     }
 
     public void waiting(String hookId, String target) {
@@ -54,6 +54,12 @@ public final class TransformationReport {
             }
         }
         return false;
+    }
+
+    public boolean isApplied(String hookId) {
+        HookDiagnostic diagnostic = diagnostics.get(hookId);
+        return diagnostic != null && (diagnostic.getStatus() == HookStatus.APPLIED
+                || diagnostic.getStatus() == HookStatus.ALREADY_APPLIED);
     }
 
     public List<HookDiagnostic> snapshot() {

@@ -1,5 +1,10 @@
 package betamoon.instrumentation.api;
 
+import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 /**
  * Replaces mapped calls inside a method with a static handler. Virtual handlers
  * accept the original receiver first; static handlers preserve the invocation
@@ -14,6 +19,7 @@ public final class CallRedirectHookDefinition implements HookDefinition {
     private final boolean allMethods;
     private final boolean allCallsInTarget;
     private final boolean staticInvocation;
+    private final List<CallRedirectShape> shapes;
 
     /**
      * Redirect every matching call in the target class, including multiple calls in
@@ -23,7 +29,7 @@ public final class CallRedirectHookDefinition implements HookDefinition {
         return allMethods
                 ? this
                 : new CallRedirectHookDefinition(id, target, invocation, invocationOwner, handler, true,
-                        allCallsInTarget, staticInvocation);
+                        allCallsInTarget, staticInvocation, shapes);
     }
 
     /** Redirects every matching call in the selected target method. */
@@ -31,7 +37,7 @@ public final class CallRedirectHookDefinition implements HookDefinition {
         return allCallsInTarget
                 ? this
                 : new CallRedirectHookDefinition(id, target, invocation, invocationOwner, handler, allMethods, true,
-                        staticInvocation);
+                        staticInvocation, shapes);
     }
 
     /** Selects an {@code INVOKESTATIC} source call instead of a virtual call. */
@@ -39,7 +45,7 @@ public final class CallRedirectHookDefinition implements HookDefinition {
         return staticInvocation
                 ? this
                 : new CallRedirectHookDefinition(id, target, invocation, invocationOwner, handler, allMethods,
-                        allCallsInTarget, true);
+                        allCallsInTarget, true, shapes);
     }
 
     /**
@@ -54,7 +60,23 @@ public final class CallRedirectHookDefinition implements HookDefinition {
         return invocationOwner != null && owner.getInternalName().equals(invocationOwner.getInternalName())
                 ? this
                 : new CallRedirectHookDefinition(id, target, invocation, owner, handler, allMethods, allCallsInTarget,
-                        staticInvocation);
+                        staticInvocation, shapes);
+    }
+
+    /**
+     * Unsupported argument shapes preserve the original calls while unrelated hooks
+     * can apply.
+     */
+    public CallRedirectHookDefinition withShapes(CallRedirectShape... shapes) {
+        if (shapes == null || shapes.length < 1 || shapes.length > 64 || Arrays.asList(shapes).contains(null)) {
+            throw new IllegalArgumentException("Semantic redirects require 1..64 call shapes");
+        }
+        return new CallRedirectHookDefinition(id, target, invocation, invocationOwner, handler, allMethods,
+                allCallsInTarget, staticInvocation, Arrays.asList(shapes.clone()));
+    }
+
+    public List<CallRedirectShape> getShapes() {
+        return shapes;
     }
 
     public boolean appliesToAllMethods() {
@@ -70,11 +92,12 @@ public final class CallRedirectHookDefinition implements HookDefinition {
     }
 
     public CallRedirectHookDefinition(String id, MethodRef target, MethodRef invocation, HandlerRef handler) {
-        this(id, target, invocation, null, handler, false, false, false);
+        this(id, target, invocation, null, handler, false, false, false, Collections.emptyList());
     }
 
     private CallRedirectHookDefinition(String id, MethodRef target, MethodRef invocation, ClassRef invocationOwner,
-            HandlerRef handler, boolean allMethods, boolean allCallsInTarget, boolean staticInvocation) {
+            HandlerRef handler, boolean allMethods, boolean allCallsInTarget, boolean staticInvocation,
+            List<CallRedirectShape> shapes) {
         if (id == null || target == null || invocation == null || handler == null) {
             throw new IllegalArgumentException("Call redirect requires an ID, target, invocation, and handler");
         }
@@ -86,6 +109,10 @@ public final class CallRedirectHookDefinition implements HookDefinition {
         this.allMethods = allMethods;
         this.allCallsInTarget = allCallsInTarget;
         this.staticInvocation = staticInvocation;
+        if (allMethods && !shapes.isEmpty()) {
+            throw new IllegalArgumentException("Exact call shapes require a single target method");
+        }
+        this.shapes = Collections.unmodifiableList(new ArrayList<>(shapes));
     }
 
     @Override
@@ -112,7 +139,7 @@ public final class CallRedirectHookDefinition implements HookDefinition {
 
     @Override
     public MatchRequirement getMatchRequirement() {
-        return MatchRequirement.exactly(1);
+        return shapes.isEmpty() ? MatchRequirement.exactly(1) : MatchRequirement.between(0, 1);
     }
 
     @Override

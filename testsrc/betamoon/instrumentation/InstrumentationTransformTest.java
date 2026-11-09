@@ -77,6 +77,7 @@ public final class InstrumentationTransformTest {
         verifyExceptionalCleanup(mappings);
         verifyFrozenRedirectAndNoMatch(mappings);
         FieldReadFilterTest.run(mappings);
+        GuiHudHookTest.run(mappings, args[1]);
         System.out.println("BetaMoon instrumentation transformation tests passed.");
     }
 
@@ -370,6 +371,7 @@ public final class InstrumentationTransformTest {
                     || diagnostic.getHookId().startsWith("betamoon:client_control")
                     || diagnostic.getHookId().startsWith("betamoon:gui_menu")
                     || diagnostic.getHookId().startsWith("betamoon:gui_inventory")
+                    || diagnostic.getHookId().startsWith("betamoon:gui_hud")
                     || diagnostic.getHookId().startsWith("betamoon:tick_events")
                     || diagnostic.getHookId().startsWith("betamoon:worldgen_surface")
                     || diagnostic.getHookId().startsWith("betamoon:world_generator")
@@ -512,6 +514,7 @@ public final class InstrumentationTransformTest {
         assertAroundCallbacks(mappings, menu, "net/minecraft/src/GuiScreen", "drawScreen", "(IIF)V", "beforePaint",
                 "paint");
         verifyInventorySeams(mappings, clientJarPath, transformer);
+        verifyHudSeams(mappings, clientJarPath, transformer);
         EntityMotionHookTest.verify(mappings, clientJarPath);
         verifyFluidInteractionSeam(mappings, clientJarPath, transformer, RuntimeNamespace.CLIENT);
         verifyFluidContactSeams(mappings, clientJarPath, transformer, RuntimeNamespace.CLIENT);
@@ -648,6 +651,19 @@ public final class InstrumentationTransformTest {
                 "beforeGuiKeyboardInput", "afterGuiKeyboardInput");
         assertAroundCallbacks(mappings, gui, "net/minecraft/src/GuiScreen", "handleMouseInput", "()V",
                 "beforeGuiMouseInput", "afterGuiMouseInput");
+    }
+
+    private static void verifyHudSeams(TinyMappingResolver mappings, String clientJarPath,
+            BetaMoonTransformer transformer) throws Exception {
+        byte[] hud = transformControlClass(mappings, clientJarPath, transformer, "net/minecraft/src/GuiIngame");
+        require(countCallbackCalls(hud, "texture") == 13,
+                "HUD atlas arguments did not match the complete native call set");
+        require(countCallbackCalls(hud, "chat") == 4,
+                "HUD chat reads did not match the complete native rendering read set");
+        require(countCallbackCalls(hud, "beforeNative") == 1 && countCallbackCalls(hud, "afterNative") == 2
+                && countCallbackCalls(hud, "beforeHotbar") == 1 && countCallbackCalls(hud, "armor") == 1,
+                "HUD native frame, exceptional cleanup, hotbar items or armor boundary did not match");
+        require(countCallbackCalls(hud, "showAirHud") == 1, "HUD presentation displaced the fluid drowning/air policy");
     }
 
     private static void verifyInventorySeams(TinyMappingResolver mappings, String clientJarPath,

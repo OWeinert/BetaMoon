@@ -2,12 +2,15 @@ package betamoon.instrumentation.hooks.fluid;
 
 import betamoon.client.atmosphere.AtmosphereRuntime;
 import betamoon.client.render.FluidCameraRuntime;
+import betamoon.gui.hud.GuiHudNativePart;
+import betamoon.gui.hud.GuiHudRuntime;
+import betamoon.instrumentation.hooks.gui.GuiHudCallbacks;
 import net.minecraft.src.EntityLiving;
 import net.minecraft.src.EntityPlayerSP;
 import net.minecraft.src.Material;
 import net.minecraft.src.RenderEngine;
 
-/** Mapped client callbacks; renderer work never invokes Lua. */
+/** Mapped client callbacks; ordinary fluid rendering remains Java-only. */
 public final class FluidCameraCallbacks {
     private FluidCameraCallbacks() {
     }
@@ -25,7 +28,11 @@ public final class FluidCameraCallbacks {
     }
 
     public static boolean showAirHud(EntityPlayerSP player, Material material) {
-        return FluidCameraRuntime.showAirHud(player, material);
+        boolean visible = FluidCameraRuntime.showAirHud(player, material);
+        if (visible && GuiHudCallbacks.atlasAvailable()) {
+            GuiHudRuntime.nativePart(GuiHudNativePart.BREATH);
+        }
+        return visible;
     }
 
     public static int overlayTexture(RenderEngine engine, String path) {
