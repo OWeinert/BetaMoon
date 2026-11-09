@@ -3,6 +3,7 @@ package betamoon.gui.hud;
 import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.luaapi.client.ui.GuiHudParser;
 import betamoon.luaapi.client.ui.GuiHudLuaAccessTest;
+import betamoon.luaapi.client.ui.GuiNotificationLuaAccessTest;
 import betamoon.luaapi.client.ui.GuiScopedSnapshot;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luamodloader.ScriptExecution;
@@ -30,6 +31,7 @@ public final class GuiHudFoundationTest {
             GuiHudInputTest.run();
             GuiHudLuaAccessTest.run();
             GuiNotificationQueueTest.run();
+            GuiNotificationLuaAccessTest.run();
         } finally {
             ScriptResourceTracker.unload(OWNER);
         }

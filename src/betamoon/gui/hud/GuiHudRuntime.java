@@ -147,27 +147,32 @@ public final class GuiHudRuntime {
     }
 
     public static void tick(Minecraft client) {
+        GuiNotificationRuntime.client(client);
         if (current != null && (current.client != client || !current.valid() || !current.available())) {
             close();
         }
-        if (client == null || REGISTRY.activations().isEmpty()) {
+        if (client == null || REGISTRY.activations().isEmpty() && GuiNotificationRuntime.queue().size() == 0) {
+            GuiNotificationRuntime.unavailable(client);
             close();
             rejected = null;
             return;
         }
-        if (rejected != null && rejected.matches(client, REGISTRY.revision())) {
+        if (rejected != null && rejected.matches(client, revision())) {
+            GuiNotificationRuntime.unavailable(client);
             return;
         }
         rejected = null;
         if (client.fontRenderer == null || client.renderEngine == null || client.displayWidth <= 0
                 || client.displayHeight <= 0) {
+            GuiNotificationRuntime.unavailable(client);
             return;
         }
         if (current == null && NativeDiscoveryRuntime.bindingsIfAvailable() != null) {
             try {
                 current = new GuiHudHost(client, REGISTRY);
             } catch (RuntimeException failure) {
-                rejected = new Refusal(client, REGISTRY.revision());
+                GuiNotificationRuntime.queue().failAll("client_resources_unavailable");
+                rejected = new Refusal(client, revision());
                 for (GuiHudActivation activation : REGISTRY.activations()) {
                     activation.publish("refused", "client_resources_unavailable", null);
                 }
@@ -185,10 +190,16 @@ public final class GuiHudRuntime {
                 updating.failed(failure);
             }
             if (current == updating && !updating.hasLiveClaims()) {
-                rejected = new Refusal(client, REGISTRY.revision());
+                rejected = new Refusal(client, revision());
                 close();
             }
+        } else {
+            GuiNotificationRuntime.unavailable(client);
         }
+    }
+
+    private static long revision() {
+        return REGISTRY.revision() + GuiNotificationRuntime.queue().revision();
     }
 
     public static void beginNative(Minecraft client, int mouseX, int mouseY, float partialTicks) {
@@ -266,7 +277,11 @@ public final class GuiHudRuntime {
         GuiHudHost previous = current;
         current = null;
         if (previous != null) {
-            previous.close();
+            try {
+                GuiNotificationRuntime.unavailable(previous.client);
+            } finally {
+                previous.close();
+            }
         }
     }
 

@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.Comparator;
 import java.util.function.LongSupplier;
 
 /**
@@ -37,6 +38,8 @@ public final class GuiNotificationQueue {
     private final Map<Long, GuiNotification> entries = new LinkedHashMap<>();
     private final Map<GuiNotificationCorner, String> lastOwner = new EnumMap<>(GuiNotificationCorner.class);
     private long nextId;
+    private long nextPlacementSequence;
+    private long revision;
 
     public GuiNotificationQueue(LongSupplier clock) {
         this.clock = clock;
@@ -81,6 +84,7 @@ public final class GuiNotificationQueue {
         });
         entry.tracked = true;
         entries.put(entry.id, entry);
+        revision++;
         return new ShowResult(entry, null);
     }
 
@@ -127,6 +131,7 @@ public final class GuiNotificationQueue {
         if (moved) {
             requeue(entry, true);
         }
+        revision++;
         return null;
     }
 
@@ -201,8 +206,8 @@ public final class GuiNotificationQueue {
             return;
         }
         List<Rect> occupied = new ArrayList<>();
-        for (GuiNotification entry : new ArrayList<>(entries.values())) {
-            if (entry.admitted) {
+        for (GuiNotification entry : allocated()) {
+            if (entries.get(entry.id) == entry && entry.admitted) {
                 Rect placed = placement.place(entry, Collections.unmodifiableList(occupied));
                 if (!fits(placed, occupied)) {
                     if (entry.ending != null) {
@@ -230,6 +235,7 @@ public final class GuiNotificationQueue {
                 }
                 candidate.bounds = placed;
                 candidate.admitted = true;
+                candidate.placementSequence = ++nextPlacementSequence;
                 candidate.advancedAt = now;
                 occupied.add(placed);
                 lastOwner.put(corner, candidate.definition.owner);
@@ -327,6 +333,7 @@ public final class GuiNotificationQueue {
 
     private void finish(GuiNotification entry, GuiNotification.State state, String reason) {
         entries.remove(entry.id);
+        revision++;
         entry.state = state;
         entry.reason = reason;
         entry.bounds = Rect.EMPTY;
@@ -348,7 +355,7 @@ public final class GuiNotificationQueue {
 
     public List<GuiNotification> admitted() {
         List<GuiNotification> visible = new ArrayList<>();
-        for (GuiNotification entry : entries.values()) {
+        for (GuiNotification entry : allocated()) {
             if (!entry.bounds.isEmpty()) {
                 visible.add(entry);
             }
@@ -356,8 +363,29 @@ public final class GuiNotificationQueue {
         return Collections.unmodifiableList(visible);
     }
 
+    private List<GuiNotification> allocated() {
+        List<GuiNotification> allocated = new ArrayList<>();
+        for (GuiNotification entry : entries.values()) {
+            if (entry.admitted) {
+                allocated.add(entry);
+            }
+        }
+        allocated.sort(Comparator.comparingLong(entry -> entry.placementSequence));
+        return allocated;
+    }
+
     public int size() {
         return entries.size();
+    }
+
+    public long revision() {
+        return revision;
+    }
+
+    public void failAll(String reason) {
+        for (GuiNotification entry : new ArrayList<>(entries.values())) {
+            failed(entry, reason);
+        }
     }
 
     private static ShowResult refused(String reason) {

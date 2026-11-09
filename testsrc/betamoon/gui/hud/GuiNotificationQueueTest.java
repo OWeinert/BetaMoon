@@ -20,6 +20,7 @@ final class GuiNotificationQueueTest {
             limitsAndAtomicUpdates();
             expiry();
             durationUpdates();
+            nativeReservations();
             lifetimes();
         } finally {
             for (String owner : new String[]{"notice-a", "notice-b", "notice-c", "notice-d", "notice-e"}) {
@@ -43,6 +44,12 @@ final class GuiNotificationQueueTest {
         require(admitted.size() == 3 && admitted.contains(first.get(0)) && admitted.contains(first.get(1))
                 && admitted.contains(other) && first.get(2).bounds().isEmpty(),
                 "Notification admission did not rotate owners while preserving each owner's FIFO order");
+        require(admitted.get(0) == first.get(0) && admitted.get(1) == other && admitted.get(2) == first.get(1),
+                "Paint/layout order discarded the fair admission sequence");
+        int otherTop = other.bounds().getTop();
+        queue.advance(null, null, true, GuiNotificationQueueTest::place);
+        require(other.bounds().getTop() == otherTop,
+                "A later logical update reshuffled already admitted owner-fair notification placement");
         require(admitted.stream().allMatch(value -> value.state() == GuiNotification.State.QUEUED),
                 "Queue admission advertised visibility before a successful presentation");
         admitted.forEach(GuiNotification::rendered);
@@ -250,6 +257,31 @@ final class GuiNotificationQueueTest {
         queue.advance(null, null, true, GuiNotificationQueueTest::place);
         require(entry.state() == GuiNotification.State.EXITING,
                 "Restarted notification missed its new expiry deadline");
+        ScriptResourceTracker.unload("notice-a");
+    }
+
+    private static void nativeReservations() {
+        GuiNotificationQueue queue = new GuiNotificationQueue(() -> 0);
+        GuiNotificationDefinition definition = definition("notice-a");
+        GuiNotification one = show(queue, definition, options(null, GuiNotificationCorner.TOP_LEFT));
+        GuiNotification two = show(queue, definition, options(null, GuiNotificationCorner.TOP_LEFT));
+        List<Rect> reserved = new ArrayList<>();
+        reserved.add(Rect.fromPositionAndSize(156, 0, 164, 40));
+        reserved.add(Rect.fromPositionAndSize(0, 94, 320, 98));
+        reserved.add(Rect.fromPositionAndSize(64, 192, 192, 48));
+        queue.advance(null, null, true, new GuiNotificationLayout(320, 240, reserved));
+        require(queue.admitted().size() == 2 && one.bounds().getTop() == 4 && two.bounds().getTop() == 48,
+                "Minimum viewport notification columns unnecessarily overlapped the achievement reservation");
+        for (GuiNotification entry : queue.admitted()) {
+            for (Rect nativeRegion : reserved) {
+                require(entry.bounds().intersect(nativeRegion).isEmpty(),
+                        "Notification placement covered native chat/hotbar/achievement presentation");
+            }
+        }
+        reserved.add(Rect.fromPositionAndSize(0, 0, 320, 90));
+        queue.advance(null, null, true, new GuiNotificationLayout(320, 240, reserved));
+        require(queue.admitted().isEmpty() && one.state() == GuiNotification.State.QUEUED,
+                "Insufficient viewport space covered engine/native diagnostics instead of preserving queued entries");
         ScriptResourceTracker.unload("notice-a");
     }
 

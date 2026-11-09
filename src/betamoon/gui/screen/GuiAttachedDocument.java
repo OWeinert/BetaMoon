@@ -96,11 +96,15 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
     }
 
     public GuiScreenController.OpenResult open() {
+        return open(Collections.emptyMap());
+    }
+
+    public GuiScreenController.OpenResult open(Map<String, Object> data) {
         GuiScreenDefinition definition = GuiClientUiRuntime.screens().getRequired(key);
         if (!definition.owner.equals(owner)) {
             throw new IllegalArgumentException("Attached screen belongs to another owner");
         }
-        return controller.open(owner, key, Collections.emptyMap(), Collections.emptyMap());
+        return controller.open(owner, key, Collections.emptyMap(), data);
     }
 
     public GuiDocumentMount mount() {

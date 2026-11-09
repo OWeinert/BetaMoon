@@ -80,8 +80,12 @@ public final class GuiScene {
      * release.
      */
     public void cancelInput() {
-        cancelGesturesIn(root);
-        changeFocus(null);
+        cancelInput(root);
+    }
+
+    public void cancelInput(GuiElement owner) {
+        cancelGesturesIn(owner);
+        releaseOwnership(owner);
     }
 
     private boolean inputAllowed(GuiElement element) {

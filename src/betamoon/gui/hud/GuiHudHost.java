@@ -11,6 +11,7 @@ import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.framework.GuiPreparationPhase;
 import betamoon.gui.framework.GuiScene;
 import betamoon.gui.graphics.GuiResourceDefinitions;
+import betamoon.gui.graphics.GraphicsTransform;
 import betamoon.gui.interop.GuiOwnedResources;
 import betamoon.gui.interop.NativeClientScreenHost;
 import betamoon.gui.inventory.GuiInventoryRuntime;
@@ -33,6 +34,7 @@ import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.GuiChat;
 import net.minecraft.src.GuiScreen;
@@ -56,7 +58,8 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
     private final GuiRowBudget rows = new GuiRowBudget();
     private final GuiHostElementBudget budget = new GuiHostElementBudget(rows);
     private final Root root = new Root();
-    private final Map<String, Entry> entries = new LinkedHashMap<>();
+    private final Map<GuiHudActivation, Entry> entries = new LinkedHashMap<>();
+    private final GuiNotificationQueue notifications = GuiNotificationRuntime.queue();
     private final Map<GuiHudNativePart, Entry> winners = new EnumMap<>(GuiHudNativePart.class);
     private final EnumSet<GuiHudNativePart> visited = EnumSet.noneOf(GuiHudNativePart.class);
     private final EnumSet<GuiHudNativePart> suppressed = EnumSet.noneOf(GuiHudNativePart.class);
@@ -108,6 +111,9 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
     }
 
     boolean hasLiveClaims() {
+        if (notifications.size() != 0) {
+            return true;
+        }
         for (Entry entry : entries.values()) {
             if (!entry.failed && !entry.retired && entry.claim.requested() && entry.definition.available()) {
                 return true;
@@ -117,8 +123,9 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
     }
 
     GuiScreenActivation instance(GuiHudActivation claim, GuiHudNativePart part) {
-        Entry entry = entries.get(claim.key);
-        if (entry == null || entry.claim != claim || !entry.eligible()) {
+        Entry entry = entries.get(claim);
+        if (entry == null || entry.claim != claim || !entry.eligible()
+                || entry.notification != null && !entry.notification.live()) {
             return null;
         }
         Surface surface = part == null ? entry.additive : entry.parts.get(part);
@@ -144,7 +151,14 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
             if (cursor != null && !cursor.ownsGuiInput()) {
                 stopInteraction();
             }
-            safeArea = GuiHudLayout.safeArea(viewport.width, viewport.height, reservations());
+            List<Rect> reserved = reservations();
+            updateNotificationPauses();
+            notifications.advance(client.theWorld, client.thePlayer, notificationPresentationAvailable(),
+                    new GuiNotificationLayout(viewport.width, viewport.height, reserved));
+            for (GuiNotification notification : notifications.admitted()) {
+                reserved.add(notification.bounds());
+            }
+            safeArea = GuiHudLayout.safeArea(viewport.width, viewport.height, reserved);
             engine.observe(this::observe);
             scene.runActions();
             if (!valid()) {
@@ -199,6 +213,9 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
     private List<Rect> reservations() {
         List<Rect> occupied = new ArrayList<>();
         occupied.add(Rect.fromPositionAndSize(Math.max(0, viewport.width - 164), 0, 164, 40));
+        if (client.gameSettings.showDebugInfo) {
+            occupied.add(Rect.fromPositionAndSize(0, 0, Math.min(320, viewport.width), 90));
+        }
         if (worldAvailable()) {
             occupied.add(Rect.fromPositionAndSize(Math.max(0, viewport.width / 2 - 96),
                     Math.max(0, viewport.height - 48), 192, 48));
@@ -248,21 +265,45 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
     }
 
     private void reconcile() {
-        Map<String, GuiHudActivation> requested = new LinkedHashMap<>();
+        Map<GuiHudActivation, GuiHudDefinition> requested = new LinkedHashMap<>();
+        Map<GuiHudActivation, GuiNotification> notices = new IdentityHashMap<>();
         for (GuiHudActivation activation : registry.activations()) {
-            requested.put(activation.key, activation);
+            requested.put(activation, registry.getRequired(activation.key));
+        }
+        for (GuiNotification notification : notifications.admitted()) {
+            requested.put(notification.activation, notification.contribution);
+            notices.put(notification.activation, notification);
         }
         for (Entry entry : new ArrayList<>(entries.values())) {
-            if (requested.get(entry.definition.key) != entry.claim
-                    || registry.get(entry.definition.key) != entry.definition) {
+            if (requested.get(entry.claim) != entry.definition || notices.get(entry.claim) != entry.notification) {
                 entry.close();
-                entries.remove(entry.definition.key);
+                entries.remove(entry.claim);
             }
         }
-        for (GuiHudActivation claim : requested.values()) {
-            if (!entries.containsKey(claim.key)) {
-                entries.put(claim.key, new Entry(registry.getRequired(claim.key), claim));
+        for (Map.Entry<GuiHudActivation, GuiHudDefinition> request : requested.entrySet()) {
+            if (!entries.containsKey(request.getKey())) {
+                entries.put(request.getKey(),
+                        new Entry(request.getValue(), request.getKey(), notices.get(request.getKey())));
             }
+        }
+    }
+
+    private boolean notificationPresentationAvailable() {
+        return context != null && (context == GuiHudDefinition.Context.MENU || !client.gameSettings.hideGUI);
+    }
+
+    private void updateNotificationPauses() {
+        for (Entry entry : entries.values()) {
+            if (entry.notification == null || entry.additive == null || entry.additive.document == null) {
+                continue;
+            }
+            GuiElement focused = scene.getFocusedElement();
+            boolean within = false;
+            for (GuiElement ancestor = focused; ancestor != null; ancestor = ancestor.getParent()) {
+                within |= ancestor == entry.additive.document.mount();
+            }
+            boolean input = entry.additive.document.inputAvailable();
+            entry.notification.pause(input && entry.notification.bounds().contains(mouseX, mouseY), input && within);
         }
     }
 
@@ -303,6 +344,16 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
         captured = false;
         for (Entry entry : entries.values()) {
             entry.additivePainted = false;
+            if (entry.notification != null && entry.additive != null && entry.additive.document != null) {
+                double opacity = entry.notification.opacity(GuiNotificationRuntime.millis());
+                entry.additive.document.mount().setOpacity(opacity);
+                entry.additive.document.mount()
+                        .setVisualTransform(opacity >= 1
+                                ? GraphicsTransform.IDENTITY
+                                : new GraphicsTransform(
+                                        (entry.notification.options().corner.right ? 10 : -10) * (1 - opacity), 0, 1,
+                                        1));
+            }
         }
     }
 
@@ -316,7 +367,7 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
         if (cursor != null && !cursor.ownsGuiInput()) {
             stopInteraction();
         }
-        Entry entry = entries.get(claim.key);
+        Entry entry = entries.get(claim);
         if (entry == null || entry.claim != claim || !entry.eligible()) {
             return "not_ready";
         }
@@ -349,7 +400,7 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
     }
 
     boolean inputAvailable(GuiHudActivation claim) {
-        Entry entry = entries.get(claim.key);
+        Entry entry = entries.get(claim);
         return entry != null && entry.claim == claim && entry.additive != null && entry.additive.document != null
                 && entry.additive.document.usable() && entry.additive.document.inputAvailable();
     }
@@ -359,7 +410,7 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
     }
 
     String partStatus(GuiHudActivation claim, GuiHudNativePart part) {
-        Entry entry = entries.get(claim.key);
+        Entry entry = entries.get(claim);
         if (entry == null || entry.claim != claim) {
             return "queued";
         }
@@ -544,6 +595,10 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
             engine.paint(scene::renderLayers);
             for (Entry entry : entries.values()) {
                 boolean active = entry.eligible() && (entry.additivePainted || entry.nativeApplied());
+                if (active && entry.notification != null && entry.additive != null && entry.additive.document != null
+                        && entry.additive.document.usable()) {
+                    entry.notification.rendered();
+                }
                 if (active) {
                     entry.claim.publish("active", null,
                             entry.additive == null || entry.additive.document == null
@@ -581,6 +636,9 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
 
     void worldTick() {
         for (Entry entry : new ArrayList<>(entries.values())) {
+            if (entry.notification != null && !entry.notification.live()) {
+                continue;
+            }
             for (Surface surface : entry.surfaces()) {
                 if (surface.document != null && surface.document.usable()) {
                     surface.document.controller().worldTick();
@@ -597,6 +655,7 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
                 entry.fail(entry.definition.key, failure);
             }
         }
+        notifications.failAll("overlay_failed");
     }
 
     @Override
@@ -643,16 +702,20 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
     private final class Entry implements AutoCloseable {
         final GuiHudDefinition definition;
         final GuiHudActivation claim;
+        final GuiNotification notification;
         final Surface additive;
         final Map<GuiHudNativePart, Surface> parts = new EnumMap<>(GuiHudNativePart.class);
         final List<Surface> surfaces;
         boolean failed;
         boolean retired;
         boolean additivePainted;
+        GuiScopedSnapshot notificationObservation;
+        final Runnable notificationCleanup = this::revokeNotificationInput;
 
-        Entry(GuiHudDefinition definition, GuiHudActivation claim) {
+        Entry(GuiHudDefinition definition, GuiHudActivation claim, GuiNotification notification) {
             this.definition = definition;
             this.claim = claim;
+            this.notification = notification;
             additive = definition.screen == null ? null : new Surface(this, null, definition.screen);
             for (Map.Entry<GuiHudNativePart, GuiHudDefinition.NativePart> part : definition.nativeParts.entrySet()) {
                 if (part.getValue().replace != null) {
@@ -669,8 +732,11 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
 
         boolean eligible() {
             return !retired && !failed && valid() && claim.requested() && definition.available()
-                    && registry.get(definition.key) == definition && context != null
-                    && (context == GuiHudDefinition.Context.MENU || worldAvailable())
+                    && (notification == null
+                            ? registry.get(definition.key) == definition
+                            : notification.admitted && !notification.bounds().isEmpty()
+                                    && notificationPresentationAvailable())
+                    && context != null && (context == GuiHudDefinition.Context.MENU || worldAvailable())
                     && definition.contexts.contains(context) && (!client.gameSettings.hideGUI || definition.hideGui)
                     && (!client.gameSettings.showDebugInfo || definition.debug);
         }
@@ -680,9 +746,20 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
         }
 
         void update(List<GuiElement> content) {
+            if (notification != null) {
+                Map<String, Object> metadata = new LinkedHashMap<>();
+                metadata.put("id", notification.id);
+                metadata.put("key", notification.definition.key);
+                metadata.put("corner", notification.options().corner.name);
+                metadata.put("urgency", notification.options().urgency.name().toLowerCase(Locale.ROOT));
+                notificationObservation = new GuiScopedSnapshot(metadata, "native:notification", metadata);
+                if (notification.live() && notification.onEnd == null) {
+                    notification.onEnd(notificationCleanup);
+                }
+            }
             for (Surface surface : surfaces()) {
                 boolean selected = surface.presentationAvailable();
-                if (selected && surface.document == null) {
+                if (selected && surface.document == null && (notification == null || notification.live())) {
                     surface.open();
                 }
                 if (surface.document == null) {
@@ -690,18 +767,33 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
                 }
                 surface.document.mount().setVisible(selected);
                 if (selected) {
-                    surface.document.tick();
+                    if (notification == null || notification.live()) {
+                        if (!surface.publishNotificationData()) {
+                            continue;
+                        }
+                        surface.document.tick();
+                    }
                     surface.resolveRegions();
                     if (surface.document.usable()) {
                         content.add(surface.document.mount());
                         root.bounds.put(surface.document.mount(),
-                                surface.part == null && definition.safeArea
-                                        ? safeArea
-                                        : Rect.fromPositionAndSize(0, 0, viewport.width, viewport.height));
+                                notification != null
+                                        ? notification.bounds()
+                                        : surface.part == null && definition.safeArea
+                                                ? safeArea
+                                                : Rect.fromPositionAndSize(0, 0, viewport.width, viewport.height));
                     }
                 } else {
                     surface.document.suspend("hud_suspended");
                 }
+            }
+        }
+
+        void revokeNotificationInput() {
+            stopInteraction(claim);
+            if (additive != null && additive.document != null) {
+                scene.cancelInput(additive.document.mount());
+                additive.document.suspend("notification_suspended");
             }
         }
 
@@ -719,7 +811,11 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
             failed = true;
             stopInteraction(claim);
             claim.publish("refused", "document_failed", null);
-            LuaApiUtils.warnForScript(definition.owner, "UI HUD", path + ": " + failure.getMessage(), failure);
+            if (notification != null) {
+                notifications.failed(notification, "document_failed");
+            }
+            LuaApiUtils.warnForScript(definition.owner, notification == null ? "UI HUD" : "UI notification",
+                    path + ": " + failure.getMessage(), failure);
         }
 
         @Override
@@ -728,6 +824,9 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
                 return;
             }
             retired = true;
+            if (notification != null && notification.onEnd == notificationCleanup) {
+                notification.onEnd(null);
+            }
             for (Surface surface : surfaces()) {
                 if (surface.document != null) {
                     surface.document.close();
@@ -744,6 +843,7 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
         GuiAttachedDocument document;
         GuiComponentPlan regionPlan;
         List<GuiElement> regions = Collections.emptyList();
+        GuiNotificationOptions appliedOptions;
 
         Surface(Entry entry, GuiHudNativePart part, String screen) {
             this.entry = entry;
@@ -762,12 +862,28 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
                 return paints;
             });
             try {
-                GuiScreenController.OpenResult result = document.open();
+                GuiScreenController.OpenResult result = document
+                        .open(entry.notification == null ? Collections.emptyMap() : entry.notification.options().data);
+                appliedOptions = entry.notification == null ? null : entry.notification.options();
                 if (result.instance == null) {
                     throw new IllegalArgumentException("HUD screen refused: " + result.reason);
                 }
             } catch (RuntimeException failure) {
                 entry.fail(screen, failure);
+            }
+        }
+
+        boolean publishNotificationData() {
+            if (entry.notification == null || appliedOptions == entry.notification.options()) {
+                return true;
+            }
+            try {
+                document.page().publish(entry.notification.options().data);
+                appliedOptions = entry.notification.options();
+                return true;
+            } catch (RuntimeException failure) {
+                entry.fail(screen + ".data", failure);
+                return false;
             }
         }
 
@@ -825,7 +941,8 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
 
         public boolean inputAvailable() {
             return presentationAvailable() && part == null && entry.definition.interactive && !regions.isEmpty()
-                    && entry.additivePainted && GuiHudCursor.NATIVE_POINTER.focused()
+                    && (entry.notification == null || entry.notification.live()) && entry.additivePainted
+                    && GuiHudCursor.NATIVE_POINTER.focused()
                     && (client.currentScreen != null || cursor != null && cursor.ownsGuiInput());
         }
 
@@ -848,9 +965,14 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
         }
 
         public Map<String, Object> nativeData() {
-            return observation == null
-                    ? Collections.emptyMap()
-                    : Collections.singletonMap("hud", observation.revision());
+            Map<String, Object> values = new LinkedHashMap<>();
+            if (observation != null) {
+                values.put("hud", observation.revision());
+            }
+            if (entry.notificationObservation != null) {
+                values.put("notification", entry.notificationObservation.revision());
+            }
+            return values;
         }
 
         public void documentChanged() {
@@ -865,6 +987,9 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
             LuaTable hud = observation.access(scope, "snapshot");
             hud.set("key", entry.definition.key);
             value.set("hud", hud);
+            if (entry.notificationObservation != null) {
+                value.set("notification", entry.notificationObservation.access(scope, "snapshot"));
+            }
         }
 
         public void failure(String owner, String path, Throwable failure) {

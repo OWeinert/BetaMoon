@@ -5,6 +5,7 @@ import java.lang.ref.WeakReference;
 import java.util.Collections;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luamodloader.ScriptResourceTracker;
+import betamoon.gui.screen.GuiScreenActivation;
 
 /**
  * An owned detached queue entry; native presentation is prepared separately.
@@ -30,6 +31,7 @@ public final class GuiNotification {
     long advancedAt;
     long enteredAt;
     long exitAt;
+    long placementSequence;
     boolean displayed;
     boolean admitted;
     boolean hovered;
@@ -72,6 +74,32 @@ public final class GuiNotification {
 
     public boolean update(GuiNotificationOptions candidate) {
         return queue.update(this, candidate);
+    }
+
+    public String updateReason(GuiNotificationOptions candidate) {
+        return queue.updateReason(this, candidate);
+    }
+
+    public GuiScreenActivation instance() {
+        return live() ? GuiHudRuntime.instance(activation, null) : null;
+    }
+
+    public boolean inputAvailable() {
+        return live() && GuiHudRuntime.inputAvailable(activation);
+    }
+
+    public String enterCursorMode() {
+        LuaCallbackScope.requireUiStateWrite();
+        return live() ? GuiHudRuntime.enterCursorMode(activation) : "inactive";
+    }
+
+    public boolean isCursorMode() {
+        return live() && GuiHudRuntime.cursorMode(activation);
+    }
+
+    public void leaveCursorMode() {
+        LuaCallbackScope.requireUiStateWrite();
+        GuiHudRuntime.stopInteraction(activation);
     }
 
     public void dismiss() {
