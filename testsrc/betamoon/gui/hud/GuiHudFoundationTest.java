@@ -29,6 +29,7 @@ public final class GuiHudFoundationTest {
             scopedObservations();
             GuiHudInputTest.run();
             GuiHudLuaAccessTest.run();
+            GuiNotificationQueueTest.run();
         } finally {
             ScriptResourceTracker.unload(OWNER);
         }
