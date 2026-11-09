@@ -3,7 +3,11 @@ package betamoon.gui.hud;
 import betamoon.interop.discovery.NativeDiscoveryRuntime;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.gui.screen.GuiScreenActivation;
+import betamoon.instrumentation.agent.AgentRuntime;
 import java.lang.ref.WeakReference;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.World;
 import org.lwjgl.input.Keyboard;
@@ -26,18 +30,68 @@ public final class GuiHudRuntime {
         return current == null || !current.valid() ? null : current.instance(claim, part);
     }
 
-    public static boolean interact(GuiHudActivation claim) {
-        return current != null && current.valid() && current.interact(claim);
+    public static String enterCursorMode(GuiHudActivation claim) {
+        return current != null && current.valid() ? current.enterCursorMode(claim) : "not_ready";
     }
 
-    public static boolean interacting(GuiHudActivation claim) {
-        return current != null && current.valid() && current.interacting(claim);
+    public static boolean inputAvailable(GuiHudActivation claim) {
+        return current != null && current.valid() && current.inputAvailable(claim);
+    }
+
+    public static boolean cursorMode(GuiHudActivation claim) {
+        return current != null && current.valid() && current.cursorMode(claim);
     }
 
     public static void stopInteraction(GuiHudActivation claim) {
         if (current != null) {
             current.stopInteraction(claim);
         }
+    }
+
+    public static Map<String, Object> capabilities() {
+        Map<String, Object> parts = new LinkedHashMap<>();
+        for (GuiHudNativePart part : GuiHudNativePart.values()) {
+            parts.put(part.name, nativeAvailable(part));
+        }
+        return Collections.unmodifiableMap(parts);
+    }
+
+    private static boolean nativeAvailable(GuiHudNativePart part) {
+        if (!AgentRuntime.getReport().isApplied("betamoon:gui_hud:native_frame")) {
+            return false;
+        }
+        if (part == GuiHudNativePart.CHAT) {
+            return AgentRuntime.getReport().isApplied("betamoon:gui_hud:chat");
+        }
+        if (!AgentRuntime.getReport().isApplied("betamoon:gui_hud:textures")) {
+            return false;
+        }
+        switch (part) {
+            case HOTBAR:
+                return AgentRuntime.getReport().isApplied("betamoon:gui_hud:hotbar_items");
+            case ARMOR:
+                return AgentRuntime.getReport().isApplied("betamoon:gui_hud:armor");
+            case BREATH:
+                return AgentRuntime.getReport().isApplied("betamoon:fluid_camera:air_hud");
+            default:
+                return true;
+        }
+    }
+
+    public static Map<String, Object> parts(GuiHudActivation claim) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        for (GuiHudNativePart part : claim.requestedParts()) {
+            String status = !claim.requested()
+                    ? "closed"
+                    : current != null && current.valid() ? current.partStatus(claim, part) : "queued";
+            Map<String, Object> value = new LinkedHashMap<>();
+            value.put("status", status);
+            if (status.equals("unavailable")) {
+                value.put("reason", nativeAvailable(part) ? "not_rendered" : "native_hook_unavailable");
+            }
+            result.put(part.name, Collections.unmodifiableMap(value));
+        }
+        return Collections.unmodifiableMap(result);
     }
 
     public static boolean keyboard() {

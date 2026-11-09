@@ -312,32 +312,74 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
                 && preparedGuiScale == client.gameSettings.guiScale && viewport.width > 0 && viewport.height > 0;
     }
 
-    boolean interact(GuiHudActivation claim) {
+    String enterCursorMode(GuiHudActivation claim) {
+        if (cursor != null && !cursor.ownsGuiInput()) {
+            stopInteraction();
+        }
         Entry entry = entries.get(claim.key);
-        if (entry == null || entry.claim != claim || !entry.eligible() || !entry.definition.interactive
-                || entry.additive == null || entry.additive.document == null || !entry.additive.document.usable()
-                || !entry.additivePainted || entry.additive.regions.isEmpty() || !prepared()) {
-            return false;
+        if (entry == null || entry.claim != claim || !entry.eligible()) {
+            return "not_ready";
+        }
+        if (!entry.definition.interactive || entry.additive == null) {
+            return "not_interactive";
+        }
+        if (entry.additive.document == null || !entry.additive.document.usable() || !entry.additivePainted
+                || entry.additive.regions.isEmpty() || !prepared()) {
+            return "not_ready";
         }
         if (client.currentScreen != null) {
-            return entry.additive.inputAvailable();
+            return "native_cursor_available";
         }
         if (cursor != null) {
-            return cursor.claim == claim && cursor.ownsGuiInput();
+            return cursor.claim == claim && cursor.ownsGuiInput() ? null : "cursor_busy";
         }
-        if (!GuiHudCursor.NATIVE_POINTER.available() || !GuiHudCursor.NATIVE_POINTER.focused()
-                || !client.inGameHasFocus) {
-            return false;
+        if (!GuiHudCursor.NATIVE_POINTER.available()) {
+            return "mouse_unavailable";
+        }
+        if (!GuiHudCursor.NATIVE_POINTER.focused() || !client.inGameHasFocus) {
+            return "client_unfocused";
+        }
+        if (ClientInputRuntime.router().captureCount() >= 32) {
+            return "capture_capacity";
         }
         cursor = new GuiHudCursor(client, claim, ClientInputRuntime.router(), GuiHudCursor.NATIVE_POINTER, () -> valid()
                 && entry.eligible() && entry.additive.document != null && entry.additive.document.usable());
         claim.interactionCleanup(this::stopInteraction);
-        return true;
+        return null;
     }
 
-    boolean interacting(GuiHudActivation claim) {
+    boolean inputAvailable(GuiHudActivation claim) {
         Entry entry = entries.get(claim.key);
-        return entry != null && entry.claim == claim && entry.additive != null && entry.additive.inputAvailable();
+        return entry != null && entry.claim == claim && entry.additive != null && entry.additive.document != null
+                && entry.additive.document.usable() && entry.additive.document.inputAvailable();
+    }
+
+    boolean cursorMode(GuiHudActivation claim) {
+        return cursor != null && cursor.claim == claim && cursor.ownsGuiInput();
+    }
+
+    String partStatus(GuiHudActivation claim, GuiHudNativePart part) {
+        Entry entry = entries.get(claim.key);
+        if (entry == null || entry.claim != claim) {
+            return "queued";
+        }
+        if (entry.failed) {
+            return "failed";
+        }
+        if (!entry.eligible() || !prepared()) {
+            return "suspended";
+        }
+        GuiHudDefinition.NativePart request = entry.definition.nativeParts.get(part);
+        if (request.hide && visited.contains(part) && suppressed.contains(part)) {
+            return "hidden";
+        }
+        if (!request.hide && winners.get(part) != entry) {
+            return "covered";
+        }
+        if (replacementsPainted.contains(part) && winners.get(part) == entry) {
+            return "replaced";
+        }
+        return "unavailable";
     }
 
     void stopInteraction(GuiHudActivation claim) {
@@ -626,7 +668,8 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
         }
 
         boolean eligible() {
-            return !retired && !failed && valid() && claim.requested() && definition.available() && context != null
+            return !retired && !failed && valid() && claim.requested() && definition.available()
+                    && registry.get(definition.key) == definition && context != null
                     && (context == GuiHudDefinition.Context.MENU || worldAvailable())
                     && definition.contexts.contains(context) && (!client.gameSettings.hideGUI || definition.hideGui)
                     && (!client.gameSettings.showDebugInfo || definition.debug);

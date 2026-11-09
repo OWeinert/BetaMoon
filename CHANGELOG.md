@@ -4,6 +4,8 @@
 
 ### Added
 
+- Owned HUD screens and crosshair/native-part presentation with scoped snapshots, regional input and explicit gameplay cursor mode.
+- Per-part HUD status and native-hook capabilities with independent hide/replacement ownership and native fallback.
 - Owned native-menu sections and main/pause replacements with deterministic ordering, typed native actions and fault fallback.
 - Worldless and world-context Lua client screens with typed state/data, retained refresh, navigation and modal dialogs.
 - Declared client/world UI actions with bounded fair queues, detached tickets and stale-request cancellation.

@@ -50,6 +50,10 @@ public final class GuiHudRegistry {
         });
         ScriptResourceTracker.Cleanup old = cleanups.put(definition.key, cleanup);
         definitions.put(definition.key, definition);
+        GuiHudActivation activation = activations.get(definition.key);
+        if (activation != null) {
+            activation.definitionChanged(definition.nativeParts.keySet());
+        }
         if (old != null) {
             ScriptResourceTracker.untrack(definition.owner, old);
         }
@@ -71,7 +75,8 @@ public final class GuiHudRegistry {
 
     public GuiHudActivation activate(String owner, String key) {
         LuaCallbackScope.requireUiStateWrite();
-        if (!getRequired(key).owner.equals(owner)) {
+        GuiHudDefinition definition = getRequired(key);
+        if (!definition.owner.equals(owner)) {
             throw new IllegalArgumentException("HUD definition belongs to another owner");
         }
         if (activations.containsKey(key)) {
@@ -90,7 +95,8 @@ public final class GuiHudRegistry {
             }
             ScriptResourceTracker.untrack(owner, tracked[0]);
         };
-        GuiHudActivation activation = new GuiHudActivation(owner, key, ++nextSequence, cleanup);
+        GuiHudActivation activation = new GuiHudActivation(owner, key, ++nextSequence, definition.nativeParts.keySet(),
+                cleanup);
         result[0] = activation;
         tracked[0] = activation::close;
         ScriptExecution.withOwner(owner, () -> {

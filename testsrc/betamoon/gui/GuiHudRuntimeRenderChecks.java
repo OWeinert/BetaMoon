@@ -17,6 +17,7 @@ import betamoon.luaapi.client.ui.GuiScreenParser;
 import betamoon.luamodloader.ScriptResourceTracker;
 import java.io.File;
 import java.util.Collections;
+import java.util.Map;
 import javax.imageio.ImageIO;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.EntityPlayerSP;
@@ -59,6 +60,8 @@ final class GuiHudRuntimeRenderChecks {
                     && lua.get("seenHealth").toint() == previousHealth && pixel() == 0xFF00DD88,
                     "Passive additive HUD, read-only observation or prepared native replacement did not render");
             Object retained = first.instance();
+            require(partStatus(first, "crosshair").equals("replaced") && partStatus(first, "health").equals("hidden"),
+                    "Per-part diagnostics did not distinguish prepared replacement from independent hiding");
             ImageIO.write(GuiShowcaseRenderTest.capture(320, 240), "png",
                     new File(output, "hud-native-replacement.png"));
             GuiHudActivation second = activate(lua, "fixture:priority",
@@ -72,6 +75,9 @@ final class GuiHudRuntimeRenderChecks {
                             + ", second=" + second.status() + "/" + second.reason() + ", retained="
                             + (first.instance() == retained) + ", pixel=" + Integer.toHexString(pixel())
                             + ", observedHealth=" + lua.get("seenHealth"));
+            require(partStatus(first, "crosshair").equals("covered")
+                    && partStatus(second, "crosshair").equals("replaced"),
+                    "Covered replacement diagnostics advertised native ownership");
             second.close();
             frame(client, false, true);
             require(pixel() == 0xFFCC3333, "Closed winner suppressed native fallback before the next logical boundary");
@@ -123,6 +129,7 @@ final class GuiHudRuntimeRenderChecks {
             client.displayWidth = displayWidth;
             GuiHudRuntime.tick(client);
             frame(client, true, true);
+            allNativeParts(client, lua, first);
 
             screen(lua, "fixture:menu-hud", "root={type='button',width=120,height=20,text='Worldless notice'}");
             GuiHudActivation menu = activate(lua, "fixture:menu-notice",
@@ -133,7 +140,7 @@ final class GuiHudRuntimeRenderChecks {
             GuiHudRuntime.tick(client);
             GuiShowcaseRenderTest.setupFrame();
             GuiHudRuntime.clientOverlay(client, 0, 0, 0);
-            require(menu.status().equals("active") && first.status().equals("suspended"),
+            require(menu.status().equals("active") && first.status().equals("closed"),
                     "Explicit worldless menu HUD did not compose with suspended gameplay claims");
             ImageIO.write(GuiShowcaseRenderTest.capture(320, 240), "png", new File(output, "hud-menu-overlay.png"));
             menuInteraction(client, lua);
@@ -152,6 +159,59 @@ final class GuiHudRuntimeRenderChecks {
         }
         System.out.println("Offscreen HUD runtime passed: composing status/reticle documents, read-only snapshots, "
                 + "priority/close/raw-fault native fallback, hide-GUI/death/resize, menu visibility and cleanup.");
+    }
+
+    private static String partStatus(GuiHudActivation claim, String part) {
+        return ((Map<?, ?>) GuiHudRuntime.parts(claim).get(part)).get("status").toString();
+    }
+
+    private static void allNativeParts(Minecraft client, Globals lua, GuiHudActivation first) {
+        first.close();
+        GuiHudRuntime.tick(client);
+        nativePartsFrame(client, false);
+        StringBuilder hidden = new StringBuilder("nativeParts={");
+        StringBuilder replaced = new StringBuilder("nativeParts={");
+        for (GuiHudNativePart part : GuiHudNativePart.values()) {
+            hidden.append(part.name).append("={hide=true},");
+            replaced.append(part.name).append("={replace='fixture:reticle-a'},");
+        }
+        hidden.append('}');
+        replaced.append('}');
+        GuiHudActivation one = activate(lua, "fixture:hide-all-one", hidden.toString());
+        GuiHudActivation two = activate(lua, "fixture:hide-all-two", hidden.toString());
+        GuiHudRuntime.tick(client);
+        nativePartsFrame(client, true);
+        for (GuiHudNativePart part : GuiHudNativePart.values()) {
+            require(partStatus(one, part.name).equals("hidden") && partStatus(two, part.name).equals("hidden"),
+                    "Composing native hide owners did not report independent applied claims: " + part.name);
+        }
+        one.close();
+        GuiHudRuntime.tick(client);
+        nativePartsFrame(client, true);
+        two.close();
+        nativePartsFrame(client, false);
+        GuiHudRuntime.tick(client);
+        GuiHudActivation replacement = activate(lua, "fixture:replace-all", replaced.toString());
+        GuiHudRuntime.tick(client);
+        nativePartsFrame(client, true);
+        for (GuiHudNativePart part : GuiHudNativePart.values()) {
+            require(partStatus(replacement, part.name).equals("replaced"),
+                    "Prepared native part did not independently paint and report readiness: " + part.name);
+        }
+        replacement.close();
+        nativePartsFrame(client, false);
+        GuiHudRuntime.tick(client);
+    }
+
+    private static void nativePartsFrame(Minecraft client, boolean claimed) {
+        GuiShowcaseRenderTest.setupFrame();
+        GuiHudRuntime.beginNative(client, 0, 0, 0);
+        for (GuiHudNativePart part : GuiHudNativePart.values()) {
+            require(GuiHudRuntime.nativePart(part) == claimed,
+                    "Native hide/replacement/last-owner fallback differed for " + part.name);
+        }
+        GuiHudRuntime.endNative();
+        GuiHudRuntime.clientOverlay(client, 0, 0, 0);
     }
 
     private static void component(Globals lua, String key, String color) {
@@ -176,7 +236,7 @@ final class GuiHudRuntimeRenderChecks {
                 + "safeArea=false,interactive=true,regions={'front'},visibility={contexts={'menu'}}");
         GuiHudRuntime.tick(client);
         menuFrame(client);
-        require(GuiHudRuntime.interacting(lower) && GuiHudRuntime.interacting(upper),
+        require(GuiHudRuntime.inputAvailable(lower) && GuiHudRuntime.inputAvailable(upper),
                 "Compatible native menu did not enable declared HUD regions");
         clickHud(client, 12, 65, true);
         require(lua.get("frontClicks").toint() == 1 && lua.get("allowedClicks").isnil(),

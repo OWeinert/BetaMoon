@@ -88,8 +88,9 @@ final class GuiHudInputTest {
         router.beginCycle(null, null, null, true);
         Pointer pointer = new Pointer();
         boolean[] eligible = {true};
-        GuiHudActivation claim = new GuiHudActivation("hud-cursor-test", "test:cursor", 1, () -> {
-        });
+        GuiHudActivation claim = new GuiHudActivation("hud-cursor-test", "test:cursor", 1, Collections.emptySet(),
+                () -> {
+                });
         router.accept(InputDeviceEvent.mouseButton(0, true));
         GuiHudCursor cursor = new GuiHudCursor(client, claim, router, pointer, () -> eligible[0]);
         claim.interactionCleanup(cursor::close);
@@ -103,8 +104,9 @@ final class GuiHudInputTest {
         require(router.accept(InputDeviceEvent.mouseButton(0, false)),
                 "Cursor closure resumed a pointer held before interaction");
         for (int loss = 0; loss < 6; loss++) {
-            GuiHudActivation next = new GuiHudActivation("hud-cursor-test", "test:cursor", loss + 2, () -> {
-            });
+            GuiHudActivation next = new GuiHudActivation("hud-cursor-test", "test:cursor", loss + 2,
+                    Collections.emptySet(), () -> {
+                    });
             pointer.grabbed = true;
             pointer.focused = true;
             client.inGameHasFocus = true;
