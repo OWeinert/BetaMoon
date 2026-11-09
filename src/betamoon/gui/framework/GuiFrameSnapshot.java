@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 /**
  * One immutable geometry sample shared by a scene's painting and subsequent
@@ -42,16 +43,22 @@ public final class GuiFrameSnapshot {
     }
 
     List<GuiElement> hitPath(double x, double y, GuiElement scope) {
+        return hitPath(x, y, scope, element -> true);
+    }
+
+    List<GuiElement> hitPath(double x, double y, GuiElement scope, Predicate<GuiElement> allowed) {
         for (int i = order.size() - 1; i >= 0; i--) {
             Node node = order.get(i);
             if (node.hitClip.contains(x, y) && node.bounds.contains(x, y) && node.eligible()
-                    && inside(node.element, scope)
+                    && inside(node.element, scope) && allowed.test(node.element)
                     && (node.content == null
                             || node.content.contains(node.transform.localX(x) - node.layoutBounds.getLeft(),
                                     node.transform.localY(y) - node.layoutBounds.getTop()))) {
                 List<GuiElement> path = new ArrayList<>();
                 for (Node current = node; current != null; current = current.parent) {
-                    path.add(current.element);
+                    if (allowed.test(current.element)) {
+                        path.add(current.element);
+                    }
                 }
                 return path;
             }

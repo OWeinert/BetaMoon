@@ -20,12 +20,13 @@ import org.luaj.vm2.lib.jse.JsePlatform;
 public final class GuiHudFoundationTest {
     private static final String OWNER = "hud-foundation-test";
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         try {
             declarations();
             nativeAtlas();
             reservations();
             scopedObservations();
+            GuiHudInputTest.run();
         } finally {
             ScriptResourceTracker.unload(OWNER);
         }

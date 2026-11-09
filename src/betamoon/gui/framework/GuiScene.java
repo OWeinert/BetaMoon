@@ -53,6 +53,48 @@ public final class GuiScene {
     }
     private PaintPass paintPass = PaintPass.ALL;
     private final List<Runnable> deferredEffects = new ArrayList<>();
+    private List<GuiElement> inputRegions;
+
+    /**
+     * Restricts an attached surface's dispatch and focus to declared, displayed
+     * regions.
+     */
+    public void runRegionalInput(List<GuiElement> regions, Runnable input) {
+        List<GuiElement> previous = inputRegions;
+        inputRegions = new ArrayList<>(regions);
+        try {
+            if (focusedElement != null && !inputAllowed(focusedElement)) {
+                changeFocus(null);
+            }
+            if (pointerCapture != null && !inputAllowed(pointerCapture)) {
+                cancelPointerCapture();
+            }
+            input.run();
+        } finally {
+            inputRegions = previous;
+        }
+    }
+
+    /**
+     * Releases transient host input while retaining suppression through physical
+     * release.
+     */
+    public void cancelInput() {
+        cancelGesturesIn(root);
+        changeFocus(null);
+    }
+
+    private boolean inputAllowed(GuiElement element) {
+        if (inputRegions == null || modalScope() != null && GuiFrameSnapshot.inside(element, modalScope())) {
+            return true;
+        }
+        for (GuiElement region : inputRegions) {
+            if (GuiFrameSnapshot.inside(element, region)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     public void setDocument(GuiPresentationTree replacement) {
         if (deferMutation(() -> setDocument(replacement))) {
@@ -592,8 +634,8 @@ public final class GuiScene {
             mutations.add(() -> requestFocus(element));
             return;
         }
-        if (element != null && element.belongsTo(this) && element.isAvailable() && element.isFocusable()
-                && GuiFrameSnapshot.inside(element, modalScope())) {
+        if (element != null && inputAllowed(element) && element.belongsTo(this) && element.isAvailable()
+                && element.isFocusable() && GuiFrameSnapshot.inside(element, modalScope())) {
             changeFocus(element);
         }
     }
@@ -712,7 +754,9 @@ public final class GuiScene {
     }
 
     private List<GuiElement> hitPath(int mouseX, int mouseY) {
-        return displayedFrame == null ? Collections.emptyList() : displayedFrame.hitPath(mouseX, mouseY, modalScope());
+        return displayedFrame == null
+                ? Collections.emptyList()
+                : displayedFrame.hitPath(mouseX, mouseY, modalScope(), this::inputAllowed);
     }
 
     private boolean dispatchPath(List<GuiElement> path, GuiInputEvent event) {
@@ -722,7 +766,7 @@ public final class GuiScene {
         GuiFrameSnapshot frame = displayedFrame;
         try {
             for (int i = path.size() - 1; i > 0; i--) {
-                if (path.get(i).belongsTo(this)
+                if (inputAllowed(path.get(i)) && path.get(i).belongsTo(this)
                         && (!event.isPointerEvent() || frame != null && frame.permits(path.get(i))) && path.get(i)
                                 .dispatchCapture(context, frame == null ? event : frame.event(path.get(i), event))) {
                     handledTarget = path.get(i);
@@ -730,7 +774,7 @@ public final class GuiScene {
                 }
             }
             for (int i = 0; i < path.size(); i++) {
-                if (path.get(i).belongsTo(this)
+                if (inputAllowed(path.get(i)) && path.get(i).belongsTo(this)
                         && (!event.isPointerEvent() || frame != null && frame.permits(path.get(i))) && path.get(i)
                                 .dispatchInput(context, frame == null ? event : frame.event(path.get(i), event))) {
                     handledTarget = path.get(i);
@@ -786,6 +830,7 @@ public final class GuiScene {
         } else {
             focusable = displayedFrame.focusable(modalScope());
         }
+        focusable.removeIf(element -> !inputAllowed(element));
         if (focusable.isEmpty()) {
             changeFocus(null);
             return false;

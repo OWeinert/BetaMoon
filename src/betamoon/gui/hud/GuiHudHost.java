@@ -1,6 +1,9 @@
 package betamoon.gui.hud;
 
 import betamoon.gui.collection.GuiRowBudget;
+import betamoon.client.control.input.ClientInputRuntime;
+import betamoon.client.control.input.GuiInputOwner;
+import betamoon.gui.component.GuiComponentPlan;
 import betamoon.gui.framework.GuiContainer;
 import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiElement;
@@ -36,12 +39,13 @@ import net.minecraft.src.GuiScreen;
 import net.minecraft.src.ScaledResolution;
 import org.luaj.vm2.LuaTable;
 import org.lwjgl.input.Mouse;
+import org.lwjgl.input.Keyboard;
 
 /**
  * One retained scene and resource boundary for a stable native client
  * environment.
  */
-final class GuiHudHost implements AutoCloseable {
+final class GuiHudHost implements AutoCloseable, GuiInputOwner {
     final Minecraft client;
     private final GuiHudRegistry registry;
     private final Object nativeScreen;
@@ -75,6 +79,7 @@ final class GuiHudHost implements AutoCloseable {
     private int mouseX;
     private int mouseY;
     private float partialTicks;
+    private GuiHudCursor cursor;
 
     GuiHudHost(Minecraft client, GuiHudRegistry registry) {
         this.client = client;
@@ -136,6 +141,9 @@ final class GuiHudHost implements AutoCloseable {
             scene.updateEnvironment(client, client.fontRenderer, viewport.width, viewport.height, client.displayWidth,
                     client.displayHeight);
             context = visibilityContext();
+            if (cursor != null && !cursor.ownsGuiInput()) {
+                stopInteraction();
+            }
             safeArea = GuiHudLayout.safeArea(viewport.width, viewport.height, reservations());
             engine.observe(this::observe);
             scene.runActions();
@@ -304,6 +312,135 @@ final class GuiHudHost implements AutoCloseable {
                 && preparedGuiScale == client.gameSettings.guiScale && viewport.width > 0 && viewport.height > 0;
     }
 
+    boolean interact(GuiHudActivation claim) {
+        Entry entry = entries.get(claim.key);
+        if (entry == null || entry.claim != claim || !entry.eligible() || !entry.definition.interactive
+                || entry.additive == null || entry.additive.document == null || !entry.additive.document.usable()
+                || !entry.additivePainted || entry.additive.regions.isEmpty() || !prepared()) {
+            return false;
+        }
+        if (client.currentScreen != null) {
+            return entry.additive.inputAvailable();
+        }
+        if (cursor != null) {
+            return cursor.claim == claim && cursor.ownsGuiInput();
+        }
+        if (!GuiHudCursor.NATIVE_POINTER.available() || !GuiHudCursor.NATIVE_POINTER.focused()
+                || !client.inGameHasFocus) {
+            return false;
+        }
+        cursor = new GuiHudCursor(client, claim, ClientInputRuntime.router(), GuiHudCursor.NATIVE_POINTER, () -> valid()
+                && entry.eligible() && entry.additive.document != null && entry.additive.document.usable());
+        claim.interactionCleanup(this::stopInteraction);
+        return true;
+    }
+
+    boolean interacting(GuiHudActivation claim) {
+        Entry entry = entries.get(claim.key);
+        return entry != null && entry.claim == claim && entry.additive != null && entry.additive.inputAvailable();
+    }
+
+    void stopInteraction(GuiHudActivation claim) {
+        if (cursor != null && cursor.claim == claim) {
+            stopInteraction();
+        }
+    }
+
+    private void stopInteraction() {
+        GuiHudCursor previous = cursor;
+        cursor = null;
+        if (previous != null) {
+            previous.claim.interactionCleanup(null);
+            try {
+                previous.close();
+            } finally {
+                scene.cancelInput();
+                for (Entry entry : entries.values()) {
+                    if (entry.definition.interactive && entry.additive != null && entry.additive.document != null) {
+                        entry.additive.document.suspend("interaction_ended");
+                    }
+                }
+            }
+        }
+    }
+
+    public boolean ownsGuiInput() {
+        if (!prepared() || !GuiHudCursor.NATIVE_POINTER.focused()
+                || client.currentScreen == null && (cursor == null || !cursor.ownsGuiInput())) {
+            return false;
+        }
+        for (Entry entry : entries.values()) {
+            if (entry.additive != null && entry.additive.document != null && entry.additive.document.inputAvailable()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean input(Runnable callback) {
+        if (cursor != null && !cursor.ownsGuiInput()) {
+            stopInteraction();
+        }
+        if (!ownsGuiInput()) {
+            return false;
+        }
+        List<GuiElement> regions = new ArrayList<>();
+        for (Entry entry : entries.values()) {
+            if (entry.additive != null && entry.additive.inputAvailable()) {
+                regions.addAll(entry.additive.regions);
+            }
+        }
+        if (regions.isEmpty()) {
+            return false;
+        }
+        engine.input(permit -> scene.runRegionalInput(regions, callback));
+        return true;
+    }
+
+    boolean keyboard(char character, int key, boolean down, boolean shift, boolean control) {
+        boolean[] handled = {false};
+        input(() -> {
+            boolean modal = scene.hasModalLayer();
+            handled[0] = down ? scene.keyTyped(character, key, shift, control) : scene.keyReleased(key, shift);
+            if (down && key == Keyboard.KEY_ESCAPE && !modal && cursor != null) {
+                stopInteraction();
+                handled[0] = true;
+            }
+            if (handled[0] && down && key > 0) {
+                ClientInputRuntime.router().claimGuiKey(key, this);
+            }
+        });
+        return handled[0];
+    }
+
+    boolean mouseEvent(int x, int y, int button, boolean down, int wheel, boolean shift) {
+        if (client.displayWidth <= 0 || client.displayHeight <= 0) {
+            return false;
+        }
+        int capturedButton = scene.capturedPointerButton();
+        boolean dragging = capturedButton >= 0 && Mouse.isCreated() && Mouse.isButtonDown(capturedButton);
+        return mouse(x * viewport.width / client.displayWidth,
+                viewport.height - y * viewport.height / client.displayHeight - 1, button, down, wheel, shift, dragging);
+    }
+
+    boolean mouse(int x, int y, int button, boolean down, int wheel, boolean shift, boolean dragging) {
+        boolean[] handled = {false};
+        input(() -> {
+            if (button >= 0) {
+                handled[0] = down ? scene.mousePressed(x, y, button) : scene.mouseReleased(x, y, button);
+                if (handled[0] && down) {
+                    ClientInputRuntime.router().claimGuiGesture(button, this);
+                }
+            } else {
+                handled[0] = wheel != 0 && scene.mouseScrolled(x, y, wheel, shift);
+                if (scene.capturedPointerButton() >= 0) {
+                    handled[0] |= scene.mouseDragged(x, y, dragging);
+                }
+            }
+        });
+        return handled[0];
+    }
+
     boolean nativePart(GuiHudNativePart part) {
         if (!nativeDrawing || !prepared()) {
             return false;
@@ -412,6 +549,7 @@ final class GuiHudHost implements AutoCloseable {
 
     void failed(Throwable failure) {
         preparedWidth = -1;
+        stopInteraction();
         for (Entry entry : entries.values()) {
             if (!entry.failed && entry.claim.requested()) {
                 entry.fail(entry.definition.key, failure);
@@ -426,6 +564,7 @@ final class GuiHudHost implements AutoCloseable {
         }
         closed = true;
         try {
+            stopInteraction();
             for (Entry entry : new ArrayList<>(entries.values())) {
                 entry.close();
                 if (entry.claim.requested() && !entry.failed) {
@@ -509,6 +648,7 @@ final class GuiHudHost implements AutoCloseable {
                 surface.document.mount().setVisible(selected);
                 if (selected) {
                     surface.document.tick();
+                    surface.resolveRegions();
                     if (surface.document.usable()) {
                         content.add(surface.document.mount());
                         root.bounds.put(surface.document.mount(),
@@ -534,6 +674,7 @@ final class GuiHudHost implements AutoCloseable {
 
         void fail(String path, Throwable failure) {
             failed = true;
+            stopInteraction(claim);
             claim.publish("refused", "document_failed", null);
             LuaApiUtils.warnForScript(definition.owner, "UI HUD", path + ": " + failure.getMessage(), failure);
         }
@@ -558,6 +699,8 @@ final class GuiHudHost implements AutoCloseable {
         final GuiHudNativePart part;
         final String screen;
         GuiAttachedDocument document;
+        GuiComponentPlan regionPlan;
+        List<GuiElement> regions = Collections.emptyList();
 
         Surface(Entry entry, GuiHudNativePart part, String screen) {
             this.entry = entry;
@@ -582,6 +725,25 @@ final class GuiHudHost implements AutoCloseable {
                 }
             } catch (RuntimeException failure) {
                 entry.fail(screen, failure);
+            }
+        }
+
+        void resolveRegions() {
+            if (part != null || !entry.definition.interactive || document == null || !document.usable()
+                    || document.page().plan() == regionPlan) {
+                return;
+            }
+            try {
+                GuiComponentPlan plan = document.page().plan();
+                List<GuiElement> resolved = new ArrayList<>();
+                for (String id : entry.definition.regions) {
+                    resolved.add(document.mount().document().element(plan.elementId(id)));
+                }
+                regions = Collections.unmodifiableList(resolved);
+                regionPlan = plan;
+            } catch (RuntimeException failure) {
+                regions = Collections.emptyList();
+                entry.fail(screen + ".regions", failure);
             }
         }
 
@@ -619,8 +781,9 @@ final class GuiHudHost implements AutoCloseable {
         }
 
         public boolean inputAvailable() {
-            return presentationAvailable() && part == null && entry.definition.interactive
-                    && client.currentScreen != null;
+            return presentationAvailable() && part == null && entry.definition.interactive && !regions.isEmpty()
+                    && entry.additivePainted && GuiHudCursor.NATIVE_POINTER.focused()
+                    && (client.currentScreen != null || cursor != null && cursor.ownsGuiInput());
         }
 
         public long environment() {

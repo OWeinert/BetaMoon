@@ -8,6 +8,8 @@ import betamoon.gui.screen.GuiActionQueue;
 import betamoon.gui.screen.GuiScreenActivation;
 import betamoon.gui.framework.GuiRenderer;
 import betamoon.gui.framework.GuiTheme;
+import betamoon.client.control.input.ClientInputRuntime;
+import betamoon.client.control.input.InputDeviceEvent;
 import betamoon.interop.discovery.NativeDiscoveryRuntime;
 import betamoon.luaapi.client.ui.GuiComponentParser;
 import betamoon.luaapi.client.ui.GuiHudParser;
@@ -23,6 +25,7 @@ import net.minecraft.src.GuiScreen;
 import net.minecraft.src.World;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.lib.jse.JsePlatform;
+import org.lwjgl.input.Keyboard;
 
 /**
  * Shared HUD runtime in a fake client; native seams are invoked directly, with
@@ -133,6 +136,7 @@ final class GuiHudRuntimeRenderChecks {
             require(menu.status().equals("active") && first.status().equals("suspended"),
                     "Explicit worldless menu HUD did not compose with suspended gameplay claims");
             ImageIO.write(GuiShowcaseRenderTest.capture(320, 240), "png", new File(output, "hud-menu-overlay.png"));
+            menuInteraction(client, lua);
             ScriptResourceTracker.unload(OWNER);
             GuiHudRuntime.tick(client);
             require(((Number) NativeDiscoveryRuntime.bindingsIfAvailable().clients.diagnostics().get("sessions"))
@@ -155,6 +159,76 @@ final class GuiHudRuntimeRenderChecks {
                 .add(GuiComponentParser.parse(OWNER,
                         lua.load("return {key='fixture:" + key + "',size={width=12,height=12},paint=function(view) "
                                 + "return {{op='rect',width=12,height=12,color='" + color + "'}} end}").call()));
+    }
+
+    private static void menuInteraction(Minecraft client, Globals lua) {
+        screen(lua, "fixture:regional-hud",
+                "root={type='row',width=248,height=20,anchorX=0,anchorY=0,x=8,y=60,"
+                        + "children={{type='button',id='allowed',width=120,height=20,text='Allowed',"
+                        + "on={activate=function() allowedClicks=(allowedClicks or 0)+1 end}},"
+                        + "{type='button',id='excluded',width=120,height=20,text='Excluded',"
+                        + "on={activate=function() excludedClicks=(excludedClicks or 0)+1 end}}}}");
+        screen(lua, "fixture:regional-front", "root={type='button',id='front',width=120,height=20,anchorX=0,"
+                + "anchorY=0,x=8,y=60,text='Front',on={activate=function() frontClicks=(frontClicks or 0)+1 end}}");
+        GuiHudActivation lower = activate(lua, "fixture:regional-lower", "screen='fixture:regional-hud',"
+                + "safeArea=false,interactive=true,regions={'allowed'},visibility={contexts={'menu'}}");
+        GuiHudActivation upper = activate(lua, "fixture:regional-upper", "screen='fixture:regional-front',priority=1,"
+                + "safeArea=false,interactive=true,regions={'front'},visibility={contexts={'menu'}}");
+        GuiHudRuntime.tick(client);
+        menuFrame(client);
+        require(GuiHudRuntime.interacting(lower) && GuiHudRuntime.interacting(upper),
+                "Compatible native menu did not enable declared HUD regions");
+        clickHud(client, 12, 65, true);
+        require(lua.get("frontClicks").toint() == 1 && lua.get("allowedClicks").isnil(),
+                "Overlapping HUD input did not follow reverse paint order");
+        clickHud(client, 145, 65, false);
+        require(lua.get("excludedClicks").isnil(), "Undeclared compiled HUD control received a pointer event");
+        upper.close();
+        GuiHudRuntime.tick(client);
+        menuFrame(client);
+        clickHud(client, 12, 65, true);
+        require(lua.get("allowedClicks").toint() == 1, "Closing the upper HUD did not restore lower regional input");
+        require(GuiHudRuntime.keyboard('\t', Keyboard.KEY_TAB, true, false, false),
+                "Compiled HUD regions were missing from keyboard traversal");
+        require(GuiHudRuntime.keyboard('\r', Keyboard.KEY_RETURN, true, false, false),
+                "Focused compiled HUD control did not receive keyboard activation");
+        require(GuiHudRuntime.keyboard('\0', Keyboard.KEY_RETURN, false, false, false),
+                "Focused compiled HUD control lost its matching keyboard release");
+        require(lua.get("allowedClicks").toint() == 2 && lua.get("excludedClicks").isnil(),
+                "Keyboard focus escaped the declared compiled region");
+        GuiScreenActivation layer = GuiHudRuntime.instance(lower, null).dialog("fixture:regional-front",
+                Collections.emptyMap(), Collections.emptyMap()).instance;
+        require(layer != null, "Interactive HUD could not queue an owned layer");
+        GuiHudRuntime.tick(client);
+        menuFrame(client);
+        require(GuiHudRuntime.keyboard('\0', Keyboard.KEY_ESCAPE, true, false, false),
+                "HUD modal dismissal leaked Escape to the native menu");
+        GuiHudRuntime.tick(client);
+        require(!layer.active(), "HUD Escape left its owned modal active");
+        menuFrame(client);
+        require(GuiHudRuntime.mouse(12 * client.displayWidth / 320, 174 * client.displayHeight / 240, 0, true, 0,
+                false), "Interactive HUD could not begin its final gesture");
+        lower.close();
+        require(ClientInputRuntime.router().accept(InputDeviceEvent.mouseButton(0, false)),
+                "Closing the final interactive HUD leaked its physical release to native input");
+        GuiHudRuntime.tick(client);
+        menuFrame(client);
+        clickHud(client, 12, 65, false);
+        require(!GuiHudRuntime.keyboard('\t', Keyboard.KEY_TAB, true, false, false),
+                "Passive HUD retained keyboard ownership after the final interactive claim closed");
+    }
+
+    private static void clickHud(Minecraft client, int x, int y, boolean expected) {
+        int nativeX = x * client.displayWidth / 320;
+        int nativeY = (239 - y) * client.displayHeight / 240;
+        require(GuiHudRuntime.mouse(nativeX, nativeY, 0, true, 0, false) == expected,
+                "Unexpected compiled HUD regional pointer ownership");
+        GuiHudRuntime.mouse(nativeX, nativeY, 0, false, 0, false);
+    }
+
+    private static void menuFrame(Minecraft client) {
+        GuiShowcaseRenderTest.setupFrame();
+        GuiHudRuntime.clientOverlay(client, 0, 0, 0);
     }
 
     private static void screen(Globals lua, String key, String fields) {

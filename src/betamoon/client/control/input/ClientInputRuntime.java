@@ -1,6 +1,7 @@
 package betamoon.client.control.input;
 
 import betamoon.gui.GuiTabbedControls;
+import betamoon.gui.hud.GuiHudRuntime;
 import betamoon.io.BetaMoonDirectories;
 import betamoon.luaapi.LuaApiUtils;
 import net.minecraft.client.Minecraft;
@@ -73,6 +74,9 @@ public final class ClientInputRuntime {
             if (!guiOwned) {
                 keyboardConsumed |= capturesGuiInput();
             }
+            if (!keyboardConsumed) {
+                keyboardConsumed = GuiHudRuntime.keyboard();
+            }
             keyboardConsumed |= ROUTER.captures(InputFamily.INVENTORY) && isInventoryKey(keyCode);
             MotionInputObservation.accept(keyCode, Keyboard.getEventKeyState(),
                     !keyboardConsumed && !ROUTER.captures(InputFamily.MOVEMENT)
@@ -117,6 +121,9 @@ public final class ClientInputRuntime {
             }
             if (!guiOwned) {
                 mouseConsumed |= capturesGuiInput();
+            }
+            if (!mouseConsumed) {
+                mouseConsumed = GuiHudRuntime.mouse();
             }
         }
         return available;
@@ -189,7 +196,12 @@ public final class ClientInputRuntime {
     public static void applyControllerMovement(MovementInputFromOptions input, EntityPlayerSP player) {
         PlayerControllerRuntime.Movement raw = MotionInputObservation.nativeLogical(input);
         CONTROLLERS.movement(input, player);
-        MotionInputObservation.resolved(player, CONTROLLERS.logicalMovement(raw));
+        PlayerControllerRuntime.Movement resolved = CONTROLLERS.logicalMovement(raw);
+        if (ROUTER.captures(InputFamily.MOVEMENT)) {
+            resolved = PlayerControllerRuntime.Movement.ZERO;
+            resolved.apply(input);
+        }
+        MotionInputObservation.resolved(player, resolved);
     }
 
     public static boolean consumesLook() {

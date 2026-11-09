@@ -6,6 +6,8 @@ import betamoon.gui.screen.GuiScreenActivation;
 import java.lang.ref.WeakReference;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.World;
+import org.lwjgl.input.Keyboard;
+import org.lwjgl.input.Mouse;
 
 /**
  * Logical HUD lifecycle and native render seams; metadata alone changes
@@ -22,6 +24,72 @@ public final class GuiHudRuntime {
 
     public static GuiScreenActivation instance(GuiHudActivation claim, GuiHudNativePart part) {
         return current == null || !current.valid() ? null : current.instance(claim, part);
+    }
+
+    public static boolean interact(GuiHudActivation claim) {
+        return current != null && current.valid() && current.interact(claim);
+    }
+
+    public static boolean interacting(GuiHudActivation claim) {
+        return current != null && current.valid() && current.interacting(claim);
+    }
+
+    public static void stopInteraction(GuiHudActivation claim) {
+        if (current != null) {
+            current.stopInteraction(claim);
+        }
+    }
+
+    public static boolean keyboard() {
+        return keyboard(Keyboard.getEventCharacter(), Keyboard.getEventKey(), Keyboard.getEventKeyState(), shift(),
+                Keyboard.isKeyDown(Keyboard.KEY_LCONTROL) || Keyboard.isKeyDown(Keyboard.KEY_RCONTROL));
+    }
+
+    public static boolean keyboard(char character, int key, boolean down, boolean shift, boolean control) {
+        if (current == null || !current.valid()) {
+            return false;
+        }
+        GuiHudHost receiving = current;
+        try {
+            return receiving.keyboard(character, key, down, shift, control);
+        } catch (VirtualMachineError | ThreadDeath fatal) {
+            throw fatal;
+        } catch (Throwable failure) {
+            receiving.failed(failure);
+            return false;
+        }
+    }
+
+    public static boolean mouse() {
+        if (current == null || current.client.displayWidth <= 0 || current.client.displayHeight <= 0) {
+            return false;
+        }
+        return mouse(Mouse.getEventX(), Mouse.getEventY(), Mouse.getEventButton(), Mouse.getEventButtonState(),
+                Mouse.getEventDWheel(), shift());
+    }
+
+    /**
+     * Native framebuffer coordinates, translated by the same displayed viewport as
+     * painting.
+     */
+    public static boolean mouse(int x, int y, int button, boolean down, int wheel, boolean shift) {
+        if (current == null || !current.valid()) {
+            return false;
+        }
+        GuiHudHost receiving = current;
+        try {
+            return receiving.mouseEvent(x, y, button, down, wheel, shift);
+        } catch (VirtualMachineError | ThreadDeath fatal) {
+            throw fatal;
+        } catch (Throwable failure) {
+            receiving.failed(failure);
+            return false;
+        }
+    }
+
+    private static boolean shift() {
+        return Keyboard.isCreated()
+                && (Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) || Keyboard.isKeyDown(Keyboard.KEY_RSHIFT));
     }
 
     public static void tick(Minecraft client) {
