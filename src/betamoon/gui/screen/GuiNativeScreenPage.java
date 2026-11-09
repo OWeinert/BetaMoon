@@ -52,6 +52,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.ScaledResolution;
@@ -286,6 +287,7 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
             throw new IllegalStateException("Screen rendering/callback failed", pendingFailure);
         }
         updateEnvironment();
+        current.observeHostSources();
         current.updateResources();
         if (++ticks % current.definition.updateInterval == 0 && current.definition.callbacks.containsKey("update")) {
             current.emit("update");
@@ -470,6 +472,7 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
         final Map<String, GuiThemeDefinition> themeDefinitions = new LinkedHashMap<>();
         final Map<String, Map<String, GuiStyleSheet>> preparedThemes = new LinkedHashMap<>();
         final GuiPaintBudget paintBudget = new GuiPaintBudget();
+        Map<String, Object> observedNativeData = Collections.emptyMap();
 
         Revision(GuiScreenDefinition definition, Revision previous, Map<String, Object> initialState,
                 Map<String, Object> initialData, Map<String, Object> restoredState) {
@@ -571,7 +574,24 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
         }
 
         public GuiPresentationSources snapshot() {
-            return new GuiPresentationSources(Collections.emptyMap(), data.snapshot(), Collections.emptyMap());
+            return new GuiPresentationSources(Collections.emptyMap(), data.snapshot(),
+                    attachment == null ? Collections.emptyMap() : attachment.nativeData());
+        }
+
+        void observeHostSources() {
+            Map<String, Object> next = attachment == null ? Collections.emptyMap() : attachment.nativeData();
+            Set<String> keys = new LinkedHashSet<>(observedNativeData.keySet());
+            keys.addAll(next.keySet());
+            for (String key : keys) {
+                Object previous = observedNativeData.get(key);
+                Object value = next.get(key);
+                if (!Objects.equals(previous, value)) {
+                    for (Observer observer : new ArrayList<>(observers)) {
+                        observer.changed("native:" + key, previous, value);
+                    }
+                }
+            }
+            observedNativeData = new LinkedHashMap<>(next);
         }
 
         public Map<String, Object> baseline(GuiNodeDefinition node, GuiPresentationSources sources) {
@@ -730,6 +750,12 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
             if (candidateInvalidated || !usable()
                     || (attachment == null ? client.currentScreen != screen() : !attachment.presentationAvailable())) {
                 throw new IllegalStateException("Screen graphics attachment expired");
+            }
+        }
+
+        public void renderFailure(Throwable failure) {
+            if (attachment != null && parent == null && current == this && !closed) {
+                attachment.renderFailure(failure);
             }
         }
 

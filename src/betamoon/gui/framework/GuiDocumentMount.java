@@ -28,6 +28,14 @@ public final class GuiDocumentMount extends GuiContainer {
         return failed;
     }
 
+    /**
+     * Paint-time invalidation only; diagnostics and disposal remain at update
+     * boundaries.
+     */
+    public void invalidatePaint() {
+        failed = true;
+    }
+
     public void paintWhen(BooleanSupplier condition) {
         paintWhen = condition;
     }

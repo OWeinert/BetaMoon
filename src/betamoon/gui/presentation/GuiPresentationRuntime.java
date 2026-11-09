@@ -428,6 +428,7 @@ public class GuiPresentationRuntime implements AutoCloseable {
     private void evaluate(GuiPresentationNode node) {
         Set<String> reads = new LinkedHashSet<>();
         try (LuaCallbackScope scope = LuaCallbackScope.binding()) {
+            scope.onUiBindingRead((key, value) -> reads.add(key));
             Map<String, Object> output = Collections.emptyMap();
             GuiTransitionPolicy policy = node.definition.transition;
             if (!node.definition.binding.isnil()) {

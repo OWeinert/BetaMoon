@@ -110,6 +110,13 @@ public final class GuiComponentPlan implements AutoCloseable {
 
         void requireHost();
 
+        /**
+         * Java-only immediate paint eligibility; must not log or invoke author
+         * callbacks.
+         */
+        default void renderFailure(Throwable failure) {
+        }
+
         void failure(String owner, String path, Throwable failure);
     }
 
@@ -327,6 +334,8 @@ public final class GuiComponentPlan implements AutoCloseable {
                     value = current.state.containsKey(key) ? current.state.get(key) : state.snapshot().get(key);
                 } else if (read.getKey().startsWith("data:")) {
                     value = current.data.get(read.getKey().substring(5));
+                } else if (read.getKey().startsWith("native:")) {
+                    value = current.nativeData.get(read.getKey().substring(7));
                 } else {
                     int split = read.getKey().lastIndexOf(':');
                     GuiViewAdapter view = adapters.get(read.getKey().substring(12, split));
@@ -358,6 +367,8 @@ public final class GuiComponentPlan implements AutoCloseable {
                     value = current.state.containsKey(key) ? current.state.get(key) : state.snapshot().get(key);
                 } else if (read.startsWith("data:")) {
                     value = current.data.get(read.substring(5));
+                } else if (read.startsWith("native:")) {
+                    value = current.nativeData.get(read.substring(7));
                 } else {
                     int split = read.lastIndexOf(':');
                     value = interaction(read.substring(12, split), read.substring(split + 1));
@@ -467,7 +478,7 @@ public final class GuiComponentPlan implements AutoCloseable {
                             metadata.scope.requireActive();
                             services.requireHost();
                         }, services.rawResources(metadata.scope.owner),
-                        failure -> services.failure(metadata.scope.owner, node.path, failure));
+                        failure -> services.failure(metadata.scope.owner, node.path, failure), services::renderFailure);
                 paint.view = new GuiRawView(paint, input,
                         failure -> services.failure(metadata.scope.owner, node.path, failure), metadata.leaf.focusable,
                         raw, () -> rawData(metadata.scope));
@@ -475,6 +486,7 @@ public final class GuiComponentPlan implements AutoCloseable {
                 paint.view = new GuiPaintView(paint, input,
                         failure -> services.failure(metadata.scope.owner, node.path, failure), metadata.leaf.focusable);
             }
+            paint.view.onRenderFailure(services::renderFailure);
             result = paint.view;
         }
         adapters.put(node.id, result);
@@ -645,6 +657,7 @@ public final class GuiComponentPlan implements AutoCloseable {
             Set<String> attempted = new LinkedHashSet<>();
             GuiLuaPaintSource source = new GuiLuaPaintSource(metadata.scope.owner, node.path, builder,
                     new GuiPaintCompiler(node.properties, services.paintResources(metadata.scope.owner)), callback -> {
+                        callback.onUiBindingRead((key, value) -> attempted.add(key));
                         LuaTable context = host.bindingContext(callback);
                         context.set("state", sourceAccess(callback,
                                 metadata.scope.stateKey == null ? sources.state : state.values(metadata.scope.stateKey),

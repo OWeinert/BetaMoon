@@ -151,6 +151,7 @@ final class GuiInventoryRuntimeRenderChecks {
             require(((Number) bindings.clients.diagnostics().get("sessions")).intValue() == 0,
                     "Last inventory claim retained native client sessions");
             previewFailure(client);
+            GuiHudRuntimeRenderChecks.run(client, output);
             require(GL11.glGetError() == GL11.GL_NO_ERROR, "Inventory runtime leaked a GL error");
         } finally {
             GuiInventoryRuntime.closed(client.currentScreen);

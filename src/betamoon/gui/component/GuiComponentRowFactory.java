@@ -239,6 +239,10 @@ public final class GuiComponentRowFactory implements GuiRowFactory {
             delegate.requireHost();
         }
 
+        public void renderFailure(Throwable failure) {
+            delegate.renderFailure(failure);
+        }
+
         public void failure(String owner, String source, Throwable failure) {
             delegate.failure(owner, path + "/" + source, failure);
         }

@@ -119,7 +119,8 @@ public final class GuiInventoryRuntime {
     public static void worldTick(Minecraft client, World world) {
         Context context = active(client == null ? null : client.currentScreen);
         if (context != null && context.client == client && context.world == world && context.selected != null
-                && context.selected.document != null && context.selected.eligible()) {
+                && context.selected.document != null && context.selected.eligible()
+                && context.selected.document.usable()) {
             context.selected.document.controller().worldTick();
         }
     }

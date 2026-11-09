@@ -54,6 +54,10 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
             return new GuiOwnedResources(client(), screen(), owner, definitions);
         }
 
+        default Map<String, Object> nativeData() {
+            return Collections.emptyMap();
+        }
+
         long environment();
 
         boolean worldAvailable();
@@ -77,6 +81,7 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
     private final GuiScreenController controller = new GuiScreenController(GuiClientUiRuntime.screens(), this);
     private final Map<Object, GuiHostElementBudget.Claim> capacity = new IdentityHashMap<>();
     private GuiNativeScreenPage page;
+    private Throwable paintFailure;
     private boolean closed;
 
     public GuiAttachedDocument(Host host, String owner, String key) {
@@ -87,7 +92,7 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
         input.activate();
         mount.inputLifetime(input);
         mount.paintWhen(this::usable);
-        mount.onFailure(error -> failure(owner, key + ".paint", error));
+        mount.onFailure(this::renderFailure);
     }
 
     public GuiScreenController.OpenResult open() {
@@ -115,7 +120,14 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
     }
 
     public void tick() {
-        controller.tick();
+        if (!closed && paintFailure != null) {
+            Throwable failure = paintFailure;
+            paintFailure = null;
+            host.failure(owner, key + ".paint", failure);
+        }
+        if (!closed) {
+            controller.tick();
+        }
     }
 
     public void suspend(String reason) {
@@ -207,7 +219,21 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
     }
 
     public boolean inputAvailable() {
-        return !closed && host.attached() && host.inputAvailable();
+        return !closed && !mount.failed() && host.attached() && host.inputAvailable();
+    }
+
+    public void renderFailure(Throwable failure) {
+        if (closed) {
+            return;
+        }
+        mount.invalidatePaint();
+        if (paintFailure == null) {
+            paintFailure = failure;
+        }
+    }
+
+    public Map<String, Object> nativeData() {
+        return closed ? Collections.emptyMap() : host.nativeData();
     }
 
     public boolean presentationAvailable() {
@@ -271,6 +297,7 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
             } finally {
                 try {
                     page = null;
+                    paintFailure = null;
                     mount.document(null);
                     GuiContainer parent = mount.getParent();
                     if (parent != null) {

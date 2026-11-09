@@ -68,6 +68,8 @@ public class GuiPaintView extends GuiElement implements GuiViewAdapter, GuiViewp
     private static final GuiFrameContent EMPTY_FRAME = (x, y) -> false;
     private GuiPaintProgram.Frame lastFrame;
     private Throwable pendingFrameFailure;
+    private Consumer<Throwable> renderFailure = failure -> {
+    };
     private boolean frameFailureReported;
     private int preparedWidth = -1;
     private int preparedHeight = -1;
@@ -91,6 +93,10 @@ public class GuiPaintView extends GuiElement implements GuiViewAdapter, GuiViewp
         this.input = Objects.requireNonNull(input, "custom input handler");
         this.failures = Objects.requireNonNull(failures, "custom paint failure reporter");
         setFocusable(focusable);
+    }
+
+    public void onRenderFailure(Consumer<Throwable> invalidation) {
+        renderFailure = Objects.requireNonNull(invalidation, "Java render invalidation");
     }
 
     @Override
@@ -210,6 +216,9 @@ public class GuiPaintView extends GuiElement implements GuiViewAdapter, GuiViewp
                     lastFrame = null;
                 }
             }
+            if (lastFrame == null) {
+                renderFailure.accept(failure);
+            }
         }
         return lastFrame == null ? EMPTY_FRAME : lastFrame;
     }
@@ -305,6 +314,7 @@ public class GuiPaintView extends GuiElement implements GuiViewAdapter, GuiViewp
             program = null;
             lastFrame = null;
             pendingFrameFailure = null;
+            renderFailure = null;
             targets = Collections.emptyMap();
             accepted = Collections.emptyMap();
             setEnabled(false);

@@ -39,6 +39,7 @@ public final class GuiRawDrawing implements AutoCloseable {
     private Runnable validateHost;
     private GraphicsResources resources;
     private Consumer<Throwable> failures;
+    private Consumer<Throwable> renderFailure;
     private Throwable pendingFailure;
     private boolean closed;
     private boolean failed;
@@ -46,6 +47,13 @@ public final class GuiRawDrawing implements AutoCloseable {
 
     public GuiRawDrawing(String owner, String path, LuaValue callback, Function<LuaCallbackScope, LuaTable> context,
             Runnable validateHost, GraphicsResources resources, Consumer<Throwable> failures) {
+        this(owner, path, callback, context, validateHost, resources, failures, failure -> {
+        });
+    }
+
+    public GuiRawDrawing(String owner, String path, LuaValue callback, Function<LuaCallbackScope, LuaTable> context,
+            Runnable validateHost, GraphicsResources resources, Consumer<Throwable> failures,
+            Consumer<Throwable> renderFailure) {
         if (callback == null || !callback.isfunction()) {
             throw new IllegalArgumentException("Raw drawing requires an explicitly registered callback");
         }
@@ -56,6 +64,7 @@ public final class GuiRawDrawing implements AutoCloseable {
         this.validateHost = Objects.requireNonNull(validateHost, "raw host validation");
         this.resources = Objects.requireNonNull(resources, "prepared graphics resources");
         this.failures = Objects.requireNonNull(failures, "raw failure reporting");
+        this.renderFailure = Objects.requireNonNull(renderFailure, "Java render invalidation");
         ownerState = ScriptResourceTracker.ownerToken(owner);
         generation = ownerState.current();
     }
@@ -136,6 +145,7 @@ public final class GuiRawDrawing implements AutoCloseable {
             failed = true;
             callback = null;
             pendingFailure = failure;
+            renderFailure.accept(failure);
             return false;
         }
     }
@@ -159,6 +169,7 @@ public final class GuiRawDrawing implements AutoCloseable {
         callback = null;
         context = null;
         validateHost = null;
+        renderFailure = null;
         resources = null;
         failures = null;
         pendingFailure = null;

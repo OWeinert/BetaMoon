@@ -10,6 +10,7 @@ import betamoon.gui.graphics.GuiResourceDefinitions;
 import net.minecraft.client.Minecraft;
 import java.util.Collections;
 import java.util.Set;
+import java.util.Map;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import net.minecraft.src.GuiScreen;
 import org.luaj.vm2.LuaTable;
@@ -39,6 +40,13 @@ public interface GuiScreenAttachment {
 
     default boolean presentationAvailable() {
         return inputAvailable();
+    }
+
+    default void renderFailure(Throwable failure) {
+    }
+
+    default Map<String, Object> nativeData() {
+        return Collections.emptyMap();
     }
 
     void attach(GuiPresentationTree document);

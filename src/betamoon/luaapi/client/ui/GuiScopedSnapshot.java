@@ -13,9 +13,21 @@ import org.luaj.vm2.Varargs;
  */
 public final class GuiScopedSnapshot {
     private final LuaValue detached;
+    private final String source;
+    private final Object revision;
 
     public GuiScopedSnapshot(Map<String, Object> values) {
+        this(values, null, null);
+    }
+
+    public GuiScopedSnapshot(Map<String, Object> values, String source, Object revision) {
         detached = GuiReadOnlyValues.fromPublished(values);
+        this.source = source;
+        this.revision = revision;
+    }
+
+    public Object revision() {
+        return revision;
     }
 
     public static LuaTable create(LuaCallbackScope scope, String method, Map<String, Object> values) {
@@ -31,6 +43,9 @@ public final class GuiScopedSnapshot {
         access.set(method, new VarArgFunction() {
             public Varargs invoke(Varargs arguments) {
                 scope.requireActive();
+                if (source != null) {
+                    scope.readUiSource(source, revision);
+                }
                 return detached;
             }
         });

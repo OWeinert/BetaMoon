@@ -1,6 +1,7 @@
 package betamoon.luaapi.utils;
 
 import betamoon.interop.runtime.NativeEntry;
+import java.util.function.BiConsumer;
 
 /**
  * Guards live access against mutation from queries and use after callback
@@ -18,6 +19,22 @@ public final class LuaCallbackScope implements AutoCloseable {
     private boolean active = true;
     private int multiblockWork = 65536;
     private NativeEntry nativeEntry;
+    private BiConsumer<String, Object> uiBindingRead;
+
+    public void onUiBindingRead(BiConsumer<String, Object> observer) {
+        requireActive();
+        if (!binding) {
+            throw new IllegalStateException("UI source observation requires a binding callback");
+        }
+        uiBindingRead = observer;
+    }
+
+    public void readUiSource(String key, Object value) {
+        requireActive();
+        if (uiBindingRead != null) {
+            uiBindingRead.accept(key, value);
+        }
+    }
 
     public void nativeEntry(NativeEntry entry) {
         requireActive();
@@ -170,5 +187,6 @@ public final class LuaCallbackScope implements AutoCloseable {
         }
         active = false;
         nativeEntry = null;
+        uiBindingRead = null;
     }
 }

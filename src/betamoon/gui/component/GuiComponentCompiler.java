@@ -325,6 +325,7 @@ public final class GuiComponentCompiler {
         if (!authored.binding.isnil()) {
             Map<String, Object> reads = new LinkedHashMap<>();
             try (LuaCallbackScope callback = LuaCallbackScope.binding()) {
+                callback.onUiBindingRead(reads::put);
                 LuaTable view = plan.host.bindingContext(callback);
                 view.set("props", caller.propsView);
                 view.set("state",

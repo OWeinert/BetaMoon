@@ -35,6 +35,10 @@ public final class GuiClientUiRuntime {
         return SCREENS;
     }
 
+    public static boolean managed(GuiScreen screen) {
+        return screen instanceof GuiManagedScreen;
+    }
+
     public static GuiScreenActivation current() {
         return host == null ? null : host.controller.current();
     }
