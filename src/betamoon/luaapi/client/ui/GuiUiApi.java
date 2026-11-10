@@ -125,6 +125,7 @@ public final class GuiUiApi {
     private static LuaTable screen(GuiScreenDefinition definition) {
         LuaTable value = new LuaTable();
         value.set("key", definition.key);
+        value.set("displayName", definition.displayName);
         value.set("context", definition.context == GuiScreenDefinition.Context.CLIENT ? "client" : "world");
         value.set("pauseGame", LuaValue.valueOf(definition.pauseGame));
         return value;

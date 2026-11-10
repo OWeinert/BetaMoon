@@ -49,6 +49,7 @@ public final class GuiScreenModelTest {
     private static final String OWNER = "screen-model.lua";
 
     public static void main(String[] arguments) {
+        GuiScreenMetadataTest.run();
         appearanceAndAuthority();
         Globals lua = JsePlatform.standardGlobals();
         GuiComponentRegistry components = new GuiComponentRegistry();

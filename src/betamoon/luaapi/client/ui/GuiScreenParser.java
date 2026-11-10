@@ -21,7 +21,7 @@ public final class GuiScreenParser {
     public static GuiScreenDefinition parse(String owner, LuaValue value, GuiComponentRegistry components) {
         String path = "ui.screen";
         LuaDeclarationValues.fields(value, path, "key", "context", "pauseGame", "root", "state", "data", "actions",
-                "on", "updateInterval", "theme", "resources", "requires");
+                "on", "updateInterval", "theme", "resources", "requires", "displayName");
         String key = LuaDeclarationValues.string(value.get("key"), path + ".key");
         path += "[" + key + "]";
         GuiScreenDefinition.Context context;
@@ -81,8 +81,11 @@ public final class GuiScreenParser {
             }
         }
         try {
-            return new GuiScreenDefinition(owner, key, context,
-                    LuaDeclarationValues.bool(value.get("pauseGame"), path + ".pauseGame", false),
+            return new GuiScreenDefinition(owner, key,
+                    value.get("displayName").isnil()
+                            ? null
+                            : LuaDeclarationValues.string(value.get("displayName"), path + ".displayName"),
+                    context, LuaDeclarationValues.bool(value.get("pauseGame"), path + ".pauseGame", false),
                     value.get("updateInterval").isnil()
                             ? 1
                             : LuaDeclarationValues.integer(value.get("updateInterval"), path + ".updateInterval", 1,

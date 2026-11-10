@@ -4,6 +4,7 @@
 
 ### Added
 
+- Human-readable screen display names with canonical-key fallback and detached registration metadata.
 - Cosmetic dimension/teleport loading appearances with prepared fallback assets and shared staged/blocking progress.
 - Owned HUD screens and crosshair/native-part presentation with scoped snapshots, regional input and explicit gameplay cursor mode.
 - Per-part HUD status and native-hook capabilities with independent hide/replacement ownership and native fallback.
