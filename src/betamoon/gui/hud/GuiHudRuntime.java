@@ -9,7 +9,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import net.minecraft.client.Minecraft;
-import net.minecraft.src.World;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 
@@ -264,12 +263,6 @@ public final class GuiHudRuntime {
             } catch (Throwable failure) {
                 rendering.failed(failure);
             }
-        }
-    }
-
-    public static void worldTick(Minecraft client, World world) {
-        if (current != null && current.client == client && current.valid() && client.theWorld == world) {
-            current.worldTick();
         }
     }
 

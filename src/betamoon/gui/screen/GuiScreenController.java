@@ -43,6 +43,10 @@ public final class GuiScreenController {
 
         boolean current(GuiScreenActivation activation);
 
+        default String actionUnavailable(Scope scope) {
+            return null;
+        }
+
         Page prepare(GuiScreenActivation activation, History history);
 
         void display(GuiScreenActivation activation);
@@ -125,7 +129,8 @@ public final class GuiScreenController {
     }
     private final GuiScreenRegistry registry;
     private final Host host;
-    private final GuiActionQueue actions = new GuiActionQueue();
+    private final GuiActionQueue actions;
+    private final boolean dispatchActions;
     private final Deque<Operation> pending = new ArrayDeque<>();
     private final Deque<History> history = new ArrayDeque<>();
     private GuiScreenActivation current;
@@ -135,8 +140,23 @@ public final class GuiScreenController {
     private WeakReference<Object> fallbackScreen;
 
     public GuiScreenController(GuiScreenRegistry registry, Host host) {
+        this(registry, host, new GuiActionQueue(), true);
+    }
+
+    /**
+     * Attached/native runtime controllers share admission; only the central logical
+     * boundary dispatches.
+     */
+    public GuiScreenController(GuiScreenRegistry registry, Host host, GuiActionQueue actions) {
+        this(registry, host, actions, false);
+    }
+
+    private GuiScreenController(GuiScreenRegistry registry, Host host, GuiActionQueue actions,
+            boolean dispatchActions) {
         this.registry = registry;
         this.host = host;
+        this.actions = actions;
+        this.dispatchActions = dispatchActions;
     }
 
     public static OpenResult unavailable(String reason) {
@@ -334,7 +354,9 @@ public final class GuiScreenController {
             }
             updateCurrent();
             updateDialogs();
-            actions.dispatch(Scope.CLIENT);
+            if (dispatchActions) {
+                actions.dispatch(Scope.CLIENT);
+            }
         } finally {
             ticking = false;
         }
@@ -442,7 +464,9 @@ public final class GuiScreenController {
     }
 
     public void worldTick() {
-        actions.dispatch(Scope.WORLD);
+        if (dispatchActions) {
+            actions.dispatch(Scope.WORLD);
+        }
     }
 
     /**

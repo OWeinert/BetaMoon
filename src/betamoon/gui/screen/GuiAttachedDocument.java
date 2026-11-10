@@ -8,6 +8,7 @@ import betamoon.gui.framework.GuiInputLifetime;
 import betamoon.gui.framework.GuiScene;
 import betamoon.gui.presentation.GuiPresentationTree;
 import betamoon.gui.presentation.GuiCapability;
+import betamoon.gui.screen.GuiActionDefinition.Scope;
 import betamoon.gui.interop.GuiOwnedResources;
 import betamoon.gui.graphics.GuiResourceDefinitions;
 import java.util.Set;
@@ -72,13 +73,17 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
 
         default void documentChanged() {
         }
+
+        default boolean actionsAvailable() {
+            return presentationAvailable();
+        }
     }
 
     private Host host;
     private final String owner;
     private final String key;
     private final GuiDocumentMount mount = new GuiDocumentMount();
-    private final GuiScreenController controller = new GuiScreenController(GuiClientUiRuntime.screens(), this);
+    private final GuiScreenController controller;
     private final Map<Object, GuiHostElementBudget.Claim> capacity = new IdentityHashMap<>();
     private GuiNativeScreenPage page;
     private Throwable paintFailure;
@@ -88,6 +93,7 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
         this.host = host;
         this.owner = owner;
         this.key = key;
+        controller = new GuiScreenController(GuiClientUiRuntime.screens(), this, GuiClientUiRuntime.actions());
         GuiInputLifetime input = new GuiInputLifetime(this::inputAvailable);
         input.activate();
         mount.inputLifetime(input);
@@ -172,6 +178,10 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
 
     public boolean current(GuiScreenActivation activation) {
         return canOpen() && host.presentationAvailable();
+    }
+
+    public String actionUnavailable(Scope scope) {
+        return usable() && host.actionsAvailable() ? null : "presentation_unavailable";
     }
 
     public GuiScreenController.Page prepare(GuiScreenActivation activation, GuiScreenController.History history) {

@@ -634,19 +634,6 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
         });
     }
 
-    void worldTick() {
-        for (Entry entry : new ArrayList<>(entries.values())) {
-            if (entry.notification != null && !entry.notification.live()) {
-                continue;
-            }
-            for (Surface surface : entry.surfaces()) {
-                if (surface.document != null && surface.document.usable()) {
-                    surface.document.controller().worldTick();
-                }
-            }
-        }
-    }
-
     void failed(Throwable failure) {
         preparedWidth = -1;
         stopInteraction();
@@ -944,6 +931,10 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
                     && (entry.notification == null || entry.notification.live()) && entry.additivePainted
                     && GuiHudCursor.NATIVE_POINTER.focused()
                     && (client.currentScreen != null || cursor != null && cursor.ownsGuiInput());
+        }
+
+        public boolean actionsAvailable() {
+            return presentationAvailable() && (entry.notification == null || entry.notification.live());
         }
 
         public long environment() {

@@ -166,6 +166,10 @@ public final class GuiScreenActivation implements GuiActionQueue.Activation {
         if (!controller.host().current(this)) {
             return "screen_replaced";
         }
+        String unavailable = controller.host().actionUnavailable(scope);
+        if (unavailable != null) {
+            return unavailable;
+        }
         if (scope == Scope.WORLD) {
             if (!controller.host().worldAvailable()) {
                 return "world_unavailable";

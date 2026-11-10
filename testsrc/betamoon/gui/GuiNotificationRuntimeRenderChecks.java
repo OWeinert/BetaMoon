@@ -8,6 +8,7 @@ import betamoon.gui.hud.GuiNotificationDefinition;
 import betamoon.gui.hud.GuiNotificationOptions;
 import betamoon.gui.hud.GuiNotificationRuntime;
 import betamoon.gui.screen.GuiActionQueue;
+import betamoon.gui.screen.GuiActionTicket.Status;
 import betamoon.gui.screen.GuiClientUiRuntime;
 import betamoon.gui.screen.GuiScreenActivation;
 import betamoon.gui.framework.GuiGeometry.Rect;
@@ -52,7 +53,8 @@ final class GuiNotificationRuntimeRenderChecks {
                             + "bind=function(view) seenMessage=view.data:get('message'); "
                             + "seenCorner=view.notification:snapshot().corner; return {text=seenMessage} end,"
                             + "on={activate=function() noticeClicks=(noticeClicks or 0)+1 end}},"
-                            + "actions={apply={scope='client',handler=function() applied=(applied or 0)+1 end}}}")
+                            + "actions={apply={scope='client',handler=function() applied=(applied or 0)+1 end},"
+                            + "shared={scope='client',handler=function() sharedActions=(sharedActions or 0)+1 end}}}")
                             .call(),
                     GuiClientUiRuntime.components()));
             GuiNotificationDefinition passive = definition("fixture:passive-notice", false);
@@ -108,6 +110,19 @@ final class GuiNotificationRuntimeRenderChecks {
                     && lua.get("noticeClicks").toint() == 1,
                     "Declared notification action region was unavailable in a native menu");
             GuiScreenActivation retained = interactive.instance();
+            GuiClientUiRuntime.tick(client);
+            GuiActionQueue.Submission passiveAction = notice.instance().request("shared", Collections.emptyMap());
+            GuiActionQueue.Submission interactiveAction = retained.request("shared", Collections.emptyMap());
+            require(passiveAction.ticket != null && interactiveAction.ticket != null,
+                    "Attached notification controllers did not admit shared actions");
+            GuiHudRuntime.tick(client);
+            require(passiveAction.ticket.status() == Status.QUEUED
+                    && interactiveAction.ticket.status() == Status.QUEUED,
+                    "Attached document updates dispatched their own logical action slices");
+            GuiClientUiRuntime.dispatchClientActions(client);
+            require(lua.get("sharedActions").toint() == 2 && passiveAction.ticket.status() == Status.SUCCEEDED
+                    && interactiveAction.ticket.status() == Status.SUCCEEDED,
+                    "Shared central client dispatch did not execute attached actions exactly once");
             GuiActionQueue.Submission pending = retained.request("apply", Collections.emptyMap());
             require(pending.ticket != null, "Notification action was not admitted before dismissal");
             interactive.dismiss();
@@ -115,6 +130,7 @@ final class GuiNotificationRuntimeRenderChecks {
                     && !pending.ticket.status().equals("queued"),
                     "Dismissing notification retained input, instance authority or its pending intent");
             GuiHudRuntime.tick(client);
+            GuiClientUiRuntime.dispatchClientActions(client);
             frame(client);
             require(lua.get("applied").isnil(), "An exiting notification dispatched a previously queued action");
 

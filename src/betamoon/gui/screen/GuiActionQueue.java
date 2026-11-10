@@ -131,6 +131,17 @@ public final class GuiActionQueue {
         prune();
     }
 
+    public void cancelAll(String reason) {
+        for (Deque<Request> owner : owners.values()) {
+            for (Request request : owner) {
+                request.ticket.finish(Status.CANCELLED, null, reason);
+            }
+        }
+        owners.clear();
+        order.clear();
+        size = 0;
+    }
+
     /**
      * At most eight callbacks/2 ms per boundary; a callback itself is trusted Lua,
      * not preemptible.

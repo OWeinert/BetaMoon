@@ -1,6 +1,7 @@
 package betamoon.gui.screen;
 
 import betamoon.gui.component.GuiComponentRegistry;
+import betamoon.gui.screen.GuiActionDefinition.Scope;
 import betamoon.gui.menu.GuiMenuRuntime;
 import betamoon.gui.style.GuiThemeRegistry;
 import betamoon.interop.binding.NativeBindings;
@@ -21,6 +22,7 @@ public final class GuiClientUiRuntime {
     private static final GuiComponentRegistry COMPONENTS = new GuiComponentRegistry();
     private static final GuiThemeRegistry THEMES = new GuiThemeRegistry();
     private static final GuiScreenRegistry SCREENS = new GuiScreenRegistry();
+    private static final GuiActionQueue ACTIONS = new GuiActionQueue();
     private static ClientHost host;
 
     public static GuiComponentRegistry components() {
@@ -33,6 +35,10 @@ public final class GuiClientUiRuntime {
 
     public static GuiScreenRegistry screens() {
         return SCREENS;
+    }
+
+    public static GuiActionQueue actions() {
+        return ACTIONS;
     }
 
     public static boolean managed(GuiScreen screen) {
@@ -57,6 +63,7 @@ public final class GuiClientUiRuntime {
         }
         if (host == null || host.client != client) {
             if (host != null) {
+                ACTIONS.cancelAll("client_replaced");
                 host.controller.reset("client_replaced");
             }
             host = new ClientHost(client);
@@ -65,14 +72,20 @@ public final class GuiClientUiRuntime {
     }
 
     public static void worldTick(Minecraft client, World world) {
-        if (host != null && host.client == client && client.theWorld == world) {
-            host.controller.worldTick();
+        if (host != null && host.client == client && world != null && client.theWorld == world) {
+            ACTIONS.dispatch(Scope.WORLD);
+        }
+    }
+
+    public static void dispatchClientActions(Minecraft client) {
+        if (host != null && host.client == client) {
+            ACTIONS.dispatch(Scope.CLIENT);
         }
     }
 
     private static final class ClientHost implements GuiScreenController.Host {
         final Minecraft client;
-        final GuiScreenController controller = new GuiScreenController(SCREENS, this);
+        final GuiScreenController controller = new GuiScreenController(SCREENS, this, ACTIONS);
         WeakReference<Object> world = new WeakReference<>(null);
         WeakReference<Object> player = new WeakReference<>(null);
         boolean hadWorld;

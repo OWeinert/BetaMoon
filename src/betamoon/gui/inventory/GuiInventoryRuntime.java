@@ -23,6 +23,7 @@ import betamoon.luaapi.client.ui.GuiScopedSnapshot;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.teleport.TeleportRuntime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.Set;
@@ -113,15 +114,6 @@ public final class GuiInventoryRuntime {
         }
         if (current != null) {
             current.tick();
-        }
-    }
-
-    public static void worldTick(Minecraft client, World world) {
-        Context context = active(client == null ? null : client.currentScreen);
-        if (context != null && context.client == client && context.world == world && context.selected != null
-                && context.selected.document != null && context.selected.eligible()
-                && context.selected.document.usable()) {
-            context.selected.document.controller().worldTick();
         }
     }
 
@@ -716,6 +708,10 @@ public final class GuiInventoryRuntime {
             value.set("inventory", GuiInventoryLuaAccess.context(scope, snapshot()));
         }
 
+        public Map<String, Object> nativeData() {
+            return Collections.singletonMap("inventory", snapshot().revision());
+        }
+
         private GuiScopedSnapshot snapshot() {
             boolean displayed = context.displayedWidth == context.screen.width
                     && context.displayedHeight == context.screen.height && context.frameEntry == this && eligible()
@@ -742,7 +738,7 @@ public final class GuiInventoryRuntime {
             publishedWidth = context.screen.width;
             publishedHeight = context.screen.height;
             publishedDisplayed = displayed;
-            publishedLayout = new GuiScopedSnapshot(result);
+            publishedLayout = new GuiScopedSnapshot(result, "native:inventory", result);
             return publishedLayout;
         }
 

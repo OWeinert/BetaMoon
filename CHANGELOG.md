@@ -83,6 +83,9 @@
 
 ### Fixed
 
+- Enforced shared UI action admission and dispatch budgets across screens, native attachments, HUDs and notifications.
+- Refused queued UI actions when their attached presentation is unavailable, failed or exiting.
+- Invalidated inventory layout bindings on changed native geometry while preserving idle binding reuse.
 - Shared viewports reveal nested keyboard focus, page by keyboard/track and cancel moving or stale scrollbar gestures.
 - Keyboard navigation reveals an unchanged selected list row after it moves offscreen during reorder.
 

@@ -104,7 +104,8 @@ final class GuiHudRuntimeRenderChecks {
             frame(client, false, true);
             require(!broken.status().equals("active") && pixel() == 0xFFCC3333,
                     "Immediately failing raw replacement removed the native part");
-            GuiHudRuntime.worldTick(client, client.theWorld);
+            GuiClientUiRuntime.tick(client);
+            GuiClientUiRuntime.worldTick(client, client.theWorld);
             require(lua.get("worldWrites").isnil(), "Failed replacement dispatched an already queued world action");
             GuiHudRuntime.tick(client);
             require(broken.status().equals("refused"),

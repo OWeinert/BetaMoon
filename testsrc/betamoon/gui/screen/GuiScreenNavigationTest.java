@@ -40,9 +40,68 @@ public final class GuiScreenNavigationTest {
         prepareAndHistory();
         invalidation();
         dialogs();
+        sharedActions();
         System.out.println(
                 "Screen navigation passed: deferred admission, invalid preparation retention, detached Back history, "
                         + "close/cancel, stale requests, native replacement and unload fallback precedence.");
+    }
+
+    private static void sharedActions() {
+        GuiActionQueue queue = new GuiActionQueue(() -> 0);
+        List<Fixture> hosts = new ArrayList<>();
+        List<GuiActionTicket> tickets = new ArrayList<>();
+        try {
+            for (int owner = 0; owner < 4; owner++) {
+                for (int document = 0; document < 2; document++) {
+                    Fixture fixture = new Fixture("shared-action-" + owner, queue);
+                    hosts.add(fixture);
+                    GuiScreenActivation activation = fixture.open("test:first");
+                    fixture.controller.tick();
+                    for (int index = 0; index < 16; index++) {
+                        GuiActionQueue.Submission submission = activation.request("apply", Collections.emptyMap());
+                        require(submission.ticket != null, "Shared controller refused before its aggregate allowance");
+                        tickets.add(submission.ticket);
+                    }
+                    require(activation.request("apply", Collections.emptyMap()).reason.equals("action_queue_full"),
+                            "Shared activation exceeded sixteen pending actions");
+                }
+                Fixture extra = new Fixture("shared-action-" + owner, queue);
+                hosts.add(extra);
+                GuiScreenActivation activation = extra.open("test:first");
+                extra.controller.tick();
+                require(activation.request("apply", Collections.emptyMap()).reason.equals("action_queue_full"),
+                        "Another controller multiplied its owner's action capacity");
+            }
+            Fixture overflow = new Fixture("shared-overflow", queue);
+            hosts.add(overflow);
+            GuiScreenActivation activation = overflow.open("test:first");
+            overflow.controller.tick();
+            require(queue.pending() == 128
+                    && activation.request("apply", Collections.emptyMap()).reason.equals("action_queue_full"),
+                    "Another owner/controller multiplied the client-wide action capacity");
+            for (Fixture fixture : hosts) {
+                fixture.controller.tick();
+                fixture.controller.worldTick();
+                require(fixture.executed == 0, "An individual shared controller granted its own dispatch slice");
+            }
+            queue.dispatch(GuiActionDefinition.Scope.CLIENT);
+            require(queue.pending() == 120, "Shared controllers exceeded one eight-callback logical slice");
+            for (int owner = 0; owner < 4; owner++) {
+                require(hosts.get(owner * 3).executed == 2 && hosts.get(owner * 3 + 1).executed == 0,
+                        "Client-wide action service lost owner fairness or FIFO order");
+            }
+            hosts.get(0).controller.reset("host_detached");
+            require(queue.pending() == 106 && tickets.get(0).status() == GuiActionTicket.Status.SUCCEEDED
+                    && tickets.get(2).status() == GuiActionTicket.Status.CANCELLED,
+                    "Detaching one shared controller changed completed results or another host's capacity");
+            queue.cancelAll("client_replaced");
+            require(queue.pending() == 0 && tickets.get(16).status() == GuiActionTicket.Status.CANCELLED,
+                    "Client replacement retained shared queue entries");
+        } finally {
+            for (Fixture fixture : hosts) {
+                fixture.controller.reset("fixture_closed");
+            }
+        }
     }
 
     private static void dialogs() {
@@ -175,23 +234,35 @@ public final class GuiScreenNavigationTest {
         long environment;
         int prepared;
         int disposed;
+        int executed;
         boolean failPrepare;
         Runnable duringPrepare;
         final GuiComponentRegistry components = new GuiComponentRegistry();
         final GuiScreenRegistry registry = new GuiScreenRegistry();
-        final GuiScreenController controller = new GuiScreenController(registry, this);
+        final GuiScreenController controller;
+        final String owner;
         final List<Throwable> failures = new ArrayList<>();
         Fixture() {
+            this(OWNER, null);
+        }
+
+        Fixture(String owner, GuiActionQueue queue) {
+            this.owner = owner;
+            controller = queue == null
+                    ? new GuiScreenController(registry, this)
+                    : new GuiScreenController(registry, this, queue);
             Globals lua = JsePlatform.standardGlobals();
             for (String key : new String[]{"test:first", "test:second"}) {
-                registry.add(GuiScreenParser.parse(OWNER, lua.load("return {key='" + key
-                        + "',state={count={type='integer',default=0,min=0,max=100}},root={type='button',id='ok',text='Continue'}}")
-                        .call(), components));
+                registry.add(GuiScreenParser.parse(owner,
+                        lua.load("return {key='" + key + "',state={count={type='integer',default=0,min=0,max=100}},"
+                                + "actions={apply={scope='client',handler=function() end}},"
+                                + "root={type='button',id='ok',text='Continue'}}").call(),
+                        components));
             }
         }
 
         GuiScreenActivation open(String key) {
-            return controller.open(OWNER, key, Collections.emptyMap(), Collections.emptyMap()).instance;
+            return controller.open(owner, key, Collections.emptyMap(), Collections.emptyMap()).instance;
         }
 
         public long environment() {
@@ -326,6 +397,7 @@ public final class GuiScreenNavigationTest {
         }
 
         public Object execute(GuiActionDefinition action, Map<String, Object> payload) {
+            fixture.executed++;
             return null;
         }
 

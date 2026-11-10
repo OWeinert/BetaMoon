@@ -63,7 +63,8 @@ final class GuiInventoryRuntimeRenderChecks {
             GuiClientUiRuntime.screens().add(GuiScreenParser.parse(OWNER,
                     lua.load("return {key='fixture:inventory-content',requires={'native_inventory','native_items'},"
                             + "root={type='button',width=120,height=20,anchorY=0,"
-                            + "bind=function(ctx) boundLayout=ctx.inventory:layout(); return {text='Inventory settings'} end},"
+                            + "bind=function(ctx) layoutBinds=(layoutBinds or 0)+1; boundLayout=ctx.inventory:layout(); "
+                            + "return {text='Inventory settings'} end},"
                             + "on={update=function(ctx) local layout=ctx.inventory:layout(); "
                             + "seen=layout.slots[45].id; callbackLayout=layout; retained=ctx.inventory end}}").call(),
                     GuiClientUiRuntime.components()));
@@ -101,6 +102,22 @@ final class GuiInventoryRuntimeRenderChecks {
             GuiInventoryRuntime.tick(client);
             render(screen, client);
             require(claim.status().equals("active"), "Fitting inventory profile did not resume after resize");
+            GuiInventoryRuntime.tick(client);
+            int layoutBinds = lua.get("layoutBinds").toint();
+            int previousPanelX = lua.get("boundLayout").get("panel").get("x").toint();
+            screen.width = 360;
+            GuiInventoryRuntime.tick(client);
+            require(lua.get("layoutBinds").toint() > layoutBinds
+                    && lua.get("boundLayout").get("panel").get("x").toint() == previousPanelX + 20,
+                    "Inventory resize did not invalidate bindings that observed its detached native layout");
+            screen.width = 320;
+            GuiInventoryRuntime.tick(client);
+            render(screen, client);
+            GuiInventoryRuntime.tick(client);
+            layoutBinds = lua.get("layoutBinds").toint();
+            GuiInventoryRuntime.tick(client);
+            require(lua.get("layoutBinds").toint() == layoutBinds,
+                    "Unchanged inventory source reevaluated a clean observed binding");
             GuiInventoryRuntime.registry()
                     .add(GuiInventoryParser.parse(OWNER,
                             lua.load("return {key='fixture:priority',priority=1,panel={width=200,height=200},"

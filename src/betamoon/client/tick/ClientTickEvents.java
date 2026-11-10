@@ -52,6 +52,7 @@ public final class ClientTickEvents {
         GuiMenuRuntime.tick(minecraft);
         GuiInventoryRuntime.tick(minecraft);
         GuiHudRuntime.tick(minecraft);
+        GuiClientUiRuntime.dispatchClientActions(minecraft);
         GuiScreen screen = minecraft.currentScreen;
         Events.GAME_TICK.publish(new GameEventCtx(minecraft, world));
         if (screen != null) {
@@ -73,8 +74,6 @@ public final class ClientTickEvents {
         WorldServiceRuntime.tick(world);
         if (minecraft.theWorld == world) {
             GuiClientUiRuntime.worldTick(minecraft, world);
-            GuiInventoryRuntime.worldTick(minecraft, world);
-            GuiHudRuntime.worldTick(minecraft, world);
             Events.WORLD_TICK.publish(new WorldEventCtx(minecraft, world));
         }
     }
