@@ -101,6 +101,7 @@ final class GuiNotificationRuntimeRenderChecks {
             frame(client);
             ImageIO.write(GuiShowcaseRenderTest.capture(320, 240), "png",
                     new File(output, "notification-worldless.png"));
+            GuiRenderProfile.measure(client, output, "worldless-notification", () -> frame(client));
 
             GuiNotification interactive = show(definition("fixture:action-notice", true), "Action notification",
                     GuiNotificationCorner.TOP_LEFT, GuiNotificationOptions.Lifetime.CLIENT);

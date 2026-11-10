@@ -1450,6 +1450,12 @@ public final class GuiShowcaseRenderTest {
                     "Native export checkbox exceeds the viewport width");
             String suffix = size[0] + "x" + size[1] + ".png";
             ImageIO.write(capture(size[0], size[1]), "png", new File(output, "debug-menu-" + suffix));
+            if (size[0] == 320) {
+                GuiRenderProfile.measure(minecraft, output, "engine-menu", () -> {
+                    setupFrame(320, 240);
+                    screen.drawScreen(0, 0, 0);
+                });
+            }
             if (!checkbox.isSelected()) {
                 require(scene.mousePressed(checkbox.getLeft() + 5, checkbox.getTop() + 5, 0),
                         "Native catalog checkbox must receive clicks");

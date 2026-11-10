@@ -118,6 +118,9 @@ final class GuiInventoryRuntimeRenderChecks {
             GuiInventoryRuntime.tick(client);
             require(lua.get("layoutBinds").toint() == layoutBinds,
                     "Unchanged inventory source reevaluated a clean observed binding");
+            GuiRenderProfile.measure(client, output, "inventory-content", () -> render(screen, client));
+            require(lua.get("layoutBinds").toint() == layoutBinds,
+                    "Inventory render profiling reevaluated a prepared Lua binding");
             GuiInventoryRuntime.registry()
                     .add(GuiInventoryParser.parse(OWNER,
                             lua.load("return {key='fixture:priority',priority=1,panel={width=200,height=200},"
@@ -170,6 +173,7 @@ final class GuiInventoryRuntimeRenderChecks {
             previewFailure(client);
             GuiHudRuntimeRenderChecks.run(client, output);
             GuiNotificationRuntimeRenderChecks.run(client, output);
+            GuiNativeHudRenderChecks.run(client, mappings, output);
             require(GL11.glGetError() == GL11.GL_NO_ERROR, "Inventory runtime leaked a GL error");
         } finally {
             GuiInventoryRuntime.closed(client.currentScreen);
