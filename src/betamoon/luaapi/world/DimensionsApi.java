@@ -7,8 +7,8 @@ import betamoon.dimension.DimensionIdentity;
 import betamoon.dimension.DimensionKey;
 import betamoon.dimension.DimensionQueries;
 import betamoon.dimension.DimensionRegistry;
+import betamoon.luaapi.client.ui.GuiLoadingParser;
 import betamoon.luaapi.utils.LuaDataReference;
-import betamoon.luaapi.utils.LuaDataSnapshot;
 import betamoon.luaapi.utils.LuaDetachedData;
 import betamoon.luaapi.utils.LuaPositionArguments;
 import betamoon.worldgen.terrain.GeneratorPreview;
@@ -38,8 +38,8 @@ public final class DimensionsApi {
             public Varargs invoke(Varargs args) {
                 try {
                     DimensionCapabilities.requireDeclaration();
-                    return reference(DimensionRegistry
-                            .add(LuaDataSnapshot.object(argument(args, registry, 1), "dimension", Double.MAX_VALUE)));
+                    return reference(
+                            DimensionRegistry.add(GuiLoadingParser.snapshot(argument(args, registry, 1), "dimension")));
                 } catch (IllegalArgumentException | IllegalStateException exception) {
                     throw new LuaError(exception.getMessage());
                 }

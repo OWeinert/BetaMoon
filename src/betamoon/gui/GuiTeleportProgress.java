@@ -1,9 +1,15 @@
 package betamoon.gui;
 
+import betamoon.gui.loading.GuiLoadingAppearance;
+import betamoon.gui.loading.GuiLoadingPainter;
+import betamoon.gui.loading.GuiLoadingRenderer;
+import betamoon.gui.loading.GuiLoadingResources;
+import betamoon.gui.loading.GuiLoadingStatus;
 import betamoon.teleport.TeleportTicket;
 import java.util.Map;
 import net.minecraft.src.GuiScreen;
 import net.minecraft.src.IProgressUpdate;
+import net.minecraft.src.LoadingScreenRenderer;
 import org.lwjgl.opengl.Display;
 
 /**
@@ -13,18 +19,65 @@ import org.lwjgl.opengl.Display;
 public final class GuiTeleportProgress extends GuiScreen implements IProgressUpdate {
     private final TeleportTicket ticket;
     private final String title;
+    private final GuiLoadingStatus status;
+    private final GuiLoadingAppearance override;
+    private final GuiLoadingAppearance dimension;
+    private GuiLoadingResources resources;
+    private GuiLoadingPainter painter;
+    private GuiLoadingRenderer blocking;
     private String observedStage = "";
-    private String message = "Preparing destination";
     private String nativeMessage;
-    private int percent = -1;
+    private boolean presentationClosed;
 
     public GuiTeleportProgress(TeleportTicket ticket, String destination) {
         this(ticket, destination, "Entering");
     }
 
     public GuiTeleportProgress(TeleportTicket ticket, String destination, String title) {
+        this(ticket, destination, title, null, null);
+    }
+
+    public GuiTeleportProgress(TeleportTicket ticket, String destination, String title, GuiLoadingAppearance override,
+            GuiLoadingAppearance dimension) {
         this.ticket = ticket;
         this.title = title + " " + destination;
+        status = new GuiLoadingStatus(this.title);
+        this.override = override;
+        this.dimension = dimension;
+    }
+
+    @Override
+    public void initGui() {
+        if (resources != null || presentationClosed || override == null && dimension == null || mc.loadingScreen == null
+                || mc.loadingScreen.getClass() != LoadingScreenRenderer.class) {
+            return;
+        }
+        resources = new GuiLoadingResources(mc, override, dimension);
+        painter = new GuiLoadingPainter(mc, resources, status);
+        if (painter.styled()) {
+            blocking = new GuiLoadingRenderer(mc, painter, status);
+        }
+    }
+
+    /**
+     * The transfer backend, rather than native screen replacement, owns disposal.
+     */
+    public void closePresentation() {
+        if (presentationClosed) {
+            return;
+        }
+        presentationClosed = true;
+        try {
+            if (blocking != null) {
+                blocking.close();
+            }
+        } finally {
+            if (resources != null) {
+                resources.close();
+            }
+            blocking = null;
+            painter = null;
+        }
     }
 
     public String getTitle() {
@@ -33,8 +86,8 @@ public final class GuiTeleportProgress extends GuiScreen implements IProgressUpd
 
     public void showStage(String stage, int progress) {
         observedStage = stage;
-        message = stageMessage(stage);
-        percent = clamp(progress);
+        status.message = stageMessage(stage);
+        status.progress(progress);
         drawBlockingProgress();
     }
 
@@ -44,18 +97,22 @@ public final class GuiTeleportProgress extends GuiScreen implements IProgressUpd
         String stage = (String) progress.get("stage");
         if (!observedStage.equals(stage)) {
             observedStage = stage;
-            message = stageMessage(stage);
-            percent = -1;
+            status.message = stageMessage(stage);
+            status.progress(-1);
+        }
+        if (painter != null) {
+            painter.paint(width, height);
+            return;
         }
         drawBackground(0);
         drawCenteredString(fontRenderer, fit(title), width / 2, height / 2 - 20, 0xFFFFFF);
-        drawCenteredString(fontRenderer, fit(message), width / 2, height / 2 + 4, 0xFFFFFF);
-        if (percent >= 0) {
+        drawCenteredString(fontRenderer, fit(status.message), width / 2, height / 2 + 4, 0xFFFFFF);
+        if (status.percent() >= 0) {
             int left = width / 2 - 50;
             int top = height / 2 + 16;
             drawRect(left, top, left + 100, top + 2, 0xFF808080);
-            if (percent > 0) {
-                drawRect(left, top, left + percent, top + 2, 0xFF80FF80);
+            if (status.percent() > 0) {
+                drawRect(left, top, left + status.percent(), top + 2, 0xFF80FF80);
             }
         }
     }
@@ -78,14 +135,14 @@ public final class GuiTeleportProgress extends GuiScreen implements IProgressUpd
 
     @Override
     public void displayLoadingString(String text) {
-        message = text;
-        percent = -1;
+        status.message = text;
+        status.progress(-1);
         drawBlockingProgress();
     }
 
     @Override
     public void setLoadingProgress(int progress) {
-        percent = clamp(progress);
+        status.progress(progress);
         drawBlockingProgress();
     }
 
@@ -95,16 +152,15 @@ public final class GuiTeleportProgress extends GuiScreen implements IProgressUpd
         }
         // The native renderer updates the display while synchronous save I/O runs.
         // Normal GUI frames draw the same presentation without swapping buffers.
-        mc.loadingScreen.printText(fit(title));
+        String message = status.message;
+        int percent = status.percent();
+        boolean shared = mc.loadingScreen == blocking;
+        mc.loadingScreen.printText(shared ? title : fit(title));
         if (!message.equals(nativeMessage)) {
-            mc.loadingScreen.displayLoadingString(fit(message));
+            mc.loadingScreen.displayLoadingString(shared ? message : fit(message));
             nativeMessage = message;
         }
         mc.loadingScreen.setLoadingProgress(percent);
-    }
-
-    private static int clamp(int progress) {
-        return progress < 0 ? -1 : Math.min(100, progress);
     }
 
     private static String stageMessage(String stage) {

@@ -17,6 +17,8 @@ import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.framework.GuiRenderer;
 import betamoon.gui.framework.GuiScene;
 import betamoon.gui.framework.GuiTextureCache;
+import betamoon.gui.loading.GuiLoadingStatus;
+import betamoon.gui.loading.GuiLoadingRenderChecks;
 import betamoon.gui.widget.GuiButton;
 import betamoon.gui.widget.GuiCheckboxControl;
 import betamoon.gui.widget.GuiDropdownButton;
@@ -289,6 +291,7 @@ public final class GuiShowcaseRenderTest {
             }
             verifyTextRepeatEvents(gui, definition);
             renderKiln(minecraft, font, output, background, foreground, hover);
+            GuiLoadingRenderChecks.run(minecraft, output, GuiShowcaseRenderTest::capture);
             require(GL11.glGetError() == GL11.GL_NO_ERROR, "OpenGL error during showcase rendering");
             System.out.println(
                     "Showcase parsed; 800 ticks and five selectors passed; framework screens, tooltip state and five "
@@ -1590,9 +1593,10 @@ public final class GuiShowcaseRenderTest {
         advance.invoke(ticket, "preparing", "destination", 4, 14, 0);
         loading.showStage("destination", 70);
         renderScreen(loading, minecraft, output, "teleport-restore-transition.png");
-        Field percent = GuiTeleportProgress.class.getDeclaredField("percent");
-        percent.setAccessible(true);
-        require(percent.getInt(loading) == 70, "An intervening GUI frame must retain the published restore progress");
+        Field status = GuiTeleportProgress.class.getDeclaredField("status");
+        status.setAccessible(true);
+        require(((GuiLoadingStatus) status.get(loading)).percent() == 70,
+                "An intervening GUI frame must retain the published restore progress");
         Field controls = GuiScreen.class.getDeclaredField("controlList");
         controls.setAccessible(true);
         require(((List<?>) controls.get(loading)).isEmpty(), "The loading screen cannot offer cancellation controls");

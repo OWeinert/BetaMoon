@@ -24,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import net.minecraft.src.NBTTagCompound;
 import net.minecraft.src.BiomeGenBase;
@@ -61,6 +62,19 @@ public final class DimensionFoundationTest {
                 + "\"generator\":{\"type\":\"builtin\",\"name\":\"nether\"}}");
         require(first.signature(null, null).equals(cosmetic.signature(null, null)),
                 "Presentation labels must not change generation compatibility");
+        Map<String, Object> styled = new LinkedHashMap<>(first.declaration);
+        styled.put("loading", json("{\"background\":\"test:missing-art\",\"mode\":\"tile\",\"tileSize\":64,"
+                + "\"tint\":\"#80224466\",\"titleColor\":\"#FF112233\"}"));
+        DimensionDefinition appearance = new DimensionDefinition("appearance.lua", styled);
+        require(first.signature(null, null).equals(appearance.signature(null, null)),
+                "Loading artwork/colors must not change generation compatibility");
+        require(new DimensionGenerationBinding(first, TerrainRegistry.pendingSnapshot()).signature
+                .equals(new DimensionGenerationBinding(appearance, TerrainRegistry.pendingSnapshot()).signature),
+                "Loading cosmetics changed transitive generation dependencies");
+        DimensionDefinition appearanceRoundTrip = new DimensionDefinition("restored.lua", appearance.declaration);
+        require(appearance.declaration.equals(appearanceRoundTrip.declaration)
+                && first.signature(null, null).equals(appearanceRoundTrip.signature(null, null)),
+                "Canonical loading metadata must round-trip without changing generation compatibility");
         DimensionDefinition expanded = definition(
                 "{\"key\":\"test:dimension/moon\",\"displayName\":\"Moon\",\"name\":9,"
                         + "\"generator\":{\"type\":\"builtin\",\"name\":\"nether\"},\"coordinateScale\":1,\"initialTime\":\"0\","
@@ -85,6 +99,13 @@ public final class DimensionFoundationTest {
             }
         });
         require(DimensionRegistry.get(first.key).owner.equals("one.lua"), "Failed publication preserves the catalog");
+        try (DimensionRegistry.Batch batch = DimensionRegistry.begin("one.lua")) {
+            DimensionRegistry.add(appearance.declaration);
+            batch.validate();
+            batch.publish();
+        }
+        require(DimensionQueries.describe(first.key, first).get("loading").equals(appearance.loading.declaration()),
+                "Pinned dimension descriptions retained saved cosmetics instead of current registration");
         DimensionRegistry.retainOwners(Collections.<String>emptySet());
     }
 

@@ -3,12 +3,16 @@ package betamoon.teleport;
 import betamoon.BetaMoonClient;
 import betamoon.BetaMoonCommon;
 import betamoon.dimension.DimensionPlayerState;
+import betamoon.dimension.DimensionDefinition;
+import betamoon.dimension.DimensionKey;
+import betamoon.dimension.DimensionRegistry;
 import betamoon.dimension.DimensionQueries;
 import betamoon.dimension.DimensionSession;
 import betamoon.event.Events;
 import betamoon.event.context.TeleportEventCtx;
 import betamoon.gui.GuiScreenSuspension;
 import betamoon.gui.GuiTeleportProgress;
+import betamoon.gui.loading.GuiLoadingAppearance;
 import java.io.IOException;
 import java.util.Map;
 import net.minecraft.client.Minecraft;
@@ -44,12 +48,19 @@ final class NativeTeleportClient implements TeleportClientAccess {
     }
 
     public void beginPreparation(TeleportTicket ticket, String destinationName) {
+        beginPreparation(ticket, destinationName, null, null);
+    }
+
+    public void beginPreparation(TeleportTicket ticket, String destinationName, DimensionKey destination,
+            GuiLoadingAppearance appearance) {
         try {
             session = DimensionQueries.session(minecraft.theWorld);
         } catch (IOException exception) {
             throw new IllegalStateException("save_failed: root save is unavailable", exception);
         }
-        loading = new GuiTeleportProgress(ticket, destinationName);
+        DimensionDefinition definition = destination == null ? null : DimensionRegistry.get(destination);
+        loading = new GuiTeleportProgress(ticket, destinationName, "Entering", appearance,
+                definition == null ? null : definition.loading);
         screen = new GuiScreenSuspension(minecraft, loading);
     }
 
@@ -70,11 +81,24 @@ final class NativeTeleportClient implements TeleportClientAccess {
     }
 
     public void finishPreparation(boolean success) {
-        if (screen != null) {
-            screen.finish(success);
+        try {
+            if (screen != null) {
+                screen.finish(success);
+            }
+        } finally {
             screen = null;
+            closeLoading();
         }
-        loading = null;
+    }
+
+    private void closeLoading() {
+        try {
+            if (loading != null) {
+                loading.closePresentation();
+            }
+        } finally {
+            loading = null;
+        }
     }
 
     public void switchWorld(World destination, EntityPlayer player, NBTTagCompound target) {
@@ -151,11 +175,14 @@ final class NativeTeleportClient implements TeleportClientAccess {
     }
 
     public void recovery(String detail) {
-        if (screen != null) {
-            screen.abandonForRecovery();
+        try {
+            if (screen != null) {
+                screen.abandonForRecovery();
+            }
+        } finally {
             screen = null;
+            closeLoading();
         }
-        loading = null;
         if (session == null && minecraft.theWorld != null) {
             try {
                 session = DimensionQueries.session(minecraft.theWorld);

@@ -1,5 +1,7 @@
 package betamoon.teleport;
 
+import betamoon.dimension.DimensionKey;
+import betamoon.gui.loading.GuiLoadingAppearance;
 import java.util.Map;
 import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.IProgressUpdate;
@@ -16,6 +18,11 @@ public interface TeleportClientAccess {
     EntityPlayer player();
 
     void beginPreparation(TeleportTicket ticket, String destinationName);
+
+    default void beginPreparation(TeleportTicket ticket, String destinationName, DimensionKey destination,
+            GuiLoadingAppearance loading) {
+        beginPreparation(ticket, destinationName);
+    }
 
     default IProgressUpdate loadingProgress() {
         return null;

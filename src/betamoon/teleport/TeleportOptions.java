@@ -2,6 +2,7 @@ package betamoon.teleport;
 
 import betamoon.dimension.DimensionEnvironment;
 import betamoon.dimension.DimensionKey;
+import betamoon.gui.loading.GuiLoadingAppearance;
 import betamoon.worldgen.spatial.GenerationValues;
 import java.util.Collections;
 import java.util.Map;
@@ -34,12 +35,20 @@ public final class TeleportOptions {
     public final int cooldownTicks;
     public final TeleportPlatformDefinition platform;
     public final boolean returnFallback;
+    public final GuiLoadingAppearance loading;
 
     public TeleportOptions(Map<String, Object> value, boolean returning) {
+        this(value, returning, null);
+    }
+
+    public TeleportOptions(Map<String, Object> value, boolean returning, String owner) {
         String path = "teleport.options";
         GenerationValues.fields(value, path, "arrival", "rememberReturn", "channel", "safety", "searchRadius",
                 "verticalRange", "loadChunks", "maxChunks", "timeoutTicks", "velocity", "fallDistance", "dismount",
-                "cooldownTicks", "platform", "yaw", "pitch", "fallback");
+                "cooldownTicks", "platform", "yaw", "pitch", "fallback", "loading");
+        loading = value.containsKey("loading")
+                ? new GuiLoadingAppearance(owner, GenerationValues.object(value.get("loading"), path + ".loading"))
+                : null;
         if (returning
                 ? value.containsKey("arrival") || value.containsKey("rememberReturn")
                 : value.containsKey("yaw") || value.containsKey("pitch") || value.containsKey("fallback")) {

@@ -5,6 +5,7 @@ import betamoon.dimension.DimensionKey;
 import betamoon.dimension.DimensionQueries;
 import betamoon.dimension.DimensionSession;
 import betamoon.luaapi.LuaApiUtils;
+import betamoon.luaapi.client.ui.GuiLoadingParser;
 import betamoon.luaapi.entity.LuaEntityActionAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import betamoon.luaapi.utils.LuaDataSnapshot;
@@ -55,14 +56,14 @@ public final class TeleportApi {
                     DimensionKey target = returning ? null : DimensionsApi.key(argument(args, api, 2));
                     LuaValue declaration = argument(args, api, returning ? 2 : 3);
                     LuaTable filtered = withoutCallback(declaration);
+                    TeleportOwner owner = owner(owners);
                     TeleportOptions options;
                     try {
-                        options = new TeleportOptions(
-                                LuaDataSnapshot.object(filtered, "teleport.options", Double.MAX_VALUE), returning);
+                        options = new TeleportOptions(GuiLoadingParser.snapshot(filtered, "teleport.options"),
+                                returning, owner.name);
                     } catch (IllegalArgumentException exception) {
                         throw new LuaError(exception.getMessage());
                     }
-                    TeleportOwner owner = owner(owners);
                     LuaValue callback = declaration.isnil() ? NIL : declaration.get("onComplete");
                     TeleportService.Completion complete = callback.isnil() ? null : completion(owner, callback);
                     try {
@@ -121,11 +122,9 @@ public final class TeleportApi {
             public Varargs invoke(Varargs args) {
                 DimensionKey source = DimensionsApi.key(argument(args, api, 1));
                 DimensionKey target = DimensionsApi.key(argument(args, api, 2));
-                LuaPositionArguments.Position position = LuaPositionArguments.vector(args, api, 3,
-                        "mapCoordinates");
+                LuaPositionArguments.Position position = LuaPositionArguments.vector(args, api, 3, "mapCoordinates");
                 try {
-                    TeleportLocation location = new TeleportLocation(source, position.x, position.y, position.z,
-                            0, 0);
+                    TeleportLocation location = new TeleportLocation(source, position.x, position.y, position.z, 0, 0);
                     return LuaDetachedData.copy(TeleportService
                             .mapCoordinates(location, target, DimensionsApi.coordinateScale(argument(args, api, 1)),
                                     DimensionsApi.coordinateScale(argument(args, api, 2)))
@@ -140,8 +139,7 @@ public final class TeleportApi {
             @Override
             public Varargs invoke(Varargs args) {
                 World world = LuaWorldActionAccess.requireWorld(argument(args, api, 1));
-                LuaPositionArguments.Position position = LuaPositionArguments.vector(args, api, 2,
-                        "inspectArrival");
+                LuaPositionArguments.Position position = LuaPositionArguments.vector(args, api, 2, "inspectArrival");
                 double x = position.x;
                 double y = position.y;
                 double z = position.z;

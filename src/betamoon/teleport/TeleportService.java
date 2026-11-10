@@ -388,7 +388,8 @@ public final class TeleportService {
                 ticket.update("preparing", "destination", elapsed, 0, 0);
                 Map<String, Object> description = DimensionQueries.describe(target);
                 client.beginPreparation(ticket,
-                        description == null ? target.toString() : (String) description.get("displayName"));
+                        description == null ? target.toString() : (String) description.get("displayName"), target,
+                        options.loading);
                 if (respawning) {
                     DimensionSaveFlush.flush(sourceWorld, session, client.loadingProgress());
                     NBTTagCompound deceased = new NBTTagCompound();

@@ -3,6 +3,9 @@ package betamoon.teleport;
 import betamoon.BetaMoonClient;
 import betamoon.BetaMoonCommon;
 import betamoon.dimension.DimensionRuntime;
+import betamoon.dimension.DimensionDefinition;
+import betamoon.dimension.DimensionKey;
+import betamoon.dimension.DimensionRegistry;
 import betamoon.dimension.DimensionSession;
 import betamoon.dimension.DimensionTransition;
 import betamoon.dimension.SavedDimensionInfo;
@@ -36,6 +39,9 @@ public final class SavedDimensionLoad {
     }
 
     public static int start(Minecraft minecraft, String folder, String name) {
+        if (active != null) {
+            return 1;
+        }
         try {
             Path saves = new File(Minecraft.getMinecraftDir(), "saves").toPath().toAbsolutePath().normalize();
             Path directory = saves.resolve(folder).normalize();
@@ -54,7 +60,7 @@ public final class SavedDimensionLoad {
             WorldGeneratorFallback.retainFor(root);
             DimensionSession session = DimensionSession.open(root, saved.worldInfo);
             active = new Load(minecraft, folder, name, saved, session, false);
-            minecraft.displayGuiScreen(new GuiTeleportProgress(active.ticket, name, "Loading"));
+            minecraft.displayGuiScreen(active.loading);
         } catch (IOException | RuntimeException failure) {
             showRecovery(minecraft, folder, name, failure);
         }
@@ -110,10 +116,7 @@ public final class SavedDimensionLoad {
             } else {
                 boolean ready = advanceRestore(load.task, load.ticket, ++load.ticks);
                 if (!ready) {
-                    if (minecraft.currentScreen instanceof GuiTeleportProgress) {
-                        ((GuiTeleportProgress) minecraft.currentScreen).showStage(load.task.stage(),
-                                load.task.progressPercent());
-                    }
+                    load.loading.showStage(load.task.stage(), load.task.progressPercent());
                     return;
                 }
                 destination = load.task.world();
@@ -139,6 +142,7 @@ public final class SavedDimensionLoad {
             }
             DimensionRuntime.activate(destination);
             load.committed = true;
+            load.loading.closePresentation();
             load.ticket.finish(null, null, TeleportLocation.capture(player), load.rescue != null, false,
                     load.rescue == null ? "load" : "rescue", null);
             active = null;
@@ -153,6 +157,8 @@ public final class SavedDimensionLoad {
             }
         } catch (Throwable failure) {
             if (load.committed) {
+                load.loading.closePresentation();
+                active = null;
                 BetaMoonCommon.LOGGER.warning("Saved dimension load notification failed: " + failure.toString());
                 minecraft.currentScreen = null;
                 return;
@@ -175,6 +181,15 @@ public final class SavedDimensionLoad {
     }
 
     private static void showRecovery(Minecraft minecraft, String folder, String name, Throwable failure) {
+        Load load = active;
+        if (load != null && load.minecraft == minecraft) {
+            active = null;
+            try {
+                load.release();
+            } catch (IOException | RuntimeException cleanupFailure) {
+                failure.addSuppressed(cleanupFailure);
+            }
+        }
         String detail = failure.getMessage() == null ? failure.toString() : failure.getMessage();
         recoveryScreen(minecraft, folder, name, detail);
     }
@@ -235,7 +250,7 @@ public final class SavedDimensionLoad {
             WorldGeneratorFallback.retainFor(root);
             DimensionSession session = DimensionSession.open(root, saved.worldInfo);
             active = new Load(minecraft, folder, name, saved, session, true);
-            minecraft.displayGuiScreen(new GuiTeleportProgress(active.ticket, name, "Rescuing player in"));
+            minecraft.displayGuiScreen(active.loading);
         } catch (IOException | RuntimeException failure) {
             showRecovery(minecraft, folder, name, failure);
         }
@@ -251,6 +266,7 @@ public final class SavedDimensionLoad {
         private final DimensionRescueBackup backup;
         private DimensionRescueTask rescue;
         private final TeleportTicket ticket = new TeleportTicket();
+        private final GuiTeleportProgress loading;
         private final GuiScreen parent = new GuiSelectWorld(new GuiMainMenu());
         private int ticks;
         private boolean committed;
@@ -266,17 +282,24 @@ public final class SavedDimensionLoad {
                     rescuing ? "minecraft:overworld" : saved.key.toString(), rescuing ? "rescue" : "load");
             task = rescuing ? null : new DimensionRestoreTask(session, saved);
             backup = rescuing ? new DimensionRescueBackup(saved.paths) : null;
+            DimensionDefinition definition = DimensionRegistry.get(rescuing ? DimensionKey.OVERWORLD : saved.key);
+            loading = new GuiTeleportProgress(ticket, name, rescuing ? "Rescuing player in" : "Loading", null,
+                    definition == null ? null : definition.loading);
         }
 
         private void release() throws IOException {
-            if (task != null) {
-                task.release();
-            }
-            if (rescue != null) {
-                rescue.release();
-            }
-            if (backup != null) {
-                backup.close();
+            try {
+                if (task != null) {
+                    task.release();
+                }
+                if (rescue != null) {
+                    rescue.release();
+                }
+                if (backup != null) {
+                    backup.close();
+                }
+            } finally {
+                loading.closePresentation();
             }
         }
     }

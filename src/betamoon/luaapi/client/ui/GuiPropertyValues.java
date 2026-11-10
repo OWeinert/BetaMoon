@@ -2,6 +2,7 @@ package betamoon.luaapi.client.ui;
 
 import betamoon.gui.presentation.GuiProperties;
 import betamoon.gui.presentation.GuiPropertyDescriptor;
+import betamoon.gui.style.GuiArgbColor;
 import java.util.ArrayList;
 import java.util.List;
 import org.luaj.vm2.LuaValue;
@@ -57,16 +58,13 @@ public final class GuiPropertyValues {
                 }
                 break;
             case COLOR:
-                if (value.type() == LuaValue.TNUMBER) {
-                    double number = value.todouble();
-                    if (Double.isFinite(number) && number == Math.rint(number) && number >= Integer.MIN_VALUE
-                            && number <= 0xFFFFFFFFL) {
-                        candidate = (int) (long) number;
+                try {
+                    if (value.type() == LuaValue.TNUMBER || value.type() == LuaValue.TSTRING) {
+                        candidate = GuiArgbColor
+                                .read(value.type() == LuaValue.TNUMBER ? value.todouble() : value.tojstring());
                     }
-                } else if (value.type() == LuaValue.TSTRING
-                        && value.tojstring().matches("#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?")) {
-                    String hex = value.tojstring().substring(1);
-                    candidate = (int) Long.parseLong(hex, 16) | (hex.length() == 6 ? 0xFF000000 : 0);
+                } catch (IllegalArgumentException invalid) {
+                    // Preserve the existing descriptor/path-specific refusal below.
                 }
                 break;
             case STRING:

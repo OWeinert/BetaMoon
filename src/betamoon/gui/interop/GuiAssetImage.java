@@ -40,6 +40,14 @@ public final class GuiAssetImage implements GuiAtlasLease, AutoCloseable {
     };
 
     public GuiAssetImage(Minecraft client, String owner, Image definition) {
+        this(client, owner, definition, false);
+    }
+
+    /**
+     * Repeat applies only to owned textures; borrowed native samplers remain
+     * Minecraft's property.
+     */
+    public GuiAssetImage(Minecraft client, String owner, Image definition, boolean repeat) {
         this.client = client;
         this.definition = definition;
         boolean complete = false;
@@ -64,8 +72,9 @@ public final class GuiAssetImage implements GuiAtlasLease, AutoCloseable {
                     int filter = definition.nearest ? GL11.GL_NEAREST : GL11.GL_LINEAR;
                     GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, filter);
                     GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, filter);
-                    GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL12.GL_CLAMP_TO_EDGE);
-                    GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL12.GL_CLAMP_TO_EDGE);
+                    int wrap = repeat ? GL11.GL_REPEAT : GL12.GL_CLAMP_TO_EDGE;
+                    GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, wrap);
+                    GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, wrap);
                     GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA8, width, height, 0, GL11.GL_RGBA,
                             GL11.GL_UNSIGNED_BYTE, (ByteBuffer) null);
                     upload(image);

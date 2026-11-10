@@ -381,12 +381,34 @@ public final class GuiRenderer {
         }
     }
 
+    /**
+     * Draws a prepared texture without resolving assets or changing its sampler.
+     */
+    public void drawTexture(int texture, Rect bounds, float minU, float minV, float maxU, float maxV, int tint) {
+        if (texture <= 0 || bounds == null || bounds.isEmpty()) {
+            return;
+        }
+        GL11.glPushAttrib(DRAW_STATE_BITS);
+        try {
+            GL11.glBindTexture(GL11.GL_TEXTURE_2D, texture);
+            drawTintedTextureContents(bounds, minU, minV, maxU, maxV, tint);
+        } finally {
+            GL11.glPopAttrib();
+        }
+    }
+
     private static void drawBoundTextureContents(Rect bounds, float minU, float minV, float maxU, float maxV,
             int alpha) {
+        drawTintedTextureContents(bounds, minU, minV, maxU, maxV, Math.max(0, Math.min(255, alpha)) << 24 | 0xFFFFFF);
+    }
+
+    private static void drawTintedTextureContents(Rect bounds, float minU, float minV, float maxU, float maxV,
+            int tint) {
         GL11.glEnable(GL11.GL_TEXTURE_2D);
         GL11.glEnable(GL11.GL_BLEND);
         GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-        GL11.glColor4f(1.0F, 1.0F, 1.0F, Math.max(0, Math.min(255, alpha)) / 255.0F);
+        GL11.glColor4f((tint >> 16 & 255) / 255.0F, (tint >> 8 & 255) / 255.0F, (tint & 255) / 255.0F,
+                (tint >>> 24) / 255.0F);
         Tessellator tessellator = Tessellator.instance;
         tessellator.startDrawingQuads();
         tessellator.addVertexWithUV(bounds.getLeft(), bounds.getBottom(), 0.0D, minU, maxV);

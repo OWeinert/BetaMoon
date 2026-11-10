@@ -39,6 +39,13 @@ public final class DimensionQueries {
         } else {
             return null;
         }
+        // Cosmetic presentation follows the current registration, never a save's pinned
+        // generation metadata.
+        result.remove("loading");
+        DimensionDefinition current = DimensionRegistry.get(key);
+        if (current != null && current.loading != null && current.loading.available()) {
+            result.put("loading", current.loading.declaration());
+        }
         result.put("key", key.toString());
         result.put("native", key.isNative());
         return result;

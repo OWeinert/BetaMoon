@@ -1,5 +1,6 @@
 package betamoon.dimension;
 
+import betamoon.gui.loading.GuiLoadingAppearance;
 import betamoon.teleport.TeleportLocation;
 import betamoon.teleport.TeleportPlatformDefinition;
 import betamoon.worldgen.SeedMixer;
@@ -37,6 +38,7 @@ public final class DimensionDefinition {
     public final String respawnType;
     public final DimensionKey respawnDimension;
     public final Map<String, Object> declaration;
+    public final GuiLoadingAppearance loading;
     private final String structuralSignature;
 
     @SuppressWarnings("unchecked")
@@ -49,7 +51,10 @@ public final class DimensionDefinition {
         }
         String path = key.toString();
         GenerationValues.fields(value, path, "key", "name", "displayName", "generator", "seed", "coordinateScale",
-                "environment", "spawn", "respawn", "initialTime");
+                "environment", "spawn", "respawn", "initialTime", "loading");
+        loading = value.containsKey("loading")
+                ? new GuiLoadingAppearance(owner, GenerationValues.object(value.get("loading"), path + ".loading"))
+                : null;
         displayName = value.containsKey("displayName")
                 ? GenerationValues.string(value.get("displayName"), path + ".displayName")
                 : GenerationValues.string(value, "name", path, path);
@@ -129,6 +134,7 @@ public final class DimensionDefinition {
         declaration = (Map<String, Object>) GenerationValues.freeze(effectiveDeclaration());
         Map<String, Object> semantics = new LinkedHashMap<String, Object>(declaration);
         semantics.remove("displayName");
+        semantics.remove("loading");
         Map<String, String> signature = new TreeMap<String, String>();
         signature.put("dimension_engine", "1");
         signature.put("declaration", GenerationValues.canonical(semantics));
@@ -139,6 +145,9 @@ public final class DimensionDefinition {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("key", key.toString());
         result.put("displayName", displayName);
+        if (loading != null) {
+            result.put("loading", loading.declaration());
+        }
         Map<String, Object> generator = new LinkedHashMap<String, Object>();
         generator.put("type", generatorType);
         if (profileKey == null) {
