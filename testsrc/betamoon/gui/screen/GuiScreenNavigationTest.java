@@ -41,9 +41,178 @@ public final class GuiScreenNavigationTest {
         invalidation();
         dialogs();
         sharedActions();
+        worldTransitions();
         System.out.println(
                 "Screen navigation passed: deferred admission, invalid preparation retention, detached Back history, "
                         + "close/cancel, stale requests, native replacement and unload fallback precedence.");
+    }
+
+    private static void worldTransitions() {
+        String owner = "world-transition-test.lua";
+        try {
+            Fixture fixture = transitionFixture("{replace='test:second',state={count=4},data={message='Welcome'}}");
+            GuiScreenActivation source = fixture.controller.current();
+            source.state(Collections.singletonMap("count", 77));
+            GuiScreenActivation dialog = source.dialog("test:first", Collections.emptyMap(),
+                    Collections.emptyMap()).instance;
+            fixture.controller.tick();
+            GuiActionTicket oldAction = source.request("apply", Collections.emptyMap()).ticket;
+            enterWorld(fixture);
+            fixture.controller.tick();
+            require(source.terminal() && dialog.terminal() && fixture.controller.current() == null
+                    && oldAction.status() == GuiActionTicket.Status.CANCELLED && !source.input.active()
+                    && fixture.prepared == fixture.disposed,
+                    "Root transition retained old dialogs, authority, actions or prepared resources");
+            fixture.controller.tick();
+            GuiScreenActivation target = fixture.controller.current();
+            require(target != null && target != source && target.key.equals("test:second")
+                    && ((Number) target.state().get("count")).intValue() == 4
+                    && target.page.data().get("message").equals("Welcome") && fixture.failures.isEmpty(),
+                    "Fresh world replacement did not validate explicit initialization");
+            int prepared = fixture.prepared;
+            fixture.controller.tick();
+            require(fixture.prepared == prepared && target.back(), "Stable environment repeated its replacement");
+            fixture.controller.tick();
+            require(fixture.controller.current() == null && fixture.nativeScreen == fixture.menu,
+                    "Back after replacement restored obsolete history");
+
+            Fixture self = transitionFixture("{replace='test:first'}");
+            enterWorld(self);
+            self.controller.tick();
+            self.controller.tick();
+            GuiScreenActivation freshSelf = self.controller.current();
+            self.controller.tick();
+            require(freshSelf != null && self.prepared == 2 && self.disposed == 1,
+                    "Self-key world replacement looped or retained its predecessor");
+            self.controller.reset("fixture_closed");
+
+            Fixture nativeClose = transitionFixture("{replace='test:second'}");
+            GuiScreenActivation closing = nativeClose.controller.current();
+            enterWorld(nativeClose);
+            nativeClose.controller.externalClosed(closing);
+            nativeClose.nativeScreen = null;
+            nativeClose.controller.tick();
+            require(nativeClose.controller.current() != null && nativeClose.prepared == 2,
+                    "Native close after an observed root change discarded the detached handoff");
+            nativeClose.controller.reset("fixture_closed");
+
+            Fixture protectedScreen = transitionFixture("{replace='test:second'}");
+            enterWorld(protectedScreen);
+            protectedScreen.controller.tick();
+            Object recovery = new Object();
+            protectedScreen.nativeScreen = recovery;
+            protectedScreen.controller.tick();
+            require(protectedScreen.controller.current() == null && protectedScreen.nativeScreen == recovery
+                    && protectedScreen.prepared == protectedScreen.disposed,
+                    "World policy displaced a native/protected screen");
+
+            Fixture explicit = transitionFixture("{replace='test:second'}");
+            explicit.controller.current().close();
+            enterWorld(explicit);
+            explicit.controller.tick();
+            explicit.controller.tick();
+            require(explicit.controller.current() == null && explicit.prepared == 1,
+                    "Explicit close armed a later world policy");
+
+            Fixture lateClose = transitionFixture("{replace='test:second'}");
+            Object oldScreen = lateClose.nativeScreen;
+            enterWorld(lateClose);
+            lateClose.controller.tick();
+            lateClose.controller.nativeScreenClosed(oldScreen);
+            lateClose.nativeScreen = null;
+            lateClose.controller.tick();
+            require(lateClose.controller.current() == null && lateClose.prepared == 1,
+                    "Closing an already retired handoff screen revived its page");
+
+            Fixture ordinary = transitionFixture("{replace='test:second'}");
+            ordinary.controller.externalClosed(ordinary.controller.current());
+            ordinary.nativeScreen = null;
+            enterWorld(ordinary);
+            ordinary.controller.tick();
+            require(ordinary.controller.current() == null && ordinary.prepared == 1,
+                    "Ordinary native close retained a dormant world-transition request");
+
+            for (String policy : new String[]{"'close'", "{replace='test:missing'}", "{replace='foreign:screen'}"}) {
+                Fixture rejected = transitionFixture(policy);
+                if (policy.contains("foreign")) {
+                    rejected.registry.add(GuiScreenParser.parse(
+                            "foreign-transition-owner", JsePlatform.standardGlobals()
+                                    .load("return {key='foreign:screen',root={type='text'}}").call(),
+                            rejected.components));
+                }
+                enterWorld(rejected);
+                rejected.controller.tick();
+                rejected.controller.tick();
+                require(rejected.controller.current() == null && rejected.nativeScreen == rejected.menu
+                        && rejected.prepared == rejected.disposed,
+                        "Unavailable/default world replacement retained a blank old screen or prepared resources");
+            }
+
+            Fixture changedAgain = transitionFixture("{replace='test:second'}");
+            enterWorld(changedAgain);
+            changedAgain.controller.tick();
+            changedAgain.environment++;
+            changedAgain.controller.tick();
+            require(changedAgain.controller.current() == null && changedAgain.nativeScreen == changedAgain.menu,
+                    "A second environment change dispatched the first change's policy");
+
+            Fixture duringPrepare = transitionFixture("{replace='test:second'}");
+            enterWorld(duringPrepare);
+            duringPrepare.controller.tick();
+            duringPrepare.duringPrepare = () -> duringPrepare.environment++;
+            duringPrepare.controller.tick();
+            require(duringPrepare.controller.current() == null && duringPrepare.nativeScreen == duringPrepare.menu
+                    && duringPrepare.prepared == duringPrepare.disposed,
+                    "Root change during preflight retained the old blank screen or candidate");
+
+            Fixture failedPrepare = transitionFixture("{replace='test:second'}");
+            enterWorld(failedPrepare);
+            failedPrepare.controller.tick();
+            failedPrepare.failPrepare = true;
+            failedPrepare.controller.tick();
+            require(failedPrepare.controller.current() == null && failedPrepare.nativeScreen == failedPrepare.menu,
+                    "Failed replacement preflight retained a dead managed page");
+
+            Fixture dead = transitionFixture("{replace='test:second'}");
+            dead.environment++;
+            dead.controller.tick();
+            dead.controller.tick();
+            require(dead.controller.current() == null && dead.prepared == 1,
+                    "Unavailable player/world acquired replacement authority");
+
+            Fixture unloaded = transitionFixture("{replace='test:second'}");
+            enterWorld(unloaded);
+            unloaded.controller.tick();
+            ScriptResourceTracker.unload(owner);
+            unloaded.controller.tick();
+            require(unloaded.controller.current() == null && unloaded.nativeScreen == unloaded.menu,
+                    "Owner unload retained a detached replacement request");
+        } finally {
+            ScriptResourceTracker.unload(owner);
+            ScriptResourceTracker.unload("foreign-transition-owner");
+        }
+    }
+
+    private static Fixture transitionFixture(String policy) {
+        Fixture fixture = new Fixture("world-transition-test.lua", null);
+        fixture.worldTransitions = true;
+        Globals lua = JsePlatform.standardGlobals();
+        fixture.registry.add(GuiScreenParser.parse(fixture.owner, lua.load("return {key='test:first',worldTransition="
+                + policy
+                + ",state={count={type='integer',default=0}},actions={apply={scope='client',handler=function() end}},"
+                + "root={type='button',id='ok',text='Source'}}").call(), fixture.components));
+        fixture.registry.add(GuiScreenParser.parse(fixture.owner,
+                lua.load("return {key='test:second',context='world',state={count={type='integer',default=0}},"
+                        + "data={message={type='string',default=''}},root={type='text',text='Destination'}}").call(),
+                fixture.components));
+        fixture.open("test:first");
+        fixture.controller.tick();
+        return fixture;
+    }
+
+    private static void enterWorld(Fixture fixture) {
+        fixture.worldAvailable = true;
+        fixture.environment++;
     }
 
     private static void sharedActions() {
@@ -236,6 +405,8 @@ public final class GuiScreenNavigationTest {
         int disposed;
         int executed;
         boolean failPrepare;
+        boolean worldAvailable;
+        boolean worldTransitions;
         Runnable duringPrepare;
         final GuiComponentRegistry components = new GuiComponentRegistry();
         final GuiScreenRegistry registry = new GuiScreenRegistry();
@@ -274,7 +445,11 @@ public final class GuiScreenNavigationTest {
         }
 
         public boolean worldAvailable() {
-            return false;
+            return worldAvailable;
+        }
+
+        public boolean supportsWorldTransition() {
+            return worldTransitions;
         }
 
         public boolean paused() {

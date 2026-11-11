@@ -126,6 +126,10 @@ public final class GuiUiApi {
         LuaTable value = new LuaTable();
         value.set("key", definition.key);
         value.set("displayName", definition.displayName);
+        value.set("worldTransition",
+                definition.worldTransition.replaces()
+                        ? GuiReadOnlyValues.fromPublished(definition.worldTransition.declaration())
+                        : LuaValue.valueOf("close"));
         value.set("context", definition.context == GuiScreenDefinition.Context.CLIENT ? "client" : "world");
         value.set("pauseGame", LuaValue.valueOf(definition.pauseGame));
         return value;

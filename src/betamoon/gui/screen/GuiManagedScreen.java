@@ -118,6 +118,8 @@ public final class GuiManagedScreen extends GuiComponentScreen {
         GuiNativeScreenPage previous = page;
         if (previous != null) {
             previous.nativeClosed();
+        } else {
+            GuiClientUiRuntime.nativeClosed(this);
         }
         super.onGuiClosed();
     }

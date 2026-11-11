@@ -28,6 +28,7 @@ public final class GuiScreenDefinition {
     public final String owner;
     public final String key;
     public final String displayName;
+    public final GuiWorldTransition worldTransition;
     public final String theme;
     public final Context context;
     public final boolean pauseGame;
@@ -55,6 +56,14 @@ public final class GuiScreenDefinition {
             int updateInterval, String theme, GuiAuthoredNode root, GuiComponentSchema state, GuiComponentSchema data,
             Map<String, GuiActionDefinition> actions, Map<String, LuaValue> callbacks, GuiResourceDefinitions resources,
             Set<GuiCapability> requirements) {
+        this(owner, key, displayName, context, pauseGame, updateInterval, theme, root, state, data, actions, callbacks,
+                resources, requirements, GuiWorldTransition.CLOSE);
+    }
+
+    public GuiScreenDefinition(String owner, String key, String displayName, Context context, boolean pauseGame,
+            int updateInterval, String theme, GuiAuthoredNode root, GuiComponentSchema state, GuiComponentSchema data,
+            Map<String, GuiActionDefinition> actions, Map<String, LuaValue> callbacks, GuiResourceDefinitions resources,
+            Set<GuiCapability> requirements, GuiWorldTransition worldTransition) {
         this.owner = Objects.requireNonNull(owner, "screen owner");
         this.key = GuiComponentDefinition.key(key);
         if (displayName != null && (displayName.isEmpty() || displayName.length() > 128
@@ -62,6 +71,7 @@ public final class GuiScreenDefinition {
             throw new IllegalArgumentException("displayName requires 1..128 plain-text characters");
         }
         this.displayName = displayName == null ? this.key : displayName;
+        this.worldTransition = Objects.requireNonNull(worldTransition, "screen world transition");
         this.context = Objects.requireNonNull(context, "screen context");
         this.root = Objects.requireNonNull(root, "screen root");
         this.state = Objects.requireNonNull(state, "screen state schema");
@@ -92,7 +102,8 @@ public final class GuiScreenDefinition {
         this.callbacks = Collections.unmodifiableMap(new LinkedHashMap<>(callbacks));
         this.requirements = Collections.unmodifiableSet(new LinkedHashSet<>(requirements));
         long bytes = state.metadataBytes + data.metadataBytes + resources.metadataBytes
-                + GuiComponentLimits.authoredMetadata(root) + this.displayName.getBytes(StandardCharsets.UTF_8).length;
+                + GuiComponentLimits.authoredMetadata(root) + this.displayName.getBytes(StandardCharsets.UTF_8).length
+                + worldTransition.metadataBytes;
         for (GuiActionDefinition action : actions.values()) {
             bytes += action.payload.metadataBytes + 128;
         }

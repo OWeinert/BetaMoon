@@ -43,6 +43,14 @@ public final class GuiScreenController {
 
         boolean current(GuiScreenActivation activation);
 
+        /**
+         * Only the standalone client coordinator may replace a page after a healthy
+         * root change.
+         */
+        default boolean supportsWorldTransition() {
+            return false;
+        }
+
         default String actionUnavailable(Scope scope) {
             return null;
         }
@@ -125,7 +133,7 @@ public final class GuiScreenController {
     }
 
     private enum Kind {
-        OPEN, PUSH, REPLACE, BACK, CLOSE, DIALOG
+        OPEN, PUSH, REPLACE, BACK, CLOSE, DIALOG, WORLD_TRANSITION
     }
     private final GuiScreenRegistry registry;
     private final Host host;
@@ -138,6 +146,7 @@ public final class GuiScreenController {
     private long nextIdentity;
     private boolean ticking;
     private WeakReference<Object> fallbackScreen;
+    private TransitionIntent transitionIntent;
 
     public GuiScreenController(GuiScreenRegistry registry, Host host) {
         this(registry, host, new GuiActionQueue(), true);
@@ -164,6 +173,7 @@ public final class GuiScreenController {
     }
 
     public void reset(String reason) {
+        transitionIntent = null;
         for (Operation operation : new ArrayList<>(pending)) {
             if (operation.target != null) {
                 retire(operation.target, reason, Status.CANCELLED, false);
@@ -332,6 +342,7 @@ public final class GuiScreenController {
         }
         ticking = true;
         try {
+            applyWorldTransition();
             if (fallbackScreen != null) {
                 Object expected = fallbackScreen.get();
                 fallbackScreen = null;
@@ -341,6 +352,9 @@ public final class GuiScreenController {
             }
             if (current != null && (!current.definition.available() || current.environment != host.environment()
                     || !host.current(current))) {
+                if (armWorldTransition(current)) {
+                    return;
+                }
                 boolean owns = host.current(current);
                 retire(current, "environment_changed", Status.CLOSED, false);
                 history.clear();
@@ -474,7 +488,13 @@ public final class GuiScreenController {
      * navigation.
      */
     public void externalClosed(GuiScreenActivation activation) {
+        if (transitionIntent != null && transitionIntent.sourceIdentity == activation.identity) {
+            transitionIntent = null;
+        }
         if (activation.terminal()) {
+            return;
+        }
+        if (armWorldTransition(activation)) {
             return;
         }
         boolean dialog = activation.parent != null;
@@ -484,7 +504,80 @@ public final class GuiScreenController {
         }
     }
 
+    /**
+     * Native closure of the already-retired handoff screen is an explicit
+     * replacement/cancellation.
+     */
+    public void nativeScreenClosed(Object screen) {
+        if (transitionIntent != null && transitionIntent.screen.get() == screen) {
+            transitionIntent = null;
+        }
+    }
+
+    private boolean armWorldTransition(GuiScreenActivation source) {
+        if (source != current || source.parent != null || !source.active() || !source.definition.available()
+                || !host.supportsWorldTransition() || !host.current(source) || !host.worldAvailable()
+                || source.environment == host.environment() || !source.definition.worldTransition.replaces()) {
+            return false;
+        }
+        TransitionIntent intent = new TransitionIntent(source, host.environment(), host.screenIdentity());
+        reset("world_transition");
+        transitionIntent = intent;
+        return true;
+    }
+
+    private void applyWorldTransition() {
+        TransitionIntent intent = transitionIntent;
+        transitionIntent = null;
+        if (intent == null) {
+            return;
+        }
+        if (!intent.ownerGeneration.matches(intent.generation) || !host.supportsWorldTransition()
+                || host.environment() != intent.environment || !host.available() || !host.worldAvailable()) {
+            finishWorldTransition(intent);
+            return;
+        }
+        Object screen = host.screenIdentity();
+        Object previous = intent.screen.get();
+        if (current != null || !pending.isEmpty() || screen != null && (previous == null || screen != previous)) {
+            return;
+        }
+        try {
+            OpenResult result = enqueue(intent.owner, intent.policy.replacement, intent.policy.state,
+                    intent.policy.data, Kind.WORLD_TRANSITION, null, null);
+            if (result.instance == null) {
+                host.failure(intent.owner, intent.sourceKey + ".worldTransition",
+                        new IllegalStateException(result.reason));
+                finishWorldTransition(intent);
+            }
+        } catch (VirtualMachineError | ThreadDeath fatal) {
+            finishWorldTransition(intent);
+            throw fatal;
+        } catch (Throwable failure) {
+            host.failure(intent.owner, intent.sourceKey + ".worldTransition", failure);
+            finishWorldTransition(intent);
+        }
+    }
+
+    private void finishWorldTransition(TransitionIntent intent) {
+        Object expected = intent.screen.get();
+        if (expected != null && host.screenIdentity() == expected) {
+            host.fallback();
+        }
+    }
+
     private void apply(Operation operation) {
+        try {
+            applyOperation(operation);
+        } finally {
+            if (operation.kind == Kind.WORLD_TRANSITION && current == null
+                    && operation.sameScreen(host.screenIdentity())) {
+                host.fallback();
+            }
+        }
+    }
+
+    private void applyOperation(Operation operation) {
         GuiScreenActivation target = operation.target;
         if (target != null && target.terminal()) {
             return;
@@ -680,6 +773,28 @@ public final class GuiScreenController {
 
         boolean sameScreen(Object screen) {
             return hadScreen ? nativeScreen.get() != null && nativeScreen.get() == screen : screen == null;
+        }
+    }
+
+    private static final class TransitionIntent {
+        final String owner;
+        final String sourceKey;
+        final long sourceIdentity;
+        final long environment;
+        final GuiWorldTransition policy;
+        final ScriptResourceTracker.OwnerGeneration ownerGeneration;
+        final long generation;
+        final WeakReference<Object> screen;
+
+        TransitionIntent(GuiScreenActivation source, long environment, Object screen) {
+            owner = source.owner();
+            sourceKey = source.key;
+            sourceIdentity = source.identity;
+            this.environment = environment;
+            policy = source.definition.worldTransition;
+            ownerGeneration = ScriptResourceTracker.ownerToken(owner);
+            generation = ownerGeneration.current();
+            this.screen = new WeakReference<>(screen);
         }
     }
 }

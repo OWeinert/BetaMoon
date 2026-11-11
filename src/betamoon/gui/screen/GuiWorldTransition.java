@@ -49,4 +49,15 @@ public final class GuiWorldTransition {
     public boolean replaces() {
         return replacement != null;
     }
+
+    public Map<String, Object> declaration() {
+        if (!replaces()) {
+            return Collections.emptyMap();
+        }
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("replace", replacement);
+        values.put("state", state);
+        values.put("data", data);
+        return Collections.unmodifiableMap(values);
+    }
 }

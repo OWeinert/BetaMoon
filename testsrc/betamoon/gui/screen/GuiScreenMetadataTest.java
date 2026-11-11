@@ -60,7 +60,32 @@ final class GuiScreenMetadataTest {
                 .equals("Moon appearance settings"),
                 "Editing a detached screen info record changed registered metadata");
         value.set("worldTransition", "close");
-        fail(() -> GuiScreenParser.parse(OWNER, value, components));
+        require(!GuiScreenParser.parse(OWNER, value, components).worldTransition.replaces(),
+                "Explicit close transition changed the default lifecycle");
+        value.set("worldTransition",
+                lua.load("return {replace='test:forward',state={selected='overview'}," + "data={message='Welcome'}}")
+                        .call());
+        GuiScreenDefinition transition = GuiScreenParser.parse(OWNER, value, components);
+        require(transition.worldTransition.replacement.equals("test:forward")
+                && transition.worldTransition.state.get("selected").equals("overview")
+                && transition.worldTransition.data.get("message").equals("Welcome"),
+                "Parsed replacement policy did not retain detached initialization");
+        value.set("key", "test:transition-info");
+        LuaValue info = screens.get("add").call(value);
+        LuaValue policy = info.get("worldTransition");
+        require(policy.get("replace").tojstring().equals("test:forward"),
+                "Registration omitted the replacement policy");
+        fail(() -> policy.get("state").set("selected", "edited"));
+        info.set("worldTransition", "close");
+        require(screens.get("getRequired").call(LuaValue.valueOf("test:transition-info")).get("worldTransition")
+                .get("state").get("selected").tojstring().equals("overview"),
+                "Editing detached screen info changed the registered transition policy");
+        for (String invalid : new String[]{"'keep'", "false", "{}", "{replace='wrong'}",
+                "{replace='test:self',extra=true}", "{replace='test:self',state={1,2}}",
+                "{replace='test:self',data={fn=function() end}}"}) {
+            value.set("worldTransition", lua.load("return " + invalid).call());
+            fail(() -> GuiScreenParser.parse(OWNER, value, components));
+        }
     }
 
     private static void transitionMetadata() {

@@ -4,6 +4,7 @@ import betamoon.gui.component.GuiComponentRegistry;
 import betamoon.gui.presentation.GuiCapability;
 import betamoon.gui.screen.GuiActionDefinition;
 import betamoon.gui.screen.GuiScreenDefinition;
+import betamoon.gui.screen.GuiWorldTransition;
 import betamoon.luaapi.utils.LuaDeclarationValues;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -21,7 +22,7 @@ public final class GuiScreenParser {
     public static GuiScreenDefinition parse(String owner, LuaValue value, GuiComponentRegistry components) {
         String path = "ui.screen";
         LuaDeclarationValues.fields(value, path, "key", "context", "pauseGame", "root", "state", "data", "actions",
-                "on", "updateInterval", "theme", "resources", "requires", "displayName");
+                "on", "updateInterval", "theme", "resources", "requires", "displayName", "worldTransition");
         String key = LuaDeclarationValues.string(value.get("key"), path + ".key");
         path += "[" + key + "]";
         GuiScreenDefinition.Context context;
@@ -96,10 +97,33 @@ public final class GuiScreenParser {
                     new GuiAuthoredNodeParser(components).parse(owner, value.get("root"), path + ".root"),
                     GuiComponentParser.schema(value.get("state"), path + ".state", true),
                     GuiComponentParser.schema(value.get("data"), path + ".data", true), actions, callbacks,
-                    new GuiResourceParser().parse(value.get("resources"), path + ".resources"), requirements);
+                    new GuiResourceParser().parse(value.get("resources"), path + ".resources"), requirements,
+                    worldTransition(value.get("worldTransition"), path + ".worldTransition"));
         } catch (IllegalArgumentException invalid) {
             throw LuaDeclarationValues.error(path, invalid.getMessage());
         }
+    }
+
+    private static GuiWorldTransition worldTransition(LuaValue value, String path) {
+        if (value.isnil() || value.type() == LuaValue.TSTRING && value.tojstring().equals("close")) {
+            return GuiWorldTransition.CLOSE;
+        }
+        LuaDeclarationValues.fields(value, path, "replace", "state", "data");
+        return GuiWorldTransition.replace(LuaDeclarationValues.string(value.get("replace"), path + ".replace"),
+                transitionValues(value.get("state"), path + ".state"),
+                transitionValues(value.get("data"), path + ".data"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> transitionValues(LuaValue value, String path) {
+        if (value.isnil()) {
+            return Collections.emptyMap();
+        }
+        Object detached = GuiLuaData.read(value, path);
+        if (!(detached instanceof Map)) {
+            throw LuaDeclarationValues.error(path, "expected a detached string-keyed record");
+        }
+        return (Map<String, Object>) detached;
     }
 
     private static List<String> keys(LuaValue value, String path, int maximum) {

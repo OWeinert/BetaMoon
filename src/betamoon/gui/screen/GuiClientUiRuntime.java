@@ -41,6 +41,12 @@ public final class GuiClientUiRuntime {
         return ACTIONS;
     }
 
+    static void nativeClosed(GuiManagedScreen screen) {
+        if (host != null) {
+            host.controller.nativeScreenClosed(screen);
+        }
+    }
+
     public static boolean managed(GuiScreen screen) {
         return screen instanceof GuiManagedScreen;
     }
@@ -133,6 +139,10 @@ public final class GuiClientUiRuntime {
 
         public boolean canOpen() {
             return client.currentScreen == null || GuiMenuRuntime.target(client.currentScreen) != null;
+        }
+
+        public boolean supportsWorldTransition() {
+            return true;
         }
 
         public Object screenIdentity() {
