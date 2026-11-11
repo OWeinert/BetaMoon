@@ -23,6 +23,7 @@ final class GuiScreenMetadataTest {
         try {
             names();
             transitionMetadata();
+            inlineDefinitions();
         } finally {
             ScriptResourceTracker.unload(OWNER);
         }
@@ -86,6 +87,37 @@ final class GuiScreenMetadataTest {
             value.set("worldTransition", lua.load("return " + invalid).call());
             fail(() -> GuiScreenParser.parse(OWNER, value, components));
         }
+    }
+
+    private static void inlineDefinitions() {
+        Globals lua = JsePlatform.standardGlobals();
+        GuiComponentRegistry components = new GuiComponentRegistry();
+        require(GuiScreenParser.parseInline(OWNER, "test:inline", new LuaTable(), components) == null,
+                "Legacy-only declaration acquired an inline document");
+        for (String invalid : new String[]{"{state={}}", "{root={type='button'},worldTransition='close'}",
+                "{root={type='button'},updateInterval=0}", "{root={type='button',unknown=true}}"}) {
+            fail(() -> GuiScreenParser.parseInline(OWNER, "test:inline", lua.load("return " + invalid).call(),
+                    components));
+        }
+        GuiScreenDefinition inline = GuiScreenParser.parseInline(OWNER, "test:inline",
+                lua.load("return {root={type='button'},state={count={type='integer',default=0}}}").call(), components);
+        GuiScreenRegistry parent = new GuiScreenRegistry();
+        GuiScreenDefinition registered = GuiScreenParser.parse(OWNER,
+                lua.load("return {key='test:inline',root={type='text',text='Global'}}").call(), components);
+        parent.add(registered);
+        GuiScreenDefinition[] current = {inline};
+        GuiScreenDefinitions.Inline scoped = GuiScreenDefinitions.inline(parent, inline.key, () -> current[0]);
+        require(inline.context == GuiScreenDefinition.Context.WORLD && scoped.getRequired(inline.key) == inline
+                && scoped.snapshot().get(inline.key) == inline && parent.getRequired(inline.key) == registered,
+                "Inline definition escaped its host or changed the parent registry");
+        current[0] = null;
+        fail(() -> scoped.getRequired(inline.key));
+        require(!scoped.snapshot().containsKey(inline.key) && parent.getRequired(inline.key) == registered,
+                "Removed inline document fell through to an unrelated global definition");
+        current[0] = inline;
+        scoped.close();
+        fail(() -> scoped.getRequired(inline.key));
+        require(!scoped.snapshot().containsKey(inline.key), "Closed inline resolver retained its native supplier");
     }
 
     private static void transitionMetadata() {

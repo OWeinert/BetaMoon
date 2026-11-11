@@ -68,7 +68,7 @@ import org.luaj.vm2.Varargs;
 public final class GuiNativeScreenPage implements GuiScreenController.Page {
     private final Minecraft client;
     private final GuiScreenActivation activation;
-    private final GuiScreenRegistry screens;
+    private final GuiScreenDefinitions screens;
     private final GuiComponentRegistry components;
     private final GuiManagedScreen screen;
     private final GuiScreenAttachment attachment;
@@ -83,12 +83,12 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
     private boolean closed;
     private int ticks;
 
-    public GuiNativeScreenPage(Minecraft client, GuiScreenActivation activation, GuiScreenRegistry screens,
+    public GuiNativeScreenPage(Minecraft client, GuiScreenActivation activation, GuiScreenDefinitions screens,
             GuiComponentRegistry components, GuiScreenController.History history) {
         this(client, activation, screens, components, history, null);
     }
 
-    public GuiNativeScreenPage(Minecraft client, GuiScreenActivation activation, GuiScreenRegistry screens,
+    public GuiNativeScreenPage(Minecraft client, GuiScreenActivation activation, GuiScreenDefinitions screens,
             GuiComponentRegistry components, GuiScreenController.History history, GuiScreenAttachment attachment) {
         this.client = client;
         this.activation = activation;
@@ -110,12 +110,15 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
         boolean complete = false;
         try {
             if (this.attachment != null) {
-                this.attachment.prepare(this, candidate.plan);
+                this.attachment.prepare(this, candidate.plan, candidate.definition);
             }
             candidate.tree = candidate.plan.createTree(candidate.capabilities(), client.fontRenderer::getStringWidth,
                     this::clock);
             candidate.tree.root().inputLifetime(documentInput());
-            screen.scene().prepareDetached(candidate.tree);
+            prepareDocument(candidate.tree);
+            if (this.attachment != null) {
+                this.attachment.validate(this);
+            }
             current = candidate;
             complete = true;
         } finally {
@@ -131,6 +134,14 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
                     }
                 }
             }
+        }
+    }
+
+    private void prepareDocument(GuiPresentationTree tree) {
+        if (attachment == null) {
+            screen.scene().prepareDetached(tree);
+        } else {
+            attachment.prepareDocument(tree);
         }
     }
 
@@ -332,13 +343,17 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
             candidate = new Revision(definition, current, Collections.emptyMap(), Collections.emptyMap(),
                     Collections.emptyMap());
             if (attachment != null) {
-                attachment.prepare(this, candidate.plan);
+                attachment.prepare(this, candidate.plan, candidate.definition);
             }
-            Revision prepared = candidate;
-            candidate.tree = candidate.plan.reloadTree(current.tree, tree -> {
+            try (GuiPresentationTree.PreparedReload prepared = candidate.plan.prepareReloadTree(current.tree, tree -> {
                 tree.root().inputLifetime(documentInput());
-                screen.scene().prepareDetached(tree);
-            });
+                prepareDocument(tree);
+            })) {
+                if (attachment != null) {
+                    attachment.validate(this);
+                }
+                candidate.tree = prepared.commit();
+            }
             Revision previous = current;
             current = candidate;
             if (parent == null && attachment != null) {

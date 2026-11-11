@@ -13,7 +13,7 @@ import java.util.Map;
  * Definitions remain independent from navigation, scene ownership and action
  * dispatch.
  */
-public final class GuiScreenRegistry {
+public final class GuiScreenRegistry implements GuiScreenDefinitions {
     private final Map<String, Entry> definitions = new LinkedHashMap<>();
     private long revision;
 

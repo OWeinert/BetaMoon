@@ -74,6 +74,22 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
         default void documentChanged() {
         }
 
+        default void prepareRevision(Object document, GuiScreenDefinition definition) {
+        }
+
+        default void validateRevision(Object document) {
+        }
+
+        default void commitRevision(Object document) {
+        }
+
+        default void abortRevision(Object document) {
+        }
+
+        default void prepareDocument(GuiPresentationTree document) {
+            scene().prepareDetached(document);
+        }
+
         default boolean actionsAvailable() {
             return presentationAvailable();
         }
@@ -84,16 +100,22 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
     private final String key;
     private final GuiDocumentMount mount = new GuiDocumentMount();
     private final GuiScreenController controller;
+    private final GuiScreenDefinitions definitions;
     private final Map<Object, GuiHostElementBudget.Claim> capacity = new IdentityHashMap<>();
     private GuiNativeScreenPage page;
     private Throwable paintFailure;
     private boolean closed;
 
     public GuiAttachedDocument(Host host, String owner, String key) {
+        this(host, owner, key, GuiClientUiRuntime.screens());
+    }
+
+    public GuiAttachedDocument(Host host, String owner, String key, GuiScreenDefinitions definitions) {
         this.host = host;
         this.owner = owner;
         this.key = key;
-        controller = new GuiScreenController(GuiClientUiRuntime.screens(), this, GuiClientUiRuntime.actions());
+        this.definitions = definitions;
+        controller = new GuiScreenController(definitions, this, GuiClientUiRuntime.actions());
         GuiInputLifetime input = new GuiInputLifetime(this::inputAvailable);
         input.activate();
         mount.inputLifetime(input);
@@ -106,7 +128,7 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
     }
 
     public GuiScreenController.OpenResult open(Map<String, Object> data) {
-        GuiScreenDefinition definition = GuiClientUiRuntime.screens().getRequired(key);
+        GuiScreenDefinition definition = definitions.getRequired(key);
         if (!definition.owner.equals(owner)) {
             throw new IllegalArgumentException("Attached screen belongs to another owner");
         }
@@ -185,7 +207,7 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
     }
 
     public GuiScreenController.Page prepare(GuiScreenActivation activation, GuiScreenController.History history) {
-        GuiNativeScreenPage prepared = new GuiNativeScreenPage(host.client(), activation, GuiClientUiRuntime.screens(),
+        GuiNativeScreenPage prepared = new GuiNativeScreenPage(host.client(), activation, definitions,
                 GuiClientUiRuntime.components(), history, this);
         if (page == null) {
             page = prepared;
@@ -258,16 +280,33 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
         capacity.put(document, host.elementBudget().prepare(document, plan.rowElementAllowance()));
     }
 
+    public void prepare(Object document, GuiComponentPlan plan, GuiScreenDefinition definition) {
+        prepare(document, plan);
+        host.prepareRevision(document, definition);
+    }
+
+    public void prepareDocument(GuiPresentationTree document) {
+        host.prepareDocument(document);
+    }
+
+    public void validate(Object document) {
+        host.validateRevision(document);
+    }
+
     public void commit(Object document) {
         GuiHostElementBudget.Claim pending = capacity.get(document);
         if (pending == null) {
             throw new IllegalStateException("Attached document has no capacity proposal");
         }
+        host.commitRevision(document);
         pending.commit();
         capacity.remove(document);
     }
 
     public void abort(Object document) {
+        if (host != null) {
+            host.abortRevision(document);
+        }
         GuiHostElementBudget.Claim pending = capacity.get(document);
         if (pending != null) {
             pending.close();
@@ -320,6 +359,9 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
                 } finally {
                     capacity.clear();
                     host = null;
+                    if (definitions instanceof GuiScreenDefinitions.Inline) {
+                        ((GuiScreenDefinitions.Inline) definitions).close();
+                    }
                 }
             }
         }

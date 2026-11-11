@@ -3,6 +3,11 @@ package betamoon.tileentity;
 import betamoon.BetaMoonCommon;
 import betamoon.gui.framework.GuiRenderer;
 import betamoon.gui.container.GuiLegacyContainerViews;
+import betamoon.gui.container.GuiContainerSurface;
+import betamoon.gui.framework.GuiGeometry.Rect;
+import betamoon.gui.presentation.GuiPresentationRuntime;
+import betamoon.gui.collection.GuiRowBudget;
+import betamoon.gui.screen.GuiHostElementBudget;
 import betamoon.gui.control.GuiTextEditorModel;
 import betamoon.gui.framework.GuiScene;
 import betamoon.gui.presentation.GuiAnchor;
@@ -42,6 +47,10 @@ public final class GuiLuaContainer extends GuiContainer {
     private final LuaContainer luaContainer;
     private final GuiScene scene = new GuiScene();
     private GuiLegacyContainerViews legacyViews;
+    private final GuiContainerSurface surface = new GuiContainerSurface();
+    private GuiContainerDocument retainedDocument;
+    private final GuiRowBudget rows = new GuiRowBudget();
+    private final GuiHostElementBudget elements = new GuiHostElementBudget(rows);
     private int currentMouseX;
     private int currentMouseY;
 
@@ -57,6 +66,8 @@ public final class GuiLuaContainer extends GuiContainer {
         this.luaContainer = container;
         this.xSize = definition.width;
         this.ySize = definition.height;
+        scene.setContent(surface);
+        elements.prepare(container, GuiContainerDocument.legacyElements(definition)).commit();
     }
 
     @Override
@@ -80,16 +91,50 @@ public final class GuiLuaContainer extends GuiContainer {
             mountLegacyViews();
         }
         ContainerGuiDefinition registered = TileEntityRegistry.getGui(definition.name);
-        if (registered != null && registered != definition && registered != rejectedRevision) {
+        if (registered == null) {
+            registered = definition;
+        }
+        if (registered.container != definition.container) {
+            registered = definition;
+        }
+        boolean retained = registered.document != null;
+        if (retained && mc.currentScreen == this) {
+            if (retainedDocument == null || !retainedDocument.owner(registered.document.owner)) {
+                if (registered != rejectedRevision) {
+                    GuiContainerDocument candidate = new GuiContainerDocument(this, mc, entity, luaContainer, scene,
+                            registered);
+                    boolean accepted = false;
+                    try {
+                        candidate.tick();
+                        accepted = candidate.document.usable();
+                        if (accepted) {
+                            if (retainedDocument != null) {
+                                retainedDocument.close();
+                            }
+                            retainedDocument = candidate;
+                            surface.document(candidate.document.mount());
+                        } else {
+                            rejectedRevision = registered;
+                        }
+                    } finally {
+                        if (!accepted) {
+                            candidate.close();
+                        }
+                    }
+                }
+            } else {
+                retainedDocument.select(registered);
+                retainedDocument.tick();
+            }
+        } else if (registered != definition && registered != rejectedRevision) {
             try {
                 ContainerPresentationRuntime replacement = presentation.reload(registered);
-                legacyViews.close();
-                presentation = replacement;
-                definition = registered;
-                mountLegacyViews();
-                xSize = registered.width;
-                ySize = registered.height;
-                rejectedRevision = null;
+                commitRetainedRevision(registered, replacement);
+                if (retainedDocument != null) {
+                    retainedDocument.close();
+                    retainedDocument = null;
+                    surface.document(null);
+                }
             } catch (RuntimeException invalid) {
                 rejectedRevision = registered;
                 BetaMoonCommon.LOGGER
@@ -98,6 +143,7 @@ public final class GuiLuaContainer extends GuiContainer {
         }
         int originX = (width - xSize) / 2;
         int originY = (height - ySize) / 2;
+        surface.panel(new Rect(originX, originY, originX + xSize, originY + ySize));
         presentation.viewport(-originX, -originY, width, height);
         presentation.sample();
         updateInteractions();
@@ -111,7 +157,51 @@ public final class GuiLuaContainer extends GuiContainer {
     private void mountLegacyViews() {
         legacyViews = new GuiLegacyContainerViews(scene, definition, presentation, luaContainer.controls(),
                 () -> mc.sndManager.playSoundFX("random.click", 1.0F, 1.0F));
-        scene.setContent(legacyViews.root());
+        surface.legacy(legacyViews.root());
+    }
+
+    ContainerGuiDefinition definition() {
+        return definition;
+    }
+
+    GuiRowBudget rowBudget() {
+        return rows;
+    }
+
+    GuiHostElementBudget elementBudget() {
+        return elements;
+    }
+
+    GuiPresentationRuntime.PreparedReload prepareRetainedRevision(ContainerGuiDefinition candidate) {
+        return presentation.prepareReload(candidate, prepared -> {
+        }, prepared -> {
+        });
+    }
+
+    void commitRetainedRevision(ContainerGuiDefinition candidate, ContainerPresentationRuntime replacement) {
+        legacyViews.close();
+        presentation = replacement;
+        definition = candidate;
+        xSize = candidate.width;
+        ySize = candidate.height;
+        rejectedRevision = null;
+        mountLegacyViews();
+    }
+
+    private void input(Runnable event) {
+        if (retainedDocument == null) {
+            event.run();
+        } else {
+            retainedDocument.input(event);
+        }
+    }
+
+    private void paint(Runnable render) {
+        if (retainedDocument == null) {
+            render.run();
+        } else {
+            retainedDocument.paint(render);
+        }
     }
 
     private void updateInteractions() {
@@ -140,6 +230,10 @@ public final class GuiLuaContainer extends GuiContainer {
 
     @Override
     public void onGuiClosed() {
+        if (retainedDocument != null) {
+            retainedDocument.close();
+            retainedDocument = null;
+        }
         if (legacyViews != null) {
             legacyViews.close();
         }
@@ -148,6 +242,7 @@ public final class GuiLuaContainer extends GuiContainer {
             presentation.close();
         }
         luaContainer.controls().close();
+        rows.close();
         super.onGuiClosed();
     }
 
@@ -156,10 +251,13 @@ public final class GuiLuaContainer extends GuiContainer {
         super.handleMouseInput();
         int mouseX = Mouse.getEventX() * width / mc.displayWidth;
         int mouseY = height - Mouse.getEventY() * height / mc.displayHeight - 1;
-        scene.mouseScrolled(mouseX, mouseY, Mouse.getEventDWheel(), GuiLegacyContainerViews.shiftDown());
-        if (Mouse.isButtonDown(0)) {
-            scene.mouseDragged(mouseX, mouseY, true);
-        }
+        int wheel = Mouse.getEventDWheel();
+        input(() -> {
+            scene.mouseScrolled(mouseX, mouseY, wheel, GuiLegacyContainerViews.shiftDown());
+            if (Mouse.isButtonDown(0)) {
+                scene.mouseDragged(mouseX, mouseY, true);
+            }
+        });
     }
 
     @Override
@@ -167,10 +265,11 @@ public final class GuiLuaContainer extends GuiContainer {
         currentMouseX = mouseX;
         currentMouseY = mouseY;
         preparePresentation();
-        if (scene.mousePressed(mouseX, mouseY, button) || overExpansionPanel(mouseX, mouseY)) {
-            return;
-        }
-        super.mouseClicked(mouseX, mouseY, button);
+        input(() -> {
+            if (!scene.mousePressed(mouseX, mouseY, button) && !overExpansionPanel(mouseX, mouseY)) {
+                super.mouseClicked(mouseX, mouseY, button);
+            }
+        });
     }
 
     @Override
@@ -178,18 +277,22 @@ public final class GuiLuaContainer extends GuiContainer {
         currentMouseX = mouseX;
         currentMouseY = mouseY;
         preparePresentation();
-        if (button >= 0 && !scene.mouseReleased(mouseX, mouseY, button)) {
-            super.mouseMovedOrUp(mouseX, mouseY, button);
-        }
+        input(() -> {
+            if (button >= 0 && !scene.mouseReleased(mouseX, mouseY, button)) {
+                super.mouseMovedOrUp(mouseX, mouseY, button);
+            }
+        });
     }
 
     @Override
     protected void keyTyped(char typedChar, int keyCode) {
         preparePresentation();
-        if (!scene.keyTyped(typedChar, keyCode, GuiLegacyContainerViews.shiftDown(),
-                GuiLegacyContainerViews.controlDown())) {
-            super.keyTyped(typedChar, keyCode);
-        }
+        input(() -> {
+            if (!scene.keyTyped(typedChar, keyCode, GuiLegacyContainerViews.shiftDown(),
+                    GuiLegacyContainerViews.controlDown())) {
+                super.keyTyped(typedChar, keyCode);
+            }
+        });
     }
 
     @Override
@@ -202,6 +305,7 @@ public final class GuiLuaContainer extends GuiContainer {
         presentation.sample();
         super.drawScreen(mouseX, mouseY, partialTicks);
         drawElementTooltip(mouseX, mouseY);
+        paint(scene::renderLayers);
     }
 
     @Override
@@ -216,13 +320,13 @@ public final class GuiLuaContainer extends GuiContainer {
         int originX = (width - xSize) / 2;
         int originY = (height - ySize) / 2;
         legacyViews.sample();
-        scene.renderContent(currentMouseX, currentMouseY, partialTicks);
         drawBackground(originX, originY);
         GL11.glPushMatrix();
         GL11.glTranslatef(originX, originY, 0.0F);
         drawElements(0);
         drawElements(1);
         GL11.glPopMatrix();
+        paint(() -> scene.renderContent(currentMouseX, currentMouseY, partialTicks));
     }
 
     private void drawBackground(int x, int y) {

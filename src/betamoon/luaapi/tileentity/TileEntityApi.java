@@ -1,5 +1,7 @@
 package betamoon.luaapi.tileentity;
 
+import betamoon.gui.screen.GuiClientUiRuntime;
+import betamoon.luaapi.client.ui.GuiScreenParser;
 import betamoon.assets.AssetKey;
 import betamoon.capability.CapabilityAttachmentDefinition;
 import betamoon.capability.CapabilityDefinition;
@@ -582,7 +584,9 @@ public final class TileEntityApi {
         ContainerGuiParser.validateBounds(elements, width, height);
         ContainerGuiDefinition gui = new ContainerGuiDefinition(name, owner, container, width, height, title,
                 inventoryLabel, background, layout.get("pauseGame").optboolean(false), elements,
-                ContainerPresentationParser.parse(def, elements, container));
+                ContainerPresentationParser.parse(def, elements, container),
+                GuiScreenParser.parseInline(LuaScriptRegistry.getCurrentScriptFile() == null
+                        ? owner : LuaScriptRegistry.getCurrentScriptFile(), name, def, GuiClientUiRuntime.components()));
         ContainerGuiLayout.validateDefinition(gui);
         return gui;
     }

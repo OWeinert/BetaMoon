@@ -13,12 +13,43 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.LuaTable;
 
 /**
  * Strict declaration parsing; no screen activation or native preparation occurs
  * here.
  */
 public final class GuiScreenParser {
+    /**
+     * Container hosts share the document fields and choose their own native
+     * lifetime.
+     */
+    public static GuiScreenDefinition parseInline(String owner, String key, LuaValue declaration,
+            GuiComponentRegistry components) {
+        String[] fields = {"root", "state", "data", "actions", "on", "theme", "resources", "requires",
+                "updateInterval"};
+        if (declaration.get("root").isnil()) {
+            for (String field : fields) {
+                if (!declaration.get(field).isnil()) {
+                    throw LuaDeclarationValues.error("containerGui." + field, "requires a retained root");
+                }
+            }
+            return null;
+        }
+        LuaTable document = new LuaTable();
+        for (String field : new String[]{"context", "worldTransition", "pauseGame", "displayName"}) {
+            if (!declaration.get(field).isnil()) {
+                throw LuaDeclarationValues.error("containerGui." + field, "standalone screen field is unavailable");
+            }
+        }
+        document.set("key", key);
+        document.set("context", "world");
+        for (String field : fields) {
+            document.set(field, declaration.get(field));
+        }
+        return parse(owner, document, components);
+    }
+
     public static GuiScreenDefinition parse(String owner, LuaValue value, GuiComponentRegistry components) {
         String path = "ui.screen";
         LuaDeclarationValues.fields(value, path, "key", "context", "pauseGame", "root", "state", "data", "actions",

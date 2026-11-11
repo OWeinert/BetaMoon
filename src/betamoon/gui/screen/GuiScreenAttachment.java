@@ -58,6 +58,17 @@ public interface GuiScreenAttachment {
     default void prepare(Object document, GuiComponentPlan plan) {
     }
 
+    default void prepare(Object document, GuiComponentPlan plan, GuiScreenDefinition definition) {
+        prepare(document, plan);
+    }
+
+    default void prepareDocument(GuiPresentationTree document) {
+        scene().prepareDetached(document);
+    }
+
+    default void validate(Object document) {
+    }
+
     default void abort(Object document) {
     }
 

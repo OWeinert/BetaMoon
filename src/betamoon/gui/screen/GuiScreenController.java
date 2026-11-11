@@ -125,7 +125,7 @@ public final class GuiScreenController {
             focus = activation.page.focusedElement();
         }
 
-        public boolean available(GuiScreenRegistry registry, long currentEnvironment) {
+        public boolean available(GuiScreenDefinitions registry, long currentEnvironment) {
             GuiScreenDefinition current = registry.snapshot().get(key);
             return environment == currentEnvironment && current != null && current.available()
                     && owner.equals(current.owner) && ScriptResourceTracker.ownerGeneration(owner) == generation;
@@ -135,7 +135,7 @@ public final class GuiScreenController {
     private enum Kind {
         OPEN, PUSH, REPLACE, BACK, CLOSE, DIALOG, WORLD_TRANSITION
     }
-    private final GuiScreenRegistry registry;
+    private final GuiScreenDefinitions registry;
     private final Host host;
     private final GuiActionQueue actions;
     private final boolean dispatchActions;
@@ -148,7 +148,7 @@ public final class GuiScreenController {
     private WeakReference<Object> fallbackScreen;
     private TransitionIntent transitionIntent;
 
-    public GuiScreenController(GuiScreenRegistry registry, Host host) {
+    public GuiScreenController(GuiScreenDefinitions registry, Host host) {
         this(registry, host, new GuiActionQueue(), true);
     }
 
@@ -156,11 +156,11 @@ public final class GuiScreenController {
      * Attached/native runtime controllers share admission; only the central logical
      * boundary dispatches.
      */
-    public GuiScreenController(GuiScreenRegistry registry, Host host, GuiActionQueue actions) {
+    public GuiScreenController(GuiScreenDefinitions registry, Host host, GuiActionQueue actions) {
         this(registry, host, actions, false);
     }
 
-    private GuiScreenController(GuiScreenRegistry registry, Host host, GuiActionQueue actions,
+    private GuiScreenController(GuiScreenDefinitions registry, Host host, GuiActionQueue actions,
             boolean dispatchActions) {
         this.registry = registry;
         this.host = host;

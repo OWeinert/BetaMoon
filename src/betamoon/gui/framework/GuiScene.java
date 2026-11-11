@@ -124,14 +124,35 @@ public final class GuiScene {
      * activating it.
      */
     public void prepareDetached(GuiPresentationTree candidate) {
+        prepareDetached(candidate, null);
+    }
+
+    /**
+     * Preflight a native host's actual bounded document region before publication.
+     */
+    public void prepareDetached(GuiPresentationTree candidate, Rect viewport) {
         GuiScene preparation = new GuiScene(renderer.getTheme());
         preparation.updateEnvironment(context.getMinecraft(), context.getFont(), context.getScreenWidth(),
                 context.getScreenHeight(), context.getDisplayWidth(), context.getDisplayHeight());
-        preparation.setContent(candidate.root());
+        GuiContainer boundary = new GuiContainer() {
+            @Override
+            protected void arrangeChildren(GuiContext context) {
+                GuiElement content = candidate.root();
+                Rect bounds = viewport == null ? getBounds() : viewport;
+                content.measure(context, GuiGeometry.Constraints.upTo(bounds.getWidth(), bounds.getHeight()));
+                content.arrange(context,
+                        content instanceof GuiViewportLayout
+                                ? ((GuiViewportLayout) content).viewportBounds(context, bounds)
+                                : bounds);
+            }
+        };
+        boundary.add(candidate.root());
+        preparation.setContent(boundary);
         try {
             preparation.prepare();
         } finally {
             preparation.setContent(null);
+            boundary.clear();
         }
     }
 
