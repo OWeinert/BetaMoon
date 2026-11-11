@@ -12,8 +12,13 @@ import betamoon.gui.screen.GuiHostElementBudget;
 import betamoon.gui.screen.GuiScreenActivation;
 import betamoon.gui.screen.GuiScreenDefinition;
 import betamoon.gui.screen.GuiScreenDefinitions;
+import betamoon.gui.screen.GuiActionQueue;
+import betamoon.luaapi.tileentity.GuiContainerLuaAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import java.util.Collections;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.EnumSet;
 import java.util.IdentityHashMap;
 import java.util.Map;
@@ -23,12 +28,13 @@ import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.GuiScreen;
 import net.minecraft.src.World;
 import org.luaj.vm2.LuaTable;
+import org.luaj.vm2.LuaValue;
 
 /**
  * Inline document lifetime belongs to this actual native tile-container
  * instance.
  */
-final class GuiContainerDocument implements GuiAttachedDocument.Host, AutoCloseable {
+final class GuiContainerDocument implements GuiAttachedDocument.Host, GuiContainerLuaAccess.Commands, AutoCloseable {
     private final GuiLuaContainer screen;
     private final Minecraft client;
     private final LuaTileEntity tile;
@@ -38,6 +44,11 @@ final class GuiContainerDocument implements GuiAttachedDocument.Host, AutoClosea
     private final EntityPlayer player;
     private final int window;
     private final String owner;
+    private final int tileX;
+    private final int tileY;
+    private final int tileZ;
+    private final List<Object> nativeSlots;
+    private final GuiContainerSources sources;
     private final GuiRowBudget rows;
     private final GuiHostElementBudget elements;
     private final Map<Object, ContainerPresentationRuntime.PreparedReload> legacy = new IdentityHashMap<>();
@@ -63,6 +74,11 @@ final class GuiContainerDocument implements GuiAttachedDocument.Host, AutoClosea
         player = client.thePlayer;
         window = backend.windowId;
         owner = definition.document.owner;
+        tileX = tile.xCoord;
+        tileY = tile.yCoord;
+        tileZ = tile.zCoord;
+        nativeSlots = new ArrayList<>(backend.slots);
+        sources = new GuiContainerSources(tile, backend, screen);
         GuiScreenDefinitions definitions = GuiScreenDefinitions.inline(GuiClientUiRuntime.screens(), definition.name,
                 () -> selected.document);
         document = new GuiAttachedDocument(this, owner, definition.name, definitions);
@@ -136,9 +152,22 @@ final class GuiContainerDocument implements GuiAttachedDocument.Host, AutoClosea
     }
 
     public boolean attached() {
-        return !closed && client.currentScreen == screen && client.theWorld == world && client.thePlayer == player
-                && backend.windowId == window && player != null && player.craftingInventory == backend
-                && tile.worldObj == world;
+        if (closed || !backend.controls().isActive() || client.currentScreen != screen
+                || screen.inventorySlots != backend || backend.slots.size() != nativeSlots.size()) {
+            return false;
+        }
+        for (int index = 0; index < nativeSlots.size(); index++) {
+            if (backend.slots.get(index) != nativeSlots.get(index)) {
+                return false;
+            }
+        }
+        ContainerDefinition definition = screen.definition().container;
+        return client.theWorld == world && client.thePlayer == player && backend.windowId == window && player != null
+                && player.craftingInventory == backend && tile.worldObj == world && tile.xCoord == tileX
+                && tile.yCoord == tileY && tile.zCoord == tileZ
+                && TileEntityRegistry.getContainer(definition.name) == definition
+                && TileEntityRegistry.getTileEntity(definition.tileEntity.name) == definition.tileEntity
+                && TileEntityRegistry.getGui(selected.name) != null && tile.canInteractWith(player);
     }
 
     public boolean inputAvailable() {
@@ -158,7 +187,92 @@ final class GuiContainerDocument implements GuiAttachedDocument.Host, AutoClosea
     }
 
     public void context(LuaTable value, LuaCallbackScope scope, GuiScreenActivation activation) {
-        // Scoped observations and validated domain intents are added in S5.
+        context(value, scope, activation, activation.definition());
+    }
+
+    public void context(LuaTable value, LuaCallbackScope scope, GuiScreenActivation activation,
+            GuiScreenDefinition definition) {
+        value.set("container", GuiContainerLuaAccess.context(scope, snapshot(definition), this, activation));
+    }
+
+    public Map<String, Object> nativeData(GuiScreenDefinition definition) {
+        return snapshot(definition).values;
+    }
+
+    private GuiContainerLuaAccess.Snapshot snapshot(GuiScreenDefinition definition) {
+        return sources.snapshot(definition == selected.document ? selected : screen.definition());
+    }
+
+    public GuiActionQueue.Submission request(GuiScreenActivation activation, String name, Map<String, Object> options) {
+        ContainerGuiDefinition admitted = screen.definition();
+        GuiActionQueue.Intent intent = new GuiActionQueue.Intent() {
+            public String name() {
+                return "container.control." + name;
+            }
+
+            public String unavailable() {
+                if (!available() || !worldAvailable()) {
+                    return "container_unavailable";
+                }
+                if (screen.definition() != admitted) {
+                    return "container_refreshed";
+                }
+                ContainerControlDefinition control = admitted.container.controls.get(name);
+                if (control == null) {
+                    return "unknown_control";
+                }
+                return backend.controls().enabled(control) ? null : "control_disabled";
+            }
+
+            public Object execute(Map<String, Object> payload) {
+                return executeControl(admitted.container, name, payload);
+            }
+        };
+        return GuiClientUiRuntime.actions().submitIntent(activation, intent, options);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> executeControl(ContainerDefinition definition, String name,
+            Map<String, Object> options) {
+        ContainerControlDefinition control = definition.controls.get(name);
+        LuaTable input = ContainerControlRuntime.input("ui");
+        input.set("phase", "request");
+        boolean accepted;
+        switch (control.type) {
+            case NUMBER:
+                accepted = backend.controls().changeNumber(control, ((Number) options.get("value")).doubleValue(),
+                        input);
+                break;
+            case TEXT:
+                accepted = backend.controls().editText(control, (String) options.get("value"), input, true);
+                break;
+            case CHOICE:
+                accepted = backend.controls().cycle(control, ((Number) options.get("direction")).intValue(), input);
+                break;
+            case CUSTOM:
+                for (Map.Entry<String, Object> field : ((Map<String, Object>) options.get("input")).entrySet()) {
+                    Object value = field.getValue();
+                    input.set(field.getKey(),
+                            value instanceof Boolean
+                                    ? LuaValue.valueOf((Boolean) value)
+                                    : value instanceof Number
+                                            ? LuaValue.valueOf(((Number) value).doubleValue())
+                                            : LuaValue.valueOf((String) value));
+                }
+                accepted = backend.controls().custom(control, input);
+                break;
+            default:
+                accepted = backend.controls().activate(control, input);
+                break;
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("control", name);
+        result.put("accepted", accepted);
+        Object value = backend.controls().isActive() ? sources.control(control, definition).get("value") : null;
+        if (value != null) {
+            result.put("value", value);
+        }
+        return result;
     }
 
     public void failure(String owner, String path, Throwable failure) {

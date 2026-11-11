@@ -3,6 +3,7 @@ package betamoon.tileentity;
 import betamoon.gui.presentation.GuiConditionEvaluator;
 import betamoon.gui.presentation.GuiControlType;
 import betamoon.gui.control.GuiNumericRange;
+import betamoon.gui.action.GuiActionOrigin;
 import betamoon.interop.runtime.NativeEventAccess;
 import betamoon.luaapi.interop.NativeCallbackTable;
 
@@ -47,6 +48,10 @@ public final class ContainerControlRuntime {
     public ContainerSession session() {
         requireActive();
         return session;
+    }
+
+    public boolean isActive() {
+        return active;
     }
 
     public Object value(ContainerControlDefinition control) {
@@ -225,13 +230,20 @@ public final class ContainerControlRuntime {
         if (callback.isnil() || disabledCallbacks.contains(control.name + ":" + name)) {
             return CallbackResult.pass();
         }
-        try (LuaCallbackScope scope = new LuaCallbackScope(true)) {
+        try (GuiActionOrigin.Frame outcome = GuiActionOrigin.event();
+                LuaCallbackScope scope = new LuaCallbackScope(true)) {
             LuaValue[] supplied = new LuaValue[arguments.length + 1];
             supplied[0] = context(scope, control, input);
             System.arraycopy(arguments, 0, supplied, 1, arguments.length);
             LuaValue returned = ScriptExecution.invoke(definition.owner, "container." + control.name + "." + name,
                     callback, LuaValue.varargsOf(supplied)).arg1();
-            return CallbackResult.parse(returned);
+            CallbackResult result = CallbackResult.parse(returned);
+            if (!"deny".equals(result.result) && !(name.equals("onInput") && "pass".equals(result.result))) {
+                outcome.commit();
+            }
+            return result;
+        } catch (VirtualMachineError | ThreadDeath fatal) {
+            throw fatal;
         } catch (Throwable error) {
             callbackFailure(control, name, error);
             return CallbackResult.failure();

@@ -590,11 +590,11 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
 
         public GuiPresentationSources snapshot() {
             return new GuiPresentationSources(Collections.emptyMap(), data.snapshot(),
-                    attachment == null ? Collections.emptyMap() : attachment.nativeData());
+                    attachment == null ? Collections.emptyMap() : attachment.nativeData(definition));
         }
 
         void observeHostSources() {
-            Map<String, Object> next = attachment == null ? Collections.emptyMap() : attachment.nativeData();
+            Map<String, Object> next = attachment == null ? Collections.emptyMap() : attachment.nativeData(definition);
             Set<String> keys = new LinkedHashSet<>(observedNativeData.keySet());
             keys.addAll(next.keySet());
             for (String key : keys) {
@@ -633,7 +633,7 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
             context.set("screen",
                     GuiScreenLuaAccess.instance(definition.owner, activation, scope, screens::getRequired));
             if (attachment != null) {
-                attachment.context(context, scope, activation);
+                attachment.context(context, scope, activation, definition);
             }
             if (activation.environment == activation.controller.host().environment() && client.theWorld != null) {
                 context.set("world", LuaWorldActionAccess.create(scope, client.theWorld, 0, 0, 0));
@@ -648,7 +648,7 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
             scope.nativeEntry(main().host().queryEntry(scope));
             LuaTable context = new NativeCallbackTable(scope);
             if (attachment != null) {
-                attachment.context(context, scope, activation);
+                attachment.context(context, scope, activation, definition);
             }
             return context;
         }

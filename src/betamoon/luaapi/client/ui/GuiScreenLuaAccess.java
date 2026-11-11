@@ -103,6 +103,10 @@ public final class GuiScreenLuaAccess {
         return result.instance == null ? refused(result.reason) : instance(source, result.instance, null, definitions);
     }
 
+    public static Varargs submitted(String source, GuiActionQueue.Submission result) {
+        return result.ticket == null ? refused(result.reason) : ticket(source, result.ticket);
+    }
+
     @SuppressWarnings("unchecked")
     public static Map<String, Object>[] options(GuiScreenDefinition definition, LuaValue value) {
         if (value.isnil()) {

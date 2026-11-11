@@ -8,6 +8,7 @@ import betamoon.luaapi.utils.LuaCallbackScope;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import org.luaj.vm2.LuaError;
 import org.luaj.vm2.LuaValue;
@@ -26,6 +27,7 @@ public final class GuiActionQueueTest {
         capacityAndReadOnly();
         originOutcomes();
         originCapacityAndFollowups();
+        backendIntents();
         System.out.println("UI actions passed: bounded owner fairness, logical boundaries, detached results, "
                 + "reentrancy, refusal, stale revisions, cancellation and exactly-once completion.");
     }
@@ -216,6 +218,83 @@ public final class GuiActionQueueTest {
         }
         require(remaining[0] == 0 && queue.pending() == 0,
                 "A valid long action chain leaked origin scopes or stalled at the scope limit");
+    }
+
+    private static void backendIntents() {
+        GuiActionQueue queue = new GuiActionQueue(() -> 0);
+        Activation activation = new Activation("backend", new ArrayList<>());
+        String[] blocked = {null};
+        int[] calls = {0};
+        GuiActionQueue.Intent intent = new GuiActionQueue.Intent() {
+            public String name() {
+                return "test.intent";
+            }
+
+            public String unavailable() {
+                return blocked[0];
+            }
+
+            public Object execute(Map<String, Object> payload) {
+                calls[0]++;
+                return payload;
+            }
+        };
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("value", "original");
+        activation.paused = true;
+        GuiActionTicket ticket = queue.submitIntent(activation, intent, payload).ticket;
+        payload.put("value", "changed");
+        queue.dispatch(Scope.WORLD);
+        require(calls[0] == 0 && ticket.status() == Status.QUEUED, "Backend intent used the world boundary");
+        queue.dispatch(Scope.CLIENT);
+        require(calls[0] == 1 && ticket.status() == Status.SUCCEEDED
+                && ((Map<?, ?>) ticket.result()).get("value").equals("original"),
+                "Paused backend intent lost detached payload or client dispatch");
+        blocked[0] = "backend_unavailable";
+        require(queue.submitIntent(activation, intent, payload).reason.equals(blocked[0]),
+                "Unavailable backend was admitted");
+        blocked[0] = null;
+        GuiActionTicket refused = queue.submitIntent(activation, intent, payload).ticket;
+        blocked[0] = "backend_replaced";
+        queue.dispatch(Scope.CLIENT);
+        require(refused.status() == Status.REFUSED && refused.reason().equals(blocked[0]) && calls[0] == 1,
+                "Backend availability was not revalidated at dispatch");
+        blocked[0] = null;
+        GuiActionTicket stale = queue.submitIntent(activation, intent, payload).ticket;
+        activation.revision++;
+        queue.dispatch(Scope.CLIENT);
+        require(stale.status() == Status.CANCELLED && calls[0] == 1,
+                "Backend intent survived activation revision change");
+        for (int index = 0; index < 8; index++) {
+            queue.submit(activation, CLIENT, Collections.emptyMap());
+            queue.submitIntent(activation, intent, payload);
+        }
+        require(queue.submitIntent(activation, intent, payload).ticket == null
+                && queue.submit(activation, CLIENT, Collections.emptyMap()).ticket == null,
+                "Mixed backend and declared requests bypassed shared activation admission");
+        queue.cancel(activation, "closed");
+        require(queue.pending() == 0, "Cancellation using the original activation retained backend requests");
+        GuiActionTicket origin;
+        try (GuiActionOrigin.Frame callback = GuiActionOrigin.event()) {
+            origin = queue.submitIntent(activation, intent, payload).ticket;
+        }
+        queue.dispatch(Scope.CLIENT);
+        require(origin.status() == Status.CANCELLED && calls[0] == 1,
+                "Failed callback provenance did not cancel its backend intent");
+        try (LuaCallbackScope binding = LuaCallbackScope.binding()) {
+            try {
+                queue.submitIntent(activation, intent, payload);
+                throw new AssertionError("Binding admitted a backend intent");
+            } catch (LuaError expected) {
+                require(queue.pending() == 0, "Read-only backend refusal retained work");
+            }
+        }
+        try {
+            queue.submitIntent(activation, intent, Collections.singletonMap("bad", Double.NaN));
+            throw new AssertionError("Backend payload accepted a non-finite value");
+        } catch (IllegalArgumentException expected) {
+            require(queue.pending() == 0, "Rejected backend payload retained work");
+        }
     }
 
     private static final class Activation implements GuiActionQueue.Activation {

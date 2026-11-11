@@ -59,6 +59,10 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
             return Collections.emptyMap();
         }
 
+        default Map<String, Object> nativeData(GuiScreenDefinition definition) {
+            return nativeData();
+        }
+
         long environment();
 
         boolean worldAvailable();
@@ -66,6 +70,11 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
         boolean paused();
 
         void context(LuaTable value, LuaCallbackScope scope, GuiScreenActivation activation);
+
+        default void context(LuaTable value, LuaCallbackScope scope, GuiScreenActivation activation,
+                GuiScreenDefinition definition) {
+            context(value, scope, activation);
+        }
 
         void failure(String owner, String path, Throwable failure);
 
@@ -272,6 +281,10 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
         return closed ? Collections.emptyMap() : host.nativeData();
     }
 
+    public Map<String, Object> nativeData(GuiScreenDefinition definition) {
+        return closed ? Collections.emptyMap() : host.nativeData(definition);
+    }
+
     public boolean presentationAvailable() {
         return !closed && host.attached() && host.presentationAvailable();
     }
@@ -336,6 +349,11 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
 
     public void context(LuaTable value, LuaCallbackScope scope, GuiScreenActivation activation) {
         host.context(value, scope, activation);
+    }
+
+    public void context(LuaTable value, LuaCallbackScope scope, GuiScreenActivation activation,
+            GuiScreenDefinition definition) {
+        host.context(value, scope, activation, definition);
     }
 
     @Override

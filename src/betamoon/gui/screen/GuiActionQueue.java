@@ -1,6 +1,7 @@
 package betamoon.gui.screen;
 
 import betamoon.gui.presentation.GuiPublishedData;
+import betamoon.gui.component.GuiComponentLimits;
 import betamoon.gui.action.GuiActionOrigin;
 import betamoon.gui.screen.GuiActionDefinition.Scope;
 import betamoon.gui.screen.GuiActionTicket.Status;
@@ -35,6 +36,18 @@ public final class GuiActionQueue {
         void failed(String action, Throwable failure);
     }
 
+    /**
+     * Finite Java-owned domain operation; uses the originating activation and
+     * client boundary.
+     */
+    public interface Intent {
+        String name();
+
+        String unavailable();
+
+        Object execute(Map<String, Object> payload);
+    }
+
     public static final class Submission {
         public final GuiActionTicket ticket;
         public final String reason;
@@ -67,17 +80,30 @@ public final class GuiActionQueue {
     }
 
     public Submission submit(Activation activation, GuiActionDefinition action, Map<String, Object> payload) {
+        Objects.requireNonNull(action, "UI action definition");
+        return submit(activation, action, null, action.scope, action.name, payload);
+    }
+
+    public Submission submitIntent(Activation activation, Intent intent, Map<String, Object> payload) {
+        Objects.requireNonNull(intent, "UI domain intent");
+        return submit(activation, null, intent, Scope.CLIENT, intent.name(), payload);
+    }
+
+    private Submission submit(Activation activation, GuiActionDefinition action, Intent intent, Scope scope,
+            String name, Map<String, Object> payload) {
         LuaCallbackScope.requireUiStateWrite();
         Objects.requireNonNull(activation, "UI action activation");
-        Objects.requireNonNull(action, "UI action definition");
         if (!activation.active()) {
             return refused("screen_closed");
         }
-        if (action.scope == Scope.PLAYER_DATA) {
+        if (scope == Scope.PLAYER_DATA) {
             return refused("player_data_unavailable");
         }
-        String unavailable = activation.unavailable(action.scope);
+        String unavailable = activation.unavailable(scope);
         if (unavailable != null) {
+            return refused(unavailable);
+        }
+        if (intent != null && (unavailable = intent.unavailable()) != null) {
             return refused(unavailable);
         }
         List<GuiActionOrigin> origins = GuiActionOrigin.capture();
@@ -86,7 +112,10 @@ public final class GuiActionQueue {
                 return refused("origin_expired");
             }
         }
-        Map<String, Object> normalized = action.payload.normalize(payload);
+        Map<String, Object> normalized = action == null ? payload : action.payload.normalize(payload);
+        if (intent != null) {
+            new GuiComponentLimits.Values(65536, 4096).add(normalized);
+        }
         GuiPublishedData detached = new GuiPublishedData();
         detached.publish(normalized);
         Deque<Request> owner = owners.get(activation.owner());
@@ -108,7 +137,7 @@ public final class GuiActionQueue {
             order.addLast(activation.owner());
         }
         GuiActionTicket ticket = new GuiActionTicket(++identity);
-        owner.addLast(new Request(activation, action, detached.snapshot(), ticket, origins));
+        owner.addLast(new Request(activation, action, intent, scope, name, detached.snapshot(), ticket, origins));
         size++;
         return new Submission(ticket, null);
     }
@@ -167,7 +196,7 @@ public final class GuiActionQueue {
                 Deque<Request> owner = owners.get(name);
                 Request selected = null;
                 for (Request request : owner) {
-                    if (request.action.scope == boundary && request.ticket.identity <= eligibleIdentity
+                    if (request.scope == boundary && request.ticket.identity <= eligibleIdentity
                             && !request.waitingForOrigin()) {
                         selected = request;
                         break;
@@ -206,15 +235,21 @@ public final class GuiActionQueue {
                     return;
                 }
             }
-            String unavailable = activation.unavailable(request.action.scope);
+            String unavailable = activation.unavailable(request.scope);
             if (unavailable != null) {
+                request.ticket.finish(Status.REFUSED, null, unavailable);
+                return;
+            }
+            if (request.intent != null && (unavailable = request.intent.unavailable()) != null) {
                 request.ticket.finish(Status.REFUSED, null, unavailable);
                 return;
             }
             request.ticket.running();
             try (GuiActionOrigin.Frame inherited = GuiActionOrigin.enter(request.origins);
                     GuiActionOrigin.Frame outcome = GuiActionOrigin.event()) {
-                Object result = activation.execute(request.action, request.payload);
+                Object result = request.intent == null
+                        ? activation.execute(request.action, request.payload)
+                        : request.intent.execute(request.payload);
                 request.ticket.finish(Status.SUCCEEDED, result, null);
                 outcome.commit();
             }
@@ -223,7 +258,7 @@ public final class GuiActionQueue {
             throw fatal;
         } catch (Throwable failure) {
             request.ticket.finish(Status.FAILED, null, "action_failed");
-            activation.failed(request.action.name, failure);
+            activation.failed(request.name, failure);
         }
     }
 
@@ -252,17 +287,27 @@ public final class GuiActionQueue {
         return new Submission(null, reason);
     }
 
+    public static Submission unavailable(String reason) {
+        return refused(reason);
+    }
+
     private static final class Request {
         final Activation activation;
         final GuiActionDefinition action;
+        final Intent intent;
+        final Scope scope;
+        final String name;
         final long revision;
         final Map<String, Object> payload;
         final GuiActionTicket ticket;
         final List<GuiActionOrigin> origins;
-        Request(Activation activation, GuiActionDefinition action, Map<String, Object> payload, GuiActionTicket ticket,
-                List<GuiActionOrigin> origins) {
+        Request(Activation activation, GuiActionDefinition action, Intent intent, Scope scope, String name,
+                Map<String, Object> payload, GuiActionTicket ticket, List<GuiActionOrigin> origins) {
             this.activation = activation;
             this.action = action;
+            this.intent = intent;
+            this.scope = scope;
+            this.name = name;
             this.revision = activation.revision();
             this.payload = payload;
             this.ticket = ticket;

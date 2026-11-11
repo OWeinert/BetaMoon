@@ -3,6 +3,8 @@ package betamoon.gui;
 import betamoon.gui.interop.GuiResourceBudget;
 import betamoon.gui.inventory.GuiInventoryNativeTest;
 import betamoon.gui.screen.GuiClientUiRuntime;
+import betamoon.gui.screen.GuiAttachedDocument;
+import betamoon.gui.screen.GuiScreenActivation;
 import betamoon.interop.discovery.NativeDiscoveryRuntime;
 import betamoon.luaapi.tileentity.TileEntityApi;
 import betamoon.luamodloader.LuaScriptRegistry;
@@ -22,6 +24,7 @@ import net.minecraft.src.IChunkProvider;
 import net.minecraft.src.UnexpectedThrowable;
 import net.minecraft.src.World;
 import net.minecraft.src.WorldProvider;
+import net.minecraft.src.TileEntity;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
@@ -76,6 +79,7 @@ final class GuiContainerDocumentRenderChecks {
             }
             LuaTileEntity tile = new LuaTileEntity(definition.container.tileEntity.name);
             tile.worldObj = client.theWorld;
+            ((FixtureWorld) client.theWorld).tile = tile;
             screen = new GuiLuaContainer(client.thePlayer.inventory, tile, definition);
             screen.inventorySlots.windowId = 42;
             client.thePlayer.craftingInventory = screen.inventorySlots;
@@ -196,16 +200,25 @@ final class GuiContainerDocumentRenderChecks {
         }
     }
 
-    private static void owner(String owner) throws Exception {
+    static void owner(String owner) throws Exception {
         Method method = LuaScriptRegistry.class.getDeclaredMethod("setCurrentScriptFile", String.class);
         method.setAccessible(true);
         method.invoke(null, new Object[]{owner});
     }
 
-    private static void update(GuiLuaContainer screen) throws Exception {
+    static void update(GuiLuaContainer screen) throws Exception {
         Method method = GuiLuaContainer.class.getDeclaredMethod("preparePresentation");
         method.setAccessible(true);
         method.invoke(screen);
+    }
+
+    static GuiScreenActivation activation(GuiLuaContainer screen) throws Exception {
+        Field field = GuiLuaContainer.class.getDeclaredField("retainedDocument");
+        field.setAccessible(true);
+        Object host = field.get(screen);
+        Field document = host.getClass().getDeclaredField("document");
+        document.setAccessible(true);
+        return ((GuiAttachedDocument) document.get(host)).controller().current();
     }
 
     private static int panelWidth(GuiLuaContainer screen) throws Exception {
@@ -214,7 +227,7 @@ final class GuiContainerDocumentRenderChecks {
         return field.getInt(screen);
     }
 
-    private static void click(GuiLuaContainer screen, int x, int y) throws Exception {
+    static void click(GuiLuaContainer screen, int x, int y) throws Exception {
         Method press = GuiLuaContainer.class.getDeclaredMethod("mouseClicked", int.class, int.class, int.class);
         Method release = GuiLuaContainer.class.getDeclaredMethod("mouseMovedOrUp", int.class, int.class, int.class);
         press.setAccessible(true);
@@ -223,7 +236,7 @@ final class GuiContainerDocumentRenderChecks {
         release.invoke(screen, x, y, 0);
     }
 
-    private static void render(GuiLuaContainer screen) throws Exception {
+    static void render(GuiLuaContainer screen) throws Exception {
         GuiShowcaseRenderTest.setupFrame();
         Method method = GuiLuaContainer.class.getDeclaredMethod("drawGuiContainerBackgroundLayer", float.class);
         method.setAccessible(true);
@@ -234,7 +247,7 @@ final class GuiContainerDocumentRenderChecks {
         return ((Number) NativeDiscoveryRuntime.bindingsIfAvailable().clients.diagnostics().get("sessions")).intValue();
     }
 
-    private static final class Client extends Minecraft {
+    static final class Client extends Minecraft {
         Client() {
             super(null, null, null, 320, 240, false);
         }
@@ -256,7 +269,9 @@ final class GuiContainerDocumentRenderChecks {
         }
     }
 
-    private static final class FixtureWorld extends World {
+    static final class FixtureWorld extends World {
+        LuaTileEntity tile;
+
         FixtureWorld() {
             super(null, "container_document_fixture", new WorldProvider() {
             }, 0L);
@@ -265,6 +280,11 @@ final class GuiContainerDocumentRenderChecks {
         @Override
         protected IChunkProvider getChunkProvider() {
             return null;
+        }
+
+        @Override
+        public TileEntity getBlockTileEntity(int x, int y, int z) {
+            return tile != null && tile.xCoord == x && tile.yCoord == y && tile.zCoord == z ? tile : null;
         }
 
         @Override

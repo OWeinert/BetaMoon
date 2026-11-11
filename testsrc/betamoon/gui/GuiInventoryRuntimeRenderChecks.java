@@ -176,6 +176,7 @@ final class GuiInventoryRuntimeRenderChecks {
             GuiNativeHudRenderChecks.run(client, mappings, output);
             GuiScreenWorldTransitionRenderChecks.run(client, output);
             GuiContainerDocumentRenderChecks.run(client, output);
+            GuiContainerIntentRenderChecks.run(client);
             require(GL11.glGetError() == GL11.GL_NO_ERROR, "Inventory runtime leaked a GL error");
         } finally {
             GuiInventoryRuntime.closed(client.currentScreen);

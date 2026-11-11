@@ -1,6 +1,5 @@
 package betamoon.tileentity;
 
-import betamoon.data.DataField;
 import betamoon.interop.runtime.NativeEventAccess;
 import betamoon.luaapi.interop.NativeCallbackTable;
 import betamoon.gui.presentation.GuiDocumentDefinition;
@@ -52,8 +51,7 @@ final class ContainerPresentationHost implements GuiPresentationHost {
         for (TileEntityDefinition.Field field : definition.container.tileEntity.fields.values()) {
             Object value = tile == null ? field.defaultValue : tile.getDataValue(field.name);
             nativeData.put(field.name, value);
-            if (field.sync
-                    && (field.schema.type == DataField.Type.INTEGER || field.schema.type == DataField.Type.BOOLEAN)) {
+            if (ContainerGuiData.readable(field)) {
                 data.put(field.name, value);
             }
         }
@@ -77,7 +75,7 @@ final class ContainerPresentationHost implements GuiPresentationHost {
         subscriptions.add(tile.observeGuiData((key, previous, value) -> {
             TileEntityDefinition.Field field = definition.container.tileEntity.fields.get(key);
             if (field != null) {
-                observer.changed((field.sync ? "data:" : "native:") + key, previous, value);
+                observer.changed((ContainerGuiData.readable(field) ? "data:" : "native:") + key, previous, value);
             }
         }));
         if (definition.presentation.listens("control")) {

@@ -49,6 +49,10 @@ public interface GuiScreenAttachment {
         return Collections.emptyMap();
     }
 
+    default Map<String, Object> nativeData(GuiScreenDefinition definition) {
+        return nativeData();
+    }
+
     void attach(GuiPresentationTree document);
 
     void replace(GuiPresentationTree document);
@@ -79,5 +83,10 @@ public interface GuiScreenAttachment {
     }
 
     default void context(LuaTable context, LuaCallbackScope scope, GuiScreenActivation activation) {
+    }
+
+    default void context(LuaTable context, LuaCallbackScope scope, GuiScreenActivation activation,
+            GuiScreenDefinition definition) {
+        context(context, scope, activation);
     }
 }

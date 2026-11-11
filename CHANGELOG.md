@@ -61,6 +61,7 @@
 
 - Route legacy Lua container focus, gestures and text editing through the shared retained scene and editor model.
 - Author panel-local container documents with shared UI nodes, state, actions, resources and compatible refresh.
+- Observe scoped container state/geometry and queue validated named-control requests through shared UI tickets.
 - Customize native player inventory panels, semantic slot positions, preview and shared screen content with owned fallback.
 - Reuse detached inventory layout snapshots in reactive bindings and reusable component callbacks.
 - Revoke failed attached painting immediately and cancel its queued world actions at lifecycle boundaries.
