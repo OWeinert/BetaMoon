@@ -16,6 +16,7 @@ public abstract class GuiElement {
     private boolean visible = true;
     private boolean enabled = true;
     private boolean focusable;
+    private int focusOrder;
     private boolean collapsed;
     private double opacity = 1;
     private GuiInputLifetime inputLifetime;
@@ -173,6 +174,17 @@ public abstract class GuiElement {
 
     public final boolean isFocusable() {
         return focusable;
+    }
+
+    /**
+     * Stable keyboard order can differ from a compatibility surface's paint order.
+     */
+    public final int getFocusOrder() {
+        return focusOrder;
+    }
+
+    protected final void setFocusOrder(int order) {
+        focusOrder = order;
     }
 
     protected final void setFocusable(boolean focusable) {

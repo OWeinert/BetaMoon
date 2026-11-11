@@ -59,6 +59,7 @@
 
 ### UI foundations
 
+- Route legacy Lua container focus, gestures and text editing through the shared retained scene and editor model.
 - Customize native player inventory panels, semantic slot positions, preview and shared screen content with owned fallback.
 - Reuse detached inventory layout snapshots in reactive bindings and reusable component callbacks.
 - Revoke failed attached painting immediately and cancel its queued world actions at lifecycle boundaries.

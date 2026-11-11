@@ -7,6 +7,7 @@ import betamoon.gui.presentation.GuiPresentationTree;
 import betamoon.interop.runtime.NativeContext;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -835,6 +836,7 @@ public final class GuiScene {
             focusable = displayedFrame.focusable(modalScope());
         }
         focusable.removeIf(element -> !inputAllowed(element));
+        focusable.sort(Comparator.comparingInt(GuiElement::getFocusOrder));
         if (focusable.isEmpty()) {
             changeFocus(null);
             return false;

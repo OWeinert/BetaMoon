@@ -2,7 +2,9 @@ package betamoon.tileentity;
 
 import betamoon.BetaMoonCommon;
 import betamoon.gui.framework.GuiRenderer;
-import betamoon.gui.control.GuiTextEditOperations;
+import betamoon.gui.container.GuiLegacyContainerViews;
+import betamoon.gui.control.GuiTextEditorModel;
+import betamoon.gui.framework.GuiScene;
 import betamoon.gui.presentation.GuiAnchor;
 import betamoon.gui.presentation.GuiConditionEvaluator;
 import betamoon.gui.presentation.GuiControlType;
@@ -11,21 +13,15 @@ import betamoon.gui.presentation.GuiGeometry;
 import betamoon.gui.presentation.GuiNodeDefinition;
 import betamoon.gui.presentation.GuiPresentationNode;
 import betamoon.gui.presentation.ProgressDirection;
-import java.awt.Toolkit;
-import java.awt.datatransfer.StringSelection;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import net.minecraft.src.GuiContainer;
 import net.minecraft.src.InventoryPlayer;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.RenderItem;
 import net.minecraft.src.Tessellator;
-import org.luaj.vm2.LuaTable;
-import org.luaj.vm2.LuaValue;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 import org.lwjgl.opengl.GL11;
@@ -43,22 +39,11 @@ public final class GuiLuaContainer extends GuiContainer {
     private GuiPresentationNode drawingNode;
     private double drawingOpacity = 1;
     private int drawingTint = 0xFFFFFF;
-    private boolean consumedGesture;
     private final LuaContainer luaContainer;
-    private ContainerGuiDefinition.ControlElement focused;
-    private ContainerGuiDefinition.ControlElement pressed;
-    private ContainerGuiDefinition.ControlElement captured;
-    private final Map<String, String> drafts = new HashMap<String, String>();
-    private final Map<String, String> draftOrigins = new HashMap<String, String>();
-    private final Map<String, Long> invalidUntil = new HashMap<String, Long>();
-    private int caret;
-    private int selectionAnchor = -1;
-    private int textOffset;
-    private int lastPointerX;
-    private int lastPointerY;
+    private final GuiScene scene = new GuiScene();
+    private GuiLegacyContainerViews legacyViews;
     private int currentMouseX;
     private int currentMouseY;
-    private int pressedChoiceDirection;
 
     public GuiLuaContainer(InventoryPlayer player, LuaTileEntity entity, ContainerGuiDefinition definition) {
         this(player, entity, definition, new LuaContainer(player, entity, definition.container));
@@ -91,14 +76,17 @@ public final class GuiLuaContainer extends GuiContainer {
             presentation = new ContainerPresentationRuntime(definition, entity, luaContainer.controls(),
                     fontRenderer::getStringWidth);
         }
+        if (legacyViews == null) {
+            mountLegacyViews();
+        }
         ContainerGuiDefinition registered = TileEntityRegistry.getGui(definition.name);
         if (registered != null && registered != definition && registered != rejectedRevision) {
             try {
                 ContainerPresentationRuntime replacement = presentation.reload(registered);
-                consumedGesture |= pressed != null || captured != null;
-                blurFocused();
+                legacyViews.close();
                 presentation = replacement;
                 definition = registered;
+                mountLegacyViews();
                 xSize = registered.width;
                 ySize = registered.height;
                 rejectedRevision = null;
@@ -114,8 +102,16 @@ public final class GuiLuaContainer extends GuiContainer {
         presentation.sample();
         updateInteractions();
         presentation.update();
-        releaseUnavailableOwnership();
+        scene.updateEnvironment(mc, fontRenderer, width, height, mc.displayWidth, mc.displayHeight);
+        legacyViews.update(originX, originY);
+        scene.prepare();
         updateInteractions();
+    }
+
+    private void mountLegacyViews() {
+        legacyViews = new GuiLegacyContainerViews(scene, definition, presentation, luaContainer.controls(),
+                () -> mc.sndManager.playSoundFX("random.click", 1.0F, 1.0F));
+        scene.setContent(legacyViews.root());
     }
 
     private void updateInteractions() {
@@ -123,10 +119,10 @@ public final class GuiLuaContainer extends GuiContainer {
         for (ContainerGuiDefinition.Element element : definition.elements) {
             if (element instanceof ContainerGuiDefinition.ControlElement) {
                 ContainerGuiDefinition.ControlElement control = (ContainerGuiDefinition.ControlElement) element;
-                presentation.interaction(element, "pressed", pressed == element);
-                presentation.interaction(element, "focused", focused == element);
+                presentation.interaction(element, "pressed", legacyViews.pressed(control));
+                presentation.interaction(element, "focused", legacyViews.focused(control));
                 presentation.interaction(element, "disabled", !luaContainer.controls().enabled(control(control)));
-                presentation.interaction(element, "invalid", invalid(control));
+                presentation.interaction(element, "invalid", legacyViews.invalid(control));
                 if (control.type == GuiControlType.TOGGLE) {
                     presentation.interaction(element, "selected",
                             Boolean.TRUE.equals(luaContainer.controls().value(control(control))));
@@ -144,7 +140,9 @@ public final class GuiLuaContainer extends GuiContainer {
 
     @Override
     public void onGuiClosed() {
-        blurFocused();
+        if (legacyViews != null) {
+            legacyViews.close();
+        }
         Keyboard.enableRepeatEvents(false);
         if (presentation != null) {
             presentation.close();
@@ -158,17 +156,9 @@ public final class GuiLuaContainer extends GuiContainer {
         super.handleMouseInput();
         int mouseX = Mouse.getEventX() * width / mc.displayWidth;
         int mouseY = height - Mouse.getEventY() * height / mc.displayHeight - 1;
-        int wheel = Mouse.getEventDWheel();
-        if (wheel != 0) {
-            ContainerGuiDefinition.ControlElement element = controlAt(mouseX, mouseY);
-            if (element != null && enabled(element) && control(element).type == GuiControlType.CUSTOM) {
-                LuaTable input = pointerInput("mouse", element, mouseX, mouseY, -1, "scroll");
-                input.set("wheel", wheel);
-                luaContainer.controls().custom(control(element), input);
-            }
-        }
-        if (captured != null && Mouse.isButtonDown(0) && (mouseX != lastPointerX || mouseY != lastPointerY)) {
-            drag(captured, mouseX, mouseY);
+        scene.mouseScrolled(mouseX, mouseY, Mouse.getEventDWheel(), GuiLegacyContainerViews.shiftDown());
+        if (Mouse.isButtonDown(0)) {
+            scene.mouseDragged(mouseX, mouseY, true);
         }
     }
 
@@ -177,40 +167,10 @@ public final class GuiLuaContainer extends GuiContainer {
         currentMouseX = mouseX;
         currentMouseY = mouseY;
         preparePresentation();
-        consumedGesture = false;
-        ContainerGuiDefinition.ControlElement element = controlAt(mouseX, mouseY);
-        if (element == null) {
-            blurFocused();
-            if (overExpansionPanel(mouseX, mouseY)) {
-                return;
-            }
-            super.mouseClicked(mouseX, mouseY, button);
+        if (scene.mousePressed(mouseX, mouseY, button) || overExpansionPanel(mouseX, mouseY)) {
             return;
         }
-        if (focused != element) {
-            blurFocused();
-            if (element.focusable && enabled(element)) {
-                focus(element);
-            }
-        }
-        if (!enabled(element)) {
-            return;
-        }
-        if (control(element).type == GuiControlType.TEXT && button == 0) {
-            placeTextCaret(element, mouseX);
-        }
-        pressed = element;
-        pressedChoiceDirection = control(element).type == GuiControlType.CHOICE ? choiceDirection(element, mouseX) : 0;
-        captured = element.captureDrag && button == 0 ? element : null;
-        lastPointerX = mouseX;
-        lastPointerY = mouseY;
-        LuaTable input = pointerInput("mouse", element, mouseX, mouseY, button, "press");
-        ContainerControlDefinition control = control(element);
-        if (control.type == GuiControlType.NUMBER && button == 0) {
-            changeSlider(element, mouseX, mouseY, input);
-        } else if (control.type == GuiControlType.CUSTOM) {
-            luaContainer.controls().custom(control, input);
-        }
+        super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
@@ -218,82 +178,18 @@ public final class GuiLuaContainer extends GuiContainer {
         currentMouseX = mouseX;
         currentMouseY = mouseY;
         preparePresentation();
-        if (button >= 0 && consumedGesture) {
-            consumedGesture = false;
-            return;
-        }
-        if (button < 0) {
-            return;
-        }
-        ContainerGuiDefinition.ControlElement target = captured != null ? captured : pressed;
-        if (target == null) {
+        if (button >= 0 && !scene.mouseReleased(mouseX, mouseY, button)) {
             super.mouseMovedOrUp(mouseX, mouseY, button);
-            return;
         }
-        LuaTable input = pointerInput("mouse", target, mouseX, mouseY, button, "release");
-        ContainerControlDefinition control = control(target);
-        if (control.type == GuiControlType.CUSTOM) {
-            input.set("deltaX", LuaValue.valueOf(pointerDelta(target, mouseX - lastPointerX, true)));
-            input.set("deltaY", LuaValue.valueOf(pointerDelta(target, mouseY - lastPointerY, false)));
-        }
-        boolean inside = contains(target, mouseX, mouseY);
-        boolean changed = false;
-        if (control.type == GuiControlType.NUMBER && button == 0) {
-            changeSlider(target, mouseX, mouseY, input);
-        } else if (control.type == GuiControlType.CHOICE && inside) {
-            int direction = button == 1 ? -1 : pressedChoiceDirection;
-            if (direction != 0 && (button == 1 || direction == choiceDirection(target, mouseX))) {
-                changed = recordResult(control, luaContainer.controls().cycle(control, direction, input));
-            }
-        } else if ((control.type == GuiControlType.ACTION || control.type == GuiControlType.TOGGLE) && button == 0
-                && inside) {
-            changed = recordResult(control, luaContainer.controls().activate(control, input));
-        } else if (control.type == GuiControlType.CUSTOM) {
-            luaContainer.controls().custom(control, input);
-        }
-        if (changed) {
-            playClickSound();
-        }
-        pressed = null;
-        captured = null;
-        pressedChoiceDirection = 0;
     }
 
     @Override
     protected void keyTyped(char typedChar, int keyCode) {
         preparePresentation();
-        if (keyCode == Keyboard.KEY_TAB && moveFocus(isShiftDown() ? -1 : 1)) {
-            return;
-        }
-        if (focused == null || !enabled(focused)) {
+        if (!scene.keyTyped(typedChar, keyCode, GuiLegacyContainerViews.shiftDown(),
+                GuiLegacyContainerViews.controlDown())) {
             super.keyTyped(typedChar, keyCode);
-            return;
         }
-        ContainerControlDefinition control = control(focused);
-        LuaTable input = keyInput(focused, typedChar, keyCode);
-        if (control.type == GuiControlType.TEXT && editText(control, typedChar, keyCode, input)) {
-            return;
-        }
-        if (control.type == GuiControlType.NUMBER && adjustNumber(control, keyCode, input)) {
-            return;
-        }
-        if (control.type == GuiControlType.CHOICE && (keyCode == Keyboard.KEY_LEFT || keyCode == Keyboard.KEY_UP
-                || keyCode == Keyboard.KEY_RIGHT || keyCode == Keyboard.KEY_DOWN)) {
-            if (recordResult(control, luaContainer.controls().cycle(control,
-                    keyCode == Keyboard.KEY_LEFT || keyCode == Keyboard.KEY_UP ? -1 : 1, input))) {
-                playClickSound();
-            }
-            return;
-        }
-        if ((keyCode == Keyboard.KEY_RETURN || keyCode == Keyboard.KEY_NUMPADENTER || keyCode == Keyboard.KEY_SPACE)
-                && recordResult(control, luaContainer.controls().activate(control, input))) {
-            playClickSound();
-            return;
-        }
-        if (control.type == GuiControlType.CUSTOM && luaContainer.controls().custom(control, input)) {
-            return;
-        }
-        super.keyTyped(typedChar, keyCode);
     }
 
     @Override
@@ -319,6 +215,8 @@ public final class GuiLuaContainer extends GuiContainer {
     protected void drawGuiContainerBackgroundLayer(float partialTicks) {
         int originX = (width - xSize) / 2;
         int originY = (height - ySize) / 2;
+        legacyViews.sample();
+        scene.renderContent(currentMouseX, currentMouseY, partialTicks);
         drawBackground(originX, originY);
         GL11.glPushMatrix();
         GL11.glTranslatef(originX, originY, 0.0F);
@@ -506,7 +404,7 @@ public final class GuiLuaContainer extends GuiContainer {
         ContainerControlDefinition control = control(element);
         boolean enabled = enabled(element);
         boolean hovered = containsLocal(element, currentMouseX, currentMouseY);
-        boolean invalid = invalid(element);
+        boolean invalid = legacyViews.invalid(element);
         String state = interactionState(element, enabled, hovered, invalid);
         boolean selected = control.type == GuiControlType.TOGGLE
                 && Boolean.TRUE.equals(luaContainer.controls().value(control));
@@ -557,9 +455,9 @@ public final class GuiLuaContainer extends GuiContainer {
                 ? "disabled"
                 : invalid
                         ? "invalid"
-                        : pressed == element
+                        : legacyViews.pressed(element)
                                 ? "pressed"
-                                : focused == element ? "focused" : hovered ? "hovered" : "normal";
+                                : legacyViews.focused(element) ? "focused" : hovered ? "hovered" : "normal";
     }
 
     private ContainerGuiDefinition.Texture customControlTexture(ContainerGuiDefinition.ControlElement element,
@@ -575,16 +473,15 @@ public final class GuiLuaContainer extends GuiContainer {
 
     private void drawTextControl(ContainerGuiDefinition.ControlElement element, ContainerControlDefinition control,
             int x, int y, boolean enabled) {
-        String value = draft(control);
+        String value = legacyViews.text(element);
+        GuiTextEditorModel editor = legacyViews.editor(element);
         int availableWidth = Math.max(1, elementWidth(element) - 8);
-        if (focused == element) {
-            keepCaretVisible(value, availableWidth);
-        }
+        int textOffset = legacyViews.textOffset(element, availableWidth);
         int visibleEnd = visibleTextEnd(value, textOffset, availableWidth);
         String visible = value.substring(textOffset, visibleEnd);
-        if (focused == element && hasSelection()) {
-            int start = Math.max(textOffset, selectionStart());
-            int end = Math.min(visibleEnd, selectionEnd());
+        if (legacyViews.focused(element) && editor.selectionStart() != editor.selectionEnd()) {
+            int start = Math.max(textOffset, editor.selectionStart());
+            int end = Math.min(visibleEnd, editor.selectionEnd());
             if (start < end) {
                 int selectionX = x + 4 + fontRenderer.getStringWidth(value.substring(textOffset, start));
                 int selectionWidth = fontRenderer.getStringWidth(value.substring(start, end));
@@ -593,8 +490,8 @@ public final class GuiLuaContainer extends GuiContainer {
         }
         drawAlignedText(visible, x + 4, y + (elementHeight(element) - 8) / 2, availableWidth, "left",
                 enabled ? 0xFFFFFF : 0xA0A0A0, true);
-        if (focused == element && (System.currentTimeMillis() / 500L & 1L) == 0L) {
-            int caretX = x + 4 + fontRenderer.getStringWidth(value.substring(textOffset, caret));
+        if (legacyViews.focused(element) && (System.currentTimeMillis() / 500L & 1L) == 0L) {
+            int caretX = x + 4 + fontRenderer.getStringWidth(value.substring(textOffset, editor.caret()));
             drawRect(caretX, y + 4, caretX + 1, y + elementHeight(element) - 4, 0xFFFFFFFF);
         }
     }
@@ -846,32 +743,10 @@ public final class GuiLuaContainer extends GuiContainer {
         return presentation.geometry(element).available() && luaContainer.controls().enabled(control(element));
     }
 
-    private ContainerGuiDefinition.ControlElement controlAt(int mouseX, int mouseY) {
-        for (int layer = 2; layer >= 0; layer--) {
-            for (int index = definition.elements.size() - 1; index >= 0; index--) {
-                ContainerGuiDefinition.Element value = definition.elements.get(index);
-                if (value.layer == layer && value instanceof ContainerGuiDefinition.ControlElement
-                        && presentation.geometry(value).available()
-                        && contains((ContainerGuiDefinition.ControlElement) value, mouseX, mouseY)) {
-                    return (ContainerGuiDefinition.ControlElement) value;
-                }
-            }
-        }
-        return null;
-    }
-
     private boolean contains(ContainerGuiDefinition.Element element, int mouseX, int mouseY) {
         int originX = (width - xSize) / 2;
         int originY = (height - ySize) / 2;
         return presentation.geometry(element).contains(mouseX - originX, mouseY - originY);
-    }
-
-    private double localX(ContainerGuiDefinition.Element element, int mouseX) {
-        return presentation.geometry(element).localX(mouseX - (width - xSize) / 2);
-    }
-
-    private double localY(ContainerGuiDefinition.Element element, int mouseY) {
-        return presentation.geometry(element).localY(mouseY - (height - ySize) / 2);
     }
 
     private boolean overExpansionPanel(int mouseX, int mouseY) {
@@ -893,313 +768,8 @@ public final class GuiLuaContainer extends GuiContainer {
         return contains(element, mouseX, mouseY);
     }
 
-    private int choiceDirection(ContainerGuiDefinition.ControlElement element, int mouseX) {
-        int localX = (int) localX(element, mouseX);
-        int arrowWidth = choiceArrowWidth(element);
-        if (localX >= 0 && localX < arrowWidth) {
-            return -1;
-        }
-        if (localX >= elementWidth(element) - arrowWidth && localX < elementWidth(element)) {
-            return 1;
-        }
-        return 0;
-    }
-
     private int choiceArrowWidth(ContainerGuiDefinition.ControlElement element) {
         return Math.min(16, Math.max(1, elementWidth(element) / 3));
-    }
-
-    private void focus(ContainerGuiDefinition.ControlElement element) {
-        focused = element;
-        ContainerControlDefinition control = control(element);
-        if (control.type == GuiControlType.TEXT) {
-            Keyboard.enableRepeatEvents(true);
-            String value = String.valueOf(luaContainer.controls().value(control));
-            drafts.put(control.name, value);
-            draftOrigins.put(control.name, value);
-            caret = value.length();
-            selectionAnchor = -1;
-            textOffset = 0;
-        } else if (control.type == GuiControlType.CUSTOM) {
-            LuaTable input = ContainerControlRuntime.input("focus");
-            input.set("phase", "focus");
-            luaContainer.controls().custom(control, input);
-        }
-    }
-
-    private void blurFocused() {
-        if (focused == null) {
-            return;
-        }
-        ContainerControlDefinition control = control(focused);
-        if (control.type == GuiControlType.TEXT && drafts.containsKey(control.name)) {
-            Keyboard.enableRepeatEvents(false);
-            String current = String.valueOf(luaContainer.controls().value(control));
-            String origin = draftOrigins.get(control.name);
-            LuaTable input = ContainerControlRuntime.input("focus");
-            boolean conflicted = origin != null && !origin.equals(current);
-            input.set("conflicted", LuaValue.valueOf(conflicted));
-            String draft = drafts.get(control.name);
-            if (conflicted || !draft.equals(origin)) {
-                String committed = conflicted ? current : draft;
-                recordResult(control, luaContainer.controls().editText(control, committed, input, true));
-            }
-            drafts.remove(control.name);
-            draftOrigins.remove(control.name);
-            textOffset = 0;
-        } else if (control.type == GuiControlType.CUSTOM) {
-            LuaTable input = ContainerControlRuntime.input("focus");
-            input.set("phase", "blur");
-            luaContainer.controls().custom(control, input);
-        }
-        focused = null;
-        pressed = null;
-        captured = null;
-        pressedChoiceDirection = 0;
-    }
-
-    private void releaseUnavailableOwnership() {
-        if ((pressed != null && !enabled(pressed)) || (captured != null && !enabled(captured))) {
-            consumedGesture = true;
-            pressed = null;
-            captured = null;
-            pressedChoiceDirection = 0;
-        }
-        if (focused != null && !enabled(focused)) {
-            blurFocused();
-        }
-    }
-
-    private boolean moveFocus(int direction) {
-        List<ContainerGuiDefinition.ControlElement> available = new ArrayList<ContainerGuiDefinition.ControlElement>();
-        for (ContainerGuiDefinition.Element value : definition.elements) {
-            if (value instanceof ContainerGuiDefinition.ControlElement) {
-                ContainerGuiDefinition.ControlElement element = (ContainerGuiDefinition.ControlElement) value;
-                if (element.focusable && enabled(element)) {
-                    available.add(element);
-                }
-            }
-        }
-        if (available.isEmpty()) {
-            return false;
-        }
-        int index = available.indexOf(focused);
-        blurFocused();
-        index = direction < 0
-                ? (index <= 0 ? available.size() - 1 : index - 1)
-                : (index < 0 || index == available.size() - 1 ? 0 : index + 1);
-        focus(available.get(index));
-        return true;
-    }
-
-    private double pointerDelta(ContainerGuiDefinition.Element element, int delta, boolean horizontal) {
-        GuiGeometry geometry = presentation.geometry(element);
-        double scale = horizontal ? geometry.scaleX : geometry.scaleY;
-        return scale == 0 ? 0 : delta / scale;
-    }
-
-    private void drag(ContainerGuiDefinition.ControlElement element, int mouseX, int mouseY) {
-        ContainerControlDefinition control = control(element);
-        LuaTable input = pointerInput("mouse", element, mouseX, mouseY, 0, "drag");
-        input.set("deltaX", LuaValue.valueOf(pointerDelta(element, mouseX - lastPointerX, true)));
-        input.set("deltaY", LuaValue.valueOf(pointerDelta(element, mouseY - lastPointerY, false)));
-        lastPointerX = mouseX;
-        lastPointerY = mouseY;
-        if (control.type == GuiControlType.NUMBER) {
-            changeSlider(element, mouseX, mouseY, input);
-        } else if (control.type == GuiControlType.CUSTOM) {
-            luaContainer.controls().custom(control, input);
-        }
-    }
-
-    private void changeSlider(ContainerGuiDefinition.ControlElement element, int mouseX, int mouseY, LuaTable input) {
-        double ratio = "vertical".equals(element.orientation)
-                ? 1.0D - localY(element, mouseY) / Math.max(1, elementHeight(element) - 1)
-                : localX(element, mouseX) / Math.max(1, elementWidth(element) - 1);
-        ratio = Math.max(0.0D, Math.min(1.0D, ratio));
-        ContainerControlDefinition control = control(element);
-        recordResult(control, luaContainer.controls().changeNumber(control,
-                control.minimum + ratio * (control.maximum - control.minimum), input));
-    }
-
-    private boolean adjustNumber(ContainerControlDefinition control, int keyCode, LuaTable input) {
-        double direction;
-        double amount;
-        if (keyCode == Keyboard.KEY_LEFT || keyCode == Keyboard.KEY_DOWN) {
-            direction = -1.0D;
-            amount = control.step;
-        } else if (keyCode == Keyboard.KEY_RIGHT || keyCode == Keyboard.KEY_UP) {
-            direction = 1.0D;
-            amount = control.step;
-        } else if (keyCode == Keyboard.KEY_PRIOR) {
-            direction = 1.0D;
-            amount = control.pageStep;
-        } else if (keyCode == Keyboard.KEY_NEXT) {
-            direction = -1.0D;
-            amount = control.pageStep;
-        } else {
-            return false;
-        }
-        double current = ((Number) luaContainer.controls().value(control)).doubleValue();
-        recordResult(control, luaContainer.controls().changeNumber(control, current + direction * amount, input));
-        return true;
-    }
-
-    private boolean editText(ContainerControlDefinition control, char typedChar, int keyCode, LuaTable input) {
-        String value = draft(control);
-        if (keyCode == Keyboard.KEY_ESCAPE) {
-            Keyboard.enableRepeatEvents(false);
-            drafts.remove(control.name);
-            draftOrigins.remove(control.name);
-            focused = null;
-            selectionAnchor = -1;
-            return true;
-        }
-        if (keyCode == Keyboard.KEY_RETURN || keyCode == Keyboard.KEY_NUMPADENTER) {
-            if (recordResult(control, luaContainer.controls().editText(control, value, input, true))) {
-                String committed = String.valueOf(luaContainer.controls().value(control));
-                drafts.put(control.name, committed);
-                draftOrigins.put(control.name, committed);
-                caret = Math.min(caret, committed.length());
-                selectionAnchor = -1;
-            }
-            return true;
-        }
-        if (keyCode == Keyboard.KEY_LEFT) {
-            updateSelectionAnchor();
-            caret = Math.max(0, caret - 1);
-            return true;
-        }
-        if (keyCode == Keyboard.KEY_RIGHT) {
-            updateSelectionAnchor();
-            caret = Math.min(value.length(), caret + 1);
-            return true;
-        }
-        if (keyCode == Keyboard.KEY_HOME) {
-            updateSelectionAnchor();
-            caret = 0;
-            return true;
-        }
-        if (keyCode == Keyboard.KEY_END) {
-            updateSelectionAnchor();
-            caret = value.length();
-            return true;
-        }
-        String changed = null;
-        if (isControlDown() && keyCode == Keyboard.KEY_A) {
-            selectionAnchor = 0;
-            caret = value.length();
-            return true;
-        } else if (isControlDown() && keyCode == Keyboard.KEY_C && hasSelection()) {
-            copyToClipboard(value.substring(selectionStart(), selectionEnd()));
-            return true;
-        } else if (isControlDown() && keyCode == Keyboard.KEY_X && hasSelection()) {
-            copyToClipboard(value.substring(selectionStart(), selectionEnd()));
-            changed = replaceSelection(value, "", control.maximumLength);
-        } else if (keyCode == Keyboard.KEY_BACK && hasSelection()) {
-            changed = replaceSelection(value, "", control.maximumLength);
-        } else if (keyCode == Keyboard.KEY_DELETE && hasSelection()) {
-            changed = replaceSelection(value, "", control.maximumLength);
-        } else if (keyCode == Keyboard.KEY_BACK && caret > 0) {
-            changed = value.substring(0, caret - 1) + value.substring(caret);
-            caret--;
-        } else if (keyCode == Keyboard.KEY_DELETE && caret < value.length()) {
-            changed = value.substring(0, caret) + value.substring(caret + 1);
-        } else if (isControlDown() && keyCode == Keyboard.KEY_V) {
-            String clipboard = getClipboardString();
-            if (clipboard != null) {
-                changed = replaceSelection(value, printable(clipboard), control.maximumLength);
-            }
-        } else if (typedChar >= 32 && typedChar != 127
-                && value.length() - (hasSelection() ? selectionEnd() - selectionStart() : 0) < control.maximumLength) {
-            changed = replaceSelection(value, String.valueOf(typedChar), control.maximumLength);
-        }
-        if (changed == null) {
-            return false;
-        }
-        if (changed.length() > control.maximumLength) {
-            changed = changed.substring(0, control.maximumLength);
-        }
-        caret = Math.min(caret, changed.length());
-        if (!recordResult(control, luaContainer.controls().editText(control, changed, input, false))) {
-            return true;
-        }
-        drafts.put(control.name, changed);
-        selectionAnchor = -1;
-        return true;
-    }
-
-    private static void copyToClipboard(String value) {
-        try {
-            Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(value), null);
-        } catch (RuntimeException ignored) {
-            // Clipboard ownership can be temporarily unavailable. Text editing remains
-            // usable.
-        }
-    }
-
-    private void updateSelectionAnchor() {
-        if (isShiftDown()) {
-            if (selectionAnchor < 0) {
-                selectionAnchor = caret;
-            }
-        } else {
-            selectionAnchor = -1;
-        }
-    }
-
-    private boolean hasSelection() {
-        return selectionAnchor >= 0 && selectionAnchor != caret;
-    }
-
-    private int selectionStart() {
-        return Math.min(selectionAnchor, caret);
-    }
-
-    private int selectionEnd() {
-        return Math.max(selectionAnchor, caret);
-    }
-
-    private String replaceSelection(String value, String insertion, int maximumLength) {
-        int start = hasSelection() ? selectionStart() : caret;
-        int end = hasSelection() ? selectionEnd() : caret;
-        GuiTextEditOperations.Result result = GuiTextEditOperations.replace(value, start, end, insertion,
-                maximumLength);
-        caret = result.caret;
-        selectionAnchor = -1;
-        return result.text;
-    }
-
-    private String draft(ContainerControlDefinition control) {
-        String value = drafts.get(control.name);
-        return value == null ? String.valueOf(luaContainer.controls().value(control)) : value;
-    }
-
-    private void placeTextCaret(ContainerGuiDefinition.ControlElement element, int mouseX) {
-        ContainerControlDefinition control = control(element);
-        String value = draft(control);
-        double localX = Math.max(0, localX(element, mouseX) - 4);
-        int best = textOffset;
-        for (int index = textOffset; index <= value.length(); index++) {
-            int widthToIndex = fontRenderer.getStringWidth(value.substring(textOffset, index));
-            if (widthToIndex > localX) {
-                break;
-            }
-            best = index;
-        }
-        caret = best;
-        selectionAnchor = -1;
-    }
-
-    private void keepCaretVisible(String value, int availableWidth) {
-        textOffset = Math.max(0, Math.min(textOffset, caret));
-        while (textOffset < caret && fontRenderer.getStringWidth(value.substring(textOffset, caret)) > availableWidth) {
-            textOffset++;
-        }
-        while (textOffset > 0
-                && fontRenderer.getStringWidth(value.substring(textOffset - 1, caret)) <= availableWidth) {
-            textOffset--;
-        }
     }
 
     private int visibleTextEnd(String value, int start, int availableWidth) {
@@ -1210,34 +780,9 @@ public final class GuiLuaContainer extends GuiContainer {
         return end;
     }
 
-    private void playClickSound() {
-        mc.sndManager.playSoundFX("random.click", 1.0F, 1.0F);
-    }
-
-    private boolean recordResult(ContainerControlDefinition control, boolean accepted) {
-        if (accepted) {
-            invalidUntil.remove(control.name);
-        } else {
-            invalidUntil.put(control.name, Long.valueOf(System.currentTimeMillis() + 750L));
-        }
-        return accepted;
-    }
-
-    private boolean invalid(ContainerGuiDefinition.ControlElement element) {
-        Long until = invalidUntil.get(element.control);
-        if (until == null) {
-            return false;
-        }
-        if (until.longValue() > System.currentTimeMillis()) {
-            return true;
-        }
-        invalidUntil.remove(element.control);
-        return false;
-    }
-
     private String controlText(ContainerGuiDefinition.ControlElement element, ContainerControlDefinition control) {
         if (control.type == GuiControlType.TEXT) {
-            return draft(control);
+            return legacyViews.text(element);
         }
         if (presentation.node(element).get("text") != null) {
             return String.valueOf(presentation.node(element).get("text"));
@@ -1246,48 +791,6 @@ public final class GuiLuaContainer extends GuiContainer {
             return String.valueOf(luaContainer.controls().value(control));
         }
         return null;
-    }
-
-    private LuaTable pointerInput(String source, ContainerGuiDefinition.ControlElement element, int mouseX, int mouseY,
-            int button, String phase) {
-        LuaTable input = ContainerControlRuntime.input(source);
-        input.set("phase", phase);
-        input.set("button", button);
-        input.set("x", LuaValue.valueOf(Math.max(0, Math.min(elementWidth(element) - 1, localX(element, mouseX)))));
-        input.set("y", LuaValue.valueOf(Math.max(0, Math.min(elementHeight(element) - 1, localY(element, mouseY)))));
-        input.set("deltaX", 0);
-        input.set("deltaY", 0);
-        input.set("shift", LuaValue.valueOf(isShiftDown()));
-        input.set("control", LuaValue.valueOf(isControlDown()));
-        return input;
-    }
-
-    private LuaTable keyInput(ContainerGuiDefinition.ControlElement element, char character, int keyCode) {
-        LuaTable input = ContainerControlRuntime.input("keyboard");
-        input.set("key", keyCode);
-        input.set("character", String.valueOf(character));
-        input.set("shift", LuaValue.valueOf(isShiftDown()));
-        input.set("control", LuaValue.valueOf(isControlDown()));
-        return input;
-    }
-
-    private static boolean isShiftDown() {
-        return Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) || Keyboard.isKeyDown(Keyboard.KEY_RSHIFT);
-    }
-
-    private static boolean isControlDown() {
-        return Keyboard.isKeyDown(Keyboard.KEY_LCONTROL) || Keyboard.isKeyDown(Keyboard.KEY_RCONTROL);
-    }
-
-    private static String printable(String value) {
-        StringBuilder result = new StringBuilder();
-        for (int index = 0; index < value.length(); index++) {
-            char character = value.charAt(index);
-            if (character >= 32 && character != 127) {
-                result.append(character);
-            }
-        }
-        return result.toString();
     }
 
     private void drawTexture(ContainerGuiDefinition.Texture texture, int x, int y, int width, int height) {

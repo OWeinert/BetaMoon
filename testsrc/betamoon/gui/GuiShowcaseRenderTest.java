@@ -21,6 +21,7 @@ import betamoon.gui.loading.GuiLoadingStatus;
 import betamoon.gui.loading.GuiLoadingRenderChecks;
 import betamoon.gui.widget.GuiButton;
 import betamoon.gui.widget.GuiCheckboxControl;
+import betamoon.gui.container.GuiLegacyContainerViews;
 import betamoon.gui.widget.GuiDropdownButton;
 import betamoon.gui.widget.GuiDropdownMenu;
 import betamoon.gui.widget.GuiMinecraftButton;
@@ -234,6 +235,7 @@ public final class GuiShowcaseRenderTest {
             verifyVisualSlotFrames(minecraft, font, definition, entity, output);
             verifyExpansionPanels(minecraft, font, output);
             verifyAnimatedPresentation(minecraft, font, output);
+            GuiLegacyContainerRenderChecks.run(minecraft);
             setupFrame();
             GL11.glEnable(GL11.GL_LIGHTING);
             GL11.glEnable(GL11.GL_DEPTH_TEST);
@@ -583,11 +585,11 @@ public final class GuiShowcaseRenderTest {
         keyboardCreated.setBoolean(null, true);
         try {
             Method mouse = GuiLuaContainer.class.getDeclaredMethod("mouseClicked", int.class, int.class, int.class);
-            Method drag = GuiLuaContainer.class.getDeclaredMethod("drag", ContainerGuiDefinition.ControlElement.class,
-                    int.class, int.class);
+            Field sceneField = GuiLuaContainer.class.getDeclaredField("scene");
+            sceneField.setAccessible(true);
+            GuiScene containerScene = (GuiScene) sceneField.get(gui);
             Method release = GuiLuaContainer.class.getDeclaredMethod("mouseMovedOrUp", int.class, int.class, int.class);
             mouse.setAccessible(true);
-            drag.setAccessible(true);
             release.setAccessible(true);
             ContainerGuiDefinition.ControlElement control = (ContainerGuiDefinition.ControlElement) runtime
                     .element("drag").definition.element;
@@ -600,10 +602,10 @@ public final class GuiShowcaseRenderTest {
             runtime.update();
             time[0] = .45;
             updatePresentation(gui);
-            drag.invoke(gui, control, pointerX, pointerY);
+            containerScene.mouseDragged(pointerX, pointerY, true);
             require(lua.get("dx").todouble() == 0 && lua.get("dy").todouble() == 0,
                     "Control animation generated synthetic pointer motion");
-            drag.invoke(gui, control, pointerX + 6, pointerY);
+            containerScene.mouseDragged(pointerX + 6, pointerY, true);
             require(lua.get("dx").todouble() == 3, "Captured pointer deltas were not transformed to local units");
             container.controls().session().set("hidden", true);
             release.invoke(gui, 318, 228, 0);
@@ -786,17 +788,19 @@ public final class GuiShowcaseRenderTest {
         }
         require(textBox != null, "Showcase text box is missing");
 
-        Method focus = GuiLuaContainer.class.getDeclaredMethod("focus", ContainerGuiDefinition.ControlElement.class);
-        Method blur = GuiLuaContainer.class.getDeclaredMethod("blurFocused");
-        focus.setAccessible(true);
-        blur.setAccessible(true);
+        Field sceneField = GuiLuaContainer.class.getDeclaredField("scene");
+        Field viewsField = GuiLuaContainer.class.getDeclaredField("legacyViews");
+        sceneField.setAccessible(true);
+        viewsField.setAccessible(true);
+        GuiScene containerScene = (GuiScene) sceneField.get(gui);
+        GuiLegacyContainerViews views = (GuiLegacyContainerViews) viewsField.get(gui);
         Keyboard.enableRepeatEvents(false);
-        focus.invoke(gui, textBox);
+        containerScene.getContext().requestFocus(views.element(textBox));
         require(Keyboard.areRepeatEventsEnabled(), "Focused container text boxes must enable held-key repeats");
-        blur.invoke(gui);
+        containerScene.cancelInput(views.element(textBox));
         require(!Keyboard.areRepeatEventsEnabled(), "Leaving a container text box must disable held-key repeats");
 
-        focus.invoke(gui, textBox);
+        containerScene.getContext().requestFocus(views.element(textBox));
         gui.onGuiClosed();
         require(!Keyboard.areRepeatEventsEnabled(), "Closing a container GUI must disable held-key repeats");
     }
