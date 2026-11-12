@@ -88,6 +88,7 @@
 
 ### Fixed
 
+- Preserve legacy container callback writes and native close cleanup without stale-screen input exceptions.
 - Keep dropdown/context-menu pointer highlights on enabled popup rows and suppress hover behind popup layers.
 - Unified native container input and lifetime invalidation for legacy and retained controls, including key release.
 - Release failed attached documents and cancel their queued actions while preserving the native container backend.

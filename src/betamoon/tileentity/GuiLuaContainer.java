@@ -240,11 +240,9 @@ public final class GuiLuaContainer extends GuiContainer {
         if (closed) {
             return;
         }
-        if (retainedDocument == null) {
-            event.run();
-        } else {
-            retainedDocument.input(event);
-        }
+        // This Java route also owns legacy domain callbacks and native screen closure.
+        // Retained Lua handlers enter their own read-only scopes during scene dispatch.
+        event.run();
     }
 
     private void paint(Runnable render) {
@@ -382,6 +380,10 @@ public final class GuiLuaContainer extends GuiContainer {
                 if (keyCode > 0) {
                     ClientInputRuntime.router().claimGuiKey(keyCode, this);
                 }
+            } else if (keyCode == Keyboard.KEY_ESCAPE || keyCode == mc.gameSettings.keyBindInventory.keyCode) {
+                // Close while this screen still owns the backend. EntityPlayer.closeScreen()
+                // switches inventories before onGuiClosed(), making a normal close look stale.
+                mc.displayGuiScreen(null);
             } else {
                 super.keyTyped(typedChar, keyCode);
             }

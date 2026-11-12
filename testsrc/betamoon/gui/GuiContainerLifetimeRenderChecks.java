@@ -8,6 +8,7 @@ import betamoon.gui.inventory.GuiInventoryNativeTest;
 import betamoon.gui.screen.GuiClientUiRuntime;
 import betamoon.gui.screen.GuiScreenActivation;
 import betamoon.luaapi.tileentity.TileEntityApi;
+import betamoon.luamodloader.LuaScriptErrors;
 import betamoon.luamodloader.ScriptResourceTracker;
 import betamoon.tileentity.ContainerGuiDefinition;
 import betamoon.tileentity.GuiLuaContainer;
@@ -50,6 +51,9 @@ final class GuiContainerLifetimeRenderChecks {
         client.playerController = controller;
         FixtureWorld world = new FixtureWorld();
         EntityPlayerSP player = GuiInventoryNativeTest.player(world);
+        Field playerClient = EntityPlayerSP.class.getDeclaredField("mc");
+        playerClient.setAccessible(true);
+        playerClient.set(player, client);
         player.username = "Container lifetime fixture";
         client.theWorld = world;
         client.thePlayer = player;
@@ -64,19 +68,24 @@ final class GuiContainerLifetimeRenderChecks {
             ContainerGuiDefinition definition;
             try {
                 definition = ((TileEntityApi.GuiHandle) lua.load("local t=betamoon.tileEntities:add{name='lifetime',"
+                        + "data={writes={type='integer',default=0,sync=true}},"
                         + "inventory={slots={input={index=0}}}};"
                         + "local c=betamoon.containers:add{name='lifetime',tileEntity=t,"
                         + "slots={{slot='input',x=150,y=55}},playerInventory={x=8,y=84},"
                         + "state={label={type='string',default='old',maxLength=20}},controls={"
                         + "edit={type='text',bind={state='label'},maxLength=20,"
-                        + "onCommit=function(ctx,value) commits=(commits or 0)+1;committed=value end}},"
+                        + "onCommit=function(ctx,value) commits=(commits or 0)+1;committed=value;"
+                        + "ctx.data:set('writes',ctx.data:get('writes')+1) end},"
+                        + "pulse={type='action',onActivate=function(ctx)ctx.data:set('writes',ctx.data:get('writes')+1)end}},"
                         + "onClose=function() closes=(closes or 0)+1 end};"
                         + "return betamoon.containerGuis:add{name='lifetime',container=c,events={'close'},"
                         + "onEvent=function() legacyClosed=(legacyClosed or 0)+1 end,"
-                        + "elements={{type='text_box',control='edit',x=8,y=40,width=100}},"
+                        + "elements={{type='text_box',control='edit',x=8,y=40,width=100},"
+                        + "{type='button',control='pulse',x=8,y=8,width=40}},"
                         + "state={clicks={type='integer',default=0}},root={type='overlay',width=176,height=166,anchorX=0,anchorY=0,children={{type='button',id='launch',"
                         + "width=120,height=20,anchorX=0,anchorY=0,x=8,y=20,text='Launch',"
-                        + "on={activate=function(ctx)ctx.state:set('clicks',ctx.state:get('clicks')+1)end}}}}}")
+                        + "on={activate=function(ctx)ctx.state:set('clicks',ctx.state:get('clicks')+1);"
+                        + "retainedWriteDenied=not pcall(function()ctx.world:setTime(999)end) end}}}}}")
                         .call()).definition;
             } finally {
                 GuiContainerDocumentRenderChecks.owner(null);
@@ -95,15 +104,36 @@ final class GuiContainerLifetimeRenderChecks {
             keys.send(screen, Keyboard.KEY_RETURN, '\0', false);
             keys.send(screen, Keyboard.KEY_RETURN, '\0', false);
             require(clicks(activation) == 2, "Native container did not forward exactly one retained key release");
+            require(lua.get("retainedWriteDenied").toboolean(), "Retained input gained direct gameplay authority");
+            GuiContainerDocumentRenderChecks.click(screen, 92, 50);
+            require(tile.getDataInt("writes") == 1, "Legacy control callback lost gameplay mutation authority");
             edit(screen, keys);
             player.inventory.setItemStack(new ItemStack(Block.stone.blockID, 2, 0));
             screen.onGuiClosed();
             screen.onGuiClosed();
             require(lua.get("commits").toint() == 1 && lua.get("committed").tojstring().equals("xold")
                     && lua.get("closes").toint() == 1 && lua.get("legacyClosed").toint() == 1 && controller.closed == 1
-                    && player.inventory.getItemStack() == null,
+                    && player.inventory.getItemStack() == null && tile.getDataInt("writes") == 2,
                     "Normal native close changed legacy commit/callback/cursor cleanup or was not idempotent");
             client.currentScreen = null;
+
+            for (int closeKey : new int[]{Keyboard.KEY_ESCAPE, client.gameSettings.keyBindInventory.keyCode}) {
+                lua.load("commits=0;closes=0;legacyClosed=0").call();
+                screen = open(client, tile, definition, 93);
+                GuiScreenActivation closing = GuiContainerDocumentRenderChecks.activation(screen);
+                GuiContainerDocumentRenderChecks.click(screen, 84, 61);
+                int writes = tile.getDataInt("writes");
+                int closedWindows = controller.closed;
+                keys.send(screen, closeKey, '\0', true);
+                keys.send(screen, closeKey, '\0', false);
+                require(client.currentScreen == null && closing.terminal()
+                        && !((LuaContainer) screen.inventorySlots).controls().isActive()
+                        && lua.get("closes").toint() == 1 && lua.get("legacyClosed").toint() == 1
+                        && lua.get("commits").toint() == 0 && tile.getDataInt("writes") == writes
+                        && controller.closed == closedWindows + 1,
+                        "Native close key crashed, retained a lifetime or ran duplicate callbacks: " + closeKey);
+            }
+            require(!LuaScriptErrors.hasErrorFor(OWNER, OWNER), "Container input/close emitted a callback error");
 
             for (String change : new String[]{"player", "world", "unloaded_tile", "window", "slots", "death",
                     "distance"}) {
@@ -173,7 +203,8 @@ final class GuiContainerLifetimeRenderChecks {
         }
         require(GuiResourceBudget.allocated() == capacity, "Container lifetime fixture retained native capacity");
         System.out.println("Container lifetime/event checks passed: actual key-up activation, GUI key claims, normal "
-                + "legacy close/cursor semantics, seven stale native roots, loaded-only checks and replacement inventory safety.");
+                + "legacy writes, isolated retained callbacks, native close keys/cursor semantics, seven stale native roots, "
+                + "loaded-only checks and replacement inventory safety.");
     }
 
     private static GuiLuaContainer open(Client client, LuaTileEntity tile, ContainerGuiDefinition definition,

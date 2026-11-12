@@ -88,14 +88,6 @@ final class GuiContainerDocument implements GuiAttachedDocument.Host, GuiContain
         }
     }
 
-    void input(Runnable input) {
-        if (document.usable()) {
-            document.page().inputAttached(input);
-        } else {
-            input.run();
-        }
-    }
-
     void paint(Runnable paint) {
         if (document.usable()) {
             document.page().sampleAttached();
