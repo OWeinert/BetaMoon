@@ -48,8 +48,10 @@ public final class GuiCheckboxControl extends GuiElement {
             GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_CURRENT_BIT | GL11.GL_COLOR_BUFFER_BIT
                     | GL11.GL_DEPTH_BUFFER_BIT | GL11.GL_TEXTURE_BIT);
             try {
-                new GuiCheckbox(0, getLeft(), getTop() + (getHeight() - 20) / 2, selected, isEnabled())
-                        .drawButton(context.getMinecraft(), context.getMouseX(), context.getMouseY());
+                boolean hovered = isHovered(context);
+                new GuiCheckbox(0, getLeft(), getTop() + (getHeight() - 20) / 2, selected, isEnabled()).drawButton(
+                        context.getMinecraft(), hovered ? context.getMouseX() : Integer.MIN_VALUE,
+                        hovered ? context.getMouseY() : Integer.MIN_VALUE);
             } finally {
                 GL11.glPopAttrib();
             }

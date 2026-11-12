@@ -42,6 +42,11 @@ public final class GuiScene {
     private GuiElement handledTarget;
     private GuiFrameSnapshot displayedFrame;
     private GuiFrameSnapshot renderingFrame;
+    private GuiFrameSnapshot hoverFrame;
+    private GuiElement hoverScope;
+    private int hoverX;
+    private int hoverY;
+    private List<GuiElement> hoverPath = Collections.emptyList();
     private long frameRevision;
     private boolean frameDirty = true;
     private final List<GuiLayer> layers = new ArrayList<>();
@@ -63,6 +68,7 @@ public final class GuiScene {
     public void runRegionalInput(List<GuiElement> regions, Runnable input) {
         List<GuiElement> previous = inputRegions;
         inputRegions = new ArrayList<>(regions);
+        hoverFrame = null;
         try {
             if (focusedElement != null && !inputAllowed(focusedElement)) {
                 changeFocus(null);
@@ -73,6 +79,7 @@ public final class GuiScene {
             input.run();
         } finally {
             inputRegions = previous;
+            hoverFrame = null;
         }
     }
 
@@ -414,6 +421,7 @@ public final class GuiScene {
             if (!replay) {
                 frameDirty = false;
             }
+            hoverFrame = null;
             root.render(context);
             if (pass != PaintPass.CONTENT && !tooltipLines.isEmpty()) {
                 renderer.drawTooltip(tooltipLines, mouseX, mouseY);
@@ -647,6 +655,33 @@ public final class GuiScene {
         return focusedElement;
     }
 
+    /**
+     * Hover uses the same displayed transforms, clips and layer ownership as
+     * pointer input.
+     */
+    public boolean isHovered(GuiElement element, int mouseX, int mouseY) {
+        GuiFrameSnapshot frame = renderingFrame == null ? displayedFrame : renderingFrame;
+        GuiFrameSnapshot.Node node = frame == null ? null : frame.node(element);
+        GuiElement scope = modalScope();
+        if (node == null || !node.eligible() || !node.bounds.contains(mouseX, mouseY)
+                || !node.hitClip.contains(mouseX, mouseY) || !inputAllowed(element)
+                || !GuiFrameSnapshot.inside(element, scope)) {
+            return false;
+        }
+        // Pointer-transparent decorations can still expose hover styling/observations.
+        if (!node.pointerTarget()) {
+            return true;
+        }
+        if (hoverFrame != frame || hoverScope != scope || hoverX != mouseX || hoverY != mouseY) {
+            hoverFrame = frame;
+            hoverScope = scope;
+            hoverX = mouseX;
+            hoverY = mouseY;
+            hoverPath = frame.hitPath(mouseX, mouseY, scope, this::inputAllowed);
+        }
+        return hoverPath.contains(element);
+    }
+
     public GuiFrameSnapshot getDisplayedFrame() {
         return displayedFrame;
     }
@@ -746,6 +781,9 @@ public final class GuiScene {
 
     void requestFrame() {
         frameDirty = true;
+        hoverFrame = null;
+        hoverScope = null;
+        hoverPath = Collections.emptyList();
     }
 
     boolean deferMutation(Runnable mutation) {

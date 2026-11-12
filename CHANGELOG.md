@@ -88,6 +88,7 @@
 
 ### Fixed
 
+- Keep dropdown/context-menu pointer highlights on enabled popup rows and suppress hover behind popup layers.
 - Unified native container input and lifetime invalidation for legacy and retained controls, including key release.
 - Release failed attached documents and cancel their queued actions while preserving the native container backend.
 - Enforced shared UI action admission and dispatch budgets across screens, native attachments, HUDs and notifications.

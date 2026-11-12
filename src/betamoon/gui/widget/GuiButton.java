@@ -70,7 +70,9 @@ public class GuiButton extends GuiElement {
         }
         updateNativeBounds();
         nativeButton.enabled = isEnabled();
-        nativeButton.drawButton(minecraft, context.getMouseX(), context.getMouseY());
+        boolean hovered = isHovered(context);
+        nativeButton.drawButton(minecraft, hovered ? context.getMouseX() : Integer.MIN_VALUE,
+                hovered ? context.getMouseY() : Integer.MIN_VALUE);
         if (isFocused()) {
             int color = 0xFFFFFFA0;
             context.getRenderer().drawHorizontalLine(getLeft(), getRight(), getTop(), color);

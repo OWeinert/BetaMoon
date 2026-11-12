@@ -68,6 +68,10 @@ public final class GuiContext {
         return currentNode == null ? mouseY : (int) Math.floor(currentNode.transform.localY(mouseY));
     }
 
+    public boolean isHovered(GuiElement element) {
+        return scene.isHovered(element, mouseX, mouseY);
+    }
+
     public float getPartialTicks() {
         return partialTicks;
     }

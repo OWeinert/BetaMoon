@@ -246,11 +246,15 @@ public final class GuiSelectView extends GuiRadioView {
             int bottom = (int) context.getElementTransform().localY(context.getElementClip().bottom);
             int first = Math.max(0, (top - menu.getTop()) / 20);
             int last = Math.min(menu.options().options.size(), (bottom - menu.getTop() + 19) / 20);
+            String hovered = menu.hoveredKey(context);
             for (int i = first; i < last; i++) {
                 GuiSelectionOptions.Option option = menu.options().options.get(i);
                 Rect bounds = menu.optionBounds(i);
                 if (option.key.equals(menu.focusKey())) {
                     context.getRenderer().drawRect(bounds, style.number("selection", 0x8855AAFF));
+                }
+                if (option.key.equals(hovered)) {
+                    context.getRenderer().drawRect(bounds, style.number("accent", 0xFF4477AA));
                 }
                 style.font().draw(context, option.label, bounds.getLeft() + 4, bounds.getTop() + 5,
                         option.enabled ? style.number("foreground", 0xFFE0E0E0) : 0xFF777777, false);

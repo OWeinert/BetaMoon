@@ -318,6 +318,14 @@ public class GuiRadioView extends GuiStyledView {
         return a != null && a.x == b.x && a.y == b.y && a.scaleX == b.scaleX && a.scaleY == b.scaleY;
     }
 
+    public String hoveredKey(GuiContext context) {
+        if (!isHovered(context)) {
+            return "";
+        }
+        String key = hit(context.getMouseX(), context.getMouseY());
+        return key == null ? "" : key;
+    }
+
     private String hit(int x, int y) {
         for (int i = 0; i < options.options.size(); i++) {
             GuiSelectionOptions.Option option = options.options.get(i);

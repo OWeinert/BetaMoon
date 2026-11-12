@@ -157,6 +157,10 @@ public final class GuiFrameSnapshot {
             pointerTarget = element.hitTestSelf();
         }
 
+        boolean pointerTarget() {
+            return pointerTarget;
+        }
+
         boolean eligible() {
             return element.attachmentRevision() == attachment && element.inputLifetimeActive() && element.isVisible()
                     && element.isEnabled() && element.getOpacity() > 0 && opacity > 0

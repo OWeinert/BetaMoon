@@ -6,6 +6,7 @@ import betamoon.gui.framework.GuiElement;
 import betamoon.gui.framework.GuiInputEvent;
 import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.framework.GuiScene;
+import betamoon.gui.framework.GuiFrameSnapshot;
 import betamoon.gui.framework.GuiSharedControlsTest;
 import betamoon.gui.framework.GuiTextureCache;
 import betamoon.gui.presentation.GuiPresentationTree;
@@ -18,6 +19,7 @@ import betamoon.gui.style.GuiStyleSheet;
 import betamoon.gui.style.GuiVisualTemplate;
 import betamoon.gui.widget.GuiStyledView;
 import betamoon.gui.widget.GuiRadioView;
+import betamoon.gui.widget.GuiSelectView;
 import betamoon.gui.widget.GuiNumberBoxView;
 import betamoon.gui.widget.GuiTextAreaView;
 import betamoon.gui.widget.GuiBuiltInViews;
@@ -80,8 +82,113 @@ final class GuiSharedControlRenderChecks {
         multilineTextareas(minecraft, font, output);
         numericEntries(minecraft, font, output);
         selectionsAndStatus(minecraft, font, output);
+        popupHover(minecraft, font, output);
         bitmapAtlas(minecraft, font, output);
         phaseSafeOwnershipLoss(minecraft, font);
+    }
+
+    private static void popupHover(Minecraft minecraft, FontRenderer font, File output) throws Exception {
+        for (String kind : Arrays.asList("dropdown", "contextmenu")) {
+            for (boolean scrolled : Arrays.asList(false, true)) {
+                AtomicInteger changes = new AtomicInteger();
+                GuiStyledView behind = GuiBuiltInViews.createControl("button", GuiStyleSheet.MINIMAL,
+                        GuiDefaultTemplate.INSTANCE, (event, value) -> true)
+                        .configure(Collections.singletonMap("text", "Behind"));
+                List<Map<String, Object>> choices = new ArrayList<>();
+                for (int i = 0; i < (scrolled ? 12 : 3); i++) {
+                    Map<String, Object> option = new LinkedHashMap<>();
+                    option.put("key", "item" + i);
+                    option.put("enabled", i != 1);
+                    choices.add(option);
+                }
+                Map<String, Object> values = new LinkedHashMap<>();
+                values.put("options", choices);
+                values.put("selectedKey", "item0");
+                values.put("translateX", 12);
+                values.put("scaleX", 1.1);
+                GuiSelectView select = (GuiSelectView) GuiBuiltInViews
+                        .createControl(kind, GuiStyleSheet.MINIMAL, GuiDefaultTemplate.INSTANCE, (event, value) -> {
+                            if (event.equals("change")) {
+                                changes.incrementAndGet();
+                            }
+                            return true;
+                        }).configure(values);
+                GuiContainer content = new GuiContainer() {
+                    @Override
+                    protected void arrangeChildren(GuiContext context) {
+                        behind.arrange(context, getBounds());
+                        select.arrange(context, Rect.fromPositionAndSize(40, 20, 140, 20));
+                    }
+                };
+                content.add(behind);
+                content.add(select);
+                GuiScene scene = new GuiScene();
+                scene.setContent(content);
+                scene.updateEnvironment(minecraft, font, 320, 240, 320, 240);
+                scene.prepare();
+                GuiShowcaseRenderTest.setupFrame();
+                scene.render(0, 0, 0);
+                scene.getContext().requestFocus(select);
+                scene.keyTyped('\r', Keyboard.KEY_RETURN, false);
+                scene.prepare();
+                GuiShowcaseRenderTest.setupFrame();
+                scene.render(-1, -1, 0);
+                GuiRadioView menu = (GuiRadioView) scene.getFocusedElement();
+                if (scrolled) {
+                    Rect visible = scene.getContext().visibleBounds(menu);
+                    scene.mouseScrolled(visible.getLeft() + 6, visible.getTop() + 6, -120, false);
+                    scene.prepare();
+                    GuiShowcaseRenderTest.setupFrame();
+                    scene.render(-1, -1, 0);
+                }
+                int chosen = -1;
+                int x = 0;
+                int y = 0;
+                for (int i = 2; i < choices.size(); i++) {
+                    Rect bounds = menu.optionBounds(i);
+                    GuiFrameSnapshot.Node node = scene.getDisplayedFrame().node(menu);
+                    int candidateX = (int) node.transform.mapX(bounds.getRight() - 8);
+                    int candidateY = (int) node.transform.mapY(bounds.getTop() + 3);
+                    if (node.hitClip.contains(candidateX, candidateY)) {
+                        chosen = i;
+                        x = candidateX;
+                        y = candidateY;
+                    }
+                }
+                require(chosen >= 2, "Popup did not expose an enabled nonselected row");
+                int normalPixel = GuiShowcaseRenderTest.capture(320, 240).getRGB(x, y);
+                GuiShowcaseRenderTest.setupFrame();
+                scene.renderContent(x, y, 0);
+                require(!behind.interaction("hovered"), "Popup hover leaked into the content paint pass");
+                scene.renderLayers();
+                int hoveredPixel = GuiShowcaseRenderTest.capture(320, 240).getRGB(x, y);
+                require(menu.interaction("hovered") && hoveredPixel != normalPixel,
+                        "Dropdown/context popup row did not paint pointer hover, including after scrolling");
+                require(select.selectedKey().equals("item0") && changes.get() == 0,
+                        "Hovering a popup row committed selection");
+                ImageIO.write(GuiShowcaseRenderTest.capture(320, 240), "png",
+                        new File(output, kind + (scrolled ? "-scrolled-hover.png" : "-hover.png")));
+                if (!scrolled) {
+                    Rect disabled = menu.optionBounds(1);
+                    GuiFrameSnapshot.Node node = scene.getDisplayedFrame().node(menu);
+                    int disabledX = (int) node.transform.mapX(disabled.getRight() - 8);
+                    int disabledY = (int) node.transform.mapY(disabled.getTop() + 3);
+                    int disabledPixel = GuiShowcaseRenderTest.capture(320, 240).getRGB(disabledX, disabledY);
+                    GuiShowcaseRenderTest.setupFrame();
+                    scene.render(disabledX, disabledY, 0);
+                    require(GuiShowcaseRenderTest.capture(320, 240).getRGB(disabledX, disabledY) == disabledPixel
+                            && !behind.interaction("hovered") && changes.get() == 0,
+                            "Disabled popup row acquired hover feedback, leaked hover or committed selection");
+                }
+                scene.keyTyped('\0', Keyboard.KEY_ESCAPE, false);
+                scene.prepare();
+                GuiShowcaseRenderTest.setupFrame();
+                scene.render(x, y, 0);
+                require(behind.interaction("hovered"), "Background hover did not resume after popup dismissal");
+                select.close();
+                behind.close();
+            }
+        }
     }
 
     private static void selectionsAndStatus(Minecraft minecraft, FontRenderer font, File output) throws Exception {

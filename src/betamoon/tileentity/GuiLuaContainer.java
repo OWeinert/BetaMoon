@@ -903,6 +903,9 @@ public final class GuiLuaContainer extends GuiContainer {
     }
 
     private void drawElementTooltip(int mouseX, int mouseY) {
+        if (scene.hasModalLayer()) {
+            return;
+        }
         for (int layer = 2; layer >= 0; layer--) {
             for (int i = definition.elements.size() - 1; i >= 0; i--) {
                 ContainerGuiDefinition.Element element = definition.elements.get(i);
@@ -978,7 +981,7 @@ public final class GuiLuaContainer extends GuiContainer {
     }
 
     private boolean containsLocal(ContainerGuiDefinition.ControlElement element, int mouseX, int mouseY) {
-        return contains(element, mouseX, mouseY);
+        return !scene.hasModalLayer() && contains(element, mouseX, mouseY);
     }
 
     private int choiceArrowWidth(ContainerGuiDefinition.ControlElement element) {

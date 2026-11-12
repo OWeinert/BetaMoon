@@ -340,7 +340,7 @@ public abstract class GuiElement {
     }
 
     protected final boolean isHovered(GuiContext context) {
-        return context != null && contains(context.getMouseX(), context.getMouseY())
+        return context != null && context.isHovered(this)
                 && context.getRenderer().isPointVisible(context.getMouseX(), context.getMouseY());
     }
 
