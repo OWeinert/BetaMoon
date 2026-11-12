@@ -1,6 +1,7 @@
 package betamoon.tileentity;
 
 import betamoon.BetaMoonCommon;
+import betamoon.client.control.input.ClientInputRuntime;
 import betamoon.gui.framework.GuiRenderer;
 import betamoon.gui.container.GuiLegacyContainerViews;
 import betamoon.gui.container.GuiContainerSurface;
@@ -10,6 +11,7 @@ import betamoon.gui.collection.GuiRowBudget;
 import betamoon.gui.screen.GuiHostElementBudget;
 import betamoon.gui.control.GuiTextEditorModel;
 import betamoon.gui.framework.GuiScene;
+import betamoon.gui.framework.GuiInputLifetime;
 import betamoon.gui.presentation.GuiAnchor;
 import betamoon.gui.presentation.GuiConditionEvaluator;
 import betamoon.gui.presentation.GuiControlType;
@@ -24,6 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import net.minecraft.src.GuiContainer;
 import net.minecraft.src.InventoryPlayer;
+import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.ItemStack;
 import net.minecraft.src.RenderItem;
 import net.minecraft.src.Tessellator;
@@ -53,6 +56,9 @@ public final class GuiLuaContainer extends GuiContainer {
     private final GuiHostElementBudget elements = new GuiHostElementBudget(rows);
     private int currentMouseX;
     private int currentMouseY;
+    private boolean closed;
+    private final EntityPlayer player;
+    private GuiContainerLifetime lifetime;
 
     public GuiLuaContainer(InventoryPlayer player, LuaTileEntity entity, ContainerGuiDefinition definition) {
         this(player, entity, definition, new LuaContainer(player, entity, definition.container));
@@ -64,6 +70,7 @@ public final class GuiLuaContainer extends GuiContainer {
         this.entity = entity;
         this.definition = definition;
         this.luaContainer = container;
+        this.player = player.player;
         this.xSize = definition.width;
         this.ySize = definition.height;
         scene.setContent(surface);
@@ -78,11 +85,28 @@ public final class GuiLuaContainer extends GuiContainer {
 
     @Override
     public void updateScreen() {
+        if (!retainNativeLifetime()) {
+            return;
+        }
         super.updateScreen();
-        preparePresentation();
+        if (!closed) {
+            preparePresentation();
+        }
     }
 
     private void preparePresentation() {
+        if (closed) {
+            return;
+        }
+        if (lifetime == null) {
+            lifetime = new GuiContainerLifetime(this, mc, entity, luaContainer, definition, player);
+            GuiInputLifetime input = new GuiInputLifetime(lifetime::available);
+            input.activate();
+            surface.inputLifetime(input);
+        }
+        if (!retainNativeLifetime()) {
+            return;
+        }
         if (presentation == null) {
             presentation = new ContainerPresentationRuntime(definition, entity, luaContainer.controls(),
                     fontRenderer::getStringWidth);
@@ -141,6 +165,9 @@ public final class GuiLuaContainer extends GuiContainer {
                         .warning("Cannot refresh container GUI " + definition.name + ": " + invalid.getMessage());
             }
         }
+        if (!retainNativeLifetime()) {
+            return;
+        }
         int originX = (width - xSize) / 2;
         int originY = (height - ySize) / 2;
         surface.panel(new Rect(originX, originY, originX + xSize, originY + ySize));
@@ -148,6 +175,9 @@ public final class GuiLuaContainer extends GuiContainer {
         presentation.sample();
         updateInteractions();
         presentation.update();
+        if (!retainNativeLifetime()) {
+            return;
+        }
         scene.updateEnvironment(mc, fontRenderer, width, height, mc.displayWidth, mc.displayHeight);
         legacyViews.update(originX, originY);
         scene.prepare();
@@ -162,6 +192,24 @@ public final class GuiLuaContainer extends GuiContainer {
 
     ContainerGuiDefinition definition() {
         return definition;
+    }
+
+    GuiContainerLifetime lifetime() {
+        return lifetime;
+    }
+
+    private boolean retainNativeLifetime() {
+        if (closed) {
+            return false;
+        }
+        if (lifetime != null && !lifetime.available()) {
+            onGuiClosed();
+            if (mc.currentScreen == this) {
+                mc.displayGuiScreen(null);
+            }
+            return false;
+        }
+        return true;
     }
 
     GuiRowBudget rowBudget() {
@@ -189,6 +237,9 @@ public final class GuiLuaContainer extends GuiContainer {
     }
 
     private void input(Runnable event) {
+        if (closed) {
+            return;
+        }
         if (retainedDocument == null) {
             event.run();
         } else {
@@ -197,6 +248,9 @@ public final class GuiLuaContainer extends GuiContainer {
     }
 
     private void paint(Runnable render) {
+        if (closed) {
+            return;
+        }
         if (retainedDocument == null) {
             render.run();
         } else {
@@ -230,6 +284,18 @@ public final class GuiLuaContainer extends GuiContainer {
 
     @Override
     public void onGuiClosed() {
+        if (closed) {
+            return;
+        }
+        boolean notify = lifetime == null || lifetime.available();
+        boolean nativeBackend = lifetime != null && lifetime.ownsBackend();
+        closed = true;
+        if (lifetime != null) {
+            lifetime.close();
+        }
+        if (!notify) {
+            luaContainer.controls().discard();
+        }
         if (retainedDocument != null) {
             retainedDocument.close();
             retainedDocument = null;
@@ -239,34 +305,51 @@ public final class GuiLuaContainer extends GuiContainer {
         }
         Keyboard.enableRepeatEvents(false);
         if (presentation != null) {
-            presentation.close();
+            if (notify) {
+                presentation.close();
+            } else {
+                presentation.discard();
+            }
         }
-        luaContainer.controls().close();
+        if (notify) {
+            luaContainer.controls().close();
+        }
         rows.close();
-        super.onGuiClosed();
+        if (nativeBackend) {
+            super.onGuiClosed();
+        }
     }
 
     @Override
     public void handleMouseInput() {
+        if (!retainNativeLifetime() || ClientInputRuntime.consumesCurrentMouseEvent()) {
+            return;
+        }
         super.handleMouseInput();
         int mouseX = Mouse.getEventX() * width / mc.displayWidth;
         int mouseY = height - Mouse.getEventY() * height / mc.displayHeight - 1;
         int wheel = Mouse.getEventDWheel();
         input(() -> {
             scene.mouseScrolled(mouseX, mouseY, wheel, GuiLegacyContainerViews.shiftDown());
-            if (Mouse.isButtonDown(0)) {
-                scene.mouseDragged(mouseX, mouseY, true);
+            int capturedButton = scene.capturedPointerButton();
+            if (capturedButton >= 0 || Mouse.isButtonDown(0)) {
+                scene.mouseDragged(mouseX, mouseY, Mouse.isButtonDown(capturedButton >= 0 ? capturedButton : 0));
             }
         });
     }
 
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int button) {
+        if (!retainNativeLifetime()) {
+            return;
+        }
         currentMouseX = mouseX;
         currentMouseY = mouseY;
         preparePresentation();
         input(() -> {
-            if (!scene.mousePressed(mouseX, mouseY, button) && !overExpansionPanel(mouseX, mouseY)) {
+            if (scene.mousePressed(mouseX, mouseY, button) || overExpansionPanel(mouseX, mouseY)) {
+                ClientInputRuntime.router().claimGuiGesture(button, this);
+            } else {
                 super.mouseClicked(mouseX, mouseY, button);
             }
         });
@@ -274,6 +357,9 @@ public final class GuiLuaContainer extends GuiContainer {
 
     @Override
     protected void mouseMovedOrUp(int mouseX, int mouseY, int button) {
+        if (!retainNativeLifetime()) {
+            return;
+        }
         currentMouseX = mouseX;
         currentMouseY = mouseY;
         preparePresentation();
@@ -286,17 +372,40 @@ public final class GuiLuaContainer extends GuiContainer {
 
     @Override
     protected void keyTyped(char typedChar, int keyCode) {
+        if (!retainNativeLifetime()) {
+            return;
+        }
         preparePresentation();
         input(() -> {
-            if (!scene.keyTyped(typedChar, keyCode, GuiLegacyContainerViews.shiftDown(),
+            if (scene.keyTyped(typedChar, keyCode, GuiLegacyContainerViews.shiftDown(),
                     GuiLegacyContainerViews.controlDown())) {
+                if (keyCode > 0) {
+                    ClientInputRuntime.router().claimGuiKey(keyCode, this);
+                }
+            } else {
                 super.keyTyped(typedChar, keyCode);
             }
         });
     }
 
     @Override
+    public void handleKeyboardInput() {
+        if (!retainNativeLifetime() || ClientInputRuntime.consumesCurrentKeyboardEvent()) {
+            return;
+        }
+        if (Keyboard.getEventKeyState()) {
+            super.handleKeyboardInput();
+        } else {
+            preparePresentation();
+            input(() -> scene.keyReleased(Keyboard.getEventKey(), GuiLegacyContainerViews.shiftDown()));
+        }
+    }
+
+    @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
+        if (!retainNativeLifetime()) {
+            return;
+        }
         currentMouseX = mouseX;
         currentMouseY = mouseY;
         if (presentation == null) {

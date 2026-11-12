@@ -54,6 +54,11 @@ public final class GuiDocumentMount extends GuiContainer {
     }
 
     @Override
+    protected boolean hitTestSelf() {
+        return false;
+    }
+
+    @Override
     protected Size measureElement(GuiContext context, Constraints constraints) {
         return document == null ? Size.ZERO : document.root().measure(context, constraints);
     }

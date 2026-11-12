@@ -194,6 +194,13 @@ public final class GuiLegacyContainerViews implements AutoCloseable {
 
         @Override
         protected void onFocusChanged(GuiContext context, boolean focused) {
+            if (!controls.isActive()) {
+                editor = null;
+                editOrigin = null;
+                textOffset = 0;
+                Keyboard.enableRepeatEvents(false);
+                return;
+            }
             if (control.type == GuiControlType.TEXT) {
                 Keyboard.enableRepeatEvents(focused);
                 if (focused) {

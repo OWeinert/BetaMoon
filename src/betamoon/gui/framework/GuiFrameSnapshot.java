@@ -49,7 +49,7 @@ public final class GuiFrameSnapshot {
     List<GuiElement> hitPath(double x, double y, GuiElement scope, Predicate<GuiElement> allowed) {
         for (int i = order.size() - 1; i >= 0; i--) {
             Node node = order.get(i);
-            if (node.hitClip.contains(x, y) && node.bounds.contains(x, y) && node.eligible()
+            if (node.pointerTarget && node.hitClip.contains(x, y) && node.bounds.contains(x, y) && node.eligible()
                     && inside(node.element, scope) && allowed.test(node.element)
                     && (node.content == null
                             || node.content.contains(node.transform.localX(x) - node.layoutBounds.getLeft(),
@@ -130,6 +130,7 @@ public final class GuiFrameSnapshot {
 
     public static final class Node {
         public final GraphicsTransform transform;
+        private final boolean pointerTarget;
         public final GraphicsTransform localTransform;
         public final GraphicsClip bounds;
         public final GraphicsClip hitClip;
@@ -153,6 +154,7 @@ public final class GuiFrameSnapshot {
             attachment = element.attachmentRevision();
             layoutBounds = element.getBounds();
             content = element.sampleFrameContent();
+            pointerTarget = element.hitTestSelf();
         }
 
         boolean eligible() {

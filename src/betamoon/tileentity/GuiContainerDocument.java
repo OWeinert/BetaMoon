@@ -16,17 +16,13 @@ import betamoon.gui.screen.GuiActionQueue;
 import betamoon.luaapi.tileentity.GuiContainerLuaAccess;
 import betamoon.luaapi.utils.LuaCallbackScope;
 import java.util.Collections;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.EnumSet;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
 import net.minecraft.client.Minecraft;
-import net.minecraft.src.EntityPlayer;
 import net.minecraft.src.GuiScreen;
-import net.minecraft.src.World;
 import org.luaj.vm2.LuaTable;
 import org.luaj.vm2.LuaValue;
 
@@ -40,14 +36,8 @@ final class GuiContainerDocument implements GuiAttachedDocument.Host, GuiContain
     private final LuaTileEntity tile;
     private final LuaContainer backend;
     private final GuiScene scene;
-    private final World world;
-    private final EntityPlayer player;
-    private final int window;
     private final String owner;
-    private final int tileX;
-    private final int tileY;
-    private final int tileZ;
-    private final List<Object> nativeSlots;
+    private final GuiContainerLifetime lifetime;
     private final GuiContainerSources sources;
     private final GuiRowBudget rows;
     private final GuiHostElementBudget elements;
@@ -70,14 +60,8 @@ final class GuiContainerDocument implements GuiAttachedDocument.Host, GuiContain
         rows = screen.rowBudget();
         elements = screen.elementBudget();
         selected = definition;
-        world = client.theWorld;
-        player = client.thePlayer;
-        window = backend.windowId;
         owner = definition.document.owner;
-        tileX = tile.xCoord;
-        tileY = tile.yCoord;
-        tileZ = tile.zCoord;
-        nativeSlots = new ArrayList<>(backend.slots);
+        lifetime = screen.lifetime();
         sources = new GuiContainerSources(tile, backend, screen);
         GuiScreenDefinitions definitions = GuiScreenDefinitions.inline(GuiClientUiRuntime.screens(), definition.name,
                 () -> selected.document);
@@ -152,22 +136,7 @@ final class GuiContainerDocument implements GuiAttachedDocument.Host, GuiContain
     }
 
     public boolean attached() {
-        if (closed || !backend.controls().isActive() || client.currentScreen != screen
-                || screen.inventorySlots != backend || backend.slots.size() != nativeSlots.size()) {
-            return false;
-        }
-        for (int index = 0; index < nativeSlots.size(); index++) {
-            if (backend.slots.get(index) != nativeSlots.get(index)) {
-                return false;
-            }
-        }
-        ContainerDefinition definition = screen.definition().container;
-        return client.theWorld == world && client.thePlayer == player && backend.windowId == window && player != null
-                && player.craftingInventory == backend && tile.worldObj == world && tile.xCoord == tileX
-                && tile.yCoord == tileY && tile.zCoord == tileZ
-                && TileEntityRegistry.getContainer(definition.name) == definition
-                && TileEntityRegistry.getTileEntity(definition.tileEntity.name) == definition.tileEntity
-                && TileEntityRegistry.getGui(selected.name) != null && tile.canInteractWith(player);
+        return !closed && lifetime.available();
     }
 
     public boolean inputAvailable() {
@@ -179,7 +148,7 @@ final class GuiContainerDocument implements GuiAttachedDocument.Host, GuiContain
     }
 
     public boolean worldAvailable() {
-        return attached() && world != null && !world.multiplayerWorld && player.worldObj == world && player.health > 0;
+        return !closed && lifetime.worldAvailable();
     }
 
     public boolean paused() {

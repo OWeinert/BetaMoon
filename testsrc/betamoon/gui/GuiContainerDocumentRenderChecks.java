@@ -271,6 +271,8 @@ final class GuiContainerDocumentRenderChecks {
 
     static final class FixtureWorld extends World {
         LuaTileEntity tile;
+        int tileLookups;
+        int dirtyMarks;
 
         FixtureWorld() {
             super(null, "container_document_fixture", new WorldProvider() {
@@ -284,12 +286,18 @@ final class GuiContainerDocumentRenderChecks {
 
         @Override
         public TileEntity getBlockTileEntity(int x, int y, int z) {
+            tileLookups++;
             return tile != null && tile.xCoord == x && tile.yCoord == y && tile.zCoord == z ? tile : null;
         }
 
         @Override
+        public void func_698_b(int x, int y, int z, TileEntity changed) {
+            dirtyMarks++;
+        }
+
+        @Override
         public boolean blockExists(int x, int y, int z) {
-            return false;
+            return tile != null && tile.xCoord == x && tile.yCoord == y && tile.zCoord == z;
         }
 
         @Override

@@ -296,6 +296,14 @@ public abstract class GuiElement {
         return null;
     }
 
+    /**
+     * Passive mounts/layouts still contribute ancestors and children, but are not
+     * pointer targets.
+     */
+    protected boolean hitTestSelf() {
+        return true;
+    }
+
     public final void render(GuiContext context) {
         if (!visible || opacity == 0 || bounds.isEmpty()) {
             return;

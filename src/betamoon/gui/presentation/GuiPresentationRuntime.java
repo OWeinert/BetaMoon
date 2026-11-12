@@ -1384,6 +1384,14 @@ public class GuiPresentationRuntime implements AutoCloseable {
         dispose(true);
     }
 
+    /**
+     * Host-root invalidation releases observers/tracks without entering old
+     * callbacks.
+     */
+    public void discard() {
+        dispose(false);
+    }
+
     private void dispose(boolean notifyClose) {
         if (!active) {
             return;

@@ -165,6 +165,11 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
             Throwable failure = paintFailure;
             paintFailure = null;
             host.failure(owner, key + ".paint", failure);
+            if (!closed) {
+                controller.reset("paint_failed");
+                fallback();
+            }
+            return;
         }
         if (!closed) {
             controller.tick();

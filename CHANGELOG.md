@@ -88,6 +88,8 @@
 
 ### Fixed
 
+- Unified native container input and lifetime invalidation for legacy and retained controls, including key release.
+- Release failed attached documents and cancel their queued actions while preserving the native container backend.
 - Enforced shared UI action admission and dispatch budgets across screens, native attachments, HUDs and notifications.
 - Refused queued UI actions when their attached presentation is unavailable, failed or exiting.
 - Invalidated inventory layout bindings on changed native geometry while preserving idle binding reuse.

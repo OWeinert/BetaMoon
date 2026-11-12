@@ -723,6 +723,11 @@ public class GuiStyledView extends GuiContainer implements GuiViewAdapter, GuiVi
                 : super.sampleFrameContent();
     }
 
+    @Override
+    protected boolean hitTestSelf() {
+        return isFocusable();
+    }
+
     private static final class StepperFrame implements GuiFrameContent {
         private final Rect bounds;
         private final long revision;

@@ -151,6 +151,12 @@ public final class ContainerControlRuntime {
         session.close();
     }
 
+    /** Root invalidation cannot run callbacks against the old tile/player. */
+    public void discard() {
+        active = false;
+        session.close();
+    }
+
     public static LuaTable input(String source) {
         LuaTable input = new LuaTable();
         input.set("source", source);
