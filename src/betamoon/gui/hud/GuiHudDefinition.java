@@ -14,6 +14,9 @@ import java.util.Set;
  * authority.
  */
 public final class GuiHudDefinition {
+    public enum Layer {
+        AUTO, WORLD, OVERLAY
+    }
     public enum Context {
         GAMEPLAY("gameplay"), CHAT("chat"), INVENTORY("inventory"), PAUSE("pause"), MENU("menu");
 
@@ -55,6 +58,8 @@ public final class GuiHudDefinition {
     public final boolean hideGui;
     public final boolean safeArea;
     public final boolean interactive;
+    public final Layer layer;
+    public final boolean behindMenus;
     public final Set<String> regions;
     public final Map<GuiHudNativePart, NativePart> nativeParts;
     private final ScriptResourceTracker.OwnerGeneration generation;
@@ -63,6 +68,13 @@ public final class GuiHudDefinition {
     public GuiHudDefinition(String owner, String key, String screen, int priority, Set<Context> contexts, boolean debug,
             boolean hideGui, boolean safeArea, boolean interactive, Set<String> regions,
             Map<GuiHudNativePart, NativePart> nativeParts) {
+        this(owner, key, screen, priority, contexts, debug, hideGui, safeArea, interactive, regions, nativeParts,
+                Layer.AUTO, true);
+    }
+
+    public GuiHudDefinition(String owner, String key, String screen, int priority, Set<Context> contexts, boolean debug,
+            boolean hideGui, boolean safeArea, boolean interactive, Set<String> regions,
+            Map<GuiHudNativePart, NativePart> nativeParts, Layer layer, boolean behindMenus) {
         this.owner = Objects.requireNonNull(owner, "HUD owner");
         this.key = GuiComponentDefinition.key(key);
         this.screen = screen == null ? null : GuiComponentDefinition.key(screen);
@@ -78,6 +90,8 @@ public final class GuiHudDefinition {
         this.hideGui = hideGui;
         this.safeArea = safeArea;
         this.interactive = interactive;
+        this.layer = Objects.requireNonNull(layer, "HUD layer");
+        this.behindMenus = behindMenus;
         Set<String> ids = new LinkedHashSet<>();
         for (String id : regions) {
             if (id == null || id.trim().isEmpty() || id.length() > 160) {

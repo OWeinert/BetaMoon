@@ -660,8 +660,9 @@ public final class InstrumentationTransformTest {
                 "HUD atlas arguments did not match the complete native call set");
         require(countCallbackCalls(hud, "chat") == 4,
                 "HUD chat reads did not match the complete native rendering read set");
-        require(countCallbackCalls(hud, "beforeNative") == 1 && countCallbackCalls(hud, "afterNative") == 2
-                && countCallbackCalls(hud, "beforeHotbar") == 1 && countCallbackCalls(hud, "armor") == 1,
+        require(countCallbackCalls(hud, "beforeNative") == 1 && countCallbackCalls(hud, "afterNative") == 1
+                && countCallbackCalls(hud, "nativeFailed") == 1 && countCallbackCalls(hud, "beforeHotbar") == 1
+                && countCallbackCalls(hud, "armor") == 1,
                 "HUD native frame, exceptional cleanup, hotbar items or armor boundary did not match");
         require(countCallbackCalls(hud, "showAirHud") == 1, "HUD presentation displaced the fluid drowning/air policy");
     }

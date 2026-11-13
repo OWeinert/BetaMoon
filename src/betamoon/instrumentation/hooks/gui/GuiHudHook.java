@@ -40,7 +40,8 @@ public final class GuiHudHook implements HookModule {
                                 "(Lnet/minecraft/src/GuiIngame;Lnet/minecraft/client/Minecraft;FII)I"),
                         ValueBinding.thisValue(), ValueBinding.instanceField(client), ValueBinding.argument(0),
                         ValueBinding.argument(2), ValueBinding.argument(3))
-                .onReturn(HandlerRef.of(CALLBACKS, "afterNative", "()V")).cleanupOnException().build());
+                .onReturn(HandlerRef.of(CALLBACKS, "afterNative", "()V"))
+                .cleanupOnException(HandlerRef.of(CALLBACKS, "nativeFailed", "()V")).build());
         registrar.register(new CallRedirectHookDefinition(TEXTURES, render,
                 new MethodRef(gui, "drawTexturedModalRect", "(IIIIII)V"),
                 HandlerRef.of(CALLBACKS, "texture", "(Lnet/minecraft/src/GuiIngame;IIIIII)V")).withInvocationOwner(hud)

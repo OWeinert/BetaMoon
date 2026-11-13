@@ -24,6 +24,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.src.EntityPlayerSP;
 import net.minecraft.src.GuiMainMenu;
 import net.minecraft.src.GuiIngameMenu;
+import net.minecraft.src.GuiOptions;
+import net.minecraft.src.GuiControls;
 import net.minecraft.src.GuiScreen;
 import net.minecraft.src.World;
 import org.luaj.vm2.Globals;
@@ -191,6 +193,37 @@ final class GuiHudRuntimeRenderChecks {
                 + ", pixel=" + Integer.toHexString(color));
         require(nativeClaim.requested() && hidden && color != 0xFF00DD88 && (color & 0x00FFFFFF) != 0,
                 "Player HUD must retain its native claim and paint below the real pause-menu gradient");
+        GuiHudActivation strict = activate(lua, "fixture:menu-strict",
+                "nativeParts={armor={hide=true}},visibility={behindMenus=false}");
+        GuiHudActivation foreground = activate(lua, "fixture:menu-foreground",
+                "screen='fixture:menu-color',layer='overlay',safeArea=false,visibility={contexts={'pause'}}");
+        GuiHudRuntime.tick(client);
+        GuiShowcaseRenderTest.setupFrame();
+        GuiHudRuntime.beginNative(client, 0, 0, 0);
+        require(GuiHudRuntime.nativePart(GuiHudNativePart.HEALTH) && !GuiHudRuntime.nativePart(GuiHudNativePart.ARMOR),
+                "Background inheritance ignored explicit opt-out");
+        GuiHudCallbacks.afterNative();
+        pause.drawDefaultBackground();
+        GuiHudRuntime.clientOverlay(client, 0, 0, 0);
+        require(pixel() == 0xFF00DD88 && foreground.status().equals("active"),
+                "Explicit foreground HUD did not remain above the native menu");
+        strict.close();
+        foreground.close();
+        for (GuiScreen next : new GuiScreen[]{new GuiOptions(pause, client.gameSettings),
+                new GuiControls(pause, client.gameSettings), pause}) {
+            client.currentScreen = next;
+            next.setWorldAndResolution(client, 320, 240);
+            GuiHudRuntime.tick(client);
+            GuiShowcaseRenderTest.setupFrame();
+            GuiHudRuntime.beginNative(client, 0, 0, 0);
+            require(nativeClaim.requested() && GuiHudRuntime.nativePart(GuiHudNativePart.HEALTH),
+                    "Player HUD native claim did not survive the pause/options/controls chain");
+            GuiHudCallbacks.afterNative();
+            next.drawDefaultBackground();
+            GuiHudRuntime.clientOverlay(client, 0, 0, 0);
+            require(pixel() == color && !GuiHudRuntime.inputAvailable(additive),
+                    "Background HUD lost native dimming or acquired protected menu input");
+        }
         nativeClaim.close();
         additive.close();
         client.currentScreen = null;

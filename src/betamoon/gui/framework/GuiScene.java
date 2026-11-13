@@ -13,6 +13,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.FontRenderer;
 import org.lwjgl.input.Keyboard;
@@ -58,6 +59,7 @@ public final class GuiScene {
         ALL, CONTENT, LAYERS
     }
     private PaintPass paintPass = PaintPass.ALL;
+    private Predicate<GuiElement> layerPaintEligibility = owner -> true;
     private final List<Runnable> deferredEffects = new ArrayList<>();
     private List<GuiElement> inputRegions;
 
@@ -240,7 +242,7 @@ public final class GuiScene {
 
     boolean dimBefore(GuiElement element) {
         for (GuiLayer layer : layers) {
-            if (layer.isActive() && layer.dim) {
+            if (layer.isActive() && layer.dim && layerPaintEligibility.test(layer.paintOwner())) {
                 return layer.content == element;
             }
         }
@@ -250,7 +252,8 @@ public final class GuiScene {
     boolean paints(GuiElement element) {
         for (GuiLayer layer : layers) {
             if (layer.content == element) {
-                return layer.isActive() && paintPass != PaintPass.CONTENT;
+                return layer.isActive() && paintPass != PaintPass.CONTENT
+                        && layerPaintEligibility.test(layer.paintOwner());
             }
         }
         return paintPass != PaintPass.LAYERS;
@@ -374,6 +377,16 @@ public final class GuiScene {
     public void renderLayers() {
         if (displayedFrame != null) {
             renderPass(context.getMouseX(), context.getMouseY(), context.getPartialTicks(), PaintPass.LAYERS, true);
+        }
+    }
+
+    public void renderLayers(Predicate<GuiElement> eligibility) {
+        Predicate<GuiElement> previous = layerPaintEligibility;
+        layerPaintEligibility = eligibility;
+        try {
+            renderLayers();
+        } finally {
+            layerPaintEligibility = previous;
         }
     }
 

@@ -221,6 +221,19 @@ public final class GuiHudRuntime {
         }
     }
 
+    public static void worldOverlay() {
+        if (current != null && current.valid()) {
+            GuiHudHost rendering = current;
+            try {
+                rendering.worldOverlay();
+            } catch (VirtualMachineError | ThreadDeath fatal) {
+                throw fatal;
+            } catch (Throwable failure) {
+                rendering.failed(failure);
+            }
+        }
+    }
+
     public static boolean nativePart(GuiHudNativePart part) {
         if (current == null || !current.valid()) {
             return false;

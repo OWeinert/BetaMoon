@@ -36,6 +36,10 @@ public final class GuiLayer implements AutoCloseable {
         return active && (owner == null || owner.belongsTo(scene) && owner.isAvailable());
     }
 
+    GuiElement paintOwner() {
+        return owner == null ? opener : owner;
+    }
+
     public void ownedBy(GuiElement owner) {
         if (owner == null || !owner.belongsTo(scene) || !owner.isAvailable()) {
             throw new IllegalArgumentException("Layer owner must be available in its scene");

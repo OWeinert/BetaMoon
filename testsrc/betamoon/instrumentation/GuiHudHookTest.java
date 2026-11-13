@@ -94,8 +94,9 @@ final class GuiHudHookTest {
                 "Atlas redirect accepted unknown geometry or rejected supported geometry in " + namespace);
         require(count(transformed, "chat") == (mutation == 2 ? 0 : 4),
                 "Chat read filter accepted an unknown read count or rejected native reads in " + namespace);
-        require(count(transformed, "beforeNative") == 1 && count(transformed, "afterNative") == 2
-                && count(transformed, "beforeHotbar") == 1 && count(transformed, "armor") == 1,
+        require(count(transformed, "beforeNative") == 1 && count(transformed, "afterNative") == 1
+                && count(transformed, "nativeFailed") == 1 && count(transformed, "beforeHotbar") == 1
+                && count(transformed, "armor") == 1,
                 "An optional HUD shape displaced independent lifecycle/item/armor seams");
         String refused = mutation == 1 ? "textures" : "chat";
         if (mutation != 0) {

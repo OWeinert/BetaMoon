@@ -29,6 +29,11 @@ public final class GuiHudCallbacks {
 
     public static void afterNative() {
         GuiHudRuntime.endNative();
+        GuiHudRuntime.worldOverlay();
+    }
+
+    public static void nativeFailed() {
+        GuiHudRuntime.endNative();
     }
 
     public static void clientFrame(Minecraft client, float partialTicks) {

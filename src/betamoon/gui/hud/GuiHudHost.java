@@ -39,6 +39,9 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.src.GuiChat;
 import net.minecraft.src.GuiScreen;
 import net.minecraft.src.ScaledResolution;
+import net.minecraft.src.GuiOptions;
+import net.minecraft.src.GuiControls;
+import net.minecraft.src.GuiVideoSettings;
 import org.luaj.vm2.LuaTable;
 import org.lwjgl.input.Mouse;
 import org.lwjgl.input.Keyboard;
@@ -70,6 +73,8 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
     private Rect safeArea = Rect.EMPTY;
     private Surface painting;
     private boolean paintingAdditive;
+    private boolean paintingWorld;
+    private boolean worldPainted;
     private boolean closed;
     private boolean nativeSeen;
     private boolean captured;
@@ -199,15 +204,13 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
             return worldAvailable() ? GuiHudDefinition.Context.INVENTORY : null;
         }
         String target = GuiMenuRuntime.target(client.currentScreen);
-        if ("minecraft:options".equals(target)) {
-            return null;
-        }
         if ("minecraft:pause".equals(target)) {
             return worldAvailable() ? GuiHudDefinition.Context.PAUSE : null;
         }
         return target != null || GuiClientUiRuntime.managed(client.currentScreen)
-                ? GuiHudDefinition.Context.MENU
-                : null;
+                || worldAvailable() && (client.currentScreen instanceof net.minecraft.src.GuiContainer
+                        || client.currentScreen instanceof GuiControls
+                        || client.currentScreen instanceof GuiVideoSettings) ? GuiHudDefinition.Context.MENU : null;
     }
 
     private List<Rect> reservations() {
@@ -342,6 +345,7 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
         suppressed.clear();
         replacementsPainted.clear();
         captured = false;
+        worldPainted = false;
         for (Entry entry : entries.values()) {
             entry.additivePainted = false;
             if (entry.notification != null && entry.additive != null && entry.additive.document != null) {
@@ -588,11 +592,15 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
         if (!nativeSeen) {
             beginFrame(mouseX, mouseY, partialTicks);
         }
+        if (!worldPainted && worldAvailable() && client.currentScreen == null) {
+            worldOverlay();
+        }
         nativeDrawing = false;
         paintingAdditive = true;
+        paintingWorld = false;
         try {
             paintContent();
-            engine.paint(scene::renderLayers);
+            paintLayers();
             for (Entry entry : entries.values()) {
                 boolean active = entry.eligible() && (entry.additivePainted || entry.nativeApplied());
                 if (active && entry.notification != null && entry.additive != null && entry.additive.document != null
@@ -612,6 +620,36 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
             paintingAdditive = false;
             nativeSeen = false;
         }
+    }
+
+    void worldOverlay() {
+        if (worldPainted || !prepared() || !worldAvailable()) {
+            return;
+        }
+        worldPainted = true;
+        paintingAdditive = true;
+        paintingWorld = true;
+        try {
+            paintContent();
+            paintLayers();
+        } finally {
+            paintingAdditive = false;
+            paintingWorld = false;
+        }
+    }
+
+    private void paintLayers() {
+        engine.paint(() -> scene.renderLayers(owner -> {
+            for (GuiElement ancestor = owner; ancestor != null; ancestor = ancestor.getParent()) {
+                for (Entry entry : entries.values()) {
+                    if (entry.additive != null && entry.additive.document != null
+                            && ancestor == entry.additive.document.mount()) {
+                        return entry.worldLayer() == paintingWorld;
+                    }
+                }
+            }
+            return !paintingWorld;
+        }));
     }
 
     private void paintContent() {
@@ -724,8 +762,20 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
                             : notification.admitted && !notification.bounds().isEmpty()
                                     && notificationPresentationAvailable())
                     && context != null && (context == GuiHudDefinition.Context.MENU || worldAvailable())
-                    && definition.contexts.contains(context) && (!client.gameSettings.hideGUI || definition.hideGui)
+                    && (definition.layer != GuiHudDefinition.Layer.WORLD || worldAvailable())
+                    && (contextEligible(false) || !definition.nativeParts.isEmpty() && contextEligible(true))
+                    && (!client.gameSettings.hideGUI || definition.hideGui)
                     && (!client.gameSettings.showDebugInfo || definition.debug);
+        }
+
+        boolean worldLayer() {
+            return notification == null && definition.layer != GuiHudDefinition.Layer.OVERLAY
+                    && (definition.layer == GuiHudDefinition.Layer.WORLD || worldAvailable());
+        }
+
+        boolean contextEligible(boolean nativePart) {
+            return definition.contexts.contains(context) || definition.behindMenus && worldAvailable()
+                    && definition.contexts.contains(GuiHudDefinition.Context.GAMEPLAY) && (nativePart || worldLayer());
         }
 
         List<Surface> surfaces() {
@@ -842,7 +892,7 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
             document = new GuiAttachedDocument(this, entry.definition.owner, screen);
             document.mount().paintWhen(() -> {
                 boolean paints = document != null && document.usable()
-                        && (part == null ? paintingAdditive : painting == this);
+                        && (part == null ? paintingAdditive && entry.worldLayer() == paintingWorld : painting == this);
                 if (paints && part == null) {
                     entry.additivePainted = true;
                 }
@@ -922,12 +972,15 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
         }
 
         public boolean presentationAvailable() {
-            return entry.eligible()
+            return entry.eligible() && entry.contextEligible(part != null)
                     && (part == null ? !entry.definition.safeArea || !safeArea.isEmpty() : winners.get(part) == entry);
         }
 
         public boolean inputAvailable() {
             return presentationAvailable() && part == null && entry.definition.interactive && !regions.isEmpty()
+                    && (!entry.worldLayer() || client.currentScreen == null)
+                    && !(client.currentScreen instanceof GuiOptions) && !(client.currentScreen instanceof GuiControls)
+                    && !(client.currentScreen instanceof GuiVideoSettings)
                     && (entry.notification == null || entry.notification.live()) && entry.additivePainted
                     && GuiHudCursor.NATIVE_POINTER.focused()
                     && (client.currentScreen != null || cursor != null && cursor.ownsGuiInput());
@@ -950,7 +1003,7 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
         }
 
         public void closed() {
-            if (!entry.failed) {
+            if (!entry.failed && !entry.retired) {
                 entry.claim.close();
             }
         }

@@ -10,6 +10,7 @@ import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.Locale;
 import org.luaj.vm2.LuaValue;
 
 /**
@@ -20,13 +21,15 @@ public final class GuiHudParser {
     public static GuiHudDefinition parse(String owner, LuaValue value) {
         String path = "ui.hud";
         LuaDeclarationValues.fields(value, path, "key", "screen", "priority", "visibility", "safeArea", "interactive",
-                "regions", "nativeParts");
+                "regions", "nativeParts", "layer");
         LuaValue visibility = value.get("visibility");
         Set<Context> contexts = EnumSet.of(Context.GAMEPLAY);
         boolean debug = true;
         boolean hideGui = false;
+        boolean behindMenus = true;
         if (!visibility.isnil()) {
-            LuaDeclarationValues.fields(visibility, path + ".visibility", "contexts", "debug", "hideGui");
+            LuaDeclarationValues.fields(visibility, path + ".visibility", "contexts", "debug", "hideGui",
+                    "behindMenus");
             if (!visibility.get("contexts").isnil()) {
                 contexts.clear();
                 LuaValue entries = visibility.get("contexts");
@@ -48,6 +51,8 @@ public final class GuiHudParser {
             }
             debug = LuaDeclarationValues.bool(visibility.get("debug"), path + ".visibility.debug", true);
             hideGui = LuaDeclarationValues.bool(visibility.get("hideGui"), path + ".visibility.hideGui", false);
+            behindMenus = LuaDeclarationValues.bool(visibility.get("behindMenus"), path + ".visibility.behindMenus",
+                    true);
         }
         Map<GuiHudNativePart, GuiHudDefinition.NativePart> parts = new EnumMap<>(GuiHudNativePart.class);
         if (!value.get("nativeParts").isnil()) {
@@ -79,10 +84,21 @@ public final class GuiHudParser {
                     contexts, debug, hideGui,
                     LuaDeclarationValues.bool(value.get("safeArea"), path + ".safeArea", true),
                     LuaDeclarationValues.bool(value.get("interactive"), path + ".interactive", false),
-                    regions(value.get("regions"), path + ".regions"), parts);
+                    regions(value.get("regions"), path + ".regions"), parts, layer(value.get("layer"), path + ".layer"),
+                    behindMenus);
         } catch (IllegalArgumentException invalid) {
             throw LuaDeclarationValues.error(path, invalid.getMessage());
         }
+    }
+
+    private static GuiHudDefinition.Layer layer(LuaValue value, String path) {
+        String name = value.isnil() ? "auto" : LuaDeclarationValues.string(value, path);
+        for (GuiHudDefinition.Layer layer : GuiHudDefinition.Layer.values()) {
+            if (layer.name().toLowerCase(Locale.ROOT).equals(name)) {
+                return layer;
+            }
+        }
+        throw LuaDeclarationValues.error(path, "expected auto, world or overlay");
     }
 
     private static Set<String> regions(LuaValue value, String path) {

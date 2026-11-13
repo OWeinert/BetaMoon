@@ -55,11 +55,16 @@ public final class GuiHudFoundationTest {
                 && hide.nativeParts.get(GuiHudNativePart.CHAT).replace.equals("test:chat"),
                 "Native hide and registered-screen replacement metadata were conflated");
         parse("screen='test:content',interactive=true,regions={'button'},visibility={contexts={'chat','menu'}}");
+        GuiHudDefinition world = parse("screen='test:content',layer='world',visibility={behindMenus=false}");
+        require(world.layer == GuiHudDefinition.Layer.WORLD && !world.behindMenus
+                && definition.layer == GuiHudDefinition.Layer.AUTO && definition.behindMenus,
+                "HUD layer or behind-menu policy did not preserve explicit/default values");
         for (String invalid : new String[]{"unknown=true", "screen='test:content',interactive=true",
                 "screen='test:content',regions={'invisible'}", "nativeParts={crosshair={}}",
                 "nativeParts={crosshair={hide=true,replace='test:other'}}", "nativeParts={targeting={hide=true}}",
                 "screen='test:content',visibility={contexts={'gameplay','gameplay'}}",
-                "screen='test:content',visibility={contexts={'unsupported'}}"}) {
+                "screen='test:content',visibility={contexts={'unsupported'}}", "screen='test:content',layer='invalid'",
+                "screen='test:content',visibility={behindMenus='yes'}"}) {
             try {
                 parse(invalid);
             } catch (LuaError expected) {
