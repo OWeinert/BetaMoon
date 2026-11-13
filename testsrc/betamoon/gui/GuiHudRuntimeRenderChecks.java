@@ -3,6 +3,7 @@ package betamoon.gui;
 import betamoon.gui.hud.GuiHudActivation;
 import betamoon.gui.hud.GuiHudNativePart;
 import betamoon.gui.hud.GuiHudRuntime;
+import betamoon.instrumentation.hooks.gui.GuiHudCallbacks;
 import betamoon.gui.screen.GuiClientUiRuntime;
 import betamoon.gui.screen.GuiActionQueue;
 import betamoon.gui.screen.GuiScreenActivation;
@@ -22,6 +23,7 @@ import javax.imageio.ImageIO;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.EntityPlayerSP;
 import net.minecraft.src.GuiMainMenu;
+import net.minecraft.src.GuiIngameMenu;
 import net.minecraft.src.GuiScreen;
 import net.minecraft.src.World;
 import org.luaj.vm2.Globals;
@@ -131,6 +133,7 @@ final class GuiHudRuntimeRenderChecks {
             GuiHudRuntime.tick(client);
             frame(client, true, true);
             allNativeParts(client, lua, first);
+            menuRegression(client, lua, output);
 
             screen(lua, "fixture:menu-hud", "root={type='button',width=120,height=20,text='Worldless notice'}");
             GuiHudActivation menu = activate(lua, "fixture:menu-notice",
@@ -164,6 +167,34 @@ final class GuiHudRuntimeRenderChecks {
 
     private static String partStatus(GuiHudActivation claim, String part) {
         return ((Map<?, ?>) GuiHudRuntime.parts(claim).get(part)).get("status").toString();
+    }
+
+    private static void menuRegression(Minecraft client, Globals lua, File output) throws Exception {
+        GuiHudActivation nativeClaim = activate(lua, "fixture:menu-native", "nativeParts={health={hide=true}}");
+        GuiHudRuntime.tick(client);
+        GuiIngameMenu pause = new GuiIngameMenu();
+        client.currentScreen = pause;
+        pause.setWorldAndResolution(client, 320, 240);
+        screen(lua, "fixture:menu-color", "root={component='fixture:teal'}");
+        GuiHudActivation additive = activate(lua, "fixture:menu-color-hud",
+                "screen='fixture:menu-color',safeArea=false,visibility={contexts={'gameplay','pause'}}");
+        GuiHudRuntime.tick(client);
+        GuiShowcaseRenderTest.setupFrame();
+        GuiHudRuntime.beginNative(client, 0, 0, 0);
+        boolean hidden = GuiHudRuntime.nativePart(GuiHudNativePart.HEALTH);
+        GuiHudCallbacks.afterNative();
+        pause.drawDefaultBackground();
+        GuiHudRuntime.clientOverlay(client, 0, 0, 0);
+        int color = pixel();
+        ImageIO.write(GuiShowcaseRenderTest.capture(320, 240), "png", new File(output, "hud-pause-regression.png"));
+        System.out.println("HUD pause regression: claimRequested=" + nativeClaim.requested() + ", hidden=" + hidden
+                + ", pixel=" + Integer.toHexString(color));
+        require(nativeClaim.requested() && hidden && color != 0xFF00DD88 && (color & 0x00FFFFFF) != 0,
+                "Player HUD must retain its native claim and paint below the real pause-menu gradient");
+        nativeClaim.close();
+        additive.close();
+        client.currentScreen = null;
+        GuiHudRuntime.tick(client);
     }
 
     private static void allNativeParts(Minecraft client, Globals lua, GuiHudActivation first) {
