@@ -37,9 +37,10 @@ public final class GuiHudHook implements HookModule {
         registrar.register(AroundHookDefinition.builder(getId() + ":native_frame", render)
                 .capture(
                         HandlerRef.of(CALLBACKS, "beforeNative",
-                                "(Lnet/minecraft/src/GuiIngame;Lnet/minecraft/client/Minecraft;FII)I"),
+                                "(Lnet/minecraft/src/GuiIngame;Lnet/minecraft/client/Minecraft;FIII)I"),
                         ValueBinding.thisValue(), ValueBinding.instanceField(client), ValueBinding.argument(0),
-                        ValueBinding.argument(2), ValueBinding.argument(3))
+                        ValueBinding.argument(2), ValueBinding.argument(3),
+                        ValueBinding.instanceField(new FieldRef(hud, "updateCounter", "I")))
                 .onReturn(HandlerRef.of(CALLBACKS, "afterNative", "()V"))
                 .cleanupOnException(HandlerRef.of(CALLBACKS, "nativeFailed", "()V")).build());
         registrar.register(new CallRedirectHookDefinition(TEXTURES, render,

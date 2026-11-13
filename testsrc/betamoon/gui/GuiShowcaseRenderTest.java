@@ -2004,6 +2004,11 @@ public final class GuiShowcaseRenderTest {
         }
 
         @Override
+        public boolean blockExists(int x, int y, int z) {
+            return false;
+        }
+
+        @Override
         public int getBlockId(int x, int y, int z) {
             return 1;
         }

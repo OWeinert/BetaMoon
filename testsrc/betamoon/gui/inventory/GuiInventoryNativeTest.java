@@ -14,6 +14,8 @@ import java.lang.reflect.Method;
 import java.util.Collections;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.Block;
+import net.minecraft.src.Entity;
+import net.minecraft.src.AxisAlignedBB;
 import net.minecraft.src.ContainerPlayer;
 import net.minecraft.src.EntityPlayerSP;
 import net.minecraft.src.GuiContainer;
@@ -155,6 +157,11 @@ public final class GuiInventoryNativeTest {
         player.craftingInventory = player.inventorySlots;
         player.worldObj = world;
         player.health = 20;
+        player.prevHealth = 20;
+        player.air = 300;
+        Field bounds = Entity.class.getDeclaredField("boundingBox");
+        bounds.setAccessible(true);
+        bounds.set(player, AxisAlignedBB.getBoundingBox(-0.3, 0, -0.3, 0.3, 1.8, 0.3));
         return player;
     }
 

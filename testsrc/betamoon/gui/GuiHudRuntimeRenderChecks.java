@@ -68,6 +68,7 @@ final class GuiHudRuntimeRenderChecks {
                     "Per-part diagnostics did not distinguish prepared replacement from independent hiding");
             ImageIO.write(GuiShowcaseRenderTest.capture(320, 240), "png",
                     new File(output, "hud-native-replacement.png"));
+            focusedObservations(client, lua);
             GuiHudActivation second = activate(lua, "fixture:priority",
                     "priority=1," + "nativeParts={crosshair={replace='fixture:reticle-b'}}");
             client.thePlayer.health = 17;
@@ -169,6 +170,32 @@ final class GuiHudRuntimeRenderChecks {
 
     private static String partStatus(GuiHudActivation claim, String part) {
         return ((Map<?, ?>) GuiHudRuntime.parts(claim).get(part)).get("status").toString();
+    }
+
+    private static void focusedObservations(Minecraft client, Globals lua) {
+        screen(lua, "fixture:focused-hud",
+                "on={update=function(ctx) savedHud=ctx.hud;"
+                        + "savedHotbar=ctx.hud:hotbar() end},root={type='text',text='Stats',bind=function(ctx) "
+                        + "statBuilds=(statBuilds or 0)+1; savedStats=ctx.hud:stats(); savedLayout=ctx.hud:layout();"
+                        + "return{text='HP '..savedStats.health} end}");
+        GuiHudActivation claim = activate(lua, "fixture:focused-profile",
+                "screen='fixture:focused-hud',safeArea=false");
+        GuiHudRuntime.tick(client);
+        require(lua.get("savedStats").get("healthCapacity").toint() == 20
+                && lua.get("savedLayout").get("parts").get("health").get("body").get("width").toint() == 81
+                && lua.get("savedHotbar").get("slots").length() == 9,
+                "Focused HUD sources lost native capacities, geometry or dense hotbar summaries");
+        int builds = lua.get("statBuilds").toint();
+        double x = client.thePlayer.posX;
+        client.thePlayer.posX += 0.125;
+        GuiHudRuntime.tick(client);
+        require(lua.get("statBuilds").toint() == builds, "Position-only change rebuilt focused stat/layout bindings");
+        require(!lua.load("return pcall(function()savedHud:stats()end)").call().toboolean()
+                && !lua.load("return pcall(function()savedStats.health=999 end)").call().toboolean(),
+                "HUD source access outlived its callback or exposed mutable detached stats");
+        client.thePlayer.posX = x;
+        claim.close();
+        GuiHudRuntime.tick(client);
     }
 
     private static void menuRegression(Minecraft client, Globals lua, File output) throws Exception {

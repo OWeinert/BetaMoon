@@ -38,6 +38,8 @@ public final class GuiHudLuaAccess {
         }
         access.set("capabilities", GuiPresentationLuaAccess.function(owner, null, false,
                 args -> GuiReadOnlyValues.fromPublished(GuiHudRuntime.capabilities())));
+        access.set("partCapabilities", GuiPresentationLuaAccess.function(owner, null, false,
+                args -> GuiReadOnlyValues.fromPublished(GuiHudRuntime.partCapabilities())));
         access.set("activate", GuiUiApi.owned(owner, args -> {
             ClientTickEvents.requireAvailable();
             String key = LuaDeclarationValues.string(args.arg(args.arg1() == access ? 2 : 1), "HUD key");

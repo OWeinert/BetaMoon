@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import net.minecraft.client.Minecraft;
+import net.minecraft.src.ItemStack;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 
@@ -53,6 +54,27 @@ public final class GuiHudRuntime {
             parts.put(part.name, nativeAvailable(part));
         }
         return Collections.unmodifiableMap(parts);
+    }
+
+    public static Map<String, Object> partCapabilities() {
+        Map<String, Object> result = new LinkedHashMap<>();
+        for (GuiHudNativePart part : GuiHudNativePart.values()) {
+            boolean supported = nativeAvailable(part);
+            Map<String, Object> value = new LinkedHashMap<>();
+            value.put("hide", supported);
+            value.put("replace", supported);
+            value.put("modify", false);
+            value.put("layout", true);
+            Map<String, Object> reasons = new LinkedHashMap<>();
+            if (!supported) {
+                reasons.put("hide", "native_hook_unavailable");
+                reasons.put("replace", "native_hook_unavailable");
+            }
+            reasons.put("modify", "unsupported_operation");
+            value.put("reasons", Collections.unmodifiableMap(reasons));
+            result.put(part.name, Collections.unmodifiableMap(value));
+        }
+        return Collections.unmodifiableMap(result);
     }
 
     private static boolean nativeAvailable(GuiHudNativePart part) {
@@ -202,10 +224,14 @@ public final class GuiHudRuntime {
     }
 
     public static void beginNative(Minecraft client, int mouseX, int mouseY, float partialTicks) {
+        beginNative(client, mouseX, mouseY, partialTicks, 0);
+    }
+
+    public static void beginNative(Minecraft client, int mouseX, int mouseY, float partialTicks, int counter) {
         if (current != null && current.client == client && current.valid()) {
             GuiHudHost rendering = current;
             try {
-                rendering.beginNative(mouseX, mouseY, partialTicks);
+                rendering.beginNative(mouseX, mouseY, partialTicks, counter);
             } catch (VirtualMachineError | ThreadDeath fatal) {
                 throw fatal;
             } catch (Throwable failure) {
@@ -213,6 +239,14 @@ public final class GuiHudRuntime {
                 rendering.failed(failure);
             }
         }
+    }
+
+    public static GuiHudFrameState frame() {
+        return current != null && current.valid() ? current.frame() : null;
+    }
+
+    public static ItemStack copyHotbarItem(int slot) {
+        return current != null && current.valid() ? current.item(slot) : null;
     }
 
     public static void endNative() {

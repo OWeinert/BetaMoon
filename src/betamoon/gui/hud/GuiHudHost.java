@@ -42,6 +42,7 @@ import net.minecraft.src.ScaledResolution;
 import net.minecraft.src.GuiOptions;
 import net.minecraft.src.GuiControls;
 import net.minecraft.src.GuiVideoSettings;
+import net.minecraft.src.ItemStack;
 import org.luaj.vm2.LuaTable;
 import org.lwjgl.input.Mouse;
 import org.lwjgl.input.Keyboard;
@@ -69,6 +70,9 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
     private final EnumSet<GuiHudNativePart> replacementsPainted = EnumSet.noneOf(GuiHudNativePart.class);
     private NativeClientScreenHost engine;
     private GuiScopedSnapshot observation;
+    private Map<String, Object> observationValues = Collections.emptyMap();
+    private final GuiHudObservationPublisher observations = new GuiHudObservationPublisher();
+    private final GuiHudFrameState frame = new GuiHudFrameState();
     private GuiHudDefinition.Context context;
     private Rect safeArea = Rect.EMPTY;
     private Surface painting;
@@ -233,6 +237,9 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
     }
 
     private void observe() {
+        observations.update(client, worldAvailable());
+        observations.layout.publish(GuiHudPartLayout.snapshot(client, viewport.width, viewport.height, worldAvailable(),
+                observations.stats.values, reservations()));
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("worldAvailable", worldAvailable());
         values.put("context", context == null ? "unavailable" : context.name);
@@ -240,22 +247,13 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
         values.put("debug", client.gameSettings.showDebugInfo);
         values.put("viewport", rectangle(Rect.fromPositionAndSize(0, 0, viewport.width, viewport.height)));
         values.put("safeArea", rectangle(safeArea));
-        if (worldAvailable()) {
-            Map<String, Object> actor = new LinkedHashMap<>();
-            actor.put("health", client.thePlayer.health);
-            actor.put("armor", client.thePlayer.getPlayerArmorValue());
-            actor.put("air", client.thePlayer.air);
-            actor.put("selectedSlot", client.thePlayer.inventory.currentItem + 1);
-            actor.put("onGround", client.thePlayer.onGround);
-            actor.put("x", client.thePlayer.posX);
-            actor.put("y", client.thePlayer.posY);
-            actor.put("z", client.thePlayer.posZ);
-            actor.put("motionX", client.thePlayer.motionX);
-            actor.put("motionY", client.thePlayer.motionY);
-            actor.put("motionZ", client.thePlayer.motionZ);
-            values.put("player", actor);
+        if (observations.player() != null) {
+            values.put("player", observations.player());
         }
-        observation = new GuiScopedSnapshot(values, "native:hud", values);
+        if (observation == null || !observationValues.equals(values)) {
+            observationValues = Collections.unmodifiableMap(values);
+            observation = new GuiScopedSnapshot(values, "native:hud", values);
+        }
     }
 
     private static Map<String, Object> rectangle(Rect rectangle) {
@@ -332,9 +330,24 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
     }
 
     void beginNative(int mouseX, int mouseY, float partialTicks) {
+        beginNative(mouseX, mouseY, partialTicks, 0);
+    }
+
+    void beginNative(int mouseX, int mouseY, float partialTicks, int counter) {
         beginFrame(mouseX, mouseY, partialTicks);
+        if (worldAvailable()) {
+            frame.capture(client, counter);
+        }
         nativeSeen = true;
         nativeDrawing = true;
+    }
+
+    GuiHudFrameState frame() {
+        return worldAvailable() ? frame : null;
+    }
+
+    ItemStack item(int slot) {
+        return worldAvailable() ? observations.copyItem(slot) : null;
     }
 
     private void beginFrame(int mouseX, int mouseY, float partialTicks) {
@@ -673,6 +686,9 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
     }
 
     void failed(Throwable failure) {
+        if (entries.isEmpty()) {
+            LuaApiUtils.warnForScript("<engine-hud>", "UI HUD", "HUD preparation failed", failure);
+        }
         preparedWidth = -1;
         stopInteraction();
         for (Entry entry : entries.values()) {
@@ -881,6 +897,8 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
         GuiComponentPlan regionPlan;
         List<GuiElement> regions = Collections.emptyList();
         GuiNotificationOptions appliedOptions;
+        GuiScopedSnapshot surfaceObservation;
+        Object observationBase;
 
         Surface(Entry entry, GuiHudNativePart part, String screen) {
             this.entry = entry;
@@ -1011,7 +1029,10 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
         public Map<String, Object> nativeData() {
             Map<String, Object> values = new LinkedHashMap<>();
             if (observation != null) {
-                values.put("hud", observation.revision());
+                values.put("hud", scopedObservation().revision());
+                values.put("hud.stats", observations.stats.snapshot.revision());
+                values.put("hud.hotbar", observations.hotbar.snapshot.revision());
+                values.put("hud.layout", observations.layout.snapshot.revision());
             }
             if (entry.notificationObservation != null) {
                 values.put("notification", entry.notificationObservation.revision());
@@ -1028,12 +1049,26 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
         }
 
         public void context(LuaTable value, LuaCallbackScope scope, GuiScreenActivation activation) {
-            LuaTable hud = observation.access(scope, "snapshot");
+            LuaTable hud = scopedObservation().access(scope, "snapshot");
+            hud.set("stats", observations.stats.snapshot.access(scope, "stats").get("stats"));
+            hud.set("hotbar", observations.hotbar.snapshot.access(scope, "hotbar").get("hotbar"));
+            hud.set("layout", observations.layout.snapshot.access(scope, "layout").get("layout"));
             hud.set("key", entry.definition.key);
             value.set("hud", hud);
             if (entry.notificationObservation != null) {
                 value.set("notification", entry.notificationObservation.access(scope, "snapshot"));
             }
+        }
+
+        private GuiScopedSnapshot scopedObservation() {
+            if (surfaceObservation == null || observationBase != observation) {
+                Map<String, Object> values = new LinkedHashMap<>(observationValues);
+                values.put("layer", entry.worldLayer() ? "world" : "overlay");
+                values.put("behindMenu", entry.worldLayer() && client.currentScreen != null);
+                surfaceObservation = new GuiScopedSnapshot(values, "native:hud", values);
+                observationBase = observation;
+            }
+            return surfaceObservation;
         }
 
         public void failure(String owner, String path, Throwable failure) {

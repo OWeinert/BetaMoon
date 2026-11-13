@@ -18,9 +18,9 @@ public final class GuiHudCallbacks {
         return 0;
     }
 
-    public static int beforeNative(GuiIngame hud, Minecraft client, float partialTicks, int x, int y) {
+    public static int beforeNative(GuiIngame hud, Minecraft client, float partialTicks, int x, int y, int counter) {
         if (hud.getClass() == GuiIngame.class) {
-            GuiHudRuntime.beginNative(client, x, y, partialTicks);
+            GuiHudRuntime.beginNative(client, x, y, partialTicks, counter);
         } else {
             GuiHudRuntime.endNative();
         }
