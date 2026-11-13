@@ -6,6 +6,8 @@ import betamoon.gui.graphics.GraphicsResources;
 import betamoon.gui.graphics.GraphicsShaderProgram;
 import betamoon.gui.graphics.GraphicsVertexBuffer;
 import betamoon.gui.graphics.GuiResourceDefinitions;
+import betamoon.gui.graphics.GuiIconSkinDefinition;
+import betamoon.gui.style.GuiIconMeterSkin;
 import betamoon.gui.graphics.GuiResourceDefinitions.Buffer;
 import betamoon.gui.graphics.GuiResourceDefinitions.Drawable;
 import betamoon.gui.graphics.GuiResourceDefinitions.Font;
@@ -47,6 +49,7 @@ public final class GuiOwnedResources implements GuiPreparedRowEnvironment.Resour
     private final Map<String, GuiAtlasLease> atlases = new LinkedHashMap<>();
     private final Map<String, GuiDrawable> drawables = new LinkedHashMap<>();
     private final Map<String, GuiFontFace> fonts = new LinkedHashMap<>();
+    private final Map<String, GuiIconMeterSkin> iconSkins = new LinkedHashMap<>();
 
     public GuiOwnedResources(Minecraft client, GuiScreen screen, String owner, GuiResourceDefinitions definitions) {
         this(client, owner, definitions, () -> NativeClientScreenHost.prepareDetached(client, screen, owner));
@@ -151,6 +154,11 @@ public final class GuiOwnedResources implements GuiPreparedRowEnvironment.Resour
                         new GuiBitmapFont(image(font.image), font.lineHeight, font.fallback, font.glyphs)));
             }
         }
+        for (Map.Entry<String, Resource> entry : definitions.entries.entrySet()) {
+            if (entry.getValue() instanceof GuiIconSkinDefinition) {
+                iconSkins.put(entry.getKey(), ((GuiIconSkinDefinition) entry.getValue()).prepare(this::drawable));
+            }
+        }
     }
 
     private <T> NativeClientResource<T> own(long bytes, Supplier<T> factory, Consumer<T> disposer) {
@@ -232,6 +240,14 @@ public final class GuiOwnedResources implements GuiPreparedRowEnvironment.Resour
             public GuiDrawable image(String name) {
                 return drawable(name);
             }
+
+            public GuiIconMeterSkin iconSkin(String name) {
+                GuiIconMeterSkin skin = iconSkins.get(name);
+                if (skin == null) {
+                    throw GraphicsResources.missing("icon skin", name);
+                }
+                return skin;
+            }
         };
     }
 
@@ -291,5 +307,6 @@ public final class GuiOwnedResources implements GuiPreparedRowEnvironment.Resour
         atlases.clear();
         drawables.clear();
         fonts.clear();
+        iconSkins.clear();
     }
 }

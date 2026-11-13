@@ -26,7 +26,7 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
     private static final List<String> TYPES = Collections.unmodifiableList(Arrays.asList("text", "image", "panel",
             "row", "column", "grid", "scroll", "list", "tree", "table", "overlay", "spacer", "divider", "button",
             "checkbox", "choice", "radio", "slider", "stepper", "textbox", "textarea", "numberbox", "dropdown",
-            "contextmenu", "tabs", "progress", "dialog", "tooltip"));
+            "contextmenu", "tabs", "progress", "dialog", "tooltip", "iconmeter"));
     private final GuiStyleSheet theme;
     private final Function<GuiNodeDefinition, GuiVisualTemplate> templates;
     private final Function<GuiNodeDefinition, GuiStyledView.Events> events;
@@ -59,6 +59,8 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
             throw new IllegalArgumentException("Collection views require a host row budget and GuiCollectionView");
         }
         switch (type) {
+            case "iconmeter":
+                return new GuiIconMeterView(theme, template, events);
             case "scroll":
                 return new GuiScrollControl(theme, template, events);
             case "radio":
@@ -105,6 +107,23 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
         properties.add(GuiPropertyDescriptor.value("align", Kind.STRING, "stretch", Stage.ARRANGE));
         properties.add(GuiPropertyDescriptor.value("justify", Kind.STRING, "start", Stage.ARRANGE));
         properties.add(GuiPropertyDescriptor.value("clip", Kind.BOOLEAN, false, Stage.HIT));
+        if ("iconmeter".equals(type)) {
+            properties.add(GuiPropertyDescriptor.number("value", 0, -1.0e12, 1.0e12, Stage.PAINT));
+            properties.add(GuiPropertyDescriptor.number("minimum", 0, -1.0e12, 1.0e12, Stage.MEASURE, Stage.PAINT));
+            properties.add(GuiPropertyDescriptor.number("maximum", 10, -1.0e12, 1.0e12, Stage.MEASURE, Stage.PAINT));
+            properties.add(GuiPropertyDescriptor.number("unitsPerIcon", 1, 1.0e-9, 1.0e12, Stage.MEASURE, Stage.PAINT));
+            properties.add(new GuiPropertyDescriptor("referenceValue", Kind.NUMBER, null, -1.0e12, 1.0e12, true, true,
+                    EnumSet.of(Stage.PAINT), Collections.emptySet()));
+            for (String name : Arrays.asList("maxIcons", "columns", "iconWidth", "iconHeight", "pitchX", "pitchY")) {
+                properties.add(new GuiPropertyDescriptor(name, Kind.INTEGER, name.equals("maxIcons") ? 256 : 0,
+                        name.equals("maxIcons") ? 1 : 0, name.startsWith("pitch") ? 512 : 256, false, false,
+                        EnumSet.of(Stage.MEASURE, Stage.PAINT), Collections.emptySet()));
+            }
+            properties.add(GuiPropertyDescriptor.value("skin", Kind.STRING, "", Stage.MEASURE, Stage.PAINT));
+            properties.add(GuiPropertyDescriptor.value("partialMode", Kind.STRING, "clip", Stage.PAINT));
+            properties.add(
+                    GuiPropertyDescriptor.value("fillOrder", Kind.STRING, "left_to_right", Stage.MEASURE, Stage.PAINT));
+        }
         if ("scroll".equals(type)) {
             properties.add(GuiPropertyDescriptor.value("direction", Kind.STRING, "vertical", Stage.MEASURE));
             properties.add(GuiPropertyDescriptor.value("scrollbars", Kind.BOOLEAN, true, Stage.PAINT, Stage.HIT));

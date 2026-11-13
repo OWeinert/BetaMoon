@@ -59,6 +59,7 @@
 
 ### UI foundations
 
+- Add shared passive icon meters with native heart/armor/air skins and prepared custom partial/reference artwork.
 - Route legacy Lua container focus, gestures and text editing through the shared retained scene and editor model.
 - Author panel-local container documents with shared UI nodes, state, actions, resources and compatible refresh.
 - Observe scoped container state/geometry and queue validated named-control requests through shared UI tickets.

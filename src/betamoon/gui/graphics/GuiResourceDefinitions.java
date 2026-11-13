@@ -13,7 +13,7 @@ import java.util.Map;
 public final class GuiResourceDefinitions {
     public static final GuiResourceDefinitions EMPTY = new GuiResourceDefinitions(Collections.emptyMap(), 0);
     public enum Kind {
-        IMAGE, MESH, BUFFER, PROGRAM, TARGET, DRAWABLE, FONT
+        IMAGE, MESH, BUFFER, PROGRAM, TARGET, DRAWABLE, FONT, ICON_SKIN
     }
 
     public abstract static class Resource {
@@ -125,6 +125,15 @@ public final class GuiResourceDefinitions {
         this.entries = Collections.unmodifiableMap(new LinkedHashMap<>(entries));
         this.metadataBytes = metadataBytes;
         for (Resource resource : entries.values()) {
+            if (resource instanceof GuiIconSkinDefinition) {
+                for (String name : ((GuiIconSkinDefinition) resource).references()) {
+                    Resource drawable = entries.get(name);
+                    if (!(drawable instanceof Drawable) && !(drawable instanceof Image)
+                            && !(drawable instanceof Target)) {
+                        throw new IllegalArgumentException("Icon skin references an unknown drawable/image: " + name);
+                    }
+                }
+            }
             String image = resource instanceof Drawable
                     ? ((Drawable) resource).image
                     : resource instanceof Font ? ((Font) resource).image : null;

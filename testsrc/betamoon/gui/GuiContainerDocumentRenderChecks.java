@@ -69,10 +69,11 @@ final class GuiContainerDocumentRenderChecks {
                         + "gui=betamoon.containerGuis:add{name='inline_document',container=c,"
                         + "state={count={type='integer',default=0}},"
                         + "on={update=function(ctx) seen=ctx.state:get('count'); stateHandle=ctx.state end},"
-                        + "root={type='button',id='increment',width=120,height=20,anchorX=0,anchorY=0,x=8,y=20,"
+                        + "root={type='overlay',width=176,height=166,anchorX=0,anchorY=0,children={{type='button',id='increment',width=120,height=20,anchorX=0,anchorY=0,x=8,y=20,"
                         + "bind=function(ctx) binds=(binds or 0)+1;return {text='Count '..ctx.state:get('count')} end,"
-                        + "on={activate=function(ctx) ctx.state:set('count',ctx.state:get('count')+1) end}}};return gui")
-                        .call();
+                        + "on={activate=function(ctx) ctx.state:set('count',ctx.state:get('count')+1) end}},"
+                        + "{type='iconmeter',id='icons',skin='minecraft:hearts',maximum=20,value=7,unitsPerIcon=2,"
+                        + "maxIcons=10,partialMode='steps',anchorX=0,anchorY=0,x=8,y=50}}}};return gui").call();
                 definition = ((TileEntityApi.GuiHandle) handle).definition;
             } finally {
                 owner(null);

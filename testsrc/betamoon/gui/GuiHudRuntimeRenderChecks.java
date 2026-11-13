@@ -69,6 +69,7 @@ final class GuiHudRuntimeRenderChecks {
             ImageIO.write(GuiShowcaseRenderTest.capture(320, 240), "png",
                     new File(output, "hud-native-replacement.png"));
             focusedObservations(client, lua);
+            iconMeters(client, lua, output);
             GuiHudActivation second = activate(lua, "fixture:priority",
                     "priority=1," + "nativeParts={crosshair={replace='fixture:reticle-b'}}");
             client.thePlayer.health = 17;
@@ -194,6 +195,25 @@ final class GuiHudRuntimeRenderChecks {
                 && !lua.load("return pcall(function()savedStats.health=999 end)").call().toboolean(),
                 "HUD source access outlived its callback or exposed mutable detached stats");
         client.thePlayer.posX = x;
+        claim.close();
+        GuiHudRuntime.tick(client);
+    }
+
+    private static void iconMeters(Minecraft client, Globals lua, File output) throws Exception {
+        screen(lua, "fixture:icon-meters", "resources={drawables={empty={color='#111111'},full={color='#00FF00'},"
+                + "half={color='#FFFF00'}},iconSkins={custom={iconWidth=6,iconHeight=6,pitchX=7,pitchY=6,"
+                + "empty='empty',full='full',partials={{fraction=0.5,drawable='half'}}}}},"
+                + "root={type='column',width=100,height=40,anchorX=0,anchorY=0,x=8,y=50,gap=3,children={"
+                + "{type='iconmeter',skin='minecraft:hearts',value=7,maximum=20,unitsPerIcon=2,maxIcons=10,partialMode='steps'},"
+                + "{type='iconmeter',skin='custom',value=1.5,maximum=3,maxIcons=3,partialMode='steps'}}}");
+        GuiHudActivation claim = activate(lua, "fixture:icon-profile", "screen='fixture:icon-meters',safeArea=false");
+        GuiHudRuntime.tick(client);
+        frame(client, true, true);
+        java.awt.image.BufferedImage image = GuiShowcaseRenderTest.capture(320, 240);
+        ImageIO.write(image, "png", new File(output, "hud-icon-meters.png"));
+        require(claim.status().equals("active") && image.getRGB(9, 63) == 0xFF00FF00
+                && image.getRGB(16, 63) == 0xFFFFFF00 && image.getRGB(23, 63) == 0xFF111111,
+                "Prepared icon meter did not paint full/half/empty custom skin states");
         claim.close();
         GuiHudRuntime.tick(client);
     }

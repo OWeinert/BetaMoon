@@ -48,10 +48,15 @@ public final class GuiDrawable {
     }
 
     public void draw(GuiContext context, Rect bounds) {
+        draw(context, bounds, 0xFFFFFFFF);
+    }
+
+    public void draw(GuiContext context, Rect bounds, int tint) {
         requireActive();
-        int alpha = (int) Math.round((color >>> 24) * context.getOpacity());
+        int combined = multiply(color, tint);
+        int alpha = (int) Math.round((combined >>> 24) * context.getOpacity());
         if (atlas == null) {
-            context.getRenderer().drawRect(bounds, color & 0xFFFFFF | alpha << 24);
+            context.getRenderer().drawRect(bounds, combined & 0xFFFFFF | alpha << 24);
             return;
         }
         if (bounds.isEmpty() || alpha <= 0) {
@@ -63,7 +68,8 @@ public final class GuiDrawable {
             GL11.glEnable(GL11.GL_BLEND);
             GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
             GL11.glBindTexture(GL11.GL_TEXTURE_2D, atlas.textureId());
-            GL11.glColor4f(1, 1, 1, alpha / 255F);
+            GL11.glColor4f((combined >> 16 & 255) / 255F, (combined >> 8 & 255) / 255F, (combined & 255) / 255F,
+                    alpha / 255F);
             Tessellator batch = Tessellator.instance;
             batch.startDrawingQuads();
             if (border == 0) {
@@ -89,6 +95,14 @@ public final class GuiDrawable {
         } finally {
             GL11.glPopAttrib();
         }
+    }
+
+    private static int multiply(int first, int second) {
+        int result = 0;
+        for (int shift = 0; shift <= 24; shift += 8) {
+            result |= ((first >>> shift & 255) * (second >>> shift & 255) / 255) << shift;
+        }
+        return result;
     }
 
     private static int boundary(int index, int start, int size, int edge) {

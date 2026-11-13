@@ -5,6 +5,7 @@ import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.framework.GuiRenderer;
 import betamoon.gui.widget.GuiStyledView;
+import betamoon.gui.widget.GuiIconMeterView;
 import betamoon.gui.widget.GuiRadioView;
 import betamoon.gui.widget.GuiTextAreaFrame;
 import betamoon.gui.control.GuiSelectionOptions;
@@ -32,6 +33,10 @@ public final class GuiDefaultTemplate implements GuiVisualTemplate {
 
     @Override
     public void paint(GuiContext context, GuiStyledView view, GuiControlStyle style) {
+        if (view instanceof GuiIconMeterView) {
+            ((GuiIconMeterView) view).paintIcons(context);
+            return;
+        }
         GuiRenderer renderer = context.getRenderer();
         Rect bounds = view.getBounds();
         String kind = view.kind();

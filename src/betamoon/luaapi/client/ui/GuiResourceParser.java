@@ -4,6 +4,7 @@ import betamoon.client.assets.AssetLocation;
 import betamoon.gui.component.GuiComponentDefinition;
 import betamoon.gui.graphics.GraphicsMesh;
 import betamoon.gui.graphics.GuiResourceDefinitions;
+import betamoon.gui.graphics.GuiIconSkinDefinition;
 import betamoon.gui.graphics.GuiResourceDefinitions.Buffer;
 import betamoon.gui.graphics.GuiResourceDefinitions.Drawable;
 import betamoon.gui.graphics.GuiResourceDefinitions.Font;
@@ -36,10 +37,10 @@ public final class GuiResourceParser {
         }
         bytes = 0;
         LuaDeclarationValues.fields(value, path, "images", "meshes", "buffers", "programs", "targets", "drawables",
-                "fonts");
+                "fonts", "iconSkins");
         Map<String, Resource> resources = new LinkedHashMap<>();
-        for (String category : new String[]{"images", "meshes", "buffers", "programs", "targets", "drawables",
-                "fonts"}) {
+        for (String category : new String[]{"images", "meshes", "buffers", "programs", "targets", "drawables", "fonts",
+                "iconSkins"}) {
             LuaValue definitions = value.get(category);
             if (definitions.isnil()) {
                 continue;
@@ -71,6 +72,32 @@ public final class GuiResourceParser {
 
     private Resource resource(String category, LuaValue value, String path) {
         switch (category) {
+            case "iconSkins": {
+                LuaDeclarationValues.fields(value, path, "iconWidth", "iconHeight", "pitchX", "pitchY", "empty", "full",
+                        "partials", "reference", "flashEmpty", "tints");
+                int width = integer(value, "iconWidth", path, 9, 1, 256);
+                int height = integer(value, "iconHeight", path, 9, 1, 256);
+                LuaValue reference = value.get("reference");
+                if (!reference.isnil()) {
+                    LuaDeclarationValues.fields(reference, path + ".reference", "full", "partials");
+                }
+                LuaValue tints = value.get("tints");
+                if (!tints.isnil()) {
+                    LuaDeclarationValues.fields(tints, path + ".tints", "empty", "fill", "reference");
+                }
+                return new GuiIconSkinDefinition(width, height, integer(value, "pitchX", path, width, 1, 512),
+                        integer(value, "pitchY", path, height, 1, 512),
+                        optionalName(value.get("empty"), path + ".empty"),
+                        resourceName(value.get("full"), path + ".full"),
+                        partials(value.get("partials"), path + ".partials"),
+                        reference.isnil() ? null : resourceName(reference.get("full"), path + ".reference.full"),
+                        partials(reference.isnil() ? LuaValue.NIL : reference.get("partials"),
+                                path + ".reference.partials"),
+                        optionalName(value.get("flashEmpty"), path + ".flashEmpty"),
+                        tint(tints.isnil() ? LuaValue.NIL : tints.get("empty")),
+                        tint(tints.isnil() ? LuaValue.NIL : tints.get("fill")),
+                        tint(tints.isnil() ? LuaValue.NIL : tints.get("reference")));
+            }
             case "images": {
                 LuaDeclarationValues.fields(value, path, "source", "nearest");
                 AssetLocation location = AssetInputs.texture(value.get("source"));
@@ -177,6 +204,46 @@ public final class GuiResourceParser {
             default:
                 throw LuaDeclarationValues.error(path, "unknown resource category");
         }
+    }
+
+    private Map<Double, String> partials(LuaValue value, String path) {
+        Map<Double, String> result = new LinkedHashMap<>();
+        if (value.isnil()) {
+            return result;
+        }
+        int count = LuaDeclarationValues.length(value, path);
+        if (count > 32) {
+            throw LuaDeclarationValues.error(path, "at most 32 ordered partial states");
+        }
+        double previous = 0;
+        for (int index = 1; index <= count; index++) {
+            LuaValue entry = value.get(index);
+            LuaDeclarationValues.fields(entry, path + "[" + index + "]", "fraction", "drawable");
+            LuaValue fraction = entry.get("fraction");
+            double next = fraction.type() == LuaValue.TNUMBER ? fraction.todouble() : Double.NaN;
+            if (!Double.isFinite(next) || next <= previous || next >= 1) {
+                throw LuaDeclarationValues.error(path, "fractions must increase strictly within (0,1)");
+            }
+            result.put(next, resourceName(entry.get("drawable"), path + ".drawable"));
+            previous = next;
+        }
+        return result;
+    }
+
+    private String resourceName(LuaValue value, String path) {
+        String name = text(value, path, 160);
+        GuiComponentDefinition.name(name);
+        return name;
+    }
+
+    private String optionalName(LuaValue value, String path) {
+        return value.isnil() ? null : resourceName(value, path);
+    }
+
+    private static int tint(LuaValue value) {
+        return value.isnil()
+                ? -1
+                : (Integer) GuiPropertyValues.read(GuiPropertyDescriptor.value("color", Kind.COLOR, -1), value);
     }
 
     private float[] vertices(LuaValue value, String path, int maximum) {

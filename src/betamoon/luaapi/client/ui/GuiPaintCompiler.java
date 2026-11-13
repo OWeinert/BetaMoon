@@ -7,6 +7,7 @@ import betamoon.gui.presentation.GuiProperties;
 import betamoon.gui.presentation.GuiPropertyDescriptor;
 import betamoon.gui.presentation.GuiPropertyDescriptor.Kind;
 import betamoon.gui.style.GuiDrawable;
+import betamoon.gui.style.GuiIconMeterSkin;
 import betamoon.gui.style.GuiFontFace;
 import betamoon.luaapi.utils.LuaDeclarationValues;
 import org.luaj.vm2.LuaError;
@@ -22,6 +23,10 @@ public final class GuiPaintCompiler {
         GuiFontFace font(String key);
 
         GuiDrawable image(String key);
+
+        default GuiIconMeterSkin iconSkin(String key) {
+            throw new IllegalArgumentException("Unknown prepared icon skin: " + key);
+        }
     }
 
     private static final GuiPropertyDescriptor COLOR = GuiPropertyDescriptor.value("color", Kind.COLOR, 0xFFFFFFFF);
