@@ -3,6 +3,7 @@ package betamoon.luaapi.client.ui;
 import betamoon.gui.hud.GuiHudDefinition;
 import betamoon.gui.hud.GuiHudDefinition.Context;
 import betamoon.gui.hud.GuiHudNativePart;
+import betamoon.gui.hud.GuiHudPartTransform;
 import betamoon.luaapi.utils.LuaDeclarationValues;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -64,12 +65,13 @@ public final class GuiHudParser {
                 }
                 String partPath = path + ".nativeParts." + name;
                 LuaValue declaration = entries.get(name);
-                LuaDeclarationValues.fields(declaration, partPath, "hide", "replace");
+                LuaDeclarationValues.fields(declaration, partPath, "hide", "replace", "modify");
                 try {
                     parts.put(part,
                             new GuiHudDefinition.NativePart(
                                     LuaDeclarationValues.bool(declaration.get("hide"), partPath + ".hide", false),
-                                    optional(declaration.get("replace"), partPath + ".replace")));
+                                    optional(declaration.get("replace"), partPath + ".replace"),
+                                    modifier(declaration.get("modify"), partPath + ".modify")));
                 } catch (IllegalArgumentException invalid) {
                     throw LuaDeclarationValues.error(partPath, invalid.getMessage());
                 }
@@ -99,6 +101,31 @@ public final class GuiHudParser {
             }
         }
         throw LuaDeclarationValues.error(path, "expected auto, world or overlay");
+    }
+
+    private static GuiHudPartTransform modifier(LuaValue value, String path) {
+        if (value.isnil()) {
+            return null;
+        }
+        String mode = value.get("mode").isnil()
+                ? "offset"
+                : LuaDeclarationValues.string(value.get("mode"), path + ".mode");
+        boolean anchor = mode.equals("anchor");
+        if (!anchor && !mode.equals("offset")) {
+            throw LuaDeclarationValues.error(path + ".mode", "expected offset or anchor");
+        }
+        if (anchor) {
+            LuaDeclarationValues.fields(value, path, "mode", "x", "y", "anchorX", "anchorY", "scale");
+        } else {
+            LuaDeclarationValues.fields(value, path, "mode", "offsetX", "offsetY", "scale");
+        }
+        return new GuiHudPartTransform(anchor, number(value, anchor ? "x" : "offsetX", 0, path),
+                number(value, anchor ? "y" : "offsetY", 0, path), number(value, "anchorX", 0, path),
+                number(value, "anchorY", 0, path), number(value, "scale", 1, path));
+    }
+
+    private static double number(LuaValue table, String name, double fallback, String path) {
+        return table.get(name).isnil() ? fallback : LuaDeclarationValues.number(table.get(name), path + "." + name);
     }
 
     private static Set<String> regions(LuaValue value, String path) {

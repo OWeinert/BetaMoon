@@ -96,6 +96,7 @@ final class GuiHudHookTest {
                 "Chat read filter accepted an unknown read count or rejected native reads in " + namespace);
         require(count(transformed, "beforeNative") == 1 && count(transformed, "afterNative") == 1
                 && count(transformed, "nativeFailed") == 1 && count(transformed, "beforeHotbar") == 1
+                && count(transformed, "beginHotbarTransform") == 1 && count(transformed, "endTransform") >= 2
                 && count(transformed, "armor") == 1,
                 "An optional HUD shape displaced independent lifecycle/item/armor seams");
         String refused = mutation == 1 ? "textures" : "chat";

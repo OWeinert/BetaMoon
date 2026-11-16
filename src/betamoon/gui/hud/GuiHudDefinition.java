@@ -39,13 +39,19 @@ public final class GuiHudDefinition {
     public static final class NativePart {
         public final boolean hide;
         public final String replace;
+        public final GuiHudPartTransform modify;
 
         public NativePart(boolean hide, String replace) {
-            if (hide == (replace != null)) {
-                throw new IllegalArgumentException("Select native hiding or an owned replacement screen");
+            this(hide, replace, null);
+        }
+
+        public NativePart(boolean hide, String replace, GuiHudPartTransform modify) {
+            if ((hide ? 1 : 0) + (replace == null ? 0 : 1) + (modify == null ? 0 : 1) != 1) {
+                throw new IllegalArgumentException("Select exactly one native operation: hide, replace or modify");
             }
             this.hide = hide;
             this.replace = replace == null ? null : GuiComponentDefinition.key(replace);
+            this.modify = modify;
         }
     }
 

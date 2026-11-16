@@ -104,3 +104,5 @@
 - Deferred UI actions from failed callbacks, rejected GUI command batches or expired component owners now cancel before dispatch.
 
 - Add passive shared item displays with cosmetic descriptors, read-only hotbar sources, native counts/durability and pickup animation.
+
+- Add native HUD move/scale operations with independent diagnostics, priority arbitration and safe restoration.

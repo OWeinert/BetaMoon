@@ -55,6 +55,11 @@ public final class GuiHudHook implements HookModule {
                 .builder(getId() + ":hotbar_items", new MethodRef(hud, "renderInventorySlot", "(IIIF)V"))
                 .capture(HandlerRef.of(CALLBACKS, "beforeHotbar", "()I")).skipWhenCapturedNonZero()
                 .onReturn(HandlerRef.of(CALLBACKS, "afterHotbar", "()V")).build());
+        registrar.register(AroundHookDefinition
+                .builder(getId() + ":hotbar_transform", new MethodRef(hud, "renderInventorySlot", "(IIIF)V"))
+                .capture(HandlerRef.of(CALLBACKS, "beginHotbarTransform", "()I"))
+                .onReturn(HandlerRef.of(CALLBACKS, "endTransform", "(I)V"), ValueBinding.capturedValue())
+                .cleanupOnException().build());
         registrar.register(new FieldReadRedirectHookDefinition(getId() + ":chat", render,
                 new FieldRef(hud, "chatMessageList", "Ljava/util/List;"),
                 HandlerRef.of(CALLBACKS, "chat", "(Ljava/util/List;)Ljava/util/List;")).filterReads(4));

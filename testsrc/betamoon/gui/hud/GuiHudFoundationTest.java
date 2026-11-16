@@ -29,6 +29,7 @@ public final class GuiHudFoundationTest {
             declarations();
             GuiIconMeterTest.run();
             GuiItemTest.run();
+            modifiers();
             nativeAtlas();
             reservations();
             scopedObservations();
@@ -79,6 +80,31 @@ public final class GuiHudFoundationTest {
         ScriptResourceTracker.unload(OWNER);
         require(!definition.available() && second.status().equals("closed") && registry.get(definition.key) == null,
                 "Owner unload retained HUD metadata, claims or input");
+    }
+
+    private static void modifiers() {
+        GuiHudDefinition relative = parse("nativeParts={health={modify={offsetX=8,offsetY=-10,scale=2}}}");
+        Rect body = GuiHudPartLayout.body(GuiHudNativePart.HEALTH, 320, 240, false);
+        Rect moved = GuiHudPartTransform.map(body,
+                relative.nativeParts.get(GuiHudNativePart.HEALTH).modify.resolve(body, 320, 240));
+        require(moved.getLeft() == body.getLeft() + 8 && moved.getTop() == body.getTop() - 10
+                && moved.getWidth() == 162, "Native modifier changed body-origin semantics");
+        GuiHudDefinition anchor = parse(
+                "nativeParts={hotbar={modify={mode='anchor',anchorX=1,anchorY=1,x=-8,y=-4,scale=0.5}}}");
+        body = GuiHudPartLayout.body(GuiHudNativePart.HOTBAR, 320, 240, false);
+        moved = GuiHudPartTransform.map(body,
+                anchor.nativeParts.get(GuiHudNativePart.HOTBAR).modify.resolve(body, 320, 240));
+        require(moved.getLeft() == 221 && moved.getTop() == 225 && moved.getWidth() == 91,
+                "Anchored native geometry did not use scaled body dimensions");
+        for (String fields : new String[]{"hide=true,modify={}", "modify={scale=0}", "modify={scale=5}",
+                "modify={mode='anchor',offsetX=1}", "modify={anchorX=1}", "modify={offsetY=20000}"}) {
+            try {
+                parse("nativeParts={health={" + fields + "}}");
+            } catch (LuaError expected) {
+                continue;
+            }
+            throw new AssertionError("Invalid native modifier accepted: " + fields);
+        }
     }
 
     private static GuiHudDefinition parse(String fields) {

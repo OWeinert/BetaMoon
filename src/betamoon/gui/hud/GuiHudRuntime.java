@@ -3,6 +3,7 @@ package betamoon.gui.hud;
 import betamoon.interop.discovery.NativeDiscoveryRuntime;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.gui.screen.GuiScreenActivation;
+import betamoon.gui.graphics.GraphicsTransform;
 import betamoon.instrumentation.agent.AgentRuntime;
 import java.lang.ref.WeakReference;
 import java.util.Collections;
@@ -63,14 +64,17 @@ public final class GuiHudRuntime {
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("hide", supported);
             value.put("replace", supported);
-            value.put("modify", false);
+            value.put("modify", modifyAvailable(part));
             value.put("layout", true);
             Map<String, Object> reasons = new LinkedHashMap<>();
             if (!supported) {
                 reasons.put("hide", "native_hook_unavailable");
                 reasons.put("replace", "native_hook_unavailable");
             }
-            reasons.put("modify", "unsupported_operation");
+            if (!modifyAvailable(part)) {
+                reasons.put("modify",
+                        part == GuiHudNativePart.CHAT ? "unsupported_operation" : "native_hook_unavailable");
+            }
             value.put("reasons", Collections.unmodifiableMap(reasons));
             result.put(part.name, Collections.unmodifiableMap(value));
         }
@@ -99,6 +103,15 @@ public final class GuiHudRuntime {
         }
     }
 
+    static boolean modifyAvailable(GuiHudNativePart part) {
+        return part != GuiHudNativePart.CHAT && nativeAvailable(part) && (part != GuiHudNativePart.HOTBAR
+                || AgentRuntime.getReport().isApplied("betamoon:gui_hud:hotbar_transform"));
+    }
+
+    public static GraphicsTransform nativeTransform(GuiHudNativePart part) {
+        return current == null || !current.valid() ? null : current.nativeTransform(part);
+    }
+
     public static Map<String, Object> parts(GuiHudActivation claim) {
         Map<String, Object> result = new LinkedHashMap<>();
         for (GuiHudNativePart part : claim.requestedParts()) {
@@ -108,7 +121,14 @@ public final class GuiHudRuntime {
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("status", status);
             if (status.equals("unavailable")) {
-                value.put("reason", nativeAvailable(part) ? "not_rendered" : "native_hook_unavailable");
+                GuiHudDefinition definition = REGISTRY.get(claim.key);
+                boolean modifier = definition != null && definition.nativeParts.get(part).modify != null;
+                value.put("reason",
+                        modifier && part == GuiHudNativePart.CHAT
+                                ? "unsupported_operation"
+                                : (modifier ? modifyAvailable(part) : nativeAvailable(part))
+                                        ? "not_rendered"
+                                        : "native_hook_unavailable");
             }
             result.put(part.name, Collections.unmodifiableMap(value));
         }

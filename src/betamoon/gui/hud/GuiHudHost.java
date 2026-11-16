@@ -70,6 +70,7 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
     private final EnumSet<GuiHudNativePart> visited = EnumSet.noneOf(GuiHudNativePart.class);
     private final EnumSet<GuiHudNativePart> suppressed = EnumSet.noneOf(GuiHudNativePart.class);
     private final EnumSet<GuiHudNativePart> replacementsPainted = EnumSet.noneOf(GuiHudNativePart.class);
+    private final EnumSet<GuiHudNativePart> modified = EnumSet.noneOf(GuiHudNativePart.class);
     private NativeClientScreenHost engine;
     private GuiScopedSnapshot observation;
     private Map<String, Object> observationValues = Collections.emptyMap();
@@ -323,7 +324,7 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
             if (entry.eligible()) {
                 for (Map.Entry<GuiHudNativePart, GuiHudDefinition.NativePart> part : entry.definition.nativeParts
                         .entrySet()) {
-                    if (part.getValue().replace != null) {
+                    if (part.getValue().replace != null || part.getValue().modify != null) {
                         winners.put(part.getKey(), entry);
                     }
                 }
@@ -363,6 +364,7 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
         visited.clear();
         suppressed.clear();
         replacementsPainted.clear();
+        modified.clear();
         captured = false;
         worldPainted = false;
         for (Entry entry : entries.values()) {
@@ -452,6 +454,9 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
         }
         if (replacementsPainted.contains(part) && winners.get(part) == entry) {
             return "replaced";
+        }
+        if (modified.contains(part) && winners.get(part) == entry) {
+            return "modified";
         }
         return "unavailable";
     }
@@ -592,6 +597,24 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
 
     boolean nativeSuppressed(GuiHudNativePart part) {
         return nativeDrawing && prepared() && suppressed.contains(part);
+    }
+
+    GraphicsTransform nativeTransform(GuiHudNativePart part) {
+        if (!nativeDrawing || !prepared() || suppressed.contains(part) || !GuiHudRuntime.modifyAvailable(part)) {
+            return null;
+        }
+        Entry winner = winners.get(part);
+        if (winner == null || !winner.eligible()) {
+            return null;
+        }
+        GuiHudPartTransform modifier = winner.definition.nativeParts.get(part).modify;
+        if (modifier == null) {
+            return null;
+        }
+        modified.add(part);
+        return modifier.resolve(
+                GuiHudPartLayout.body(part, viewport.width, viewport.height, client.currentScreen instanceof GuiChat),
+                viewport.width, viewport.height);
     }
 
     void clientOverlay(float partialTicks) {
@@ -858,8 +881,8 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
 
         boolean nativeApplied() {
             for (Map.Entry<GuiHudNativePart, GuiHudDefinition.NativePart> part : definition.nativeParts.entrySet()) {
-                if (part.getValue().hide && visited.contains(part.getKey())
-                        || winners.get(part.getKey()) == this && replacementsPainted.contains(part.getKey())) {
+                if (part.getValue().hide && visited.contains(part.getKey()) || winners.get(part.getKey()) == this
+                        && (replacementsPainted.contains(part.getKey()) || modified.contains(part.getKey()))) {
                     return true;
                 }
             }

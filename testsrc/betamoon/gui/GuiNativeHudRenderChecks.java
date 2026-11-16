@@ -57,8 +57,8 @@ final class GuiNativeHudRenderChecks {
     private static final String HUD = "net.minecraft.src.GuiIngame";
     private static final String CALLBACKS = "betamoon.instrumentation.hooks.gui.GuiHudCallbacks";
     private static final String[] HOOKS = {"betamoon:gui_hud:native_frame", "betamoon:gui_hud:textures",
-            "betamoon:gui_hud:hotbar_items", "betamoon:gui_hud:armor", "betamoon:gui_hud:chat",
-            "betamoon:fluid_camera:air_hud"};
+            "betamoon:gui_hud:hotbar_items", "betamoon:gui_hud:hotbar_transform", "betamoon:gui_hud:armor",
+            "betamoon:gui_hud:chat", "betamoon:fluid_camera:air_hud"};
 
     static void run(Minecraft client, TinyMappingResolver mappings, File output) throws Exception {
         EntityPlayerSP previousPlayer = client.thePlayer;
@@ -104,6 +104,7 @@ final class GuiNativeHudRenderChecks {
             require(equal(baseline, untouched), "Transformed native HUD changed pixels without an active claim");
             ImageIO.write(baseline, "png", new File(output, "hud-native-original.png"));
             Globals lua = JsePlatform.standardGlobals();
+            modifiers(client, transformed, draw, baseline, lua, output);
             for (GuiHudNativePart part : GuiHudNativePart.values()) {
                 GuiHudActivation first = claim(lua, OWNER + "-a", "fixture:native-hide-a", part.name + "={hide=true}");
                 GuiHudActivation second = claim(lua, OWNER + "-b", "fixture:native-hide-b", part.name + "={hide=true}");
@@ -223,6 +224,57 @@ final class GuiNativeHudRenderChecks {
             AgentRuntime.getReport().applied(hook, HUD);
         }
         return loader.loadClass(HUD).getConstructor(Minecraft.class).newInstance(client);
+    }
+
+    private static void modifiers(Minecraft client, Object hud, Method draw, BufferedImage baseline, Globals lua,
+            File output) throws Exception {
+        for (GuiHudNativePart part : GuiHudNativePart.values()) {
+            GuiHudActivation identity = claim(lua, "fixture:modifier-identity", part.name + "={modify={}}");
+            GuiHudRuntime.tick(client);
+            require(equal(baseline, render(hud, draw, client)),
+                    "Identity modifier changed native pixels: " + part.name);
+            require(status(identity, part).equals(part == GuiHudNativePart.CHAT ? "unavailable" : "modified"),
+                    "Modifier operation status is inaccurate: " + part.name);
+            identity.close();
+            GuiHudRuntime.tick(client);
+            if (part == GuiHudNativePart.CHAT) {
+                continue;
+            }
+            GuiHudActivation move = claim(lua, "fixture:modifier-move", part.name + "={modify={offsetY=-60}}");
+            GuiHudRuntime.tick(client);
+            BufferedImage moved = render(hud, draw, client);
+            require(!equal(baseline, moved), "Native modifier failed to move " + part.name);
+            if (part == GuiHudNativePart.HOTBAR) {
+                for (int y = 218; y < 240; y++) {
+                    for (int x = 68; x < 252; x++) {
+                        require(baseline.getRGB(x, y) == moved.getRGB(x, y - 60),
+                                "Hotbar frame/items/counts did not move together at " + x + "," + y);
+                    }
+                }
+                AgentRuntime.getReport().registered("betamoon:gui_hud:hotbar_transform");
+                require(equal(baseline, render(hud, draw, client)),
+                        "Missing modifier seam changed native hotbar output");
+                require(Boolean.TRUE.equals(GuiHudRuntime.capabilities().get("hotbar")),
+                        "Missing modifier seam disabled independent native hiding");
+                AgentRuntime.getReport().applied("betamoon:gui_hud:hotbar_transform", HUD);
+            }
+            ImageIO.write(moved, "png", new File(output, "hud-moved-" + part.name + ".png"));
+            GuiHudActivation last = claim(lua, "fixture:modifier-last", part.name + "={modify={}}");
+            GuiHudRuntime.tick(client);
+            require(equal(baseline, render(hud, draw, client)) && status(move, part).equals("covered"),
+                    "Latest modifier accumulated transforms instead of selecting one winner");
+            last.close();
+            GuiHudRuntime.tick(client);
+            require(equal(moved, render(hud, draw, client)), "Closing modifier winner did not restore previous owner");
+            GuiHudActivation hide = claim(lua, "fixture:modifier-hide", part.name + "={hide=true}");
+            GuiHudRuntime.tick(client);
+            BufferedImage hidden = render(hud, draw, client);
+            require(!equal(moved, hidden), "Independent hide did not suppress native modifier");
+            hide.close();
+            move.close();
+            require(equal(baseline, render(hud, draw, client)), "Closing native modifier failed immediate restoration");
+            GuiHudRuntime.tick(client);
+        }
     }
 
     private static byte[] bytes(String name) throws Exception {
