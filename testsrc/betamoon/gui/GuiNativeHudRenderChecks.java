@@ -111,6 +111,7 @@ final class GuiNativeHudRenderChecks {
             builtIns(client, nativeHud, transformed, draw, lua, output);
             effectiveLayouts(client, transformed, draw, lua, output);
             collectionWork(client, transformed, draw, lua);
+            translucentCrosshair(client, transformed, draw, baseline, lua);
             for (GuiHudNativePart part : GuiHudNativePart.values()) {
                 GuiHudActivation first = claim(lua, OWNER + "-a", "fixture:native-hide-a", part.name + "={hide=true}");
                 GuiHudActivation second = claim(lua, OWNER + "-b", "fixture:native-hide-b", part.name + "={hide=true}");
@@ -445,6 +446,33 @@ final class GuiNativeHudRenderChecks {
             claim.close();
             GuiHudRuntime.tick(client);
         }
+    }
+
+    private static void translucentCrosshair(Minecraft client, Object hud, Method draw, BufferedImage baseline,
+            Globals lua) throws Exception {
+        GuiClientUiRuntime.screens().add(GuiScreenParser.parse(OWNER,
+                lua.load("return {key='fixture:crosshair-alpha',root={type='image',nativeSprite='minecraft:crosshair',"
+                        + "width=16,height=16,anchorX=0,anchorY=0,x=153,y=113,opacity=0.5}}").call(),
+                GuiClientUiRuntime.components()));
+        GuiHudActivation claim = claim(lua, "fixture:crosshair-alpha-profile",
+                "crosshair={replace='fixture:crosshair-alpha'}");
+        GuiHudRuntime.tick(client);
+        BufferedImage actual = render(hud, draw, client);
+        int compared = 0;
+        for (int y = 113; y < 129; y++) {
+            for (int x = 153; x < 169; x++) {
+                int before = baseline.getRGB(x, y) & 255;
+                if (before > 100) {
+                    require(Math.abs((actual.getRGB(x, y) & 255) - (before + 31) / 2.0) <= 1,
+                            "Native inverted sprite ignored shared opacity");
+                    compared++;
+                }
+            }
+        }
+        require(compared > 0 && status(claim, GuiHudNativePart.CROSSHAIR).equals("replaced"),
+                "Translucent crosshair check missed native sprite pixels");
+        claim.close();
+        GuiHudRuntime.tick(client);
     }
 
     private static int sessions() {

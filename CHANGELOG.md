@@ -110,3 +110,5 @@
 - Add reusable player HUD components for native hearts, armor, breath, item hotbars and crosshairs, including continuous-bar and alternate-layout options.
 
 - Expose effective HUD bounds and companion reservations, with shared icon/item work admission across documents and virtual rows.
+
+- Preserve shared opacity when rendering native inverted crosshair sprites.

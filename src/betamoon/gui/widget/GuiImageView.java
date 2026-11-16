@@ -61,7 +61,11 @@ public final class GuiImageView extends GuiStyledView {
                     crosshair ? GL11.GL_ONE_MINUS_SRC_COLOR : GL11.GL_ONE_MINUS_SRC_ALPHA);
             GL11.glEnable(GL11.GL_TEXTURE_2D);
             GL11.glBindTexture(GL11.GL_TEXTURE_2D, texture);
-            GL11.glColor4f(1, 1, 1, (float) context.getOpacity());
+            float opacity = (float) context.getOpacity();
+            // Inversion blends use RGB factors, so scale source RGB to interpolate with the
+            // destination.
+            GL11.glColor4f(crosshair ? opacity : 1, crosshair ? opacity : 1, crosshair ? opacity : 1,
+                    crosshair ? 1 : opacity);
             Rect bounds = getBounds();
             double minV = selection ? 22.0 / 256 : 0;
             double maxV = (selection ? 44.0 : height) / 256;
