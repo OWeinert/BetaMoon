@@ -60,6 +60,8 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
             throw new IllegalArgumentException("Collection views require a host row budget and GuiCollectionView");
         }
         switch (type) {
+            case "image":
+                return new GuiImageView(theme, template, events);
             case "item":
                 return new GuiItemView(theme, template, events);
             case "iconmeter":
@@ -120,6 +122,8 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
             }
         }
         if ("iconmeter".equals(type)) {
+            properties.add(GuiPropertyDescriptor.value("hudSource", Kind.STRING, "", Stage.PAINT));
+            properties.add(GuiPropertyDescriptor.value("nativeEffects", Kind.BOOLEAN, true, Stage.PAINT));
             properties.add(GuiPropertyDescriptor.number("value", 0, -1.0e12, 1.0e12, Stage.PAINT));
             properties.add(GuiPropertyDescriptor.number("minimum", 0, -1.0e12, 1.0e12, Stage.MEASURE, Stage.PAINT));
             properties.add(GuiPropertyDescriptor.number("maximum", 10, -1.0e12, 1.0e12, Stage.MEASURE, Stage.PAINT));
@@ -179,6 +183,7 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
             properties.add(GuiPropertyDescriptor.value("text", Kind.STRING, "", Stage.MEASURE, Stage.PAINT));
         }
         if ("image".equals(type)) {
+            properties.add(GuiPropertyDescriptor.value("nativeSprite", Kind.STRING, "", Stage.PAINT));
             properties.add(GuiPropertyDescriptor.value("image", Kind.STRING, "", Stage.PAINT));
         }
         if ("checkbox".equals(type)) {

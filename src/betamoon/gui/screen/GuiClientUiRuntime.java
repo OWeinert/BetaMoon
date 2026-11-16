@@ -1,6 +1,7 @@
 package betamoon.gui.screen;
 
 import betamoon.gui.component.GuiComponentRegistry;
+import betamoon.gui.hud.GuiHudComponents;
 import betamoon.gui.screen.GuiActionDefinition.Scope;
 import betamoon.gui.menu.GuiMenuRuntime;
 import betamoon.gui.style.GuiThemeRegistry;
@@ -26,6 +27,7 @@ public final class GuiClientUiRuntime {
     private static ClientHost host;
 
     public static GuiComponentRegistry components() {
+        GuiHudComponents.install(COMPONENTS);
         return COMPONENTS;
     }
 

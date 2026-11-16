@@ -106,3 +106,5 @@
 - Add passive shared item displays with cosmetic descriptors, read-only hotbar sources, native counts/durability and pickup animation.
 
 - Add native HUD move/scale operations with independent diagnostics, priority arbitration and safe restoration.
+
+- Add reusable player HUD components for native hearts, armor, breath, item hotbars and crosshairs, including continuous-bar and alternate-layout options.

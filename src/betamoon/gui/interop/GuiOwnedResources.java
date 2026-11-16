@@ -245,7 +245,7 @@ public final class GuiOwnedResources implements GuiPreparedRowEnvironment.Resour
                     public GuiPreparedItem prepare(GuiItemModel model) {
                         return new GuiPreparedItem(owner, host,
                                 model.hotbarSlot == 0 ? model.stack() : GuiHudRuntime.copyHotbarItem(model.hotbarSlot),
-                                model.showCount, model.showDurability);
+                                model.showCount, model.showDurability, model.hotbarSlot != 0);
                     }
 
                     public double pickup(int slot) {

@@ -3,6 +3,8 @@ package betamoon.gui;
 import betamoon.gui.hud.GuiHudActivation;
 import betamoon.gui.hud.GuiHudNativePart;
 import betamoon.gui.hud.GuiHudRuntime;
+import betamoon.gui.hud.GuiHudPartLayout;
+import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.interop.GuiResourceBudget;
 import betamoon.gui.screen.GuiClientUiRuntime;
 import betamoon.instrumentation.agent.AgentRuntime;
@@ -105,6 +107,7 @@ final class GuiNativeHudRenderChecks {
             ImageIO.write(baseline, "png", new File(output, "hud-native-original.png"));
             Globals lua = JsePlatform.standardGlobals();
             modifiers(client, transformed, draw, baseline, lua, output);
+            builtIns(client, nativeHud, transformed, draw, lua, output);
             for (GuiHudNativePart part : GuiHudNativePart.values()) {
                 GuiHudActivation first = claim(lua, OWNER + "-a", "fixture:native-hide-a", part.name + "={hide=true}");
                 GuiHudActivation second = claim(lua, OWNER + "-b", "fixture:native-hide-b", part.name + "={hide=true}");
@@ -299,6 +302,64 @@ final class GuiNativeHudRenderChecks {
         GuiHudRuntime.registry().add(
                 GuiHudParser.parse(owner, lua.load("return {key='" + key + "',nativeParts={" + parts + "}}").call()));
         return GuiHudRuntime.registry().activate(owner, key);
+    }
+
+    private static void builtIns(Minecraft client, GuiIngame original, Object hud, Method draw, Globals lua,
+            File output) throws Exception {
+        for (GuiHudNativePart part : GuiHudNativePart.values()) {
+            if (part == GuiHudNativePart.CHAT) {
+                continue;
+            }
+            Rect body = GuiHudPartLayout.body(part, 320, 240, false);
+            ItemStack savedItem = client.thePlayer.inventory.mainInventory[0];
+            if (part == GuiHudNativePart.HOTBAR) {
+                client.thePlayer.inventory.mainInventory[0] = new ItemStack(1, 9, 0);
+                client.thePlayer.inventory.mainInventory[0].animationsToGo = 5;
+            }
+            String key = "fixture:built-in-" + part.name;
+            GuiClientUiRuntime.screens().add(GuiScreenParser.parse(OWNER,
+                    lua.load("return {key='" + key + "',root={component='betamoon:hud/" + part.name
+                            + "',id='display',anchorX=0,anchorY=0,x=" + body.getLeft() + ",y=" + body.getTop() + "}}")
+                            .call(),
+                    GuiClientUiRuntime.components()));
+            GuiHudActivation replacement = claim(lua, "fixture:built-in-profile",
+                    part.name + "={replace='" + key + "'}");
+            int[] values = part == GuiHudNativePart.HEALTH
+                    ? new int[]{0, 1, 2, 3, 4, 5, 19, 20}
+                    : part == GuiHudNativePart.BREATH ? new int[]{-1, 0, 1, 2, 29, 30, 31, 299, 300} : new int[]{20};
+            for (int value : values) {
+                client.thePlayer.health = part == GuiHudNativePart.HEALTH ? value : 20;
+                client.thePlayer.heartsLife = part == GuiHudNativePart.HEALTH ? 10 : 0;
+                client.thePlayer.prevHealth = 20;
+                client.thePlayer.air = part == GuiHudNativePart.BREATH ? value : 180;
+                GuiHudRuntime.tick(client);
+                BufferedImage expected = render(original, GuiIngame.class.getMethod("renderGameOverlay", float.class,
+                        boolean.class, int.class, int.class), client);
+                BufferedImage actual = render(hud, draw, client);
+                require(status(replacement, part)
+                        .equals(part == GuiHudNativePart.HEALTH && value <= 0 ? "suspended" : "replaced"),
+                        "Built-in component refused: " + part.name + "/" + replacement.reason());
+                if (!equal(expected, actual)) {
+                    ImageIO.write(expected, "png", new File(output, "hud-built-in-expected-" + part.name + ".png"));
+                    ImageIO.write(actual, "png", new File(output, "hud-built-in-actual-" + part.name + ".png"));
+                    throw new AssertionError(
+                            "Built-in native component differs from original " + part.name + "=" + value);
+                }
+            }
+            if (part == GuiHudNativePart.HEALTH) {
+                client.thePlayer.health = 3;
+                BufferedImage expected = render(original, GuiIngame.class.getMethod("renderGameOverlay", float.class,
+                        boolean.class, int.class, int.class), client);
+                require(equal(expected, render(hud, draw, client)), "Native health effects waited for a Lua/UI tick");
+            }
+            replacement.close();
+            client.thePlayer.inventory.mainInventory[0] = savedItem;
+            GuiHudRuntime.tick(client);
+        }
+        client.thePlayer.health = 20;
+        client.thePlayer.heartsLife = 0;
+        client.thePlayer.air = 180;
+        GuiHudRuntime.tick(client);
     }
 
     private static int sessions() {

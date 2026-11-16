@@ -13,6 +13,9 @@ import betamoon.gui.style.GuiIconMeterSkin;
 import betamoon.gui.style.GuiNativeIconSkins;
 import betamoon.gui.style.GuiStyleSheet;
 import betamoon.gui.style.GuiVisualTemplate;
+import betamoon.gui.hud.GuiHudFrameState;
+import betamoon.gui.hud.GuiHudRuntime;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
@@ -28,6 +31,11 @@ public final class GuiIconMeterView extends GuiStyledView {
     };
     private GuiIconMeterSkin skin;
     private GuiIconMeterModel model;
+    private boolean hudAvailable;
+
+    public void hudAvailable(boolean available) {
+        hudAvailable = available;
+    }
 
     public GuiIconMeterView(GuiStyleSheet theme, GuiVisualTemplate template, Events events) {
         super("iconmeter", theme, template, events);
@@ -46,7 +54,16 @@ public final class GuiIconMeterView extends GuiStyledView {
             throw new IllegalArgumentException("Icon meter requires a prepared skin name");
         }
         GuiIconMeterSkin candidate = GuiNativeIconSkins.contains(name) ? null : resolver.apply(name);
-        model(values, candidate);
+        GuiIconMeterModel model = model(values, candidate);
+        String source = (String) values.getOrDefault("hudSource", "");
+        if (!Arrays.asList("", "health", "armor", "breath").contains(source) || !source.isEmpty() && !hudAvailable) {
+            throw new IllegalArgumentException("Live icon source requires hud_observation and health, armor or breath");
+        }
+        if (!source.isEmpty() && !Boolean.FALSE.equals(values.get("nativeEffects"))
+                && (model.capacity != 10 || model.minimum != 0 || model.maximum != (source.equals("breath") ? 300 : 20)
+                        || model.units != (source.equals("breath") ? 30 : 2))) {
+            throw new IllegalArgumentException("Native icon effects require ten cells with native units/capacity");
+        }
     }
 
     @Override
@@ -95,7 +112,11 @@ public final class GuiIconMeterView extends GuiStyledView {
 
     @Override
     protected GuiFrameContent sampleFrameContent() {
-        return new Frame(model, skin);
+        String source = (String) values.getOrDefault("hudSource", "");
+        GuiHudFrameState nativeFrame = source.isEmpty() || Boolean.FALSE.equals(values.get("nativeEffects"))
+                ? null
+                : GuiHudRuntime.frame();
+        return new Frame(model, skin, source, nativeFrame);
     }
 
     public void paintIcons(GuiContext context) {
@@ -105,24 +126,55 @@ public final class GuiIconMeterView extends GuiStyledView {
         if (model == null || skin == null) {
             throw new IllegalStateException("Icon meter must prepare before painting");
         }
+        if (!sampled.visible) {
+            return;
+        }
         for (int index = 0; index < model.capacity; index++) {
             Rect bounds = Rect.fromPositionAndSize(getLeft() + model.column(index) * model.pitchX,
-                    getTop() + model.row(index) * model.pitchY, model.width, model.height);
-            skin.empty(context, bounds, false);
-            if (model.reference != null) {
-                skin.fill(context, bounds, model.fraction(index, model.reference), model.steps, model.order, true);
+                    getTop() + model.row(index) * model.pitchY + sampled.offsets[index], model.width, model.height);
+            skin.empty(context, bounds, sampled.flash);
+            if (sampled.reference != null) {
+                skin.fill(context, bounds, model.fraction(index, sampled.reference), model.steps, model.order, true);
             }
-            skin.fill(context, bounds, model.fraction(index, model.value), model.steps, model.order, false);
+            double fraction = sampled.air
+                    ? (index < sampled.fullAir ? 1 : index < sampled.fullAir + sampled.poppingAir ? 0.5 : 0)
+                    : model.fraction(index, sampled.value);
+            skin.fill(context, bounds, fraction, model.steps, model.order, false);
         }
     }
 
     private static final class Frame implements GuiFrameContent {
         final GuiIconMeterModel model;
         final GuiIconMeterSkin skin;
+        final double value;
+        final Double reference;
+        final boolean visible;
+        final boolean flash;
+        final boolean air;
+        final int fullAir;
+        final int poppingAir;
+        final int[] offsets;
 
-        Frame(GuiIconMeterModel model, GuiIconMeterSkin skin) {
+        Frame(GuiIconMeterModel model, GuiIconMeterSkin skin, String source, GuiHudFrameState frame) {
             this.model = model;
             this.skin = skin;
+            boolean health = source.equals("health");
+            air = frame != null && source.equals("breath");
+            flash = frame != null && health && frame.flash();
+            value = frame == null ? model == null ? 0 : model.value : health ? frame.health() : frame.armor();
+            reference = flash
+                    ? Double.valueOf(frame.previousHealth())
+                    : frame == null && model != null ? model.reference : null;
+            visible = frame == null
+                    || frame.survival() && (health || air ? !air || frame.airVisible() : frame.armor() > 0);
+            fullAir = air ? frame.fullAir() : 0;
+            poppingAir = air ? frame.poppingAir() : 0;
+            offsets = new int[model == null ? 0 : model.capacity];
+            if (health && frame != null) {
+                for (int index = 0; index < offsets.length; index++) {
+                    offsets[index] = frame.heartOffset(index);
+                }
+            }
         }
 
         public boolean contains(double localX, double localY) {

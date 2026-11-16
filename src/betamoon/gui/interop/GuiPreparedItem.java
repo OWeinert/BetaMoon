@@ -23,13 +23,16 @@ public final class GuiPreparedItem {
     private final NativeClientScreenHost host;
     private final ItemStack item;
     private final ItemStack overlay;
+    private final boolean hotbarLighting;
     private final int damageWidth;
     private final int damageColor;
     private final int damageBackground;
 
-    GuiPreparedItem(String owner, NativeClientScreenHost host, ItemStack source, boolean count, boolean durability) {
+    GuiPreparedItem(String owner, NativeClientScreenHost host, ItemStack source, boolean count, boolean durability,
+            boolean hotbarLighting) {
         this.owner = owner;
         this.host = host;
+        this.hotbarLighting = hotbarLighting;
         item = source == null ? null : source.copy();
         overlay = source == null ? null : source.copy();
         if (overlay != null) {
@@ -52,7 +55,8 @@ public final class GuiPreparedItem {
             return;
         }
         ScriptExecution.withOwner(owner, () -> {
-            host.session().paint(() -> host.drawItemLayers(item, overlay, 0, 0, (float) context.getOpacity(), pickup));
+            host.session().paint(() -> host.drawItemLayers(item, overlay, 0, 0, (float) context.getOpacity(), pickup,
+                    hotbarLighting));
             return null;
         });
         if (damageWidth >= 0) {

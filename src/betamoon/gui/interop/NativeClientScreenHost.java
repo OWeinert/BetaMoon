@@ -32,6 +32,7 @@ import net.minecraft.src.RenderHelper;
 import net.minecraft.src.RenderItem;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
+import org.lwjgl.opengl.GL12;
 import org.lwjgl.opengl.GLContext;
 import org.lwjgl.BufferUtils;
 import java.nio.FloatBuffer;
@@ -245,7 +246,8 @@ public final class NativeClientScreenHost implements AutoCloseable {
      * Cosmetic item layers with native pickup motion and an independent opacity
      * multiplier.
      */
-    public void drawItemLayers(ItemStack stack, ItemStack overlay, int x, int y, float opacity, double pickup) {
+    public void drawItemLayers(ItemStack stack, ItemStack overlay, int x, int y, float opacity, double pickup,
+            boolean hotbarLighting) {
         requirePaint();
         if (stack == null || opacity <= 0) {
             return;
@@ -253,6 +255,8 @@ public final class NativeClientScreenHost implements AutoCloseable {
         GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_CURRENT_BIT | GL11.GL_COLOR_BUFFER_BIT | GL11.GL_TEXTURE_BIT
                 | GL11.GL_LIGHTING_BIT | GL11.GL_DEPTH_BUFFER_BIT);
         try {
+            GL11.glEnable(GL12.GL_RESCALE_NORMAL);
+            GL11.glEnable(GL11.GL_CULL_FACE);
             GL11.glEnable(GL11.GL_BLEND);
             GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
             if (opacity < 1) {
@@ -274,7 +278,15 @@ public final class NativeClientScreenHost implements AutoCloseable {
                 GL11.glTexEnvi(GL11.GL_TEXTURE_ENV, GL13.GL_OPERAND0_ALPHA, GL11.GL_SRC_ALPHA);
                 GL11.glTexEnvi(GL11.GL_TEXTURE_ENV, GL13.GL_OPERAND1_ALPHA, GL11.GL_SRC_ALPHA);
             }
-            RenderHelper.enableStandardItemLighting();
+            GL11.glPushMatrix();
+            try {
+                if (hotbarLighting) {
+                    GL11.glRotatef(120, 1, 0, 0);
+                }
+                RenderHelper.enableStandardItemLighting();
+            } finally {
+                GL11.glPopMatrix();
+            }
             GL11.glPushMatrix();
             try {
                 if (pickup > 0) {

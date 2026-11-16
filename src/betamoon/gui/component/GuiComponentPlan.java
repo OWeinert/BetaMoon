@@ -9,6 +9,7 @@ import betamoon.gui.drawing.GuiRawView;
 import betamoon.gui.framework.GuiElement;
 import betamoon.gui.widget.GuiIconMeterView;
 import betamoon.gui.widget.GuiItemView;
+import betamoon.gui.hud.GuiHudComponents;
 import betamoon.gui.collection.GuiRowFactory;
 import betamoon.gui.collection.GuiRowBudget;
 import betamoon.gui.collection.GuiCollectionView;
@@ -492,8 +493,10 @@ public final class GuiComponentPlan implements AutoCloseable {
             result = paint.view;
         }
         if (result instanceof GuiIconMeterView) {
-            ((GuiIconMeterView) result)
-                    .skinResolver(name -> services.paintResources(metadata.scope.owner).iconSkin(name));
+            ((GuiIconMeterView) result).skinResolver(name -> services
+                    .paintResources(GuiHudComponents.OWNER.equals(metadata.scope.owner) ? owner : metadata.scope.owner)
+                    .iconSkin(name));
+            ((GuiIconMeterView) result).hudAvailable(capabilities.contains(GuiCapability.HUD_OBSERVATION));
         }
         if (result instanceof GuiItemView) {
             ((GuiItemView) result).items(services.paintResources(metadata.scope.owner).items(),

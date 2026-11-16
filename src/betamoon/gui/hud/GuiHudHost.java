@@ -338,8 +338,8 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
 
     void beginNative(int mouseX, int mouseY, float partialTicks, int counter) {
         beginFrame(mouseX, mouseY, partialTicks);
-        if (worldAvailable()) {
-            frame.capture(client, counter, partialTicks);
+        if (worldAvailable() && frame.capture(client, counter, partialTicks)) {
+            root.nativeFrameChanged();
         }
         nativeSeen = true;
         nativeDrawing = true;
@@ -759,6 +759,9 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
     }
 
     private final class Root extends GuiContainer {
+        void nativeFrameChanged() {
+            requestFrame();
+        }
         final Map<GuiElement, Rect> bounds = new IdentityHashMap<>();
 
         @Override

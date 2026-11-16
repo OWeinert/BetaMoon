@@ -3,6 +3,8 @@ package betamoon.gui.hud;
 import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.control.GuiIconMeterTest;
 import betamoon.gui.control.GuiItemTest;
+import betamoon.gui.component.GuiComponentRegistry;
+import betamoon.gui.presentation.GuiCapability;
 import betamoon.luaapi.client.ui.GuiHudParser;
 import betamoon.luaapi.client.ui.GuiHudLuaAccessTest;
 import betamoon.luaapi.client.ui.GuiNotificationLuaAccessTest;
@@ -30,6 +32,7 @@ public final class GuiHudFoundationTest {
             GuiIconMeterTest.run();
             GuiItemTest.run();
             modifiers();
+            components();
             nativeAtlas();
             reservations();
             scopedObservations();
@@ -80,6 +83,19 @@ public final class GuiHudFoundationTest {
         ScriptResourceTracker.unload(OWNER);
         require(!definition.available() && second.status().equals("closed") && registry.get(definition.key) == null,
                 "Owner unload retained HUD metadata, claims or input");
+    }
+
+    private static void components() {
+        GuiComponentRegistry components = new GuiComponentRegistry();
+        GuiHudComponents.install(components);
+        require(components.snapshot().size() == 5, "Player component catalog is incomplete");
+        for (String part : new String[]{"health", "armor", "breath", "hotbar", "crosshair"}) {
+            require(components.get("betamoon:hud/" + part).requirements.contains(GuiCapability.HUD_OBSERVATION),
+                    "Live player component omitted observation capability");
+        }
+        ScriptResourceTracker.unload(GuiHudComponents.OWNER);
+        GuiHudComponents.install(components);
+        require(components.snapshot().size() == 5, "Owner reset failed to rebuild bundled player components");
     }
 
     private static void modifiers() {
