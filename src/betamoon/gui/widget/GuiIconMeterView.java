@@ -32,6 +32,11 @@ public final class GuiIconMeterView extends GuiStyledView {
     private GuiIconMeterSkin skin;
     private GuiIconMeterModel model;
     private boolean hudAvailable;
+    private int admittedIcons = 256;
+
+    public void admitIcons(int maximum) {
+        admittedIcons = maximum;
+    }
 
     public void hudAvailable(boolean available) {
         hudAvailable = available;
@@ -55,6 +60,10 @@ public final class GuiIconMeterView extends GuiStyledView {
         }
         GuiIconMeterSkin candidate = GuiNativeIconSkins.contains(name) ? null : resolver.apply(name);
         GuiIconMeterModel model = model(values, candidate);
+        if (model.maxIcons > admittedIcons) {
+            throw new IllegalArgumentException(
+                    "maxIcons cannot exceed the authored admission bound; refresh the definition");
+        }
         String source = (String) values.getOrDefault("hudSource", "");
         if (!Arrays.asList("", "health", "armor", "breath").contains(source) || !source.isEmpty() && !hudAvailable) {
             throw new IllegalArgumentException("Live icon source requires hud_observation and health, armor or breath");

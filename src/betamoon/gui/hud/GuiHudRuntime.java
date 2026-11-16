@@ -81,7 +81,7 @@ public final class GuiHudRuntime {
         return Collections.unmodifiableMap(result);
     }
 
-    private static boolean nativeAvailable(GuiHudNativePart part) {
+    static boolean nativeAvailable(GuiHudNativePart part) {
         if (!AgentRuntime.getReport().isApplied("betamoon:gui_hud:native_frame")) {
             return false;
         }

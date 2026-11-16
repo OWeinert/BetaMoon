@@ -15,6 +15,7 @@ import betamoon.gui.presentation.GuiCapability;
 import betamoon.gui.presentation.GuiPresentationHost;
 import betamoon.gui.presentation.GuiPresentationTree;
 import betamoon.gui.presentation.GuiViewStateAdmission;
+import betamoon.gui.presentation.GuiWorkReservation;
 import betamoon.gui.style.GuiStyleSheet;
 import betamoon.gui.style.GuiVisualTemplate;
 import betamoon.gui.style.GuiViewAppearance;
@@ -225,6 +226,10 @@ public final class GuiComponentRowFactory implements GuiRowFactory {
 
         public GuiPaintCompiler.Resources paintResources(String owner) {
             return delegate.paintResources(owner);
+        }
+
+        public GuiWorkReservation reserveWork(String source, int quads, int items) {
+            return delegate.reserveWork(path + "/" + source, quads, items);
         }
 
         public GraphicsResources rawResources(String owner) {

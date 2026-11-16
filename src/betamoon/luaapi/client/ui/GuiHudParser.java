@@ -65,13 +65,14 @@ public final class GuiHudParser {
                 }
                 String partPath = path + ".nativeParts." + name;
                 LuaValue declaration = entries.get(name);
-                LuaDeclarationValues.fields(declaration, partPath, "hide", "replace", "modify");
+                LuaDeclarationValues.fields(declaration, partPath, "hide", "replace", "modify", "bounds");
                 try {
                     parts.put(part,
                             new GuiHudDefinition.NativePart(
                                     LuaDeclarationValues.bool(declaration.get("hide"), partPath + ".hide", false),
                                     optional(declaration.get("replace"), partPath + ".replace"),
-                                    modifier(declaration.get("modify"), partPath + ".modify")));
+                                    modifier(declaration.get("modify"), partPath + ".modify"),
+                                    optional(declaration.get("bounds"), partPath + ".bounds")));
                 } catch (IllegalArgumentException invalid) {
                     throw LuaDeclarationValues.error(partPath, invalid.getMessage());
                 }

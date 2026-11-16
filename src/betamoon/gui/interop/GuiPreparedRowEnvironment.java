@@ -1,5 +1,7 @@
 package betamoon.gui.interop;
 
+import betamoon.gui.presentation.GuiWorkReservation;
+
 import betamoon.gui.action.GuiActionOrigin;
 import betamoon.gui.collection.GuiRowFactory;
 import betamoon.gui.collection.GuiRowBudget;
@@ -80,6 +82,11 @@ public final class GuiPreparedRowEnvironment<T extends GuiPreparedRowEnvironment
     public GuiPresentationHost host() {
         requireOpen();
         return host;
+    }
+
+    public GuiWorkReservation reserveWork(String path, int quads, int items) {
+        requireOpen();
+        return parent.reserveWork(diagnosticPath + "/" + path, quads, items);
     }
 
     public GuiComponentPlan.Services services() {

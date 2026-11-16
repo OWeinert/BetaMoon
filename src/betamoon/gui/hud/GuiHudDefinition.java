@@ -40,18 +40,27 @@ public final class GuiHudDefinition {
         public final boolean hide;
         public final String replace;
         public final GuiHudPartTransform modify;
+        public final String bounds;
 
         public NativePart(boolean hide, String replace) {
             this(hide, replace, null);
         }
 
         public NativePart(boolean hide, String replace, GuiHudPartTransform modify) {
+            this(hide, replace, modify, null);
+        }
+
+        public NativePart(boolean hide, String replace, GuiHudPartTransform modify, String bounds) {
             if ((hide ? 1 : 0) + (replace == null ? 0 : 1) + (modify == null ? 0 : 1) != 1) {
                 throw new IllegalArgumentException("Select exactly one native operation: hide, replace or modify");
             }
             this.hide = hide;
             this.replace = replace == null ? null : GuiComponentDefinition.key(replace);
             this.modify = modify;
+            if (bounds != null && (replace == null || bounds.trim().isEmpty() || bounds.length() > 160)) {
+                throw new IllegalArgumentException("Replacement bounds requires a bounded local/exported element ID");
+            }
+            this.bounds = bounds;
         }
     }
 

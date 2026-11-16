@@ -46,6 +46,7 @@ import net.minecraft.src.PlayerControllerSP;
 import net.minecraft.src.World;
 import net.minecraft.src.WorldProvider;
 import org.luaj.vm2.Globals;
+import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.jse.JsePlatform;
 import org.lwjgl.opengl.GL11;
 import sun.misc.Unsafe;
@@ -108,6 +109,8 @@ final class GuiNativeHudRenderChecks {
             Globals lua = JsePlatform.standardGlobals();
             modifiers(client, transformed, draw, baseline, lua, output);
             builtIns(client, nativeHud, transformed, draw, lua, output);
+            effectiveLayouts(client, transformed, draw, lua, output);
+            collectionWork(client, transformed, draw, lua);
             for (GuiHudNativePart part : GuiHudNativePart.values()) {
                 GuiHudActivation first = claim(lua, OWNER + "-a", "fixture:native-hide-a", part.name + "={hide=true}");
                 GuiHudActivation second = claim(lua, OWNER + "-b", "fixture:native-hide-b", part.name + "={hide=true}");
@@ -312,6 +315,7 @@ final class GuiNativeHudRenderChecks {
             }
             Rect body = GuiHudPartLayout.body(part, 320, 240, false);
             ItemStack savedItem = client.thePlayer.inventory.mainInventory[0];
+            int savedSelection = client.thePlayer.inventory.currentItem;
             if (part == GuiHudNativePart.HOTBAR) {
                 client.thePlayer.inventory.mainInventory[0] = new ItemStack(1, 9, 0);
                 client.thePlayer.inventory.mainInventory[0].animationsToGo = 5;
@@ -326,8 +330,13 @@ final class GuiNativeHudRenderChecks {
                     part.name + "={replace='" + key + "'}");
             int[] values = part == GuiHudNativePart.HEALTH
                     ? new int[]{0, 1, 2, 3, 4, 5, 19, 20}
-                    : part == GuiHudNativePart.BREATH ? new int[]{-1, 0, 1, 2, 29, 30, 31, 299, 300} : new int[]{20};
+                    : part == GuiHudNativePart.BREATH
+                            ? new int[]{-1, 0, 1, 2, 29, 30, 31, 299, 300}
+                            : part == GuiHudNativePart.HOTBAR ? new int[]{0, 8} : new int[]{20};
             for (int value : values) {
+                if (part == GuiHudNativePart.HOTBAR) {
+                    client.thePlayer.inventory.currentItem = value;
+                }
                 client.thePlayer.health = part == GuiHudNativePart.HEALTH ? value : 20;
                 client.thePlayer.heartsLife = part == GuiHudNativePart.HEALTH ? 10 : 0;
                 client.thePlayer.prevHealth = 20;
@@ -354,12 +363,88 @@ final class GuiNativeHudRenderChecks {
             }
             replacement.close();
             client.thePlayer.inventory.mainInventory[0] = savedItem;
+            client.thePlayer.inventory.currentItem = savedSelection;
             GuiHudRuntime.tick(client);
         }
         client.thePlayer.health = 20;
         client.thePlayer.heartsLife = 0;
         client.thePlayer.air = 180;
         GuiHudRuntime.tick(client);
+    }
+
+    private static void effectiveLayouts(Minecraft client, Object hud, Method draw, Globals lua, File output)
+            throws Exception {
+        GuiClientUiRuntime.screens().add(GuiScreenParser.parse(OWNER, lua.load("return {key='fixture:geometry-reader',"
+                + "root={type='text',width=70,height=12,anchorX=0,anchorY=0,transition=false,bind=function(ctx) "
+                + "geometry=ctx.hud:layout(); local body=geometry.parts.hotbar.effective.body; "
+                + "return {text='Companion',x=body.x+body.width+4,y=body.y} end}}").call(),
+                GuiClientUiRuntime.components()));
+        GuiHudRuntime.registry()
+                .add(GuiHudParser.parse(OWNER, lua.load(
+                        "return {key='fixture:geometry-observer'," + "screen='fixture:geometry-reader',safeArea=false}")
+                        .call()));
+        GuiHudActivation observer = GuiHudRuntime.registry().activate(OWNER, "fixture:geometry-observer");
+        GuiHudActivation moved = claim(lua, "fixture:geometry-move", "hotbar={modify={offsetY=-60}}");
+        GuiHudRuntime.tick(client);
+        render(hud, draw, client);
+        require(lua.get("geometry").get("parts").get("hotbar").get("source").tojstring().equals("modified")
+                && lua.get("geometry").get("parts").get("hotbar").get("effective").get("body").get("y").toint() == 158,
+                "Companion did not observe moved native geometry");
+        moved.close();
+        GuiClientUiRuntime.screens().add(GuiScreenParser.parse(OWNER, lua.load("return {key='fixture:geometry-grid',"
+                + "root={component='betamoon:hud/hotbar',id='bar',anchorX=0,anchorY=0,x=40,y=40,props={layout='grid'}}}")
+                .call(), GuiClientUiRuntime.components()));
+        GuiHudActivation grid = claim(lua, "fixture:geometry-replacement",
+                "hotbar={replace='fixture:geometry-grid',bounds='bar.bounds'}");
+        for (int tick = 0; tick < 3; tick++) {
+            GuiHudRuntime.tick(client);
+            render(hud, draw, client);
+        }
+        LuaValue geometry = lua.get("geometry");
+        LuaValue part = geometry.get("parts").get("hotbar");
+        require(part.get("source").tojstring().equals("replacement") && part.get("body").get("width").toint() == 182
+                && part.get("effective").get("body").get("width").toint() == 62
+                && part.get("effective").get("body").get("x").toint() == 40,
+                "Exported replacement bounds did not preserve native reference and effective geometry");
+        int revision = geometry.get("revision").toint();
+        for (int tick = 0; tick < 4; tick++) {
+            GuiHudRuntime.tick(client);
+            render(hud, draw, client);
+        }
+        require(lua.get("geometry").get("revision").toint() == revision,
+                "Companion/replacement reservations oscillated on an unchanged layout");
+        ImageIO.write(GuiShowcaseRenderTest.capture(320, 240), "png", new File(output, "hud-grid-companion.png"));
+        grid.close();
+        observer.close();
+        GuiHudRuntime.tick(client);
+        GuiHudActivation invalid = claim(lua, "fixture:bounds-invalid",
+                "hotbar={replace='fixture:geometry-grid',bounds='missing'}");
+        GuiHudRuntime.tick(client);
+        render(hud, draw, client);
+        require(invalid.status().equals("refused"), "Missing exported replacement bounds was published");
+        invalid.close();
+        GuiHudRuntime.tick(client);
+    }
+
+    private static void collectionWork(Minecraft client, Object hud, Method draw, Globals lua) throws Exception {
+        for (int count : new int[]{32, 33, 32}) {
+            GuiClientUiRuntime.screens().add(GuiScreenParser.parse(OWNER, lua.load("local records={}; for i=1," + count
+                    + " do records[i]={key=tostring(i)} end; "
+                    + "return {key='fixture:item-rows',root={type='list',width=32,height=220,rowHeight=6,overscan=0,"
+                    + "anchorX=0,anchorY=0,records=records,row=function(row) return {type='item',width=1,height=1} end}}")
+                    .call(), GuiClientUiRuntime.components()));
+            GuiHudRuntime.registry().add(GuiHudParser.parse(OWNER,
+                    lua.load("return {key='fixture:item-row-profile'," + "screen='fixture:item-rows',safeArea=false}")
+                            .call()));
+            GuiHudActivation claim = GuiHudRuntime.registry().activate(OWNER, "fixture:item-row-profile");
+            GuiHudRuntime.tick(client);
+            render(hud, draw, client);
+            require(claim.status().equals(count == 33 ? "refused" : "active"),
+                    "Realized item rows bypassed or leaked the consuming-owner work limit: " + count + "/"
+                            + claim.status() + "/" + claim.reason());
+            claim.close();
+            GuiHudRuntime.tick(client);
+        }
     }
 
     private static int sessions() {

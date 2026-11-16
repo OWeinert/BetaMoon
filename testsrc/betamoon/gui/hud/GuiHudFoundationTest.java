@@ -33,6 +33,7 @@ public final class GuiHudFoundationTest {
             GuiItemTest.run();
             modifiers();
             components();
+            GuiHudWorkBudgetTest.run();
             nativeAtlas();
             reservations();
             scopedObservations();

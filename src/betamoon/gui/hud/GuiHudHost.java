@@ -5,6 +5,7 @@ import betamoon.client.control.input.ClientInputRuntime;
 import betamoon.client.control.input.GuiInputOwner;
 import betamoon.gui.component.GuiComponentPlan;
 import betamoon.gui.presentation.GuiCapability;
+import betamoon.gui.presentation.GuiWorkReservation;
 import betamoon.gui.framework.GuiContainer;
 import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiElement;
@@ -22,6 +23,7 @@ import betamoon.gui.screen.GuiClientUiRuntime;
 import betamoon.gui.screen.GuiHostElementBudget;
 import betamoon.gui.screen.GuiScreenActivation;
 import betamoon.gui.screen.GuiScreenController;
+import betamoon.gui.screen.GuiScreenDefinition;
 import betamoon.luaapi.LuaApiUtils;
 import betamoon.luaapi.client.ui.GuiScopedSnapshot;
 import betamoon.luaapi.utils.LuaCallbackScope;
@@ -76,6 +78,7 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
     private Map<String, Object> observationValues = Collections.emptyMap();
     private final GuiHudObservationPublisher observations = new GuiHudObservationPublisher();
     private final GuiHudFrameState frame = new GuiHudFrameState();
+    private final GuiHudWorkBudget workBudget = new GuiHudWorkBudget();
     private GuiHudDefinition.Context context;
     private Rect safeArea = Rect.EMPTY;
     private Surface painting;
@@ -160,6 +163,9 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
             scene.updateEnvironment(client, client.fontRenderer, viewport.width, viewport.height, client.displayWidth,
                     client.displayHeight);
             context = visibilityContext();
+            reconcile();
+            chooseReplacements();
+            engine.observe(() -> observations.update(client, worldAvailable()));
             if (cursor != null && !cursor.ownsGuiInput()) {
                 stopInteraction();
             }
@@ -192,6 +198,9 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
             }
             root.reconcileChildren(content);
             scene.prepare();
+            // Publish completed replacement geometry for the next logical boundary; never
+            // re-enter bindings here.
+            publishLayout();
             preparedWidth = viewport.width;
             preparedHeight = viewport.height;
             preparedDisplayWidth = client.displayWidth;
@@ -226,12 +235,14 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
         if (client.gameSettings.showDebugInfo) {
             occupied.add(Rect.fromPositionAndSize(0, 0, Math.min(320, viewport.width), 90));
         }
-        if (worldAvailable()) {
-            occupied.add(Rect.fromPositionAndSize(Math.max(0, viewport.width / 2 - 96),
-                    Math.max(0, viewport.height - 48), 192, 48));
-            int chatHeight = context == GuiHudDefinition.Context.CHAT ? 188 : 98;
-            occupied.add(Rect.fromPositionAndSize(0, Math.max(0, viewport.height - 48 - chatHeight),
-                    Math.min(324, viewport.width), chatHeight));
+        if (worldAvailable() && !client.gameSettings.hideGUI) {
+            for (Map.Entry<GuiHudNativePart, GuiHudPartLayout.Effective> part : effectiveParts().entrySet()) {
+                GuiHudPartLayout.Effective geometry = part.getValue();
+                if (geometry.visible || part.getKey() == GuiHudNativePart.CHAT && geometry.source.equals("native")
+                        && !independentlyHidden(part.getKey())) {
+                    occupied.add(geometry.ink);
+                }
+            }
         }
         if (context == GuiHudDefinition.Context.MENU) {
             occupied.add(Rect.fromPositionAndSize(0, Math.max(0, viewport.height - 64), viewport.width, 64));
@@ -240,9 +251,7 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
     }
 
     private void observe() {
-        observations.update(client, worldAvailable());
-        observations.layout.publish(GuiHudPartLayout.snapshot(client, viewport.width, viewport.height, worldAvailable(),
-                observations.stats.values, reservations()));
+        publishLayout();
         Map<String, Object> values = new LinkedHashMap<>();
         values.put("worldAvailable", worldAvailable());
         values.put("context", context == null ? "unavailable" : context.name);
@@ -257,6 +266,66 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
             observationValues = Collections.unmodifiableMap(values);
             observation = new GuiScopedSnapshot(values, "native:hud", values);
         }
+    }
+
+    private void publishLayout() {
+        List<Rect> reserved = reservations();
+        for (GuiNotification notification : notifications.admitted()) {
+            reserved.add(notification.bounds());
+        }
+        observations.layout.publish(GuiHudPartLayout.snapshot(client, viewport.width, viewport.height, worldAvailable(),
+                observations.stats.values, reserved, effectiveParts()));
+    }
+
+    private boolean independentlyHidden(GuiHudNativePart part) {
+        if (!GuiHudRuntime.nativeAvailable(part)) {
+            return false;
+        }
+        for (Entry entry : entries.values()) {
+            GuiHudDefinition.NativePart request = entry.definition.nativeParts.get(part);
+            if (entry.eligible() && request != null && request.hide) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private Map<GuiHudNativePart, GuiHudPartLayout.Effective> effectiveParts() {
+        Map<GuiHudNativePart, GuiHudPartLayout.Effective> result = new EnumMap<>(GuiHudNativePart.class);
+        for (GuiHudNativePart part : GuiHudNativePart.values()) {
+            Rect body = GuiHudPartLayout.body(part, viewport.width, viewport.height,
+                    client.currentScreen instanceof GuiChat);
+            Rect ink = GuiHudPartLayout.ink(part, body);
+            String source = "native";
+            boolean visible = worldAvailable() && !client.gameSettings.hideGUI
+                    && GuiHudPartLayout.visible(part, observations.stats.values) && !independentlyHidden(part);
+            Entry winner = winners.get(part);
+            boolean statPart = part == GuiHudNativePart.HEALTH || part == GuiHudNativePart.ARMOR
+                    || part == GuiHudNativePart.BREATH;
+            if (winner != null && winner.eligible() && !client.gameSettings.hideGUI
+                    && GuiHudRuntime.nativeAvailable(part)
+                    && (!statPart || Boolean.TRUE.equals(observations.stats.values.get("showSurvivalStats")))) {
+                GuiHudDefinition.NativePart request = winner.definition.nativeParts.get(part);
+                Surface replacement = winner.parts.get(part);
+                if (replacement != null && replacement.document != null && replacement.document.usable()) {
+                    source = "replacement";
+                    Rect bounds = replacement.replacementBounds();
+                    if (bounds != null) {
+                        body = bounds;
+                        ink = bounds.isEmpty() ? Rect.EMPTY : GuiHudPartLayout.ink(part, bounds);
+                    }
+                    visible = !ink.isEmpty();
+                } else if (request.modify != null && GuiHudRuntime.modifyAvailable(part)
+                        && !independentlyHidden(part)) {
+                    source = "modified";
+                    GraphicsTransform transform = request.modify.resolve(body, viewport.width, viewport.height);
+                    body = GuiHudPartTransform.map(body, transform);
+                    ink = GuiHudPartTransform.map(ink, transform);
+                }
+            }
+            result.put(part, new GuiHudPartLayout.Effective(source, visible, body, ink));
+        }
+        return result;
     }
 
     private static Map<String, Object> rectangle(Rect rectangle) {
@@ -922,6 +991,26 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
     }
 
     private final class Surface implements GuiAttachedDocument.Host {
+        public void prepareRevision(Object document, GuiComponentPlan plan, GuiScreenDefinition definition) {
+            if (part != null) {
+                String bounds = entry.definition.nativeParts.get(part).bounds;
+                if (bounds != null) {
+                    plan.elementId(bounds);
+                }
+            }
+        }
+
+        Rect replacementBounds() {
+            String bounds = part == null ? null : entry.definition.nativeParts.get(part).bounds;
+            return bounds == null || document == null || document.page() == null
+                    ? null
+                    : document.mount().document().element(document.page().plan().elementId(bounds)).visualBounds();
+        }
+
+        public GuiWorkReservation reserveWork(Object document, Object revision, String path, int quads, int items) {
+            return workBudget.reserve(document, revision, path, entry.definition.owner, quads, items);
+        }
+
         public Set<GuiCapability> capabilities() {
             return Collections.singleton(GuiCapability.HUD_OBSERVATION);
         }

@@ -10,6 +10,7 @@ import betamoon.gui.framework.GuiElement;
 import betamoon.gui.widget.GuiIconMeterView;
 import betamoon.gui.widget.GuiItemView;
 import betamoon.gui.hud.GuiHudComponents;
+import betamoon.gui.presentation.GuiWorkReservation;
 import betamoon.gui.collection.GuiRowFactory;
 import betamoon.gui.collection.GuiRowBudget;
 import betamoon.gui.collection.GuiCollectionView;
@@ -95,6 +96,10 @@ public final class GuiComponentPlan implements AutoCloseable {
 
         GuiPaintCompiler.Resources paintResources(String owner);
 
+        default GuiWorkReservation reserveWork(String path, int quads, int items) {
+            return GuiWorkReservation.NONE;
+        }
+
         default GraphicsResources rawResources(String owner) {
             return new GraphicsResources() {
             };
@@ -141,6 +146,7 @@ public final class GuiComponentPlan implements AutoCloseable {
     final String key;
     final GuiComponentStateStore state = new GuiComponentStateStore();
     final Map<String, View> views = new LinkedHashMap<>();
+    private final List<GuiWorkReservation> work = new ArrayList<>();
     final Map<String, GuiComponentScope> scopes = new LinkedHashMap<>();
     final Map<String, GuiComponentDefinition> dependencies = new LinkedHashMap<>();
     final Map<String, GuiAuthoredNode> builtRoots = new LinkedHashMap<>();
@@ -492,15 +498,25 @@ public final class GuiComponentPlan implements AutoCloseable {
             paint.view.onRenderFailure(services::renderFailure);
             result = paint.view;
         }
-        if (result instanceof GuiIconMeterView) {
-            ((GuiIconMeterView) result).skinResolver(name -> services
-                    .paintResources(GuiHudComponents.OWNER.equals(metadata.scope.owner) ? owner : metadata.scope.owner)
-                    .iconSkin(name));
-            ((GuiIconMeterView) result).hudAvailable(capabilities.contains(GuiCapability.HUD_OBSERVATION));
-        }
-        if (result instanceof GuiItemView) {
-            ((GuiItemView) result).items(services.paintResources(metadata.scope.owner).items(),
-                    capabilities.contains(GuiCapability.HUD_OBSERVATION));
+        try {
+            if (result instanceof GuiIconMeterView) {
+                int maximum = ((Number) node.properties.baseline().get("maxIcons")).intValue();
+                ((GuiIconMeterView) result).admitIcons(maximum);
+                work.add(services.reserveWork(key + "/" + node.id, maximum * 3, 0));
+                ((GuiIconMeterView) result).skinResolver(name -> services
+                        .paintResources(
+                                GuiHudComponents.OWNER.equals(metadata.scope.owner) ? owner : metadata.scope.owner)
+                        .iconSkin(name));
+                ((GuiIconMeterView) result).hudAvailable(capabilities.contains(GuiCapability.HUD_OBSERVATION));
+            }
+            if (result instanceof GuiItemView) {
+                work.add(services.reserveWork(key + "/" + node.id, 0, 1));
+                ((GuiItemView) result).items(services.paintResources(metadata.scope.owner).items(),
+                        capabilities.contains(GuiCapability.HUD_OBSERVATION));
+            }
+        } catch (RuntimeException | Error failure) {
+            result.close();
+            throw failure;
         }
         adapters.put(node.id, result);
         return result;
@@ -546,6 +562,10 @@ public final class GuiComponentPlan implements AutoCloseable {
             return;
         }
         active = false;
+        for (GuiWorkReservation reservation : work) {
+            reservation.close();
+        }
+        work.clear();
         List<Throwable> failures = new ArrayList<>();
         for (GuiViewAdapter adapter : new ArrayList<>(adapters.values())) {
             try {

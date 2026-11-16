@@ -8,6 +8,7 @@ import betamoon.gui.framework.GuiInputLifetime;
 import betamoon.gui.framework.GuiScene;
 import betamoon.gui.presentation.GuiPresentationTree;
 import betamoon.gui.presentation.GuiCapability;
+import betamoon.gui.presentation.GuiWorkReservation;
 import betamoon.gui.screen.GuiActionDefinition.Scope;
 import betamoon.gui.interop.GuiOwnedResources;
 import betamoon.gui.graphics.GuiResourceDefinitions;
@@ -36,6 +37,10 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
         GuiRowBudget rowBudget();
 
         GuiHostElementBudget elementBudget();
+
+        default GuiWorkReservation reserveWork(Object document, Object revision, String path, int quads, int items) {
+            return GuiWorkReservation.NONE;
+        }
 
         default Set<GuiCapability> capabilities() {
             return Collections.emptySet();
@@ -84,6 +89,10 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
         }
 
         default void prepareRevision(Object document, GuiScreenDefinition definition) {
+        }
+
+        default void prepareRevision(Object document, GuiComponentPlan plan, GuiScreenDefinition definition) {
+            prepareRevision(document, definition);
         }
 
         default void validateRevision(Object document) {
@@ -264,6 +273,13 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
         return closed ? Collections.emptySet() : host.capabilities();
     }
 
+    public GuiWorkReservation reserveWork(Object document, Object revision, String path, int quads, int items) {
+        if (closed) {
+            throw new IllegalStateException("Attached document is closed");
+        }
+        return host.reserveWork(document, revision, path, quads, items);
+    }
+
     public GuiRowBudget rowBudget() {
         return host.rowBudget();
     }
@@ -300,7 +316,7 @@ public final class GuiAttachedDocument implements GuiScreenController.Host, GuiS
 
     public void prepare(Object document, GuiComponentPlan plan, GuiScreenDefinition definition) {
         prepare(document, plan);
-        host.prepareRevision(document, definition);
+        host.prepareRevision(document, plan, definition);
     }
 
     public void prepareDocument(GuiPresentationTree document) {

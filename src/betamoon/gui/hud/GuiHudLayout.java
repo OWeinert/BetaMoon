@@ -10,8 +10,8 @@ import java.util.List;
  */
 public final class GuiHudLayout {
     public static Rect safeArea(int width, int height, List<Rect> reservations) {
-        if (width < 0 || height < 0 || width > 16384 || height > 16384 || reservations.size() > 16) {
-            throw new IllegalArgumentException("HUD safe area requires bounded viewport and at most 16 reservations");
+        if (width < 0 || height < 0 || width > 16384 || height > 16384 || reservations.size() > 24) {
+            throw new IllegalArgumentException("HUD safe area requires bounded viewport and at most 24 reservations");
         }
         Rect viewport = Rect.fromPositionAndSize(4, 4, Math.max(0, width - 8), Math.max(0, height - 8));
         List<Rect> free = new ArrayList<>(Collections.singleton(viewport));

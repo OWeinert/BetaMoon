@@ -5,6 +5,7 @@ import betamoon.gui.component.GuiComponentPlan;
 import betamoon.gui.framework.GuiScene;
 import betamoon.gui.presentation.GuiPresentationTree;
 import betamoon.gui.presentation.GuiCapability;
+import betamoon.gui.presentation.GuiWorkReservation;
 import betamoon.gui.interop.GuiOwnedResources;
 import betamoon.gui.graphics.GuiResourceDefinitions;
 import net.minecraft.client.Minecraft;
@@ -32,6 +33,10 @@ public interface GuiScreenAttachment {
 
     default Set<GuiCapability> capabilities() {
         return Collections.emptySet();
+    }
+
+    default GuiWorkReservation reserveWork(Object document, Object revision, String path, int quads, int items) {
+        return GuiWorkReservation.NONE;
     }
 
     default boolean inputAvailable() {

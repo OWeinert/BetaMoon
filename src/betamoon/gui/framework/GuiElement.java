@@ -90,6 +90,26 @@ public abstract class GuiElement {
                 visualTransform.scaleY);
     }
 
+    /**
+     * Conservative logical geometry of this prepared element, including ancestor
+     * visual transforms.
+     */
+    public final Rect visualBounds() {
+        GraphicsTransform transform = arrangedTransform();
+        for (GuiElement ancestor = this; ancestor != null; ancestor = ancestor.parent) {
+            if (!ancestor.isVisible() || ancestor.getOpacity() <= 0) {
+                return Rect.EMPTY;
+            }
+            if (ancestor != this) {
+                transform = ancestor.arrangedTransform().compose(transform);
+            }
+        }
+        Rect bounds = getBounds();
+        return new Rect((int) Math.floor(transform.mapX(bounds.getLeft())),
+                (int) Math.floor(transform.mapY(bounds.getTop())), (int) Math.ceil(transform.mapX(bounds.getRight())),
+                (int) Math.ceil(transform.mapY(bounds.getBottom())));
+    }
+
     final long attachmentRevision() {
         return attachmentRevision;
     }

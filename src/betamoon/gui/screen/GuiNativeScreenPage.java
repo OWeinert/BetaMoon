@@ -1,5 +1,7 @@
 package betamoon.gui.screen;
 
+import betamoon.gui.presentation.GuiWorkReservation;
+
 import betamoon.gui.component.GuiComponentCompiler;
 import betamoon.gui.component.GuiComponentPlan;
 import betamoon.gui.component.GuiComponentRegistry;
@@ -659,6 +661,12 @@ public final class GuiNativeScreenPage implements GuiScreenController.Page {
 
         public GuiPaintCompiler.Resources paintResources(String owner) {
             return required(owner).painting();
+        }
+
+        public GuiWorkReservation reserveWork(String path, int quads, int items) {
+            return attachment == null
+                    ? GuiWorkReservation.NONE
+                    : attachment.reserveWork(GuiNativeScreenPage.this, this, path, quads, items);
         }
 
         public GuiRowBudget rowBudget() {

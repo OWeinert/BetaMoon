@@ -108,3 +108,5 @@
 - Add native HUD move/scale operations with independent diagnostics, priority arbitration and safe restoration.
 
 - Add reusable player HUD components for native hearts, armor, breath, item hotbars and crosshairs, including continuous-bar and alternate-layout options.
+
+- Expose effective HUD bounds and companion reservations, with shared icon/item work admission across documents and virtual rows.

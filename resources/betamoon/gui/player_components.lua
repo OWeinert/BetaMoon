@@ -90,7 +90,7 @@ definitions[#definitions + 1] = {
             end
         end
         children[#children+1] = {type="image", id="selection", width=24, height=22,
-            anchorX=0, anchorY=0, nativeSprite="minecraft:hotbar-selection", bind=function(ctx)
+            anchorX=0, anchorY=0, nativeSprite="minecraft:hotbar-selection", transition=false, bind=function(ctx)
                 local slot = (ctx.hud:hotbar().selectedSlot or 1)-1
                 return {x=(slot%columns)*20-1, y=math.floor(slot/columns)*20-1}
             end}
