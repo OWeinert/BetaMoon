@@ -8,6 +8,7 @@ import betamoon.gui.presentation.GuiPropertyDescriptor;
 import betamoon.gui.presentation.GuiPropertyDescriptor.Kind;
 import betamoon.gui.style.GuiDrawable;
 import betamoon.gui.style.GuiIconMeterSkin;
+import betamoon.gui.interop.GuiPreparedItem;
 import betamoon.gui.style.GuiFontFace;
 import betamoon.luaapi.utils.LuaDeclarationValues;
 import org.luaj.vm2.LuaError;
@@ -20,6 +21,10 @@ import org.lwjgl.opengl.GL11;
  */
 public final class GuiPaintCompiler {
     public interface Resources {
+        default GuiPreparedItem.Service items() {
+            throw new IllegalArgumentException("Native item host service is unavailable");
+        }
+
         GuiFontFace font(String key);
 
         GuiDrawable image(String key);

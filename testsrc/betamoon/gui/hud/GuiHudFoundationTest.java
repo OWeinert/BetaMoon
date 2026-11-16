@@ -2,6 +2,7 @@ package betamoon.gui.hud;
 
 import betamoon.gui.framework.GuiGeometry.Rect;
 import betamoon.gui.control.GuiIconMeterTest;
+import betamoon.gui.control.GuiItemTest;
 import betamoon.luaapi.client.ui.GuiHudParser;
 import betamoon.luaapi.client.ui.GuiHudLuaAccessTest;
 import betamoon.luaapi.client.ui.GuiNotificationLuaAccessTest;
@@ -27,6 +28,7 @@ public final class GuiHudFoundationTest {
         try {
             declarations();
             GuiIconMeterTest.run();
+            GuiItemTest.run();
             nativeAtlas();
             reservations();
             scopedObservations();

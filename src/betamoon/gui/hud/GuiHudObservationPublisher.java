@@ -44,6 +44,7 @@ final class GuiHudObservationPublisher {
     final Publication hotbar = new Publication("native:hud.hotbar");
     final Publication layout = new Publication("native:hud.layout");
     private final ItemStack[] items = new ItemStack[9];
+    private final long[] itemRevisions = new long[9];
     private Map<String, Object> player;
 
     void update(Minecraft client, boolean available) {
@@ -68,6 +69,7 @@ final class GuiHudObservationPublisher {
             ItemStack stack = actor == null ? null : actor.inventory.mainInventory[index];
             if (!same(items[index], stack)) {
                 items[index] = stack == null ? null : stack.copy();
+                itemRevisions[index]++;
             }
             Map<String, Object> slot = new LinkedHashMap<>();
             slot.put("slot", index + 1);
@@ -110,6 +112,13 @@ final class GuiHudObservationPublisher {
         }
         ItemStack item = items[slot - 1];
         return item == null ? null : item.copy();
+    }
+
+    long itemRevision(int slot) {
+        if (slot < 1 || slot > 9) {
+            throw new IllegalArgumentException("HUD hotbar slot must be within 1..9");
+        }
+        return itemRevisions[slot - 1];
     }
 
     private static boolean same(ItemStack first, ItemStack second) {

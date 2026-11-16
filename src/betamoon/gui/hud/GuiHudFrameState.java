@@ -12,6 +12,7 @@ import net.minecraft.src.Material;
 public final class GuiHudFrameState {
     private final Random random = new Random();
     private final int[] heartOffsets = new int[10];
+    private final double[] pickup = new double[9];
     private int health;
     private int previousHealth;
     private boolean flash;
@@ -20,7 +21,7 @@ public final class GuiHudFrameState {
     private boolean survival;
     private boolean airVisible;
 
-    void capture(Minecraft client, int counter) {
+    void capture(Minecraft client, int counter, float partialTicks) {
         EntityPlayerSP actor = client.thePlayer;
         health = actor.health;
         previousHealth = actor.prevHealth;
@@ -33,6 +34,15 @@ public final class GuiHudFrameState {
         poppingAir = (int) Math.ceil(actor.air * 10.0 / 300.0) - fullAir;
         survival = client.playerController != null && client.playerController.shouldDrawHUD();
         airVisible = FluidCameraRuntime.showAirHud(actor, Material.water);
+        for (int index = 0; index < pickup.length; index++) {
+            pickup[index] = actor.inventory.mainInventory[index] == null
+                    ? 0
+                    : Math.max(0, Math.min(5, actor.inventory.mainInventory[index].animationsToGo - partialTicks));
+        }
+    }
+
+    public double pickup(int slot) {
+        return slot >= 1 && slot <= 9 ? pickup[slot - 1] : 0;
     }
 
     public int health() {

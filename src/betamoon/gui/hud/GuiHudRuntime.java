@@ -249,6 +249,10 @@ public final class GuiHudRuntime {
         return current != null && current.valid() ? current.item(slot) : null;
     }
 
+    public static Object hotbarItemRevision(int slot) {
+        return current != null && current.valid() && current.frame() != null ? current.itemRevision(slot) : null;
+    }
+
     public static void endNative() {
         if (current != null) {
             current.nativeDrawing = false;

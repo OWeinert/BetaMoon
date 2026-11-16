@@ -8,6 +8,9 @@ import betamoon.gui.graphics.GraphicsVertexBuffer;
 import betamoon.gui.graphics.GuiResourceDefinitions;
 import betamoon.gui.graphics.GuiIconSkinDefinition;
 import betamoon.gui.style.GuiIconMeterSkin;
+import betamoon.gui.control.GuiItemModel;
+import betamoon.gui.hud.GuiHudRuntime;
+import betamoon.gui.hud.GuiHudFrameState;
 import betamoon.gui.graphics.GuiResourceDefinitions.Buffer;
 import betamoon.gui.graphics.GuiResourceDefinitions.Drawable;
 import betamoon.gui.graphics.GuiResourceDefinitions.Font;
@@ -233,6 +236,25 @@ public final class GuiOwnedResources implements GuiPreparedRowEnvironment.Resour
 
     public GuiPaintCompiler.Resources painting() {
         return new GuiPaintCompiler.Resources() {
+            public GuiPreparedItem.Service items() {
+                return new GuiPreparedItem.Service() {
+                    public Object revision(int slot) {
+                        return GuiHudRuntime.hotbarItemRevision(slot);
+                    }
+
+                    public GuiPreparedItem prepare(GuiItemModel model) {
+                        return new GuiPreparedItem(owner, host,
+                                model.hotbarSlot == 0 ? model.stack() : GuiHudRuntime.copyHotbarItem(model.hotbarSlot),
+                                model.showCount, model.showDurability);
+                    }
+
+                    public double pickup(int slot) {
+                        GuiHudFrameState frame = GuiHudRuntime.frame();
+                        return frame == null ? 0 : frame.pickup(slot);
+                    }
+                };
+            }
+
             public GuiFontFace font(String name) {
                 return GuiOwnedResources.this.font(name);
             }

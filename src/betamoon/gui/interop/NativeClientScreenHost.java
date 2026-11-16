@@ -31,6 +31,10 @@ import net.minecraft.src.ItemStack;
 import net.minecraft.src.RenderHelper;
 import net.minecraft.src.RenderItem;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL13;
+import org.lwjgl.opengl.GLContext;
+import org.lwjgl.BufferUtils;
+import java.nio.FloatBuffer;
 
 /**
  * Curated Java screen integration. Ordinary Lua receives no generic client task
@@ -47,6 +51,7 @@ public final class NativeClientScreenHost implements AutoCloseable {
     private final GuiRenderer renderer = new GuiRenderer(GuiTheme.DEFAULT);
     private NativeClientResource<FontRenderer> font;
     private NativeClientResource<RenderItem> items;
+    private final FloatBuffer itemOpacity = BufferUtils.createFloatBuffer(4);
     private NativeClientAction close;
 
     public NativeClientScreenHost(Minecraft client, GuiScreen screen, String owner) {
@@ -232,6 +237,58 @@ public final class NativeClientScreenHost implements AutoCloseable {
             renderer.renderItemOverlayIntoGUI(font.use(), client.renderEngine, stack, x, y);
         } finally {
             GL11.glPopMatrix();
+            GL11.glPopAttrib();
+        }
+    }
+
+    /**
+     * Cosmetic item layers with native pickup motion and an independent opacity
+     * multiplier.
+     */
+    public void drawItemLayers(ItemStack stack, ItemStack overlay, int x, int y, float opacity, double pickup) {
+        requirePaint();
+        if (stack == null || opacity <= 0) {
+            return;
+        }
+        GL11.glPushAttrib(GL11.GL_ENABLE_BIT | GL11.GL_CURRENT_BIT | GL11.GL_COLOR_BUFFER_BIT | GL11.GL_TEXTURE_BIT
+                | GL11.GL_LIGHTING_BIT | GL11.GL_DEPTH_BUFFER_BIT);
+        try {
+            GL11.glEnable(GL11.GL_BLEND);
+            GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+            if (opacity < 1) {
+                if (!GLContext.getCapabilities().OpenGL13 && !GLContext.getCapabilities().GL_ARB_texture_env_combine) {
+                    throw new NativeAccessFailure("item_opacity_unavailable", "Item opacity requires texture combine");
+                }
+                itemOpacity.clear();
+                itemOpacity.put(new float[]{1, 1, 1, opacity}).flip();
+                GL11.glTexEnv(GL11.GL_TEXTURE_ENV, GL11.GL_TEXTURE_ENV_COLOR, itemOpacity);
+                GL11.glTexEnvi(GL11.GL_TEXTURE_ENV, GL11.GL_TEXTURE_ENV_MODE, GL13.GL_COMBINE);
+                GL11.glTexEnvi(GL11.GL_TEXTURE_ENV, GL13.GL_COMBINE_RGB, GL11.GL_MODULATE);
+                GL11.glTexEnvi(GL11.GL_TEXTURE_ENV, GL13.GL_SOURCE0_RGB, GL11.GL_TEXTURE);
+                GL11.glTexEnvi(GL11.GL_TEXTURE_ENV, GL13.GL_SOURCE1_RGB, GL13.GL_PRIMARY_COLOR);
+                GL11.glTexEnvi(GL11.GL_TEXTURE_ENV, GL13.GL_OPERAND0_RGB, GL11.GL_SRC_COLOR);
+                GL11.glTexEnvi(GL11.GL_TEXTURE_ENV, GL13.GL_OPERAND1_RGB, GL11.GL_SRC_COLOR);
+                GL11.glTexEnvi(GL11.GL_TEXTURE_ENV, GL13.GL_COMBINE_ALPHA, GL11.GL_MODULATE);
+                GL11.glTexEnvi(GL11.GL_TEXTURE_ENV, GL13.GL_SOURCE0_ALPHA, GL11.GL_TEXTURE);
+                GL11.glTexEnvi(GL11.GL_TEXTURE_ENV, GL13.GL_SOURCE1_ALPHA, GL13.GL_CONSTANT);
+                GL11.glTexEnvi(GL11.GL_TEXTURE_ENV, GL13.GL_OPERAND0_ALPHA, GL11.GL_SRC_ALPHA);
+                GL11.glTexEnvi(GL11.GL_TEXTURE_ENV, GL13.GL_OPERAND1_ALPHA, GL11.GL_SRC_ALPHA);
+            }
+            RenderHelper.enableStandardItemLighting();
+            GL11.glPushMatrix();
+            try {
+                if (pickup > 0) {
+                    double factor = 1 + Math.min(5, pickup) / 5;
+                    GL11.glTranslated(x + 8, y + 12, 0);
+                    GL11.glScaled(1 / factor, (factor + 1) / 2, 1);
+                    GL11.glTranslated(-x - 8, -y - 12, 0);
+                }
+                items.use().renderItemIntoGUI(font.use(), client.renderEngine, stack, x, y);
+            } finally {
+                GL11.glPopMatrix();
+            }
+            items.use().renderItemOverlayIntoGUI(font.use(), client.renderEngine, overlay, x, y);
+        } finally {
             GL11.glPopAttrib();
         }
     }

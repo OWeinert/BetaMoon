@@ -4,6 +4,7 @@ import betamoon.gui.collection.GuiRowBudget;
 import betamoon.client.control.input.ClientInputRuntime;
 import betamoon.client.control.input.GuiInputOwner;
 import betamoon.gui.component.GuiComponentPlan;
+import betamoon.gui.presentation.GuiCapability;
 import betamoon.gui.framework.GuiContainer;
 import betamoon.gui.framework.GuiContext;
 import betamoon.gui.framework.GuiElement;
@@ -35,6 +36,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Locale;
+import java.util.Set;
 import net.minecraft.client.Minecraft;
 import net.minecraft.src.GuiChat;
 import net.minecraft.src.GuiScreen;
@@ -336,7 +338,7 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
     void beginNative(int mouseX, int mouseY, float partialTicks, int counter) {
         beginFrame(mouseX, mouseY, partialTicks);
         if (worldAvailable()) {
-            frame.capture(client, counter);
+            frame.capture(client, counter, partialTicks);
         }
         nativeSeen = true;
         nativeDrawing = true;
@@ -348,6 +350,10 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
 
     ItemStack item(int slot) {
         return worldAvailable() ? observations.copyItem(slot) : null;
+    }
+
+    long itemRevision(int slot) {
+        return observations.itemRevision(slot);
     }
 
     private void beginFrame(int mouseX, int mouseY, float partialTicks) {
@@ -890,6 +896,9 @@ final class GuiHudHost implements AutoCloseable, GuiInputOwner {
     }
 
     private final class Surface implements GuiAttachedDocument.Host {
+        public Set<GuiCapability> capabilities() {
+            return Collections.singleton(GuiCapability.HUD_OBSERVATION);
+        }
         final Entry entry;
         final GuiHudNativePart part;
         final String screen;

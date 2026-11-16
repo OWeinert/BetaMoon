@@ -28,6 +28,10 @@ import net.minecraft.src.GuiOptions;
 import net.minecraft.src.GuiControls;
 import net.minecraft.src.GuiScreen;
 import net.minecraft.src.World;
+import net.minecraft.src.ItemStack;
+import net.minecraft.src.RenderItem;
+import net.minecraft.src.RenderHelper;
+import org.lwjgl.opengl.GL11;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.lib.jse.JsePlatform;
 import org.lwjgl.input.Keyboard;
@@ -70,6 +74,7 @@ final class GuiHudRuntimeRenderChecks {
                     new File(output, "hud-native-replacement.png"));
             focusedObservations(client, lua);
             iconMeters(client, lua, output);
+            items(client, lua, output);
             GuiHudActivation second = activate(lua, "fixture:priority",
                     "priority=1," + "nativeParts={crosshair={replace='fixture:reticle-b'}}");
             client.thePlayer.health = 17;
@@ -197,6 +202,77 @@ final class GuiHudRuntimeRenderChecks {
         client.thePlayer.posX = x;
         claim.close();
         GuiHudRuntime.tick(client);
+    }
+
+    private static void items(Minecraft client, Globals lua, File output) throws Exception {
+        ItemStack original = client.thePlayer.inventory.mainInventory[0];
+        int selected = client.thePlayer.inventory.currentItem;
+        try {
+            ItemStack stack = new ItemStack(267, 12, 80);
+            client.thePlayer.inventory.mainInventory[0] = stack;
+            screen(lua, "fixture:item",
+                    "root={type='item',source={hotbarSlot=1},width=16,height=16," + "anchorX=0,anchorY=0,x=32,y=75}");
+            GuiHudActivation claim = activate(lua, "fixture:item-profile", "screen='fixture:item',safeArea=false");
+            GuiHudRuntime.tick(client);
+            frame(client, true, true);
+            java.awt.image.BufferedImage actual = GuiShowcaseRenderTest.capture(320, 240);
+            require(claim.status().equals("active"), "Semantic item host refused: " + claim.reason());
+            GuiShowcaseRenderTest.setupFrame();
+            GL11.glPushAttrib(GL11.GL_ALL_ATTRIB_BITS);
+            try {
+                RenderHelper.enableStandardItemLighting();
+                RenderItem renderer = new RenderItem();
+                renderer.renderItemIntoGUI(client.fontRenderer, client.renderEngine, stack, 32, 75);
+                renderer.renderItemOverlayIntoGUI(client.fontRenderer, client.renderEngine, stack, 32, 75);
+            } finally {
+                GL11.glPopAttrib();
+            }
+            java.awt.image.BufferedImage expected = GuiShowcaseRenderTest.capture(320, 240);
+            for (int y = 75; y < 91; y++) {
+                for (int x = 32; x < 49; x++) {
+                    require(actual.getRGB(x, y) == expected.getRGB(x, y),
+                            "Passive item/count/durability differs from native at " + x + "," + y + ": "
+                                    + Integer.toHexString(actual.getRGB(x, y)) + "/"
+                                    + Integer.toHexString(expected.getRGB(x, y)));
+                }
+            }
+            ImageIO.write(actual, "png", new File(output, "hud-passive-item.png"));
+            screen(lua, "fixture:item-alpha", "root={type='item',item={id=267,damage=80,count=12},width=16,height=16,"
+                    + "anchorX=0,anchorY=0,x=64,y=75,opacity=0.5}");
+            GuiHudActivation alpha = activate(lua, "fixture:item-alpha-profile",
+                    "screen='fixture:item-alpha',safeArea=false");
+            GuiHudRuntime.tick(client);
+            frame(client, true, true);
+            java.awt.image.BufferedImage faded = GuiShowcaseRenderTest.capture(320, 240);
+            int compared = 0;
+            for (int y = 75; y < 83; y++) {
+                for (int x = 32; x < 48; x++) {
+                    int color = actual.getRGB(x, y);
+                    if ((color & 255) > 100) {
+                        for (int shift : new int[]{0, 8, 16}) {
+                            int wanted = (int) Math.round(((color >>> shift & 255) + 31) / 2.0);
+                            require(Math.abs((faded.getRGB(x + 32, y) >>> shift & 255) - wanted) <= 1,
+                                    "Item renderer discarded shared opacity or tint");
+                        }
+                        compared++;
+                    }
+                }
+            }
+            require(compared > 0, "Item opacity check did not inspect native sprite pixels");
+            alpha.close();
+            stack.stackSize = 2;
+            stack.animationsToGo = 5;
+            GuiHudRuntime.tick(client);
+            frame(client, true, true);
+            require(stack.stackSize == 2 && stack.getItemDamage() == 80
+                    && client.thePlayer.inventory.currentItem == selected,
+                    "Passive item altered inventory or selection");
+            require(GL11.glGetError() == GL11.GL_NO_ERROR, "Passive item leaked a GL error");
+            claim.close();
+            GuiHudRuntime.tick(client);
+        } finally {
+            client.thePlayer.inventory.mainInventory[0] = original;
+        }
     }
 
     private static void iconMeters(Minecraft client, Globals lua, File output) throws Exception {

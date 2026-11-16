@@ -1,6 +1,7 @@
 package betamoon.gui.widget;
 
 import betamoon.gui.presentation.GuiNodeDefinition;
+import betamoon.gui.presentation.GuiCapability;
 import betamoon.gui.collection.GuiTableColumns;
 import betamoon.gui.presentation.GuiPresentationTree;
 import betamoon.gui.presentation.GuiProperties;
@@ -26,7 +27,7 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
     private static final List<String> TYPES = Collections.unmodifiableList(Arrays.asList("text", "image", "panel",
             "row", "column", "grid", "scroll", "list", "tree", "table", "overlay", "spacer", "divider", "button",
             "checkbox", "choice", "radio", "slider", "stepper", "textbox", "textarea", "numberbox", "dropdown",
-            "contextmenu", "tabs", "progress", "dialog", "tooltip", "iconmeter"));
+            "contextmenu", "tabs", "progress", "dialog", "tooltip", "iconmeter", "item"));
     private final GuiStyleSheet theme;
     private final Function<GuiNodeDefinition, GuiVisualTemplate> templates;
     private final Function<GuiNodeDefinition, GuiStyledView.Events> events;
@@ -59,6 +60,8 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
             throw new IllegalArgumentException("Collection views require a host row budget and GuiCollectionView");
         }
         switch (type) {
+            case "item":
+                return new GuiItemView(theme, template, events);
             case "iconmeter":
                 return new GuiIconMeterView(theme, template, events);
             case "scroll":
@@ -107,6 +110,15 @@ public final class GuiBuiltInViews implements GuiPresentationTree.Factory {
         properties.add(GuiPropertyDescriptor.value("align", Kind.STRING, "stretch", Stage.ARRANGE));
         properties.add(GuiPropertyDescriptor.value("justify", Kind.STRING, "start", Stage.ARRANGE));
         properties.add(GuiPropertyDescriptor.value("clip", Kind.BOOLEAN, false, Stage.HIT));
+        if ("item".equals(type)) {
+            for (String name : Arrays.asList("item", "source")) {
+                properties.add(new GuiPropertyDescriptor(name, Kind.DATA, null, 0, 0, true, false,
+                        EnumSet.of(Stage.PAINT), Collections.singleton(GuiCapability.NATIVE_ITEMS)));
+            }
+            for (String name : Arrays.asList("showCount", "showDurability", "pickupAnimation")) {
+                properties.add(GuiPropertyDescriptor.value(name, Kind.BOOLEAN, true, Stage.PAINT));
+            }
+        }
         if ("iconmeter".equals(type)) {
             properties.add(GuiPropertyDescriptor.number("value", 0, -1.0e12, 1.0e12, Stage.PAINT));
             properties.add(GuiPropertyDescriptor.number("minimum", 0, -1.0e12, 1.0e12, Stage.MEASURE, Stage.PAINT));
