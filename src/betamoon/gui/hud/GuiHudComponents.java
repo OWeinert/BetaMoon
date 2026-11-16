@@ -36,7 +36,7 @@ public final class GuiHudComponents {
     }
 
     private static String source() {
-        try (InputStream stream = GuiHudComponents.class.getResourceAsStream("/betamoon/gui/player_components.lua")) {
+        try (InputStream stream = sourceStream()) {
             if (stream == null) {
                 throw new IllegalStateException("Bundled player HUD components are missing");
             }
@@ -50,6 +50,15 @@ public final class GuiHudComponents {
         } catch (IOException failure) {
             throw new IllegalStateException("Cannot read bundled HUD components", failure);
         }
+    }
+
+    private static InputStream sourceStream() {
+        // Gradle resources use the classpath root; the RetroMCP delivery keeps its
+        // resources/ prefix.
+        InputStream stream = GuiHudComponents.class.getResourceAsStream("/betamoon/gui/player_components.lua");
+        return stream == null
+                ? GuiHudComponents.class.getResourceAsStream("/resources/betamoon/gui/player_components.lua")
+                : stream;
     }
 
     private GuiHudComponents() {

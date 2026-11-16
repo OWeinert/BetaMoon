@@ -60,6 +60,10 @@
 ### UI foundations
 
 - Add shared passive icon meters with native heart/armor/air skins and prepared custom partial/reference artwork.
+- Add passive shared item displays with cosmetic descriptors, read-only hotbar sources, native counts/durability and pickup animation.
+- Add native HUD move/scale operations with independent diagnostics, priority arbitration and safe restoration.
+- Add reusable player HUD components for native hearts, armor, breath, item hotbars and crosshairs, including continuous-bar and alternate-layout options.
+- Expose effective HUD bounds and companion reservations, with shared icon/item work admission across documents and virtual rows.
 - Route legacy Lua container focus, gestures and text editing through the shared retained scene and editor model.
 - Author panel-local container documents with shared UI nodes, state, actions, resources and compatible refresh.
 - Observe scoped container state/geometry and queue validated named-control requests through shared UI tickets.
@@ -103,12 +107,8 @@
 - Nested GUI scrolling now hands an exhausted wheel gesture to an eligible parent and handles extreme deltas without overflow.
 - Deferred UI actions from failed callbacks, rejected GUI command batches or expired component owners now cancel before dispatch.
 
-- Add passive shared item displays with cosmetic descriptors, read-only hotbar sources, native counts/durability and pickup animation.
 
-- Add native HUD move/scale operations with independent diagnostics, priority arbitration and safe restoration.
-
-- Add reusable player HUD components for native hearts, armor, breath, item hotbars and crosshairs, including continuous-bar and alternate-layout options.
-
-- Expose effective HUD bounds and companion reservations, with shared icon/item work admission across documents and virtual rows.
 
 - Preserve shared opacity when rendering native inverted crosshair sprites.
+
+- Load bundled player HUD components from both development and RetroMCP delivery resource layouts.
